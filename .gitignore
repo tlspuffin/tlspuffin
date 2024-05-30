@@ -37,9 +37,11 @@ objective/
 *.gcov
 coverage.csv
 stats.json.should-be-empty.log
+tlspuffin.out
 
 *.html
 *.css
-!docs/**/*.template.html
+!docs/**/*.css
+!docs/**/*.html
 
 super-linter.log

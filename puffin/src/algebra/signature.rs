@@ -38,7 +38,7 @@ impl Debug for Signature {
 }
 
 impl Signature {
-    /// Construct a `Signature` from the given [`FunctionDefinitions`]s.
+    /// Construct a `Signature` from the given [`FunctionDefinition`]s.
     pub fn new(definitions: Vec<FunctionDefinition>) -> Signature {
         let functions_by_name: HashMap<&'static str, FunctionDefinition> = definitions
             .clone()
@@ -76,8 +76,7 @@ impl Signature {
         }
     }
 
-    /// Create a new [`Functions`] distinct from all existing [`Functions`]s.
-    ///
+    /// Create a new [`Function`] distinct from all existing [`Function`]s.
     pub fn new_function<F: 'static, Types>(f: &'static F) -> Function
     where
         F: DescribableFunction<Types>,

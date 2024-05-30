@@ -12,6 +12,10 @@ on:
       preset:
         required: true
         type: string
+      patches:
+        required: false
+        type: string
+        default: '[]'
       options:
         required: false
         type: string
@@ -55,6 +59,7 @@ jobs:
           vendor: "${{ inputs.vendor }}"
           preset: "${{ inputs.preset }}"
           name: "${{ steps.compute-lib-shortname.outputs.shortname }}"
+          patches: "${{ join(fromJson(inputs.patches), ',') }}"
           options: "${{ join(fromJson(inputs.options), ',') }}"
 
       - name: test

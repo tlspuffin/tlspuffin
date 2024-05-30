@@ -1,15 +1,19 @@
 //! Stats to display both cumulative and per-client stats
 
-use core::{time, time::Duration};
+use core::time::Duration;
 use std::{
+    fmt::Display,
     fs::{File, OpenOptions},
-    io,
     io::BufWriter,
-    path::PathBuf,
+    path::{Path, PathBuf},
     time::SystemTime,
 };
 
-use libafl::prelude::*;
+use dyn_clone::DynClone;
+use libafl::{
+    monitors::tui::{ui::TuiUI, TuiMonitor},
+    prelude::*,
+};
 use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
@@ -18,46 +22,46 @@ use crate::fuzzer::{
     stats_stage::{RuntimeStats, STATS},
 };
 
+trait ClonableMonitor: Monitor + DynClone {}
+impl ClonableMonitor for TuiMonitor {}
+impl ClonableMonitor for NopMonitor {}
+dyn_clone::clone_trait_object!(ClonableMonitor);
+
+#[derive(Clone)]
 /// Tracking stats during fuzzing and display both per-client and cumulative info.
-pub struct StatsMonitor<F>
-where
-    F: FnMut(String),
-{
-    print_fn: F,
-    start_time: Duration,
-    client_stats: Vec<ClientStats>,
-    log_count: u64,
-    stats_file: PathBuf,
-    json_writer: JSONSerializer<BufWriter<File>>,
+pub struct StatsMonitor {
+    monitor: Box<dyn ClonableMonitor>,
+    handlers: Vec<Box<dyn EventHandler>>,
 }
 
-impl<F> Clone for StatsMonitor<F>
-where
-    F: FnMut(String) + Clone,
-{
-    fn clone(&self) -> Self {
-        Self {
-            print_fn: self.print_fn.clone(),
-            start_time: self.start_time,
-            client_stats: self.client_stats.clone(),
-            log_count: self.log_count,
-            stats_file: self.stats_file.clone(),
-            json_writer: JSONSerializer::new(BufWriter::new(
-                OpenOptions::new()
-                    .append(true)
-                    .open(&self.stats_file)
-                    .unwrap(),
-            )),
-        }
+impl StatsMonitor {
+    pub fn with_tui_output(stats_file: PathBuf) -> Self {
+        let monitor = Box::new(TuiMonitor::new(TuiUI::new(
+            String::from("tlspuffin [press q to exit]"),
+            false,
+        )));
+        let handlers: Vec<Box<dyn EventHandler>> =
+            vec![Box::new(JSONEventHandler::new(stats_file))];
+
+        Self::new(monitor, handlers)
     }
-}
 
-impl<F> StatsMonitor<F>
-where
-    F: FnMut(String),
-{
-    fn client(&mut self, event_msg: &String, sender_id: ClientId) {
-        let client = self.client_stats_mut_for(sender_id);
+    pub fn with_raw_output(stats_file: PathBuf) -> Self {
+        let monitor = Box::new(NopMonitor::new());
+        let handlers: Vec<Box<dyn EventHandler>> = vec![
+            Box::new(|_, msg: &str, stats: &Statistics| log::info!("[{}] {}", msg, stats)),
+            Box::new(JSONEventHandler::new(stats_file)),
+        ];
+
+        Self::new(monitor, handlers)
+    }
+
+    fn new(monitor: Box<dyn ClonableMonitor>, handlers: Vec<Box<dyn EventHandler>>) -> Self {
+        Self { monitor, handlers }
+    }
+
+    fn client(&mut self, id: ClientId) -> Statistics {
+        let client = self.client_stats_mut_for(id);
 
         #[cfg(feature = "introspection")]
         let introspect_feature = {
@@ -111,31 +115,14 @@ where
 
         let corpus_size = client.corpus_size;
         let objective_size = client.objective_size;
-        let mut fmt = format!(
-            "[{}] (CLIENT) corpus: {}, obj: {}, execs: {}, exec/sec: {}",
-            event_msg, corpus_size, objective_size, total_execs, exec_sec
-        );
 
-        // log edges
-        let coverage = if let Some(edges) = client.user_monitor.get(MAP_FEEDBACK_NAME) {
-            fmt += &format!(", {}: {}", "edges", edges);
-
-            if let UserStats::Ratio(a, b) = edges {
-                Some(CoverageStatistics {
-                    discovered: *a,
-                    max: *b,
-                })
-            } else {
-                None
-            }
-        } else {
-            None
+        let coverage = match client.user_monitor.get(MAP_FEEDBACK_NAME) {
+            Some(UserStats::Ratio(a, b)) => Some(CoverageStatistics { hit: *a, max: *b }),
+            _ => None,
         };
 
-        (self.print_fn)(fmt);
-
         Statistics::Client(ClientStatistics {
-            id: sender_id.0,
+            id: id.0,
             time: SystemTime::now(),
             trace,
             errors: error_counter,
@@ -147,36 +134,46 @@ where
             total_execs,
             exec_per_sec: exec_sec as u64,
         })
-        .serialize(&mut self.json_writer)
-        .unwrap();
     }
 
-    fn global(&mut self, event_msg: &String) {
-        let total_execs = self.total_execs();
-
-        let global_fmt = format!(
-            "[{}] (GLOBAL) clients: {}, corpus: {}, obj: {}, execs: {}, exec/sec: {}",
-            event_msg,
-            self.client_stats().len(),
-            self.corpus_size(),
-            self.objective_size(),
-            total_execs,
-            self.execs_per_sec()
-        );
-
-        (self.print_fn)(global_fmt);
-
+    fn global(&mut self) -> Statistics {
         Statistics::Global(GlobalStatistics {
             time: SystemTime::now(),
 
             clients: self.client_stats().len() as u32,
             corpus_size: self.corpus_size(),
             objective_size: self.objective_size(),
-            total_execs,
+            total_execs: self.total_execs(),
             exec_per_sec: self.execs_per_sec() as u64,
         })
-        .serialize(&mut self.json_writer)
-        .unwrap();
+    }
+
+    fn dispatch(&mut self, sender: ClientId, msg: &str, stats: &Statistics) {
+        self.handlers
+            .iter_mut()
+            .for_each(|h| h.process(sender, msg, stats));
+    }
+}
+
+impl Monitor for StatsMonitor {
+    fn client_stats_mut(&mut self) -> &mut Vec<ClientStats> {
+        self.monitor.client_stats_mut()
+    }
+
+    fn client_stats(&self) -> &[ClientStats] {
+        self.monitor.client_stats()
+    }
+
+    fn start_time(&mut self) -> Duration {
+        self.monitor.start_time()
+    }
+
+    fn display(&mut self, event_msg: String, sender_id: ClientId) {
+        let global_stats = self.global();
+        let client_stats = self.client(sender_id);
+        self.dispatch(sender_id, &event_msg, &global_stats);
+        self.dispatch(sender_id, &event_msg, &client_stats);
+        self.monitor.display(event_msg, sender_id);
     }
 }
 
@@ -187,6 +184,44 @@ enum Statistics {
     Client(ClientStatistics),
     #[serde(rename = "global")]
     Global(GlobalStatistics),
+}
+
+impl Display for Statistics {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Statistics::Client(client_stats) => {
+                write!(
+                    f,
+                    "(CLIENT) corpus: {}, obj: {}, execs: {}, exec/sec: {}",
+                    client_stats.corpus_size,
+                    client_stats.objective_size,
+                    client_stats.total_execs,
+                    client_stats.exec_per_sec
+                )?;
+
+                if let Some(CoverageStatistics { hit, max }) = client_stats.coverage {
+                    match max {
+                        0 => write!(f, ", edges: {hit}/{max}"),
+                        _ => write!(f, ", edges: {hit}/{max} ({}%)", hit * 100 / max),
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+
+            Statistics::Global(global_stats) => {
+                write!(
+                    f,
+                    "(GLOBAL) clients: {}, corpus: {}, obj: {}, execs: {}, exec/sec: {}",
+                    global_stats.clients,
+                    global_stats.corpus_size,
+                    global_stats.objective_size,
+                    global_stats.total_execs,
+                    global_stats.exec_per_sec,
+                )
+            }
+        }
+    }
 }
 
 #[derive(Serialize)]
@@ -221,7 +256,7 @@ struct ClientStatistics {
 
 #[derive(Serialize)]
 struct CoverageStatistics {
-    discovered: u64,
+    hit: u64,
     max: u64,
 }
 
@@ -371,11 +406,8 @@ impl ErrorStatistics {
 }
 
 fn get_number(user_stats: &ClientStats, name: &str) -> u64 {
-    if let Some(user_stat) = user_stats.user_monitor.get(name) {
-        match user_stat {
-            UserStats::Number(n) => *n,
-            _ => 0u64,
-        }
+    if let Some(UserStats::Number(n)) = user_stats.user_monitor.get(name) {
+        *n
     } else {
         0u64
     }
@@ -419,51 +451,54 @@ impl TraceStatistics {
     }
 }
 
-impl<F> Monitor for StatsMonitor<F>
+trait EventHandler: DynClone {
+    fn process(&mut self, source: ClientId, msg: &str, stats: &Statistics);
+}
+
+dyn_clone::clone_trait_object!(EventHandler);
+
+impl<F> EventHandler for F
 where
-    F: FnMut(String),
+    F: FnMut(ClientId, &str, &Statistics) + Clone + 'static,
 {
-    /// the client stats, mutable
-    fn client_stats_mut(&mut self) -> &mut Vec<ClientStats> {
-        &mut self.client_stats
-    }
-
-    /// the client stats
-    fn client_stats(&self) -> &[ClientStats] {
-        &self.client_stats
-    }
-
-    /// Time this fuzzing run stated
-    fn start_time(&mut self) -> time::Duration {
-        self.start_time
-    }
-
-    fn display(&mut self, event_msg: String, sender_id: ClientId) {
-        self.log_count += 1;
-
-        self.global(&event_msg);
-        self.client(&event_msg, sender_id);
+    fn process(&mut self, source: ClientId, msg: &str, stats: &Statistics) {
+        self(source, msg, stats)
     }
 }
 
-impl<F> StatsMonitor<F>
-where
-    F: FnMut(String),
-{
-    pub fn new(print_fn: F, stats_file: PathBuf) -> Result<Self, io::Error> {
-        let json_writer = JSONSerializer::new(BufWriter::new(
+struct JSONEventHandler {
+    output_path: PathBuf,
+    serializer: JSONSerializer<BufWriter<File>>,
+}
+
+impl JSONEventHandler {
+    fn new<P>(output_path: P) -> Self
+    where
+        P: AsRef<Path>,
+    {
+        let writer = BufWriter::new(
             OpenOptions::new()
                 .append(true)
                 .create(true)
-                .open(&stats_file)?,
-        ));
-        Ok(Self {
-            print_fn,
-            start_time: current_time(),
-            client_stats: vec![],
-            log_count: 0,
-            stats_file,
-            json_writer,
-        })
+                .open(output_path.as_ref())
+                .unwrap(),
+        );
+
+        Self {
+            output_path: output_path.as_ref().to_path_buf(),
+            serializer: JSONSerializer::new(writer),
+        }
+    }
+}
+
+impl Clone for JSONEventHandler {
+    fn clone(&self) -> Self {
+        Self::new(self.output_path.clone())
+    }
+}
+
+impl EventHandler for JSONEventHandler {
+    fn process(&mut self, _source: ClientId, _msg: &str, stats: &Statistics) {
+        stats.serialize(&mut self.serializer).unwrap();
     }
 }

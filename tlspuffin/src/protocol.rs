@@ -33,10 +33,11 @@ impl ProtocolMessage<OpaqueMessage> for Message {
         debug_message_with_info(info, self);
     }
 
-    /// Extracts knowledge from a [`rustls::msgs::message::Message`]. Only plaintext messages yield more
-    /// knowledge than their binary payload. If a message is an ApplicationData (TLS 1.3) or an encrypted
-    /// Heartbeet or Handhake message (TLS 1.2), then only the message itself and the binary payload is
-    /// returned.
+    /// Extracts knowledge from a [`crate::tls::rustls::msgs::message::Message`].
+    /// Only plaintext messages yield more knowledge than their binary payload.
+    /// If a message is an ApplicationData (TLS 1.3) or an encrypted Heartbeet
+    /// or Handhake message (TLS 1.2), then only the message itself and the
+    /// binary payload is returned.
     fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
         Ok(match &self.payload {
             MessagePayload::Alert(alert) => {

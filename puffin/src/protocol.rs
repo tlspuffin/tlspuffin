@@ -120,8 +120,8 @@ pub trait ProtocolMessageDeframer {
 
 /// Defines the protocol which is being tested.
 /// The fuzzer is generally abstract over the used protocol. We assume that protocols have
-/// [opaque messages](OpaqueMessage), [structured messages](Message),
-/// and a way to [deframe](MessageDeframer) an arbitrary stream of bytes into messages.
+/// [opaque messages](ProtocolBehavior::OpaqueProtocolMessage), [structured messages](ProtocolBehavior::ProtocolMessage),
+/// and a way to [deframe](ProtocolMessageDeframer) an arbitrary stream of bytes into messages.
 ///
 /// Also the library allows the definition of a type for [claims](Claim) and a
 /// (security policy)[SecurityViolationPolicy] over
@@ -137,7 +137,7 @@ pub trait ProtocolBehavior: 'static {
     type Matcher: Matcher
         + for<'a> TryFrom<&'a MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>>;
 
-    /// Get the signature which is used in the protocol
+    /// Get the signature that is used in the protocol
     fn signature() -> &'static Signature;
 
     /// Creates a sane initial seed corpus.

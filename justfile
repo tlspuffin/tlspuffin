@@ -14,6 +14,9 @@ export RUST_BACKTRACE := "1"
 export CC := "clang"
 export CXX := "clang++"
 
+export TLSPUFFIN_DOCS_DIR := justfile_directory() / "docs"
+export TLSPUFFIN_PKGS_DIR := CARGO_TARGET_DIR / "package"
+
 default:
   @just --justfile {{ justfile() }} --list
 
@@ -22,7 +25,7 @@ install-rust-toolchain TOOLCHAIN *FLAGS:
   #!/usr/bin/env bash
   for flag in {{ FLAGS }}
   do
-    case "${flag}" in -q|--quiet) exec &>/dev/null;; esac
+    case "${flag}" in -q|--quiet) exec 1>/dev/null;; esac
   done
 
   # install toolchain
@@ -43,11 +46,10 @@ install-rust-tooling TOOLCHAIN *FLAGS: (install-rust-toolchain TOOLCHAIN FLAGS)
   #!/usr/bin/env bash
   for flag in {{ FLAGS }}
   do
-    case "${flag}" in -q|--quiet) exec &>/dev/null;; esac
+    case "${flag}" in -q|--quiet) exec 1>/dev/null;; esac
   done
 
   RUSTUP_TOOLCHAIN='{{ TOOLCHAIN }}' cargo install toml-cli --locked --version "0.2.3" # mk_vendor
-  RUSTUP_TOOLCHAIN='{{ TOOLCHAIN }}' cargo install mdbook --locked --version "0.4.35"  # docs
 
 install-rust-toolchain-default *FLAGS: (install-rust-toolchain DEFAULT_TOOLCHAIN FLAGS)
 install-rust-toolchain-nightly *FLAGS: (install-rust-toolchain NIGHTLY_TOOLCHAIN FLAGS)
@@ -85,17 +87,18 @@ run COMMAND *ARGS:
 
 # build a vendor library (examples: `just mk_vendor openssl openssl111k`)
 [no-exit-message]
-mk_vendor VENDOR PRESET NAME="" OPTIONS="" EXTRA_FLAGS="": (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
+mk_vendor VENDOR PRESET NAME="" OPTIONS="" PATCHES="" EXTRA_FLAGS="": (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
   #!/usr/bin/env bash
   args=( make "{{VENDOR}}:{{PRESET}}" )
 
   [[ -n "{{OPTIONS}}" ]] && args+=( --options="{{OPTIONS}}" )
+  [[ -n "{{PATCHES}}" ]] && args+=( --patches="{{PATCHES}}" )
   [[ -n "{{NAME}}" ]] && args+=( --name="{{NAME}}" )
 
   {{ justfile_directory() / "tools" / "mk_vendor" }} "${args[@]}" {{EXTRA_FLAGS}}
 
 benchmark: (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
-  cargo bench -p tlspuffin --target x86_64-unknown-linux-gnu --features "openssl111k"
+  cargo bench -p tlspuffin --features "openssl111k"
 
 fmt-rust: (install-rust-toolchain NIGHTLY_TOOLCHAIN "--quiet")
   RUSTUP_TOOLCHAIN='{{ NIGHTLY_TOOLCHAIN }}' cargo fmt
@@ -142,44 +145,62 @@ fmt-clang-check:
 fmt: fmt-rust fmt-clang
 fmt-check: fmt-rust-check fmt-clang
 
-# build the complete documentation
-docs: _docs-book _docs-api
+# build the Rust API docs
+api-docs: (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
   #!/usr/bin/env bash
-  DEST_DIR='{{ absolute_path(CARGO_TARGET_DIR / "docs") }}'
-  DOCS_DIR='{{ justfile_directory() / "docs" }}'
+  _log() { printf '[*] %s\n' "${1}" >&2; }
+  _die() { printf 'error: %s\n' "${1}" >&2; exit 1; }
 
-  mkdir -p "${DEST_DIR}"
-  pandoc \
-    --to=html \
-    --template="${DOCS_DIR}/config/index.template.html" \
-    --output="${DEST_DIR}/index.html" \
-    "${DOCS_DIR}/index.md"
+  mkdir -p "${TLSPUFFIN_PKGS_DIR}"
 
-  printf 'docs are now available at %s/index.html' "${DEST_DIR}"
+  _log "generating API documentation"
+  if ! cargo doc --workspace --document-private-items --no-deps; then
+    _die 'failed to build API documentation'
+  fi
 
-# build the tlspuffin book
-_docs-book: (install-rust-tooling DEFAULT_TOOLCHAIN "--quiet")
+  _log "API documentation is now available in ${CARGO_TARGET_DIR}/doc"
+
+  _log "updating API documentation in ${TLSPUFFIN_DOCS_DIR}/static/api"
+  rm -rf "${TLSPUFFIN_DOCS_DIR}/static/api/"
+  cp -r "${CARGO_TARGET_DIR}/doc" "${TLSPUFFIN_DOCS_DIR}/static/api"
+
+  _log "fixup API internal links for consistent local/production browsing"
+  if ! find "${TLSPUFFIN_DOCS_DIR}/static/api/" -name "*.html" -o -name "*.js" -exec bash -c 'sed -e s@/index.html\"@/\"@g "$0" > "$0.sed" && mv -- "$0.sed" "$0"' '{}' \;;then
+    _die 'failed to fix API documentation internal links'
+  fi
+
+# build and run the documentation website locally
+website: api-docs
   #!/usr/bin/env bash
-  DEST_DIR='{{ absolute_path(CARGO_TARGET_DIR / "docs" / "book") }}'
-  DOCS_DIR='{{ justfile_directory() / "docs" }}'
+  _log() { printf '[*] %s\n' "${1}" >&2; }
+  _die() { printf 'error: %s\n' "${1}" >&2; exit 1; }
 
-  mkdir -p "${DEST_DIR}"
-  mdbook build --dest-dir="${DEST_DIR}" "${DOCS_DIR}/config"
+  if ! npm -C "${TLSPUFFIN_DOCS_DIR}" install; then
+    _die "failed to install dependencies for website"
+  fi
 
-# build the api documentation
-_docs-api: (install-rust-tooling DEFAULT_TOOLCHAIN "--quiet")
+  if ! npm -C "${TLSPUFFIN_DOCS_DIR}" run start -- --no-open; then
+    _die "failed to build website"
+  fi
+
+website-pkg: api-docs
   #!/usr/bin/env bash
-  DEST_DIR='{{ absolute_path(CARGO_TARGET_DIR / "docs" / "api") }}'
+  _log() { printf '[*] %s\n' "${1}" >&2; }
+  _die() { printf 'error: %s\n' "${1}" >&2; exit 1; }
 
-  mkdir -p "${DEST_DIR}"
-  cargo doc --workspace --target x86_64-unknown-linux-gnu --document-private-items --no-deps
-  cp -r "${CARGO_TARGET_DIR}/x86_64-unknown-linux-gnu/doc" "${DEST_DIR}"
+  mkdir -p "${TLSPUFFIN_PKGS_DIR}"
 
-_book-serve: (install-rust-tooling DEFAULT_TOOLCHAIN "--quiet")
-  DEST_DIR='{{ absolute_path(CARGO_TARGET_DIR / "docs" / "book") }}'
-  DOCS_DIR='{{ justfile_directory() / "docs" }}'
+  _log 'building website'
+  if ! npm -C "${TLSPUFFIN_DOCS_DIR}" install; then
+    _die 'failed to install dependencies for website'
+  fi
 
-  mdbook serve --dest-dir="${DEST_DIR}" "${DOCS_DIR}/config"
+  if ! npm -C "${TLSPUFFIN_DOCS_DIR}" run build -- --out-dir="${TLSPUFFIN_PKGS_DIR}/build/website"; then
+    _die 'failed to build website'
+  fi
+
+  _log "creating website archive ${TLSPUFFIN_PKGS_DIR}/website.tar.gz"
+  tar -C "${TLSPUFFIN_PKGS_DIR}/build/" -czvf "${TLSPUFFIN_PKGS_DIR}/website.tar.gz" "${TLSPUFFIN_PKGS_DIR}/build/website"
 
 clear-gh-caches:
     gh api --paginate -H "Accept: application/vnd.github+json" \
@@ -232,5 +253,5 @@ lint:
     ghcr.io/super-linter/super-linter:latest
 
   @RESULT=$?
-  @printf '\nFull log file at %s\n' "{{ justfile_directory() }}/super-linter.log"
+  @printf '\nFull log file at %s\n' "{{ justfile_directory() }}/super-linter.log" >&2
   @exit ${RESULT}

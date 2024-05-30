@@ -64,8 +64,8 @@ impl<M: Matcher> Knowledge<M> {
     }
 }
 
-/// [Knowledge] describes an atomic piece of knowledge inferred
-/// by the [`crate::variable_data::extract_knowledge`] function
+/// [Knowledge] describes an atomic piece of knowledge inferred by the
+/// [`crate::protocol::ProtocolMessage::extract_knowledge`] function
 /// [Knowledge] is made of the data, the agent that produced the output, the TLS message type and the internal type.
 #[derive(Debug)]
 pub struct Knowledge<M: Matcher> {
@@ -181,7 +181,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         self.knowledge.push(knowledge)
     }
 
-    /// Count the number of sub-messages of type [type_id] in the output message [in_step_id].
+    /// Count the number of sub-messages of type `type_id`.
     pub fn number_matching_message(
         &self,
         agent: AgentName,
@@ -254,7 +254,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
-    /// See [`MemoryStream::take_message_from_outbound`]
+    /// See [`crate::stream::Stream::take_message_from_outbound`]
     pub fn take_message_from_outbound(
         &mut self,
         agent_name: AgentName,

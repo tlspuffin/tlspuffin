@@ -6,7 +6,7 @@ use crate::tls::rustls::msgs::{
     message::{Message, MessagePayload, OpaqueMessage},
 };
 
-/// [MessageType] contains TLS-related typing information, this is to be distinguished from the *.typ fields
+/// [TlsQueryMatcher] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum TlsQueryMatcher {

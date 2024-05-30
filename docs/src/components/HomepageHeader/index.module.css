@@ -1,0 +1,38 @@
+.heroBanner {
+  padding-top: 4rem;
+  padding: 0;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.heroLicensing {
+  padding-top: 1rem;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+@media screen and (max-width: 996px) {
+  .heroBanner {
+    padding-top: 1rem;
+  }
+}
+
+.buttons {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.buttonIcon {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.buttonText {
+  display: inline-block;
+  vertical-align: middle;
+}

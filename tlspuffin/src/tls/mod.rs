@@ -1,5 +1,6 @@
 //! The *tls* module provides concrete implementations for the functions used in the term.
-//! The module offers a variety of [`DynamicFunction`]s which can be used in the fuzzing.
+//! The module offers a variety of [`DynamicFunction`](puffin::algebra::dynamic_function::DynamicFunction)s
+//! which can be used in the fuzzing.
 
 use fn_impl::*;
 use puffin::{algebra::error::FnError, define_signature, error::Error};

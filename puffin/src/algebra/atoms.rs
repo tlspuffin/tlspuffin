@@ -22,7 +22,7 @@ use crate::{
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Variable<M> {
-    /// Unique ID of this variable. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
+    /// Unique ID of this variable. Uniqueness is guaranteed across all [`Term`](crate::algebra::Term)s ever created. Cloning
     /// change this ID.
     pub unique_id: u32,
     /// ID of this variable. This id stays the same during cloning.
@@ -77,7 +77,7 @@ impl<M: Matcher> fmt::Display for Variable<M> {
 /// A function symbol with fixed arity and fixed types.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Function {
-    /// Unique ID of this function. Uniqueness is guaranteed across all[`Term`]sever created. Cloning
+    /// Unique ID of this function. Uniqueness is guaranteed across all [`Term`](crate::algebra::Term)s ever created. Cloning
     /// change this ID.
     pub unique_id: u32,
     /// ID of this function. This id stays the same during cloning.

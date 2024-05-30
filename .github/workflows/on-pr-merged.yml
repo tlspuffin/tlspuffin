@@ -6,7 +6,7 @@ on:
       - main
 
 permissions:
-  contents: write # needed for gh-pages deployment jobs
+  contents: read
 
 # NOTE: we prevent parallel runs of this workflow
 #
@@ -36,42 +36,57 @@ jobs:
   benchmark:
     uses: ./.github/workflows/run-benchmarks.yml
 
-  docs:
-    name: Build dev Documentation
+  website:
+    name: Package Website
     runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTDOCFLAGS: -Dwarnings
     steps:
       - uses: actions/checkout@v4
       - name: setup
         uses: ./.github/actions/setup
 
       - name: build website
-        shell: bash
-        run: just docs
+        run: just website-pkg
 
-      - name: upload dev documentation artifact
+      - name: upload website artifact
         uses: actions/upload-artifact@v4
         with:
-          name: docs-dev
-          path: target/docs
-          if-no-files-found: error
+          name: website
+          path: target/package/build/website
 
   deploy:
-    needs: [validation, docs]
-    name: Deploy dev Documentation
+    needs: [website]
+    name: Update Website Repository
     runs-on: ubuntu-22.04
+    environment: github-pages
+    if: github.repository == 'tlspuffin/tlspuffin'
     steps:
-      - uses: actions/checkout@v4
+      - name: checkout website repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'tlspuffin/tlspuffin.github.io'
+          ref: 'main'
+          ssh-key: ${{ secrets.WEBSITE_REPO_KEY }}
 
-      - name: download dev documentation artifact
+      - name: remove previous website folder
+        run: |
+          git rm -rf --ignore-unmatch website/
+          rm -rf website
+
+      - name: add updated website
         uses: actions/download-artifact@v4
         with:
-          name: docs-dev
-          path: docs-dev
+          name: website
+          path: website
 
-      - name: deploy dev documentation
-        uses: JamesIves/github-pages-deploy-action@v4.6.0
-        with:
-          folder: docs-dev
-          branch: gh-pages
-          clean: true
-          force: true
+      - name: push the changes
+        run: |
+          git config --global user.email tlspuffin@tlspuffin
+          git config --global user.name tlspuffin
+          git add website
+          git commit -m "deploy from ${{ github.repository }}/${{ github.ref}}@${{ github.sha }}"
+          git push

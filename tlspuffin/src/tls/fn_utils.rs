@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 use puffin::{
     algebra::error::FnError,
     codec::{Codec, Reader},
-    protocol::MessageFlight,
+    protocol::{MessageFlight, OpaqueMessageFlight},
 };
 
 use crate::tls::{

@@ -1,4 +1,4 @@
-//! TODO: Write intro: https://github.com/tlspuffin/tlspuffin/issues/94
+//! TODO: Write intro: <https://github.com/tlspuffin/tlspuffin/issues/94>
 //!
 //! ### Used protocol and cryptographic libraries
 //!

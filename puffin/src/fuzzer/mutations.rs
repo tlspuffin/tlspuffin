@@ -593,7 +593,7 @@ pub mod util {
     pub type TermPath = Vec<usize>;
     pub type TracePath = (StepIndex, TermPath);
 
-    /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
+    /// <https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm>
     fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
         trace: &'a Trace<M>,
         filter: P,

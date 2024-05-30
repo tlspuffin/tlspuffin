@@ -2,7 +2,7 @@
 #![allow(dead_code)]
 
 //! Extensions according to IANA:
-//! https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-7
+//! <https://www.iana.org/assignments/tls-parameters/tls-parameters.xhtml#tls-parameters-7>
 //!
 //! In the source code all IDs are available, but implementations are missing.
 //! Return type is `Message`
