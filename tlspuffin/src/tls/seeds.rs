@@ -339,74 +339,21 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TlsQu
                     },
                 }),
             },
-            // Server Hello Server -> Client
+            // ServerHello/EncryptedExtensions/Certificate/CertificateVerify/ServerFinished -> Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_server_hello(
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0))
-                        )
+                        (server, 0)/MessageFlight<Message,OpaqueMessage>
                     },
                 }),
             },
-            // Encrypted Extensions Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Certificate Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Certificate Verify Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Finish Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Finished Client -> Server
+            // Client Finished -> server
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_application_data(
-                            ((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
+                        (client, 1)/MessageFlight<Message,OpaqueMessage>
                     },
                 }),
             },
