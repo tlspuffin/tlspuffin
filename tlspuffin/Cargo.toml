@@ -118,7 +118,8 @@ wolfssl430 = [
     "wolfssl-binding",
     "transcript-extraction",
     # Does not support any kind of resumption right now: https://github.com/trailofbits/tlspuffin/issues/12
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 wolfssl510 = [
@@ -130,7 +131,8 @@ wolfssl510 = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 wolfssl520 = [
@@ -142,7 +144,8 @@ wolfssl520 = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 wolfssl530 = [
@@ -154,7 +157,8 @@ wolfssl530 = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 wolfssl540 = [
@@ -166,7 +170,8 @@ wolfssl540 = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 fix-CVE-2022-25638 = ["wolfssl-sys?/fix-CVE-2022-25638"]
@@ -184,7 +189,8 @@ wolfsslmaster = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 

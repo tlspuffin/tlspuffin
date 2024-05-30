@@ -18,6 +18,7 @@ use puffin::{
 };
 
 use crate::{
+    claims::TlsClaim,
     openssl::util::{set_max_protocol_version, static_rsa_cert},
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
@@ -199,9 +200,10 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     }
 
     fn register_claimer(&mut self, agent_name: AgentName) {
-        #[cfg(feature = "claims")]
         unsafe {
             use foreign_types_openssl::ForeignTypeRef;
+
+            use crate::claims::claims_helpers;
 
             let claims = self.config.claims.clone();
             let protocol_version = self.config.descriptor.tls_version;
@@ -211,14 +213,12 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
                     if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
-                        claims
-                            .deref_borrow_mut()
-                            .claim_sized(crate::claims::TlsClaim {
-                                agent_name,
-                                origin,
-                                protocol_version,
-                                data,
-                            })
+                        claims.deref_borrow_mut().claim_sized(TlsClaim {
+                            agent_name,
+                            origin,
+                            protocol_version,
+                            data,
+                        })
                     }
                 },
             );
@@ -226,7 +226,6 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     }
 
     fn deregister_claimer(&mut self) {
-        #[cfg(feature = "claims")]
         unsafe {
             use foreign_types_openssl::ForeignTypeRef;
             security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
@@ -278,7 +277,6 @@ impl OpenSSL {
             AgentType::Server => Self::create_server_ctx(agent_descriptor)?,
             AgentType::Client => Self::create_client_ctx(agent_descriptor)?,
         };
-
         let stream = Self::new_stream(&ctx, &config)?;
         let agent_name = agent_descriptor.name;
         let mut openssl = OpenSSL {
@@ -437,121 +435,6 @@ impl Into<Result<(), Error>> for MaybeError {
         match self {
             MaybeError::Ok => Ok(()),
             MaybeError::Err(err) => Err(err),
-        }
-    }
-}
-
-#[cfg(feature = "claims")]
-mod claims_helpers {
-    use puffin::agent::TLSVersion;
-    use smallvec::SmallVec;
-
-    use crate::claims::{
-        ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsTranscript,
-        TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
-        TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
-    };
-
-    pub fn to_claim_data(
-        protocol_version: TLSVersion,
-        claim: security_claims::Claim,
-    ) -> Option<ClaimData> {
-        match claim.typ {
-            // Transcripts
-            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH => Some(ClaimData::Transcript(
-                ClaimDataTranscript::ClientHello(TranscriptClientHello(TlsTranscript(
-                    claim.transcript.data,
-                    claim.transcript.length,
-                ))),
-            )),
-            security_claims::ClaimType::CLAIM_TRANSCRIPT_PARTIAL_CH => Some(ClaimData::Transcript(
-                ClaimDataTranscript::PartialClientHello(TranscriptPartialClientHello(
-                    TlsTranscript(claim.transcript.data, claim.transcript.length),
-                )),
-            )),
-            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SH => Some(ClaimData::Transcript(
-                ClaimDataTranscript::ServerHello(TranscriptServerHello(TlsTranscript(
-                    claim.transcript.data,
-                    claim.transcript.length,
-                ))),
-            )),
-            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SERVER_FIN => {
-                Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
-                    TranscriptServerFinished(TlsTranscript(
-                        claim.transcript.data,
-                        claim.transcript.length,
-                    )),
-                )))
-            }
-            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_CLIENT_FIN => {
-                Some(ClaimData::Transcript(ClaimDataTranscript::ClientFinished(
-                    TranscriptClientFinished(TlsTranscript(
-                        claim.transcript.data,
-                        claim.transcript.length,
-                    )),
-                )))
-            }
-            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_CERT => Some(ClaimData::Transcript(
-                ClaimDataTranscript::Certificate(TranscriptCertificate(TlsTranscript(
-                    claim.transcript.data,
-                    claim.transcript.length,
-                ))),
-            )),
-            // Messages
-            // Transcripts in these messages are not up-to-date. They get updated after the Message has
-            // been processed
-            security_claims::ClaimType::CLAIM_FINISHED => {
-                Some(ClaimData::Message(ClaimDataMessage::Finished(Finished {
-                    outbound: claim.write > 0,
-                    client_random: SmallVec::from(claim.client_random.data),
-                    server_random: SmallVec::from(claim.server_random.data),
-                    session_id: SmallVec::from_slice(
-                        &claim.session_id.data[..claim.session_id.length as usize],
-                    ),
-                    authenticate_peer: false,             // FIXME
-                    peer_certificate: Default::default(), // FIXME
-                    master_secret: match protocol_version {
-                        TLSVersion::V1_3 => SmallVec::from_slice(&claim.master_secret.secret),
-                        TLSVersion::V1_2 => SmallVec::from_slice(&claim.master_secret_12.secret),
-                    },
-                    chosen_cipher: claim.chosen_cipher.data,
-                    available_ciphers: SmallVec::from_iter(
-                        claim.available_ciphers.ciphers[..claim.available_ciphers.length as usize]
-                            .iter()
-                            .map(|cipher| cipher.data),
-                    ),
-                    signature_algorithm: claim.signature_algorithm,
-                    peer_signature_algorithm: claim.peer_signature_algorithm,
-                })))
-            }
-            security_claims::ClaimType::CLAIM_CLIENT_HELLO => None,
-            security_claims::ClaimType::CLAIM_CCS => None,
-            security_claims::ClaimType::CLAIM_END_OF_EARLY_DATA => None,
-            security_claims::ClaimType::CLAIM_CERTIFICATE => None,
-            security_claims::ClaimType::CLAIM_KEY_EXCHANGE => None,
-            // FIXME it is weird that this returns the correct transcript
-            security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => {
-                if claim.write == 0 {
-                    Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
-                        TranscriptServerFinished(TlsTranscript(
-                            claim.transcript.data,
-                            claim.transcript.length,
-                        )),
-                    )))
-                } else {
-                    None
-                }
-            }
-            security_claims::ClaimType::CLAIM_KEY_UPDATE => None,
-            security_claims::ClaimType::CLAIM_HELLO_REQUEST => None,
-            security_claims::ClaimType::CLAIM_SERVER_HELLO => None,
-            security_claims::ClaimType::CLAIM_CERTIFICATE_REQUEST => None,
-            security_claims::ClaimType::CLAIM_SERVER_DONE => None,
-            security_claims::ClaimType::CLAIM_SESSION_TICKET => None,
-            security_claims::ClaimType::CLAIM_CERTIFICATE_STATUS => None,
-            security_claims::ClaimType::CLAIM_EARLY_DATA => None,
-            security_claims::ClaimType::CLAIM_ENCRYPTED_EXTENSIONS => None,
-            _ => None,
         }
     }
 }
