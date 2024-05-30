@@ -143,7 +143,6 @@ pub struct BoringSSL {
 
 impl Drop for BoringSSL {
     fn drop(&mut self) {
-        #[cfg(feature = "claims")]
         self.deregister_claimer();
     }
 }
@@ -189,24 +188,14 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
         &self.config.descriptor
     }
 
-    #[cfg(feature = "claims")]
     fn register_claimer(&mut self, agent_name: AgentName) {
+        #[cfg(feature = "claims")]
         self.set_msg_callback(Self::create_msg_callback(agent_name.clone(), &self.config))
             .expect("Failed to set msg_callback to extract transcript");
     }
 
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {}
-
-    #[allow(unused_variables)]
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        #[cfg(feature = "claims")]
-        {
-            self.deregister_claimer();
-            self.register_claimer(agent_name);
-        }
-        self.register_claimer(agent_name);
-        Ok(())
+    fn deregister_claimer(&mut self) {
+        // TODO implement deregister_claimer for BoringSSL
     }
 
     fn describe_state(&self) -> &str {
@@ -259,7 +248,6 @@ impl BoringSSL {
 
         let mut boringssl = BoringSSL { config, stream };
 
-        #[cfg(feature = "claims")]
         boringssl.register_claimer(agent_name);
 
         Ok(boringssl)

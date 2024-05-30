@@ -332,19 +332,9 @@ impl Put<SshProtocolBehavior> for LibSSL {
         &self.agent_descriptor
     }
 
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, _agent_name: AgentName) {
-        panic!("Not supported")
-    }
+    fn register_claimer(&mut self, _agent_name: AgentName) {}
 
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {
-        panic!("Not supported")
-    }
-
-    fn rename_agent(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        panic!("Not supported")
-    }
+    fn deregister_claimer(&mut self) {}
 
     fn describe_state(&self) -> &str {
         // TODO: We can use internal state

@@ -376,19 +376,8 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         &self.agent_descriptor
     }
 
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, _agent_name: AgentName) {
-        panic!("Claims are not supported with TcpPut")
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {
-        panic!("Claims are not supported with TcpPut")
-    }
-
-    fn rename_agent(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        Ok(())
-    }
+    fn register_claimer(&mut self, _agent_name: AgentName) {}
+    fn deregister_claimer(&mut self) {}
 
     fn describe_state(&self) -> &str {
         panic!("Not supported")
@@ -431,19 +420,8 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         &self.agent_descriptor
     }
 
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, _agent_name: AgentName) {
-        panic!("Claims are not supported with TcpPut")
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {
-        panic!("Claims are not supported with TcpPut")
-    }
-
-    fn rename_agent(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        Ok(())
-    }
+    fn register_claimer(&mut self, _agent_name: AgentName) {}
+    fn deregister_claimer(&mut self) {}
 
     fn describe_state(&self) -> &str {
         panic!("Not supported")
