@@ -165,10 +165,7 @@ impl Stream<Message, OpaqueMessage> for WolfSSL {
 
 impl Drop for WolfSSL {
     fn drop(&mut self) {
-        #[cfg(feature = "claims")]
-        unsafe {
-            self.deregister_claimer();
-        }
+        self.deregister_claimer();
     }
 }
 
@@ -249,8 +246,8 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
         Ok(())
     }
 
-    #[cfg(feature = "claims")]
     fn register_claimer(&mut self, agent_name: AgentName) {
+        #[cfg(feature = "claims")]
         unsafe {
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
@@ -258,22 +255,6 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
                     (*claims).borrow_mut().claim(agent_name, claim)
                 },
             );
-        }
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {
-        unsafe {
-            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
-        }
-    }
-
-    #[allow(unused_variables)]
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        #[cfg(feature = "claims")]
-        {
-            self.deregister_claimer();
-            self.register_claimer(agent_name);
         }
 
         #[cfg(not(feature = "wolfssl430"))]
@@ -286,8 +267,13 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
             .ssl_mut()
             .set_msg_callback(Self::create_msg_callback(agent_name, &self.config))
             .map_err(|err| WolfSSLErrorStack::from(err))?;
+    }
 
-        Ok(())
+    fn deregister_claimer(&mut self) {
+        #[cfg(feature = "claims")]
+        unsafe {
+            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
+        }
     }
 
     fn describe_state(&self) -> &'static str {

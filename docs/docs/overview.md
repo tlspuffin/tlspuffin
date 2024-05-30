@@ -101,16 +101,11 @@ pub trait Put<PB: ProtocolBehavior>:
 
     fn descriptor(&self) -> &AgentDescriptor;
 
-    /// Register a new claim for agent_name
-    #[cfg(feature = "claims")]
+    /// Register a new claimer for agent_name
     fn register_claimer(&mut self, agent_name: AgentName);
 
-    /// Remove all claims in self
-    #[cfg(feature = "claims")]
+    /// Remove the claimer in self
     fn deregister_claimer(&mut self);
-
-    /// Propagate agent changes to the PUT
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error>;
 
     /// Returns a textual representation of the state in which self is
     fn describe_state(&self) -> &str;

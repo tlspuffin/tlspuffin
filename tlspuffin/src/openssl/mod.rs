@@ -136,7 +136,6 @@ pub struct OpenSSL {
 
 impl Drop for OpenSSL {
     fn drop(&mut self) {
-        #[cfg(feature = "claims")]
         self.deregister_claimer();
     }
 }
@@ -189,7 +188,6 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
             //    reset. This should be removed once this bug is fixed.
             //
             //    See the WolfSSL module for comparison.
-            #[cfg(feature = "claims")]
             self.register_claimer(self.config.descriptor.name);
         }
 
@@ -200,8 +198,8 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
         &self.config.descriptor
     }
 
-    #[cfg(feature = "claims")]
     fn register_claimer(&mut self, agent_name: AgentName) {
+        #[cfg(feature = "claims")]
         unsafe {
             use foreign_types_openssl::ForeignTypeRef;
 
@@ -227,22 +225,12 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
         }
     }
 
-    #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {
+        #[cfg(feature = "claims")]
         unsafe {
             use foreign_types_openssl::ForeignTypeRef;
             security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
         }
-    }
-
-    #[allow(unused_variables)]
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        #[cfg(feature = "claims")]
-        {
-            self.deregister_claimer();
-            self.register_claimer(agent_name);
-        }
-        Ok(())
     }
 
     fn describe_state(&self) -> &str {
@@ -292,18 +280,13 @@ impl OpenSSL {
         };
 
         let stream = Self::new_stream(&ctx, &config)?;
-
-        #[cfg(feature = "claims")]
         let agent_name = agent_descriptor.name;
-
-        #[allow(unused_mut)]
         let mut openssl = OpenSSL {
             config,
             ctx,
             stream,
         };
 
-        #[cfg(feature = "claims")]
         openssl.register_claimer(agent_name);
 
         Ok(openssl)

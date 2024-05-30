@@ -204,7 +204,11 @@ impl<PB: ProtocolBehavior> Agent<PB> {
 
     pub fn rename(&mut self, new_name: AgentName) -> Result<(), Error> {
         self.name = new_name;
-        self.put.rename_agent(new_name)
+
+        self.put.deregister_claimer();
+        self.put.register_claimer(new_name);
+
+        Ok(())
     }
 
     pub fn reset(&mut self) -> Result<(), Error> {
