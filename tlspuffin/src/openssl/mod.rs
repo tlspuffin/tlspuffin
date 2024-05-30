@@ -174,7 +174,7 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
         result
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self) -> Result<(), Error> {
         if self.config.use_clear {
             bindings::clear(self.stream.ssl());
         } else {

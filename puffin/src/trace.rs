@@ -281,7 +281,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     pub fn reset_agents(&mut self) -> Result<(), Error> {
         for agent in &mut self.agents {
-            agent.reset(agent.name())?;
+            agent.reset()?;
         }
         Ok(())
     }
