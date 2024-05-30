@@ -1338,7 +1338,7 @@ pub mod tests {
             trace.execute(&mut context).unwrap();
 
             let client = AgentName::first();
-            let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
+            let shutdown = context.find_agent_mut(client).unwrap().shutdown();
             info!("{}", shutdown);
             assert!(shutdown.contains("free(): invalid pointer"));
         }
@@ -1365,7 +1365,7 @@ pub mod tests {
             trace.execute(&mut context).unwrap();
 
             let server = AgentName::first().next();
-            let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+            let shutdown = context.find_agent_mut(server).unwrap().shutdown();
             info!("{}", shutdown);
         }
     }

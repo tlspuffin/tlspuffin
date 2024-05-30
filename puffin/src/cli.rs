@@ -319,7 +319,7 @@ where
         trace.execute(&mut context).unwrap();
 
         let server = AgentName::first();
-        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         info!("{}", shutdown);
 
         return ExitCode::SUCCESS;

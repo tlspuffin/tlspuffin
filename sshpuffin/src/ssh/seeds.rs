@@ -182,10 +182,6 @@ mod tests {
 
         trace.execute(&mut context).unwrap();
 
-        assert!(context
-            .find_agent(client)
-            .unwrap()
-            .put()
-            .is_state_successful())
+        assert!(context.find_agent(client).unwrap().is_state_successful())
     }
 }
