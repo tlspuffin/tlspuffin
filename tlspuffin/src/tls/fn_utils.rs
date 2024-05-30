@@ -63,6 +63,19 @@ pub fn fn_append_flight(
     Ok(new_flight)
 }
 
+pub fn fn_new_opaque_flight() -> Result<OpaqueMessageFlight<OpaqueMessage>, FnError> {
+    Ok(OpaqueMessageFlight::new())
+}
+
+pub fn fn_append_opaque_flight(
+    flight: &OpaqueMessageFlight<OpaqueMessage>,
+    msg: &Message,
+) -> Result<OpaqueMessageFlight<OpaqueMessage>, FnError> {
+    let mut new_flight = flight.clone();
+    new_flight.messages.push(msg.clone());
+    Ok(new_flight)
+}
+
 /// Decrypt a whole flight of handshake messages and return a Vec of decrypted messages
 pub fn fn_decrypt_handshake_flight(
     flight: &MessageFlight<Message, OpaqueMessage>,

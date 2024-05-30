@@ -660,7 +660,7 @@ impl<M: Matcher> InputAction<M> {
             ctx.add_to_inbound(step.agent, &opaque_message.clone().into())?;
         } else {
             return Err(FnError::Unknown(String::from(
-                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`!",
+                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`, `OpaqueMessageFlight` !",
             ))
             .into());
         }

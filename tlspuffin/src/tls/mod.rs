@@ -205,6 +205,8 @@ define_signature!(
     // utils
     fn_new_flight
     fn_append_flight
+    fn_new_opaque_flight
+    fn_append_opaque_flight
     fn_new_transcript
     fn_append_transcript
     fn_decrypt_handshake_flight
