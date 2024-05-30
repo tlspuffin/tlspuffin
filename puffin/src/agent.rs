@@ -13,6 +13,7 @@ use crate::{
     error::Error,
     protocol::ProtocolBehavior,
     put::{Put, PutDescriptor},
+    stream::Stream,
     trace::TraceContext,
 };
 
@@ -211,19 +212,51 @@ impl<PB: ProtocolBehavior> Agent<PB> {
         Ok(())
     }
 
+    pub fn progress(&mut self) -> Result<(), Error> {
+        self.put.progress()
+    }
+
     pub fn reset(&mut self) -> Result<(), Error> {
         self.put.reset()
+    }
+
+    /// Shut down the agent by consuming it and returning a string that summarizes the execution.
+    pub fn shutdown(&mut self) -> String {
+        self.put.shutdown()
+    }
+
+    /// Make the agent deterministic in the future by making its PRNG "deterministic".
+    pub fn determinism_reseed(&mut self) -> Result<(), Error> {
+        self.put.determinism_reseed()
+    }
+
+    /// Checks whether the agent is in a good state.
+    pub fn is_state_successful(&self) -> bool {
+        self.put.is_state_successful()
+    }
+
+    /// Checks whether the agent is reusable with the descriptor.
+    pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
+        let agent_descriptor = self.put.descriptor();
+        agent_descriptor.typ == other.typ && agent_descriptor.tls_version == other.tls_version
     }
 
     pub fn name(&self) -> AgentName {
         self.name
     }
+}
 
-    pub fn put(&self) -> &dyn Put<PB> {
-        self.put.as_ref()
+impl<PB: ProtocolBehavior> Stream<PB::ProtocolMessage, PB::OpaqueProtocolMessage> for Agent<PB> {
+    fn add_to_inbound(&mut self, opaque_message: &PB::OpaqueProtocolMessage) {
+        self.put.add_to_inbound(opaque_message)
     }
 
-    pub fn put_mut(&mut self) -> &mut dyn Put<PB> {
-        self.put.as_mut()
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<
+        Option<crate::protocol::MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>,
+        Error,
+    > {
+        self.put.take_message_from_outbound()
     }
 }

@@ -36,6 +36,7 @@ use crate::{
     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put::{PutDescriptor, PutOptions},
     put_registry::PutRegistry,
+    stream::Stream,
     variable_data::VariableData,
 };
 
@@ -288,9 +289,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     pub fn agents_successful(&self) -> bool {
-        self.agents
-            .iter()
-            .all(|agent| agent.put().is_state_successful())
+        self.agents.iter().all(|agent| agent.is_state_successful())
     }
 }
 
@@ -373,7 +372,7 @@ impl<M: Matcher> Trace<M> {
             // NOTE only spawn completely new Agent if cannot reuse any from the pool
             let mut agent = if let Some(position) = pool
                 .iter_mut()
-                .position(|existing| existing.put().is_reusable_with(descriptor))
+                .position(|existing| existing.is_reusable_with(descriptor))
             {
                 let mut reusable = pool.swap_remove(position);
                 reusable.reset()?;
@@ -384,7 +383,7 @@ impl<M: Matcher> Trace<M> {
             };
 
             if ctx.deterministic_put {
-                if let Err(err) = agent.put_mut().determinism_reseed() {
+                if let Err(err) = agent.determinism_reseed() {
                     warn!(
                         "Unable to make agent {} deterministic: {}",
                         descriptor.name, err
@@ -527,11 +526,10 @@ impl<M: Matcher> OutputAction<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        ctx.find_agent_mut(agent_name)?.put_mut().progress()?;
+        ctx.find_agent_mut(agent_name)?.progress()?;
 
         while let Some(message_result) = ctx
             .find_agent_mut(agent_name)?
-            .put_mut()
             .take_message_from_outbound()?
         {
             let matcher = message_result.create_matcher::<PB>();
@@ -612,13 +610,13 @@ impl<M: Matcher> InputAction<M> {
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");
-            agent.put_mut().add_to_inbound(&msg.create_opaque());
+            agent.add_to_inbound(&msg.create_opaque());
         } else if let Some(opaque_message) = evaluated
             .as_ref()
             .downcast_ref::<PB::OpaqueProtocolMessage>()
         {
             opaque_message.debug("Input opaque message");
-            agent.put_mut().add_to_inbound(opaque_message);
+            agent.add_to_inbound(opaque_message);
         } else {
             return Err(FnError::Unknown(String::from(
                 "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`!",
@@ -626,7 +624,7 @@ impl<M: Matcher> InputAction<M> {
             .into());
         }
 
-        agent.put_mut().progress()
+        agent.progress()
     }
 }
 
