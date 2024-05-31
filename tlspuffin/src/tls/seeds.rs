@@ -167,6 +167,7 @@ pub fn seed_successful_client_auth(client: AgentName, server: AgentName) -> Trac
     }
 }
 
+// TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
@@ -267,6 +268,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TlsQueryMa
     }
 }
 
+// TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
 pub fn seed_successful_with_flights(
     client: AgentName,
     server: AgentName,
@@ -361,6 +363,7 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TlsQu
     }
 }
 
+// TODO: `[RENEGOTIATION_MISMATCH] [ERROR_PARSING_EXTENSION] [PARSE_TLSEXT]` error with BoringSSL
 pub fn seed_successful12_with_tickets(
     client: AgentName,
     server: AgentName,
@@ -523,6 +526,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TlsQuery
     }
 }
 
+// TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
 pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     let mut trace = seed_successful(client, server);
 
@@ -554,6 +558,7 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
     trace
 }
 
+// TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
 pub fn seed_successful_with_tickets(
     client: AgentName,
     server: AgentName,
@@ -588,6 +593,7 @@ pub fn seed_successful_with_tickets(
     trace
 }
 
+// TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
 pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
     let curve = term! {
         fn_get_any_client_curve(
@@ -1135,6 +1141,7 @@ pub fn _seed_client_attacker12(
     (trace, client_verify_data)
 }
 
+// TODO: `Unable to find variable (Some(AgentName(0)), 4)[Some(ApplicationData)]/Message!` error with BoringSSL
 pub fn seed_session_resumption_dhe(
     initial_server: AgentName,
     server: AgentName,
@@ -1259,6 +1266,7 @@ pub fn seed_session_resumption_dhe(
     }
 }
 
+// TODO: `Unable to find variable (Some(AgentName(0)), 4)[Some(ApplicationData)]/Message!` error with BoringSSL
 pub fn seed_session_resumption_ke(
     initial_server: AgentName,
     server: AgentName,
@@ -1786,7 +1794,12 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
     corpus!(
         // Full Handshakes
         seed_successful: cfg(feature = "tls13"),
-        seed_successful_with_flights: cfg(feature = "tls13"),
+        // TODO: seed_successful_with_flights should supersede seed_succesful in the futur
+        // when accessing all inner elements of a flight will be possible with queries and
+        // not specific function symbols
+        // for now, this trace give the ability to forward a whole flight of packets in one
+        // step
+        // seed_successful_with_flights: cfg(feature = "tls13"),
         seed_successful_with_ccs: cfg(feature = "tls13"),
         seed_successful_with_tickets: cfg(feature = "tls13"),
         seed_successful12: cfg(all(feature = "tls12", not(feature = "tls12-session-resumption"))),
