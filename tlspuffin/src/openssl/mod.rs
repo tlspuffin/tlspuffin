@@ -106,24 +106,23 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             ]
         }
 
-        fn determinism_set_reseed(&self) {
-            debug!("[Determinism] set and reseed");
-            #[cfg(feature = "deterministic")]
-            {
-                deterministic::rng_set();
-                deterministic::rng_reseed();
-            }
-        }
-
         fn determinism_reseed(&self) {
             debug!("[Determinism] reseed");
             #[cfg(feature = "deterministic")]
-            deterministic::rng_reseed();
+            {
+                deterministic::rng_reseed();
+            }
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
             Box::new(OpenSSLFactory)
         }
+    }
+
+    #[cfg(feature = "deterministic")]
+    {
+        deterministic::rng_set();
+        deterministic::rng_reseed();
     }
 
     Box::new(OpenSSLFactory)
@@ -244,20 +243,6 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     fn is_state_successful(&self) -> bool {
         self.describe_state()
             .contains("SSL negotiation finished successfully")
-    }
-
-    fn determinism_reseed(&mut self) -> Result<(), Error> {
-        #[cfg(feature = "deterministic")]
-        {
-            deterministic::rng_reseed();
-            Ok(())
-        }
-        #[cfg(not(feature = "deterministic"))]
-        {
-            Err(Error::Agent(
-                "Unable to make OpenSSL deterministic!".to_string(),
-            ))
-        }
     }
 
     fn shutdown(&mut self) -> String {

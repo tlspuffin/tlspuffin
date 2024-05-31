@@ -225,11 +225,6 @@ impl<PB: ProtocolBehavior> Agent<PB> {
         self.put.shutdown()
     }
 
-    /// Make the agent deterministic in the future by making its PRNG "deterministic".
-    pub fn determinism_reseed(&mut self) -> Result<(), Error> {
-        self.put.determinism_reseed()
-    }
-
     /// Checks whether the agent is in a good state.
     pub fn is_state_successful(&self) -> bool {
         self.put.is_state_successful()

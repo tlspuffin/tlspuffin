@@ -68,10 +68,6 @@ pub trait Put<PB: ProtocolBehavior>:
     /// Checks whether the Put is in a good state
     fn is_state_successful(&self) -> bool;
 
-    /// Make the PUT used by self deterministic in the future by making its PRNG "deterministic"
-    /// Now subsumed by Factory-level functions to reseed globally: `determinism_reseed`
-    fn determinism_reseed(&mut self) -> Result<(), Error>;
-
     /// Shut down the PUT by consuming it and returning a string that summarizes the execution.
     fn shutdown(&mut self) -> String;
 

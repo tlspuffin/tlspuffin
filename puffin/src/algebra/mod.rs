@@ -535,10 +535,6 @@ pub mod test_signature {
             Box::new(TestFactory {})
         }
 
-        fn determinism_set_reseed(&self) {
-            panic!("Not implemented for test stub");
-        }
-
         fn determinism_reseed(&self) {
             panic!("Not implemented for test stub");
         }
