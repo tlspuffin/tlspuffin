@@ -23,7 +23,7 @@ use std::{
 };
 
 use itertools::Itertools;
-use log::{debug, trace, warn};
+use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 
 #[allow(unused)] // used in docs
@@ -370,7 +370,7 @@ impl<M: Matcher> Trace<M> {
     ) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             // NOTE only spawn completely new Agent if cannot reuse any from the pool
-            let mut agent = if let Some(position) = pool
+            let agent = if let Some(position) = pool
                 .iter_mut()
                 .position(|existing| existing.is_reusable_with(descriptor))
             {
@@ -381,15 +381,6 @@ impl<M: Matcher> Trace<M> {
             } else {
                 Agent::new(ctx, descriptor)?
             };
-
-            if ctx.deterministic_put {
-                if let Err(err) = agent.determinism_reseed() {
-                    warn!(
-                        "Unable to make agent {} deterministic: {}",
-                        descriptor.name, err
-                    )
-                }
-            }
 
             ctx.add_agent(agent);
         }
@@ -403,7 +394,7 @@ impl<M: Matcher> Trace<M> {
     {
         let mut pool: Vec<Agent<PB>> = ctx.get_agents();
 
-        // We reseed all PUTs before executing a trace!
+        // We reseed all PUTs' PRNG before executing a trace!
         ctx.put_registry.determinism_reseed_all_factories();
 
         for trace in &self.prior_traces {

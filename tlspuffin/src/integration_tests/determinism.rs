@@ -14,9 +14,6 @@ fn test_attacker_full_det_recreate() {
     };
 
     let put_registry = tls_registry();
-
-    put_registry.determinism_set_reseed_all_factories();
-
     let trace = seed_client_attacker_full.build_trace();
 
     let mut ctx_1 = TraceContext::builder(&put_registry).build();

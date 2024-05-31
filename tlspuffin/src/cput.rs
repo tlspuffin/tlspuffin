@@ -57,22 +57,6 @@ impl Factory<TLSProtocolBehavior> for TlsCPut {
         ]
     }
 
-    fn determinism_set_reseed(&self) {
-        if !self.supports_deterministic_rng() {
-            log::error!(
-                "[Determinism] C PUT {} has no support for deterministic RNG",
-                self.library.config_name
-            );
-            return;
-        }
-
-        unsafe {
-            (self.c_data.deterministic_rng_set.unwrap())();
-        }
-
-        self.determinism_reseed();
-    }
-
     fn determinism_reseed(&self) {
         if !self.supports_deterministic_rng() {
             log::error!(
@@ -103,7 +87,6 @@ impl Factory<TLSProtocolBehavior> for TlsCPut {
 
 impl TlsCPut {
     fn supports_deterministic_rng(&self) -> bool {
-        self.c_data.deterministic_rng_set.is_some()
-            && self.c_data.deterministic_rng_reseed.is_some()
+        self.c_data.deterministic_rng_reseed.is_some()
     }
 }

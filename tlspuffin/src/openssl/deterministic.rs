@@ -27,6 +27,13 @@ pub fn rng_reseed_with(buffer: &[u8]) {
 mod tests {
     use openssl::rand::rand_bytes;
 
+    use puffin::trace::TraceContext;
+
+    use crate::{
+        put_registry::tls_registry,
+        tls::{seeds::seed_client_attacker_full, trace_helper::TraceHelper},
+    };
+
     #[test]
     fn test_openssl_rng_reseed_with_default_seed_has_not_changed() {
         crate::openssl::deterministic::rng_set();
@@ -70,5 +77,25 @@ mod tests {
         rand_bytes(&mut bytes_seed2).unwrap();
 
         assert_ne!(bytes_seed1, bytes_seed2);
+    }
+
+    #[test]
+    fn test_openssl_trace_execution_no_randomness() {
+        let trace = seed_client_attacker_full.build_trace();
+        let put_registry = tls_registry();
+
+        let mut ctx1 = TraceContext::builder(&put_registry)
+            .set_deterministic(true)
+            .build();
+
+        let _ = trace.execute(&mut ctx1);
+
+        let mut ctx2 = TraceContext::builder(&put_registry)
+            .set_deterministic(true)
+            .build();
+
+        let _ = trace.execute(&mut ctx2);
+
+        assert_eq!(ctx1, ctx2);
     }
 }
