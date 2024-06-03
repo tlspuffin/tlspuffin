@@ -2,21 +2,14 @@
 
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    protocol::MessageFlight,
     term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
 
 use crate::{
+    protocol::MessageFlight,
     query::TlsQueryMatcher,
-    tls::{
-        fn_impl::*,
-        rustls::msgs::{
-            enums::HandshakeType,
-            message::{Message, OpaqueMessage},
-        },
-        seeds::*,
-    },
+    tls::{fn_impl::*, rustls::msgs::enums::HandshakeType, seeds::*},
 };
 
 /// <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638>
@@ -49,7 +42,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
 
     let decrypted_handshake = term! {
         fn_decrypt_handshake_flight(
-            ((server, 0)/MessageFlight<Message,OpaqueMessage>), // The first flight of messages sent by the server
+            ((server, 0)/MessageFlight), // The first flight of messages sent by the server
             (fn_server_hello_transcript(((server, 0)))),
             (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             fn_no_psk,
@@ -206,7 +199,7 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
 
     let decrypted_handshake = term! {
         fn_decrypt_handshake_flight(
-            ((server, 0)/MessageFlight<Message,OpaqueMessage>), // The first flight of messages sent by the server
+            ((server, 0)/MessageFlight), // The first flight of messages sent by the server
             (fn_server_hello_transcript(((server, 0)))),
             (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             fn_no_psk,

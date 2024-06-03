@@ -1,94 +1,34 @@
-use std::{fmt::Debug, marker::PhantomData};
-
-use log::debug;
+use std::fmt::Debug;
 
 use crate::{
     algebra::{signature::Signature, Matcher},
     claims::{Claim, SecurityViolationPolicy},
-    codec::{Codec, Reader},
+    codec::Codec,
     error::Error,
     trace::Trace,
     variable_data::VariableData,
 };
 
 /// Store a message flight, a vec of all the messages sent by the PUT between two steps
-#[derive(Debug, Clone)]
-pub struct MessageFlight<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> {
-    pub messages: Vec<M>,
-    phantom: PhantomData<O>,
-}
-
-impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> MessageFlight<M, O> {
-    pub fn new() -> Self {
-        MessageFlight {
-            messages: vec![],
-            phantom: PhantomData,
-        }
-    }
-
-    pub fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
-    }
+pub trait ProtocolMessageFlight<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>:
+    Clone + Debug + From<M>
+{
+    fn new() -> Self;
+    fn push(&mut self, msg: M);
+    fn debug(&self, info: &str);
 }
 
 /// Store a flight of opaque messages, a vec of all the messages sent by the PUT between two steps
-#[derive(Debug, Clone)]
-pub struct OpaqueMessageFlight<O: OpaqueProtocolMessage> {
-    pub messages: Vec<O>,
-}
-
-impl<O: OpaqueProtocolMessage> OpaqueMessageFlight<O> {
-    pub fn new() -> Self {
-        OpaqueMessageFlight { messages: vec![] }
-    }
-
-    pub fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
-    }
-
-    pub fn get_encoding(self) -> Vec<u8> {
+pub trait OpaqueProtocolMessageFlight<O: OpaqueProtocolMessage>:
+    Clone + Debug + Codec + From<O>
+{
+    fn new() -> Self;
+    fn debug(&self, info: &str);
+    fn push(&mut self, msg: O);
+    fn get_encoding(self) -> Vec<u8> {
         let mut buf = Vec::new();
         self.encode(&mut buf);
         buf
-    }
-}
-
-impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> From<M> for MessageFlight<M, O> {
-    fn from(value: M) -> Self {
-        MessageFlight {
-            messages: vec![value],
-            phantom: PhantomData,
-        }
-    }
-}
-
-impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> From<MessageFlight<M, O>>
-    for OpaqueMessageFlight<O>
-{
-    fn from(value: MessageFlight<M, O>) -> Self {
-        OpaqueMessageFlight {
-            messages: value.messages.iter().map(|m| m.create_opaque()).collect(),
-        }
-    }
-}
-
-impl<O: OpaqueProtocolMessage> Codec for OpaqueMessageFlight<O> {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        for msg in &self.messages {
-            msg.encode(bytes);
-        }
-    }
-
-    fn read(_reader: &mut Reader) -> Option<Self> {
-        None
-    }
-}
-
-impl<O: OpaqueProtocolMessage> From<O> for OpaqueMessageFlight<O> {
-    fn from(value: O) -> Self {
-        OpaqueMessageFlight {
-            messages: vec![value],
-        }
     }
 }
 
@@ -133,6 +73,12 @@ pub trait ProtocolBehavior: 'static {
 
     type ProtocolMessage: ProtocolMessage<Self::OpaqueProtocolMessage>;
     type OpaqueProtocolMessage: OpaqueProtocolMessage;
+    type ProtocolMessageFlight: ProtocolMessageFlight<
+        Self::ProtocolMessage,
+        Self::OpaqueProtocolMessage,
+    >;
+    type OpaqueProtocolMessageFlight: OpaqueProtocolMessageFlight<Self::OpaqueProtocolMessage>
+        + From<Self::ProtocolMessageFlight>;
 
     type Matcher: Matcher
         + for<'a> TryFrom<&'a MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>>;

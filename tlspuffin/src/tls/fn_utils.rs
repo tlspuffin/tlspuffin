@@ -6,27 +6,30 @@ use std::convert::TryFrom;
 use puffin::{
     algebra::error::FnError,
     codec::{Codec, Reader},
-    protocol::{MessageFlight, OpaqueMessageFlight},
+    protocol::{OpaqueProtocolMessageFlight, ProtocolMessageFlight},
 };
 
-use crate::tls::{
-    key_exchange::{tls12_key_exchange, tls12_new_secrets},
-    key_schedule::*,
-    rustls::{
-        conn::Side,
-        hash_hs::HandshakeHash,
-        key::Certificate,
-        msgs::{
-            base::PayloadU8,
-            enums::{HandshakeType, NamedGroup},
-            handshake::{
-                CertificateEntry, CertificateExtension, CertificateExtensions,
-                HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
+use crate::{
+    protocol::{MessageFlight, OpaqueMessageFlight},
+    tls::{
+        key_exchange::{tls12_key_exchange, tls12_new_secrets},
+        key_schedule::*,
+        rustls::{
+            conn::Side,
+            hash_hs::HandshakeHash,
+            key::Certificate,
+            msgs::{
+                base::PayloadU8,
+                enums::{HandshakeType, NamedGroup},
+                handshake::{
+                    CertificateEntry, CertificateExtension, CertificateExtensions,
+                    HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
+                },
+                message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
             },
-            message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
+            tls12,
+            tls13::key_schedule::KeyScheduleEarly,
         },
-        tls12,
-        tls13::key_schedule::KeyScheduleEarly,
     },
 };
 
@@ -50,27 +53,24 @@ pub fn fn_append_transcript(
     Ok(new_transcript)
 }
 
-pub fn fn_new_flight() -> Result<MessageFlight<Message, OpaqueMessage>, FnError> {
+pub fn fn_new_flight() -> Result<MessageFlight, FnError> {
     Ok(MessageFlight::new())
 }
 
-pub fn fn_append_flight(
-    flight: &MessageFlight<Message, OpaqueMessage>,
-    msg: &Message,
-) -> Result<MessageFlight<Message, OpaqueMessage>, FnError> {
+pub fn fn_append_flight(flight: &MessageFlight, msg: &Message) -> Result<MessageFlight, FnError> {
     let mut new_flight = flight.clone();
     new_flight.messages.push(msg.clone());
     Ok(new_flight)
 }
 
-pub fn fn_new_opaque_flight() -> Result<OpaqueMessageFlight<OpaqueMessage>, FnError> {
+pub fn fn_new_opaque_flight() -> Result<OpaqueMessageFlight, FnError> {
     Ok(OpaqueMessageFlight::new())
 }
 
 pub fn fn_append_opaque_flight(
-    flight: &OpaqueMessageFlight<OpaqueMessage>,
+    flight: &OpaqueMessageFlight,
     msg: &OpaqueMessage,
-) -> Result<OpaqueMessageFlight<OpaqueMessage>, FnError> {
+) -> Result<OpaqueMessageFlight, FnError> {
     let mut new_flight = flight.clone();
     new_flight.messages.push(msg.clone());
     Ok(new_flight)
@@ -78,7 +78,7 @@ pub fn fn_append_opaque_flight(
 
 /// Decrypt a whole flight of handshake messages and return a Vec of decrypted messages
 pub fn fn_decrypt_handshake_flight(
-    flight: &MessageFlight<Message, OpaqueMessage>,
+    flight: &MessageFlight,
     server_hello_transcript: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
@@ -229,7 +229,7 @@ pub fn fn_psk(some: &Vec<u8>) -> Result<Option<Vec<u8>>, FnError> {
 
 /// Decrypt a whole flight of application messages and return a Vec of decrypted messages
 pub fn fn_decrypt_application_flight(
-    flight: &MessageFlight<Message, OpaqueMessage>,
+    flight: &MessageFlight,
     server_hello_transcript: &HandshakeHash,
     server_finished_transcript: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,

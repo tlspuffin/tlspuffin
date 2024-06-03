@@ -127,7 +127,8 @@ pub mod test_signature {
         define_signature,
         error::Error,
         protocol::{
-            OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer,
+            OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
+            ProtocolMessageDeframer, ProtocolMessageFlight,
         },
         put::{Put, PutName},
         put_registry::{Factory, PutKind},
@@ -486,6 +487,68 @@ pub mod test_signature {
         }
     }
 
+    #[derive(Debug, Clone)]
+    pub struct TestMessageFlight;
+
+    impl ProtocolMessageFlight<TestMessage, TestOpaqueMessage> for TestMessageFlight {
+        fn new() -> Self {
+            Self {}
+        }
+
+        fn push(&mut self, _msg: TestMessage) {
+            panic!("Not implemented for test stub");
+        }
+
+        fn debug(&self, _info: &str) {
+            panic!("Not implemented for test stub");
+        }
+    }
+
+    impl From<TestMessage> for TestMessageFlight {
+        fn from(_value: TestMessage) -> Self {
+            Self {}
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct TestOpaqueMessageFlight;
+
+    impl OpaqueProtocolMessageFlight<TestOpaqueMessage> for TestOpaqueMessageFlight {
+        fn new() -> Self {
+            Self {}
+        }
+
+        fn push(&mut self, _msg: TestOpaqueMessage) {
+            panic!("Not implemented for test stub");
+        }
+
+        fn debug(&self, _info: &str) {
+            panic!("Not implemented for test stub");
+        }
+    }
+
+    impl From<TestOpaqueMessage> for TestOpaqueMessageFlight {
+        fn from(_value: TestOpaqueMessage) -> Self {
+            Self {}
+        }
+    }
+
+    impl Codec for TestOpaqueMessageFlight {
+        fn encode(&self, _bytes: &mut Vec<u8>) {
+            panic!("Not implemented for test stub");
+        }
+
+        fn read(_: &mut Reader) -> Option<Self> {
+            panic!("Not implemented for test stub");
+        }
+    }
+
+    impl From<TestMessageFlight> for TestOpaqueMessageFlight {
+        fn from(_value: TestMessageFlight) -> Self {
+            Self {}
+        }
+    }
+
     #[derive(Debug, PartialEq)]
     pub struct TestProtocolBehavior;
 
@@ -495,6 +558,8 @@ pub mod test_signature {
         type ProtocolMessage = TestMessage;
         type OpaqueProtocolMessage = TestOpaqueMessage;
         type Matcher = AnyMatcher;
+        type ProtocolMessageFlight = TestMessageFlight;
+        type OpaqueProtocolMessageFlight = TestOpaqueMessageFlight;
 
         fn signature() -> &'static Signature {
             panic!("Not implemented for test stub");

@@ -23,7 +23,7 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     codec::Codec,
     error::Error,
-    protocol::{MessageResult, OpaqueMessageFlight},
+    protocol::MessageResult,
     put::{Put, PutName},
     put_registry::{Factory, PutKind},
     stream::Stream,
@@ -36,7 +36,7 @@ use crate::{
         SessionOption, SessionState, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest,
         SshResult, SshSession,
     },
-    protocol::SshProtocolBehavior,
+    protocol::{RawSshMessageFlight, SshProtocolBehavior},
     put_registry::LIBSSH_PUT,
     ssh::{
         deframe::SshMessageDeframer,
@@ -211,8 +211,8 @@ pub struct LibSSL {
 
 impl LibSSL {}
 
-impl Stream<SshMessage, RawSshMessage> for LibSSL {
-    fn add_to_inbound(&mut self, result: &OpaqueMessageFlight<RawSshMessage>) {
+impl Stream<SshMessage, RawSshMessage, RawSshMessageFlight> for LibSSL {
+    fn add_to_inbound(&mut self, result: &RawSshMessageFlight) {
         let mut buffer = Vec::new();
         Codec::encode(result, &mut buffer);
 

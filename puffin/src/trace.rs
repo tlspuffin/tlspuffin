@@ -33,8 +33,8 @@ use crate::{
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
     protocol::{
-        MessageFlight, MessageResult, OpaqueMessageFlight, OpaqueProtocolMessage, ProtocolBehavior,
-        ProtocolMessage,
+        MessageResult, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+        ProtocolMessage, ProtocolMessageFlight,
     },
     put::{PutDescriptor, PutOptions},
     put_registry::PutRegistry,
@@ -242,7 +242,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
-        message_flight: &OpaqueMessageFlight<PB::OpaqueProtocolMessage>,
+        message_flight: &PB::OpaqueProtocolMessageFlight,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
             .map(|agent| agent.put_mut().add_to_inbound(message_flight))
@@ -540,7 +540,7 @@ impl<M: Matcher> OutputAction<M> {
     {
         ctx.next_state(step.agent)?;
 
-        let mut flight = MessageFlight::new();
+        let mut flight = PB::ProtocolMessageFlight::new();
 
         while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? {
             let matcher = message_result.create_matcher::<PB>();
@@ -548,7 +548,7 @@ impl<M: Matcher> OutputAction<M> {
             let MessageResult(message, opaque_message) = message_result;
 
             if let Some(m) = &message {
-                flight.messages.push(m.clone());
+                flight.push(m.clone());
             }
 
             let knowledge = message
@@ -634,14 +634,14 @@ impl<M: Matcher> InputAction<M> {
 
         if let Some(flight) = evaluated
             .as_ref()
-            .downcast_ref::<MessageFlight<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>()
+            .downcast_ref::<PB::ProtocolMessageFlight>()
         {
             flight.debug("Input message flight");
 
             ctx.add_to_inbound(step.agent, &flight.clone().into())?;
         } else if let Some(flight) = evaluated
             .as_ref()
-            .downcast_ref::<OpaqueMessageFlight<PB::OpaqueProtocolMessage>>()
+            .downcast_ref::<PB::OpaqueProtocolMessageFlight>()
         {
             flight.debug("Input opaque message flight");
 
@@ -649,8 +649,7 @@ impl<M: Matcher> InputAction<M> {
         } else if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");
 
-            let message_flight: MessageFlight<PB::ProtocolMessage, PB::OpaqueProtocolMessage> =
-                msg.clone().into();
+            let message_flight: PB::ProtocolMessageFlight = msg.clone().into();
             ctx.add_to_inbound(step.agent, &message_flight.into())?;
         } else if let Some(opaque_message) = evaluated
             .as_ref()
