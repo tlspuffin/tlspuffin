@@ -78,6 +78,7 @@ void deterministic_rng_reseed(const uint8_t *buffer, size_t length)
     if (buffer == NULL || length < sizeof(uint64_t))
     {
         seed = DEFAULT_RNG_SEED;
+        return;
     }
 
     seed = *((uint64_t *)buffer);
