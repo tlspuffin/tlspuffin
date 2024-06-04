@@ -38,6 +38,7 @@ pub fn prf(out: &mut [u8], alg: hmac::Algorithm, secret: &[u8], label: &[u8], se
 #[cfg(test)]
 mod tests {
     use ring::hmac::{HMAC_SHA256, HMAC_SHA512};
+    use test_log::test;
 
     #[test]
     fn check_sha256() {

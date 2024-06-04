@@ -543,6 +543,7 @@ pub mod test_signature {
 
 #[cfg(test)]
 mod tests {
+    use test_log::test;
 
     use super::test_signature::*;
     use crate::{

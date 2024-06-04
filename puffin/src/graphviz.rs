@@ -207,6 +207,8 @@ impl<M: Matcher> Term<M> {
 
 #[cfg(test)]
 mod tests {
+    use test_log::test;
+
     use crate::algebra::test_signature::setup_simple_trace;
 
     #[test]

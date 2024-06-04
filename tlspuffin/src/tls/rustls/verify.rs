@@ -736,6 +736,8 @@ fn unix_time_millis(now: SystemTime) -> Result<u64, Error> {
 
 #[cfg(test)]
 mod tests {
+    use test_log::test;
+
     use super::*;
 
     #[test]

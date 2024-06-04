@@ -1063,7 +1063,6 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher
 
 #[cfg(test)]
 pub mod tests {
-
     use test_log::test;
 
     use crate::tls::{trace_helper::TraceHelper, vulnerabilities::*};

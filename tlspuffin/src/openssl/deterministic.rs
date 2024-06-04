@@ -27,6 +27,7 @@ pub fn rng_reseed_with(buffer: &[u8]) {
 mod tests {
     use openssl::rand::rand_bytes;
     use puffin::trace::TraceContext;
+    use test_log::test;
 
     use crate::{
         put_registry::tls_registry,

@@ -2180,7 +2180,6 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
 
 #[cfg(test)]
 pub mod tests {
-
     use puffin::{agent::AgentName, trace::Action};
     use test_log::test;
 

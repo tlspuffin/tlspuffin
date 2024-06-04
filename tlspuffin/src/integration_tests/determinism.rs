@@ -1,3 +1,10 @@
+#[cfg(all(
+    feature = "deterministic",
+    feature = "boringssl-binding",
+    feature = "tls13",
+))]
+use test_log::test;
+
 #[test]
 #[cfg(all(
     feature = "deterministic",

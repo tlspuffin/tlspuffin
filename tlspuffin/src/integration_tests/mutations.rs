@@ -14,6 +14,7 @@ use puffin::{
     },
     trace::{Action, Step, Trace, TraceContext},
 };
+use test_log::test;
 
 use crate::{
     put_registry::tls_registry,
