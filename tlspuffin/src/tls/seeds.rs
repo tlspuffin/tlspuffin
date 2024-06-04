@@ -181,110 +181,6 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TlsQueryMa
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_client_hello(
-                            ((client, 0)),
-                            ((client, 0)),
-                            ((client, 0)),
-                            ((client, 0)),
-                            ((client, 0)),
-                            ((client, 0))
-                        )
-                    },
-                }),
-            },
-            // Server Hello Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_server_hello(
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Random),
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Vec<ServerExtension>)
-                        )
-                    },
-                }),
-            },
-            // Encrypted Extensions Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Certificate Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Certificate Verify Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Finish Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Finished Client -> Server
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-        ],
-    }
-}
-
-// TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
-pub fn seed_successful_with_flights(
-    client: AgentName,
-    server: AgentName,
-) -> Trace<TlsQueryMatcher> {
-    Trace {
-        prior_traces: vec![],
-        descriptors: vec![
-            AgentDescriptor::new_client(client, TLSVersion::V1_3),
-            AgentDescriptor::new_server(server, TLSVersion::V1_3),
-        ],
-        steps: vec![
-            OutputAction::new_step(client),
-            // Client Hello Client -> Server
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
                         (client, 0)/MessageFlight
                     },
                 }),
@@ -527,34 +423,120 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TlsQuery
 
 // TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
 pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
-    let mut trace = seed_successful(client, server);
-
-    // CCS Server -> Client
-    trace.steps.insert(
-        3,
-        Step {
-            agent: client,
-            action: Action::Input(InputAction {
-                recipe: term! {
-                    fn_change_cipher_spec
-                },
-            }),
-        },
-    );
-
-    trace.steps.insert(
-        8,
-        Step {
-            agent: server,
-            action: Action::Input(InputAction {
-                recipe: term! {
-                    fn_change_cipher_spec
-                },
-            }),
-        },
-    );
-
-    trace
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::new_client(client, TLSVersion::V1_3),
+            AgentDescriptor::new_server(server, TLSVersion::V1_3),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            // Client Hello Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_client_hello(
+                            ((client, 0)),
+                            ((client, 0)),
+                            ((client, 0)),
+                            ((client, 0)),
+                            ((client, 0)),
+                            ((client, 0))
+                        )
+                    },
+                }),
+            },
+            // Server Hello Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_server_hello(
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Random),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Vec<ServerExtension>)
+                        )
+                    },
+                }),
+            },
+            // CCS Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_change_cipher_spec
+                    },
+                }),
+            },
+            // Encrypted Extensions Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Certificate Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Certificate Verify Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Finish Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_change_cipher_spec
+                    },
+                }),
+            },
+            // Finished Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+        ],
+    }
 }
 
 // TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
@@ -1793,12 +1775,6 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
     corpus!(
         // Full Handshakes
         seed_successful: cfg(feature = "tls13"),
-        // TODO: seed_successful_with_flights should supersede seed_succesful in the futur
-        // when accessing all inner elements of a flight will be possible with queries and
-        // not specific function symbols
-        // for now, this trace give the ability to forward a whole flight of packets in one
-        // step
-        // seed_successful_with_flights: cfg(feature = "tls13"),
         seed_successful_with_ccs: cfg(feature = "tls13"),
         seed_successful_with_tickets: cfg(feature = "tls13"),
         seed_successful12: cfg(all(feature = "tls12", not(feature = "tls12-session-resumption"))),
@@ -1921,16 +1897,6 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test]
     fn test_seed_successful_with_flights() {
-        use crate::tls::trace_helper::TraceExecutor;
-
-        let ctx = seed_successful_with_flights.execute_trace();
-        assert!(ctx.agents_successful());
-    }
-
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
-    fn test_seed_successful() {
         use crate::tls::trace_helper::TraceExecutor;
 
         let ctx = seed_successful.execute_trace();
