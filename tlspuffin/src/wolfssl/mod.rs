@@ -227,12 +227,17 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
         result
     }
 
-    fn reset(&mut self) -> Result<(), Error> {
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.config.descriptor.name = new_name;
+        self.deregister_claimer();
+
         if self.config.use_clear {
             self.stream.clear();
         } else {
             self.stream = Self::new_stream(&mut self.ctx, &self.config)?;
         }
+
+        self.register_claimer(new_name);
 
         Ok(())
     }

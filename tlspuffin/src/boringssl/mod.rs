@@ -174,8 +174,11 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
         result
     }
 
-    fn reset(&mut self) -> Result<(), Error> {
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.config.descriptor.name = new_name;
+        self.deregister_claimer();
         self.stream.ssl_mut().clear();
+        self.register_claimer(new_name);
         Ok(())
     }
 

@@ -15,7 +15,6 @@ static C_PUT_TYPE OPENSSL_PUT = {
 
     .progress = NULL,
     .reset = NULL,
-    .rename = NULL,
     .describe_state = NULL,
     .is_state_successful = NULL,
     .shutdown = NULL,

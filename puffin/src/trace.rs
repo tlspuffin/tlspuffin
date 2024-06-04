@@ -147,7 +147,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     pub fn new(put_registry: &PutRegistry<PB>, default_put_options: PutOptions) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
-        // by the AgentName. A rename of an Agent does not interfere with this.
+        // by the AgentName.
         let claims = GlobalClaimList::new();
 
         Self {
@@ -184,6 +184,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     pub fn add_knowledge(&mut self, knowledge: Knowledge<PB::Matcher>) {
+        knowledge.debug_print(self);
         self.knowledge.push(knowledge)
     }
 
@@ -375,8 +376,7 @@ impl<M: Matcher> Trace<M> {
                 .position(|existing| existing.is_reusable_with(descriptor))
             {
                 let mut reusable = pool.swap_remove(position);
-                reusable.reset()?;
-                reusable.rename(descriptor.name)?;
+                reusable.reset(descriptor.name)?;
                 reusable
             } else {
                 Agent::new(ctx, descriptor)?
@@ -544,7 +544,6 @@ impl<M: Matcher> OutputAction<M> {
                     data: variable,
                 };
 
-                knowledge.debug_print(ctx);
                 ctx.add_knowledge(knowledge)
             }
 
@@ -555,7 +554,6 @@ impl<M: Matcher> OutputAction<M> {
                     data: variable,
                 };
 
-                knowledge.debug_print(ctx);
                 ctx.add_knowledge(knowledge)
             }
         }
