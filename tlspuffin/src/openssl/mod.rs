@@ -7,7 +7,7 @@ use openssl::{
     x509::{store::X509StoreBuilder, X509},
 };
 use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType},
+    agent::{self, AgentDescriptor, AgentName, AgentType},
     error::Error,
     protocol::MessageResult,
     put::Put,
@@ -173,23 +173,19 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
         result
     }
 
-    fn reset(&mut self) -> Result<(), Error> {
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.config.descriptor.name = new_name;
+        self.deregister_claimer();
+
         if self.config.use_clear {
             bindings::clear(self.stream.ssl());
         } else {
             self.stream = Self::new_stream(&self.ctx, &self.config).map_err(|err| {
                 Error::Put(format!("OpenSSL error during stream creation: {}", err))
             })?;
-
-            // FIXME don't force-register a new claimer on reset
-            //
-            //    Because OpenSSL vendor libraries crash when no claimer is
-            //    registered (#253), we are forced to register a new one on
-            //    reset. This should be removed once this bug is fixed.
-            //
-            //    See the WolfSSL module for comparison.
-            self.register_claimer(self.config.descriptor.name);
         }
+
+        self.register_claimer(new_name);
 
         Ok(())
     }

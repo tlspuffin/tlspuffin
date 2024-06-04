@@ -97,7 +97,7 @@ pub trait Put<PB: ProtocolBehavior>:
     fn progress(&mut self) -> Result<(), Error>;
 
     /// In-place reset of the state
-    fn reset(&mut self) -> Result<(), Error>;
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error>;
 
     fn descriptor(&self) -> &AgentDescriptor;
 

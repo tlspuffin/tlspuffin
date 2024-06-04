@@ -94,8 +94,7 @@ typedef struct C_PUT_TYPE
     void (*const deterministic_rng_reseed)(const uint8_t *buffer, size_t length);
 
     RESULT (*const progress)(void *agent);
-    RESULT (*const reset)(void *agent);
-    void (*const rename)(void *agent, uint8_t agent_name);
+    RESULT (*const reset)(void *agent, uint8_t agent_name);
     const char *(*const describe_state)(void *agent);
     bool (*const is_state_successful)(void *agent);
     const char *(*const shutdown)(void *agent);

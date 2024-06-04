@@ -364,7 +364,7 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         Ok(())
     }
 
-    fn reset(&mut self) -> Result<(), Error> {
+    fn reset(&mut self, _new_name: AgentName) -> Result<(), Error> {
         panic!("Not supported")
     }
 
@@ -400,7 +400,7 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         Ok(())
     }
 
-    fn reset(&mut self) -> Result<(), Error> {
+    fn reset(&mut self, _new_name: AgentName) -> Result<(), Error> {
         let address = self.stream.peer_addr()?;
         self.stream = Self::new_stream(address)?;
         Ok(())
@@ -713,26 +713,24 @@ mod tests {
 
     #[test]
     fn test_openssl_session_resumption_dhe_full() {
-        let port = 44330;
-        let guard = openssl_server(port, TLSVersion::V1_3);
-        let put = PutDescriptor {
+        let guard = openssl_server(44330, TLSVersion::V1_3);
+        let server_put = PutDescriptor {
             factory: TCP_PUT.to_string(),
             options: guard.build_options(),
         };
 
         let put_registry = tls_registry();
         let trace = seed_session_resumption_dhe_full.build_trace();
-        let initial_server = trace.prior_traces[0].descriptors[0].name;
-        let server = trace.descriptors[0].name;
+        let init_server = trace.prior_traces[0].descriptors[0].name;
+        let next_server = trace.descriptors[0].name;
         let mut context = TraceContext::builder(&put_registry)
-            .set_put(initial_server, put.clone())
-            .set_put(server, put)
+            .set_put(init_server, server_put.clone())
+            .set_put(next_server, server_put)
             .build();
 
         trace.execute(&mut context).unwrap();
 
-        let server = AgentName::first().next();
-        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
+        let shutdown = context.find_agent_mut(next_server).unwrap().shutdown();
         info!("{}", shutdown);
         assert!(shutdown.contains("Reused session-id"));
     }

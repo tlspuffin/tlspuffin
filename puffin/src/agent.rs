@@ -203,21 +203,13 @@ impl<PB: ProtocolBehavior> Agent<PB> {
         &self.put_descriptor
     }
 
-    pub fn rename(&mut self, new_name: AgentName) -> Result<(), Error> {
-        self.name = new_name;
-
-        self.put.deregister_claimer();
-        self.put.register_claimer(new_name);
-
-        Ok(())
-    }
-
     pub fn progress(&mut self) -> Result<(), Error> {
         self.put.progress()
     }
 
-    pub fn reset(&mut self) -> Result<(), Error> {
-        self.put.reset()
+    pub fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.name = new_name;
+        self.put.reset(new_name)
     }
 
     /// Shut down the agent by consuming it and returning a string that summarizes the execution.
