@@ -2,13 +2,6 @@
 title: 'Introduction'
 ---
 
-:::warning[Ongoing Work]
-
-This Guide is currently under development. Information presented here might be incomplete or outdated.
-
-:::
-
-
 :::note[TL;DR]
 
 This guide will navigate you through all the steps to setup a first fuzzer with `tlspuffin`.
