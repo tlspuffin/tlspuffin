@@ -14,7 +14,7 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
     protocol::MessageResult,
-    put::{Put, PutName},
+    put::Put,
     put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
     trace::TraceContext,
@@ -29,7 +29,7 @@ use crate::{
     },
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
-    put_registry::BORINGSSL_PUT,
+    put_registry::BORINGSSL_RUST_PUT,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     tls::rustls::msgs::{
         deframer::MessageDeframer,
@@ -65,7 +65,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
             // FIXME: Add non-clear method like in wolfssl
             if !use_clear {
-                info!("OpenSSL put does not support clearing mode")
+                info!("BoringSSL put does not support clearing mode")
             }
 
             let config = TlsPutConfig {
@@ -87,8 +87,8 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            BORINGSSL_PUT
+        fn name(&self) -> String {
+            BORINGSSL_RUST_PUT.to_owned()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -105,7 +105,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", BORINGSSL_PUT, VERSION_STR),
+                    format!("{} ({})", BORINGSSL_RUST_PUT, VERSION_STR),
                 ),
                 (
                     "library".to_string(),
@@ -118,12 +118,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             ]
         }
 
-        fn determinism_set_reseed(&self) -> () {
-            debug!("[Determinism] BoringSSL set (already done at compile time) and reseed RAND");
-            deterministic::reset_rand();
-        }
-
-        fn determinism_reseed(&self) -> () {
+        fn determinism_reseed(&self) {
             debug!("[Determinism] reseed BoringSSL");
             deterministic::reset_rand();
         }
@@ -143,7 +138,6 @@ pub struct BoringSSL {
 
 impl Drop for BoringSSL {
     fn drop(&mut self) {
-        #[cfg(feature = "claims")]
         self.deregister_claimer();
     }
 }
@@ -166,7 +160,7 @@ impl Stream<Message, OpaqueMessage> for BoringSSL {
 }
 
 impl Put<TLSProtocolBehavior> for BoringSSL {
-    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
+    fn progress(&mut self) -> Result<(), Error> {
         let result = if self.is_state_successful() {
             // Trigger another read
             let mut vec: Vec<u8> = Vec::from([1; 128]);
@@ -180,8 +174,11 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
         result
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.config.descriptor.name = new_name;
+        self.deregister_claimer();
         self.stream.ssl_mut().clear();
+        self.register_claimer(new_name);
         Ok(())
     }
 
@@ -189,24 +186,13 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
         &self.config.descriptor
     }
 
-    #[cfg(feature = "claims")]
     fn register_claimer(&mut self, agent_name: AgentName) {
         self.set_msg_callback(Self::create_msg_callback(agent_name.clone(), &self.config))
             .expect("Failed to set msg_callback to extract transcript");
     }
 
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {}
-
-    #[allow(unused_variables)]
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        #[cfg(feature = "claims")]
-        {
-            self.deregister_claimer();
-            self.register_claimer(agent_name);
-        }
-        self.register_claimer(agent_name);
-        Ok(())
+    fn deregister_claimer(&mut self) {
+        // TODO implement deregister_claimer for BoringSSL
     }
 
     fn describe_state(&self) -> &str {
@@ -223,21 +209,8 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
             .contains("SSL negotiation finished successfully")
     }
 
-    fn determinism_reseed(&mut self) -> Result<(), Error> {
-        #[cfg(feature = "deterministic")]
-        {
-            Ok(())
-        }
-        #[cfg(not(feature = "deterministic"))]
-        {
-            Err(Error::Agent(
-                "Unable to make BoringSSL deterministic!".to_string(),
-            ))
-        }
-    }
-
     fn shutdown(&mut self) -> String {
-        panic!("Unsupported with OpenSSL PUT")
+        panic!("Unsupported with BoringSSL PUT")
     }
 
     fn version() -> String {
@@ -252,16 +225,11 @@ impl BoringSSL {
             AgentType::Server => Self::create_server(agent_descriptor)?,
             AgentType::Client => Self::create_client(agent_descriptor)?,
         };
-
         let stream = SslStream::new(ssl, MemoryStream::new(MessageDeframer::new()))?;
-
         let agent_name = agent_descriptor.name;
-
         let mut boringssl = BoringSSL { config, stream };
 
-        #[cfg(feature = "claims")]
         boringssl.register_claimer(agent_name);
-
         Ok(boringssl)
     }
 
@@ -453,7 +421,7 @@ impl<T> From<Result<T, boring::ssl::Error>> for MaybeError {
                     _ => MaybeError::Err(Error::IO(format!("Unexpected IO Error: {}", io_error))),
                 }
             } else if let Some(ssl_error) = ssl_error.ssl_error() {
-                // OpenSSL threw an error, that means that there should be an Alert message in the
+                // BoringSSL threw an error, that means that there should be an Alert message in the
                 // outbound channel
                 MaybeError::Err(Error::Put(ssl_error.to_string()))
             } else {

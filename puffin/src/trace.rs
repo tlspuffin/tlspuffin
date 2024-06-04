@@ -22,7 +22,8 @@ use std::{
     marker::PhantomData,
 };
 
-use log::{debug, trace, warn};
+use itertools::Itertools;
+use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 
 #[allow(unused)] // used in docs
@@ -35,6 +36,7 @@ use crate::{
     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put::{PutDescriptor, PutOptions},
     put_registry::PutRegistry,
+    stream::Stream,
     variable_data::VariableData,
 };
 
@@ -72,7 +74,7 @@ pub struct Knowledge<M: Matcher> {
 }
 
 impl<M: Matcher> Knowledge<M> {
-    pub fn debug_print<PB>(&self, ctx: &TraceContext<PB>, agent_name: &AgentName)
+    pub fn debug_print<PB>(&self, ctx: &TraceContext<PB>)
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -81,7 +83,7 @@ impl<M: Matcher> Knowledge<M> {
             "New knowledge {}: {}  (counter: {})",
             &self,
             remove_prefix(self.data.type_name()),
-            ctx.number_matching_message(*agent_name, data_type_id, &self.matcher)
+            ctx.number_matching_message(self.agent_name, data_type_id, &self.matcher)
         );
         trace!("Knowledge data: {:?}", self.data);
     }
@@ -106,8 +108,8 @@ pub struct TraceContext<PB: ProtocolBehavior> {
 
     put_registry: PutRegistry<PB>,
     deterministic_put: bool,
-    default_put_options: PutOptions,
-    non_default_put_descriptors: HashMap<AgentName, PutDescriptor>,
+    default_put: PutDescriptor,
+    put_descriptors: HashMap<AgentName, PutDescriptor>,
 
     phantom: PhantomData<PB>,
 }
@@ -131,28 +133,35 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
         self.agents == other.agents
             && self.put_registry == other.put_registry
             && self.deterministic_put == other.deterministic_put
-            && self.default_put_options == other.default_put_options
-            && self.non_default_put_descriptors == other.non_default_put_descriptors
+            && self.default_put == other.default_put
+            && self.put_descriptors == other.put_descriptors
             && format!("{:?}", self.knowledge) == format!("{:?}", other.knowledge)
             && format!("{:?}", self.claims) == format!("{:?}", other.claims)
     }
 }
 
 impl<PB: ProtocolBehavior> TraceContext<PB> {
+    pub fn builder(registry: &PutRegistry<PB>) -> TraceContextBuilder<PB> {
+        TraceContextBuilder::new(registry)
+    }
+
     pub fn new(put_registry: &PutRegistry<PB>, default_put_options: PutOptions) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
-        // by the AgentName. A rename of an Agent does not interfere with this.
+        // by the AgentName.
         let claims = GlobalClaimList::new();
 
         Self {
             knowledge: vec![],
             agents: vec![],
             claims,
-            non_default_put_descriptors: Default::default(),
+            put_descriptors: Default::default(),
             put_registry: put_registry.clone(),
             deterministic_put: false,
+            default_put: PutDescriptor {
+                factory: put_registry.default().name(),
+                options: default_put_options,
+            },
             phantom: Default::default(),
-            default_put_options,
         }
     }
 
@@ -175,6 +184,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     pub fn add_knowledge(&mut self, knowledge: Knowledge<PB::Matcher>) {
+        knowledge.debug_print(self);
         self.knowledge.push(knowledge)
     }
 
@@ -235,40 +245,19 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .map(|possibility| possibility.data.as_ref())
     }
 
-    /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
-    pub fn add_to_inbound(
-        &mut self,
-        agent_name: AgentName,
-        message: &PB::OpaqueProtocolMessage,
-    ) -> Result<(), Error> {
-        self.find_agent_mut(agent_name)
-            .map(|agent| agent.put_mut().add_to_inbound(message))
-    }
-
-    pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        let agent = self.find_agent_mut(agent_name)?;
-        agent.put_mut().progress(&agent_name)
-    }
-
-    /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
-    /// See [`crate::stream::Stream::take_message_from_outbound`]
-    pub fn take_message_from_outbound(
-        &mut self,
-        agent_name: AgentName,
-    ) -> Result<Option<MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>, Error> {
-        let agent = self.find_agent_mut(agent_name)?;
-        agent.put_mut().take_message_from_outbound()
-    }
-
-    fn add_agent(&mut self, agent: Agent<PB>) -> AgentName {
-        let name = agent.name();
+    /// Add an `agent` to the execution context
+    pub fn add_agent(&mut self, agent: Agent<PB>) {
         self.agents.push(agent);
-        name
     }
 
-    pub fn new_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        let agent_name = self.add_agent(Agent::new(self, descriptor)?);
-        Ok(agent_name)
+    /// Release all the agents from the execution context.
+    ///
+    /// Note that the retrieved agents are no longer available in the current execution context,
+    /// making them unavailable for further interaction (e.g. when applying a [`Step`]). This is
+    /// therefore mostly used at the end of an execution, when one wants to reuse the agents in
+    /// future executions.
+    pub fn get_agents(&mut self) -> Vec<Agent<PB>> {
+        self.agents.drain(..).collect_vec()
     }
 
     pub fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent<PB>, Error> {
@@ -294,46 +283,71 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     /// Gets the PUT descriptor which should be used for all agents
     pub fn put_descriptor(&self, agent_descriptor: &AgentDescriptor) -> PutDescriptor {
-        self.non_default_put_descriptors
+        self.put_descriptors
             .get(&agent_descriptor.name)
             .cloned()
-            .unwrap_or_else(|| self.default_put_descriptor())
-    }
-
-    fn default_put_descriptor(&self) -> PutDescriptor {
-        let factory = self.put_registry.default();
-        PutDescriptor {
-            name: factory.name(),
-            options: self.default_put_options.clone(),
-        }
-    }
-
-    /// Makes agents use the non-default PUT
-    pub fn set_non_default_put(&mut self, agent_name: AgentName, put_descriptor: PutDescriptor) {
-        self.non_default_put_descriptors
-            .insert(agent_name, put_descriptor);
-    }
-
-    pub fn set_non_default_puts(&mut self, descriptors: &[(AgentName, PutDescriptor)]) {
-        self.non_default_put_descriptors
-            .extend(descriptors.iter().cloned());
-    }
-
-    pub fn reset_agents(&mut self) -> Result<(), Error> {
-        for agent in &mut self.agents {
-            agent.reset(agent.name())?;
-        }
-        Ok(())
+            .unwrap_or_else(|| self.default_put.clone())
     }
 
     pub fn agents_successful(&self) -> bool {
-        self.agents
-            .iter()
-            .all(|agent| agent.put().is_state_successful())
+        self.agents.iter().all(|agent| agent.is_state_successful())
+    }
+}
+
+pub struct TraceContextBuilder<'a, PB: ProtocolBehavior> {
+    knowledge: Vec<Knowledge<PB::Matcher>>,
+
+    registry: &'a PutRegistry<PB>,
+    deterministic: bool,
+    put_descriptors: HashMap<AgentName, PutDescriptor>,
+    default_put_options: PutOptions,
+}
+
+impl<'a, PB: ProtocolBehavior> TraceContextBuilder<'a, PB> {
+    pub fn new(registry: &'a PutRegistry<PB>) -> Self {
+        Self {
+            knowledge: vec![],
+
+            registry,
+            deterministic: false,
+            put_descriptors: Default::default(),
+            default_put_options: Default::default(),
+        }
     }
 
-    pub fn set_deterministic(&mut self, deterministic: bool) {
-        self.deterministic_put = deterministic;
+    pub fn set_default_put_options(mut self, options: PutOptions) -> Self {
+        self.default_put_options = options;
+        self
+    }
+
+    pub fn set_deterministic(mut self, is_deterministic: bool) -> Self {
+        self.deterministic = is_deterministic;
+        self
+    }
+
+    /// Makes agents use the non-default PUT
+    pub fn set_put(mut self, agent_name: AgentName, put_descriptor: PutDescriptor) -> Self {
+        self.put_descriptors.insert(agent_name, put_descriptor);
+        self
+    }
+
+    pub fn set_puts(mut self, descriptors: &[(AgentName, PutDescriptor)]) -> Self {
+        self.put_descriptors.extend(descriptors.iter().cloned());
+        self
+    }
+
+    pub fn with_knowledge(mut self, knowledge: Knowledge<PB::Matcher>) -> Self {
+        self.knowledge.push(knowledge);
+        self
+    }
+
+    pub fn build(mut self) -> TraceContext<PB> {
+        let mut result = TraceContext::new(self.registry, self.default_put_options);
+        result.deterministic_put = self.deterministic;
+        result.knowledge.append(&mut self.knowledge);
+        result.put_descriptors.extend(self.put_descriptors);
+
+        result
     }
 }
 
@@ -348,30 +362,27 @@ pub struct Trace<M: Matcher> {
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
 /// Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a list of
 /// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
-/// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
+/// or client role and a specific TLS version. Essentially they are an [`Agent`] without a stream.
 impl<M: Matcher> Trace<M> {
-    fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
+    fn spawn_agents<PB: ProtocolBehavior>(
+        &self,
+        pool: &mut Vec<Agent<PB>>,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error> {
         for descriptor in &self.descriptors {
-            let name = if let Some(reusable) = ctx
-                .agents
+            // NOTE only spawn completely new Agent if cannot reuse any from the pool
+            let agent = if let Some(position) = pool
                 .iter_mut()
-                .find(|existing| existing.put().is_reusable_with(descriptor))
+                .position(|existing| existing.is_reusable_with(descriptor))
             {
-                // rename if it already exists and we want to reuse
-                reusable.rename(descriptor.name)?;
-                descriptor.name
+                let mut reusable = pool.swap_remove(position);
+                reusable.reset(descriptor.name)?;
+                reusable
             } else {
-                // only spawn completely new if not yet existing
-                ctx.new_agent(descriptor)?
+                Agent::new(ctx, descriptor)?
             };
 
-            if ctx.deterministic_put {
-                if let Ok(agent) = ctx.find_agent_mut(name) {
-                    if let Err(err) = agent.put_mut().determinism_reseed() {
-                        warn!("Unable to make agent {} deterministic: {}", name, err)
-                    }
-                }
-            }
+            ctx.add_agent(agent);
         }
 
         Ok(())
@@ -381,29 +392,30 @@ impl<M: Matcher> Trace<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        // We reseed all PUTs before executing a trace!
+        let mut pool: Vec<Agent<PB>> = ctx.get_agents();
+
+        // We reseed all PUTs' PRNG before executing a trace!
         ctx.put_registry.determinism_reseed_all_factories();
 
         for trace in &self.prior_traces {
-            trace.spawn_agents(ctx)?;
             trace.execute(ctx)?;
-            ctx.reset_agents()?;
+
+            // release agents, keep them for reuse in the pool
+            pool.extend(ctx.get_agents().into_iter());
         }
-        self.spawn_agents(ctx)?;
+
+        self.spawn_agents(&mut pool, ctx)?;
         let steps = &self.steps;
         for (i, step) in steps.iter().enumerate() {
             debug!("Executing step #{}", i);
 
-            step.action.execute(step, ctx)?;
+            step.execute(ctx)?;
 
             // Output after each InputAction step
-            match step.action {
-                Action::Input(_) => {
-                    let output_step = &OutputAction::<M>::new_step(step.agent);
+            if let Action::Input(_) = step.action {
+                let output_step = OutputAction::<M>::new_step(step.agent);
 
-                    output_step.action.execute(output_step, ctx)?;
-                }
-                Action::Output(_) => {}
+                output_step.execute(ctx)?;
             }
 
             ctx.claims.deref_borrow().log();
@@ -412,36 +424,6 @@ impl<M: Matcher> Trace<M> {
         }
 
         Ok(())
-    }
-
-    pub fn execute_deterministic<PB>(
-        &self,
-        put_registry: &PutRegistry<PB>,
-        default_put_options: PutOptions,
-    ) -> Result<TraceContext<PB>, Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        let mut ctx = TraceContext::new(put_registry, default_put_options);
-        ctx.set_deterministic(true);
-        self.execute(&mut ctx)?;
-        Ok(ctx)
-    }
-
-    pub fn execute_with_non_default_puts<PB>(
-        &self,
-        put_registry: &PutRegistry<PB>,
-        descriptors: &[(AgentName, PutDescriptor)],
-    ) -> Result<TraceContext<PB>, Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        let mut ctx = TraceContext::new(put_registry, PutOptions::default());
-
-        ctx.set_non_default_puts(descriptors);
-
-        self.execute(&mut ctx)?;
-        Ok(ctx)
     }
 
     pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {
@@ -476,8 +458,20 @@ pub struct Step<M: Matcher> {
     pub action: Action<M>,
 }
 
+impl<M: Matcher> Step<M> {
+    fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        match &self.action {
+            Action::Input(input) => input.input(self.agent, ctx),
+            Action::Output(output) => output.output(self.agent, ctx),
+        }
+    }
+}
+
 /// There are two action types [`OutputAction`] and [`InputAction`] differ.
-/// Both actions drive the internal state machine of an [`Agent`] forward by calling `next_state()`.
+/// Both actions drive the internal state machine of an [`Agent`] forward by calling `progress()`.
 /// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
 /// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
 /// The [`InputAction`] evaluates the recipe term and injects the newly produced message
@@ -490,18 +484,6 @@ pub struct Step<M: Matcher> {
 pub enum Action<M: Matcher> {
     Input(InputAction<M>),
     Output(OutputAction<M>),
-}
-
-impl<M: Matcher> Action<M> {
-    fn execute<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        match self {
-            Action::Input(input) => input.input(step, ctx),
-            Action::Output(output) => output.output(step, ctx),
-        }
-    }
 }
 
 impl<M: Matcher> fmt::Display for Action<M> {
@@ -531,13 +513,16 @@ impl<M: Matcher> OutputAction<M> {
         }
     }
 
-    fn output<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    fn output<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        ctx.next_state(step.agent)?;
+        ctx.find_agent_mut(agent_name)?.progress()?;
 
-        while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? {
+        while let Some(message_result) = ctx
+            .find_agent_mut(agent_name)?
+            .take_message_from_outbound()?
+        {
             let matcher = message_result.create_matcher::<PB>();
 
             let MessageResult(message, opaque_message) = message_result;
@@ -554,23 +539,21 @@ impl<M: Matcher> OutputAction<M> {
 
             for variable in knowledge {
                 let knowledge = Knowledge::<M> {
-                    agent_name: step.agent,
+                    agent_name,
                     matcher: matcher.clone(),
                     data: variable,
                 };
 
-                knowledge.debug_print(ctx, &step.agent);
                 ctx.add_knowledge(knowledge)
             }
 
             for variable in opaque_knowledge {
                 let knowledge = Knowledge::<M> {
-                    agent_name: step.agent,
+                    agent_name,
                     matcher: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
                     data: variable,
                 };
 
-                knowledge.debug_print(ctx, &step.agent);
                 ctx.add_knowledge(knowledge)
             }
         }
@@ -605,25 +588,24 @@ impl<M: Matcher> InputAction<M> {
 
     fn input<PB: ProtocolBehavior>(
         &self,
-        step: &Step<M>,
+        agent_name: AgentName,
         ctx: &mut TraceContext<PB>,
     ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        // message controlled by the attacker
         let evaluated = self.recipe.evaluate(ctx)?;
+        let agent = ctx.find_agent_mut(agent_name)?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");
-
-            ctx.add_to_inbound(step.agent, &msg.create_opaque())?;
+            agent.add_to_inbound(&msg.create_opaque());
         } else if let Some(opaque_message) = evaluated
             .as_ref()
             .downcast_ref::<PB::OpaqueProtocolMessage>()
         {
             opaque_message.debug("Input opaque message");
-            ctx.add_to_inbound(step.agent, opaque_message)?;
+            agent.add_to_inbound(opaque_message);
         } else {
             return Err(FnError::Unknown(String::from(
                 "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`!",
@@ -631,7 +613,7 @@ impl<M: Matcher> InputAction<M> {
             .into());
         }
 
-        ctx.next_state(step.agent)
+        agent.progress()
     }
 }
 

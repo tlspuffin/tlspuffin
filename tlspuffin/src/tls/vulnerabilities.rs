@@ -1295,11 +1295,13 @@ pub mod tests {
         use puffin::{
             agent::{AgentName, TLSVersion},
             put::PutDescriptor,
+            put_registry::TCP_PUT,
+            trace::TraceContext,
         };
         use test_log::test;
 
         use crate::{
-            put_registry::{tls_registry, TCP_PUT},
+            put_registry::tls_registry,
             tcp::tcp_puts::{openssl_server, wolfssl_client, wolfssl_server},
             tls::{trace_helper::TraceHelper, vulnerabilities::*},
         };
@@ -1311,7 +1313,7 @@ pub mod tests {
 
             let server_guard = openssl_server(port, TLSVersion::V1_2);
             let server = PutDescriptor {
-                name: TCP_PUT,
+                factory: TCP_PUT.to_owned(),
                 options: server_guard.build_options(),
             };
 
@@ -1319,7 +1321,7 @@ pub mod tests {
 
             let client_guard = wolfssl_client(port, TLSVersion::V1_2, Some(50));
             let client = PutDescriptor {
-                name: TCP_PUT,
+                factory: TCP_PUT.to_owned(),
                 options: client_guard.build_options(),
             };
 
@@ -1328,15 +1330,15 @@ pub mod tests {
             let descriptors = &trace.descriptors;
             let client_name = descriptors[0].name;
             let server_name = descriptors[1].name;
-            let mut context = trace
-                .execute_with_non_default_puts(
-                    &put_registry,
-                    &[(client_name, client), (server_name, server)],
-                )
-                .unwrap();
+            let mut context = TraceContext::builder(&put_registry)
+                .set_put(client_name, client)
+                .set_put(server_name, server)
+                .build();
+
+            trace.execute(&mut context).unwrap();
 
             let client = AgentName::first();
-            let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
+            let shutdown = context.find_agent_mut(client).unwrap().shutdown();
             info!("{}", shutdown);
             assert!(shutdown.contains("free(): invalid pointer"));
         }
@@ -1344,26 +1346,24 @@ pub mod tests {
         #[test]
         #[ignore] // wolfssl example server and client are not available in CI
         fn test_wolfssl_cve_2022_39173() {
-            let port = 44338;
-            let guard = wolfssl_server(port, TLSVersion::V1_3);
-            let put = PutDescriptor {
-                name: TCP_PUT,
+            let guard = wolfssl_server(44338, TLSVersion::V1_3);
+            let server_put = PutDescriptor {
+                factory: TCP_PUT.to_owned(),
                 options: guard.build_options(),
             };
 
             let put_registry = tls_registry();
             let trace = seed_cve_2022_39173_full.build_trace();
-            let initial_server = trace.prior_traces[0].descriptors[0].name;
-            let server = trace.descriptors[0].name;
-            let mut context = trace
-                .execute_with_non_default_puts(
-                    &put_registry,
-                    &[(initial_server, put.clone()), (server, put)],
-                )
-                .unwrap();
+            let init_server = trace.prior_traces[0].descriptors[0].name;
+            let next_server = trace.descriptors[0].name;
+            let mut context = TraceContext::builder(&put_registry)
+                .set_put(init_server, server_put.clone())
+                .set_put(next_server, server_put)
+                .build();
 
-            let server = AgentName::first().next();
-            let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+            trace.execute(&mut context).unwrap();
+
+            let shutdown = context.find_agent_mut(next_server).unwrap().shutdown();
             info!("{}", shutdown);
         }
     }

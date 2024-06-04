@@ -26,7 +26,7 @@ use crate::{
     log::config_default,
     protocol::{ProtocolBehavior, ProtocolMessage},
     put::PutOptions,
-    put_registry::PutRegistry,
+    put_registry::{PutRegistry, TCP_PUT},
     trace::{Action, Trace, TraceContext},
 };
 
@@ -307,17 +307,19 @@ where
         }
 
         let put = PutDescriptor {
-            name: PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']),
+            factory: TCP_PUT.to_owned(),
             options: PutOptions::from_slice_vec(options),
         };
 
         let server = trace.descriptors[0].name;
-        let mut context = trace
-            .execute_with_non_default_puts(&put_registry, &[(server, put)])
-            .unwrap();
+        let mut context = TraceContext::builder(&put_registry)
+            .set_put(server, put)
+            .build();
+
+        trace.execute(&mut context).unwrap();
 
         let server = AgentName::first();
-        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         info!("{}", shutdown);
 
         return ExitCode::SUCCESS;
@@ -452,10 +454,7 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-use crate::{
-    agent::AgentName,
-    put::{PutDescriptor, PutName},
-};
+use crate::{agent::AgentName, put::PutDescriptor};
 
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutRegistry<PB>) {
     let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
@@ -472,7 +471,10 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutReg
     // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
     let status = forked_execution(
         move || {
-            let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+            let mut ctx = TraceContext::builder(put_registry)
+                .set_default_put_options(default_put_options().clone())
+                .build();
+
             if let Err(err) = trace.execute(&mut ctx) {
                 error!(
                     "Failed to execute trace {}: {:?}",
@@ -497,7 +499,9 @@ fn binary_attack<PB: ProtocolBehavior>(
     put_registry: &PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let trace = Trace::<PB::Matcher>::from_file(input)?;
-    let ctx = TraceContext::new(put_registry, default_put_options().clone());
+    let ctx = TraceContext::builder(put_registry)
+        .set_default_put_options(default_put_options().clone())
+        .build();
 
     info!("Agents: {:?}", &trace.descriptors);
 

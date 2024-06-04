@@ -11,15 +11,70 @@ mod bindings {
 pub use bindings::*;
 
 mod init {
+    use crate::{CPutHarness, CPutLibrary, C_PUT_TYPE};
+
+    #[allow(unused)]
+    type FnRegister = unsafe extern "C" fn(data: *mut libc::c_void, cput: *const C_PUT_TYPE) -> ();
+
+    struct RegistrationContext<'a, F>
+    where
+        F: FnMut(CPutHarness, CPutLibrary, *const C_PUT_TYPE),
+    {
+        pub harness: CPutHarness,
+        pub library: CPutLibrary,
+        pub callback: &'a mut F,
+    }
+
+    #[allow(unused)]
+    fn do_register<F>(
+        harness: CPutHarness,
+        library: CPutLibrary,
+        registration: unsafe extern "C" fn(data: *mut libc::c_void, cb: FnRegister),
+        callback: &mut F,
+    ) where
+        F: FnMut(CPutHarness, CPutLibrary, *const C_PUT_TYPE),
+    {
+        let data = Box::into_raw(Box::new(RegistrationContext {
+            harness,
+            library,
+            callback,
+        }));
+
+        unsafe {
+            registration(data as *mut _, do_call::<F>);
+        }
+    }
+
+    unsafe extern "C" fn do_call<'a, F>(data: *mut libc::c_void, put: *const C_PUT_TYPE)
+    where
+        F: FnMut(CPutHarness, CPutLibrary, *const C_PUT_TYPE) + 'a,
+    {
+        let context: RegistrationContext<'a, F> = *Box::from_raw(data as *mut _);
+
+        (context.callback)(context.harness, context.library, put)
+    }
+
     include!(env!("RUST_PUTS_INIT_FILE"));
 }
-use std::io;
+
+#[derive(Clone)]
+pub struct CPutHarness {
+    pub name: std::borrow::Cow<'static, str>,
+    pub version: std::borrow::Cow<'static, str>,
+}
+
+#[derive(Clone)]
+pub struct CPutLibrary {
+    pub name: std::borrow::Cow<'static, str>,
+    pub version: std::borrow::Cow<'static, str>,
+
+    pub config_name: std::borrow::Cow<'static, str>,
+    pub config_hash: std::borrow::Cow<'static, str>,
+}
 
 pub use init::*;
 use libc::{c_char, c_void};
 use puffin::error::Error;
-
-pub type FnRegister = extern "C" fn(put: *const C_PUT_TYPE) -> ();
 
 macro_rules! define_extern_c_log {
     ( $level:ident, $name:ident ) => {
@@ -95,12 +150,12 @@ pub enum CErrorKind {
     Fatal,
 }
 
-impl From<CError> for io::Error {
-    fn from(e: CError) -> io::Error {
-        io::Error::new(
+impl From<CError> for std::io::Error {
+    fn from(e: CError) -> std::io::Error {
+        std::io::Error::new(
             match e.kind {
-                CErrorKind::IOWouldBlock => io::ErrorKind::WouldBlock,
-                _ => io::ErrorKind::Other,
+                CErrorKind::IOWouldBlock => std::io::ErrorKind::WouldBlock,
+                _ => std::io::ErrorKind::Other,
             },
             e.reason,
         )

@@ -129,7 +129,7 @@ pub mod test_signature {
         protocol::{
             OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer,
         },
-        put::{Put, PutName},
+        put::Put,
         put_registry::{Factory, PutKind},
         term,
         trace::{Action, InputAction, Step, Trace, TraceContext},
@@ -520,8 +520,8 @@ pub mod test_signature {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            PutName(['T', 'E', 'S', 'T', 'S', 'T', 'U', 'B', '_', '_'])
+        fn name(&self) -> String {
+            "TESTSTUB_RUST_PUT".to_owned()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -533,10 +533,6 @@ pub mod test_signature {
 
         fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {
             Box::new(TestFactory {})
-        }
-
-        fn determinism_set_reseed(&self) {
-            panic!("Not implemented for test stub");
         }
 
         fn determinism_reseed(&self) {
@@ -554,7 +550,6 @@ mod tests {
         algebra::{
             atoms::Variable, dynamic_function::TypeShape, signature::Signature, AnyMatcher, Term,
         },
-        put::PutOptions,
         put_registry::{Factory, PutRegistry},
         term,
         trace::{Knowledge, TraceContext},
@@ -635,19 +630,20 @@ mod tests {
 
         let put_registry =
             PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
-        let mut context = TraceContext::new(&put_registry, PutOptions::default());
-        context.add_knowledge(Knowledge {
-            agent_name: AgentName::first(),
-            matcher: None,
-            data: Box::new(data),
-        });
+
+        let context = TraceContext::builder(&put_registry)
+            .with_knowledge(Knowledge {
+                agent_name: AgentName::first(),
+                matcher: None,
+                data: Box::new(data),
+            })
+            .build();
 
         let _string = generated_term
             .evaluate(&context)
             .as_ref()
             .unwrap()
             .downcast_ref::<Vec<u8>>();
-        //println!("{:?}", string);
     }
 
     #[test]

@@ -94,33 +94,24 @@ pub trait Put<PB: ProtocolBehavior>:
     Stream<PB::ProtocolMessage, PB::OpaqueProtocolMessage> + 'static
 {
     /// Process incoming buffer, internal progress, can fill in the output buffer
-    fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
+    fn progress(&mut self) -> Result<(), Error>;
 
     /// In-place reset of the state
-    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error>;
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error>;
 
     fn descriptor(&self) -> &AgentDescriptor;
 
-    /// Register a new claim for agent_name
-    #[cfg(feature = "claims")]
+    /// Register a new claimer for agent_name
     fn register_claimer(&mut self, agent_name: AgentName);
 
-    /// Remove all claims in self
-    #[cfg(feature = "claims")]
+    /// Remove the claimer in self
     fn deregister_claimer(&mut self);
-
-    /// Propagate agent changes to the PUT
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error>;
 
     /// Returns a textual representation of the state in which self is
     fn describe_state(&self) -> &str;
 
     /// Checks whether the Put is in a good state
     fn is_state_successful(&self) -> bool;
-
-    /// Make the PUT used by self deterministic in the future by making its PRNG "deterministic"
-    /// Now subsumed by Factory-level functions to reseed globally: `determinism_reseed`
-    fn determinism_reseed(&mut self) -> Result<(), Error>;
 
     /// checks whether a agent is reusable with the descriptor
     fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
