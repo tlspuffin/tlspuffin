@@ -33,7 +33,8 @@ fn main() {
     println!("cargo:rustc-link-search={}/lib", out_dir.display());
     println!("cargo:rustc-link-lib=static=crypto");
     println!("cargo:rustc-link-lib=static=ssl");
-    println!("cargo:rustc-link-lib=stdc++");
+    println!("cargo:rustc-link-lib=c++");
+    println!("cargo:rustc-link-lib=c++abi");
 
     if cfg!(feature = "gcov_analysis") {
         let clang_output = std::process::Command::new("clang")
