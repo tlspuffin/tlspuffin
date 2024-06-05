@@ -46,7 +46,7 @@ foreach(library_path IN LISTS LIBRARIES)
     target_compile_definitions(put-${PROTOCOL}-${PUT_ID} PRIVATE PUT_ID=${PUT_ID} REGISTER=register_${PUT_ID})
 
     add_custom_command(
-        COMMAND clang -flto -nostdlib -Wl,-r $<TARGET_OBJECTS:put-${PROTOCOL}-${PUT_ID}> "-L${library_path}/lib" -lssl -lcrypto -o ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${PUT_ID}.o
+        COMMAND clang -flto -nostdlib -no-pie -Wl,-r $<TARGET_OBJECTS:put-${PROTOCOL}-${PUT_ID}> "-L${library_path}/lib" -lssl -lcrypto -o ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${PUT_ID}.o
         OUTPUT ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${PUT_ID}.o
         DEPENDS put-${PROTOCOL}-${PUT_ID} $<TARGET_OBJECTS:put-${PROTOCOL}-${PUT_ID}>
         COMMENT "relocation for put-${PROTOCOL}-${PUT_ID}" VERBATIM)
