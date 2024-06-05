@@ -3,22 +3,22 @@
 pkgs.llvmPackages_14.stdenv.mkDerivation {
   name = "llvm_shell";
   nativeBuildInputs = [
+    pkgs.git
     pkgs.rustup
     pkgs.just
 
     pkgs.cmake
     pkgs.llvmPackages_14.llvm
 
-    # wolfSSL
-    pkgs.autoconf
-    pkgs.automake
-    pkgs.libtool
+    pkgs.perl # OpenSSL, mk_vendor
 
-    # BoringSSL
-    pkgs.go
+    pkgs.autoconf # wolfSSL
+    pkgs.automake # wolfSSL
+    pkgs.libtool  # wolfSSL
 
-    # openssh
-    pkgs.openssl
+    pkgs.go # BoringSSL
+
+    pkgs.openssl # sshpuffin
 
     pkgs.graphviz
     pkgs.yajl
@@ -40,6 +40,9 @@ pkgs.llvmPackages_14.stdenv.mkDerivation {
   hardeningDisable = [ "all" ];
   
   shellHook = ''
+    export CARGO_HOME=''${CARGO_HOME:-~/.cargo}
+    export RUSTUP_HOME=''${RUSTUP_HOME:-~/.rustup}
+    export PATH=''${PATH}:''${CARGO_HOME}/bin
     export LIBCLANG_PATH="${pkgs.llvmPackages_14.libclang.lib}/lib";
     export LIBAFL_EDGES_MAP_SIZE=262144 # 2^18
   '';
