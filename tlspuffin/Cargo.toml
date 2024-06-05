@@ -14,11 +14,12 @@ categories.workspace = true
 [features]
 default = ["sancov_libafl", "introspection"]
 
-cputs = ["tls-harness"]
+cputs = ["tls-harness/cputs"]
 
 openssl111 = ["openssl111k"]
 
 openssl111k = [
+    "tls-harness/openssl111k",
     "openssl-src",
     "openssl-src/openssl111k",
     "openssl-src/no-rand",
@@ -34,6 +35,7 @@ openssl111k = [
 ]
 
 openssl111j = [
+    "tls-harness/openssl111j",
     "openssl-src",
     "openssl-src/openssl111j",
     "openssl-src/no-rand",
@@ -49,6 +51,7 @@ openssl111j = [
 ]
 
 openssl111u = [
+    "tls-harness/openssl111u",
     "openssl-src",
     "openssl-src/openssl111u",
     "openssl-src/no-rand",
@@ -64,6 +67,7 @@ openssl111u = [
 ]
 
 openssl312 = [
+    "tls-harness/openssl312",
     "openssl-src",
     "openssl-src/openssl312",
     "openssl-src/no-rand",
@@ -78,6 +82,7 @@ openssl312 = [
     "client-authentication-transcript-extraction",
 ]
 openssl101f = [
+    "tls-harness/openssl101f",
     "openssl-src",
     "openssl-src/openssl101f",
     "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
@@ -89,6 +94,7 @@ openssl101f = [
 ]
 
 openssl102u = [
+    "tls-harness/openssl102u",
     "openssl-src",
     "openssl-src/openssl102u",
     "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
@@ -103,6 +109,7 @@ openssl102u = [
 libressl = ["libressl333"]
 
 libressl333 = [
+    "tls-harness/libressl333",
     "openssl-src",
     "openssl-src/libressl333",
     "openssl-src/no-rand",
@@ -116,6 +123,7 @@ libressl333 = [
 ]
 
 wolfssl430 = [
+    "tls-harness/wolfssl430",
     "wolfssl-sys/wolfssl430",
     "wolfssl/wolfssl430",
     "tls12",
@@ -128,6 +136,7 @@ wolfssl430 = [
 ]
 
 wolfssl510 = [
+    "tls-harness/wolfssl510",
     "wolfssl-sys/wolfssl510",
     "tls12",
     "tls13",
@@ -141,6 +150,7 @@ wolfssl510 = [
 ]
 
 wolfssl520 = [
+    "tls-harness/wolfssl520",
     "wolfssl-sys/wolfssl520",
     "tls12",
     "tls13",
@@ -154,6 +164,7 @@ wolfssl520 = [
 ]
 
 wolfssl530 = [
+    "tls-harness/wolfssl530",
     "wolfssl-sys/wolfssl530",
     "tls12",
     "tls13",
@@ -167,6 +178,7 @@ wolfssl530 = [
 ]
 
 wolfssl540 = [
+    "tls-harness/wolfssl540",
     "wolfssl-sys/wolfssl540",
     "tls12",
     "tls13",
@@ -212,6 +224,7 @@ boringsslmaster = [
 ]
 
 boringssl202311 = [
+    "tls-harness/boringssl202311",
     "boringssl-sys/boring-2023-11-18",
     "tls12",
     "tls13",
@@ -225,6 +238,7 @@ boringssl202311 = [
 ]
 
 boringssl202403 = [
+    "tls-harness/boringssl202403",
     "boringssl-sys/boring-2024-03-22",
     "tls12",
     "tls13",
@@ -313,12 +327,15 @@ wolfssl-sys = { path = "../crates/wolfssl-sys", features = [], optional = true }
 boring = { path = "../crates/boring", optional = true }
 boringssl-sys = { path = "../crates/boringssl-sys", features = [], optional = true }
 
-tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", features = ["tls"], optional = true }
+tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", features = ["tls"] }
 foreign-types = { version = "0.5.0", optional = true }
 
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
 openssl-src = { version = "*", features = [], optional = true }
+tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", features = ["tls"] }
+itertools = "0.10.3"
+syn = { version = "2.0.66", features = ["full"] }
 
 [dev-dependencies]
 test-log = "0.2.10"

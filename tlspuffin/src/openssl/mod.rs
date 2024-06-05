@@ -27,9 +27,11 @@ use crate::{
 mod bindings;
 mod deterministic;
 
-pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
+pub fn new_factory(preset: &str) -> Box<dyn Factory<TLSProtocolBehavior>> {
     #[derive(Clone)]
-    struct OpenSSLFactory;
+    struct OpenSSLFactory {
+        preset: String,
+    }
 
     impl Factory<TLSProtocolBehavior> for OpenSSLFactory {
         fn create(
@@ -66,28 +68,10 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn name(&self) -> String {
-            OPENSSL_RUST_PUT.to_owned()
+            self.preset.clone()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
-            let openssl_shortname = if cfg!(feature = "openssl101f") {
-                "openssl101f"
-            } else if cfg!(feature = "openssl102u") {
-                "openssl102u"
-            } else if cfg!(feature = "openssl111") {
-                "openssl111k"
-            } else if cfg!(feature = "openssl111j") {
-                "openssl111j"
-            } else if cfg!(feature = "openssl111u") {
-                "openssl111u"
-            } else if cfg!(feature = "openssl312") {
-                "openssl312"
-            } else if cfg!(feature = "libressl") {
-                "libressl333"
-            } else {
-                "unknown"
-            };
-
             vec![
                 (
                     "harness".to_string(),
@@ -95,7 +79,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 ),
                 (
                     "library".to_string(),
-                    format!("openssl ({} / {})", openssl_shortname, OpenSSL::version()),
+                    format!("openssl ({} / {})", self.preset, OpenSSL::version()),
                 ),
             ]
         }
@@ -110,18 +94,28 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             deterministic::rng_reseed();
         }
 
+        fn supports(&self, capability: &str) -> bool {
+            tls_harness::tls_puts()
+                .get(&self.preset)
+                .map(|(harness, _, _)| harness.capabilities.contains(capability))
+                .unwrap_or(false)
+        }
+
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
             Box::new(self.clone())
         }
     }
 
-    #[cfg(feature = "deterministic")]
-    {
+    let factory = Box::new(OpenSSLFactory {
+        preset: preset.to_owned(),
+    });
+
+    if factory.supports("deterministic") {
         deterministic::rng_set();
         deterministic::rng_reseed();
     }
 
-    Box::new(OpenSSLFactory)
+    factory
 }
 
 pub struct OpenSSL {

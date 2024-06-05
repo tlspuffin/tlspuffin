@@ -630,6 +630,10 @@ pub mod test_signature {
             )]
         }
 
+        fn supports(&self, _capability: &str) -> bool {
+            false
+        }
+
         fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {
             Box::new(TestFactory {})
         }

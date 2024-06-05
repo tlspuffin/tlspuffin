@@ -41,9 +41,11 @@ use crate::{
 
 mod transcript;
 
-pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
+pub fn new_factory(preset: &str) -> Box<dyn Factory<TLSProtocolBehavior>> {
     #[derive(Clone)]
-    struct WolfSSLFactory;
+    struct WolfSSLFactory {
+        preset: String,
+    }
 
     impl Factory<TLSProtocolBehavior> for WolfSSLFactory {
         fn create(
@@ -79,26 +81,10 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn name(&self) -> String {
-            WOLFSSL_RUST_PUT.to_owned()
+            self.preset.clone()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
-            let wolfssl_shortname = if cfg!(feature = "vendored-wolfssl540") {
-                "wolfssl540"
-            } else if cfg!(feature = "vendored-wolfssl530") {
-                "wolfssl530"
-            } else if cfg!(feature = "vendored-wolfssl520") {
-                "wolfssl520"
-            } else if cfg!(feature = "vendored-wolfssl510") {
-                "wolfssl510"
-            } else if cfg!(feature = "vendored-wolfssl430") {
-                "wolfssl430"
-            } else if cfg!(feature = "vendored-master") {
-                "master"
-            } else {
-                "unknown"
-            };
-
             vec![
                 (
                     "harness".to_string(),
@@ -106,9 +92,16 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 ),
                 (
                     "library".to_string(),
-                    format!("wolfssl ({} / {})", wolfssl_shortname, WolfSSL::version()),
+                    format!("wolfssl ({} / {})", self.preset, WolfSSL::version()),
                 ),
             ]
+        }
+
+        fn supports(&self, capability: &str) -> bool {
+            tls_harness::tls_puts()
+                .get(&self.preset)
+                .map(|(harness, _, _)| harness.capabilities.contains(capability))
+                .unwrap_or(false)
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
@@ -116,7 +109,9 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
     }
 
-    Box::new(WolfSSLFactory)
+    Box::new(WolfSSLFactory {
+        preset: preset.to_owned(),
+    })
 }
 
 pub struct WolfSSLErrorStack(pub ErrorStack);

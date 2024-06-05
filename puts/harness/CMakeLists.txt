@@ -1,6 +1,10 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.15 FATAL_ERROR)
 
-project(puts VERSION 0.1 LANGUAGES C)
+cmake_policy(SET CMP0074 NEW)
+
+list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+
+project(tlspuffin-harness VERSION 0.1 LANGUAGES C CXX)
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   # NOTE avoid interactions with system libraries
@@ -17,66 +21,119 @@ endif()
 
 enable_testing()
 
+include(GNUInstallDirs)
+include(MkVendor)
+include(PutHarness)
+include(PutBundle)
+
+include(FindClaimsLibrary)
+find_claims(TARGET_NAME claims)
+
+add_library(puts-harness-interface INTERFACE)
+target_include_directories(puts-harness-interface INTERFACE include)
+target_link_libraries(puts-harness-interface INTERFACE claims)
+
 set(PUTS "")
-set(PUT_LIBS "")
 
 string(REPLACE "," ";" LIBRARIES "${LIBRARIES}")
 foreach(library_path IN LISTS LIBRARIES)
-    set(PROTOCOL "tls")
-    set(HARNESS "openssl")
 
-    # FIXME retrieve mk_vendor config uid if available
-    string(SHA256 LIBRARY_HASH "${PROTOCOL}/${HARNESS}/${library_path}")
-    string(SUBSTRING ${LIBRARY_HASH} 0 16 LIBRARY_HASH)
+    #
+    # ------ LOAD PUT LIBRARY
+    #
 
-    set(PUT_ID "${LIBRARY_HASH}")
+    # TODO retrieve dynamically
+    set(LIBRARY_NAME "openssl")
 
-    add_library(put-${PROTOCOL}-${HARNESS}-${PUT_ID} OBJECT ${PROTOCOL}/${HARNESS}/src/put.c)
-    set_property(TARGET put-${PROTOCOL}-${HARNESS}-${PUT_ID} PROPERTY C_VISIBILITY_PRESET default)
-    target_compile_definitions(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE PUT_ID=${PUT_ID} REGISTER=register_${HARNESS}_${PUT_ID})
-    target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "include")
-    target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "${library_path}/include")
+    # -- load mk_vendor configuration
+    read_mk_vendor("${library_path}/mk_vendor.conf" CONFIG_NAME "META:CONFNAME")
+    read_mk_vendor("${library_path}/mk_vendor.conf" CONFIG_HASH "META:CONFUID")
+    read_mk_vendor("${library_path}/mk_vendor.conf" WITH_SANCOV "BUILD_ARG:-DWITH_SANCOV" DEFAULT OFF)
+    read_mk_vendor("${library_path}/mk_vendor.conf" WITH_ASAN "BUILD_ARG:-DWITH_ASAN" DEFAULT OFF)
+    read_mk_vendor("${library_path}/mk_vendor.conf" WITH_GCOV "BUILD_ARG:-DWITH_GCOV" DEFAULT OFF)
+    read_mk_vendor("${library_path}/mk_vendor.conf" WITH_LLVM_COV "BUILD_ARG:-DWITH_LLVM_COV" DEFAULT OFF)
 
-    add_custom_command(
-        COMMAND clang -flto -nostdlib -Wl,-r $<TARGET_OBJECTS:put-${PROTOCOL}-${HARNESS}-${PUT_ID}> "-L${library_path}/lib" -lssl -lcrypto -o ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o OUTPUT ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o DEPENDS put-${PROTOCOL}-${HARNESS}-${PUT_ID}
-        COMMENT "relocation for put-${PROTOCOL}-${HARNESS}-${PUT_ID}" VERBATIM)
+    if(NOT DEFINED CONFIG_HASH)
+      # TODO recompute the mk_vendor hash if a mk_vendor.conf file exists
+      string(SHA256 CONFIG_HASH "${library_path}")
+      string(SUBSTRING ${CONFIG_HASH} 0 16 CONFIG_HASH)
+    endif()
 
-    add_custom_target(relocate-put-${PROTOCOL}-${HARNESS}-${PUT_ID} ALL DEPENDS ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o)
+    if(NOT DEFINED CONFIG_NAME)
+      get_filename_component(CONFIG_NAME ${library_path} NAME)
+    endif()
 
-    add_library(relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID} OBJECT IMPORTED)
-    set_property(TARGET relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID} PROPERTY IMPORTED_OBJECTS ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o)
-    add_dependencies(relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID} relocate-put-${PROTOCOL}-${HARNESS}-${PUT_ID})
+    # -- import CMake target for PUT library
+    set(PUT_LIB put-library-${LIBRARY_NAME}-${CONFIG_HASH})
 
-    list(APPEND PUTS "${HARNESS}_${PUT_ID}")
-    list(APPEND PUT_LIBS relocated-put-${PROTOCOL}-${HARNESS}-${PUT_ID})
+    define_property(TARGET PROPERTY LIBRARY_NAME BRIEF_DOCS "PUT library name (openssl, wolfssl, ...)")
+    define_property(TARGET PROPERTY CONFIG_NAME BRIEF_DOCS "PUT library configuration name (openssl111k, libressl333-asan, ...)")
+    define_property(TARGET PROPERTY CONFIG_HASH BRIEF_DOCS "PUT library configuration hash")
+    define_property(TARGET PROPERTY WITH_SANCOV BRIEF_DOCS "PUT library compiled with `sancov`")
+    define_property(TARGET PROPERTY WITH_ASAN BRIEF_DOCS "PUT library compiled with `asan`")
+    define_property(TARGET PROPERTY WITH_GCOV BRIEF_DOCS "PUT library compiled with `gcov`")
+    define_property(TARGET PROPERTY WITH_LLVM_COV BRIEF_DOCS "PUT library compiled with `llvm_cov`")
+    define_property(TARGET PROPERTY KNOWN_VULNERABILITIES BRIEF_DOCS "Known CVEs for a PUT library")
+
+    add_library(${PUT_LIB} INTERFACE)
+    target_link_libraries(${PUT_LIB} INTERFACE claims "-L${library_path}/lib" -lssl -lcrypto)
+    target_include_directories(${PUT_LIB} INTERFACE ${library_path}/include)
+
+    include(${LIBRARY_NAME}/CheckHasClaims)
+    CHECK_TLS_OPENSSL_HAS_CLAIMS("${PUT_LIB}")
+
+    include(${LIBRARY_NAME}/CheckVersion)
+    CHECK_OPENSSL_VERSION("${PUT_LIB}")
+    if(DEFINED ${PUT_LIB}_VERSION)
+      set(LIBRARY_VERSION "${${PUT_LIB}_VERSION}")
+    else()
+      message(FATAL_ERROR "failed to retrieve library version for ${CONFIG_NAME}: ${${PUT_LIB}_VERSION}")
+    endif()
+
+    set_property(TARGET ${PUT_LIB} PROPERTY VERSION ${LIBRARY_VERSION})
+    set_property(TARGET ${PUT_LIB} PROPERTY LIBRARY_NAME ${LIBRARY_NAME})
+    set_property(TARGET ${PUT_LIB} PROPERTY CONFIG_NAME ${CONFIG_NAME})
+    set_property(TARGET ${PUT_LIB} PROPERTY CONFIG_HASH ${CONFIG_HASH})
+    set_property(TARGET ${PUT_LIB} PROPERTY WITH_SANCOV ${WITH_SANCOV})
+    set_property(TARGET ${PUT_LIB} PROPERTY WITH_ASAN ${WITH_ASAN})
+    set_property(TARGET ${PUT_LIB} PROPERTY WITH_GCOV ${WITH_GCOV})
+    set_property(TARGET ${PUT_LIB} PROPERTY WITH_LLVM_COV ${WITH_LLVM_COV})
+
+    # -- register known CVEs
+    include(${LIBRARY_NAME}/cve/CheckAllCVEs)
+    check_all_cves(${PUT_LIB})
+
+    #
+    # ------ CREATE PUT
+    #
+
+    define_property(TARGET PROPERTY HARNESS_NAME BRIEF_DOCS "Harness name")
+
+    # TODO try all known harnesses
+    set(HARNESS_NAME "openssl")
+    set(PUT relocated-put-${HARNESS_NAME}${CONFIG_HASH})
+
+    add_put(${PUT}
+      HARNESS "${HARNESS_NAME}"
+      LIBRARY "${PUT_LIB}"
+      SOURCES
+        tls/${HARNESS_NAME}/src/put.c
+    )
+
+    target_include_directories(${PUT} PRIVATE "tls/${HARNESS_NAME}/include")
+    target_compile_definitions(${PUT} PRIVATE USE_CUSTOM_PRNG=1)
+
+    if(${PUT_LIB}_HAS_CLAIMS)
+      target_compile_definitions(${PUT} PRIVATE HAS_CLAIMS=1)
+    endif()
+
+    list(APPEND PUTS "${PUT}")
 endforeach()
 
-set(BUNDLE_OBJECTS "")
-foreach(PUT_LIB IN LISTS PUT_LIBS)
-    list(APPEND BUNDLE_OBJECTS "$<TARGET_OBJECTS:${PUT_LIB}>")
-    install(FILES "$<TARGET_OBJECTS:${PUT_LIB}>" DESTINATION ".")
-endforeach()
+set(RUST_INIT_FILE ${CMAKE_BINARY_DIR}/puts-bundle-init.rs)
 
-# NOTE adding empty.c allows us to build even when there is no PUT in the bundle
-file(WRITE ${CMAKE_BINARY_DIR}/empty.c "")
-add_library(puts-bundle STATIC ${CMAKE_BINARY_DIR}/empty.c ${BUNDLE_OBJECTS})
-set_target_properties(puts-bundle PROPERTIES LINKER_LANGUAGE C)
-
-# create Rust init file
-set(RUST_INIT_FILE ${CMAKE_BINARY_DIR}/init.rs)
-set(RUST_INIT_DECL "")
-set(RUST_INIT_CALL "")
-foreach(put_id IN LISTS PUTS)
-    string(APPEND RUST_INIT_DECL "    fn register_${put_id}(callback: FnRegister);\n")
-    string(APPEND RUST_INIT_CALL "        unsafe { register_${put_id}(callback); };\n")
-endforeach()
-
-if(NOT RUST_INIT_DECL)
-    file(WRITE ${RUST_INIT_FILE} "use crate::FnRegister;\n\npub fn register(_callback: FnRegister) {}\n")
-else()
-    file(WRITE ${RUST_INIT_FILE} "use crate::FnRegister;\n\nextern {\n${RUST_INIT_DECL}}\n\npub fn register(callback: FnRegister) {\n    ${RUST_INIT_CALL}\n}\n")
-endif()
+add_bundle(puts-bundle PUTS ${PUTS} RUST_BUNDLE_INIT ${RUST_INIT_FILE})
 
 install(FILES ${RUST_INIT_FILE} DESTINATION ".")
 install(FILES $<TARGET_FILE:puts-bundle> DESTINATION ".")
-
+install(FILES $<TARGET_OBJECTS:puts-bundle> DESTINATION ".")

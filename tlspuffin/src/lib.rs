@@ -103,13 +103,34 @@
 //!
 
 #[cfg(feature = "boringssl-binding")]
-pub mod boringssl;
+mod boringssl;
 #[cfg(feature = "openssl-binding")]
-pub mod openssl;
+mod openssl;
 #[cfg(feature = "wolfssl-binding")]
-pub mod wolfssl;
+mod wolfssl;
+
+pub mod rust_put {
+    #[cfg(feature = "boringssl-binding")]
+    pub use crate::boringssl::*;
+    #[cfg(feature = "openssl-binding")]
+    pub use crate::openssl::*;
+    #[cfg(feature = "wolfssl-binding")]
+    pub use crate::wolfssl::*;
+
+    #[cfg(not(any(
+        feature = "openssl-binding",
+        feature = "wolfssl-binding",
+        feature = "boringssl-binding"
+    )))]
+    pub fn new_factory(
+        _name: &str,
+    ) -> Box<dyn puffin::put_registry::Factory<crate::protocol::TLSProtocolBehavior>> {
+        panic!("no Rust PUT binding");
+    }
+}
 
 pub mod claims;
+pub mod cput;
 pub mod debug;
 mod protocol;
 pub mod put;

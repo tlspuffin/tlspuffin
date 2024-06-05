@@ -40,9 +40,11 @@ use std::ops::Deref;
 
 use transcript::extract_current_transcript;
 
-pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
+pub fn new_factory(preset: &str) -> Box<dyn Factory<TLSProtocolBehavior>> {
     #[derive(Clone)]
-    struct BoringSSLFactory;
+    struct BoringSSLFactory {
+        preset: String,
+    }
 
     impl Factory<TLSProtocolBehavior> for BoringSSLFactory {
         fn create(
@@ -84,20 +86,10 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn name(&self) -> String {
-            BORINGSSL_RUST_PUT.to_owned()
+            self.preset.clone()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
-            let boringssl_shortname = if cfg!(feature = "boringssl202311") {
-                "boringssl202311"
-            } else if cfg!(feature = "boringssl202403") {
-                "boringssl202403"
-            } else if cfg!(feature = "boringsslmaster") {
-                "master"
-            } else {
-                "unknown"
-            };
-
             vec![
                 (
                     "harness".to_string(),
@@ -105,11 +97,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 ),
                 (
                     "library".to_string(),
-                    format!(
-                        "boringssl ({} / {})",
-                        boringssl_shortname,
-                        BoringSSL::version()
-                    ),
+                    format!("boringssl ({} / {})", self.preset, BoringSSL::version()),
                 ),
             ]
         }
@@ -119,12 +107,21 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             deterministic::rng_reseed();
         }
 
+        fn supports(&self, capability: &str) -> bool {
+            tls_harness::tls_puts()
+                .get(&self.preset)
+                .map(|(harness, _, _)| harness.capabilities.contains(capability))
+                .unwrap_or(false)
+        }
+
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
             Box::new(self.clone())
         }
     }
 
-    Box::new(BoringSSLFactory)
+    Box::new(BoringSSLFactory {
+        preset: preset.to_owned(),
+    })
 }
 
 pub struct BoringSSL {

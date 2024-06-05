@@ -92,6 +92,10 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             )]
         }
 
+        fn supports(&self, _capability: &str) -> bool {
+            false
+        }
+
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
             Box::new(TCPFactory)
         }

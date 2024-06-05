@@ -847,6 +847,7 @@ run_cmd_make() {
     {
         printf 'META:MK_VENDOR_VERSION:%s\n' "${VERSION}"
         printf 'META:CONFUID:%s\n' "${CONFUID}"
+        printf 'META:CONFNAME:%s\n' "${VENDOR_NAME}"
         config_summary --with-paths
     } > "${OUTDIR}/mk_vendor.conf"
 

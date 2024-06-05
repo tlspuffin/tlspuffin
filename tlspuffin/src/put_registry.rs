@@ -1,6 +1,4 @@
 use puffin::put_registry::PutRegistry;
-#[cfg(feature = "cputs")]
-use tls_harness::C_PUT_TYPE;
 
 use crate::protocol::TLSProtocolBehavior;
 
@@ -9,39 +7,15 @@ pub const WOLFSSL_RUST_PUT: &str = "rust-put-wolfssl";
 pub const BORINGSSL_RUST_PUT: &str = "rust-put-boringssl";
 
 pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
-    #[cfg(feature = "cputs")]
-    extern "C" fn callback(put: *const C_PUT_TYPE) {
-        if put.is_null() {
-            return;
-        }
-
-        println!("registering C put")
-    }
-
-    let puts = vec![
-        #[cfg(feature = "openssl-binding")]
-        {
-            let put = crate::openssl::new_openssl_factory();
-            (put.name(), put)
-        },
-        #[cfg(feature = "wolfssl-binding")]
-        {
-            let put = crate::wolfssl::new_wolfssl_factory();
-            (put.name(), put)
-        },
-        #[cfg(feature = "boringssl-binding")]
-        {
-            let put = crate::boringssl::new_boringssl_factory();
-            (put.name(), put)
-        },
-        {
-            let put = crate::tcp::new_tcp_factory();
-            (put.name(), put)
-        },
-    ];
-
-    #[cfg(feature = "cputs")]
-    tls_harness::register(callback);
-
-    PutRegistry::new(puts)
+    PutRegistry::new(
+        tls_harness::tls_puts()
+            .into_iter()
+            .map(
+                |(name, (harness, library, interface))| match harness.name.as_ref() {
+                    tls_harness::RUST_PUT_HARNESS => crate::rust_put::new_factory(&name),
+                    _ => crate::cput::new_factory(harness, library, interface),
+                },
+            )
+            .chain([crate::tcp::new_tcp_factory()].into_iter()),
+    )
 }

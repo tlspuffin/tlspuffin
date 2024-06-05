@@ -55,16 +55,12 @@ impl<PB: ProtocolBehavior> Debug for PutRegistry<PB> {
 }
 
 impl<PB: ProtocolBehavior> PutRegistry<PB> {
-    pub fn new<SI, I>(puts: I) -> Self
+    pub fn new<I>(puts: I) -> Self
     where
-        SI: Into<String>,
-        I: IntoIterator<Item = (SI, Box<dyn Factory<PB>>)>,
+        I: IntoIterator<Item = Box<dyn Factory<PB>>>,
     {
         Self {
-            factories: puts
-                .into_iter()
-                .map(|(id, f)| (Into::<String>::into(id), f))
-                .collect(),
+            factories: puts.into_iter().map(|f| (f.name(), f)).collect(),
         }
     }
 
@@ -96,11 +92,7 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
 
 impl<PB: ProtocolBehavior> Clone for PutRegistry<PB> {
     fn clone(&self) -> Self {
-        Self::new(
-            self.factories
-                .iter()
-                .map(|(n, f)| (n.clone(), f.clone_factory())),
-        )
+        Self::new(self.factories.values().map(|f| f.clone_factory()))
     }
 }
 
@@ -121,6 +113,8 @@ pub trait Factory<PB: ProtocolBehavior> {
     fn kind(&self) -> PutKind;
     fn name(&self) -> String;
     fn versions(&self) -> Vec<(String, String)>;
+
+    fn supports(&self, capability: &str) -> bool;
 
     fn clone_factory(&self) -> Box<dyn Factory<PB>>;
 

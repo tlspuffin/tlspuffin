@@ -14,10 +14,28 @@ categories.workspace = true
 [features]
 tls = []
 
+cputs = []
+
+openssl111k = []
+openssl111j = []
+openssl111u = []
+openssl312 = []
+openssl101f = []
+openssl102u = []
+libressl333 = []
+wolfssl430 = []
+wolfssl510 = []
+wolfssl520 = []
+wolfssl530 = []
+wolfssl540 = []
+boringssl202311 = []
+boringssl202403 = []
+
 [dependencies]
 libc = { version = "0.2.126" }
 puffin = { path = "../../puffin" }
 log = "0.4.17"
+once_cell = "1.19.0"
 
 [build-dependencies]
 cmake = "0.1"

@@ -28,6 +28,38 @@ fn main() {
         println!("cargo:rustc-link-arg=-fprofile-instr-generate");
         println!("cargo:rustc-link-arg=-fcoverage-mapping");
     }
+
+    // expose the capabilities of linked PUTs as cfg
+    tls_harness::tls_puts()
+        .iter()
+        .for_each(|(name, (harness, library, _))| {
+            if library.with_sancov {
+                println!("cargo:rust-cfg={}=\"sancov\"", name);
+            }
+            if library.with_asan {
+                println!("cargo:rust-cfg={}=\"asan\"", name);
+            }
+            if library.with_gcov {
+                println!("cargo:rust-cfg={}=\"gcov\"", name);
+            }
+            if library.with_llvm_cov {
+                println!("cargo:rust-cfg={}=\"llvm_cov\"", name);
+            }
+
+            println!("cargo:rustc-cfg=has_put=\"{}\"", name);
+
+            harness
+                .capabilities
+                .iter()
+                .for_each(|capability| println!("cargo:rustc-cfg={}=\"{}\"", capability, name));
+
+            library
+                .known_vulnerabilities
+                .iter()
+                .for_each(|vulnerability| {
+                    println!("cargo:rustc-cfg={}=\"{}\"", vulnerability, name)
+                });
+        });
 }
 
 fn runtime_dir() -> String {
