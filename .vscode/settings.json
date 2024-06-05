@@ -1,13 +1,41 @@
 {
-    "editor.formatOnSave": true,
-    "files.autoSave": "onFocusChange",
-    "editor.defaultFormatter": "rust-lang.rust-analyzer",
-    "rust-analyzer.cargo.buildScripts.enable": false,
-    "rust-analyzer.procMacro.enable": false,
+    "rust-analyzer.cargo.buildScripts.enable": true,
+    "rust-analyzer.procMacro.enable": true,
+    "rust-analyzer.check.overrideCommand": [
+        "cargo",
+        "clippy",
+        "--quiet",
+        "--workspace",
+        "--message-format=json",
+        "--all-targets"
+    ],
+    "rust-analyzer.cargo.buildScripts.overrideCommand": [
+        "cargo",
+        "check",
+        "--quiet",
+        "--workspace",
+        "--message-format=json",
+        "--all-targets"
+
+    ],
     "rust-analyzer.cargo.features": [
-        "openssl111j"
+        "openssl312"
     ],
     "[json]": {
         "editor.defaultFormatter": "vscode.json-language-features"
-    }
+    },
+    "cmake.sourceDirectory": "${workspaceFolder}/puts/harness",
+    "cmake.buildDirectory": "${workspaceFolder}/target/cmake/build",
+    "cmake.installPrefix": "${workspaceFolder}/target/cmake/install",
+    "cmake.configureArgs": [
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=1",
+        "-DPROTOCOLS=tls",
+        "-DLIBRARIES=${workspaceFolder}/vendor/openssl312-sancov",
+    ],
+    "clangd.arguments": [
+        "--background-index",
+        "--clang-tidy",
+        "--compile-commands-dir=${workspaceFolder}/target/cmake/build/",
+        "--query-driver=**"
+    ]
 }

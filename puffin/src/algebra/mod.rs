@@ -121,7 +121,7 @@ pub mod test_signature {
         put::{Put, PutName},
         put_registry::{Factory, PutKind},
         term,
-        trace::{Action, InputAction, Knowledge, Source, Step, Trace, TraceContext},
+        trace::{Action, InputAction, Knowledge, Source, Step, Trace},
         variable_data::VariableData,
         VERSION_STR,
     };
