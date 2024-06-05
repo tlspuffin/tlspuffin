@@ -9,15 +9,25 @@ pub fn main() {
     println!("cargo:rerun-if-changed={}", env!("CARGO_MANIFEST_DIR"));
 
     let out_dir = env::var("OUT_DIR").unwrap();
+    let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let inc_dir = src_dir.join("include");
+    let dst_dir = PathBuf::from(&out_dir);
 
-    let bindings_path = PathBuf::from(&out_dir).join("bindings.rs");
+    let bindings_path = PathBuf::from(out_dir).join("bindings.rs");
     bindgen::Builder::default()
         .ctypes_prefix("::libc")
-        .raw_line("use libc::*;")
         .allowlist_file(".*/tlspuffin/[^/]+\\.h")
         .allowlist_recursively(false)
-        .no_copy("^AGENT_DESCRIPTOR$")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .rustified_enum(".*")
+        .derive_copy(true)
+        .derive_debug(true)
+        .derive_eq(true)
+        .derive_default(true)
+        .derive_partialeq(true)
+        .impl_partialeq(true)
+        .impl_debug(true)
+        .no_copy("^AGENT_DESCRIPTOR$")
         .header("include/tlspuffin/put.h")
         .generate()
         .expect("Unable to generate Rust bindings for tlspuffin-harness-sys")
@@ -28,10 +38,6 @@ pub fn main() {
         "cargo:rustc-env=RUST_BINDINGS_FILE={}",
         bindings_path.to_string_lossy()
     );
-
-    let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let inc_dir = src_dir.join("include");
-    let dst_dir = PathBuf::from(out_dir);
 
     std::fs::create_dir_all(&inc_dir).unwrap();
 
