@@ -5,9 +5,10 @@ use std::process::ExitCode;
 use std::{env, fs};
 
 use clap::parser::ValuesRef;
-use clap::{arg, crate_authors, crate_name, crate_version, value_parser, Command};
+use clap::{arg, crate_authors, crate_name, value_parser, Command};
 use libafl::inputs::Input;
 use libafl_bolts::prelude::Cores;
+use puffin_build::puffin;
 
 use crate::agent::AgentName;
 use crate::algebra::TermType;
@@ -27,7 +28,7 @@ where
     S: AsRef<str>,
 {
     Command::new(crate_name!())
-        .version(crate::MAYBE_GIT_REF.unwrap_or( crate_version!()))
+        .version(puffin::version())
         .author(crate_authors!())
         .about(title.as_ref().to_owned())
         .arg(arg!(-c --cores [spec] "Sets the cores to use during fuzzing"))
@@ -113,12 +114,11 @@ where
     let without_bit_level = matches.get_flag("wo-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
 
-    log::info!("Git Version: {}", crate::GIT_REF);
+    log::info!("Version: {}", puffin::full_version());
     log::info!("Put Versions:");
-
     for (id, put) in put_registry.puts() {
-        log::info!("({:?}) {}:", put.kind(), id);
-        for (component, version) in put.versions() {
+        log::info!("{}:", id);
+        for (component, version) in put.versions().into_iter() {
             log::info!("    {}: {}", component, version);
         }
     }

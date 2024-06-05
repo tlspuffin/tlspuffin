@@ -15,9 +15,8 @@ use puffin::codec::Codec;
 use puffin::error::Error;
 use puffin::protocol::ProtocolBehavior;
 use puffin::put::{Put, PutOptions};
-use puffin::put_registry::{Factory, PutKind, TCP_PUT};
+use puffin::put_registry::{Factory, TCP_PUT};
 use puffin::stream::Stream;
-use puffin::VERSION_STR;
 
 use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
 
@@ -68,10 +67,6 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             }
         }
 
-        fn kind(&self) -> PutKind {
-            PutKind::Rust
-        }
-
         fn name(&self) -> String {
             String::from(TCP_PUT)
         }
@@ -79,7 +74,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         fn versions(&self) -> Vec<(String, String)> {
             vec![(
                 "harness".to_string(),
-                format!("{} ({})", TCP_PUT, VERSION_STR),
+                format!("{} {}", TCP_PUT, puffin_build::puffin::full_version()),
             )]
         }
 
@@ -294,7 +289,7 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         &self.agent_descriptor
     }
 
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         panic!("Not supported")
     }
 
@@ -330,7 +325,7 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         &self.agent_descriptor
     }
 
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         panic!("Not supported")
     }
 

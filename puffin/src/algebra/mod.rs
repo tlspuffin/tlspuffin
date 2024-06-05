@@ -96,6 +96,7 @@ pub mod test_signature {
     use std::fmt;
     use std::io::Read;
 
+    use puffin_build::puffin;
     use serde::{Deserialize, Serialize};
 
     use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
@@ -111,11 +112,11 @@ pub mod test_signature {
         ProtocolTypes,
     };
     use crate::put::{Put, PutOptions};
-    use crate::put_registry::{Factory, PutKind};
+    use crate::put_registry::Factory;
     use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace};
     use crate::{
         codec, define_signature, dummy_codec, dummy_extract_knowledge,
-        dummy_extract_knowledge_codec, term, VERSION_STR,
+        dummy_extract_knowledge_codec, term,
     };
 
     #[derive(Debug, Clone)]
@@ -637,10 +638,6 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn kind(&self) -> PutKind {
-            PutKind::Rust
-        }
-
         fn name(&self) -> String {
             String::from("TESTSTUB_RUST_PUT")
         }
@@ -648,7 +645,7 @@ pub mod test_signature {
         fn versions(&self) -> Vec<(String, String)> {
             vec![(
                 "harness".to_string(),
-                format!("{} ({})", self.name(), VERSION_STR),
+                format!("{} {}", self.name(), puffin::full_version()),
             )]
         }
 

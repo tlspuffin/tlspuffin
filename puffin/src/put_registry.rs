@@ -99,12 +99,6 @@ impl<PB: ProtocolBehavior> Clone for PutRegistry<PB> {
     }
 }
 
-#[derive(Debug)]
-pub enum PutKind {
-    CPUT,
-    Rust,
-}
-
 /// Factory for instantiating programs-under-test.
 pub trait Factory<PB: ProtocolBehavior> {
     fn create(
@@ -114,7 +108,6 @@ pub trait Factory<PB: ProtocolBehavior> {
         options: &PutOptions,
     ) -> Result<Box<dyn Put<PB>>, Error>;
 
-    fn kind(&self) -> PutKind;
     fn name(&self) -> String;
     fn versions(&self) -> Vec<(String, String)>;
 

@@ -1,7 +1,7 @@
-use std::path::PathBuf;
-use std::process::Command;
+use std::path::{Path, PathBuf};
 
-use puffin_build::vendor;
+use puffin_build::harness::{Harness, Put};
+use puffin_build::{harness, library, vendor_dir};
 
 #[cfg(any(
     all(feature = "openssl-binding", feature = "wolfssl-binding"),
@@ -11,140 +11,76 @@ use puffin_build::vendor;
 compile_error!("Selecting multiple Rust PUT is currently not supported: openssl/libressl, wolfssl and boringssl feature flags are mutually exclusive.");
 
 fn main() {
-    println!("cargo:rustc-check-cfg=cfg(has_instr, values(\"sancov\", \"asan\", \"gcov\", \"llvm_cov\", \"claimer\"))");
+    let out_dir = std::env::var("OUT_DIR").unwrap();
 
-    #[cfg(feature = "rust-put")]
-    {
-        if let Ok(boringssl_root) = std::env::var("DEP_BORING_ROOT") {
-            configure_rust_put(boringssl_root);
-        } else if let Ok(openssl_root) = std::env::var("DEP_OPENSSL_ROOT") {
-            configure_rust_put(openssl_root);
-        } else if let Ok(wolfssl_root) = std::env::var("DEP_WOLFSSL_ROOT") {
-            configure_rust_put(wolfssl_root);
-        } else {
-            panic!("failed to find Rust PUT prefix dir");
-        }
-    }
-}
+    let bindings_path = PathBuf::from(&out_dir).join("bindings.rs");
+    bindgen::Builder::default()
+        .ctypes_prefix("::libc")
+        .clang_arg(format!(
+            "-I{project_dir}/puffin/include",
+            project_dir = puffin_build::puffin::project_dir().display()
+        ))
+        .allowlist_file(".*/puffin/[^/]+\\.h")
+        .allowlist_recursively(false)
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .rustified_enum(".*")
+        .derive_copy(true)
+        .derive_debug(true)
+        .derive_eq(true)
+        .derive_default(true)
+        .derive_partialeq(true)
+        .impl_partialeq(true)
+        .impl_debug(true)
+        .no_copy("^TLS_AGENT_DESCRIPTOR$")
+        .blocklist_type("Claim")
+        .header("include/puffin/tls.h")
+        .generate()
+        .expect("Unable to generate Rust bindings for tlspuffin harness")
+        .write_to_file(&bindings_path)
+        .expect("Couldn't write bindings!");
 
-fn configure_rust_put(vendor_root: impl AsRef<std::path::Path>) {
-    let vendor_name = vendor_root
-        .as_ref()
-        .file_name()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_owned();
-
-    let library = vendor::dir()
-        .lock(&vendor_name)
-        .expect("failed to get vendor directory")
-        .library()
-        .expect("failed to get vendor library")
-        .unwrap();
-
-    generate_rust_put_bindings(vendor_name, &library);
-
-    for instrumentation_type in library.instrumentation.iter() {
-        println!("cargo:rustc-cfg=has_instr=\"{instrumentation_type}\"");
-    }
-
-    if library.instrumentation.iter().any(|i| i == "asan") {
-        // NOTE adding compiler-rt to rpath for libasan is not straightforward
-        //
-        //     Unfortunately, passing `-frtlib-add-rpath` to clang doesn't add
-        //     the correct rpath on linux platforms. Instead, we find the folder
-        //     containing the compiler-rt runtime and add it to rpath ourselves.
-        println!("cargo:rustc-link-arg=-Wl,-rpath,{}", runtime_dir());
-        println!("cargo:rustc-link-arg=-fsanitize=address");
-        println!("cargo:rustc-link-arg=-shared-libasan");
-    }
-
-    if library.instrumentation.iter().any(|i| i == "gcov") {
-        println!("cargo:rustc-link-arg=-ftest-coverage");
-        println!("cargo:rustc-link-arg=-fprofile-arcs");
-    }
-
-    if library.instrumentation.iter().any(|i| i == "llvm_cov") {
-        println!("cargo:rustc-link-arg=-fprofile-instr-generate");
-        println!("cargo:rustc-link-arg=-fcoverage-mapping");
-    }
-}
-
-fn generate_rust_put_bindings(vendor_name: impl AsRef<str>, library: &vendor::Library) {
-    let path = PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("rust_put_bindings.rs");
-
-    let rust_put_bindings = format!(
-        r#"
-        use puffin::put_registry::Factory;
-        use crate::protocol::TLSProtocolBehavior;
-
-        pub fn new_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {{
-            crate::{}::new_factory("{}")
-        }}
-        "#,
-        library.libname,
-        vendor_name.as_ref(),
+    println!(
+        "cargo:rustc-env=RUST_BINDINGS_FILE={}",
+        bindings_path.to_string_lossy()
     );
 
-    std::fs::write(&path, rust_put_bindings).expect("failed to generate Rust PUT bindings");
-    println!("cargo:rustc-env=RUST_PUT_BINDINGS={}", path.display());
+    let out_dir = Path::new(&std::env::var("OUT_DIR").unwrap()).join("harness_bundle");
+    let puts: Vec<Put> = vendor_dir::from_env()
+        .all()
+        .iter()
+        .filter_map(harness)
+        .collect();
+
+    let bundle = harness::bundle(puts).build(out_dir);
+    bundle.print_cargo_metadata();
 }
 
-fn runtime_dir() -> String {
-    // NOTE the current process for finding the runtime-dir might be incomplete
-    //
-    //     We try the following in order:
-    //       - `clang --print-runtime-dir` (clang >= 13)
-    //       - `clang --print-resource-dir`/lib/<os>
-    //       - panic
-    //
-    //     Note that extracting the directory path directly from the result of
-    //     `--print-file-name=libclang_rt.asan-<arch>.<dylib_suffix>` would be
-    //     an alternative solution but it was broken for a long time on Apple
-    //     clang.
-    //
-    //     - see https://github.com/llvm/llvm-project/commit/aafc3f7be804d117a632365489a18c3e484a3931
-    let output = Command::new("clang")
-        .args(["--print-runtime-dir"])
-        .output()
-        .expect("failed to get runtime dir from `clang --print-runtime-dir`. Is clang in PATH?");
+fn harness(library: &library::Library) -> Option<Put> {
+    let out_dir =
+        Path::new(&std::env::var("OUT_DIR").unwrap()).join(format!("harness_{}", library.id()));
 
-    let clang_runtime_dir = output
-        .status
-        .success()
-        .then(|| std::str::from_utf8(&output.stdout).unwrap().trim())
-        .unwrap_or("");
+    let rust_put_name = std::env::var("DEP_BORING_ROOT")
+        .or(std::env::var("DEP_OPENSSL_ROOT"))
+        .or(std::env::var("DEP_WOLFSSL_ROOT"))
+        .map(|libroot| {
+            std::path::Path::new(&libroot)
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_owned()
+        })
+        .ok();
 
-    if clang_runtime_dir.is_empty() {
-        return runtime_dir_fallback();
-    }
+    let kind = if cfg!(feature = "rust-put") && Some(&library.name()) == rust_put_name.as_ref() {
+        harness::Kind::Rust
+    } else {
+        if !cfg!(feature = "cputs") {
+            return None;
+        }
 
-    clang_runtime_dir.to_string()
-}
-
-fn runtime_dir_fallback() -> String {
-    let output = Command::new("clang")
-        .args(["--print-resource-dir"])
-        .output()
-        .expect("failed to get resource dir from `clang --print-resource-dir`. Is clang in PATH?");
-
-    let clang_resource_dir = output
-        .status
-        .success()
-        .then(|| std::str::from_utf8(&output.stdout).unwrap().trim())
-        .expect("failed to get resource dir from `clang --print-resource-dir`");
-
-    let clang_sysname = match std::env::consts::OS {
-        "macos" => "darwin",
-        "linux" => "linux",
-        _ => panic!("cannot get compiler runtime dir: unsupported os"),
+        harness::Kind::C
     };
 
-    let runtime_dir = format!("{}/lib/{}/", clang_resource_dir, clang_sysname);
-    if !std::path::Path::new(&runtime_dir).exists() {
-        panic!("failed to find clang runtime dir");
-    }
-
-    runtime_dir
+    Harness::harness_for("tls", library.clone(), kind).map(|harness| harness.wrap(out_dir).unwrap())
 }

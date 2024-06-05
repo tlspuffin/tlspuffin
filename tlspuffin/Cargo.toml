@@ -15,7 +15,7 @@ categories.workspace = true
 [features]
 default = ["sancov", "introspection"]
 
-cputs = ["tls-harness"]
+cputs = []
 rust-put = []
 
 openssl111 = ["openssl111k"]
@@ -305,8 +305,8 @@ itertools = { workspace = true }
 libc = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-cfg-if = { workspace = true }
 smallvec = { workspace = true }
+once_cell = { workspace = true }
 
 ring = { version = "0.16.20", features = ["std"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
@@ -328,16 +328,16 @@ wolfssl-sys = { path = "../crates/wolfssl-sys", features = [], optional = true }
 boring = { path = "../crates/boring", optional = true }
 boringssl-sys = { path = "../crates/boringssl-sys", features = [
 ], optional = true }
-tls-harness = { path = "../puts/harness", package = "tlspuffin-harness-sys", features = [
-    "tls",
-], optional = true }
 foreign-types = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
+puffin-build = { path = "../puffin-build" }
 
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
 openssl-src = { version = "*", features = [], optional = true }
 puffin-build = { path = "../puffin-build" }
+itertools = { workspace = true }
+bindgen = { workspace = true }
 
 [dev-dependencies]
 test-log = { workspace = true }

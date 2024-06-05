@@ -1942,7 +1942,7 @@ pub mod tests {
     #[test_log::test]
     fn test_version() {
         for (id, put) in tls_registry().puts() {
-            println!("({:?}) {}:", put.kind(), id);
+            println!("{}:", id);
             for (component, version) in put.versions().into_iter() {
                 println!("    {}: {}", component, version);
             }
