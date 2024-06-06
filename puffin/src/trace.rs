@@ -41,9 +41,9 @@ use crate::{
     variable_data::VariableData,
 };
 
-#[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct Query<M> {
-    pub agent_name: Option<AgentName>,
+    pub source: Option<Source>,
     pub matcher: Option<M>,
     pub counter: u16, // in case an agent sends multiple messages of the same type
 }
@@ -53,7 +53,7 @@ impl<M: Matcher> fmt::Display for Query<M> {
         write!(
             f,
             "({:?}, {})[{:?}]",
-            self.agent_name, self.counter, self.matcher
+            self.source, self.counter, self.matcher
         )
     }
 }
@@ -64,18 +64,36 @@ impl<M: Matcher> Knowledge<M> {
     }
 }
 
+/// [Source] stores the origin of a knowledge, whether the agent name or
+/// the label of the precomputation that produced it
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Deserialize, Serialize)]
+pub enum Source {
+    Agent(AgentName),
+    Label(String),
+}
+
+impl fmt::Display for Source {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Agent(x) => write!(f, "agent:{}", x),
+            Self::Label(x) => write!(f, "label:{}", x),
+        }
+    }
+}
+
 /// [Knowledge] describes an atomic piece of knowledge inferred by the
 /// [`crate::protocol::ProtocolMessage::extract_knowledge`] function
-/// [Knowledge] is made of the data, the agent that produced the output, the TLS message type and the internal type.
+/// [Knowledge] is made of the data, the source of the output, the
+/// TLS message type and the internal type.
 #[derive(Debug)]
 pub struct Knowledge<M: Matcher> {
-    pub agent_name: AgentName,
+    pub source: Source,
     pub matcher: Option<M>,
     pub data: Box<dyn VariableData>,
 }
 
 impl<M: Matcher> Knowledge<M> {
-    pub fn debug_print<PB>(&self, ctx: &TraceContext<PB>, agent_name: &AgentName)
+    pub fn debug_print<PB>(&self, ctx: &TraceContext<PB>, source: &Source)
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -84,14 +102,15 @@ impl<M: Matcher> Knowledge<M> {
             "New knowledge {}: {}  (counter: {})",
             &self,
             remove_prefix(self.data.type_name()),
-            ctx.number_matching_message(*agent_name, data_type_id, &self.matcher)
+            ctx.number_matching_message_with_source(source.clone(), data_type_id, &self.matcher)
         );
         trace!("Knowledge data: {:?}", self.data);
     }
 }
+
 impl<M: Matcher> fmt::Display for Knowledge<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "({})/{:?}", self.agent_name, self.matcher)
+        write!(f, "({})/{:?}", self.source, self.matcher)
     }
 }
 
@@ -181,18 +200,33 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         self.knowledge.push(knowledge)
     }
 
-    /// Count the number of sub-messages of type `type_id`.
-    pub fn number_matching_message(
+    /// Count the number of sub-messages of type `type_id` with the correct source
+    pub fn number_matching_message_with_source(
         &self,
-        agent: AgentName,
+        source: Source,
         type_id: TypeId,
         tls_message_type: &Option<PB::Matcher>,
     ) -> usize {
         self.knowledge
             .iter()
             .filter(|knowledge| {
-                knowledge.agent_name == agent
+                knowledge.source == source
                     && knowledge.matcher == *tls_message_type
+                    && knowledge.data.as_ref().type_id() == type_id
+            })
+            .count()
+    }
+
+    /// Count the number of sub-messages of type [type_id] in the output message [in_step_id].
+    pub fn number_matching_message(
+        &self,
+        type_id: TypeId,
+        tls_message_type: &Option<PB::Matcher>,
+    ) -> usize {
+        self.knowledge
+            .iter()
+            .filter(|knowledge| {
+                knowledge.matcher == *tls_message_type
                     && knowledge.data.as_ref().type_id() == type_id
             })
             .count()
@@ -224,7 +258,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             let data: &dyn VariableData = knowledge.data.as_ref();
 
             if query_type_id == data.type_id()
-                && (query.agent_name == None || query.agent_name == Some(knowledge.agent_name))
+                && (query.source == None || query.source == Some(knowledge.source.clone()))
                 && knowledge.matcher.matches(&query.matcher)
             {
                 possibilities.push(knowledge);
@@ -561,35 +595,39 @@ impl<M: Matcher> OutputAction<M> {
                 knowledge.len() + opaque_knowledge.len()
             ); // +1 because of the OpaqueMessage below
 
+            let source = Source::Agent(step.agent);
+
             for variable in knowledge {
                 let knowledge = Knowledge::<M> {
-                    agent_name: step.agent,
+                    source: source.clone(),
                     matcher: matcher.clone(),
                     data: variable,
                 };
 
-                knowledge.debug_print(ctx, &step.agent);
+                knowledge.debug_print(ctx, &source);
                 ctx.add_knowledge(knowledge)
             }
 
             for variable in opaque_knowledge {
                 let knowledge = Knowledge::<M> {
-                    agent_name: step.agent,
+                    source: source.clone(),
                     matcher: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
                     data: variable,
                 };
 
-                knowledge.debug_print(ctx, &step.agent);
+                knowledge.debug_print(ctx, &source);
                 ctx.add_knowledge(knowledge)
             }
         }
 
+        let source = Source::Agent(step.agent);
+
         let flight_knowledge = Knowledge::<M> {
-            agent_name: step.agent,
+            source: source.clone(),
             matcher: None,
             data: Box::new(flight),
         };
-        flight_knowledge.debug_print(ctx, &step.agent);
+        flight_knowledge.debug_print(ctx, &source);
         ctx.add_knowledge(flight_knowledge);
 
         Ok(())

@@ -10,7 +10,7 @@ use crate::{
     algebra::{dynamic_function::TypeShape, error::FnError, Matcher},
     error::Error,
     protocol::ProtocolBehavior,
-    trace::TraceContext,
+    trace::{Source, TraceContext},
 };
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
@@ -115,7 +115,7 @@ impl<M: Matcher> Term<M> {
                 .find_variable(variable.typ, &variable.query)
                 .map(|data| data.boxed_any())
                 .or_else(|| {
-                    if let Some(agent_name) = variable.query.agent_name {
+                    if let Some(Source::Agent(agent_name)) = variable.query.source {
                         context.find_claim(agent_name, variable.typ)
                     } else {
                         None

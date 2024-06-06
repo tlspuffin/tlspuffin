@@ -11,7 +11,7 @@
 //!
 //! ```rust
 //! use puffin::agent::{AgentName, AgentDescriptor, TLSVersion::*};
-//! use puffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query};
+//! use puffin::trace::{Step, Source, TraceContext, Trace, Action, InputAction, OutputAction, Query};
 //! use puffin::algebra::{Term, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use tlspuffin::tls::rustls::msgs::handshake::{SessionID, Random, ClientExtension};
@@ -38,32 +38,32 @@
 //!                         Signature::new_function(&fn_client_hello),
 //!                         vec![
 //!                             Term::Variable(Signature::new_var_with_type::<ProtocolVersion, _>(
-//!                                     Some(client),  
+//!                                     Some(Source::Agent(client)),  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Random, _>(
-//!                                     Some(client),  
+//!                                     Some(Source::Agent(client)),  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<SessionID, _>(
-//!                                     Some(client),  
+//!                                     Some(Source::Agent(client)),
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Vec<CipherSuite>, _>(
-//!                                     Some(client),  
+//!                                     Some(Source::Agent(client)),
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Vec<Compression>, _>(
-//!                                     Some(client),  
+//!                                     Some(Source::Agent(client)),
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Vec<ClientExtension>, _>(
-//!                                     Some(client),  
+//!                                     Some(Source::Agent(client)),
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
@@ -86,6 +86,7 @@
 //! use tlspuffin::tls::rustls::msgs::enums::{Compression, HandshakeType, ProtocolVersion, CipherSuite};
 //! use puffin::algebra::Term;
 //! use tlspuffin::query::TlsQueryMatcher;
+//! use puffin::trace::Source;
 //!
 //! let client = AgentName::first();
 //! let term: Term<TlsQueryMatcher> = term! {
