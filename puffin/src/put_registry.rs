@@ -69,10 +69,8 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
             .unwrap_or_else(|| panic!("default PUT {} is not in registry", &self.default_put))
     }
 
-    pub fn puts(&self) -> impl Iterator<Item = (&str, &dyn Factory<PB>)> {
-        self.factories
-            .iter()
-            .map(|(n, f)| (n.as_str(), f.to_owned().as_ref()))
+    pub fn puts(&self) -> impl Iterator<Item = &dyn Factory<PB>> {
+        self.factories.iter().map(|(_, f)| f.to_owned().as_ref())
     }
 
     pub fn find_by_id<S: AsRef<str>>(&self, id: S) -> Option<&dyn Factory<PB>> {

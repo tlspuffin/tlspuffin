@@ -116,8 +116,8 @@ where
     info!("Git Version: {}", crate::GIT_REF);
     info!("Put Versions:");
 
-    for (id, put) in put_registry.puts() {
-        info!("({:?}) {}:", put.kind(), id);
+    for put in put_registry.puts() {
+        info!("({:?}) {}:", put.kind(), put.name());
         for (component, version) in put.versions().into_iter() {
             info!("    {}: {}", component, version);
         }

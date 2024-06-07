@@ -2188,8 +2188,8 @@ pub mod tests {
 
     #[test]
     fn test_version() {
-        for (id, put) in tls_registry().puts() {
-            println!("({:?}) {}:", put.kind(), id);
+        for put in tls_registry().puts() {
+            println!("({:?}) {}:", put.kind(), put.name());
             for (component, version) in put.versions().into_iter() {
                 println!("    {}: {}", component, version);
             }
