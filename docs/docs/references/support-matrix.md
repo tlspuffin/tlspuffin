@@ -11,7 +11,10 @@ This page describes the current support for these presets.
 :::warning[tooling support]
 
 The process for building the preset libraries is currently transitioning to use the *mk_vendor* tool
-in a manner consistent across all presets.
+in a manner consistent across all presets using:
+```
+./tools/mk_vendor make <preset>
+```
 
 As this is still work in progress, if a preset is marked with no *mk_vendor* support, you will need to build it through cargo:
 ```
