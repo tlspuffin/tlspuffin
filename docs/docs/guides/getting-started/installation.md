@@ -13,10 +13,14 @@ Otherwise, you can manually install the dependencies listed in the repository's 
 Download the latest sources of tlspuffin:
 ```sh
 git clone https://github.com/tlspuffin/tlspuffin
+```
+
+Note that all the subsequent commands in this guide should be run from the root `tlspuffin` folder that was just downloaded through git:
+```sh
 cd tlspuffin
 ```
 
-Setup all the dependencies and tools using the provided nix shell environment:
+The provided nix shell environment will provide all the dependencies and tools necessary for this guide:
 ```sh
 nix-shell
 ```
