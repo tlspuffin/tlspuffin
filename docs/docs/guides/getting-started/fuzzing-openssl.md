@@ -4,7 +4,7 @@ title: 'Fuzzing OpenSSL'
 
 ## Building the Fuzzer
 
-Now that we have the OpenSSL library to serve as fuzz target, we can create the corresponding fuzzer:
+Now that we have the OpenSSL library to serve as a fuzz target, we can create the corresponding fuzzer:
 ```sh
 cargo build --release --bin=tlspuffin --features=openssl312,sancov,asan
 ```
@@ -33,6 +33,6 @@ In particular, the folder `experiments/<id>/corpus` will store the corpus found 
 
 :::tip[What are these .trace files in my corpus folder?]
 
-Because *tlspuffin* works at a higher-level of abstraction compared to generic fuzzers, the corpus files are not raw inputs for a binary but rather traces of the protocol session between different agents. More details in the next section!
+Because *tlspuffin* works at a higher level of abstraction compared to generic fuzzers, the corpus files are not raw inputs for a binary but rather traces of the protocol session between different agents. More details in the next section!
 
 :::

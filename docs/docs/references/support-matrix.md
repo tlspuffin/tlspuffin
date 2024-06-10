@@ -5,7 +5,7 @@ title: 'Support Matrix'
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-*tlspuffin* provides tooling to download, patch and build several *preset* library configurations.
+*tlspuffin* provides tooling to download, patch, and build several *preset* library configurations.
 This page describes the current support for these presets.
 
 :::warning[tooling support]
@@ -61,5 +61,5 @@ cargo build --release -p tlspuffin --features=<preset>
 
 </Tabs>
 
-[^1]: ASAN is available on platforms where *clang* has [support for ASAN](https://clang.llvm.org/docs/AddressSanitizer.html#supported-platforms)
+[^1]: ASAN is available on platforms where *Clang* has [support for ASAN](https://clang.llvm.org/docs/AddressSanitizer.html#supported-platforms)
 [^2]: [*mk_vendor*](./mk_vendor) let you build a preset library independently of *tlspuffin*'s cargo-based build system, by running `./tools/mk_vendor make <preset>`
