@@ -99,8 +99,10 @@ openssl102u = [
     "tls12-session-resumption"
 ]
 
+libressl = [ "libressl333" ]
+
 # Some LibreSSL version
-libressl = [
+libressl333 = [
     "openssl-src/libressl333",
     "tls12",
     "tls13",

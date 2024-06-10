@@ -13,6 +13,7 @@ const sidebars: SidebarsConfig = {
         'guides/getting-started/installation',
         'guides/getting-started/building-openssl',
         'guides/getting-started/fuzzing-openssl',
+        'guides/getting-started/replaying-traces',
       ],
     },
     {

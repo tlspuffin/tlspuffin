@@ -72,7 +72,7 @@ const config: Config = {
             },
             {
               label: 'Getting Started',
-              to: '/docs/guides/getting-started/installation',
+              to: '/docs/guides/getting-started/introduction',
             },
             {
               label: 'Reference Manual',
