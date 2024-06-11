@@ -67,7 +67,7 @@ impl Build {
         self
     }
 
-    pub fn build_deterministic_rand(openssl: &Artifacts) {
+    pub fn build_prng_interface(openssl: &Artifacts) {
         let root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let file = root.join("src").join("deterministic_rand.c");
         let buf = canonicalize(file).unwrap();
@@ -75,10 +75,16 @@ impl Build {
 
         println!("cargo:rerun-if-changed={}", deterministic_rand);
 
-        cc::Build::new()
+        let mut builder = cc::Build::new();
+
+        builder
             .file(deterministic_rand)
-            .include(&openssl.include_dir)
-            .compile("deterministic_rand");
+            .include(&openssl.include_dir);
+
+        #[cfg(feature = "no-rand")]
+        builder.define("USE_CUSTOM_PRNG", "1");
+
+        builder.compile("openssl_prng_interface");
     }
 
     pub fn build(&mut self) -> Artifacts {
@@ -131,9 +137,7 @@ impl Build {
             target: target.to_string(),
         };
 
-        if cfg!(feature = "no-rand") {
-            Self::build_deterministic_rand(&openssl);
-        }
+        Self::build_prng_interface(&openssl);
 
         println!("cargo:rerun-if-changed={}", openssl.lib_dir.display());
         println!("cargo:rerun-if-changed={}", openssl.include_dir.display());

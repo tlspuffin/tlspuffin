@@ -31,7 +31,6 @@ use crate::{
 };
 
 mod bindings;
-#[cfg(feature = "deterministic")]
 mod deterministic;
 mod util;
 
