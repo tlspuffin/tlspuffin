@@ -82,13 +82,47 @@ impl Build {
         Ok(())
     }
 
+    pub fn use_custom_prng(sources: &Path) {
+        // NOTE patch the build system to use our custom PRNG
+        let substitution = "s@USE_BUILTIN_ARC4RANDOM=no@USE_BUILTIN_ARC4RANDOM=yes@g";
+        Self::patch_file(sources.join("configure"), substitution);
+        Self::patch_file(sources.join("m4").join("check-os-options.m4"), substitution);
+
+        // NOTE replace LibreSSL's built-in arc4random with our PRNG
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let prng_source = root.join("src").join("arc4random_prng.c");
+        let prng_header = root.join("src").join("arc4random_prng.h");
+
+        println!("cargo:rerun-if-changed={}", prng_source.display());
+        println!("cargo:rerun-if-changed={}", prng_header.display());
+
+        fs::copy(
+            prng_source,
+            sources.join("crypto").join("compat").join("arc4random.c"),
+        )
+        .expect("failed to inject custom PRNG source file into LibreSSL sources");
+
+        fs::copy(
+            prng_header,
+            sources.join("crypto").join("compat").join("arc4random.h"),
+        )
+        .expect("failed to inject custom PRNG header file into LibreSSL sources");
+    }
+
+    pub fn patch_file(path: PathBuf, substitution: &str) {
+        let mut patch = Command::new("perl");
+
+        patch.args(vec!["-pi.bak", "-e", substitution, path.to_str().unwrap()]);
+
+        Self::run_command(patch, "patching LibreSSL's RNG");
+    }
+
     pub fn build(&mut self) -> Artifacts {
         if cfg!(feature = "asan") {
             panic!("ASAN not yet supported");
         }
 
         let target = &self.target.as_ref().expect("TARGET dir not set")[..];
-        let host = &self.host.as_ref().expect("HOST dir not set")[..];
         let out_dir = self.out_dir.as_ref().expect("OUT_DIR not set");
         let build_dir = out_dir.join("build");
         let install_dir = out_dir.clone(); // out_dir.join("install");
@@ -106,16 +140,12 @@ impl Build {
         Self::insert_claim_interface(&additional_headers).unwrap();
 
         let inner_dir = build_dir.join("src");
+        let _ = fs::remove_dir_all(&inner_dir);
         fs::create_dir_all(&inner_dir).unwrap();
         clone(&inner_dir).unwrap();
 
-        let _ = host;
-
-        // out_dir defaults to $OUT_DIR/libressl-build
-        // install_dir = out_dir
-        // build_dir = out_dir/build
-        // inner_dir = build_dir/src
-        // On Linux, source_dir() == "/usr/locde/libressl"
+        #[cfg(feature = "no-rand")]
+        Self::use_custom_prng(&inner_dir);
 
         // see https://stackoverflow.com/a/33279062/272427
         let mut touch = Command::new("touch");
@@ -126,7 +156,7 @@ impl Build {
             "Makefile.am",
             "Makefile.in",
         ]);
-        self.run_command(touch, "touching ./configure etc for LibreSSL");
+        Self::run_command(touch, "touching ./configure etc for LibreSSL");
 
         use autotools::Config;
         let mut cfg = Config::new(&inner_dir);
@@ -157,8 +187,6 @@ impl Build {
         let dst = cfg.build();
         assert_eq!(dst, install_dir);
 
-        fs::remove_dir_all(&inner_dir).unwrap();
-
         let libs = if target.contains("msvc") {
             vec![
                 "libtls".to_string(),
@@ -177,7 +205,7 @@ impl Build {
     }
 
     #[allow(dead_code)]
-    fn run_command(&self, mut command: Command, desc: &str) {
+    fn run_command(mut command: Command, desc: &str) {
         println!("running {:?}", command);
         let status = command.status().unwrap();
         if !status.success() {

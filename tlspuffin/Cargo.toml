@@ -99,17 +99,20 @@ openssl102u = [
     "tls12-session-resumption"
 ]
 
-libressl = [ "libressl333" ]
+# NOTE feature "libressl" is kept only for backward compatibility
+libressl = ["libressl333"]
 
-# Some LibreSSL version
 libressl333 = [
+    "openssl-src",
     "openssl-src/libressl333",
+    "openssl-src/no-rand",
+    "openssl-binding",
     "tls12",
     "tls13",
     "tls12-session-resumption",
     "claims",
-    "openssl-binding",
     "transcript-extraction",
+    "deterministic"
 ]
 
 wolfssl430 = [
