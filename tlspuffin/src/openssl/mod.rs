@@ -25,7 +25,6 @@ use crate::{
 };
 
 mod bindings;
-#[cfg(feature = "deterministic")]
 mod deterministic;
 
 pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
@@ -102,14 +101,13 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn rng_reseed(&self) {
-            #[cfg(not(feature = "deterministic"))]
-            log::debug!("[RNG] reseed failed ({}): not supported", self.name());
-
-            #[cfg(feature = "deterministic")]
-            {
-                log::debug!("[RNG] reseed ({})", self.name());
-                deterministic::rng_reseed();
+            if !self.supports("deterministic") {
+                log::debug!("[RNG] reseed failed ({}): not supported", self.name());
+                return;
             }
+
+            log::debug!("[RNG] reseed ({})", self.name());
+            deterministic::rng_reseed();
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {

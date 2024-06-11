@@ -23,15 +23,13 @@ pub fn rng_reseed_with(buffer: &[u8]) {
 
 #[cfg(test)]
 mod tests {
-    use openssl::rand::rand_bytes;
-
     #[test_log::test]
     fn test_openssl_rng_reseed_with_default_seed_has_not_changed() {
         crate::openssl::deterministic::rng_set();
         crate::openssl::deterministic::rng_reseed();
 
         let mut bytes = [0; 2];
-        rand_bytes(&mut bytes).unwrap();
+        openssl::rand::rand_bytes(&mut bytes).unwrap();
         assert_eq!(bytes, [183, 96]);
     }
 
@@ -43,11 +41,11 @@ mod tests {
 
         let mut reseed1 = [0; 2];
         crate::openssl::deterministic::rng_reseed_with(&SEED);
-        rand_bytes(&mut reseed1).unwrap();
+        openssl::rand::rand_bytes(&mut reseed1).unwrap();
 
         let mut reseed2 = [0; 2];
         crate::openssl::deterministic::rng_reseed_with(&SEED);
-        rand_bytes(&mut reseed2).unwrap();
+        openssl::rand::rand_bytes(&mut reseed2).unwrap();
 
         assert_eq!(reseed1, reseed2);
     }
@@ -61,11 +59,11 @@ mod tests {
 
         crate::openssl::deterministic::rng_reseed_with(&SEED1);
         let mut bytes_seed1 = [0; 2];
-        rand_bytes(&mut bytes_seed1).unwrap();
+        openssl::rand::rand_bytes(&mut bytes_seed1).unwrap();
 
         crate::openssl::deterministic::rng_reseed_with(&SEED2);
         let mut bytes_seed2 = [0; 2];
-        rand_bytes(&mut bytes_seed2).unwrap();
+        openssl::rand::rand_bytes(&mut bytes_seed2).unwrap();
 
         assert_ne!(bytes_seed1, bytes_seed2);
     }

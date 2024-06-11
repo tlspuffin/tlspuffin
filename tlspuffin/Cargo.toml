@@ -16,14 +16,6 @@ default = ["sancov_libafl", "introspection"]
 
 cputs = ["tls-harness"]
 
-openssl-default = [
-    "tls12",
-    "tls13",
-    "tls12-session-resumption",
-    "tls13-session-resumption",
-    "openssl-binding",
-]
-
 openssl111 = ["openssl111k"]
 
 openssl111k = [
@@ -89,18 +81,22 @@ openssl101f = [
     "openssl-src",
     "openssl-src/openssl101f",
     "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
-    "tls12",
+    "openssl-src/no-rand",
     "openssl101-binding",
+    "tls12",
     "tls12-session-resumption",
+    "deterministic",
 ]
 
 openssl102u = [
     "openssl-src",
     "openssl-src/openssl102u",
     "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
-    "tls12",
+    "openssl-src/no-rand",
     "openssl102-binding",
-    "tls12-session-resumption"
+    "tls12",
+    "tls12-session-resumption",
+    "deterministic"
 ]
 
 # NOTE feature "libressl" is kept only for backward compatibility
