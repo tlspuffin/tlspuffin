@@ -38,32 +38,32 @@
 //!                         Signature::new_function(&fn_client_hello),
 //!                         vec![
 //!                             Term::Variable(Signature::new_var_with_type::<ProtocolVersion, _>(
-//!                                     client,  
+//!                                     Some(client),  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Random, _>(
-//!                                     client,  
+//!                                     Some(client),  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<SessionID, _>(
-//!                                     client,  
+//!                                     Some(client),  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Vec<CipherSuite>, _>(
-//!                                     client,  
+//!                                     Some(client),  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Vec<Compression>, _>(
-//!                                     client,  
+//!                                     Some(client),  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Vec<ClientExtension>, _>(
-//!                                     client,  
+//!                                     Some(client),  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),

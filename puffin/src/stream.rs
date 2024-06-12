@@ -25,13 +25,16 @@ use std::{
 use log::error;
 
 use crate::{
-    codec::Codec,
     error::Error,
-    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolMessage, ProtocolMessageDeframer},
+    protocol::{
+        MessageResult, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolMessage,
+        ProtocolMessageDeframer,
+    },
 };
 
-pub trait Stream<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> {
-    fn add_to_inbound(&mut self, opaque_message: &O);
+pub trait Stream<M: ProtocolMessage<O>, O: OpaqueProtocolMessage, F: OpaqueProtocolMessageFlight<O>>
+{
+    fn add_to_inbound(&mut self, message_flight: &F);
 
     /// Takes a single TLS message from the outbound channel
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult<M, O>>, Error>;
@@ -67,15 +70,20 @@ impl<D: ProtocolMessageDeframer> MemoryStream<D> {
     }
 }
 
-impl<M, D: ProtocolMessageDeframer, E> Stream<M, D::OpaqueProtocolMessage> for MemoryStream<D>
+impl<
+        M,
+        D: ProtocolMessageDeframer,
+        E,
+        F: OpaqueProtocolMessageFlight<D::OpaqueProtocolMessage>,
+    > Stream<M, D::OpaqueProtocolMessage, F> for MemoryStream<D>
 where
     M: ProtocolMessage<D::OpaqueProtocolMessage>,
     D::OpaqueProtocolMessage: TryInto<M, Error = E>,
     E: Into<Error>,
     M: TryInto<M>,
 {
-    fn add_to_inbound(&mut self, opaque_message: &D::OpaqueProtocolMessage) {
-        opaque_message.encode(self.inbound.get_mut());
+    fn add_to_inbound(&mut self, message_flight: &F) {
+        message_flight.encode(self.inbound.get_mut());
     }
 
     fn take_message_from_outbound(

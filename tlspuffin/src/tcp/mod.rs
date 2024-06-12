@@ -15,7 +15,7 @@ use log::{debug, error, info, warn};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
-    protocol::MessageResult,
+    protocol::{MessageResult, OpaqueProtocolMessageFlight},
     put::{Put, PutDescriptor, PutName},
     put_registry::{Factory, PutKind},
     stream::Stream,
@@ -24,7 +24,7 @@ use puffin::{
 };
 
 use crate::{
-    protocol::TLSProtocolBehavior,
+    protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
     put_registry::TCP_PUT,
     tls::rustls::msgs::{
         deframer::MessageDeframer,
@@ -278,9 +278,9 @@ impl TcpPut for TcpServerPut {
     }
 }
 
-impl Stream<Message, OpaqueMessage> for TcpServerPut {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.write_to_stream(&opaque_message.clone().encode())
+impl Stream<Message, OpaqueMessage, OpaqueMessageFlight> for TcpServerPut {
+    fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight) {
+        self.write_to_stream(&opaque_flight.clone().get_encoding())
             .unwrap();
     }
 
@@ -291,9 +291,9 @@ impl Stream<Message, OpaqueMessage> for TcpServerPut {
     }
 }
 
-impl Stream<Message, OpaqueMessage> for TcpClientPut {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.write_to_stream(&opaque_message.clone().encode())
+impl Stream<Message, OpaqueMessage, OpaqueMessageFlight> for TcpClientPut {
+    fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight) {
+        self.write_to_stream(&opaque_flight.clone().get_encoding())
             .unwrap();
     }
 

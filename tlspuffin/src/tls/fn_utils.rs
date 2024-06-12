@@ -6,26 +6,30 @@ use std::convert::TryFrom;
 use puffin::{
     algebra::error::FnError,
     codec::{Codec, Reader},
+    protocol::{OpaqueProtocolMessageFlight, ProtocolMessageFlight},
 };
 
-use crate::tls::{
-    key_exchange::{tls12_key_exchange, tls12_new_secrets},
-    key_schedule::*,
-    rustls::{
-        conn::Side,
-        hash_hs::HandshakeHash,
-        key::Certificate,
-        msgs::{
-            base::PayloadU8,
-            enums::{HandshakeType, NamedGroup},
-            handshake::{
-                CertificateEntry, CertificateExtension, CertificateExtensions,
-                HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
+use crate::{
+    protocol::{MessageFlight, OpaqueMessageFlight},
+    tls::{
+        key_exchange::{tls12_key_exchange, tls12_new_secrets},
+        key_schedule::*,
+        rustls::{
+            conn::Side,
+            hash_hs::HandshakeHash,
+            key::Certificate,
+            msgs::{
+                base::PayloadU8,
+                enums::{HandshakeType, NamedGroup},
+                handshake::{
+                    CertificateEntry, CertificateExtension, CertificateExtensions,
+                    HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
+                },
+                message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
             },
-            message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
+            tls12,
+            tls13::key_schedule::KeyScheduleEarly,
         },
-        tls12,
-        tls13::key_schedule::KeyScheduleEarly,
     },
 };
 
@@ -49,34 +53,61 @@ pub fn fn_append_transcript(
     Ok(new_transcript)
 }
 
-pub fn fn_decrypt_handshake(
-    application_data: &Message,
+pub fn fn_new_flight() -> Result<MessageFlight, FnError> {
+    Ok(MessageFlight::new())
+}
+
+pub fn fn_append_flight(flight: &MessageFlight, msg: &Message) -> Result<MessageFlight, FnError> {
+    let mut new_flight = flight.clone();
+    new_flight.messages.push(msg.clone());
+    Ok(new_flight)
+}
+
+pub fn fn_new_opaque_flight() -> Result<OpaqueMessageFlight, FnError> {
+    Ok(OpaqueMessageFlight::new())
+}
+
+pub fn fn_append_opaque_flight(
+    flight: &OpaqueMessageFlight,
+    msg: &OpaqueMessage,
+) -> Result<OpaqueMessageFlight, FnError> {
+    let mut new_flight = flight.clone();
+    new_flight.messages.push(msg.clone());
+    Ok(new_flight)
+}
+
+/// Decrypt a whole flight of handshake messages and return a Vec of decrypted messages
+pub fn fn_decrypt_handshake_flight(
+    flight: &MessageFlight,
     server_hello_transcript: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
     group: &NamedGroup,
     client: &bool,
     sequence: &u64,
-) -> Result<Message, FnError> {
-    let (suite, key, _) = tls13_handshake_traffic_secret(
-        server_hello_transcript,
-        server_key_share,
-        psk,
-        !*client,
-        group,
-    )?;
-    let decrypter = suite
-        .tls13()
-        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
-        .derive_decrypter(&key);
-    let message = decrypter
-        .decrypt(
-            PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
-            *sequence,
-        )
-        .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
-    Message::try_from(message)
-        .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
+) -> Result<Vec<Message>, FnError> {
+    let mut sequence_number = *sequence;
+
+    let mut decrypted_flight = vec![];
+
+    for msg in &flight.messages {
+        if let MessagePayload::ApplicationData(_) = &msg.payload {
+            let mut decrypted_msg = fn_decrypt_multiple_handshake_messages(
+                &msg,
+                server_hello_transcript,
+                server_key_share,
+                psk,
+                group,
+                client,
+                &sequence_number,
+            )?;
+
+            decrypted_flight.append(&mut decrypted_msg);
+            sequence_number += 1;
+        }
+    }
+
+    Ok(decrypted_flight)
 }
 
 /// Decrypt an Application data message containing multiple handshake messages
@@ -194,6 +225,42 @@ pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {
 
 pub fn fn_psk(some: &Vec<u8>) -> Result<Option<Vec<u8>>, FnError> {
     Ok(Some(some.clone()))
+}
+
+/// Decrypt a whole flight of application messages and return a Vec of decrypted messages
+pub fn fn_decrypt_application_flight(
+    flight: &MessageFlight,
+    server_hello_transcript: &HandshakeHash,
+    server_finished_transcript: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
+    psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
+    sequence: &u64,
+) -> Result<Vec<Message>, FnError> {
+    let mut sequence_number = *sequence;
+
+    let mut decrypted_flight = vec![];
+
+    for msg in &flight.messages {
+        if let MessagePayload::ApplicationData(_) = &msg.payload {
+            let decrypted_msg = fn_decrypt_application(
+                &msg,
+                server_hello_transcript,
+                server_finished_transcript,
+                server_key_share,
+                psk,
+                group,
+                client,
+                &sequence_number,
+            )?;
+
+            decrypted_flight.push(decrypted_msg);
+            sequence_number += 1;
+        }
+    }
+
+    Ok(decrypted_flight)
 }
 
 pub fn fn_decrypt_application(

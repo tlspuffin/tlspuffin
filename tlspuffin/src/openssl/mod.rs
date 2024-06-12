@@ -19,7 +19,7 @@ use puffin::{
 
 use crate::{
     openssl::util::{set_max_protocol_version, static_rsa_cert},
-    protocol::TLSProtocolBehavior,
+    protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
     put::TlsPutConfig,
     put_registry::OPENSSL111_PUT,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
@@ -141,9 +141,9 @@ impl Drop for OpenSSL {
     }
 }
 
-impl Stream<Message, OpaqueMessage> for OpenSSL {
-    fn add_to_inbound(&mut self, result: &OpaqueMessage) {
-        <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage>>::add_to_inbound(
+impl Stream<Message, OpaqueMessage, OpaqueMessageFlight> for OpenSSL {
+    fn add_to_inbound(&mut self, result: &OpaqueMessageFlight) {
+        <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage, OpaqueMessageFlight>>::add_to_inbound(
             self.stream.get_mut(),
             result,
         )
@@ -155,7 +155,7 @@ impl Stream<Message, OpaqueMessage> for OpenSSL {
         let memory_stream = self.stream.get_mut();
         //memory_stream.take_message_from_outbound()
 
-        MemoryStream::take_message_from_outbound(memory_stream)
+        <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage, OpaqueMessageFlight>>::take_message_from_outbound(memory_stream)
     }
 }
 

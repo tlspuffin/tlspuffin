@@ -1,7 +1,12 @@
+use log::debug;
 use puffin::{
     algebra::{signature::Signature, Matcher},
+    codec::{Codec, Reader},
     error::Error,
-    protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer},
+    protocol::{
+        OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
+        ProtocolMessageDeframer, ProtocolMessageFlight,
+    },
     trace::Trace,
     variable_data::VariableData,
 };
@@ -24,6 +29,88 @@ use crate::{
         TLS_SIGNATURE,
     },
 };
+
+#[derive(Debug, Clone)]
+pub struct MessageFlight {
+    pub messages: Vec<Message>,
+}
+
+impl ProtocolMessageFlight<Message, OpaqueMessage> for MessageFlight {
+    fn new() -> Self {
+        Self { messages: vec![] }
+    }
+
+    fn push(&mut self, msg: Message) {
+        self.messages.push(msg);
+    }
+
+    fn debug(&self, info: &str) {
+        debug!("{}: {:?}", info, self);
+    }
+}
+
+impl From<Message> for MessageFlight {
+    fn from(value: Message) -> Self {
+        Self {
+            messages: vec![value],
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct OpaqueMessageFlight {
+    pub messages: Vec<OpaqueMessage>,
+}
+
+impl OpaqueProtocolMessageFlight<OpaqueMessage> for OpaqueMessageFlight {
+    fn new() -> Self {
+        Self { messages: vec![] }
+    }
+
+    fn push(&mut self, msg: OpaqueMessage) {
+        self.messages.push(msg);
+    }
+
+    fn debug(&self, info: &str) {
+        debug!("{}: {:?}", info, self);
+    }
+}
+
+impl Codec for OpaqueMessageFlight {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        for msg in &self.messages {
+            msg.encode(bytes);
+        }
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let mut deframer = MessageDeframer::new();
+        let mut flight = Self::new();
+
+        let _ = deframer.read(&mut reader.rest());
+        while let Some(msg) = deframer.pop_frame() {
+            flight.push(msg);
+        }
+
+        Some(flight)
+    }
+}
+
+impl From<MessageFlight> for OpaqueMessageFlight {
+    fn from(value: MessageFlight) -> Self {
+        Self {
+            messages: value.messages.iter().map(|m| m.create_opaque()).collect(),
+        }
+    }
+}
+
+impl From<OpaqueMessage> for OpaqueMessageFlight {
+    fn from(value: OpaqueMessage) -> Self {
+        Self {
+            messages: vec![value],
+        }
+    }
+}
 
 impl ProtocolMessage<OpaqueMessage> for Message {
     fn create_opaque(&self) -> OpaqueMessage {
@@ -189,6 +276,8 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     type ProtocolMessage = Message;
     type OpaqueProtocolMessage = OpaqueMessage;
     type Matcher = TlsQueryMatcher;
+    type ProtocolMessageFlight = MessageFlight;
+    type OpaqueProtocolMessageFlight = OpaqueMessageFlight;
 
     fn signature() -> &'static Signature {
         &TLS_SIGNATURE

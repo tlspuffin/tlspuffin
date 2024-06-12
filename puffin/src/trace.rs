@@ -32,7 +32,10 @@ use crate::{
     algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
-    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
+    protocol::{
+        MessageResult, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+        ProtocolMessage, ProtocolMessageFlight,
+    },
     put::{PutDescriptor, PutOptions},
     put_registry::PutRegistry,
     variable_data::VariableData,
@@ -40,7 +43,7 @@ use crate::{
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct Query<M> {
-    pub agent_name: AgentName,
+    pub agent_name: Option<AgentName>,
     pub matcher: Option<M>,
     pub counter: u16, // in case an agent sends multiple messages of the same type
 }
@@ -49,7 +52,7 @@ impl<M: Matcher> fmt::Display for Query<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "({}, {})[{:?}]",
+            "({:?}, {})[{:?}]",
             self.agent_name, self.counter, self.matcher
         )
     }
@@ -221,7 +224,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             let data: &dyn VariableData = knowledge.data.as_ref();
 
             if query_type_id == data.type_id()
-                && query.agent_name == knowledge.agent_name
+                && (query.agent_name == None || query.agent_name == Some(knowledge.agent_name))
                 && knowledge.matcher.matches(&query.matcher)
             {
                 possibilities.push(knowledge);
@@ -239,10 +242,10 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
-        message: &PB::OpaqueProtocolMessage,
+        message_flight: &PB::OpaqueProtocolMessageFlight,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
-            .map(|agent| agent.put_mut().add_to_inbound(message))
+            .map(|agent| agent.put_mut().add_to_inbound(message_flight))
     }
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
@@ -537,10 +540,16 @@ impl<M: Matcher> OutputAction<M> {
     {
         ctx.next_state(step.agent)?;
 
+        let mut flight = PB::ProtocolMessageFlight::new();
+
         while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? {
             let matcher = message_result.create_matcher::<PB>();
 
             let MessageResult(message, opaque_message) = message_result;
+
+            if let Some(m) = &message {
+                flight.push(m.clone());
+            }
 
             let knowledge = message
                 .and_then(|message| message.extract_knowledge().ok())
@@ -574,6 +583,15 @@ impl<M: Matcher> OutputAction<M> {
                 ctx.add_knowledge(knowledge)
             }
         }
+
+        let flight_knowledge = Knowledge::<M> {
+            agent_name: step.agent,
+            matcher: None,
+            data: Box::new(flight),
+        };
+        flight_knowledge.debug_print(ctx, &step.agent);
+        ctx.add_knowledge(flight_knowledge);
+
         Ok(())
     }
 }
@@ -614,19 +632,34 @@ impl<M: Matcher> InputAction<M> {
         // message controlled by the attacker
         let evaluated = self.recipe.evaluate(ctx)?;
 
-        if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
+        if let Some(flight) = evaluated
+            .as_ref()
+            .downcast_ref::<PB::ProtocolMessageFlight>()
+        {
+            flight.debug("Input message flight");
+
+            ctx.add_to_inbound(step.agent, &flight.clone().into())?;
+        } else if let Some(flight) = evaluated
+            .as_ref()
+            .downcast_ref::<PB::OpaqueProtocolMessageFlight>()
+        {
+            flight.debug("Input opaque message flight");
+
+            ctx.add_to_inbound(step.agent, &flight)?;
+        } else if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");
 
-            ctx.add_to_inbound(step.agent, &msg.create_opaque())?;
+            let message_flight: PB::ProtocolMessageFlight = msg.clone().into();
+            ctx.add_to_inbound(step.agent, &message_flight.into())?;
         } else if let Some(opaque_message) = evaluated
             .as_ref()
             .downcast_ref::<PB::OpaqueProtocolMessage>()
         {
             opaque_message.debug("Input opaque message");
-            ctx.add_to_inbound(step.agent, opaque_message)?;
+            ctx.add_to_inbound(step.agent, &opaque_message.clone().into())?;
         } else {
             return Err(FnError::Unknown(String::from(
-                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`!",
+                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`, `OpaqueMessageFlight` !",
             ))
             .into());
         }

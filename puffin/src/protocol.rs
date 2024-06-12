@@ -9,6 +9,29 @@ use crate::{
     variable_data::VariableData,
 };
 
+/// Store a message flight, a vec of all the messages sent by the PUT between two steps
+pub trait ProtocolMessageFlight<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>:
+    Clone + Debug + From<M>
+{
+    fn new() -> Self;
+    fn push(&mut self, msg: M);
+    fn debug(&self, info: &str);
+}
+
+/// Store a flight of opaque messages, a vec of all the messages sent by the PUT between two steps
+pub trait OpaqueProtocolMessageFlight<O: OpaqueProtocolMessage>:
+    Clone + Debug + Codec + From<O>
+{
+    fn new() -> Self;
+    fn debug(&self, info: &str);
+    fn push(&mut self, msg: O);
+    fn get_encoding(self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        self.encode(&mut buf);
+        buf
+    }
+}
+
 /// A structured message. This type defines how all possible messages of a protocol.
 /// Usually this is implemented using an `enum`.
 pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug {
@@ -50,6 +73,12 @@ pub trait ProtocolBehavior: 'static {
 
     type ProtocolMessage: ProtocolMessage<Self::OpaqueProtocolMessage>;
     type OpaqueProtocolMessage: OpaqueProtocolMessage;
+    type ProtocolMessageFlight: ProtocolMessageFlight<
+        Self::ProtocolMessage,
+        Self::OpaqueProtocolMessage,
+    >;
+    type OpaqueProtocolMessageFlight: OpaqueProtocolMessageFlight<Self::OpaqueProtocolMessage>
+        + From<Self::ProtocolMessageFlight>;
 
     type Matcher: Matcher
         + for<'a> TryFrom<&'a MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>>;
