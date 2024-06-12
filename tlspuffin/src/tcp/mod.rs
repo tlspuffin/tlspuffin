@@ -1,12 +1,11 @@
 use std::{
     ffi::OsStr,
-    io,
-    io::{ErrorKind, Write},
+    io::{self, ErrorKind, Write},
     net::{AddrParseError, IpAddr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs},
     path::Path,
     process::{Child, Command, Stdio},
     str::FromStr,
-    sync::{mpsc, mpsc::channel},
+    sync::mpsc::{self, channel},
     thread,
     time::Duration,
 };
@@ -94,6 +93,10 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 "harness".to_string(),
                 format!("{} ({})", TCP_PUT, VERSION_STR),
             )]
+        }
+
+        fn supports(&self, _capability: &str) -> bool {
+            false
         }
 
         fn determinism_reseed(&self) {

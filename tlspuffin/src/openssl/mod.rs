@@ -1,4 +1,4 @@
-use std::{cell::RefCell, io::ErrorKind, rc::Rc};
+use std::{cell::RefCell, collections::HashSet, io::ErrorKind, rc::Rc};
 
 use log::debug;
 use openssl::{
@@ -35,7 +35,10 @@ mod deterministic;
 mod util;
 
 pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
-    struct OpenSSLFactory;
+    struct OpenSSLFactory {
+        preset: String,
+    }
+
     impl Factory<TLSProtocolBehavior> for OpenSSLFactory {
         fn create(
             &self,
@@ -75,24 +78,6 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn versions(&self) -> Vec<(String, String)> {
-            let openssl_shortname = if cfg!(feature = "openssl101f") {
-                "openssl101f"
-            } else if cfg!(feature = "openssl102u") {
-                "openssl102u"
-            } else if cfg!(feature = "openssl111") {
-                "openssl111k"
-            } else if cfg!(feature = "openssl111j") {
-                "openssl111j"
-            } else if cfg!(feature = "openssl111u") {
-                "openssl111u"
-            } else if cfg!(feature = "openssl312") {
-                "openssl312"
-            } else if cfg!(feature = "libressl") {
-                "libressl333"
-            } else {
-                "unknown"
-            };
-
             vec![
                 (
                     "harness".to_string(),
@@ -100,31 +85,115 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 ),
                 (
                     "library".to_string(),
-                    format!("openssl ({} / {})", openssl_shortname, OpenSSL::version()),
+                    format!("openssl ({} / {})", self.preset, OpenSSL::version()),
                 ),
             ]
         }
 
+        fn supports(&self, capability: &str) -> bool {
+            let capabilities = match self.preset.as_str() {
+                "libressl333" => HashSet::from([
+                    "tls12",
+                    "tls13",
+                    "tls12-session-resumption",
+                    "deterministic",
+                    "claims",
+                    "transcript-extraction",
+                ]),
+                "openssl101f" => {
+                    HashSet::from(["tls12", "tls12-session-resumption", "deterministic"])
+                }
+                "openssl102u" => {
+                    HashSet::from(["tls12", "tls12-session-resumption", "deterministic"])
+                }
+                "openssl111j" => HashSet::from([
+                    "tls12",
+                    "tls13",
+                    "tls12-session-resumption",
+                    "tls13-session-resumption",
+                    "deterministic",
+                    "claims",
+                    "transcript-extraction",
+                    "client-authentication-transcript-extraction",
+                ]),
+                "openssl111k" => HashSet::from([
+                    "tls12",
+                    "tls13",
+                    "tls12-session-resumption",
+                    "tls13-session-resumption",
+                    "deterministic",
+                    "claims",
+                    "transcript-extraction",
+                    "client-authentication-transcript-extraction",
+                ]),
+                "openssl111u" => HashSet::from([
+                    "tls12",
+                    "tls13",
+                    "tls12-session-resumption",
+                    "tls13-session-resumption",
+                    "deterministic",
+                    "claims",
+                    "transcript-extraction",
+                    "client-authentication-transcript-extraction",
+                ]),
+                "openssl312" => HashSet::from([
+                    "tls12",
+                    "tls13",
+                    "tls12-session-resumption",
+                    "tls13-session-resumption",
+                    "deterministic",
+                    "claims",
+                    "transcript-extraction",
+                    "client-authentication-transcript-extraction",
+                ]),
+                _ => panic!("unknown OpenSSL preset: {}", self.preset),
+            };
+
+            capabilities.contains(capability)
+        }
+
         fn determinism_reseed(&self) {
             debug!("[Determinism] reseed");
-            #[cfg(feature = "deterministic")]
-            {
+            if self.supports("deterministic") {
                 deterministic::rng_reseed();
             }
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
-            Box::new(OpenSSLFactory)
+            Box::new(OpenSSLFactory {
+                preset: self.preset.clone(),
+            })
         }
     }
 
-    #[cfg(feature = "deterministic")]
-    {
+    let preset = if cfg!(feature = "openssl101f") {
+        "openssl101f"
+    } else if cfg!(feature = "openssl102u") {
+        "openssl102u"
+    } else if cfg!(feature = "openssl111k") {
+        "openssl111k"
+    } else if cfg!(feature = "openssl111j") {
+        "openssl111j"
+    } else if cfg!(feature = "openssl111u") {
+        "openssl111u"
+    } else if cfg!(feature = "openssl312") {
+        "openssl312"
+    } else if cfg!(feature = "libressl333") {
+        "libressl333"
+    } else {
+        panic!("unknown OpenSSL preset");
+    };
+
+    let factory = Box::new(OpenSSLFactory {
+        preset: preset.to_owned(),
+    });
+
+    if factory.supports("deterministic") {
         deterministic::rng_set();
         deterministic::rng_reseed();
     }
 
-    Box::new(OpenSSLFactory)
+    factory
 }
 
 pub struct OpenSSL {

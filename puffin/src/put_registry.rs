@@ -70,7 +70,7 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
     }
 
     pub fn puts(&self) -> impl Iterator<Item = &dyn Factory<PB>> {
-        self.factories.iter().map(|(_, f)| f.to_owned().as_ref())
+        self.factories.values().map(|f| f.to_owned().as_ref())
     }
 
     pub fn find_by_id<S: AsRef<str>>(&self, id: S) -> Option<&dyn Factory<PB>> {
@@ -115,6 +115,8 @@ pub trait Factory<PB: ProtocolBehavior> {
     fn kind(&self) -> PutKind;
     fn name(&self) -> String;
     fn versions(&self) -> Vec<(String, String)>;
+
+    fn supports(&self, capability: &str) -> bool;
 
     fn determinism_reseed(&self);
 

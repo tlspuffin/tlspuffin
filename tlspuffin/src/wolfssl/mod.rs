@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use std::{cell::RefCell, io::ErrorKind, ops::Deref, rc::Rc};
+use std::{cell::RefCell, collections::HashSet, io::ErrorKind, ops::Deref, rc::Rc};
 
 use foreign_types::ForeignType;
 use log::error;
@@ -44,7 +44,10 @@ use crate::{
 mod transcript;
 
 pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
-    struct WolfSSLFactory;
+    struct WolfSSLFactory {
+        preset: String,
+    }
+
     impl Factory<TLSProtocolBehavior> for WolfSSLFactory {
         fn create(
             &self,
@@ -83,22 +86,6 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn versions(&self) -> Vec<(String, String)> {
-            let wolfssl_shortname = if cfg!(feature = "vendored-wolfssl540") {
-                "wolfssl540"
-            } else if cfg!(feature = "vendored-wolfssl530") {
-                "wolfssl530"
-            } else if cfg!(feature = "vendored-wolfssl520") {
-                "wolfssl520"
-            } else if cfg!(feature = "vendored-wolfssl510") {
-                "wolfssl510"
-            } else if cfg!(feature = "vendored-wolfssl430") {
-                "wolfssl430"
-            } else if cfg!(feature = "vendored-master") {
-                "master"
-            } else {
-                "unknown"
-            };
-
             vec![
                 (
                     "harness".to_string(),
@@ -106,9 +93,50 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 ),
                 (
                     "library".to_string(),
-                    format!("wolfssl ({} / {})", wolfssl_shortname, WolfSSL::version()),
+                    format!("wolfssl ({} / {})", self.preset, WolfSSL::version()),
                 ),
             ]
+        }
+
+        fn supports(&self, capability: &str) -> bool {
+            let capabilities = match self.preset.as_str() {
+                "wolfssl540" => HashSet::from([
+                    "tls12",
+                    "tls13",
+                    "tls12-session-resumption",
+                    "tls13-session-resumption",
+                    "transcript-extraction",
+                    "client-authentication-transcript-extraction",
+                ]),
+                "wolfssl530" => HashSet::from([
+                    "tls12",
+                    "tls13",
+                    "tls12-session-resumption",
+                    "tls13-session-resumption",
+                    "transcript-extraction",
+                    "client-authentication-transcript-extraction",
+                ]),
+                "wolfssl520" => HashSet::from([
+                    "tls12",
+                    "tls13",
+                    "tls12-session-resumption",
+                    "tls13-session-resumption",
+                    "transcript-extraction",
+                    "client-authentication-transcript-extraction",
+                ]),
+                "wolfssl510" => HashSet::from([
+                    "tls12",
+                    "tls13",
+                    "tls12-session-resumption",
+                    "tls13-session-resumption",
+                    "transcript-extraction",
+                    "client-authentication-transcript-extraction",
+                ]),
+                "wolfssl430" => HashSet::from(["tls12", "tls13", "transcript-extraction"]),
+                _ => panic!("unknown wolfSSL preset: {}", self.preset),
+            };
+
+            capabilities.contains(capability)
         }
 
         fn determinism_reseed(&self) {
@@ -116,11 +144,29 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
-            Box::new(WolfSSLFactory)
+            Box::new(WolfSSLFactory {
+                preset: self.preset.clone(),
+            })
         }
     }
 
-    Box::new(WolfSSLFactory)
+    let preset = if cfg!(feature = "wolfssl540") {
+        "wolfssl540"
+    } else if cfg!(feature = "wolfssl530") {
+        "wolfssl530"
+    } else if cfg!(feature = "wolfssl520") {
+        "wolfssl520"
+    } else if cfg!(feature = "wolfssl510") {
+        "wolfssl510"
+    } else if cfg!(feature = "wolfssl430") {
+        "wolfssl430"
+    } else {
+        panic!("unknown wolfSSL preset");
+    };
+
+    Box::new(WolfSSLFactory {
+        preset: preset.to_owned(),
+    })
 }
 
 pub struct WolfSSLErrorStack(pub ErrorStack);

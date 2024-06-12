@@ -57,6 +57,10 @@ impl Factory<TLSProtocolBehavior> for TlsCPut {
         ]
     }
 
+    fn supports(&self, _capability: &str) -> bool {
+        false
+    }
+
     fn determinism_reseed(&self) {
         if !self.supports_deterministic_rng() {
             log::error!(

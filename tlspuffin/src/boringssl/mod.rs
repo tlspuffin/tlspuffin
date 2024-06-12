@@ -1,5 +1,5 @@
 use core::ffi::c_void;
-use std::{cell::RefCell, io::ErrorKind, rc::Rc};
+use std::{cell::RefCell, collections::HashSet, io::ErrorKind, rc::Rc};
 
 use boring::{
     error::ErrorStack,
@@ -47,7 +47,10 @@ use std::ops::Deref;
 use transcript::extract_current_transcript;
 
 pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
-    struct BoringSSLFactory;
+    struct BoringSSLFactory {
+        preset: String,
+    }
+
     impl Factory<TLSProtocolBehavior> for BoringSSLFactory {
         fn create(
             &self,
@@ -92,16 +95,6 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn versions(&self) -> Vec<(String, String)> {
-            let boringssl_shortname = if cfg!(feature = "boringssl202311") {
-                "boringssl202311"
-            } else if cfg!(feature = "boringssl202403") {
-                "boringssl202403"
-            } else if cfg!(feature = "boringsslmaster") {
-                "master"
-            } else {
-                "unknown"
-            };
-
             vec![
                 (
                     "harness".to_string(),
@@ -109,13 +102,37 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 ),
                 (
                     "library".to_string(),
-                    format!(
-                        "boringssl ({} / {})",
-                        boringssl_shortname,
-                        BoringSSL::version()
-                    ),
+                    format!("boringssl ({} / {})", self.preset, BoringSSL::version()),
                 ),
             ]
+        }
+
+        fn supports(&self, capability: &str) -> bool {
+            let capabilities = match self.preset.as_str() {
+                "boringssl202403" => HashSet::from([
+                    "tls12",
+                    "tls13",
+                    "tls12-session-resumption",
+                    "tls13-session-resumption",
+                    "deterministic",
+                    "claims",
+                    "transcript-extraction",
+                    "client-authentication-transcript-extraction",
+                ]),
+                "boringssl202311" => HashSet::from([
+                    "tls12",
+                    "tls13",
+                    "tls12-session-resumption",
+                    "tls13-session-resumption",
+                    "deterministic",
+                    "claims",
+                    "transcript-extraction",
+                    "client-authentication-transcript-extraction",
+                ]),
+                _ => panic!("unknown BoringSSL preset: {}", self.preset),
+            };
+
+            capabilities.contains(capability)
         }
 
         fn determinism_reseed(&self) {
@@ -124,11 +141,23 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
-            Box::new(BoringSSLFactory)
+            Box::new(BoringSSLFactory {
+                preset: self.preset.clone(),
+            })
         }
     }
 
-    Box::new(BoringSSLFactory)
+    let preset = if cfg!(feature = "boringssl202311") {
+        "boringssl202311"
+    } else if cfg!(feature = "boringssl202403") {
+        "boringssl202403"
+    } else {
+        panic!("unknown BoringSSL preset");
+    };
+
+    Box::new(BoringSSLFactory {
+        preset: preset.to_owned(),
+    })
 }
 
 pub struct BoringSSL {

@@ -173,6 +173,10 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             ]
         }
 
+        fn supports(&self, _capability: &str) -> bool {
+            false
+        }
+
         fn determinism_reseed(&self) {
             debug!(
                 " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
