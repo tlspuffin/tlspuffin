@@ -1108,13 +1108,16 @@ pub mod tests {
     #[test]
     #[ignore] // We cannot check for this vulnerability right now
     fn test_seed_freak() {
-        use puffin::put::PutOptions;
+        use puffin::put_registry::PutDescriptor;
 
-        use crate::test_utils::expect_trace_crash;
+        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
 
         expect_trace_crash(
             seed_freak.build_trace(),
-            PutOptions::default(),
+            PutDescriptor {
+                factory: tls_registry().default().name(),
+                options: Default::default(),
+            },
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
@@ -1124,13 +1127,16 @@ pub mod tests {
     #[cfg(feature = "tls12")]
     #[test]
     fn test_seed_heartbleed() {
-        use puffin::put::PutOptions;
+        use puffin::put_registry::PutDescriptor;
 
-        use crate::test_utils::expect_trace_crash;
+        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
 
         expect_trace_crash(
             seed_heartbleed.build_trace(),
-            PutOptions::default(),
+            PutDescriptor {
+                factory: tls_registry().default().name(),
+                options: Default::default(),
+            },
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
@@ -1140,13 +1146,16 @@ pub mod tests {
     #[cfg(feature = "openssl111j")]
     #[cfg(feature = "tls12")]
     fn test_seed_cve_2021_3449() {
-        use puffin::put::PutOptions;
+        use puffin::put_registry::PutDescriptor;
 
-        use crate::test_utils::expect_trace_crash;
+        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
 
         expect_trace_crash(
             seed_cve_2021_3449.build_trace(),
-            PutOptions::default(),
+            PutDescriptor {
+                factory: tls_registry().default().name(),
+                options: Default::default(),
+            },
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
@@ -1196,13 +1205,16 @@ pub mod tests {
     #[cfg(feature = "wolfssl540")]
     #[cfg(feature = "wolfssl-disable-postauth")]
     fn test_seed_cve_2022_38152() {
-        use puffin::put::PutOptions;
+        use puffin::{put::PutOptions, put_registry::PutDescriptor};
 
-        use crate::test_utils::expect_trace_crash;
+        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
 
         expect_trace_crash(
             seed_session_resumption_dhe_full.build_trace(),
-            PutOptions::from_slice_vec(vec![("use_clear", &true.to_string())]),
+            PutDescriptor {
+                factory: tls_registry().default().name(),
+                options: PutOptions::from_slice_vec(vec![("use_clear", &true.to_string())]),
+            },
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
@@ -1213,9 +1225,12 @@ pub mod tests {
     #[cfg(feature = "tls12-session-resumption")]
     #[cfg(feature = "wolfssl530")]
     fn test_seed_cve_2022_38153() {
-        use puffin::put::PutOptions;
+        use puffin::put_registry::PutDescriptor;
 
-        use crate::{test_utils::expect_trace_crash, tls::trace_helper::TraceExecutor};
+        use crate::{
+            put_registry::tls_registry, test_utils::expect_trace_crash,
+            tls::trace_helper::TraceExecutor,
+        };
 
         for _ in 0..50 {
             crate::tls::seeds::seed_successful12_with_tickets.execute_trace();
@@ -1223,7 +1238,10 @@ pub mod tests {
 
         expect_trace_crash(
             seed_cve_2022_38153.build_trace(),
-            PutOptions::default(),
+            PutDescriptor {
+                factory: tls_registry().default().name(),
+                options: Default::default(),
+            },
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
@@ -1237,13 +1255,16 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test]
     fn test_seed_cve_2022_39173() {
-        use puffin::put::PutOptions;
+        use puffin::put_registry::PutDescriptor;
 
-        use crate::test_utils::expect_trace_crash;
+        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
 
         expect_trace_crash(
             seed_cve_2022_39173.build_trace(),
-            PutOptions::default(),
+            PutDescriptor {
+                factory: tls_registry().default().name(),
+                options: Default::default(),
+            },
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
@@ -1257,13 +1278,16 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test]
     fn test_seed_cve_2022_39173_full() {
-        use puffin::put::PutOptions;
+        use puffin::put_registry::PutDescriptor;
 
-        use crate::test_utils::expect_trace_crash;
+        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
 
         expect_trace_crash(
             seed_cve_2022_39173_full.build_trace(),
-            PutOptions::default(),
+            PutDescriptor {
+                factory: tls_registry().default().name(),
+                options: Default::default(),
+            },
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
@@ -1277,13 +1301,16 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test]
     fn test_seed_cve_2022_39173_minimized() {
-        use puffin::put::PutOptions;
+        use puffin::put_registry::PutDescriptor;
 
-        use crate::test_utils::expect_trace_crash;
+        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
 
         expect_trace_crash(
             seed_cve_2022_39173_minimized.build_trace(),
-            PutOptions::default(),
+            PutDescriptor {
+                factory: tls_registry().default().name(),
+                options: Default::default(),
+            },
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );

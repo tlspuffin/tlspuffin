@@ -9,22 +9,25 @@ pub const BORINGSSL_RUST_PUT: &str = "rust-put-boringssl";
 
 pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     let mut puts = vec![
-        (TCP_PUT.to_owned(), crate::tcp::new_tcp_factory()),
         #[cfg(feature = "openssl-binding")]
-        (
-            OPENSSL_RUST_PUT.to_owned(),
-            crate::openssl::new_openssl_factory(),
-        ),
+        {
+            let put = crate::openssl::new_openssl_factory();
+            (put.name(), put)
+        },
         #[cfg(feature = "wolfssl-binding")]
-        (
-            WOLFSSL_RUST_PUT.to_owned(),
-            crate::wolfssl::new_wolfssl_factory(),
-        ),
+        {
+            let put = crate::wolfssl::new_wolfssl_factory();
+            (put.name(), put)
+        },
         #[cfg(feature = "boringssl-binding")]
-        (
-            BORINGSSL_RUST_PUT.to_owned(),
-            crate::boringssl::new_boringssl_factory(),
-        ),
+        {
+            let put = crate::boringssl::new_boringssl_factory();
+            (put.name(), put)
+        },
+        {
+            let put = crate::tcp::new_tcp_factory();
+            (put.name(), put)
+        },
     ];
 
     if cfg!(feature = "cputs") {
@@ -34,10 +37,9 @@ pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
                     log::error!("C PUT registration failed: pointer to PUT struct is NULL");
                 }
 
-                puts.push((
-                    library.config_name.to_string(),
-                    crate::cput::new_factory(harness, library, unsafe { &*interface }),
-                ));
+                let put = crate::cput::new_factory(harness, library, unsafe { &*interface });
+
+                puts.push((put.name(), put));
             },
         );
     }

@@ -64,9 +64,12 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
         result
     }
 
+    // FIXME remove PutRegistry::default() once compile-time PUT definitions are removed
     pub fn default(&self) -> &dyn Factory<PB> {
-        self.find_by_id(&self.default_put)
-            .unwrap_or_else(|| panic!("default PUT {} is not in registry", &self.default_put))
+        // grab the first non-TCP PUT if any, else the TCP PUT
+        self.puts()
+            .find(|p| p.name() != TCP_PUT)
+            .unwrap_or_else(|| self.find_by_id(TCP_PUT).expect("PUT registry is empty"))
     }
 
     pub fn puts(&self) -> impl Iterator<Item = &dyn Factory<PB>> {

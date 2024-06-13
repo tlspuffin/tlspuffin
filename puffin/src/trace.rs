@@ -34,7 +34,7 @@ use crate::{
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
-    put::{PutDescriptor, PutOptions},
+    put::PutDescriptor,
     put_registry::PutRegistry,
     stream::Stream,
     variable_data::VariableData,
@@ -145,7 +145,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         TraceContextBuilder::new(registry)
     }
 
-    pub fn new(put_registry: &PutRegistry<PB>, default_put_options: PutOptions) -> Self {
+    pub fn new(put_registry: &PutRegistry<PB>, default_put: PutDescriptor) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName.
         let claims = GlobalClaimList::new();
@@ -157,10 +157,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             put_descriptors: Default::default(),
             put_registry: put_registry.clone(),
             deterministic_put: false,
-            default_put: PutDescriptor {
-                factory: put_registry.default().name(),
-                options: default_put_options,
-            },
+            default_put,
             phantom: Default::default(),
         }
     }
@@ -300,7 +297,7 @@ pub struct TraceContextBuilder<'a, PB: ProtocolBehavior> {
     registry: &'a PutRegistry<PB>,
     deterministic: bool,
     put_descriptors: HashMap<AgentName, PutDescriptor>,
-    default_put_options: PutOptions,
+    default_put: PutDescriptor,
 }
 
 impl<'a, PB: ProtocolBehavior> TraceContextBuilder<'a, PB> {
@@ -311,12 +308,15 @@ impl<'a, PB: ProtocolBehavior> TraceContextBuilder<'a, PB> {
             registry,
             deterministic: false,
             put_descriptors: Default::default(),
-            default_put_options: Default::default(),
+            default_put: PutDescriptor {
+                factory: registry.default().name(),
+                options: Default::default(),
+            },
         }
     }
 
-    pub fn set_default_put_options(mut self, options: PutOptions) -> Self {
-        self.default_put_options = options;
+    pub fn set_default_put(mut self, put: PutDescriptor) -> Self {
+        self.default_put = put;
         self
     }
 
@@ -342,7 +342,7 @@ impl<'a, PB: ProtocolBehavior> TraceContextBuilder<'a, PB> {
     }
 
     pub fn build(mut self) -> TraceContext<PB> {
-        let mut result = TraceContext::new(self.registry, self.default_put_options);
+        let mut result = TraceContext::new(self.registry, self.default_put);
         result.deterministic_put = self.deterministic;
         result.knowledge.append(&mut self.knowledge);
         result.put_descriptors.extend(self.put_descriptors);

@@ -18,7 +18,6 @@ use crate::{
     execution::forked_execution,
     experiment::*,
     fuzzer::{
-        harness::{default_put_options, set_default_put_options},
         sanitizer::asan::{asan_info, setup_asan_env},
         start, FuzzerConfig,
     },
@@ -136,9 +135,11 @@ where
     if put_use_clear {
         options.push(("use_clear".to_string(), put_use_clear.to_string()))
     }
-    if set_default_put_options(PutOptions::new(options)).is_err() {
-        error!("Failed to initialize default put options");
-    }
+
+    let default_put = PutDescriptor {
+        factory: put_registry.default().name(),
+        options: PutOptions::new(options),
+    };
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         if let Err(err) = seed(&put_registry) {
@@ -213,7 +214,7 @@ where
 
         for path in lookup_paths {
             info!("Executing: {}", path.display());
-            execute(path, &put_registry);
+            execute(path, &put_registry, default_put.clone());
         }
 
         if !lookup_paths.is_empty() {
@@ -266,7 +267,7 @@ where
 
         for path in paths {
             info!("Executing: {}", path.display());
-            execute(path, &put_registry);
+            execute(path, &put_registry, default_put.clone());
         }
 
         return ExitCode::SUCCESS;
@@ -274,7 +275,7 @@ where
         let input: &String = matches.get_one("input").unwrap();
         let output: &String = matches.get_one("output").unwrap();
 
-        if let Err(err) = binary_attack(input, output, &put_registry) {
+        if let Err(err) = binary_attack(input, output, &put_registry, default_put) {
             error!("Failed to create trace output: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -389,7 +390,7 @@ where
             no_launcher,
         };
 
-        if let Err(err) = start::<PB>(&put_registry, config, handle) {
+        if let Err(err) = start::<PB>(&put_registry, default_put, config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {
                     log::info!("\nFuzzing stopped by user. Good Bye.")
@@ -456,7 +457,11 @@ fn seed<PB: ProtocolBehavior>(
 
 use crate::{agent::AgentName, put::PutDescriptor};
 
-fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutRegistry<PB>) {
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
+    input: P,
+    put_registry: &PutRegistry<PB>,
+    default_put: PutDescriptor,
+) {
     let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
         Ok(t) => t,
         Err(_) => {
@@ -472,7 +477,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutReg
     let status = forked_execution(
         move || {
             let mut ctx = TraceContext::builder(put_registry)
-                .set_default_put_options(default_put_options().clone())
+                .set_default_put(default_put)
                 .build();
 
             if let Err(err) = trace.execute(&mut ctx) {
@@ -497,10 +502,11 @@ fn binary_attack<PB: ProtocolBehavior>(
     input: &str,
     output: &str,
     put_registry: &PutRegistry<PB>,
+    default_put: PutDescriptor,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let trace = Trace::<PB::Matcher>::from_file(input)?;
     let ctx = TraceContext::builder(put_registry)
-        .set_default_put_options(default_put_options().clone())
+        .set_default_put(default_put)
         .build();
 
     info!("Agents: {:?}", &trace.descriptors);
