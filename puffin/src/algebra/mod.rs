@@ -611,14 +611,9 @@ mod tests {
         let hmac256_new_key = Signature::new_function(&fn_hmac256_new_key);
         let hmac256 = Signature::new_function(&fn_hmac256);
         let _client_hello = Signature::new_function(&fn_client_hello);
-
         let data = "hello".as_bytes().to_vec();
-
-        //println!("TypeId of vec array {:?}", data.type_id());
-
         let variable: Variable<AnyMatcher> =
             Signature::new_var(TypeShape::of::<Vec<u8>>(), AgentName::first(), None, 0);
-
         let generated_term = Term::Application(
             hmac256,
             vec![
@@ -627,14 +622,10 @@ mod tests {
             ],
         );
 
-        //println!("{}", generated_term);
-
-        fn dummy_factory() -> Box<dyn Factory<TestProtocolBehavior>> {
-            Box::new(TestFactory)
-        }
-
-        let put_registry =
-            PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
+        let put_registry = PutRegistry::<TestProtocolBehavior>::new([(
+            "teststub",
+            Box::new(TestFactory) as Box<dyn Factory<TestProtocolBehavior>>,
+        )]);
 
         let context = TraceContext::builder(&put_registry)
             .with_knowledge(Knowledge {

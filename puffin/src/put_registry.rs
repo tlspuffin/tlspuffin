@@ -3,8 +3,6 @@ use std::{
     fmt::{Debug, Formatter},
 };
 
-use log::debug;
-
 use crate::{
     agent::AgentDescriptor, error::Error, protocol::ProtocolBehavior, put::Put, trace::TraceContext,
 };
@@ -21,13 +19,11 @@ pub const TCP_PUT: &str = "rust-put-tcp";
 /// used throughout the fuzzer.
 pub struct PutRegistry<PB> {
     factories: HashMap<String, Box<dyn Factory<PB>>>,
-    default_put: String,
 }
 
 impl<PB: ProtocolBehavior> PartialEq for PutRegistry<PB> {
     fn eq(&self, other: &Self) -> bool {
-        self.default_put == other.default_put
-            && self.factories.len() == other.factories.len()
+        self.factories.len() == other.factories.len()
             && self
                 .factories
                 .keys()
@@ -37,31 +33,25 @@ impl<PB: ProtocolBehavior> PartialEq for PutRegistry<PB> {
 
 impl<PB: ProtocolBehavior> Debug for PutRegistry<PB> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PutRegistry (default only)")
-            .field("default", &self.default().name())
-            .finish()
+        f.write_str("PutRegistry(")?;
+        f.debug_list().entries(self.factories.keys()).finish()?;
+        f.write_str(")")?;
+        Ok(())
     }
 }
 
 impl<PB: ProtocolBehavior> PutRegistry<PB> {
-    pub fn new<SI, I, S>(puts: I, default: S) -> Self
+    pub fn new<SI, I>(puts: I) -> Self
     where
         SI: Into<String>,
         I: IntoIterator<Item = (SI, Box<dyn Factory<PB>>)>,
-        S: Into<String>,
     {
-        let result = Self {
+        Self {
             factories: puts
                 .into_iter()
                 .map(|(id, f)| (Into::<String>::into(id), f))
                 .collect(),
-            default_put: default.into(),
-        };
-
-        // check that the default PUT is actually in the registry
-        let _ = result.find_by_id(&result.default_put);
-
-        result
+        }
     }
 
     // FIXME remove PutRegistry::default() once compile-time PUT definitions are removed
@@ -83,7 +73,7 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
     }
 
     pub fn determinism_reseed_all_factories(&self) {
-        debug!("== Reseed all ({}):", self.factories.len());
+        log::debug!("== Reseed all ({}):", self.factories.len());
         for (_, factory) in self.factories.iter() {
             factory.determinism_reseed();
         }
@@ -96,7 +86,6 @@ impl<PB: ProtocolBehavior> Clone for PutRegistry<PB> {
             self.factories
                 .iter()
                 .map(|(n, f)| (n.clone(), f.clone_factory())),
-            self.default_put.clone(),
         )
     }
 }

@@ -1,4 +1,4 @@
-use puffin::put_registry::{PutRegistry, TCP_PUT};
+use puffin::put_registry::PutRegistry;
 use tls_harness::{CPutHarness, CPutLibrary, C_PUT_TYPE};
 
 use crate::protocol::TLSProtocolBehavior;
@@ -44,19 +44,5 @@ pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
         );
     }
 
-    let default = {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "openssl-binding")] {
-                OPENSSL_RUST_PUT
-            } else if #[cfg(feature = "wolfssl-binding")] {
-                WOLFSSL_RUST_PUT
-            } else if #[cfg(feature = "boringssl-binding")] {
-                BORINGSSL_RUST_PUT
-            } else {
-                TCP_PUT
-            }
-        }
-    };
-
-    PutRegistry::new(puts, default)
+    PutRegistry::new(puts)
 }
