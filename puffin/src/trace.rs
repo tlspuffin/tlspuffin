@@ -22,6 +22,7 @@ use std::{
     marker::PhantomData,
 };
 
+use clap::error::Result;
 use log::{debug, trace, warn};
 use serde::{Deserialize, Serialize};
 
@@ -33,7 +34,7 @@ use crate::{
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
     protocol::{
-        MessageResult, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+        ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
         ProtocolMessage, ProtocolMessageFlight,
     },
     put::{PutDescriptor, PutOptions},
@@ -82,7 +83,7 @@ impl fmt::Display for Source {
 }
 
 /// [Knowledge] describes an atomic piece of knowledge inferred by the
-/// [`crate::protocol::ProtocolMessage::extract_knowledge`] function
+/// [`crate::protocol::ExtractKnowledge::extract_knowledge`] function
 /// [Knowledge] is made of the data, the source of the output, the
 /// TLS message type and the internal type.
 #[derive(Debug)]
@@ -97,7 +98,7 @@ impl<M: Matcher> Knowledge<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        let data_type_id = self.data.as_ref().type_id();
+        let data_type_id = self.data.type_id();
         debug!(
             "New knowledge {}: {}  (counter: {})",
             &self,
@@ -114,93 +115,31 @@ impl<M: Matcher> fmt::Display for Knowledge<M> {
     }
 }
 
-/// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
-/// of the attacker. [`VariableData`] can contain data of various types like for example
-/// client and server extensions, cipher suits or session ID It also holds the concrete
-/// references to the [`Agent`]s and the underlying streams, which contain the messages
-/// which have need exchanged and are not yet processed by an output step.
 #[derive(Debug)]
-pub struct TraceContext<PB: ProtocolBehavior> {
-    /// The knowledge of the attacker
+pub struct KnowledgeStore<PB: ProtocolBehavior> {
     knowledge: Vec<Knowledge<PB::Matcher>>,
-    agents: Vec<Agent<PB>>,
-    claims: GlobalClaimList<<PB as ProtocolBehavior>::Claim>,
-
-    put_registry: PutRegistry<PB>,
-    deterministic_put: bool,
-    default_put_options: PutOptions,
-    non_default_put_descriptors: HashMap<AgentName, PutDescriptor>,
-
-    phantom: PhantomData<PB>,
 }
 
-impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Knowledge [not displaying other fields] (size={}):",
-            self.knowledge.len()
-        )?;
-        for k in &self.knowledge {
-            write!(f, "\n   {},          --  {:?}", k, k)?;
-        }
-        Ok(())
-    }
-}
-
-impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
-    fn eq(&self, other: &Self) -> bool {
-        self.agents == other.agents
-            && self.put_registry == other.put_registry
-            && self.deterministic_put == other.deterministic_put
-            && self.default_put_options == other.default_put_options
-            && self.non_default_put_descriptors == other.non_default_put_descriptors
-            && format!("{:?}", self.knowledge) == format!("{:?}", other.knowledge)
-            && format!("{:?}", self.claims) == format!("{:?}", other.claims)
-    }
-}
-
-impl<PB: ProtocolBehavior> TraceContext<PB> {
-    pub fn new(put_registry: &PutRegistry<PB>, default_put_options: PutOptions) -> Self {
-        // We keep a global list of all claims throughout the execution. Each claim is identified
-        // by the AgentName. A rename of an Agent does not interfere with this.
-        let claims = GlobalClaimList::new();
-
-        Self {
-            knowledge: vec![],
-            agents: vec![],
-            claims,
-            non_default_put_descriptors: Default::default(),
-            put_registry: put_registry.clone(),
-            deterministic_put: false,
-            phantom: Default::default(),
-            default_put_options,
-        }
-    }
-
-    pub fn put_registry(&self) -> &PutRegistry<PB> {
-        &self.put_registry
-    }
-
-    pub fn claims(&self) -> &GlobalClaimList<PB::Claim> {
-        &self.claims
-    }
-
-    pub fn verify_security_violations(&self) -> Result<(), Error> {
-        let claims = self.claims.deref_borrow();
-        if let Some(msg) = PB::SecurityViolationPolicy::check_violation(claims.slice()) {
-            // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
-            // Max: We only check for Finished claims right now, so its fine to check only at the end
-            return Err(Error::SecurityClaim(msg));
-        }
-        Ok(())
+impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
+    pub fn new() -> Self {
+        Self { knowledge: vec![] }
     }
 
     pub fn add_knowledge(&mut self, knowledge: Knowledge<PB::Matcher>) {
-        self.knowledge.push(knowledge)
+        self.knowledge.push(knowledge);
     }
 
-    /// Count the number of sub-messages of type `type_id` with the correct source
+    pub fn do_extract_knowledge<T: ExtractKnowledge<PB::Matcher> + 'static>(
+        &mut self,
+        data: T,
+        source: Source,
+    ) -> Result<usize, Error> {
+        let count_before = self.knowledge.len();
+        data.extract_knowledge(&mut self.knowledge, None, &source)?;
+
+        Ok(self.knowledge.len() - count_before)
+    }
+
     pub fn number_matching_message_with_source(
         &self,
         source: Source,
@@ -212,12 +151,12 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .filter(|knowledge| {
                 knowledge.source == source
                     && knowledge.matcher == *tls_message_type
-                    && knowledge.data.as_ref().type_id() == type_id
+                    && knowledge.data.type_id() == type_id
             })
             .count()
     }
 
-    /// Count the number of sub-messages of type [type_id] in the output message [in_step_id].
+    /// Count the number of sub-messages of type `type_id` in the output message.
     pub fn number_matching_message(
         &self,
         type_id: TypeId,
@@ -226,21 +165,9 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         self.knowledge
             .iter()
             .filter(|knowledge| {
-                knowledge.matcher == *tls_message_type
-                    && knowledge.data.as_ref().type_id() == type_id
+                knowledge.matcher == *tls_message_type && knowledge.data.type_id() == type_id
             })
             .count()
-    }
-
-    pub fn find_claim(
-        &self,
-        agent_name: AgentName,
-        query_type_shape: TypeShape,
-    ) -> Option<Box<dyn Any>> {
-        self.claims
-            .deref_borrow()
-            .find_last_claim(agent_name, query_type_shape)
-            .map(|claim| claim.inner())
     }
 
     /// Returns the variable which matches best -> highest specificity
@@ -271,6 +198,132 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .get(query.counter as usize)
             .map(|possibility| possibility.data.as_ref())
     }
+}
+
+/// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
+/// of the attacker. [`VariableData`] can contain data of various types like for example
+/// client and server extensions, cipher suits or session ID It also holds the concrete
+/// references to the [`Agent`]s and the underlying streams, which contain the messages
+/// which have need exchanged and are not yet processed by an output step.
+#[derive(Debug)]
+pub struct TraceContext<PB: ProtocolBehavior> {
+    /// The knowledge of the attacker
+    pub knowledge_store: KnowledgeStore<PB>,
+    agents: Vec<Agent<PB>>,
+    claims: GlobalClaimList<<PB as ProtocolBehavior>::Claim>,
+
+    put_registry: PutRegistry<PB>,
+    deterministic_put: bool,
+    default_put_options: PutOptions,
+    non_default_put_descriptors: HashMap<AgentName, PutDescriptor>,
+
+    phantom: PhantomData<PB>,
+}
+
+impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "Knowledge [not displaying other fields] (size={}):",
+            self.knowledge_store.knowledge.len()
+        )?;
+        for k in &self.knowledge_store.knowledge {
+            write!(f, "\n   {},          --  {:?}", k, k)?;
+        }
+        Ok(())
+    }
+}
+
+impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
+    fn eq(&self, other: &Self) -> bool {
+        self.agents == other.agents
+            && self.put_registry == other.put_registry
+            && self.deterministic_put == other.deterministic_put
+            && self.default_put_options == other.default_put_options
+            && self.non_default_put_descriptors == other.non_default_put_descriptors
+            && format!("{:?}", self.knowledge_store.knowledge)
+                == format!("{:?}", other.knowledge_store.knowledge)
+            && format!("{:?}", self.claims) == format!("{:?}", other.claims)
+    }
+}
+
+impl<PB: ProtocolBehavior> TraceContext<PB> {
+    pub fn new(put_registry: &PutRegistry<PB>, default_put_options: PutOptions) -> Self {
+        // We keep a global list of all claims throughout the execution. Each claim is identified
+        // by the AgentName. A rename of an Agent does not interfere with this.
+        let claims = GlobalClaimList::new();
+
+        Self {
+            knowledge_store: KnowledgeStore::new(),
+            agents: vec![],
+            claims,
+            non_default_put_descriptors: Default::default(),
+            put_registry: put_registry.clone(),
+            deterministic_put: false,
+            phantom: Default::default(),
+            default_put_options,
+        }
+    }
+
+    pub fn put_registry(&self) -> &PutRegistry<PB> {
+        &self.put_registry
+    }
+
+    pub fn claims(&self) -> &GlobalClaimList<PB::Claim> {
+        &self.claims
+    }
+
+    pub fn verify_security_violations(&self) -> Result<(), Error> {
+        let claims = self.claims.deref_borrow();
+        if let Some(msg) = PB::SecurityViolationPolicy::check_violation(claims.slice()) {
+            // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
+            // Max: We only check for Finished claims right now, so its fine to check only at the end
+            return Err(Error::SecurityClaim(msg));
+        }
+        Ok(())
+    }
+
+    /// Count the number of sub-messages of type `type_id` with the correct source
+    pub fn number_matching_message_with_source(
+        &self,
+        source: Source,
+        type_id: TypeId,
+        tls_message_type: &Option<PB::Matcher>,
+    ) -> usize {
+        self.knowledge_store
+            .number_matching_message_with_source(source, type_id, tls_message_type)
+    }
+
+    /// Count the number of sub-messages of type `type_id` in the output message.
+    pub fn number_matching_message(
+        &self,
+        type_id: TypeId,
+        tls_message_type: &Option<PB::Matcher>,
+    ) -> usize {
+        self.knowledge_store
+            .number_matching_message(type_id, tls_message_type)
+    }
+
+    pub fn find_claim(
+        &self,
+        agent_name: AgentName,
+        query_type_shape: TypeShape,
+    ) -> Option<Box<dyn Any>> {
+        self.claims
+            .deref_borrow()
+            .find_last_claim(agent_name, query_type_shape)
+            .map(|claim| claim.inner())
+    }
+
+    /// Returns the variable which matches best -> highest specificity
+    /// If we want a variable with lower specificity, then we can just query less specific
+    pub fn find_variable(
+        &self,
+        query_type_shape: TypeShape,
+        query: &Query<PB::Matcher>,
+    ) -> Option<&(dyn VariableData)> {
+        self.knowledge_store.find_variable(query_type_shape, query)
+    }
 
     /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
     pub fn add_to_inbound(
@@ -292,7 +345,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn take_message_from_outbound(
         &mut self,
         agent_name: AgentName,
-    ) -> Result<Option<MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>, Error> {
+    ) -> Result<Option<PB::OpaqueProtocolMessageFlight>, Error> {
         let agent = self.find_agent_mut(agent_name)?;
         agent.put_mut().take_message_from_outbound()
     }
@@ -574,61 +627,34 @@ impl<M: Matcher> OutputAction<M> {
     {
         ctx.next_state(step.agent)?;
 
-        let mut flight = PB::ProtocolMessageFlight::new();
+        let source = Source::Agent(step.agent);
 
-        while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? {
-            let matcher = message_result.create_matcher::<PB>();
+        let opaque_flight_result = ctx.take_message_from_outbound(step.agent)?;
 
-            let MessageResult(message, opaque_message) = message_result;
+        if let Some(opaque_flight) = opaque_flight_result {
+            let flight = TryInto::<PB::ProtocolMessageFlight>::try_into(opaque_flight.clone());
 
-            if let Some(m) = &message {
-                flight.push(m.clone());
+            if let Ok(num) = ctx
+                .knowledge_store
+                .do_extract_knowledge(opaque_flight, source.clone())
+            {
+                debug!("Knowledge increased by {}", num);
             }
 
-            let knowledge = message
-                .and_then(|message| message.extract_knowledge().ok())
-                .unwrap_or_default();
-            let opaque_knowledge = opaque_message.extract_knowledge()?;
-
-            debug!(
-                "Knowledge increased by {:?}",
-                knowledge.len() + opaque_knowledge.len()
-            ); // +1 because of the OpaqueMessage below
-
-            let source = Source::Agent(step.agent);
-
-            for variable in knowledge {
-                let knowledge = Knowledge::<M> {
-                    source: source.clone(),
-                    matcher: matcher.clone(),
-                    data: variable,
-                };
-
-                knowledge.debug_print(ctx, &source);
-                ctx.add_knowledge(knowledge)
-            }
-
-            for variable in opaque_knowledge {
-                let knowledge = Knowledge::<M> {
-                    source: source.clone(),
-                    matcher: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
-                    data: variable,
-                };
-
-                knowledge.debug_print(ctx, &source);
-                ctx.add_knowledge(knowledge)
+            if let Ok(f) = flight {
+                if let Ok(num) = ctx.knowledge_store.do_extract_knowledge(f, source.clone()) {
+                    debug!("Knowledge increased by {}", num);
+                }
             }
         }
 
-        let source = Source::Agent(step.agent);
-
-        let flight_knowledge = Knowledge::<M> {
-            source: source.clone(),
-            matcher: None,
-            data: Box::new(flight),
-        };
-        flight_knowledge.debug_print(ctx, &source);
-        ctx.add_knowledge(flight_knowledge);
+        // let flight_knowledge = Knowledge::<M> {
+        //     agent_name: step.agent,
+        //     matcher: None,
+        //     data: Box::new(flight),
+        // };
+        // flight_knowledge.debug_print(ctx, &step.agent);
+        // ctx.add_knowledge(flight_knowledge);
 
         Ok(())
     }

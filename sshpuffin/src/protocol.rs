@@ -1,16 +1,18 @@
 use log::debug;
 use puffin::{
-    algebra::{signature::Signature, AnyMatcher},
+    algebra::signature::Signature,
     codec::{Codec, Reader},
+    error::Error,
     protocol::{
-        OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer,
-        ProtocolMessageFlight,
+        ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
+        ProtocolMessageDeframer, ProtocolMessageFlight,
     },
-    trace::Trace,
+    trace::{Knowledge, Source, Trace},
 };
 
 use crate::{
     claim::SshClaim,
+    query::SshQueryMatcher,
     ssh::{
         deframe::SshMessageDeframer,
         message::{RawSshMessage, SshMessage},
@@ -24,7 +26,9 @@ pub struct SshMessageFlight {
     pub messages: Vec<SshMessage>,
 }
 
-impl ProtocolMessageFlight<SshMessage, RawSshMessage> for SshMessageFlight {
+impl ProtocolMessageFlight<SshQueryMatcher, SshMessage, RawSshMessage, RawSshMessageFlight>
+    for SshMessageFlight
+{
     fn new() -> Self {
         Self { messages: vec![] }
     }
@@ -46,12 +50,31 @@ impl From<SshMessage> for SshMessageFlight {
     }
 }
 
+impl ExtractKnowledge<SshQueryMatcher> for SshMessageFlight {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<SshQueryMatcher>>,
+        matcher: Option<SshQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
+        for msg in &self.messages {
+            msg.extract_knowledge(knowledges, matcher, source)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RawSshMessageFlight {
     pub messages: Vec<RawSshMessage>,
 }
 
-impl OpaqueProtocolMessageFlight<RawSshMessage> for RawSshMessageFlight {
+impl OpaqueProtocolMessageFlight<SshQueryMatcher, RawSshMessage> for RawSshMessageFlight {
     fn new() -> Self {
         Self { messages: vec![] }
     }
@@ -62,6 +85,45 @@ impl OpaqueProtocolMessageFlight<RawSshMessage> for RawSshMessageFlight {
 
     fn debug(&self, info: &str) {
         debug!("{}: {:?}", info, self);
+    }
+}
+
+impl ExtractKnowledge<SshQueryMatcher> for RawSshMessageFlight {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<SshQueryMatcher>>,
+        matcher: Option<SshQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
+        for msg in &self.messages {
+            msg.extract_knowledge(knowledges, matcher, source)?;
+        }
+        Ok(())
+    }
+}
+
+impl TryFrom<RawSshMessageFlight> for SshMessageFlight {
+    type Error = ();
+
+    fn try_from(value: RawSshMessageFlight) -> Result<Self, Self::Error> {
+        let flight = Self {
+            messages: value
+                .messages
+                .iter()
+                .filter_map(|m| (*m).clone().try_into().ok())
+                .collect(),
+        };
+
+        if flight.messages.len() == 0 {
+            Err(())
+        } else {
+            Ok(flight)
+        }
     }
 }
 
@@ -109,7 +171,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
     type SecurityViolationPolicy = SshSecurityViolationPolicy;
     type ProtocolMessage = SshMessage;
     type OpaqueProtocolMessage = RawSshMessage;
-    type Matcher = AnyMatcher;
+    type Matcher = SshQueryMatcher;
     type ProtocolMessageFlight = SshMessageFlight;
     type OpaqueProtocolMessageFlight = RawSshMessageFlight;
 

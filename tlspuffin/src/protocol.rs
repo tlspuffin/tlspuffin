@@ -4,10 +4,10 @@ use puffin::{
     codec::{Codec, Reader},
     error::Error,
     protocol::{
-        OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
-        ProtocolMessageDeframer, ProtocolMessageFlight,
+        ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+        ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
     },
-    trace::Trace,
+    trace::{Knowledge, Source, Trace},
     variable_data::VariableData,
 };
 
@@ -35,7 +35,9 @@ pub struct MessageFlight {
     pub messages: Vec<Message>,
 }
 
-impl ProtocolMessageFlight<Message, OpaqueMessage> for MessageFlight {
+impl ProtocolMessageFlight<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight>
+    for MessageFlight
+{
     fn new() -> Self {
         Self { messages: vec![] }
     }
@@ -62,7 +64,7 @@ pub struct OpaqueMessageFlight {
     pub messages: Vec<OpaqueMessage>,
 }
 
-impl OpaqueProtocolMessageFlight<OpaqueMessage> for OpaqueMessageFlight {
+impl OpaqueProtocolMessageFlight<TlsQueryMatcher, OpaqueMessage> for OpaqueMessageFlight {
     fn new() -> Self {
         Self { messages: vec![] }
     }
@@ -90,6 +92,8 @@ impl Codec for OpaqueMessageFlight {
         let _ = deframer.read(&mut reader.rest());
         while let Some(msg) = deframer.pop_frame() {
             flight.push(msg);
+            // continue to read the buffer
+            let _ = deframer.read(&mut reader.rest());
         }
 
         Some(flight)
@@ -104,6 +108,26 @@ impl From<MessageFlight> for OpaqueMessageFlight {
     }
 }
 
+impl TryFrom<OpaqueMessageFlight> for MessageFlight {
+    type Error = ();
+
+    fn try_from(value: OpaqueMessageFlight) -> Result<Self, Self::Error> {
+        let flight = Self {
+            messages: value
+                .messages
+                .iter()
+                .filter_map(|m| (*m).clone().try_into().ok())
+                .collect(),
+        };
+
+        if flight.messages.len() == 0 {
+            Err(())
+        } else {
+            Ok(flight)
+        }
+    }
+}
+
 impl From<OpaqueMessage> for OpaqueMessageFlight {
     fn from(value: OpaqueMessage) -> Self {
         Self {
@@ -112,131 +136,293 @@ impl From<OpaqueMessage> for OpaqueMessageFlight {
     }
 }
 
-impl ProtocolMessage<OpaqueMessage> for Message {
+impl ProtocolMessage<TlsQueryMatcher, OpaqueMessage> for Message {
     fn create_opaque(&self) -> OpaqueMessage {
         msgs::message::PlainMessage::from(self.clone()).into_unencrypted_opaque()
     }
     fn debug(&self, info: &str) {
         debug_message_with_info(info, self);
     }
+}
 
+impl ExtractKnowledge<TlsQueryMatcher> for MessageFlight {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
+
+        for msg in &self.messages {
+            msg.extract_knowledge(knowledges, matcher, source)?;
+        }
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for OpaqueMessageFlight {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
+        for msg in &self.messages {
+            msg.extract_knowledge(knowledges, matcher, source)?;
+        }
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for Message {
     /// Extracts knowledge from a [`crate::tls::rustls::msgs::message::Message`].
     /// Only plaintext messages yield more knowledge than their binary payload.
     /// If a message is an ApplicationData (TLS 1.3) or an encrypted Heartbeet
     /// or Handhake message (TLS 1.2), then only the message itself and the
     /// binary payload is returned.
-    fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
-        Ok(match &self.payload {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        _: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        match &self.payload {
             MessagePayload::Alert(alert) => {
-                vec![
-                    Box::new(self.clone()),
-                    Box::new(alert.description),
-                    Box::new(alert.level),
-                ]
+                let matcher = TlsQueryMatcher::Alert;
+
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher: Some(matcher),
+                    data: Box::new(self.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher: Some(matcher),
+                    data: Box::new(alert.description),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher: Some(matcher),
+                    data: Box::new(alert.level),
+                });
             }
             MessagePayload::Handshake(hs) => {
+                let matcher = TlsQueryMatcher::Handshake(Some(hs.typ));
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher: Some(matcher),
+                    data: Box::new(self.clone()),
+                });
                 match &hs.payload {
                     HandshakePayload::HelloRequest => {
-                        vec![Box::new(self.clone()), Box::new(hs.typ)]
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(hs.typ),
+                        });
                     }
                     HandshakePayload::ClientHello(ch) => {
-                        let vars: Vec<Box<dyn VariableData>> = vec![
-                            Box::new(self.clone()),
-                            Box::new(hs.typ),
-                            Box::new(ch.random),
-                            Box::new(ch.session_id),
-                            Box::new(ch.client_version),
-                            Box::new(ch.extensions.clone()),
-                            Box::new(ch.compression_methods.clone()),
-                            Box::new(ch.cipher_suites.clone()),
-                        ];
-
-                        let extensions = ch
-                            .extensions
-                            .iter()
-                            .map(|extension| Box::new(extension.clone()) as Box<dyn VariableData>);
-                        let compression_methods = ch
-                            .compression_methods
-                            .iter()
-                            .map(|compression| Box::new(*compression) as Box<dyn VariableData>);
-                        let cipher_suites = ch
-                            .cipher_suites
-                            .iter()
-                            .map(|cipher_suite| Box::new(*cipher_suite) as Box<dyn VariableData>);
-
-                        vars.into_iter()
-                            .chain(extensions) // also add all extensions individually
-                            .chain(compression_methods)
-                            .chain(cipher_suites)
-                            .collect::<Vec<Box<dyn VariableData>>>()
-                    }
-                    HandshakePayload::ServerHello(sh) => {
-                        let vars: Vec<Box<dyn VariableData>> = vec![
-                            Box::new(self.clone()),
-                            Box::new(hs.typ),
-                            Box::new(sh.random),
-                            Box::new(sh.session_id),
-                            Box::new(sh.cipher_suite),
-                            Box::new(sh.compression_method),
-                            Box::new(sh.legacy_version),
-                            Box::new(sh.extensions.clone()),
-                        ];
-
-                        let server_extensions = sh.extensions.iter().map(|extension| {
-                            Box::new(extension.clone()) as Box<dyn VariableData>
-                            // it is important to cast here: https://stackoverflow.com/questions/48180008/how-can-i-box-the-contents-of-an-iterator-of-a-type-that-implements-a-trait
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(hs.typ),
+                        });
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(ch.random),
+                        });
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(ch.session_id),
+                        });
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(ch.client_version),
+                        });
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(ch.extensions.clone()),
+                        });
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(ch.compression_methods.clone()),
+                        });
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(ch.cipher_suites.clone()),
                         });
 
-                        vars.into_iter()
-                            .chain(server_extensions)
-                            .collect::<Vec<Box<dyn VariableData>>>()
+                        knowledges.extend(ch.extensions.iter().map(|extension| Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(extension.clone()) as Box<dyn VariableData>,
+                        }));
+                        knowledges.extend(ch.compression_methods.iter().map(|compression| {
+                            Knowledge {
+                                source: source.clone(),
+                                matcher: Some(matcher),
+                                data: Box::new(*compression) as Box<dyn VariableData>,
+                            }
+                        }));
+                        knowledges.extend(ch.cipher_suites.iter().map(|cipher_suite| Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(*cipher_suite) as Box<dyn VariableData>,
+                        }));
+                    }
+                    HandshakePayload::ServerHello(sh) => {
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(hs.typ),
+                        });
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(sh.random),
+                        });
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(sh.session_id),
+                        });
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(sh.cipher_suite),
+                        });
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(sh.compression_method),
+                        });
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(sh.legacy_version),
+                        });
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(sh.extensions.clone()),
+                        });
+
+                        knowledges.extend(sh.extensions.iter().map(|extension| Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(extension.clone()) as Box<dyn VariableData>,
+                        }));
                     }
                     HandshakePayload::Certificate(c) => {
-                        vec![Box::new(self.clone()), Box::new(c.0.clone())]
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(c.0.clone()),
+                        });
                     }
                     HandshakePayload::ServerKeyExchange(ske) => match ske {
                         ServerKeyExchangePayload::ECDHE(ecdhe) => {
                             // this path wont be taken because we do not know the key exchange algorithm
                             // in advance
-                            vec![Box::new(self.clone()), Box::new(ecdhe.clone())]
+                            knowledges.push(Knowledge {
+                                source: source.clone(),
+                                matcher: Some(matcher),
+                                data: Box::new(ecdhe.clone()),
+                            });
                         }
                         ServerKeyExchangePayload::Unknown(unknown) => {
-                            vec![Box::new(self.clone()), Box::new(unknown.0.clone())]
+                            knowledges.push(Knowledge {
+                                source: source.clone(),
+                                matcher: Some(matcher),
+                                data: Box::new(unknown.0.clone()),
+                            });
                         }
                     },
-                    HandshakePayload::ServerHelloDone => {
-                        vec![Box::new(self.clone())]
-                    }
+                    HandshakePayload::ServerHelloDone => {}
                     HandshakePayload::ClientKeyExchange(cke) => {
-                        vec![Box::new(self.clone()), Box::new(cke.0.clone())]
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(cke.0.clone()),
+                        });
                     }
                     HandshakePayload::NewSessionTicket(ticket) => {
-                        vec![
-                            Box::new(self.clone()),
-                            Box::new(ticket.lifetime_hint as u64),
-                            Box::new(ticket.ticket.0.clone()),
-                        ]
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(ticket.lifetime_hint as u64),
+                        });
+                        knowledges.push(Knowledge {
+                            source: source.clone(),
+                            matcher: Some(matcher),
+                            data: Box::new(ticket.ticket.0.clone()),
+                        });
                     }
                     _ => return Err(Error::Extraction()),
                 }
             }
-            MessagePayload::ChangeCipherSpec(_ccs) => {
-                vec![]
-            }
+            MessagePayload::ChangeCipherSpec(_ccs) => {}
             MessagePayload::ApplicationData(opaque) => {
-                vec![Box::new(self.clone()), Box::new(opaque.0.clone())]
+                let matcher = TlsQueryMatcher::ApplicationData;
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher: Some(matcher),
+                    data: Box::new(self.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher: Some(matcher),
+                    data: Box::new(opaque.0.clone()),
+                });
             }
             MessagePayload::Heartbeat(h) => {
-                vec![Box::new(self.clone()), Box::new(h.payload.clone())]
+                let matcher = TlsQueryMatcher::Heartbeat;
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher: Some(matcher),
+                    data: Box::new(self.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher: Some(matcher),
+                    data: Box::new(h.payload.0.clone()),
+                });
             }
             MessagePayload::TLS12EncryptedHandshake(tls12encrypted) => {
-                vec![Box::new(self.clone()), Box::new(tls12encrypted.0.clone())]
+                let matcher = TlsQueryMatcher::Handshake(None);
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher: Some(matcher),
+                    data: Box::new(self.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher: Some(matcher),
+                    data: Box::new(tls12encrypted.0.clone()),
+                });
             }
-        })
+        }
+        Ok(())
     }
 }
 
-impl ProtocolMessageDeframer for MessageDeframer {
+impl ProtocolMessageDeframer<TlsQueryMatcher> for MessageDeframer {
     type OpaqueProtocolMessage = OpaqueMessage;
 
     fn pop_frame(&mut self) -> Option<OpaqueMessage> {
@@ -247,13 +433,25 @@ impl ProtocolMessageDeframer for MessageDeframer {
     }
 }
 
-impl OpaqueProtocolMessage for OpaqueMessage {
+impl OpaqueProtocolMessage<TlsQueryMatcher> for OpaqueMessage {
     fn debug(&self, info: &str) {
         debug_opaque_message_with_info(info, self);
     }
+}
 
-    fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
-        Ok(vec![Box::new(self.clone())])
+impl ExtractKnowledge<TlsQueryMatcher> for OpaqueMessage {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
+        Ok(())
     }
 }
 

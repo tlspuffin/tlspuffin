@@ -13,7 +13,6 @@ use log::{debug, info, trace};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
-    protocol::MessageResult,
     put::{Put, PutName},
     put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
@@ -30,11 +29,9 @@ use crate::{
     protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
     put::TlsPutConfig,
     put_registry::BORINGSSL_PUT,
+    query::TlsQueryMatcher,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
-    tls::rustls::msgs::{
-        deframer::MessageDeframer,
-        message::{Message, OpaqueMessage},
-    },
+    tls::rustls::msgs::message::{Message, OpaqueMessage},
 };
 
 #[cfg(feature = "deterministic")]
@@ -137,7 +134,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 }
 
 pub struct BoringSSL {
-    stream: SslStream<MemoryStream<MessageDeframer>>,
+    stream: SslStream<MemoryStream>,
     config: TlsPutConfig,
 }
 
@@ -148,24 +145,24 @@ impl Drop for BoringSSL {
     }
 }
 
-impl Stream<Message, OpaqueMessage, OpaqueMessageFlight> for BoringSSL {
+impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for BoringSSL {
     fn add_to_inbound(&mut self, result: &OpaqueMessageFlight) {
-        <MemoryStream<MessageDeframer> as Stream<
+        <MemoryStream as Stream<
+            TlsQueryMatcher,
             Message,
             OpaqueMessage,
-            OpaqueMessageFlight
+            OpaqueMessageFlight,
         >>::add_to_inbound(self.stream.get_mut(), result)
     }
 
-    fn take_message_from_outbound(
-        &mut self,
-    ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
+    fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
         let memory_stream = self.stream.get_mut();
 
-        <MemoryStream<MessageDeframer> as Stream<
+        <MemoryStream as Stream<
+            TlsQueryMatcher,
             Message,
             OpaqueMessage,
-            OpaqueMessageFlight
+            OpaqueMessageFlight,
         >>::take_message_from_outbound(memory_stream)
     }
 }
@@ -258,7 +255,7 @@ impl BoringSSL {
             AgentType::Client => Self::create_client(agent_descriptor)?,
         };
 
-        let stream = SslStream::new(ssl, MemoryStream::new(MessageDeframer::new()))?;
+        let stream = SslStream::new(ssl, MemoryStream::new())?;
 
         let agent_name = agent_descriptor.name;
 

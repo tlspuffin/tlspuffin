@@ -1896,7 +1896,7 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(not(feature = "boringssl-binding"))]
     #[test]
-    fn test_seed_successful_with_flights() {
+    fn test_seed_successful() {
         use crate::tls::trace_helper::TraceExecutor;
 
         let ctx = seed_successful.execute_trace();
