@@ -1,8 +1,5 @@
-use std::fs::File;
-
 use puffin::{
     agent::AgentName,
-    libafl::inputs::Input,
     trace::{Trace, TraceContext},
 };
 
@@ -16,7 +13,6 @@ pub trait TraceHelper<A>: TraceExecutor<A> {
 
 pub trait TraceExecutor<A> {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior>;
-    fn store_to_seeds(self);
 }
 
 impl<A, H: TraceHelper<A>> TraceExecutor<A> for H {
@@ -27,14 +23,6 @@ impl<A, H: TraceHelper<A>> TraceExecutor<A> for H {
 
         self.build_trace().execute(&mut context).unwrap();
         context
-    }
-
-    fn store_to_seeds(self) {
-        let name = self.fn_name();
-        let path = format!("../seeds/{}", name);
-        std::fs::create_dir_all("../seeds").unwrap();
-        File::create(&path).unwrap();
-        self.build_trace().to_file(path).unwrap();
     }
 }
 
