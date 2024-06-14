@@ -12,7 +12,7 @@ use puffin::{
         mutators::{MutationResult, Mutator},
         state::StdState,
     },
-    trace::{Action, Step, Trace, TraceContext},
+    trace::{Action, Step, Trace, TraceContext, TraceExecutor},
 };
 use test_log::test;
 

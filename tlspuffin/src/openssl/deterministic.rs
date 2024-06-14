@@ -23,7 +23,7 @@ pub fn rng_reseed_with(buffer: &[u8]) {
 
 #[cfg(test)]
 mod tests {
-    use puffin::trace::TraceContext;
+    use puffin::trace::{TraceContext, TraceExecutor};
     use test_log::test;
 
     use crate::{

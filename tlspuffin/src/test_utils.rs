@@ -4,7 +4,7 @@ use log::info;
 use puffin::{
     execution::{forked_execution, ExecutionStatus},
     put::PutDescriptor,
-    trace::{Trace, TraceContext},
+    trace::{Trace, TraceContext, TraceExecutor},
 };
 
 use crate::{put_registry::tls_registry, query::TlsQueryMatcher};

@@ -26,7 +26,7 @@ use crate::{
     protocol::{ProtocolBehavior, ProtocolMessage},
     put::PutOptions,
     put_registry::{PutRegistry, TCP_PUT},
-    trace::{Action, Trace, TraceContext},
+    trace::{Action, Trace, TraceContext, TraceExecutor},
 };
 
 fn create_app<S>(title: S) -> Command

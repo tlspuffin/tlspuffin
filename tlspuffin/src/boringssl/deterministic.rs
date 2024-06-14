@@ -9,7 +9,7 @@ pub fn reset_rand() {
 
 #[cfg(test)]
 mod tests {
-    use puffin::trace::TraceContext;
+    use puffin::trace::{TraceContext, TraceExecutor};
     use test_log::test;
 
     use crate::{

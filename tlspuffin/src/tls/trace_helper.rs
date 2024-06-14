@@ -1,21 +1,21 @@
 use puffin::{
     agent::AgentName,
-    trace::{Trace, TraceContext},
+    trace::{Trace, TraceContext, TraceExecutor},
 };
 
 use crate::{protocol::TLSProtocolBehavior, put_registry::tls_registry, query::TlsQueryMatcher};
 
-pub trait TraceHelper<A>: TraceExecutor<A> {
+pub trait TraceHelper<A>: TraceHelperExecutor<A> {
     fn build_named_trace(self) -> (&'static str, Trace<TlsQueryMatcher>);
     fn build_trace(self) -> Trace<TlsQueryMatcher>;
     fn fn_name(&self) -> &'static str;
 }
 
-pub trait TraceExecutor<A> {
+pub trait TraceHelperExecutor<A> {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior>;
 }
 
-impl<A, H: TraceHelper<A>> TraceExecutor<A> for H {
+impl<A, H: TraceHelper<A>> TraceHelperExecutor<A> for H {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior> {
         let mut context = TraceContext::builder(&tls_registry())
             .set_deterministic(true)

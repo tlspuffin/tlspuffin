@@ -8,7 +8,7 @@ use crate::{
     protocol::ProtocolBehavior,
     put::PutDescriptor,
     put_registry::PutRegistry,
-    trace::{Action, Trace, TraceContext},
+    trace::{Action, Trace, TraceContext, TraceExecutor},
 };
 
 pub fn harness<PB: ProtocolBehavior + 'static>(

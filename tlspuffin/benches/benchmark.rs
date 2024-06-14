@@ -18,7 +18,7 @@ use tlspuffin::{
     tls::{
         fn_impl::*,
         seeds::*,
-        trace_helper::{TraceExecutor, TraceHelper},
+        trace_helper::{TraceHelper, TraceHelperExecutor},
     },
 };
 

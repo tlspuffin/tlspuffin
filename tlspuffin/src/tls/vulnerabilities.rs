@@ -1317,12 +1317,11 @@ pub mod tests {
     }
 
     mod tcp {
-        use log::info;
         use puffin::{
             agent::{AgentName, TLSVersion},
             put::PutDescriptor,
             put_registry::TCP_PUT,
-            trace::TraceContext,
+            trace::{TraceContext, TraceExecutor},
         };
         use test_log::test;
 
@@ -1365,7 +1364,7 @@ pub mod tests {
 
             let client = AgentName::first();
             let shutdown = context.find_agent_mut(client).unwrap().shutdown();
-            info!("{}", shutdown);
+            log::info!("{}", shutdown);
             assert!(shutdown.contains("free(): invalid pointer"));
         }
 
@@ -1390,7 +1389,7 @@ pub mod tests {
             context.execute(&trace).unwrap();
 
             let shutdown = context.find_agent_mut(next_server).unwrap().shutdown();
-            info!("{}", shutdown);
+            log::info!("{}", shutdown);
         }
     }
 }

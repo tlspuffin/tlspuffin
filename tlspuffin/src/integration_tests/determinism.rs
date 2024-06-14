@@ -12,7 +12,7 @@ use test_log::test;
     feature = "tls13",
 ))]
 fn test_attacker_full_det_recreate() {
-    use puffin::trace::TraceContext;
+    use puffin::trace::{TraceContext, TraceExecutor};
 
     use crate::{
         put_registry::tls_registry,

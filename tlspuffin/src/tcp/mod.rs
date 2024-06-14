@@ -698,7 +698,7 @@ mod tests {
         agent::{AgentName, TLSVersion},
         put::PutDescriptor,
         put_registry::TCP_PUT,
-        trace::TraceContext,
+        trace::{TraceContext, TraceExecutor},
     };
     use test_log::test;
 
