@@ -2,10 +2,10 @@ use std::{collections::HashMap, fmt};
 
 use crate::{
     agent::AgentDescriptor,
+    claims::GlobalClaimList,
     error::Error,
     protocol::ProtocolBehavior,
-    put::{Put, PutName},
-    trace::TraceContext,
+    put::{Put, PutName, PutOptions},
 };
 
 pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
@@ -111,8 +111,9 @@ pub enum PutKind {
 pub trait Factory<PB: ProtocolBehavior> {
     fn create(
         &self,
-        context: &TraceContext<PB>,
         agent_descriptor: &AgentDescriptor,
+        claims: &GlobalClaimList<PB::Claim>,
+        options: &PutOptions,
     ) -> Result<Box<dyn Put<PB>>, Error>;
 
     fn kind(&self) -> PutKind;
