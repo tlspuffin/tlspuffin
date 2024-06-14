@@ -168,7 +168,10 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshQueryMa
 
 #[cfg(test)]
 mod tests {
-    use puffin::{agent::AgentName, trace::TraceContext};
+    use puffin::{
+        agent::AgentName,
+        trace::{TraceContext, TraceExecutor},
+    };
     use test_log::test;
 
     use crate::{libssh::ssh::set_log_level, ssh::seeds::seed_successful, ssh_registry};

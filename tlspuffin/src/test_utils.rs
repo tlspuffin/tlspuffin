@@ -3,7 +3,7 @@ use std::time::Duration;
 use puffin::{
     execution::{forked_execution, ExecutionStatus},
     put_registry::PutDescriptor,
-    trace::{Trace, TraceContext},
+    trace::{Trace, TraceContext, TraceExecutor},
 };
 
 use crate::{put_registry::tls_registry, query::TlsQueryMatcher};

@@ -1357,7 +1357,7 @@ pub mod tests {
         use puffin::{
             agent::TLSVersion,
             put_registry::{PutDescriptor, TCP_PUT},
-            trace::TraceContext,
+            trace::{TraceContext, TraceExecutor},
         };
         use test_log::test;
 

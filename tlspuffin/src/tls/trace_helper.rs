@@ -1,7 +1,7 @@
 use puffin::{
     agent::AgentName,
     put_registry::PutDescriptor,
-    trace::{Trace, TraceContext},
+    trace::{Trace, TraceContext, TraceExecutor},
 };
 
 use crate::{protocol::TLSProtocolBehavior, put_registry::tls_registry, query::TlsQueryMatcher};

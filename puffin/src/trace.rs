@@ -44,6 +44,12 @@ use crate::{
     variable_data::VariableData,
 };
 
+pub trait TraceExecutor {
+    type Matcher: Matcher;
+
+    fn execute(self, trace: &Trace<Self::Matcher>) -> Result<(), Error>;
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct Query<M> {
     pub source: Option<Source>,
@@ -135,6 +141,10 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
         self.knowledge.push(knowledge);
     }
 
+    pub fn append(&mut self, knowledges: &mut Vec<Knowledge<PB::Matcher>>) {
+        self.knowledge.append(knowledges);
+    }
+
     pub fn do_extract_knowledge<T: ExtractKnowledge<PB::Matcher> + 'static>(
         &mut self,
         data: T,
@@ -223,6 +233,53 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     phantom: PhantomData<PB>,
 }
 
+impl<PB: ProtocolBehavior> TraceExecutor for &mut TraceContext<PB> {
+    type Matcher = PB::Matcher;
+
+    fn execute(self, trace: &Trace<Self::Matcher>) -> Result<(), Error> {
+        let mut pool: Vec<Agent<PB>> = self.get_agents();
+
+        // We reseed all PUTs' PRNG before executing a trace!
+        self.put_registry.determinism_reseed_all_factories();
+
+        for p in &trace.prior_traces {
+            self.execute(p)?;
+
+            // release agents, keep them for reuse in the pool
+            pool.extend(self.get_agents().into_iter());
+        }
+
+        self.spawn_agents(&mut pool, trace)?;
+        let steps = &trace.steps;
+        for (i, step) in steps.iter().enumerate() {
+            log::debug!("Executing step #{}", i);
+
+            step.execute(self)?;
+
+            // Output after each InputAction step
+            if let Action::Input(_) = step.action {
+                let output_step = OutputAction::<PB::Matcher>::new_step(step.agent);
+
+                output_step.execute(self)?;
+            }
+
+            self.claims.deref_borrow().log();
+
+            self.verify_security_violations()?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<'a, PB: ProtocolBehavior> TraceExecutor for TraceContextBuilder<'a, PB> {
+    type Matcher = PB::Matcher;
+
+    fn execute(self, trace: &Trace<Self::Matcher>) -> Result<(), Error> {
+        self.build().execute(trace)
+    }
+}
+
 impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
@@ -268,41 +325,6 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             put_descriptors: Default::default(),
             phantom: Default::default(),
         }
-    }
-
-    pub fn execute(&mut self, trace: &Trace<PB::Matcher>) -> Result<(), Error> {
-        let mut pool: Vec<Agent<PB>> = self.get_agents();
-
-        // We reseed all PUTs' PRNG before executing a trace!
-        self.put_registry.determinism_reseed_all_factories();
-
-        for p in &trace.prior_traces {
-            self.execute(p)?;
-
-            // release agents, keep them for reuse in the pool
-            pool.extend(self.get_agents().into_iter());
-        }
-
-        self.spawn_agents(&mut pool, trace)?;
-        let steps = &trace.steps;
-        for (i, step) in steps.iter().enumerate() {
-            log::debug!("Executing step #{}", i);
-
-            step.execute(self)?;
-
-            // Output after each InputAction step
-            if let Action::Input(_) = step.action {
-                let output_step = OutputAction::<PB::Matcher>::new_step(step.agent);
-
-                output_step.execute(self)?;
-            }
-
-            self.claims.deref_borrow().log();
-
-            self.verify_security_violations()?;
-        }
-
-        Ok(())
     }
 
     fn spawn_agents(
@@ -495,7 +517,7 @@ impl<'a, PB: ProtocolBehavior> TraceContextBuilder<'a, PB> {
 
     pub fn build(mut self) -> TraceContext<PB> {
         let mut result = TraceContext::new(self.registry, self.default_put);
-        result.knowledge.append(&mut self.knowledge);
+        result.knowledge_store.knowledge.append(&mut self.knowledge);
         result.put_descriptors.extend(self.put_descriptors);
 
         result

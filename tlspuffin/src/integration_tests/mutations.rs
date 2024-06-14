@@ -13,7 +13,7 @@ use puffin::{
         state::StdState,
     },
     put_registry::PutDescriptor,
-    trace::{Action, Step, Trace, TraceContext},
+    trace::{Action, Step, Trace, TraceContext, TraceExecutor},
 };
 use test_log::test;
 

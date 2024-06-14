@@ -6,7 +6,7 @@ use crate::{
     fuzzer::stats_stage::*,
     protocol::ProtocolBehavior,
     put_registry::{PutDescriptor, PutRegistry},
-    trace::{Action, Trace, TraceContext},
+    trace::{Action, Trace, TraceContext, TraceExecutor},
 };
 
 pub fn harness<PB: ProtocolBehavior + 'static>(
