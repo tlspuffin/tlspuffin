@@ -3,16 +3,15 @@
 use std::{cell::RefCell, collections::HashSet, io::ErrorKind, ops::Deref, rc::Rc};
 
 use foreign_types::ForeignType;
-use log::error;
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
+    claims::GlobalClaimList,
     error::Error,
-    protocol::MessageResult,
-    put::Put,
+    protocol::{MessageResult, ProtocolBehavior},
+    put::{Put, PutOptions},
     put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
-    trace::TraceContext,
     VERSION_STR,
 };
 use smallvec::SmallVec;
@@ -51,13 +50,10 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     impl Factory<TLSProtocolBehavior> for WolfSSLFactory {
         fn create(
             &self,
-            context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
+            claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
+            options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
-            let put_descriptor = context.put_descriptor(agent_descriptor);
-
-            let options = &put_descriptor.options;
-
             let use_clear = options
                 .get_option("use_clear")
                 .map(|value| value.parse().unwrap_or(false))
@@ -65,7 +61,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
             let config = TlsPutConfig {
                 descriptor: agent_descriptor.clone(),
-                claims: context.claims().clone(),
+                claims: claims.clone(),
                 authenticate_peer: agent_descriptor.typ == AgentType::Client
                     && agent_descriptor.server_authentication
                     || agent_descriptor.typ == AgentType::Server
@@ -140,7 +136,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn determinism_reseed(&self) {
-            error!("[determinism_reseed] Not yet implemented.")
+            log::error!("[determinism_reseed] Not yet implemented.")
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {

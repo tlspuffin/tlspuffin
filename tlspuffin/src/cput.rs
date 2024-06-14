@@ -25,11 +25,12 @@ struct TlsCPut {
 impl Factory<TLSProtocolBehavior> for TlsCPut {
     fn create(
         &self,
-        context: &puffin::trace::TraceContext<TLSProtocolBehavior>,
-        agent_descriptor: &puffin::agent::AgentDescriptor,
+        _agent_descriptor: &puffin::agent::AgentDescriptor,
+        _claims: &puffin::claims::GlobalClaimList<
+            <TLSProtocolBehavior as puffin::protocol::ProtocolBehavior>::Claim,
+        >,
+        _options: &puffin::put::PutOptions,
     ) -> Result<Box<dyn puffin::put::Put<TLSProtocolBehavior>>, puffin::error::Error> {
-        let _ = context;
-        let _ = agent_descriptor;
         todo!()
     }
 

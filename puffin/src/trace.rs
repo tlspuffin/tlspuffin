@@ -23,7 +23,6 @@ use std::{
 };
 
 use itertools::Itertools;
-use log::{debug, trace};
 use serde::{Deserialize, Serialize};
 
 #[allow(unused)] // used in docs
@@ -85,13 +84,13 @@ impl<M: Matcher> Knowledge<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         let data_type_id = self.data.as_ref().type_id();
-        debug!(
+        log::debug!(
             "New knowledge {}: {}  (counter: {})",
             &self,
             remove_prefix(self.data.type_name()),
             ctx.number_matching_message(self.agent_name, data_type_id, &self.matcher)
         );
-        trace!("Knowledge data: {:?}", self.data);
+        log::trace!("Knowledge data: {:?}", self.data);
     }
 }
 
@@ -139,7 +138,7 @@ impl<PB: ProtocolBehavior> TraceExecutor for &mut TraceContext<PB> {
         self.spawn_agents(&mut pool, trace)?;
         let steps = &trace.steps;
         for (i, step) in steps.iter().enumerate() {
-            debug!("Executing step #{}", i);
+            log::debug!("Executing step #{}", i);
 
             step.execute(self)?;
 
@@ -240,7 +239,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
                         ))
                     })?;
 
-                let put = factory.create(self, descriptor)?;
+                let put = factory.create(descriptor, self.claims(), &put_descriptor.options)?;
 
                 Agent::new(put, put_descriptor, descriptor)
             };
@@ -551,7 +550,7 @@ impl<M: Matcher> OutputAction<M> {
                 .unwrap_or_default();
             let opaque_knowledge = opaque_message.extract_knowledge()?;
 
-            debug!(
+            log::debug!(
                 "Knowledge increased by {:?}",
                 knowledge.len() + opaque_knowledge.len()
             ); // +1 because of the OpaqueMessage below

@@ -4,7 +4,11 @@ use std::{
 };
 
 use crate::{
-    agent::AgentDescriptor, error::Error, protocol::ProtocolBehavior, put::Put, trace::TraceContext,
+    agent::AgentDescriptor,
+    claims::GlobalClaimList,
+    error::Error,
+    protocol::ProtocolBehavior,
+    put::{Put, PutOptions},
 };
 
 // FIXME TCP_PUT should be defined in the tlspuffin package
@@ -100,8 +104,9 @@ pub enum PutKind {
 pub trait Factory<PB: ProtocolBehavior> {
     fn create(
         &self,
-        context: &TraceContext<PB>,
         agent_descriptor: &AgentDescriptor,
+        claims: &GlobalClaimList<PB::Claim>,
+        options: &PutOptions,
     ) -> Result<Box<dyn Put<PB>>, Error>;
 
     fn kind(&self) -> PutKind;
