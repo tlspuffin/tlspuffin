@@ -114,7 +114,6 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     claims: GlobalClaimList<<PB as ProtocolBehavior>::Claim>,
 
     put_registry: PutRegistry<PB>,
-    deterministic_put: bool,
     default_put: PutDescriptor,
     put_descriptors: HashMap<AgentName, PutDescriptor>,
 
@@ -186,7 +185,6 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
     fn eq(&self, other: &Self) -> bool {
         self.agents == other.agents
             && self.put_registry == other.put_registry
-            && self.deterministic_put == other.deterministic_put
             && self.default_put == other.default_put
             && self.put_descriptors == other.put_descriptors
             && format!("{:?}", self.knowledge) == format!("{:?}", other.knowledge)
@@ -210,7 +208,6 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             claims,
             put_descriptors: Default::default(),
             put_registry: put_registry.clone(),
-            deterministic_put: false,
             default_put,
             phantom: Default::default(),
         }
@@ -372,7 +369,6 @@ pub struct TraceContextBuilder<'a, PB: ProtocolBehavior> {
     knowledge: Vec<Knowledge<PB::Matcher>>,
 
     registry: &'a PutRegistry<PB>,
-    deterministic: bool,
     put_descriptors: HashMap<AgentName, PutDescriptor>,
     default_put: PutDescriptor,
 }
@@ -383,7 +379,6 @@ impl<'a, PB: ProtocolBehavior> TraceContextBuilder<'a, PB> {
             knowledge: vec![],
 
             registry,
-            deterministic: false,
             put_descriptors: Default::default(),
             default_put: PutDescriptor {
                 factory: registry.default().name(),
@@ -394,11 +389,6 @@ impl<'a, PB: ProtocolBehavior> TraceContextBuilder<'a, PB> {
 
     pub fn set_default_put(mut self, put: PutDescriptor) -> Self {
         self.default_put = put;
-        self
-    }
-
-    pub fn set_deterministic(mut self, is_deterministic: bool) -> Self {
-        self.deterministic = is_deterministic;
         self
     }
 
@@ -420,7 +410,6 @@ impl<'a, PB: ProtocolBehavior> TraceContextBuilder<'a, PB> {
 
     pub fn build(mut self) -> TraceContext<PB> {
         let mut result = TraceContext::new(self.registry, self.default_put);
-        result.deterministic_put = self.deterministic;
         result.knowledge.append(&mut self.knowledge);
         result.put_descriptors.extend(self.put_descriptors);
 

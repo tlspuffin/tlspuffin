@@ -19,20 +19,14 @@ mod tests {
 
     #[test]
     fn test_boringssl_no_randomness_full() {
+        let trace = seed_client_attacker_full_boring.build_trace();
         let put_registry = tls_registry();
 
-        let trace = seed_client_attacker_full_boring.build_trace();
-        let mut ctx1 = TraceContext::builder(&put_registry)
-            .set_deterministic(true)
-            .build();
+        let mut ctx1 = TraceContext::builder(&put_registry).build();
+        let _ = ctx1.execute(&trace);
 
-        let _ = ctx1.execute(trace);
-
-        let mut ctx2 = TraceContext::builder(&put_registry)
-            .set_deterministic(true)
-            .build();
-
-        let _ = ctx2.execute(trace);
+        let mut ctx2 = TraceContext::builder(&put_registry).build();
+        let _ = ctx2.execute(&trace);
 
         assert_eq!(ctx1, ctx2);
     }

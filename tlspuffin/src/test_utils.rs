@@ -38,7 +38,6 @@ pub fn expect_trace_crash(
                 || {
                     let mut context = TraceContext::builder(&tls_registry())
                         .set_default_put(put.clone())
-                        .set_deterministic(true)
                         .build();
 
                     // NOTE: we ignore Rust errors because we expect a crash

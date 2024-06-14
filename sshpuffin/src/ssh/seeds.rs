@@ -179,9 +179,7 @@ mod tests {
         set_log_level(100);
         let client = AgentName::first();
         let trace = seed_successful(client, client.next());
-        let mut context = TraceContext::builder(&ssh_registry())
-            .set_deterministic(true)
-            .build();
+        let mut context = TraceContext::builder(&ssh_registry()).build();
 
         context.execute(&trace).unwrap();
 

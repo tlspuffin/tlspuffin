@@ -17,9 +17,7 @@ pub trait TraceHelperExecutor<A> {
 
 impl<A, H: TraceHelper<A>> TraceHelperExecutor<A> for H {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior> {
-        let mut context = TraceContext::builder(&tls_registry())
-            .set_deterministic(true)
-            .build();
+        let mut context = TraceContext::builder(&tls_registry()).build();
 
         context.execute(&self.build_trace()).unwrap();
         context

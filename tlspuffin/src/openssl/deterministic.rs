@@ -84,16 +84,10 @@ mod tests {
         let trace = seed_client_attacker_full.build_trace();
         let put_registry = tls_registry();
 
-        let mut ctx1 = TraceContext::builder(&put_registry)
-            .set_deterministic(true)
-            .build();
-
+        let mut ctx1 = TraceContext::builder(&put_registry).build();
         let _ = ctx1.execute(&trace);
 
-        let mut ctx2 = TraceContext::builder(&put_registry)
-            .set_deterministic(true)
-            .build();
-
+        let mut ctx2 = TraceContext::builder(&put_registry).build();
         let _ = ctx2.execute(&trace);
 
         assert_eq!(ctx1, ctx2);
