@@ -227,7 +227,22 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
                 reusable.reset(descriptor.name)?;
                 reusable
             } else {
-                Agent::new(self, descriptor)?
+                let put_descriptor = self.put_descriptor(descriptor);
+
+                let factory = self
+                    .put_registry()
+                    .puts()
+                    .find(|factory| factory.name() == put_descriptor.factory)
+                    .ok_or_else(|| {
+                        Error::Agent(format!(
+                            "unable to find PUT {} factory in binary",
+                            &put_descriptor.factory
+                        ))
+                    })?;
+
+                let put = factory.create(self, descriptor)?;
+
+                Agent::new(put, put_descriptor, descriptor)
             };
 
             self.add_agent(agent);

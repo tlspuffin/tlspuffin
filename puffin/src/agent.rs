@@ -14,7 +14,6 @@ use crate::{
     protocol::ProtocolBehavior,
     put::{Put, PutDescriptor},
     stream::Stream,
-    trace::TraceContext,
 };
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
@@ -173,30 +172,15 @@ impl<PB: ProtocolBehavior> PartialEq for Agent<PB> {
 
 impl<PB: ProtocolBehavior> Agent<PB> {
     pub fn new(
-        context: &TraceContext<PB>,
+        put: Box<dyn Put<PB>>,
+        put_descriptor: PutDescriptor,
         agent_descriptor: &AgentDescriptor,
-    ) -> Result<Self, Error> {
-        let put_descriptor = context.put_descriptor(agent_descriptor);
-
-        let factory = context
-            .put_registry()
-            .puts()
-            .find(|factory| factory.name() == put_descriptor.factory)
-            .ok_or_else(|| {
-                Error::Agent(format!(
-                    "unable to find PUT {} factory in binary",
-                    &put_descriptor.factory
-                ))
-            })?;
-
-        let put = factory.create(context, agent_descriptor)?;
-        let agent = Agent {
+    ) -> Self {
+        Self {
             name: agent_descriptor.name,
             put,
             put_descriptor,
-        };
-
-        Ok(agent)
+        }
     }
 
     pub fn descriptor(&self) -> &PutDescriptor {
