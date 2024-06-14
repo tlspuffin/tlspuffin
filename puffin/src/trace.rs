@@ -211,6 +211,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             phantom: Default::default(),
         }
     }
+
     fn spawn_agents(
         &mut self,
         pool: &mut Vec<Agent<PB>>,
@@ -241,7 +242,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
                 let put = factory.create(descriptor, self.claims(), &put_descriptor.options)?;
 
-                Agent::new(put, put_descriptor, descriptor)
+                Agent::new(descriptor, put)
             };
 
             self.add_agent(agent);

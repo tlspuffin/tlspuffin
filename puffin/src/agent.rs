@@ -9,12 +9,7 @@ use std::fmt::{Debug, Formatter};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    error::Error,
-    protocol::ProtocolBehavior,
-    put::{Put, PutDescriptor},
-    stream::Stream,
-};
+use crate::{error::Error, protocol::ProtocolBehavior, put::Put, stream::Stream};
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -99,26 +94,6 @@ impl Default for AgentDescriptor {
 }
 
 impl AgentDescriptor {
-    pub fn new_reusable_server(name: AgentName, tls_version: TLSVersion) -> Self {
-        Self {
-            name,
-            tls_version,
-            typ: AgentType::Server,
-            try_reuse: true,
-            ..AgentDescriptor::default()
-        }
-    }
-
-    pub fn new_reusable_client(name: AgentName, tls_version: TLSVersion) -> Self {
-        Self {
-            name,
-            tls_version,
-            typ: AgentType::Client,
-            try_reuse: true,
-            ..AgentDescriptor::default()
-        }
-    }
-
     pub fn new_server(name: AgentName, tls_version: TLSVersion) -> Self {
         Self {
             name,
@@ -146,45 +121,32 @@ pub enum TLSVersion {
 
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent<PB: ProtocolBehavior> {
-    name: AgentName,
-
+    descriptor: AgentDescriptor,
     put: Box<dyn Put<PB>>,
-    put_descriptor: PutDescriptor,
 }
 
 impl<PB: ProtocolBehavior> Debug for Agent<PB> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Agent")
-            .field("name", &self.name)
+            .field("descriptor", &self.descriptor)
             .field("put", &self.put.describe_state())
-            .field("put_descriptor", &self.put_descriptor)
             .finish()
     }
 }
 
 impl<PB: ProtocolBehavior> PartialEq for Agent<PB> {
     fn eq(&self, other: &Self) -> bool {
-        self.name.eq(&other.name)
+        self.descriptor.name.eq(&other.descriptor.name)
             && self.put.describe_state() == other.put.describe_state()
-            && self.put_descriptor.eq(&other.put_descriptor)
     }
 }
 
 impl<PB: ProtocolBehavior> Agent<PB> {
-    pub fn new(
-        put: Box<dyn Put<PB>>,
-        put_descriptor: PutDescriptor,
-        agent_descriptor: &AgentDescriptor,
-    ) -> Self {
+    pub fn new(descriptor: &AgentDescriptor, put: Box<dyn Put<PB>>) -> Self {
         Self {
-            name: agent_descriptor.name,
+            descriptor: descriptor.clone(),
             put,
-            put_descriptor,
         }
-    }
-
-    pub fn descriptor(&self) -> &PutDescriptor {
-        &self.put_descriptor
     }
 
     pub fn progress(&mut self) -> Result<(), Error> {
@@ -192,7 +154,7 @@ impl<PB: ProtocolBehavior> Agent<PB> {
     }
 
     pub fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
-        self.name = new_name;
+        self.descriptor.name = new_name;
         self.put.reset(new_name)
     }
 
@@ -213,7 +175,7 @@ impl<PB: ProtocolBehavior> Agent<PB> {
     }
 
     pub fn name(&self) -> AgentName {
-        self.name
+        self.descriptor.name
     }
 }
 
