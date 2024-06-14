@@ -34,12 +34,12 @@ struct TlsCPut {
 impl Factory<TLSProtocolBehavior> for TlsCPut {
     fn create(
         &self,
-        context: &puffin::trace::TraceContext<TLSProtocolBehavior>,
         agent_descriptor: &puffin::agent::AgentDescriptor,
+        claims: &puffin::claims::GlobalClaimList<
+            <TLSProtocolBehavior as puffin::protocol::ProtocolBehavior>::Claim,
+        >,
+        options: &puffin::put::PutOptions,
     ) -> Result<Box<dyn puffin::put::Put<TLSProtocolBehavior>>, puffin::error::Error> {
-        let put_descriptor = context.put_descriptor(agent_descriptor);
-        let options = &put_descriptor.options;
-
         let use_clear = options
             .get_option("use_clear")
             .map(|value| value.parse().unwrap_or(false))
@@ -47,7 +47,7 @@ impl Factory<TLSProtocolBehavior> for TlsCPut {
 
         let config = TlsPutConfig {
             descriptor: agent_descriptor.clone(),
-            claims: context.claims().clone(),
+            claims: claims.clone(),
             authenticate_peer: agent_descriptor.typ == AgentType::Client
                 && agent_descriptor.server_authentication
                 || agent_descriptor.typ == AgentType::Server

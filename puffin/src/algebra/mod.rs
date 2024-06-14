@@ -110,7 +110,7 @@ pub mod test_signature {
     use crate::{
         agent::{AgentDescriptor, AgentName, TLSVersion},
         algebra::{dynamic_function::TypeShape, error::FnError, AnyMatcher, Term},
-        claims::{Claim, SecurityViolationPolicy},
+        claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
         codec::{Codec, Reader},
         define_signature,
         error::Error,
@@ -118,7 +118,7 @@ pub mod test_signature {
             ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
             ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
         },
-        put::Put,
+        put::{Put, PutOptions},
         put_registry::{Factory, PutKind},
         term,
         trace::{Action, InputAction, Knowledge, Source, Step, Trace},
@@ -609,8 +609,9 @@ pub mod test_signature {
     impl Factory<TestProtocolBehavior> for TestFactory {
         fn create(
             &self,
-            _context: &TraceContext<TestProtocolBehavior>,
             _agent_descriptor: &AgentDescriptor,
+            _claims: &GlobalClaimList<<TestProtocolBehavior as ProtocolBehavior>::Claim>,
+            _options: &PutOptions,
         ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {
             panic!("Not implemented for test stub");
         }

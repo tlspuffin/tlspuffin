@@ -20,12 +20,12 @@ use std::{
 
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
+    claims::GlobalClaimList,
     codec::Codec,
     error::Error,
-    put::Put,
+    put::{Put, PutOptions},
     put_registry::{Factory, PutKind},
     stream::Stream,
-    trace::TraceContext,
     VERSION_STR,
 };
 
@@ -87,8 +87,11 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
     impl Factory<SshProtocolBehavior> for LibSSLFactory {
         fn create(
             &self,
-            _context: &TraceContext<SshProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
+            _claims: &GlobalClaimList<
+                <SshProtocolBehavior as puffin::protocol::ProtocolBehavior>::Claim,
+            >,
+            _options: &PutOptions,
         ) -> Result<Box<dyn Put<SshProtocolBehavior>>, Error> {
             // FIXME: Switch to UDS with stabilization in Rust 1.70
             //let addr = SocketAddr::from_abstract_namespace(b"\0socket").unwrap();

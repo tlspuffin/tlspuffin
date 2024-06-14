@@ -354,7 +354,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
                         ))
                     })?;
 
-                let put = factory.create(self, descriptor)?;
+                let put = factory.create(descriptor, self.claims(), &put_descriptor.options)?;
                 Agent::new(descriptor, put)
             };
 
