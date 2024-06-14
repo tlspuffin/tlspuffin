@@ -180,7 +180,7 @@ mod tests {
             .set_deterministic(true)
             .build();
 
-        trace.execute(&mut context).unwrap();
+        context.execute(&trace).unwrap();
 
         assert!(context.find_agent(client).unwrap().is_state_successful())
     }

@@ -317,7 +317,7 @@ where
             .set_put(server, put)
             .build();
 
-        trace.execute(&mut context).unwrap();
+        context.execute(&trace).unwrap();
 
         let server = AgentName::first();
         let shutdown = context.find_agent_mut(server).unwrap().shutdown();
@@ -480,7 +480,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
                 .set_default_put(default_put)
                 .build();
 
-            if let Err(err) = trace.execute(&mut ctx) {
+            if let Err(err) = ctx.execute(&trace) {
                 error!(
                     "Failed to execute trace {}: {:?}",
                     input.as_ref().display(),

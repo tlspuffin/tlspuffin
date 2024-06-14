@@ -21,7 +21,7 @@ impl<A, H: TraceHelper<A>> TraceExecutor<A> for H {
             .set_deterministic(true)
             .build();
 
-        self.build_trace().execute(&mut context).unwrap();
+        context.execute(&self.build_trace()).unwrap();
         context
     }
 }

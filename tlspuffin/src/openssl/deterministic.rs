@@ -88,13 +88,13 @@ mod tests {
             .set_deterministic(true)
             .build();
 
-        let _ = trace.execute(&mut ctx1);
+        let _ = ctx1.execute(&trace);
 
         let mut ctx2 = TraceContext::builder(&put_registry)
             .set_deterministic(true)
             .build();
 
-        let _ = trace.execute(&mut ctx2);
+        let _ = ctx2.execute(&trace);
 
         assert_eq!(ctx1, ctx2);
     }
