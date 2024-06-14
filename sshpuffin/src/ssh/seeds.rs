@@ -180,7 +180,7 @@ mod tests {
         let trace = seed_successful(client, client.next());
         let mut context = TraceContext::builder(&ssh_registry()).build();
 
-        trace.execute(&mut context).unwrap();
+        context.execute(&trace).unwrap();
 
         assert!(context.find_agent(client).unwrap().is_state_successful())
     }

@@ -42,7 +42,7 @@ pub fn expect_trace_crash(
                         .build();
 
                     // NOTE: we ignore Rust errors because we expect a crash
-                    let _ = trace.clone().execute(&mut context);
+                    let _ = context.execute(&trace.clone());
                 },
                 timeout,
             )

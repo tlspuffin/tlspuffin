@@ -228,7 +228,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 let mut context = TraceContext::builder(&put_registry)
                     .set_default_put(put)
                     .build();
-                let _ = trace.execute(&mut context);
+                let _ = context.execute(&trace);
                 println!("try");
             }
         },

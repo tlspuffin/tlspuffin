@@ -29,7 +29,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         }
     }
 
-    if let Err(err) = input.execute(&mut ctx) {
+    if let Err(err) = ctx.execute(input) {
         match &err {
             Error::Fn(_) => FN_ERROR.increment(),
             Error::Term(_e) => TERM.increment(),

@@ -270,6 +270,78 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         }
     }
 
+    pub fn execute(&mut self, trace: &Trace<PB::Matcher>) -> Result<(), Error> {
+        let mut pool: Vec<Agent<PB>> = self.get_agents();
+
+        // We reseed all PUTs' PRNG before executing a trace!
+        self.put_registry.determinism_reseed_all_factories();
+
+        for p in &trace.prior_traces {
+            self.execute(p)?;
+
+            // release agents, keep them for reuse in the pool
+            pool.extend(self.get_agents().into_iter());
+        }
+
+        self.spawn_agents(&mut pool, trace)?;
+        let steps = &trace.steps;
+        for (i, step) in steps.iter().enumerate() {
+            log::debug!("Executing step #{}", i);
+
+            step.execute(self)?;
+
+            // Output after each InputAction step
+            if let Action::Input(_) = step.action {
+                let output_step = OutputAction::<PB::Matcher>::new_step(step.agent);
+
+                output_step.execute(self)?;
+            }
+
+            self.claims.deref_borrow().log();
+
+            self.verify_security_violations()?;
+        }
+
+        Ok(())
+    }
+
+    fn spawn_agents(
+        &mut self,
+        pool: &mut Vec<Agent<PB>>,
+        trace: &Trace<PB::Matcher>,
+    ) -> Result<(), Error> {
+        for descriptor in &trace.descriptors {
+            // NOTE only spawn completely new Agent if cannot reuse any from the pool
+            let agent = if let Some(position) = pool
+                .iter_mut()
+                .position(|existing| existing.is_reusable_with(descriptor))
+            {
+                let mut reusable = pool.swap_remove(position);
+                reusable.reset(descriptor.name)?;
+                reusable
+            } else {
+                let put_descriptor = self.put_descriptor(descriptor);
+
+                let factory = self
+                    .put_registry()
+                    .find_by_id(&put_descriptor.factory)
+                    .ok_or_else(|| {
+                        Error::Agent(format!(
+                            "unable to find PUT {} factory in binary",
+                            &put_descriptor.factory
+                        ))
+                    })?;
+
+                let put = factory.create(self, descriptor)?;
+                Agent::new(descriptor, put)
+            };
+
+            self.add_agent(agent);
+        }
+
+        Ok(())
+    }
+
     pub fn put_registry(&self) -> &PutRegistry<PB> {
         &self.put_registry
     }
@@ -443,81 +515,6 @@ pub struct Trace<M: Matcher> {
 /// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
 /// or client role and a specific TLS version. Essentially they are an [`Agent`] without a stream.
 impl<M: Matcher> Trace<M> {
-    fn spawn_agents<PB: ProtocolBehavior>(
-        &self,
-        pool: &mut Vec<Agent<PB>>,
-        ctx: &mut TraceContext<PB>,
-    ) -> Result<(), Error> {
-        for descriptor in &self.descriptors {
-            // NOTE only spawn completely new Agent if cannot reuse any from the pool
-            let agent = if let Some(position) = pool
-                .iter_mut()
-                .position(|existing| existing.is_reusable_with(descriptor))
-            {
-                let mut reusable = pool.swap_remove(position);
-                reusable.reset(descriptor.name)?;
-                reusable
-            } else {
-                let put_descriptor = ctx.put_descriptor(descriptor);
-
-                let factory = ctx
-                    .put_registry()
-                    .find_by_id(&put_descriptor.factory)
-                    .ok_or_else(|| {
-                        Error::Agent(format!(
-                            "unable to find PUT {} factory in binary",
-                            &put_descriptor.factory
-                        ))
-                    })?;
-
-                let put = factory.create(ctx, descriptor)?;
-                Agent::new(descriptor, put)
-            };
-
-            ctx.add_agent(agent);
-        }
-
-        Ok(())
-    }
-
-    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        let mut pool: Vec<Agent<PB>> = ctx.get_agents();
-
-        // We reseed all PUTs' PRNG before executing a trace!
-        ctx.put_registry.determinism_reseed_all_factories();
-
-        for trace in &self.prior_traces {
-            trace.execute(ctx)?;
-
-            // release agents, keep them for reuse in the pool
-            pool.extend(ctx.get_agents().into_iter());
-        }
-
-        self.spawn_agents(&mut pool, ctx)?;
-        let steps = &self.steps;
-        for (i, step) in steps.iter().enumerate() {
-            log::debug!("Executing step #{}", i);
-
-            step.execute(ctx)?;
-
-            // Output after each InputAction step
-            if let Action::Input(_) = step.action {
-                let output_step = OutputAction::<M>::new_step(step.agent);
-
-                output_step.execute(ctx)?;
-            }
-
-            ctx.claims.deref_borrow().log();
-
-            ctx.verify_security_violations()?;
-        }
-
-        Ok(())
-    }
-
     pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {
         postcard::to_allocvec(&self)
     }

@@ -666,7 +666,7 @@ mod tests {
             .set_put(next_server, server_put)
             .build();
 
-        trace.execute(&mut context).unwrap();
+        context.execute(&trace).unwrap();
 
         let shutdown = context.find_agent_mut(next_server).unwrap().shutdown();
         log::info!("server: {}", shutdown);
@@ -690,7 +690,7 @@ mod tests {
             .set_put(server, put)
             .build();
 
-        trace.execute(&mut context).unwrap();
+        context.execute(&trace).unwrap();
 
         let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         log::info!("server: {}", shutdown);
@@ -726,7 +726,7 @@ mod tests {
             .set_put(server_name, server)
             .build();
 
-        trace.execute(&mut context).unwrap();
+        context.execute(&trace).unwrap();
 
         let shutdown = context.find_agent_mut(client_name).unwrap().shutdown();
         log::info!("client: {}", shutdown);
@@ -766,7 +766,7 @@ mod tests {
             .set_put(server_name, server)
             .build();
 
-        trace.execute(&mut context).unwrap();
+        context.execute(&trace).unwrap();
 
         let shutdown = context.find_agent_mut(client_name).unwrap().shutdown();
         log::info!("client: {}", shutdown);
