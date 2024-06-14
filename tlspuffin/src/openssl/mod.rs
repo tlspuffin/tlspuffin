@@ -8,11 +8,12 @@ use openssl::x509::store::X509StoreBuilder;
 use openssl::x509::X509;
 use puffin::agent::{AgentDescriptor, AgentName, AgentType};
 use puffin::algebra::ConcreteMessage;
+use puffin::claims::GlobalClaimList;
 use puffin::error::Error;
-use puffin::put::{Put, PutName};
+use puffin::protocol::ProtocolBehavior;
+use puffin::put::{Put, PutName, PutOptions};
 use puffin::put_registry::{Factory, PutKind};
 use puffin::stream::{MemoryStream, Stream};
-use puffin::trace::TraceContext;
 use puffin::VERSION_STR;
 
 use crate::openssl::util::{set_max_protocol_version, static_rsa_cert};
@@ -33,13 +34,10 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     impl Factory<TLSProtocolBehavior> for OpenSSLFactory {
         fn create(
             &self,
-            context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
+            claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
+            options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
-            let put_descriptor = context.put_descriptor(agent_descriptor);
-
-            let options = &put_descriptor.options;
-
             let use_clear = options
                 .get_option("use_clear")
                 .map(|value| value.parse().unwrap_or(false))
@@ -47,7 +45,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
             let config = TlsPutConfig {
                 descriptor: agent_descriptor.clone(),
-                claims: context.claims().clone(),
+                claims: claims.clone(),
                 authenticate_peer: agent_descriptor.typ == AgentType::Client
                     && agent_descriptor.server_authentication
                     || agent_descriptor.typ == AgentType::Server
@@ -55,6 +53,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 extract_deferred: Rc::new(RefCell::new(None)),
                 use_clear,
             };
+
             Ok(Box::new(OpenSSL::new(config).map_err(|err| {
                 Error::Put(format!("Failed to create client/server: {}", err))
             })?))

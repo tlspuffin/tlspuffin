@@ -76,7 +76,6 @@ fn test_mutations(
 }
 
 /// Test that all mutations can be successfully applied on all traces from the corpus
-#[test]
 #[test_log::test]
 fn test_mutators() {
     let with_dy = true;
@@ -227,7 +226,6 @@ fn test_mutators() {
 }
 
 #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-#[test]
 #[test_log::test]
 fn test_make_message() {
     let tls_registry = tls_registry();
@@ -273,8 +271,7 @@ fn test_make_message() {
 #[cfg(all(feature = "tls13", not(feature = "boringssl-binding")))]
 // require version which supports TLS 1.3, removed boringssl-binding as seed_client_attacker_full
 // cannot be executed with boringssl
-#[test]
-// #[test_log::test]
+#[test_log::test]
 fn test_byte_remove_payloads() {
     let tls_registry = tls_registry();
     let mut state = create_state();
@@ -363,7 +360,6 @@ fn test_byte_remove_payloads() {
 }
 
 #[cfg(all(feature = "tls13"))] // require version which supports TLS 1.3
-#[test]
 #[test_log::test]
 fn test_byte_simple() {
     let tls_registry = tls_registry();
@@ -451,7 +447,6 @@ fn test_byte_simple() {
 }
 
 #[cfg(all(feature = "tls13"))] // require version which supports TLS 1.3
-#[test]
 #[test_log::test]
 fn test_byte_interesting() {
     let tls_registry = tls_registry();
@@ -559,7 +554,7 @@ fn test_byte_interesting() {
     assert_ne!(i, MAX);
 }
 
-#[test]
+#[test_log::test]
 #[ignore]
 fn test_mutate_seed_cve_2021_3449() {
     let mut state = create_state();

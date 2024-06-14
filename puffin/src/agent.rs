@@ -12,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use crate::error::Error;
 use crate::protocol::ProtocolBehavior;
 use crate::put::{Put, PutDescriptor};
-use crate::trace::TraceContext;
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -170,30 +169,15 @@ impl<PB: ProtocolBehavior> PartialEq for Agent<PB> {
 
 impl<PB: ProtocolBehavior> Agent<PB> {
     pub fn new(
-        context: &TraceContext<PB>,
-        agent_descriptor: &AgentDescriptor,
-    ) -> Result<Self, Error> {
-        let put_descriptor = context.put_descriptor(agent_descriptor);
-
-        let (_, factory) = context
-            .put_registry()
-            .puts()
-            .find(|(_, factory)| factory.name() == put_descriptor.name)
-            .ok_or_else(|| {
-                Error::Agent(format!(
-                    "unable to find PUT {} factory in binary",
-                    &put_descriptor.name
-                ))
-            })?;
-
-        let stream = factory.create(context, agent_descriptor)?;
-        let agent = Agent {
-            name: agent_descriptor.name,
-            put: stream,
+        descriptor: &AgentDescriptor,
+        put: Box<dyn Put<PB>>,
+        put_descriptor: PutDescriptor,
+    ) -> Self {
+        Self {
+            name: descriptor.name,
+            put,
             put_descriptor,
-        };
-
-        Ok(agent)
+        }
     }
 
     pub fn descriptor(&self) -> &PutDescriptor {

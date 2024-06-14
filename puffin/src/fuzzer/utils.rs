@@ -412,7 +412,7 @@ mod tests {
     use super::*;
     use crate::algebra::test_signature::*;
 
-    #[test]
+    #[test_log::test]
     fn test_find_term() {
         let mut rand = StdRand::with_seed(45);
         let mut trace = setup_simple_trace();
@@ -429,7 +429,7 @@ mod tests {
         assert_eq!(term_size, stats.len());
     }
 
-    #[test]
+    #[test_log::test]
     fn test_reservoir_sample_randomness() {
         /// https://rust-lang-nursery.github.io/rust-cookbook/science/mathematics/statistics.html#standard-deviation
         fn std_deviation(data: &[u32]) -> Option<f32> {
@@ -485,7 +485,7 @@ mod tests {
         assert_eq!(term_size, stats.len());
     }
 
-    #[test]
+    #[test_log::test]
     fn test_reservoir_sample_weighted() {
         let mut rand = StdRand::with_seed(50);
         let mut trace = setup_simple_trace();

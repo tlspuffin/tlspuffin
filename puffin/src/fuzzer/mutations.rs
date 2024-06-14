@@ -806,7 +806,7 @@ mod tests {
     }
 
     /// Checks whether repeat can repeat the last step
-    #[test]
+    #[test_log::test]
     fn test_repeat_mutator() {
         let mut state = create_state();
 
@@ -838,7 +838,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_replace_match_mutator() {
         let _server = AgentName::first();
         let mut state = create_state();
@@ -867,7 +867,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_remove_lift_mutator() {
         // Should remove an extension
         let mut state = create_state();
@@ -894,7 +894,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_replace_reuse_mutator() {
         let mut state = create_state();
         let _server = AgentName::first();
@@ -923,7 +923,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_skip_mutator() {
         let mut state = create_state();
         let _server = AgentName::first();
@@ -940,7 +940,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_swap_mutator() {
         let mut state = create_state();
         let mut mutator = SwapMutator::new(TermConstraints::default(), true);

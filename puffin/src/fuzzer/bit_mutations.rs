@@ -1,5 +1,4 @@
 use std::cmp::min;
-use std::io::Read;
 use std::ops::Not;
 
 use libafl::prelude::*;

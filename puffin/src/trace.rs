@@ -31,9 +31,7 @@ use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{remove_prefix, ConcreteMessage, Matcher, Term, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
 use crate::error::Error;
-use crate::protocol::{
-    ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessageFlight,
-};
+use crate::protocol::{ExtractKnowledge, ProtocolBehavior};
 use crate::put::{PutDescriptor, PutOptions};
 use crate::put_registry::PutRegistry;
 #[allow(unused)] // used in docs
@@ -388,8 +386,25 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     pub fn new_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        let agent_name = self.add_agent(Agent::new(self, descriptor)?);
-        Ok(agent_name)
+        let put_descriptor = self.put_descriptor(descriptor);
+
+        let (_, factory) = self
+            .put_registry()
+            .puts()
+            .find(|(_, factory)| factory.name() == put_descriptor.name)
+            .ok_or_else(|| {
+                Error::Agent(format!(
+                    "unable to find PUT {} factory in binary",
+                    &put_descriptor.name
+                ))
+            })?;
+
+        let put = factory.create(descriptor, &self.claims, &put_descriptor.options)?;
+        let agent = Agent::new(descriptor, put, put_descriptor);
+
+        self.add_agent(agent);
+
+        Ok(descriptor.name)
     }
 
     pub fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent<PB>, Error> {

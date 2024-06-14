@@ -1,5 +1,4 @@
 use libafl::executors::ExitKind;
-use log::{debug, info, trace, warn};
 use once_cell::sync::OnceCell;
 use rand::Rng;
 
@@ -30,7 +29,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
     input: &Trace<PB::Matcher>,
 ) -> ExitKind {
-    debug!(
+    log::debug!(
         "Harness is called on trace with #{} steps",
         input.steps.len()
     );

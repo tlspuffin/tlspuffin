@@ -1823,7 +1823,7 @@ pub mod tests {
     use crate::put_registry::tls_registry;
     use crate::tls::trace_helper::TraceHelper;
 
-    #[test]
+    #[test_log::test]
     fn test_version() {
         for (id, put) in tls_registry().puts() {
             println!("({:?}) {}:", put.kind(), id);
@@ -1833,7 +1833,7 @@ pub mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     #[cfg(feature = "tls12")]
     fn test_seed_client_attacker12() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -1844,7 +1844,7 @@ pub mod tests {
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "transcript-extraction")] // this depends on extracted transcripts -> claims are required
-    #[test]
+    #[test_log::test]
     fn test_seed_client_attacker() {
         use crate::tls::trace_helper::TraceExecutor;
 
@@ -1855,7 +1855,7 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "client-authentication-transcript-extraction")]
     #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
+    #[test_log::test]
     fn test_seed_client_attacker_auth() {
         use crate::tls::trace_helper::TraceExecutor;
 
@@ -1864,7 +1864,7 @@ pub mod tests {
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[test]
+    #[test_log::test]
     fn test_seed_client_attacker_full() {
         use crate::tls::trace_helper::TraceExecutor;
 
@@ -1874,7 +1874,7 @@ pub mod tests {
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
+    #[test_log::test]
     fn test_seed_server_attacker_full() {
         use crate::tls::trace_helper::TraceExecutor;
 
@@ -1885,7 +1885,7 @@ pub mod tests {
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
+    #[test_log::test]
     fn test_seed_session_resumption_dhe() {
         use crate::tls::trace_helper::TraceExecutor;
 
@@ -1896,7 +1896,7 @@ pub mod tests {
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
+    #[test_log::test]
     fn test_seed_session_resumption_dhe_full() {
         use crate::tls::trace_helper::TraceExecutor;
 
@@ -1907,7 +1907,7 @@ pub mod tests {
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[cfg(not(feature = "wolfssl-disable-postauth"))]
     #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
+    #[test_log::test]
     fn test_seed_session_resumption_ke() {
         use crate::tls::trace_helper::TraceExecutor;
 
@@ -1917,7 +1917,7 @@ pub mod tests {
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
+    #[test_log::test]
     fn test_seed_successful() {
         use crate::tls::trace_helper::TraceExecutor;
 
@@ -1927,7 +1927,7 @@ pub mod tests {
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
+    #[test_log::test]
     fn test_seed_successful_client_auth() {
         use crate::tls::trace_helper::TraceExecutor;
 
@@ -1936,7 +1936,7 @@ pub mod tests {
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[test]
+    #[test_log::test]
     // Cases:
     // expected = "Not the best cipher choosen", // in case MITM attack succeeded because transcript
     // is ignored -> We detect the MITM and error expected = "decryption failed or bad record
@@ -1951,7 +1951,7 @@ pub mod tests {
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
+    #[test_log::test]
     fn test_seed_successful_with_ccs() {
         use crate::tls::trace_helper::TraceExecutor;
 
@@ -1963,7 +1963,7 @@ pub mod tests {
     // LibreSSL does not yet support PSK
     #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
     #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
+    #[test_log::test]
     fn test_seed_successful_with_tickets() {
         use crate::tls::trace_helper::TraceExecutor;
 
@@ -1971,7 +1971,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[test]
+    #[test_log::test]
     #[cfg(feature = "tls12")]
     #[cfg(not(feature = "boringssl-binding"))]
     fn test_seed_successful12() {
@@ -1984,7 +1984,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[test]
+    #[test_log::test]
     fn test_corpus_file_sizes() {
         let client = AgentName::first();
         let _server = client.next();
@@ -2009,7 +2009,7 @@ pub mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_term_sizes() {
         let client = AgentName::first();
         let _server = client.next();
@@ -2081,61 +2081,61 @@ pub mod tests {
             assert_eq!(serialized1, serialized2);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_serialisation_seed_seed_session_resumption_dhe_json() {
             let trace = seed_session_resumption_dhe.build_trace();
             test_json_serialization(trace);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_serialisation_seed_seed_session_resumption_ke_json() {
             let trace = seed_session_resumption_ke.build_trace();
             test_json_serialization(trace);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_serialisation_seed_client_attacker12_json() {
             let trace = seed_client_attacker12.build_trace();
             test_json_serialization(trace);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_serialisation_seed_successful_json() {
             let trace = seed_successful.build_trace();
             test_json_serialization(trace);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_serialisation_seed_successful_postcard() {
             let trace = seed_successful.build_trace();
             test_postcard_serialization(trace);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_serialisation_seed_successful12_json() {
             let trace = seed_successful12.build_trace();
             test_json_serialization(trace);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_serialisation_seed_client_attacker_auth_json() {
             let trace = seed_client_attacker_auth.build_trace();
             test_json_serialization(trace);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_serialisation_seed_client_attacker_auth_postcard() {
             let trace = seed_client_attacker_auth.build_trace();
             test_postcard_serialization(trace);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_serialisation_seed_server_attacker_full_json() {
             let trace = seed_server_attacker_full.build_trace();
             test_json_serialization(trace);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_serialisation_seed_server_attacker_full_postcard() {
             let trace = seed_server_attacker_full.build_trace();
             test_postcard_serialization(trace);
@@ -2161,7 +2161,7 @@ pub mod tests {
             Message::try_from(opaque_message.into_plain_message()).unwrap()
         }
 
-        #[test]
+        #[test_log::test]
         fn test_rustls_message_stability_ch() {
             let hello_client_hex = "1603010136010001320303aa1795f64f48fcfcd0121368f88f176fe2570b07\
         68bbc85e9f2c80c557553d7d20e1e15d0028932f4f7479cf256302b7847d81a68e708525f9d38d94fc6ef742a30\
@@ -2179,7 +2179,7 @@ pub mod tests {
             create_message(opaque_message);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_heartbleed_ch() {
             // Derived from "openssl s_client -msg -connect localhost:44330" and then pressing R
             let hello_client_hex = "
@@ -2208,7 +2208,7 @@ pub mod tests {
             create_message(opaque_message);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_rustls_message_stability_ch_renegotiation() {
             // Derived from "openssl s_client -msg -connect localhost:44330" and then pressing R
             let hello_client_hex = "16030300cc\
@@ -2227,7 +2227,7 @@ pub mod tests {
         }
 
         /// https://github.com/tlspuffin/rustls/commit/d5d26a119f5a0edee43ebcd77f3bbae8bbd1db7d
-        #[test]
+        #[test_log::test]
         fn test_server_hello_parsing() {
             let hex = "160303004a020000460303de257a3941501c11fa7898af1b1b2aea4f5e39e521b35dc84ffab\
         e830e9a98ec20e1cb49645b1cd6e2d0aa5c87b5a3837bcf33334e96c37a77a79c9df63413dc15c02f00";
@@ -2236,7 +2236,7 @@ pub mod tests {
             create_message(opaque_message);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_encrypted_tls12_messages() {
             let hexn = vec![
                 "1603030028155e38ddd323ca97440b4bb44fe810e9f4d10e5280795ca0660c7d8c8dddcd95355538a3d2cc0256",
@@ -2256,7 +2256,7 @@ pub mod tests {
             }
         }
 
-        #[test]
+        #[test_log::test]
         fn test_rustls_message_stability_cert() {
             let cert_hex = "16030309b50b0009b1000009ad00053a308205363082041ea00302010202120400ca59\
         61d39c1622093596f2132488f93e300d06092a864886f70d01010b05003032310b3009060355040613025553311\
@@ -2323,7 +2323,7 @@ pub mod tests {
             create_message(opaque_message);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_encrypted_tls12_into_message() {
             let opaque_message = OpaqueMessage {
                 typ: ContentType::Handshake,
@@ -2334,7 +2334,7 @@ pub mod tests {
             create_message(opaque_message);
         }
 
-        #[test]
+        #[test_log::test]
         fn test_rustls_message_stability() {
             let random = [0u8; 32];
             let message = Message {

@@ -31,7 +31,7 @@ mod test {
 
     use puffin::codec::{Codec, Reader};
 
-    #[test]
+    #[test_log::test]
     fn smoketest() {
         use super::message::{Message, OpaqueMessage};
         let bytes = include_bytes!("handshake-test.1.bin");

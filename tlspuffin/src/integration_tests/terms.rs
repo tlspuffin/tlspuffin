@@ -63,7 +63,7 @@ mod tests {
     //    #[test_log::test] // Does not work as it makes Cargo runs tests twice, so tests are
     // failing the second time! Could be useful in RUST_LOG=DEBUG/TRACE mode to see all the
     // replacements and window refinement of `eval_until_opaque` in detail.
-    #[test]
+    #[test_log::test]
     #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))] // only for boring as we hard-coded payloads for this PUT in the test
     fn test_replace_bitstring_multiple() {
         let tls_registry = tls_registry();
@@ -224,9 +224,9 @@ mod tests {
         test_one_replace(&mut trace, &ctx, step_nb, path, new_vec, expected_vec);
     }
 
-    // OLD STUFF! SHOULD BE REMOVED!?
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-                              // #[test]
+    #[test_log::test]
+    #[ignore] // OLD STUFF! SHOULD BE REMOVED!?
     fn test_evaluate_recipe_input_compare_new() {
         use crate::tls::trace_helper::TraceExecutor;
         let tls_registry = tls_registry();

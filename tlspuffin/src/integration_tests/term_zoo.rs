@@ -88,7 +88,6 @@ mod tests {
         ignore_gen
     }
 
-    #[test]
     #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms
     fn test_term_generation() {
@@ -142,7 +141,6 @@ mod tests {
         // MAX_DEPTH=2000 and MAX_TRIES = 50000 debug!("{}", graph);
     }
 
-    #[test]
     #[test_log::test]
     fn test_term_lazy_eval() {
         let tls_registry = tls_registry();
@@ -197,7 +195,6 @@ mod tests {
         // how_many = 10 000 debug!("{}", graph);
     }
 
-    #[test]
     #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms and then be
     /// correctly evaluated
@@ -436,8 +433,7 @@ mod tests {
     }
 
     #[cfg(all(feature = "tls13", feature = "deterministic"))] // require version which supports TLS 1.3
-    #[test]
-    // #[test_log::test]
+    #[test_log::test]
     // #[ignore]
     /// Tests whether all function symbols can be used when generating random terms and then be
     /// correctly evaluated
@@ -640,8 +636,7 @@ mod tests {
      */
 
     #[cfg(all(feature = "tls13", feature = "deterministic"))] // require version which supports TLS 1.3
-    #[test]
-    // #[test_log::test]
+    #[test_log::test]
     // #[ignore]
     /// Tests whether all function symbols can be used when generating random terms and then be
     /// correctly evaluated

@@ -115,16 +115,16 @@ pub mod test_signature {
     use crate::algebra::dynamic_function::TypeShape;
     use crate::algebra::error::FnError;
     use crate::algebra::{AnyMatcher, ConcreteMessage, Term};
-    use crate::claims::{Claim, SecurityViolationPolicy};
+    use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
     use crate::codec::{Codec, Reader};
     use crate::error::Error;
     use crate::protocol::{
         ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
         ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
     };
-    use crate::put::{Put, PutName};
+    use crate::put::{Put, PutName, PutOptions};
     use crate::put_registry::{Factory, PutKind};
-    use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace, TraceContext};
+    use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace};
     use crate::variable_data::VariableData;
     use crate::{define_signature, term, VERSION_STR};
 
@@ -619,8 +619,9 @@ pub mod test_signature {
     impl Factory<TestProtocolBehavior> for TestFactory {
         fn create(
             &self,
-            _context: &TraceContext<TestProtocolBehavior>,
             _agent_descriptor: &AgentDescriptor,
+            _claims: &GlobalClaimList<<TestProtocolBehavior as ProtocolBehavior>::Claim>,
+            _options: &PutOptions,
         ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {
             panic!("Not implemented for test stub");
         }

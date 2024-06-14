@@ -1,6 +1,6 @@
 use core::time::Duration;
+use std::fmt;
 use std::path::PathBuf;
-use std::{env, fmt};
 
 use libafl::corpus::ondisk::OnDiskMetadataFormat;
 use libafl::prelude::*;
@@ -343,7 +343,7 @@ where
 
         #[cfg(test)]
         let edge_map_size: usize = // cannot use this in the unsafe env below... TODO
-            if env::var("TARGET").unwrap().contains("aarch64-apple-darwin") {
+            if std::env::var("TARGET").unwrap().contains("aarch64-apple-darwin") {
             131072
         } else {
             65536
