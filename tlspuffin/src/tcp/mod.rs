@@ -9,12 +9,13 @@ use std::thread;
 use std::time::Duration;
 
 use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::claims::GlobalClaimList;
 use puffin::codec::Codec;
 use puffin::error::Error;
-use puffin::put::{Put, PutDescriptor, PutName};
+use puffin::protocol::ProtocolBehavior;
+use puffin::put::{Put, PutName, PutOptions};
 use puffin::put_registry::{Factory, PutKind};
 use puffin::stream::Stream;
-use puffin::trace::TraceContext;
 use puffin::VERSION_STR;
 
 use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
@@ -27,19 +28,16 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     impl Factory<TLSProtocolBehavior> for TCPFactory {
         fn create(
             &self,
-            context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
+            _claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
+            options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
-            let put_descriptor = context.put_descriptor(agent_descriptor);
-
-            let options = &put_descriptor.options;
-
             if options.get_option("args").is_some() {
                 log::info!("Trace contains TCP running information we shall reuse.");
                 let args = options
                     .get_option("args")
                     .ok_or_else(|| {
-                        Error::Agent(format!("{} // {:?}", "Unable to find args", put_descriptor))
+                        Error::Agent(format!("{} // {:?}", "Unable to find args", options))
                     })?
                     .to_owned();
                 let prog = options
@@ -51,22 +49,22 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                     .map(|cwd| Some(cwd.to_owned()))
                     .unwrap_or_default();
                 if agent_descriptor.typ == AgentType::Client {
-                    let mut server = TcpServerPut::new(agent_descriptor, &put_descriptor)?;
+                    let mut server = TcpServerPut::new(agent_descriptor, options)?;
                     server.set_process(TLSProcess::new(&prog, &args, cwd.as_ref()));
                     Ok(Box::new(server))
                 } else {
                     let process = TLSProcess::new(&prog, &args, cwd);
-                    let mut client = TcpClientPut::new(agent_descriptor, &put_descriptor)?;
+                    let mut client = TcpClientPut::new(agent_descriptor, options)?;
                     client.set_process(process);
                     Ok(Box::new(client))
                 }
             } else {
                 log::info!("Trace contains no TCP running information so we fall back to external TCP client and servers.");
                 if agent_descriptor.typ == AgentType::Client {
-                    let server = TcpServerPut::new(agent_descriptor, &put_descriptor)?;
+                    let server = TcpServerPut::new(agent_descriptor, options)?;
                     Ok(Box::new(server))
                 } else {
-                    let client = TcpClientPut::new(agent_descriptor, &put_descriptor)?;
+                    let client = TcpClientPut::new(agent_descriptor, options)?;
                     Ok(Box::new(client))
                 }
             }
@@ -139,11 +137,8 @@ impl TcpPut for TcpClientPut {
 }
 
 impl TcpClientPut {
-    fn new(
-        agent_descriptor: &AgentDescriptor,
-        put_descriptor: &PutDescriptor,
-    ) -> Result<Self, Error> {
-        let addr = addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?;
+    fn new(agent_descriptor: &AgentDescriptor, options: &PutOptions) -> Result<Self, Error> {
+        let addr = addr_from_config(options).map_err(|err| Error::Put(err.to_string()))?;
         let stream = Self::new_stream(addr)?;
 
         Ok(Self {
@@ -193,12 +188,9 @@ pub struct TcpServerPut {
 }
 
 impl TcpServerPut {
-    fn new(
-        agent_descriptor: &AgentDescriptor,
-        put_descriptor: &PutDescriptor,
-    ) -> Result<Self, Error> {
+    fn new(agent_descriptor: &AgentDescriptor, options: &PutOptions) -> Result<Self, Error> {
         let (sender, stream_receiver) = channel();
-        let addr = addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?;
+        let addr = addr_from_config(options).map_err(|err| Error::Put(err.to_string()))?;
 
         let listener = TcpListener::bind(addr).unwrap();
 
@@ -287,8 +279,7 @@ fn take_message_from_outbound<P: TcpPut>(
     put.read_to_flight()
 }
 
-fn addr_from_config(put_descriptor: &PutDescriptor) -> Result<SocketAddr, AddrParseError> {
-    let options = &put_descriptor.options;
+fn addr_from_config(options: &PutOptions) -> Result<SocketAddr, AddrParseError> {
     let host = options.get_option("host").unwrap_or("127.0.0.1");
     let port = options
         .get_option("port")

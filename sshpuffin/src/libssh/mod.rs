@@ -15,12 +15,12 @@ use std::os::unix::io::{IntoRawFd, RawFd};
 use std::os::unix::net::{UnixListener, UnixStream};
 
 use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::claims::GlobalClaimList;
 use puffin::codec::Codec;
 use puffin::error::Error;
-use puffin::put::{Put, PutName};
+use puffin::put::{Put, PutName, PutOptions};
 use puffin::put_registry::{Factory, PutKind};
 use puffin::stream::Stream;
-use puffin::trace::TraceContext;
 use puffin::VERSION_STR;
 
 use crate::libssh::ssh::{
@@ -79,8 +79,11 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
     impl Factory<SshProtocolBehavior> for LibSSLFactory {
         fn create(
             &self,
-            _context: &TraceContext<SshProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
+            _claims: &GlobalClaimList<
+                <SshProtocolBehavior as puffin::protocol::ProtocolBehavior>::Claim,
+            >,
+            _options: &PutOptions,
         ) -> Result<Box<dyn Put<SshProtocolBehavior>>, Error> {
             // FIXME: Switch to UDS with stabilization in Rust 1.70
             //let addr = SocketAddr::from_abstract_namespace(b"\0socket").unwrap();
