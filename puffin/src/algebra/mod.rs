@@ -556,14 +556,11 @@ mod tests {
         algebra::{
             atoms::Variable, dynamic_function::TypeShape, signature::Signature, AnyMatcher, Term,
         },
-        put_registry::{Factory, PutRegistry},
         term,
-        trace::{Knowledge, TraceContext},
     };
 
     #[allow(dead_code)]
     fn test_compilation() {
-        // reminds me of Lisp, lol
         let client = AgentName::first();
         let _test_nested_with_variable: TestTerm = term! {
            fn_client_hello(
@@ -611,7 +608,6 @@ mod tests {
     fn example() {
         let hmac256_new_key = Signature::new_function(&fn_hmac256_new_key);
         let hmac256 = Signature::new_function(&fn_hmac256);
-        let _client_hello = Signature::new_function(&fn_client_hello);
         let data = "hello".as_bytes().to_vec();
         let variable: Variable<AnyMatcher> =
             Signature::new_var(TypeShape::of::<Vec<u8>>(), AgentName::first(), None, 0);
@@ -623,21 +619,8 @@ mod tests {
             ],
         );
 
-        let put_registry = PutRegistry::<TestProtocolBehavior>::new([(
-            "teststub",
-            Box::new(TestFactory) as Box<dyn Factory<TestProtocolBehavior>>,
-        )]);
-
-        let context = TraceContext::builder(&put_registry)
-            .with_knowledge(Knowledge {
-                agent_name: AgentName::first(),
-                matcher: None,
-                data: Box::new(data),
-            })
-            .build();
-
         let _string = generated_term
-            .evaluate(&context)
+            .evaluate(&mut |_| Some(Box::new(data.clone())))
             .as_ref()
             .unwrap()
             .downcast_ref::<Vec<u8>>();

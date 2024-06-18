@@ -513,7 +513,7 @@ fn binary_attack<PB: ProtocolBehavior>(
     for step in trace.steps {
         match step.action {
             Action::Input(input) => {
-                if let Ok(evaluated) = input.recipe.evaluate(&ctx) {
+                if let Ok(evaluated) = input.recipe.evaluate(&mut |v| ctx.find_variable(v)) {
                     if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
                         let mut data: Vec<u8> = Vec::new();
                         msg.create_opaque().encode(&mut data);

@@ -29,7 +29,9 @@ use serde::{Deserialize, Serialize};
 use crate::stream::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
-    algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
+    algebra::{
+        atoms::Variable, dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term,
+    },
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
@@ -302,12 +304,8 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     /// Returns the variable which matches best -> highest specificity
     /// If we want a variable with lower specificity, then we can just query less specific
-    pub fn find_variable(
-        &self,
-        query_type_shape: TypeShape,
-        query: &Query<PB::Matcher>,
-    ) -> Option<&(dyn VariableData)> {
-        let query_type_id: TypeId = query_type_shape.into();
+    pub fn find_variable(&self, variable: &Variable<PB::Matcher>) -> Option<Box<dyn Any>> {
+        let query_type_id: TypeId = variable.typ.into();
 
         let mut possibilities: Vec<&Knowledge<PB::Matcher>> = Vec::new();
 
@@ -315,8 +313,8 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             let data: &dyn VariableData = knowledge.data.as_ref();
 
             if query_type_id == data.type_id()
-                && query.agent_name == knowledge.agent_name
-                && knowledge.matcher.matches(&query.matcher)
+                && variable.query.agent_name == knowledge.agent_name
+                && knowledge.matcher.matches(&variable.query.matcher)
             {
                 possibilities.push(knowledge);
             }
@@ -325,8 +323,9 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         possibilities.sort_by_key(|a| a.specificity());
 
         possibilities
-            .get(query.counter as usize)
-            .map(|possibility| possibility.data.as_ref())
+            .get(variable.query.counter as usize)
+            .map(|possibility| possibility.data.as_ref().boxed_any())
+            .or_else(|| self.find_claim(variable.query.agent_name, variable.typ))
     }
 
     /// Add an `agent` to the execution context
@@ -611,7 +610,7 @@ impl<M: Matcher> InputAction<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        let evaluated = self.recipe.evaluate(ctx)?;
+        let evaluated = self.recipe.evaluate(&mut |v| ctx.find_variable(v))?;
         let agent = ctx.find_agent_mut(agent_name)?;
 
         if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
