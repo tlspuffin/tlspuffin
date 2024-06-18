@@ -6,8 +6,7 @@ use crate::{
     error::Error,
     fuzzer::stats_stage::*,
     protocol::ProtocolBehavior,
-    put::PutDescriptor,
-    put_registry::PutRegistry,
+    put_registry::{PutDescriptor, PutRegistry},
     trace::{Action, Trace, TraceContext, TraceExecutor},
 };
 

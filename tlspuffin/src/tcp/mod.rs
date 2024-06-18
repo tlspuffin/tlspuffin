@@ -364,9 +364,6 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         &self.agent_descriptor
     }
 
-    fn register_claimer(&mut self, _agent_name: AgentName) {}
-    fn deregister_claimer(&mut self) {}
-
     fn describe_state(&self) -> &str {
         panic!("Not supported")
     }
@@ -392,7 +389,8 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         Ok(())
     }
 
-    fn reset(&mut self, _new_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.agent_descriptor.name = new_name;
         let address = self.stream.peer_addr()?;
         self.stream = Self::new_stream(address)?;
         Ok(())
@@ -401,9 +399,6 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
     fn descriptor(&self) -> &AgentDescriptor {
         &self.agent_descriptor
     }
-
-    fn register_claimer(&mut self, _agent_name: AgentName) {}
-    fn deregister_claimer(&mut self) {}
 
     fn describe_state(&self) -> &str {
         panic!("Not supported")
@@ -684,8 +679,7 @@ pub mod tcp_puts {
 mod tests {
     use puffin::{
         agent::{AgentName, TLSVersion},
-        put::PutDescriptor,
-        put_registry::TCP_PUT,
+        put_registry::{PutDescriptor, TCP_PUT},
         trace::{TraceContext, TraceExecutor},
     };
     use test_log::test;

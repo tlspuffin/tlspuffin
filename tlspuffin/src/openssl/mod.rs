@@ -61,9 +61,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 use_clear,
             };
 
-            Ok(Box::new(OpenSSL::new(config).map_err(|err| {
-                Error::Put(format!("Failed to create client/server: {}", err))
-            })?))
+            Ok(Box::new(OpenSSL::new(config)?))
         }
 
         fn kind(&self) -> PutKind {
@@ -245,51 +243,16 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
         if self.config.use_clear {
             bindings::clear(self.stream.ssl());
         } else {
-            self.stream = Self::new_stream(&self.ctx, &self.config).map_err(|err| {
-                Error::Put(format!("OpenSSL error during stream creation: {}", err))
-            })?;
+            self.stream = create_stream(&self.ctx, &self.config.descriptor)?;
         }
 
-        self.register_claimer(new_name);
+        self.register_claimer();
 
         Ok(())
     }
 
     fn descriptor(&self) -> &AgentDescriptor {
         &self.config.descriptor
-    }
-
-    fn register_claimer(&mut self, agent_name: AgentName) {
-        unsafe {
-            use foreign_types_openssl::ForeignTypeRef;
-
-            use crate::claims::claims_helpers;
-
-            let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.tls_version;
-            let origin = self.config.descriptor.typ;
-
-            security_claims::register_claimer(
-                self.stream.ssl().as_ptr().cast(),
-                move |claim: security_claims::Claim| {
-                    if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
-                        claims.deref_borrow_mut().claim_sized(TlsClaim {
-                            agent_name,
-                            origin,
-                            protocol_version,
-                            data,
-                        })
-                    }
-                },
-            );
-        }
-    }
-
-    fn deregister_claimer(&mut self) {
-        unsafe {
-            use foreign_types_openssl::ForeignTypeRef;
-            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
-        }
     }
 
     fn describe_state(&self) -> &str {
@@ -316,39 +279,20 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
 }
 
 impl OpenSSL {
-    fn new(config: TlsPutConfig) -> Result<OpenSSL, ErrorStack> {
+    fn new(config: TlsPutConfig) -> Result<OpenSSL, Error> {
         let agent_descriptor = &config.descriptor;
-        #[allow(unused_mut)]
-        let mut ctx = match agent_descriptor.typ {
-            AgentType::Server => Self::create_server_ctx(agent_descriptor)?,
-            AgentType::Client => Self::create_client_ctx(agent_descriptor)?,
-        };
-        let stream = Self::new_stream(&ctx, &config)?;
-        let agent_name = agent_descriptor.name;
+
+        let ctx = create_ctx(agent_descriptor)?;
+        let stream = create_stream(&ctx, agent_descriptor)?;
         let mut openssl = OpenSSL {
             config,
             ctx,
             stream,
         };
 
-        openssl.register_claimer(agent_name);
+        openssl.register_claimer();
 
         Ok(openssl)
-    }
-
-    fn new_stream(
-        ctx: &SslContextRef,
-        config: &TlsPutConfig,
-    ) -> Result<SslStream<MemoryStream<MessageDeframer>>, ErrorStack> {
-        let ssl = match config.descriptor.typ {
-            AgentType::Server => Self::create_server(ctx)?,
-            AgentType::Client => Self::create_client(ctx)?,
-        };
-
-        Ok(SslStream::new(
-            ssl,
-            MemoryStream::new(MessageDeframer::new()),
-        )?)
     }
 
     fn create_server_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, ErrorStack> {
@@ -444,6 +388,67 @@ impl OpenSSL {
 
         Ok(ssl)
     }
+
+    fn register_claimer(&mut self) {
+        unsafe {
+            use foreign_types_openssl::ForeignTypeRef;
+
+            use crate::claims::claims_helpers;
+
+            let claims = self.config.claims.clone();
+            let protocol_version = self.config.descriptor.tls_version;
+            let origin = self.config.descriptor.typ;
+            let agent_name = self.config.descriptor.name;
+
+            security_claims::register_claimer(
+                self.stream.ssl().as_ptr().cast(),
+                move |claim: security_claims::Claim| {
+                    if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
+                        claims.deref_borrow_mut().claim_sized(TlsClaim {
+                            agent_name,
+                            origin,
+                            protocol_version,
+                            data,
+                        })
+                    }
+                },
+            );
+        }
+    }
+
+    fn deregister_claimer(&mut self) {
+        unsafe {
+            use foreign_types_openssl::ForeignTypeRef;
+            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
+        }
+    }
+}
+
+fn create_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, Error> {
+    match descriptor.typ {
+        AgentType::Server => OpenSSL::create_server_ctx(descriptor),
+        AgentType::Client => OpenSSL::create_client_ctx(descriptor),
+    }
+    .map_err(|e| Error::Put(format!("failed to create SSL_CTX object: {}", e)))
+}
+
+fn create_ssl(ctx: &SslContextRef, descriptor: &AgentDescriptor) -> Result<Ssl, Error> {
+    match descriptor.typ {
+        AgentType::Server => OpenSSL::create_server(ctx),
+        AgentType::Client => OpenSSL::create_client(ctx),
+    }
+    .map_err(|e| Error::Put(format!("failed to create SSL object: {}", e)))
+}
+
+fn create_stream(
+    ctx: &SslContextRef,
+    descriptor: &AgentDescriptor,
+) -> Result<SslStream<MemoryStream<MessageDeframer>>, Error> {
+    SslStream::new(
+        create_ssl(ctx, descriptor)?,
+        MemoryStream::new(MessageDeframer::new()),
+    )
+    .map_err(|e| Error::Put(format!("failed to create SSL stream object: {}", e)))
 }
 
 pub enum MaybeError {

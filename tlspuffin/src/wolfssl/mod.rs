@@ -78,7 +78,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn name(&self) -> String {
-            WOLFSSL_RUST_PUT.to_owned()
+            self.preset.clone()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -99,36 +99,36 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 "wolfssl540" => HashSet::from([
                     "tls12",
                     "tls13",
-                    "tls12-session-resumption",
-                    "tls13-session-resumption",
-                    "transcript-extraction",
-                    "client-authentication-transcript-extraction",
+                    "tls12_session_resumption",
+                    "tls13_session_resumption",
+                    "transcript_extraction",
+                    "client_authentication_transcript_extraction",
                 ]),
                 "wolfssl530" => HashSet::from([
                     "tls12",
                     "tls13",
-                    "tls12-session-resumption",
-                    "tls13-session-resumption",
-                    "transcript-extraction",
-                    "client-authentication-transcript-extraction",
+                    "tls12_session_resumption",
+                    "tls13_session_resumption",
+                    "transcript_extraction",
+                    "client_authentication_transcript_extraction",
                 ]),
                 "wolfssl520" => HashSet::from([
                     "tls12",
                     "tls13",
-                    "tls12-session-resumption",
-                    "tls13-session-resumption",
-                    "transcript-extraction",
-                    "client-authentication-transcript-extraction",
+                    "tls12_session_resumption",
+                    "tls13_session_resumption",
+                    "transcript_extraction",
+                    "client_authentication_transcript_extraction",
                 ]),
                 "wolfssl510" => HashSet::from([
                     "tls12",
                     "tls13",
-                    "tls12-session-resumption",
-                    "tls13-session-resumption",
-                    "transcript-extraction",
-                    "client-authentication-transcript-extraction",
+                    "tls12_session_resumption",
+                    "tls13_session_resumption",
+                    "transcript_extraction",
+                    "client_authentication_transcript_extraction",
                 ]),
-                "wolfssl430" => HashSet::from(["tls12", "tls13", "transcript-extraction"]),
+                "wolfssl430" => HashSet::from(["tls12", "tls13", "transcript_extraction"]),
                 _ => panic!("unknown wolfSSL preset: {}", self.preset),
             };
 
@@ -215,14 +215,13 @@ impl WolfSSL {
             AgentType::Client => Self::create_client_ctx(agent_descriptor)?,
         };
         let stream = Self::new_stream(&mut ctx, &config)?;
-        let agent_name = agent_descriptor.name;
         let mut wolfssl = WolfSSL {
             ctx,
             stream,
             config,
         };
 
-        wolfssl.register_claimer(agent_name);
+        wolfssl.register_claimer();
         Ok(wolfssl)
     }
 
@@ -279,39 +278,9 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
             self.stream = Self::new_stream(&mut self.ctx, &self.config)?;
         }
 
-        self.register_claimer(new_name);
+        self.register_claimer();
 
         Ok(())
-    }
-
-    fn register_claimer(&mut self, agent_name: AgentName) {
-        unsafe {
-            use crate::claims::claims_helpers;
-
-            let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.tls_version;
-            let origin = self.config.descriptor.typ;
-
-            security_claims::register_claimer(
-                self.stream.ssl().as_ptr().cast(),
-                move |claim: security_claims::Claim| {
-                    if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
-                        claims.deref_borrow_mut().claim_sized(TlsClaim {
-                            agent_name,
-                            origin,
-                            protocol_version,
-                            data,
-                        });
-                    }
-                },
-            );
-        }
-    }
-
-    fn deregister_claimer(&mut self) {
-        unsafe {
-            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
-        }
     }
 
     fn describe_state(&self) -> &'static str {
@@ -446,6 +415,37 @@ impl WolfSSL {
 
         ssl.set_accept_state();
         Ok(ssl)
+    }
+
+    fn register_claimer(&mut self) {
+        unsafe {
+            use crate::claims::claims_helpers;
+
+            let agent_name = self.config.descriptor.name;
+            let claims = self.config.claims.clone();
+            let protocol_version = self.config.descriptor.tls_version;
+            let origin = self.config.descriptor.typ;
+
+            security_claims::register_claimer(
+                self.stream.ssl().as_ptr().cast(),
+                move |claim: security_claims::Claim| {
+                    if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
+                        claims.deref_borrow_mut().claim_sized(TlsClaim {
+                            agent_name,
+                            origin,
+                            protocol_version,
+                            data,
+                        });
+                    }
+                },
+            );
+        }
+    }
+
+    fn deregister_claimer(&mut self) {
+        unsafe {
+            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
+        }
     }
 
     fn deferred_transcript_extraction(&self) {

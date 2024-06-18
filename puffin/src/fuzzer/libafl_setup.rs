@@ -12,8 +12,7 @@ use crate::{
     },
     log::{config_fuzzing, config_fuzzing_client},
     protocol::ProtocolBehavior,
-    put::PutDescriptor,
-    put_registry::PutRegistry,
+    put_registry::{PutDescriptor, PutRegistry},
     trace::Trace,
 };
 

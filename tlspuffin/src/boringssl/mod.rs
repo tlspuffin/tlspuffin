@@ -203,21 +203,12 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
         self.config.descriptor.name = new_name;
         self.deregister_claimer();
         self.stream.ssl_mut().clear();
-        self.register_claimer(new_name);
+        self.register_claimer();
         Ok(())
     }
 
     fn descriptor(&self) -> &AgentDescriptor {
         &self.config.descriptor
-    }
-
-    fn register_claimer(&mut self, agent_name: AgentName) {
-        self.set_msg_callback(Self::create_msg_callback(agent_name.clone(), &self.config))
-            .expect("Failed to set msg_callback to extract transcript");
-    }
-
-    fn deregister_claimer(&mut self) {
-        // TODO implement deregister_claimer for BoringSSL
     }
 
     fn describe_state(&self) -> &str {
@@ -251,10 +242,9 @@ impl BoringSSL {
             AgentType::Client => Self::create_client(agent_descriptor)?,
         };
         let stream = SslStream::new(ssl, MemoryStream::new(MessageDeframer::new()))?;
-        let agent_name = agent_descriptor.name;
         let mut boringssl = BoringSSL { config, stream };
 
-        boringssl.register_claimer(agent_name);
+        boringssl.register_claimer();
         Ok(boringssl)
     }
 
@@ -322,6 +312,15 @@ impl BoringSSL {
         Ok(ssl)
     }
 
+    fn register_claimer(&mut self) {
+        self.set_msg_callback(Self::create_msg_callback(&self.config))
+            .expect("Failed to set msg_callback to extract transcript");
+    }
+
+    fn deregister_claimer(&mut self) {
+        // TODO implement deregister_claimer for BoringSSL
+    }
+
     /// Set the msg_callback of BoringSSL
     ///
     /// Here we use a intermediate callback, `boring_msg_callback`, to call the
@@ -343,10 +342,8 @@ impl BoringSSL {
 
     /// This callback gets the actual hash transcript of the SSL handshake and
     /// add it to the claims
-    fn create_msg_callback(
-        agent_name: AgentName,
-        config: &TlsPutConfig,
-    ) -> impl Fn(&mut SslRef, i32) {
+    fn create_msg_callback(config: &TlsPutConfig) -> impl Fn(&mut SslRef, i32) {
+        let agent_name = config.descriptor.name;
         let origin = config.descriptor.typ;
         let protocol_version = config.descriptor.tls_version;
         let claims = config.claims.clone();

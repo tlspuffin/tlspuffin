@@ -33,8 +33,7 @@ use crate::{
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
-    put::PutDescriptor,
-    put_registry::PutRegistry,
+    put_registry::{PutDescriptor, PutRegistry},
     stream::Stream,
     variable_data::VariableData,
 };
@@ -231,8 +230,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
                 let factory = self
                     .put_registry()
-                    .puts()
-                    .find(|factory| factory.name() == put_descriptor.factory)
+                    .find_by_id(&put_descriptor.factory)
                     .ok_or_else(|| {
                         Error::Agent(format!(
                             "unable to find PUT {} factory in binary",

@@ -3,7 +3,7 @@ use std::time::Duration;
 use log::info;
 use puffin::{
     execution::{forked_execution, ExecutionStatus},
-    put::PutDescriptor,
+    put_registry::PutDescriptor,
     trace::{Trace, TraceContext, TraceExecutor},
 };
 

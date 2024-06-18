@@ -25,6 +25,12 @@ pub struct PutRegistry<PB> {
     factories: HashMap<String, Box<dyn Factory<PB>>>,
 }
 
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
+pub struct PutDescriptor {
+    pub factory: String,
+    pub options: PutOptions,
+}
+
 impl<PB: ProtocolBehavior> PartialEq for PutRegistry<PB> {
     fn eq(&self, other: &Self) -> bool {
         self.factories.len() == other.factories.len()

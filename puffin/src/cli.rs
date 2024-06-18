@@ -25,7 +25,7 @@ use crate::{
     log::config_default,
     protocol::{ProtocolBehavior, ProtocolMessage},
     put::PutOptions,
-    put_registry::{PutRegistry, TCP_PUT},
+    put_registry::{PutDescriptor, PutRegistry, TCP_PUT},
     trace::{Action, Trace, TraceContext, TraceExecutor},
 };
 
@@ -319,7 +319,6 @@ where
 
         context.execute(&trace).unwrap();
 
-        let server = AgentName::first();
         let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         info!("{}", shutdown);
 
@@ -454,8 +453,6 @@ fn seed<PB: ProtocolBehavior>(
     info!("Generated seed traces into the directory ./seeds");
     Ok(())
 }
-
-use crate::{agent::AgentName, put::PutDescriptor};
 
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     input: P,
