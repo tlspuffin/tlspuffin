@@ -14,6 +14,23 @@ categories.workspace = true
 [features]
 tls = []
 
+openssl111k = []
+openssl111j = []
+openssl111u = []
+openssl312 = []
+openssl101f = []
+openssl102u = []
+libressl333 = []
+wolfssl430 = []
+wolfssl510 = []
+wolfssl520 = []
+wolfssl530 = []
+wolfssl540 = []
+boringssl202311 = []
+boringssl202403 = []
+
+
+
 [dependencies]
 libc = { version = "0.2.126" }
 puffin = { path = "../../puffin" }

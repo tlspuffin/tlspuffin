@@ -8,6 +8,8 @@ mod bindings {
     include!(env!("RUST_BINDINGS_FILE"));
 }
 
+use std::collections::{HashMap, HashSet};
+
 pub use bindings::*;
 
 mod init {
@@ -166,4 +168,168 @@ impl From<CError> for Error {
     fn from(e: CError) -> Error {
         Error::Put(e.reason)
     }
+}
+
+pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
+    HashMap::from([
+        #[cfg(feature = "libressl333")]
+        (
+            "libressl333",
+            HashSet::from([
+                "tls12",
+                "tls13",
+                "tls12-session-resumption",
+                "deterministic",
+                "claims",
+                "transcript-extraction",
+            ]),
+        ),
+        #[cfg(feature = "openssl101f")]
+        (
+            "openssl101f",
+            HashSet::from(["tls12", "tls12-session-resumption", "deterministic"]),
+        ),
+        #[cfg(feature = "openssl102u")]
+        (
+            "openssl102u",
+            HashSet::from(["tls12", "tls12-session-resumption", "deterministic"]),
+        ),
+        #[cfg(feature = "openssl111j")]
+        (
+            "openssl111j",
+            HashSet::from([
+                "tls12",
+                "tls13",
+                "tls12-session-resumption",
+                "tls13-session-resumption",
+                "deterministic",
+                "claims",
+                "transcript-extraction",
+                "client-authentication-transcript-extraction",
+            ]),
+        ),
+        #[cfg(feature = "openssl111k")]
+        (
+            "openssl111k",
+            HashSet::from([
+                "tls12",
+                "tls13",
+                "tls12-session-resumption",
+                "tls13-session-resumption",
+                "deterministic",
+                "claims",
+                "transcript-extraction",
+                "client-authentication-transcript-extraction",
+            ]),
+        ),
+        #[cfg(feature = "openssl111u")]
+        (
+            "openssl111u",
+            HashSet::from([
+                "tls12",
+                "tls13",
+                "tls12-session-resumption",
+                "tls13-session-resumption",
+                "deterministic",
+                "claims",
+                "transcript-extraction",
+                "client-authentication-transcript-extraction",
+            ]),
+        ),
+        #[cfg(feature = "openssl312")]
+        (
+            "openssl312",
+            HashSet::from([
+                "tls12",
+                "tls13",
+                "tls12-session-resumption",
+                "tls13-session-resumption",
+                "deterministic",
+                "claims",
+                "transcript-extraction",
+                "client-authentication-transcript-extraction",
+            ]),
+        ),
+        #[cfg(feature = "wolfssl540")]
+        (
+            "wolfssl540",
+            HashSet::from([
+                "tls12",
+                "tls13",
+                "tls12-session-resumption",
+                "tls13-session-resumption",
+                "transcript-extraction",
+                "client-authentication-transcript-extraction",
+            ]),
+        ),
+        #[cfg(feature = "wolfssl530")]
+        (
+            "wolfssl530",
+            HashSet::from([
+                "tls12",
+                "tls13",
+                "tls12-session-resumption",
+                "tls13-session-resumption",
+                "transcript-extraction",
+                "client-authentication-transcript-extraction",
+            ]),
+        ),
+        #[cfg(feature = "wolfssl520")]
+        (
+            "wolfssl520",
+            HashSet::from([
+                "tls12",
+                "tls13",
+                "tls12-session-resumption",
+                "tls13-session-resumption",
+                "transcript-extraction",
+                "client-authentication-transcript-extraction",
+            ]),
+        ),
+        #[cfg(feature = "wolfssl510")]
+        (
+            "wolfssl510",
+            HashSet::from([
+                "tls12",
+                "tls13",
+                "tls12-session-resumption",
+                "tls13-session-resumption",
+                "transcript-extraction",
+                "client-authentication-transcript-extraction",
+            ]),
+        ),
+        #[cfg(feature = "wolfssl430")]
+        (
+            "wolfssl430",
+            HashSet::from(["tls12", "tls13", "transcript-extraction"]),
+        ),
+        #[cfg(feature = "boringssl202403")]
+        (
+            "boringssl202403",
+            HashSet::from([
+                "tls12",
+                "tls13",
+                "tls12-session-resumption",
+                "tls13-session-resumption",
+                "deterministic",
+                "claims",
+                "transcript-extraction",
+                "client-authentication-transcript-extraction",
+            ]),
+        ),
+        #[cfg(feature = "boringssl202311")]
+        (
+            "boringssl202311",
+            HashSet::from([
+                "tls12",
+                "tls13",
+                "tls12-session-resumption",
+                "tls13-session-resumption",
+                "deterministic",
+                "claims",
+                "transcript-extraction",
+                "client-authentication-transcript-extraction",
+            ]),
+        ),
+    ])
 }
