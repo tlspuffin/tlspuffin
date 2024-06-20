@@ -711,9 +711,8 @@ mod tests {
         let mut context = TraceContext::builder(&put_registry)
             .set_put(init_server, server_put.clone())
             .set_put(next_server, server_put)
-            .build();
-
-        context.execute(&trace).unwrap();
+            .execute(&trace)
+            .unwrap();
 
         let shutdown = context.find_agent_mut(next_server).unwrap().shutdown();
         log::info!("{}", shutdown);
@@ -735,9 +734,8 @@ mod tests {
         let server = trace.descriptors[0].name;
         let mut context = TraceContext::builder(&put_registry)
             .set_put(server, put)
-            .build();
-
-        context.execute(&trace).unwrap();
+            .execute(&trace)
+            .unwrap();
 
         let server = AgentName::first();
         let shutdown = context.find_agent_mut(server).unwrap().shutdown();
@@ -772,9 +770,8 @@ mod tests {
         let mut context = TraceContext::builder(&put_registry)
             .set_put(client_name, client)
             .set_put(server_name, server)
-            .build();
-
-        context.execute(&trace).unwrap();
+            .execute(&trace)
+            .unwrap();
 
         let client = AgentName::first();
         let shutdown = context.find_agent_mut(client).unwrap().shutdown();
@@ -814,9 +811,8 @@ mod tests {
         let mut context = TraceContext::builder(&put_registry)
             .set_put(client_name, client)
             .set_put(server_name, server)
-            .build();
-
-        context.execute(&trace).unwrap();
+            .execute(&trace)
+            .unwrap();
 
         let client = AgentName::first();
         let shutdown = context.find_agent_mut(client).unwrap().shutdown();

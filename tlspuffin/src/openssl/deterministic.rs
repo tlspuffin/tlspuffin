@@ -84,11 +84,8 @@ mod tests {
         let trace = seed_client_attacker_full.build_trace();
         let put_registry = tls_registry();
 
-        let mut ctx1 = TraceContext::builder(&put_registry).build();
-        let _ = ctx1.execute(&trace);
-
-        let mut ctx2 = TraceContext::builder(&put_registry).build();
-        let _ = ctx2.execute(&trace);
+        let ctx1 = TraceContext::builder(&put_registry).execute(&trace);
+        let ctx2 = TraceContext::builder(&put_registry).execute(&trace);
 
         assert_eq!(ctx1, ctx2);
     }

@@ -22,13 +22,16 @@ fn test_attacker_full_det_recreate() {
     let put_registry = tls_registry();
     let trace = seed_client_attacker_full_boring.build_trace();
 
-    let mut ctx_1 = TraceContext::builder(&put_registry).build();
-    ctx_1.execute(&trace).unwrap();
+    let ctx_1 = TraceContext::builder(&put_registry)
+        .execute(&trace)
+        .unwrap();
 
     for i in 0..200 {
         println!("Attempt #{i}...");
-        let mut ctx_2 = TraceContext::builder(&put_registry).build();
-        ctx_2.execute(&trace).unwrap();
+        let ctx_2 = TraceContext::builder(&put_registry)
+            .execute(&trace)
+            .unwrap();
+
         assert_eq!(ctx_1, ctx_2);
     }
 

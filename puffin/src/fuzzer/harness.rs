@@ -1,5 +1,4 @@
 use libafl::executors::ExitKind;
-use log::{info, trace, warn};
 use rand::Rng;
 
 use crate::{
@@ -15,10 +14,6 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     put: PutDescriptor,
     input: &Trace<PB::Matcher>,
 ) -> ExitKind {
-    let mut ctx = TraceContext::builder(put_registry)
-        .set_default_put(put)
-        .build();
-
     TRACE_LENGTH.update(input.steps.len());
 
     for step in &input.steps {
@@ -30,7 +25,10 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         }
     }
 
-    if let Err(err) = ctx.execute(input) {
+    if let Err(err) = TraceContext::builder(put_registry)
+        .set_default_put(put)
+        .execute(input)
+    {
         match &err {
             Error::Fn(_) => FN_ERROR.increment(),
             Error::Term(_e) => TERM.increment(),
@@ -40,12 +38,12 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
             Error::Stream(_) => STREAM.increment(),
             Error::Extraction() => EXTRACTION.increment(),
             Error::SecurityClaim(msg) => {
-                warn!("{}", msg);
+                log::warn!("{}", msg);
                 std::process::abort()
             }
         }
 
-        trace!("{}", err);
+        log::trace!("{}", err);
     }
 
     ExitKind::Ok
@@ -56,7 +54,7 @@ pub fn dummy_harness<PB: ProtocolBehavior + 'static>(_input: &Trace<PB::Matcher>
     let mut rng = rand::thread_rng();
 
     let n1 = rng.gen_range(0..10);
-    info!("Run {}", n1);
+    log::info!("Run {}", n1);
     if n1 <= 5 {
         return ExitKind::Timeout;
     }
