@@ -16,13 +16,16 @@ use crate::{
     debug::{debug_message_with_info, debug_opaque_message_with_info},
     query::TlsQueryMatcher,
     tls::{
-        rustls::{
-            msgs,
-            msgs::{
-                deframer::MessageDeframer,
-                handshake::{HandshakePayload, ServerKeyExchangePayload},
-                message::{Message, MessagePayload, OpaqueMessage},
+        rustls::msgs::{
+            self,
+            base::Payload,
+            deframer::MessageDeframer,
+            handshake::{
+                CertificatePayload, ClientHelloPayload, ECDHEServerKeyExchange,
+                HandshakeMessagePayload, HandshakePayload, NewSessionTicketPayload,
+                ServerHelloPayload, ServerKeyExchangePayload,
             },
+            message::{Message, MessagePayload, OpaqueMessage},
         },
         seeds::create_corpus,
         violation::TlsSecurityViolationPolicy,
@@ -196,228 +199,320 @@ impl ExtractKnowledge<TlsQueryMatcher> for Message {
         _: Option<TlsQueryMatcher>,
         source: &Source,
     ) -> Result<(), Error> {
-        match &self.payload {
-            MessagePayload::Alert(alert) => {
-                let matcher = TlsQueryMatcher::Alert;
+        let matcher = match &self.payload {
+            MessagePayload::Alert(_) => Some(TlsQueryMatcher::Alert),
+            MessagePayload::Handshake(hs) => Some(TlsQueryMatcher::Handshake(Some(hs.typ))),
+            MessagePayload::ChangeCipherSpec(_) => None,
+            MessagePayload::ApplicationData(_) => Some(TlsQueryMatcher::ApplicationData),
+            MessagePayload::Heartbeat(_) => Some(TlsQueryMatcher::Heartbeat),
+            MessagePayload::TLS12EncryptedHandshake(_) => Some(TlsQueryMatcher::Handshake(None)),
+        };
 
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
+
+        self.payload
+            .extract_knowledge(knowledges, matcher, source)?;
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for MessagePayload {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        match &self {
+            MessagePayload::Alert(alert) => {
                 knowledges.push(Knowledge {
                     source: source.clone(),
-                    matcher: Some(matcher),
-                    data: Box::new(self.clone()),
-                });
-                knowledges.push(Knowledge {
-                    source: source.clone(),
-                    matcher: Some(matcher),
+                    matcher,
                     data: Box::new(alert.description),
                 });
                 knowledges.push(Knowledge {
                     source: source.clone(),
-                    matcher: Some(matcher),
+                    matcher,
                     data: Box::new(alert.level),
                 });
             }
-            MessagePayload::Handshake(hs) => {
-                let matcher = TlsQueryMatcher::Handshake(Some(hs.typ));
-                knowledges.push(Knowledge {
-                    source: source.clone(),
-                    matcher: Some(matcher),
-                    data: Box::new(self.clone()),
-                });
-                match &hs.payload {
-                    HandshakePayload::HelloRequest => {
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(hs.typ),
-                        });
-                    }
-                    HandshakePayload::ClientHello(ch) => {
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(hs.typ),
-                        });
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(ch.random),
-                        });
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(ch.session_id),
-                        });
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(ch.client_version),
-                        });
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(ch.extensions.clone()),
-                        });
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(ch.compression_methods.clone()),
-                        });
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(ch.cipher_suites.clone()),
-                        });
-
-                        knowledges.extend(ch.extensions.iter().map(|extension| Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(extension.clone()) as Box<dyn VariableData>,
-                        }));
-                        knowledges.extend(ch.compression_methods.iter().map(|compression| {
-                            Knowledge {
-                                source: source.clone(),
-                                matcher: Some(matcher),
-                                data: Box::new(*compression) as Box<dyn VariableData>,
-                            }
-                        }));
-                        knowledges.extend(ch.cipher_suites.iter().map(|cipher_suite| Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(*cipher_suite) as Box<dyn VariableData>,
-                        }));
-                    }
-                    HandshakePayload::ServerHello(sh) => {
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(hs.typ),
-                        });
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(sh.random),
-                        });
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(sh.session_id),
-                        });
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(sh.cipher_suite),
-                        });
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(sh.compression_method),
-                        });
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(sh.legacy_version),
-                        });
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(sh.extensions.clone()),
-                        });
-
-                        knowledges.extend(sh.extensions.iter().map(|extension| Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(extension.clone()) as Box<dyn VariableData>,
-                        }));
-                    }
-                    HandshakePayload::Certificate(c) => {
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(c.0.clone()),
-                        });
-                    }
-                    HandshakePayload::ServerKeyExchange(ske) => match ske {
-                        ServerKeyExchangePayload::ECDHE(ecdhe) => {
-                            // this path wont be taken because we do not know the key exchange algorithm
-                            // in advance
-                            knowledges.push(Knowledge {
-                                source: source.clone(),
-                                matcher: Some(matcher),
-                                data: Box::new(ecdhe.clone()),
-                            });
-                        }
-                        ServerKeyExchangePayload::Unknown(unknown) => {
-                            knowledges.push(Knowledge {
-                                source: source.clone(),
-                                matcher: Some(matcher),
-                                data: Box::new(unknown.0.clone()),
-                            });
-                        }
-                    },
-                    HandshakePayload::ServerHelloDone => {}
-                    HandshakePayload::ClientKeyExchange(cke) => {
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(cke.0.clone()),
-                        });
-                    }
-                    HandshakePayload::NewSessionTicket(ticket) => {
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(ticket.lifetime_hint as u64),
-                        });
-                        knowledges.push(Knowledge {
-                            source: source.clone(),
-                            matcher: Some(matcher),
-                            data: Box::new(ticket.ticket.0.clone()),
-                        });
-                    }
-                    _ => return Err(Error::Extraction()),
-                }
-            }
+            MessagePayload::Handshake(hs) => hs.extract_knowledge(knowledges, matcher, source)?,
             MessagePayload::ChangeCipherSpec(_ccs) => {}
             MessagePayload::ApplicationData(opaque) => {
-                let matcher = TlsQueryMatcher::ApplicationData;
                 knowledges.push(Knowledge {
                     source: source.clone(),
-                    matcher: Some(matcher),
-                    data: Box::new(self.clone()),
-                });
-                knowledges.push(Knowledge {
-                    source: source.clone(),
-                    matcher: Some(matcher),
+                    matcher,
                     data: Box::new(opaque.0.clone()),
                 });
             }
             MessagePayload::Heartbeat(h) => {
-                let matcher = TlsQueryMatcher::Heartbeat;
                 knowledges.push(Knowledge {
                     source: source.clone(),
-                    matcher: Some(matcher),
-                    data: Box::new(self.clone()),
-                });
-                knowledges.push(Knowledge {
-                    source: source.clone(),
-                    matcher: Some(matcher),
+                    matcher,
                     data: Box::new(h.payload.0.clone()),
                 });
             }
             MessagePayload::TLS12EncryptedHandshake(tls12encrypted) => {
-                let matcher = TlsQueryMatcher::Handshake(None);
                 knowledges.push(Knowledge {
                     source: source.clone(),
-                    matcher: Some(matcher),
-                    data: Box::new(self.clone()),
-                });
-                knowledges.push(Knowledge {
-                    source: source.clone(),
-                    matcher: Some(matcher),
+                    matcher,
                     data: Box::new(tls12encrypted.0.clone()),
                 });
             }
         }
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for HandshakeMessagePayload {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.typ),
+        });
+        self.payload
+            .extract_knowledge(knowledges, matcher, source)?;
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for HandshakePayload {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        match &self {
+            HandshakePayload::HelloRequest => {}
+            HandshakePayload::ClientHello(ch) => {
+                ch.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::ServerHello(sh) => {
+                sh.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::Certificate(c) => {
+                c.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::ServerKeyExchange(ske) => {
+                ske.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::ServerHelloDone => {}
+            HandshakePayload::ClientKeyExchange(cke) => {
+                cke.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::NewSessionTicket(ticket) => {
+                ticket.extract_knowledge(knowledges, matcher, source)?;
+            }
+            _ => return Err(Error::Extraction()),
+        }
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for CertificatePayload {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.0.clone()),
+        });
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for ServerKeyExchangePayload {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        match self {
+            ServerKeyExchangePayload::ECDHE(ecdhe) => {
+                // this path wont be taken because we do not know the key exchange algorithm
+                // in advance
+                ecdhe.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ServerKeyExchangePayload::Unknown(unknown) => {
+                unknown.extract_knowledge(knowledges, matcher, source)?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for ECDHEServerKeyExchange {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for Payload {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.0.clone()),
+        });
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for ClientHelloPayload {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.random),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.session_id),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.client_version),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.extensions.clone()),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.compression_methods.clone()),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.cipher_suites.clone()),
+        });
+
+        knowledges.extend(self.extensions.iter().map(|extension| Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(extension.clone()) as Box<dyn VariableData>,
+        }));
+        knowledges.extend(
+            self.compression_methods
+                .iter()
+                .map(|compression| Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(*compression) as Box<dyn VariableData>,
+                }),
+        );
+        knowledges.extend(self.cipher_suites.iter().map(|cipher_suite| Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(*cipher_suite) as Box<dyn VariableData>,
+        }));
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for NewSessionTicketPayload {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.lifetime_hint as u64),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.ticket.0.clone()),
+        });
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for ServerHelloPayload {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.random),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.session_id),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.cipher_suite),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.compression_method),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.legacy_version),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.extensions.clone()),
+        });
+        knowledges.extend(self.extensions.iter().map(|extension| Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(extension.clone()) as Box<dyn VariableData>,
+        }));
         Ok(())
     }
 }
