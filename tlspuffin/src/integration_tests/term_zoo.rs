@@ -62,6 +62,7 @@ mod tests {
 
     pub fn ignore_gen() -> HashSet<String> {
         [
+            // As expected, attacker cannot use them as there is no adversarial 'Transcript*Finished'
             fn_server_finished_transcript.name(),
             fn_client_finished_transcript.name(),
             fn_server_hello_transcript.name(),
@@ -80,9 +81,8 @@ mod tests {
     pub fn ignore_lazy() -> HashSet<String> {
         let mut ignore_gen = ignore_gen();
         let ignore_lazy = [
-            // Those 4 are the function symbols for which we can generate a term but all fail to lazy execute!
-            fn_ecdsa_sign_server.name(),
-            fn_ecdsa_sign_client.name(),
+            // Those 2 are the function symbols for which we can generate a term but all fail to lazy execute!
+            // Indeed the HandshakeHash that must be given must be computed in a very specific way! We might give known,valid hash-transcript to help?
             fn_decrypt_handshake.name(),
             fn_decrypt_application.name(),
             // Additional failures: we need to be able to decrypt some server's message, very complicated in practice
@@ -451,7 +451,7 @@ mod tests {
 
     #[cfg(all(feature = "tls13", feature = "deterministic"))] // require version which supports TLS 1.3
     #[test]
-    #[test_log::test]
+    // #[test_log::test]
     // #[ignore]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
     fn test_term_payloads_eval() {
@@ -471,7 +471,7 @@ mod tests {
             let zoo = TermZoo::<TlsQueryMatcher>::generate_many(
                 &TLS_SIGNATURE,
                 &mut rand,
-                1000,
+                2000,
                 Some(&f),
             );
             let terms = zoo.terms();
@@ -598,14 +598,14 @@ mod tests {
         successfully_built_functions.extend(ignored_functions.clone());
 
         let difference = all_functions.difference(&successfully_built_functions);
-        debug!("Diff: {:?}\n", &difference);
+        error!("Diff: {:?}\n", &difference);
         let difference_inverse = successfully_built_functions_0.intersection(&ignored_functions);
-        debug!("Intersec with ignored: {:?}\n", &difference_inverse);
-        debug!(
+        error!("Intersec with ignored: {:?}\n", &difference_inverse);
+        error!(
             "Successfully built: #{:?}",
             &successfully_built_functions.len()
         );
-        debug!("All functions: #{:?}", &all_functions.len());
+        error!("All functions: #{:?}", &all_functions.len());
         error!("number_shapes: {}, number_terms: {}, eval_count: {}, count_payload_fail: {count_payload_fail}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_shapes, number_terms, eval_count);
         assert_eq!(difference.count(), 0);
         assert_eq!(difference_inverse.count(), 0);
@@ -651,7 +651,7 @@ mod tests {
 
     #[cfg(all(feature = "tls13", feature = "deterministic"))] // require version which supports TLS 1.3
     #[test]
-    #[test_log::test]
+    // #[test_log::test]
     // #[ignore]
     /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
     fn test_term_read_encode() {

@@ -263,6 +263,7 @@ define_signature!(
     fn_alice_key
     fn_eve_cert
     fn_random_ec_cert
+    fn_random_ec_key
     fn_certificate_entry
     fn_empty_certificate_chain
     fn_append_certificate_entry
