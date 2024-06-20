@@ -37,12 +37,10 @@ pub fn expect_trace_crash(
             log::debug!("expect_trace_crash at retry {}", i);
             forked_execution(
                 || {
-                    let mut context = TraceContext::builder(&tls_registry())
+                    // NOTE we ignore Rust errors because we expect a crash
+                    let _ = TraceContext::builder(&tls_registry())
                         .set_default_put(put.clone())
-                        .build();
-
-                    // NOTE: we ignore Rust errors because we expect a crash
-                    let _ = context.execute(&trace.clone());
+                        .execute(&trace.clone());
                 },
                 timeout,
             )

@@ -46,8 +46,9 @@ use crate::{
 
 pub trait TraceExecutor {
     type Matcher: Matcher;
+    type PB: ProtocolBehavior<Matcher = Self::Matcher>;
 
-    fn execute(self, trace: &Trace<Self::Matcher>) -> Result<(), Error>;
+    fn execute(self, trace: &Trace<Self::Matcher>) -> Result<TraceContext<Self::PB>, Error>;
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
@@ -233,50 +234,14 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     phantom: PhantomData<PB>,
 }
 
-impl<PB: ProtocolBehavior> TraceExecutor for &mut TraceContext<PB> {
-    type Matcher = PB::Matcher;
-
-    fn execute(self, trace: &Trace<Self::Matcher>) -> Result<(), Error> {
-        let mut pool: Vec<Agent<PB>> = self.get_agents();
-
-        // We reseed all PUTs' PRNG before executing a trace!
-        self.put_registry.determinism_reseed_all_factories();
-
-        for p in &trace.prior_traces {
-            self.execute(p)?;
-
-            // release agents, keep them for reuse in the pool
-            pool.extend(self.get_agents().into_iter());
-        }
-
-        self.spawn_agents(&mut pool, trace)?;
-        let steps = &trace.steps;
-        for (i, step) in steps.iter().enumerate() {
-            log::debug!("Executing step #{}", i);
-
-            step.execute(self)?;
-
-            // Output after each InputAction step
-            if let Action::Input(_) = step.action {
-                let output_step = OutputAction::<PB::Matcher>::new_step(step.agent);
-
-                output_step.execute(self)?;
-            }
-
-            self.claims.deref_borrow().log();
-
-            self.verify_security_violations()?;
-        }
-
-        Ok(())
-    }
-}
-
 impl<'a, PB: ProtocolBehavior> TraceExecutor for TraceContextBuilder<'a, PB> {
+    type PB = PB;
     type Matcher = PB::Matcher;
 
-    fn execute(self, trace: &Trace<Self::Matcher>) -> Result<(), Error> {
-        self.build().execute(trace)
+    fn execute(self, trace: &Trace<Self::Matcher>) -> Result<TraceContext<PB>, Error> {
+        let mut context = self.build();
+        context.execute_one(trace)?;
+        Ok(context)
     }
 }
 
@@ -312,8 +277,8 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     pub fn new(put_registry: &PutRegistry<PB>, default_put: PutDescriptor) -> Self {
-        // We keep a global list of all claims throughout the execution. Each claim is identified
-        // by the AgentName.
+        // We keep a global list of all claims throughout the execution. Each claim is indexed by
+        // the AgentName.
         let claims = GlobalClaimList::new();
 
         Self {
@@ -325,6 +290,41 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             put_descriptors: Default::default(),
             phantom: Default::default(),
         }
+    }
+
+    fn execute_one(&mut self, trace: &Trace<PB::Matcher>) -> Result<(), Error> {
+        let mut pool: Vec<Agent<PB>> = self.get_agents();
+
+        // We reseed all PUTs' PRNG before executing a trace!
+        self.put_registry.determinism_reseed_all_factories();
+
+        for p in &trace.prior_traces {
+            self.execute_one(p)?;
+
+            // release agents, keep them for reuse in the pool
+            pool.extend(self.get_agents().into_iter());
+        }
+
+        self.spawn_agents(&mut pool, trace)?;
+        let steps = &trace.steps;
+        for (i, step) in steps.iter().enumerate() {
+            log::debug!("Executing step #{}", i);
+
+            step.execute(self)?;
+
+            // Output after each InputAction step
+            if let Action::Input(_) = step.action {
+                let output_step = OutputAction::<PB::Matcher>::new_step(step.agent);
+
+                output_step.execute(self)?;
+            }
+
+            self.claims.deref_borrow().log();
+
+            self.verify_security_violations()?;
+        }
+
+        Ok(())
     }
 
     fn spawn_agents(
@@ -515,7 +515,7 @@ impl<'a, PB: ProtocolBehavior> TraceContextBuilder<'a, PB> {
         self
     }
 
-    pub fn build(mut self) -> TraceContext<PB> {
+    fn build(mut self) -> TraceContext<PB> {
         let mut result = TraceContext::new(self.registry, self.default_put);
         result.knowledge_store.knowledge.append(&mut self.knowledge);
         result.put_descriptors.extend(self.put_descriptors);

@@ -23,17 +23,14 @@ impl<A, H: TraceHelper<A>> TraceHelperExecutor<A> for H {
     }
 
     fn execute_with<S: AsRef<str> + ?Sized>(self, put: &S) -> TraceContext<TLSProtocolBehavior> {
-        let put_registry = tls_registry();
         let put = PutDescriptor {
             factory: put.as_ref().to_owned(),
             options: Default::default(),
         };
-        let mut context = TraceContext::builder(&put_registry)
+        TraceContext::builder(&tls_registry())
             .set_default_put(put)
-            .build();
-
-        context.execute(&self.build_trace()).unwrap();
-        context
+            .execute(&self.build_trace())
+            .unwrap()
     }
 }
 

@@ -314,9 +314,8 @@ where
         let server = trace.descriptors[0].name;
         let mut context = TraceContext::builder(&put_registry)
             .set_put(server, put)
-            .build();
-
-        context.execute(&trace).unwrap();
+            .execute(&trace)
+            .unwrap();
 
         let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         log::info!("{}", shutdown);
@@ -472,11 +471,10 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
     let status = forked_execution(
         move || {
-            let mut ctx = TraceContext::builder(put_registry)
-                .set_default_put(put.clone())
-                .build();
-
-            if let Err(err) = ctx.execute(&trace) {
+            if let Err(err) = TraceContext::builder(put_registry)
+                .set_default_put(put)
+                .execute(&trace)
+            {
                 log::error!(
                     "Failed to execute trace {}: {:?}",
                     input.as_ref().display(),

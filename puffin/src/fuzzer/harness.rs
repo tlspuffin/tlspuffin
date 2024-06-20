@@ -14,10 +14,6 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     put: PutDescriptor,
     input: &Trace<PB::Matcher>,
 ) -> ExitKind {
-    let mut ctx = TraceContext::builder(put_registry)
-        .set_default_put(put)
-        .build();
-
     TRACE_LENGTH.update(input.steps.len());
 
     for step in &input.steps {
@@ -29,7 +25,10 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         }
     }
 
-    if let Err(err) = ctx.execute(input) {
+    if let Err(err) = TraceContext::builder(put_registry)
+        .set_default_put(put)
+        .execute(input)
+    {
         match &err {
             Error::Fn(_) => FN_ERROR.increment(),
             Error::Term(_e) => TERM.increment(),
