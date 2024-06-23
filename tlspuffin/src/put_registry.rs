@@ -6,6 +6,10 @@ pub const OPENSSL_RUST_PUT: &str = "rust-put-openssl";
 pub const WOLFSSL_RUST_PUT: &str = "rust-put-wolfssl";
 pub const BORINGSSL_RUST_PUT: &str = "rust-put-boringssl";
 
+pub mod macros {
+    include!(env!("TLSPUFFIN_MACROS_RS"));
+}
+
 pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     PutRegistry::new(
         tls_harness::tls_puts()

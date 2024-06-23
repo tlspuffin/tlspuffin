@@ -16,6 +16,11 @@ tls = []
 
 cputs = []
 
+asan = []
+sancov = []
+gcov = []
+llvm_cov = []
+
 openssl111k = []
 openssl111j = []
 openssl111u = []
@@ -30,6 +35,12 @@ wolfssl530 = []
 wolfssl540 = []
 boringssl202311 = []
 boringssl202403 = []
+
+wolfssl_fix_CVE_2022_25638 = []
+wolfssl_fix_CVE_2022_25640 = []
+wolfssl_fix_CVE_2022_39173 = []
+wolfssl_fix_CVE_2022_42905 = []
+wolfssl_disable_postauth = []
 
 [dependencies]
 libc = { version = "0.2.126" }
