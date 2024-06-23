@@ -3,6 +3,8 @@ use std::{
     fmt::{Debug, Formatter},
 };
 
+use itertools::Itertools;
+
 use crate::{
     agent::AgentDescriptor,
     claims::GlobalClaimList,
@@ -44,7 +46,9 @@ impl<PB: ProtocolBehavior> PartialEq for PutRegistry<PB> {
 impl<PB: ProtocolBehavior> Debug for PutRegistry<PB> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.write_str("PutRegistry(")?;
-        f.debug_list().entries(self.factories.keys()).finish()?;
+        f.debug_list()
+            .entries(self.factories.keys().sorted())
+            .finish()?;
         f.write_str(")")?;
         Ok(())
     }

@@ -1,5 +1,5 @@
 use core::ffi::c_void;
-use std::{cell::RefCell, collections::HashSet, io::ErrorKind, rc::Rc};
+use std::{cell::RefCell, io::ErrorKind, rc::Rc};
 
 use boring::{
     error::ErrorStack,
@@ -87,7 +87,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn name(&self) -> String {
-            BORINGSSL_RUST_PUT.to_owned()
+            self.preset.clone()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -104,31 +104,10 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn supports(&self, capability: &str) -> bool {
-            let capabilities = match self.preset.as_str() {
-                "boringssl202403" => HashSet::from([
-                    "tls12",
-                    "tls13",
-                    "tls12-session-resumption",
-                    "tls13-session-resumption",
-                    "deterministic",
-                    "claims",
-                    "transcript-extraction",
-                    "client-authentication-transcript-extraction",
-                ]),
-                "boringssl202311" => HashSet::from([
-                    "tls12",
-                    "tls13",
-                    "tls12-session-resumption",
-                    "tls13-session-resumption",
-                    "deterministic",
-                    "claims",
-                    "transcript-extraction",
-                    "client-authentication-transcript-extraction",
-                ]),
-                _ => panic!("unknown BoringSSL preset: {}", self.preset),
-            };
-
-            capabilities.contains(capability)
+            tls_harness::tls_puts()
+                .get(self.preset.as_str())
+                .map(|caps| caps.contains(capability))
+                .unwrap_or(false)
         }
 
         fn determinism_reseed(&self) {

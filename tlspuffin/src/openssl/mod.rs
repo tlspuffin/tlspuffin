@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::HashSet, io::ErrorKind, rc::Rc};
+use std::{cell::RefCell, io::ErrorKind, rc::Rc};
 
 use openssl::{
     error::ErrorStack,
@@ -69,7 +69,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn name(&self) -> String {
-            OPENSSL_RUST_PUT.to_owned()
+            self.preset.clone()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -86,65 +86,10 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn supports(&self, capability: &str) -> bool {
-            let capabilities = match self.preset.as_str() {
-                "libressl333" => HashSet::from([
-                    "tls12",
-                    "tls13",
-                    "tls12-session-resumption",
-                    "deterministic",
-                    "claims",
-                    "transcript-extraction",
-                ]),
-                "openssl101f" => {
-                    HashSet::from(["tls12", "tls12-session-resumption", "deterministic"])
-                }
-                "openssl102u" => {
-                    HashSet::from(["tls12", "tls12-session-resumption", "deterministic"])
-                }
-                "openssl111j" => HashSet::from([
-                    "tls12",
-                    "tls13",
-                    "tls12-session-resumption",
-                    "tls13-session-resumption",
-                    "deterministic",
-                    "claims",
-                    "transcript-extraction",
-                    "client-authentication-transcript-extraction",
-                ]),
-                "openssl111k" => HashSet::from([
-                    "tls12",
-                    "tls13",
-                    "tls12-session-resumption",
-                    "tls13-session-resumption",
-                    "deterministic",
-                    "claims",
-                    "transcript-extraction",
-                    "client-authentication-transcript-extraction",
-                ]),
-                "openssl111u" => HashSet::from([
-                    "tls12",
-                    "tls13",
-                    "tls12-session-resumption",
-                    "tls13-session-resumption",
-                    "deterministic",
-                    "claims",
-                    "transcript-extraction",
-                    "client-authentication-transcript-extraction",
-                ]),
-                "openssl312" => HashSet::from([
-                    "tls12",
-                    "tls13",
-                    "tls12-session-resumption",
-                    "tls13-session-resumption",
-                    "deterministic",
-                    "claims",
-                    "transcript-extraction",
-                    "client-authentication-transcript-extraction",
-                ]),
-                _ => panic!("unknown OpenSSL preset: {}", self.preset),
-            };
-
-            capabilities.contains(capability)
+            tls_harness::tls_puts()
+                .get(self.preset.as_str())
+                .map(|caps| caps.contains(capability))
+                .unwrap_or(false)
         }
 
         fn determinism_reseed(&self) {

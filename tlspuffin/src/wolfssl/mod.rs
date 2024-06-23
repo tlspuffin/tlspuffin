@@ -1,6 +1,6 @@
 #![allow(non_snake_case)]
 
-use std::{cell::RefCell, collections::HashSet, io::ErrorKind, ops::Deref, rc::Rc};
+use std::{cell::RefCell, io::ErrorKind, ops::Deref, rc::Rc};
 
 use foreign_types::ForeignType;
 use puffin::{
@@ -95,44 +95,10 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn supports(&self, capability: &str) -> bool {
-            let capabilities = match self.preset.as_str() {
-                "wolfssl540" => HashSet::from([
-                    "tls12",
-                    "tls13",
-                    "tls12_session_resumption",
-                    "tls13_session_resumption",
-                    "transcript_extraction",
-                    "client_authentication_transcript_extraction",
-                ]),
-                "wolfssl530" => HashSet::from([
-                    "tls12",
-                    "tls13",
-                    "tls12_session_resumption",
-                    "tls13_session_resumption",
-                    "transcript_extraction",
-                    "client_authentication_transcript_extraction",
-                ]),
-                "wolfssl520" => HashSet::from([
-                    "tls12",
-                    "tls13",
-                    "tls12_session_resumption",
-                    "tls13_session_resumption",
-                    "transcript_extraction",
-                    "client_authentication_transcript_extraction",
-                ]),
-                "wolfssl510" => HashSet::from([
-                    "tls12",
-                    "tls13",
-                    "tls12_session_resumption",
-                    "tls13_session_resumption",
-                    "transcript_extraction",
-                    "client_authentication_transcript_extraction",
-                ]),
-                "wolfssl430" => HashSet::from(["tls12", "tls13", "transcript_extraction"]),
-                _ => panic!("unknown wolfSSL preset: {}", self.preset),
-            };
-
-            capabilities.contains(capability)
+            tls_harness::tls_puts()
+                .get(self.preset.as_str())
+                .map(|caps| caps.contains(capability))
+                .unwrap_or(false)
         }
 
         fn determinism_reseed(&self) {

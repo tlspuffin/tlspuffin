@@ -178,21 +178,58 @@ pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from([
                 "tls12",
                 "tls13",
-                "tls12-session-resumption",
+                "tls12_session_resumption",
                 "deterministic",
                 "claims",
-                "transcript-extraction",
+                "transcript_extraction",
+                "openssl_binding",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
             ]),
         ),
         #[cfg(feature = "openssl101f")]
         (
             "openssl101f",
-            HashSet::from(["tls12", "tls12-session-resumption", "deterministic"]),
+            HashSet::from([
+                "tls12",
+                "tls12_session_resumption",
+                "deterministic",
+                "openssl_binding",
+                "openssl101_binding",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
+            ]),
         ),
         #[cfg(feature = "openssl102u")]
         (
             "openssl102u",
-            HashSet::from(["tls12", "tls12-session-resumption", "deterministic"]),
+            HashSet::from([
+                "tls12",
+                "tls12_session_resumption",
+                "deterministic",
+                "openssl_binding",
+                "openssl102_binding",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
+            ]),
         ),
         #[cfg(feature = "openssl111j")]
         (
@@ -200,12 +237,22 @@ pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from([
                 "tls12",
                 "tls13",
-                "tls12-session-resumption",
-                "tls13-session-resumption",
+                "tls12_session_resumption",
+                "tls13_session_resumption",
                 "deterministic",
                 "claims",
-                "transcript-extraction",
-                "client-authentication-transcript-extraction",
+                "transcript_extraction",
+                "client_authentication_transcript_extraction",
+                "openssl_binding",
+                "openssl111_binding",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
             ]),
         ),
         #[cfg(feature = "openssl111k")]
@@ -214,12 +261,22 @@ pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from([
                 "tls12",
                 "tls13",
-                "tls12-session-resumption",
-                "tls13-session-resumption",
+                "tls12_session_resumption",
+                "tls13_session_resumption",
                 "deterministic",
                 "claims",
-                "transcript-extraction",
-                "client-authentication-transcript-extraction",
+                "transcript_extraction",
+                "client_authentication_transcript_extraction",
+                "openssl_binding",
+                "openssl111_binding",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
             ]),
         ),
         #[cfg(feature = "openssl111u")]
@@ -228,12 +285,22 @@ pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from([
                 "tls12",
                 "tls13",
-                "tls12-session-resumption",
-                "tls13-session-resumption",
+                "tls12_session_resumption",
+                "tls13_session_resumption",
                 "deterministic",
                 "claims",
-                "transcript-extraction",
-                "client-authentication-transcript-extraction",
+                "transcript_extraction",
+                "client_authentication_transcript_extraction",
+                "openssl_binding",
+                "openssl111_binding",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
             ]),
         ),
         #[cfg(feature = "openssl312")]
@@ -242,12 +309,22 @@ pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from([
                 "tls12",
                 "tls13",
-                "tls12-session-resumption",
-                "tls13-session-resumption",
+                "tls12_session_resumption",
+                "tls13_session_resumption",
                 "deterministic",
                 "claims",
-                "transcript-extraction",
-                "client-authentication-transcript-extraction",
+                "transcript_extraction",
+                "client_authentication_transcript_extraction",
+                "openssl_binding",
+                "openssl111_binding",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
             ]),
         ),
         #[cfg(feature = "wolfssl540")]
@@ -256,10 +333,30 @@ pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from([
                 "tls12",
                 "tls13",
-                "tls12-session-resumption",
-                "tls13-session-resumption",
-                "transcript-extraction",
-                "client-authentication-transcript-extraction",
+                "tls12_session_resumption",
+                "tls13_session_resumption",
+                "transcript_extraction",
+                "client_authentication_transcript_extraction",
+                "wolfssl_binding",
+                "wolfssl_binding5xx",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_25638")]
+                "wolfssl_fix_CVE_2022_25638",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_25640")]
+                "wolfssl_fix_CVE_2022_25640",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_39173")]
+                "wolfssl_fix_CVE_2022_39173",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_42905")]
+                "wolfssl_fix_CVE_2022_42905",
+                #[cfg(feature = "wolfssl_disable_postauth")]
+                "wolfssl_disable_postauth",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
             ]),
         ),
         #[cfg(feature = "wolfssl530")]
@@ -268,10 +365,30 @@ pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from([
                 "tls12",
                 "tls13",
-                "tls12-session-resumption",
-                "tls13-session-resumption",
-                "transcript-extraction",
-                "client-authentication-transcript-extraction",
+                "tls12_session_resumption",
+                "tls13_session_resumption",
+                "transcript_extraction",
+                "client_authentication_transcript_extraction",
+                "wolfssl_binding",
+                "wolfssl_binding5xx",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_25638")]
+                "wolfssl_fix_CVE_2022_25638",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_25640")]
+                "wolfssl_fix_CVE_2022_25640",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_39173")]
+                "wolfssl_fix_CVE_2022_39173",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_42905")]
+                "wolfssl_fix_CVE_2022_42905",
+                #[cfg(feature = "wolfssl_disable_postauth")]
+                "wolfssl_disable_postauth",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
             ]),
         ),
         #[cfg(feature = "wolfssl520")]
@@ -280,10 +397,30 @@ pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from([
                 "tls12",
                 "tls13",
-                "tls12-session-resumption",
-                "tls13-session-resumption",
-                "transcript-extraction",
-                "client-authentication-transcript-extraction",
+                "tls12_session_resumption",
+                "tls13_session_resumption",
+                "transcript_extraction",
+                "client_authentication_transcript_extraction",
+                "wolfssl_binding",
+                "wolfssl_binding5xx",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_25638")]
+                "wolfssl_fix_CVE_2022_25638",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_25640")]
+                "wolfssl_fix_CVE_2022_25640",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_39173")]
+                "wolfssl_fix_CVE_2022_39173",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_42905")]
+                "wolfssl_fix_CVE_2022_42905",
+                #[cfg(feature = "wolfssl_disable_postauth")]
+                "wolfssl_disable_postauth",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
             ]),
         ),
         #[cfg(feature = "wolfssl510")]
@@ -292,16 +429,60 @@ pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from([
                 "tls12",
                 "tls13",
-                "tls12-session-resumption",
-                "tls13-session-resumption",
-                "transcript-extraction",
-                "client-authentication-transcript-extraction",
+                "tls12_session_resumption",
+                "tls13_session_resumption",
+                "transcript_extraction",
+                "client_authentication_transcript_extraction",
+                "wolfssl_binding",
+                "wolfssl_binding5xx",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_25638")]
+                "wolfssl_fix_CVE_2022_25638",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_25640")]
+                "wolfssl_fix_CVE_2022_25640",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_39173")]
+                "wolfssl_fix_CVE_2022_39173",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_42905")]
+                "wolfssl_fix_CVE_2022_42905",
+                #[cfg(feature = "wolfssl_disable_postauth")]
+                "wolfssl_disable_postauth",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
             ]),
         ),
         #[cfg(feature = "wolfssl430")]
         (
             "wolfssl430",
-            HashSet::from(["tls12", "tls13", "transcript-extraction"]),
+            HashSet::from([
+                "tls12",
+                "tls13",
+                "transcript_extraction",
+                "wolfssl_binding",
+                "wolfssl_binding4xx",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_25638")]
+                "wolfssl_fix_CVE_2022_25638",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_25640")]
+                "wolfssl_fix_CVE_2022_25640",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_39173")]
+                "wolfssl_fix_CVE_2022_39173",
+                #[cfg(feature = "wolfssl_fix_CVE_2022_42905")]
+                "wolfssl_fix_CVE_2022_42905",
+                #[cfg(feature = "wolfssl_disable_postauth")]
+                "wolfssl_disable_postauth",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
+            ]),
         ),
         #[cfg(feature = "boringssl202403")]
         (
@@ -309,12 +490,21 @@ pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from([
                 "tls12",
                 "tls13",
-                "tls12-session-resumption",
-                "tls13-session-resumption",
+                "tls12_session_resumption",
+                "tls13_session_resumption",
                 "deterministic",
                 "claims",
-                "transcript-extraction",
-                "client-authentication-transcript-extraction",
+                "transcript_extraction",
+                "client_authentication_transcript_extraction",
+                "boringssl_binding",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
             ]),
         ),
         #[cfg(feature = "boringssl202311")]
@@ -323,12 +513,21 @@ pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
             HashSet::from([
                 "tls12",
                 "tls13",
-                "tls12-session-resumption",
-                "tls13-session-resumption",
+                "tls12_session_resumption",
+                "tls13_session_resumption",
                 "deterministic",
                 "claims",
-                "transcript-extraction",
-                "client-authentication-transcript-extraction",
+                "transcript_extraction",
+                "client_authentication_transcript_extraction",
+                "boringssl_binding",
+                #[cfg(asan)]
+                "asan",
+                #[cfg(sancov)]
+                "sancov",
+                #[cfg(gcov)]
+                "gcov",
+                #[cfg(llvm_cov)]
+                "llvm_cov",
             ]),
         ),
     ])

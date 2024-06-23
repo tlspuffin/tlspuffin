@@ -67,3 +67,81 @@ pub fn expect_trace_crash(
             )
         });
 }
+
+macro_rules! test_puts {
+    // handle default arguments
+    ( $func:ident) => { test_puts!( $func, attrs = [], filter = all() ); };
+    ( $func:ident, puts = $puts:tt ) => { test_puts!( $func, puts = $puts, attrs = [], filter = all() ); };
+    ( $func:ident, puts = $puts:tt, attrs = $attrs:tt ) => { test_puts!( $func, puts = $puts, attrs = $attrs, filter = all() ); };
+    ( $func:ident, puts = $puts:tt, filter = $filter:meta ) => { test_puts!( $func, puts = $puts, attrs = [], filter = $filter ); };
+    ( $func:ident, attrs = $attrs:tt  ) => { test_puts!( $func, puts = all, attrs = $attrs, filter = all() ); };
+    ( $func:ident, filter = $filter:meta ) => { test_puts!( $func, puts = all, attrs = [], filter = $filter ); };
+    ( $func:ident, attrs = $attrs:tt, filter = $filter:meta ) => { test_puts!( $func, puts = all, attrs = $attrs, filter = $filter ); };
+
+    // put arguments in a canonical order
+    ( $func:ident, attrs = $attrs:tt, puts = $puts:tt, filter = $filter:meta ) => { test_puts!($func, puts = $puts, attrs = $attrs, filter = $filter); };
+    ( $func:ident, attrs = $attrs:tt, filter = $filter:meta, puts = $puts:tt ) => { test_puts!($func, puts = $puts, attrs = $attrs, filter = $filter); };
+    ( $func:ident, filter = $filter:meta, puts = $puts:tt, attrs = $attrs:tt ) => { test_puts!($func, puts = $puts, attrs = $attrs, filter = $filter); };
+    ( $func:ident, filter = $filter:meta, attrs = $attrs:tt, puts = $puts:tt ) => { test_puts!($func, puts = $puts, attrs = $attrs, filter = $filter); };
+    ( $func:ident, puts = $puts:tt, filter = $filter:meta, attrs = $attrs:tt ) => { test_puts!($func, puts = $puts, attrs = $attrs, filter = $filter); };
+
+    // expand `puts` argument when `all` was requested
+    ( $func:ident, puts = all, attrs = $attrs:tt, filter = $filter:meta ) => {
+        test_puts!($func, puts = [
+                openssl312,
+                openssl111u,
+                openssl111k,
+                openssl111j,
+                openssl102u,
+                openssl101f,
+                libressl333,
+                wolfssl540,
+                wolfssl530,
+                wolfssl520,
+                wolfssl510,
+                wolfssl430,
+                boringssl202403,
+                boringssl202311
+            ], attrs = $attrs, filter = $filter
+        );
+    };
+
+    // actual expansion with canonical arguments
+    ( $func:ident, puts = [ $($put:ident),* ], attrs = $attrs:tt, filter = $filter:meta ) => {
+        mod $func {
+            #![allow(unused_imports)]
+
+            use super::$func;
+            use super::test_puts;
+            use tlspuffin_macros::expand_cfg;
+
+            $(
+                test_puts!(@expand-one $func, put = $put, attrs = $attrs, filter = $filter);
+            )*
+        }
+    };
+
+    (@expand-one $func:ident, put = $put:ident, attrs = [ $( $attr:meta ),* ], filter = $filter:meta) => {
+        #[cfg($put)]
+        #[expand_cfg($put, $filter)]
+        #[test_log::test]
+        $( #[$attr] )*
+        fn $put() {
+            $func(stringify!($put));
+        }
+    };
+}
+
+macro_rules! supports {
+    ( $put:expr, $cap:expr ) => {{
+        use crate::put_registry::tls_registry;
+
+        tls_registry()
+            .find_by_id($put)
+            .expect("PUT was not found")
+            .supports($cap)
+    }};
+}
+
+pub(crate) use supports;
+pub(crate) use test_puts;

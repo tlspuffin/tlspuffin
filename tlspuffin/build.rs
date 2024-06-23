@@ -28,6 +28,17 @@ fn main() {
         println!("cargo:rustc-link-arg=-fprofile-instr-generate");
         println!("cargo:rustc-link-arg=-fcoverage-mapping");
     }
+
+    // NOTE expose the capabilities of linked PUTs as cfg
+    tls_harness::tls_puts()
+        .iter()
+        .for_each(|(name, capabilities)| {
+            println!("cargo:rustc-cfg={}=\"{}\"", name, name);
+            println!("cargo:rustc-cfg=has_put=\"{}\"", name);
+            capabilities
+                .iter()
+                .for_each(|capability| println!("cargo:rustc-cfg={}=\"{}\"", capability, name));
+        });
 }
 
 fn runtime_dir() -> String {

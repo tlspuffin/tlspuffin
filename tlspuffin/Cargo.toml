@@ -140,9 +140,9 @@ wolfssl510 = [
     "tls12-session-resumption",
     "tls13-session-resumption",
     "transcript-extraction",
-    "client-authentication-transcript-extraction"
+    "client-authentication-transcript-extraction",
     # TODO support "claims"
-    # TODO support "deterministic"
+    "deterministic"
 ]
 
 wolfssl520 = [
@@ -187,11 +187,11 @@ wolfssl540 = [
     # TODO support "deterministic"
 ]
 
-fix-CVE-2022-25638 = ["wolfssl-sys?/fix-CVE-2022-25638"]
-fix-CVE-2022-25640 = ["wolfssl-sys?/fix-CVE-2022-25640"]
-fix-CVE-2022-39173 = ["wolfssl-sys?/fix-CVE-2022-39173"]
-fix-CVE-2022-42905 = ["wolfssl-sys?/fix-CVE-2022-42905"]
-wolfssl-disable-postauth = ["wolfssl-sys?/wolfssl-disable-postauth"]
+fix-CVE-2022-25638 = ["wolfssl-sys?/fix-CVE-2022-25638", "tls-harness/wolfssl_fix_CVE_2022_25638"]
+fix-CVE-2022-25640 = ["wolfssl-sys?/fix-CVE-2022-25640", "tls-harness/wolfssl_fix_CVE_2022_25640"]
+fix-CVE-2022-39173 = ["wolfssl-sys?/fix-CVE-2022-39173", "tls-harness/wolfssl_fix_CVE_2022_39173"]
+fix-CVE-2022-42905 = ["wolfssl-sys?/fix-CVE-2022-42905", "tls-harness/wolfssl_fix_CVE_2022_42905"]
+wolfssl-disable-postauth = ["wolfssl-sys?/wolfssl-disable-postauth", "tls-harness/wolfssl_disable_postauth"]
 
 wolfsslmaster = [
     "wolfssl-sys/master",
@@ -251,14 +251,37 @@ boringssl202403 = [
 
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = ["puffin/sancov_pcguard_log"]
+
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
-sancov_libafl = ["puffin/sancov_libafl", "openssl-src?/sancov", "wolfssl-sys?/sancov", "boringssl-sys?/sancov"]
+sancov_libafl = [
+    "tls-harness/sancov",
+    "puffin/sancov_libafl",
+    "openssl-src?/sancov",
+    "wolfssl-sys?/sancov",
+    "boringssl-sys?/sancov"
+]
 
 # Enables ASAN
-asan = ["openssl-src?/asan", "wolfssl-sys?/asan", "boringssl-sys?/asan"]
+asan = [
+    "tls-harness/asan",
+    "openssl-src?/asan",
+    "wolfssl-sys?/asan",
+    "boringssl-sys?/asan"
+]
 
-gcov_analysis = ["openssl-src?/gcov_analysis", "wolfssl-sys?/gcov_analysis", "boringssl-sys?/gcov_analysis"]
-llvm_cov_analysis = ["openssl-src?/llvm_cov_analysis", "wolfssl-sys?/llvm_cov_analysis", "boringssl-sys?/llvm_cov_analysis"]
+gcov_analysis = [
+    "tls-harness/gcov",
+    "openssl-src?/gcov_analysis",
+    "wolfssl-sys?/gcov_analysis",
+    "boringssl-sys?/gcov_analysis"
+]
+
+llvm_cov_analysis = [
+    "tls-harness/llvm_cov",
+    "openssl-src?/llvm_cov_analysis",
+    "wolfssl-sys?/llvm_cov_analysis",
+    "boringssl-sys?/llvm_cov_analysis"
+]
 
 # WolfSSL bindings are used
 wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]
@@ -324,12 +347,14 @@ wolfssl-sys = { path = "../crates/wolfssl-sys", features = [], optional = true }
 boring = { path = "../crates/boring", optional = true }
 boringssl-sys = { path = "../crates/boringssl-sys", features = [], optional = true }
 
+tlspuffin-macros = { path = "../tlspuffin-macros" }
 tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", features = ["tls"] }
 foreign-types = { version = "0.5.0", optional = true }
 
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
 openssl-src = { version = "*", features = [], optional = true }
+tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", features = ["tls"] }
 
 [dev-dependencies]
 test-log = "0.2.10"
@@ -338,6 +363,7 @@ nix = "0.25.0"
 serde_json = "1.0.81"
 tempfile = "3.3.0"
 criterion = "0.3.5"
+pretty_assertions = "1.4.0"
 
 [[bench]]
 name = "benchmark"
