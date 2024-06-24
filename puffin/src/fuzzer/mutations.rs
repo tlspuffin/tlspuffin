@@ -78,7 +78,6 @@ pub fn trace_mutations<'harness, S, M: Matcher, PB>(
 where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
     PB: ProtocolBehavior,
-    <S as libafl::inputs::UsesInput>::Input: libafl::inputs::HasBytesVec,
 {
     tuple_list!(
         RepeatMutator::new(max_trace_length, with_dy),
