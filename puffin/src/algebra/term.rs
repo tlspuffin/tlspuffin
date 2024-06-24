@@ -6,12 +6,18 @@ use std::{
     fmt,
     fmt::{format, Debug, Display, Formatter},
     hash::Hash,
+    slice::IterMut,
 };
 
 use anyhow::Context;
 use itertools::Itertools;
-use libafl::inputs::{BytesInput, HasBytesVec};
+use libafl::{
+    bolts::AsMutSlice,
+    inputs::{BytesInput, HasBytesVec},
+    prelude::AsIterMut,
+};
 use log::{debug, error, trace, warn};
+use postcard::to_slice;
 use serde::{de::Unexpected::Bytes, Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
@@ -252,6 +258,30 @@ impl<M: Matcher> TermEval<M> {
         self.into_iter()
             .filter_map(|t| t.payloads.as_ref())
             .collect()
+    }
+
+    /// Return all payloads contains in a term (mutable references), even under opaque terms.
+    /// Note that we keep the invariant that a non-symbolic term cannot have payloads in struct-subterms,
+    /// see `add_payload/make_payload`.
+    pub fn all_payloads_mut(&mut self) -> Vec<&mut Payloads> {
+        // unable to implement as_iter_map for TermEval due to its tree structure so:
+        // do it manually instead!
+        fn rec<'a, M: Matcher>(term: &'a mut TermEval<M>, acc: &mut Vec<&'a mut Payloads>) {
+            if let Some(p) = &mut term.payloads {
+                acc.push(p);
+            }
+            match &mut term.term {
+                Term::Variable(_) => {}
+                Term::Application(_, sts) => {
+                    for st in sts {
+                        rec(st, acc);
+                    }
+                }
+            }
+        }
+        let mut acc = Vec::new();
+        rec(self, &mut acc);
+        return acc;
     }
 
     /// Return all payloads contained in a term, except those under opaque terms.

@@ -31,8 +31,8 @@ use crate::stream::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
     algebra::{
-        dynamic_function::TypeShape, error::FnError, remove_prefix, ConcreteMessage, Matcher, Term,
-        TermEval, TermType,
+        bitstrings::Payloads, dynamic_function::TypeShape, error::FnError, remove_prefix,
+        ConcreteMessage, Matcher, Term, TermEval, TermType,
     },
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     codec::Codec,
@@ -40,6 +40,7 @@ use crate::{
     protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
     put::{PutDescriptor, PutOptions},
     put_registry::PutRegistry,
+    trace::Action::Input,
     variable_data::VariableData,
 };
 
@@ -350,19 +351,6 @@ pub struct Trace<M: Matcher> {
     pub prior_traces: Vec<Trace<M>>,
 }
 
-// Either write this for the CrossOver and splice mutations in bit_mutations.rs
-// Or inline the real one but choosing the crossover manually and doing the
-// the same then.
-impl<M: Matcher> HasBytesVec for Trace<M> {
-    fn bytes(&self) -> &[u8] {
-        todo!()
-    }
-
-    fn bytes_mut(&mut self) -> &mut Vec<u8> {
-        todo!()
-    }
-}
-
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
 /// Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a list of
 /// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
@@ -481,6 +469,30 @@ impl<M: Matcher> Trace<M> {
 
     pub fn deserialize_postcard(slice: &[u8]) -> Result<Trace<M>, postcard::Error> {
         postcard::from_bytes::<Trace<M>>(slice)
+    }
+
+    pub fn all_payloads<'a>(&'a self) -> Vec<&'a Payloads> {
+        self.steps
+            .iter()
+            .filter_map(|e| match &e.action {
+                Input(r) => Some(&r.recipe),
+                _ => None,
+            })
+            .map(|t| t.all_payloads())
+            .flatten()
+            .collect()
+    }
+
+    pub fn all_payloads_mut<'a>(&'a mut self) -> Vec<&'a mut Payloads> {
+        self.steps
+            .iter_mut()
+            .filter_map(|e| match &mut e.action {
+                Input(r) => Some(&mut r.recipe),
+                _ => None,
+            })
+            .map(|t| t.all_payloads_mut())
+            .flatten()
+            .collect()
     }
 }
 
