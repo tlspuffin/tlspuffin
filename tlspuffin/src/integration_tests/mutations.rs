@@ -1,7 +1,7 @@
 use core::mem::size_of;
 use std::thread::{panicking, park_timeout_ms};
 
-use log::{debug, error};
+use log::{debug, error, warn};
 use puffin::{
     agent::AgentName,
     algebra::{dynamic_function::DescribableFunction, Term, TermType},
@@ -10,8 +10,8 @@ use puffin::{
         bit_mutations::*,
         harness::set_default_put_options,
         mutations::{
-            trace_mutations, MakeMessage, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator,
-            ReplaceReuseMutator,
+            trace_mutations, MakeMessage, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
+            ReplaceMatchMutator, ReplaceReuseMutator,
         },
         utils::TermConstraints,
     },
@@ -20,13 +20,16 @@ use puffin::{
             rands::{RomuDuoJrRand, StdRand},
             HasLen,
         },
-        corpus::InMemoryCorpus,
-        mutators::{MutationResult, Mutator},
-        prelude::ByteFlipMutator,
-        state::StdState,
+        corpus::{Corpus, InMemoryCorpus, Testcase},
+        inputs::{BytesInput, HasBytesVec},
+        mutators::{MutationResult, Mutator, MutatorsTuple},
+        prelude::{tuple_list, ByteFlipMutator, HasConstLen, HasMaxSize, HasMetadata, HasRand},
+        state::{HasCorpus, StdState},
     },
+    protocol::ProtocolBehavior,
     put::PutOptions,
     put_registry,
+    put_registry::PutRegistry,
     trace::{Action, Step, Trace, TraceContext},
 };
 
@@ -40,22 +43,186 @@ use crate::{
             fn_signature_algorithm_extension, fn_support_group_extension,
         },
         seeds::{
-            _seed_client_attacker12, create_corpus, seed_client_attacker, seed_client_attacker_full,
+            _seed_client_attacker12, create_corpus, seed_client_attacker,
+            seed_client_attacker_full, seed_successful,
         },
         trace_helper::TraceHelper,
         TLS_SIGNATURE,
     },
 };
 
-fn create_state() -> StdState<
+pub type TLSState = StdState<
     Trace<TlsQueryMatcher>,
     InMemoryCorpus<Trace<TlsQueryMatcher>>,
     RomuDuoJrRand,
     InMemoryCorpus<Trace<TlsQueryMatcher>>,
-> {
+>;
+
+fn create_state() -> TLSState {
     let rand = StdRand::with_seed(1235);
-    let corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();
+    let mut corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();
+    corpus.add(Testcase::new(seed_successful.build_trace()));
     StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
+}
+
+fn test_mutations(
+    registry: &PutRegistry<TLSProtocolBehavior>,
+    with_bit_level: bool,
+    with_dy: bool,
+) -> impl MutatorsTuple<Trace<TlsQueryMatcher>, TLSState> + '_ {
+    let MutationConfig {
+        fresh_zoo_after,
+        max_trace_length,
+        min_trace_length,
+        term_constraints,
+        with_bit_level: _,
+        with_dy: _,
+        ..
+    } = MutationConfig::default();
+
+    trace_mutations::<TLSState, TlsQueryMatcher, TLSProtocolBehavior>(
+        min_trace_length,
+        max_trace_length,
+        term_constraints,
+        fresh_zoo_after,
+        with_bit_level,
+        with_dy,
+        TLSProtocolBehavior::signature(),
+        registry,
+    )
+}
+
+/// Test that all mutations can be successfully applied on all traces from the corpus
+#[test]
+#[test_log::test]
+fn test_mutators() {
+    let with_dy = true;
+    let with_bit_level = true;
+
+    let mut inputs: Vec<Trace<TlsQueryMatcher>> = create_corpus()[4..6]
+        .iter()
+        .map(|(t, _)| t.to_owned())
+        .collect();
+    assert_ne!(inputs.len(), 0);
+    let tls_registry = tls_registry();
+    let mut state = create_state();
+    set_default_put_options(PutOptions::default());
+
+    let mut mutations = test_mutations(&tls_registry, with_bit_level, with_dy);
+
+    if with_dy {
+        debug!("Start [test_mutators::with_dy] with nb mutations={} and corpus: {:?}, DY mutations only first", mutations.len(), inputs);
+
+        for (id_i, input) in inputs.iter().enumerate() {
+            debug!("Treating input nb{id_i}....");
+            let max_idx = if with_bit_level { 8 } else { 7 }; // all DY mutations, including MakeMessages
+            'outer: for idx in 0..max_idx {
+                debug!("Treating mutation nb{idx}");
+                for c in 0..1000 {
+                    // debug!(".");
+                    let mut mutant = input.clone();
+                    match mutations
+                        .get_and_mutate(idx.into(), &mut state, &mut mutant, 0)
+                        .unwrap()
+                    {
+                        MutationResult::Mutated => {
+                            debug!("Success");
+                            if c > 0 {
+                                warn!("[test_mutators::with_dy] Treating input nb{id_i} and mutation nb{idx}: Success but after {c} attempts....")
+                            }
+                            continue 'outer;
+                        }
+                        MutationResult::Skipped => (),
+                    };
+                }
+                panic!("[test_mutators::with_dy] Failed to process input nb{id_i} for mutation id {idx}\n")
+            }
+        }
+    }
+    if with_bit_level {
+        debug!("Start [test_mutators:MakeMessage] with nb mutations={} and corpus: {:?}, MakeMessage only", mutations.len(), inputs);
+        let mut acc = vec![];
+        let idx = 7; // mutation ID for MakeMessage
+        debug!(
+            "First generating many MakeMessages nb idx={} from the inputs...",
+            idx
+        );
+        for (id_i, input) in inputs.iter().enumerate() {
+            debug!("Treating input nb{id_i}....");
+            let mut mutant = input.clone();
+            for c in 0..10 {
+                // debug!(".");
+                match mutations
+                    .get_and_mutate(idx.into(), &mut state, &mut mutant, 0)
+                    .unwrap()
+                {
+                    MutationResult::Mutated => {
+                        debug!("Success MakeMessage: adding to new inputs");
+                        acc.push(mutant.clone());
+                    }
+                    MutationResult::Skipped => {
+                        if mutant.steps.iter().any(|e| match &e.action {
+                            puffin::trace::Action::Input(r) => r.recipe.is_symbolic(),
+                            _ => false,
+                        }) {
+                            error!("Mutant: {mutant:?}");
+                            panic!("[test_mutators:MakeMessage] Treating input nb{id_i} and mutation nb{idx}: Failed at attempt {c} with mutant: {mutant}...")
+                        } else {
+                            debug!("Mutant has no symbolic terms: {mutant:?}");
+                            break;
+                        }
+                    }
+                };
+            }
+        }
+        if acc.len()
+            < if with_dy {
+                core::cmp::max(5, inputs.len())
+            } else {
+                inputs.len()
+            }
+        {
+            panic!(
+                "[test_mutators:MakeMessage] Failed to generate enough MakeMessage! {} < {}",
+                acc.len(),
+                inputs.len()
+            );
+        }
+        debug!("Adding 4th MakeMessage inputs to the corpus (required for CrossOver mutations...");
+        state.corpus_mut().add(Testcase::new(acc[0].clone()));
+        state.corpus_mut().add(Testcase::new(acc[1].clone()));
+        state.corpus_mut().add(Testcase::new(acc[2].clone()));
+        state.corpus_mut().add(Testcase::new(acc[3].clone()));
+
+        debug!("Start [test_mutators:with_bit_level] with nb mutations={} and corpus: {:?}, bit-level mutations only (!= MakeMessage)", mutations.len(), inputs);
+        for (id_i, input) in acc.iter().enumerate() {
+            debug!("Treating MakeMessage input nb{id_i}....");
+            'outer: for idx in 8..mutations.len() {
+                debug!("Treating mutation nb{idx}");
+                for c in 0..1000 {
+                    // debug!(".");
+                    let mut mutant = input.clone();
+                    match mutations
+                        .get_and_mutate(idx.into(), &mut state, &mut mutant, 0)
+                        .unwrap()
+                    {
+                        MutationResult::Mutated => {
+                            debug!("Success");
+                            if c > 0 {
+                                warn!("[test_mutators:with_bit_level] Treating input nb{id_i} and mutation nb{idx}: Success but after {c} attempts....")
+                            }
+                            continue 'outer;
+                        }
+                        MutationResult::Skipped => {
+                            debug!("Skipped");
+                        }
+                    };
+                }
+                debug!("Input: {}", acc[0]);
+                panic!("[test_mutators:with_bit_level] Failed to process input nb{id_i} for mutation id {idx}\n");
+            }
+        }
+    }
 }
 
 #[cfg(feature = "tls13")] // require version which supports TLS 1.3
