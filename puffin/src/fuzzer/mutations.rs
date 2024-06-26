@@ -19,6 +19,33 @@ use crate::{
     trace::{Action::Input, Trace, TraceContext},
 };
 
+#[derive(Clone, Copy, Debug)]
+pub struct MutationConfig {
+    pub fresh_zoo_after: u64,
+    pub max_trace_length: usize,
+    pub min_trace_length: usize,
+    /// Below this term size we no longer mutate. Note that it is possible to reach
+    /// smaller terms by having a mutation which removes all symbols in a single mutation.
+    /// Above this term size we no longer mutate.
+    pub term_constraints: TermConstraints,
+    pub with_bit_level: bool,
+    pub with_dy: bool,
+}
+
+impl Default for MutationConfig {
+    //  TODO:EVAL: evaluate modif to this config
+    fn default() -> Self {
+        Self {
+            fresh_zoo_after: 100000,
+            max_trace_length: 15,
+            min_trace_length: 2,
+            term_constraints: TermConstraints::default(),
+            with_bit_level: true,
+            with_dy: true,
+        }
+    }
+}
+
 pub type DyMutations<'harness, M, PB, S>
 where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
@@ -690,8 +717,7 @@ where
     // because, doing differently would dramatically complexify the computation of replace_payloads.
     // See terms.rs. Also, one could argue the mutations of the strict sub-terms could have been done on the larger
     // term in thje first place.
-    t.make_payload(&ctx)
-        .with_context(|| format!("[make_message_term] failed to evaluate chosen sub-term"))?;
+    t.make_payload(&ctx)?;
     Ok(())
 }
 

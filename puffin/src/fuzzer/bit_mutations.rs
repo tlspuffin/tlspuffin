@@ -1,7 +1,13 @@
-use std::{cmp::min, io::Read, ops::Not, thread::panicking};
+use std::{
+    any::{type_name, TypeId},
+    cmp::min,
+    io::Read,
+    ops::Not,
+    thread::panicking,
+};
 
 use libafl::prelude::*;
-use log::{debug, info, warn};
+use log::{debug, info, trace, warn};
 
 use super::utils::{Choosable, *};
 use crate::{
@@ -113,7 +119,7 @@ impl<S> [<$mutation  DY>]<S>
 
 impl<S, M> Mutator<Trace<M>, S> for [<$mutation  DY>]<S>
     where
-        S: HasRand + HasMaxSize,
+        S: HasRand + HasMaxSize + 'static,
         M: Matcher,
 {
     fn mutate(
@@ -122,6 +128,8 @@ impl<S, M> Mutator<Trace<M>, S> for [<$mutation  DY>]<S>
         trace: &mut Trace<M>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        trace!("Start mutate with {:?}", self.name());
+
         if !self.with_bit_level {
             debug!("[Mutation-bit] Mutate {} skipped because bit-level mutations are disabled", std::any::type_name::<[<$mutation  DY>]<S>>());
             return Ok(MutationResult::Skipped)
@@ -155,6 +163,11 @@ impl<S> Named for [<$mutation  DY>]<S>
 {
     fn name(&self) -> &str {
         std::any::type_name::<[<$mutation  DY>]<S>>()
+                    .splitn(2, '<')
+            .collect::<Vec<&str>>()[0]
+            .split(':')
+            .collect::<Vec<&str>>()
+            .last().unwrap()
     }
 }
 }};
@@ -231,7 +244,7 @@ where
 
 impl<S, M> Mutator<Trace<M>, S> for BytesSwapMutatorDY<S>
 where
-    S: HasRand + HasMaxSize,
+    S: HasRand + HasMaxSize + 'static,
     M: Matcher,
 {
     fn mutate(
@@ -240,6 +253,8 @@ where
         trace: &mut Trace<M>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        trace!("Start mutate with {:?}", self.name());
+
         if !self.with_bit_level {
             debug!("[Mutation-bit] Mutate BytesSwapMutatorDY skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
@@ -278,6 +293,12 @@ where
 {
     fn name(&self) -> &str {
         std::any::type_name::<BytesSwapMutatorDY<S>>()
+            .splitn(2, '<')
+            .collect::<Vec<&str>>()[0]
+            .split(':')
+            .collect::<Vec<&str>>()
+            .last()
+            .unwrap()
     }
 }
 
@@ -307,7 +328,7 @@ where
 
 impl<S, M> Mutator<Trace<M>, S> for BytesInsertCopyMutatorDY<S>
 where
-    S: HasRand + HasMaxSize,
+    S: HasRand + HasMaxSize + 'static,
     M: Matcher,
 {
     fn mutate(
@@ -316,6 +337,8 @@ where
         trace: &mut Trace<M>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        trace!("Start mutate with {:?}", self.name());
+
         if !self.with_bit_level {
             debug!("[Mutation-bit] Mutate BytesInsertCopyMutatorDY skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
@@ -354,6 +377,12 @@ where
 {
     fn name(&self) -> &str {
         std::any::type_name::<BytesInsertCopyMutatorDY<S>>()
+            .splitn(2, '<')
+            .collect::<Vec<&str>>()[0]
+            .split(':')
+            .collect::<Vec<&str>>()
+            .last()
+            .unwrap()
     }
 }
 
@@ -493,7 +522,7 @@ where
 
 impl<S, M> Mutator<Trace<M>, S> for CrossoverInsertMutatorDY<S>
 where
-    S: HasCorpus + HasRand + HasMaxSize,
+    S: HasCorpus + HasRand + HasMaxSize + 'static,
     M: Matcher,
     //        <S as libafl::inputs::UsesInput>::Input = BytesInput,
     S: libafl::inputs::UsesInput<Input = Trace<M>>,
@@ -505,6 +534,8 @@ where
         trace: &mut Trace<M>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        trace!("Start mutate with {:?}", self.name());
+
         if !self.with_bit_level {
             debug!("[Mutation-bit] Mutate CrossoverInsertMutatorDY skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
@@ -582,6 +613,8 @@ where
         unsafe {
             buffer_copy(input, other_input, range.start, target, range.len());
         }
+        debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", std::any::type_name::<CrossoverInsertMutatorDY<S>>());
+        trace!("Trace: {trace}");
         Ok(MutationResult::Mutated)
     }
 }
@@ -592,6 +625,12 @@ where
 {
     fn name(&self) -> &str {
         std::any::type_name::<CrossoverInsertMutatorDY<S>>()
+            .splitn(2, '<')
+            .collect::<Vec<&str>>()[0]
+            .split(':')
+            .collect::<Vec<&str>>()
+            .last()
+            .unwrap()
     }
 }
 
@@ -620,7 +659,7 @@ where
 
 impl<S, M> Mutator<Trace<M>, S> for CrossoverReplaceMutatorDY<S>
 where
-    S: HasCorpus + HasRand + HasMaxSize,
+    S: HasCorpus + HasRand + HasMaxSize + 'static,
     M: Matcher,
     //        <S as libafl::inputs::UsesInput>::Input = BytesInput,
     S: libafl::inputs::UsesInput<Input = Trace<M>>,
@@ -632,6 +671,8 @@ where
         trace: &mut Trace<M>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        trace!("Start mutate with {:?}", self.name());
+
         if !self.with_bit_level {
             debug!("[Mutation-bit] Mutate CrossoverReplaceMutatorDY skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
@@ -701,6 +742,8 @@ where
         unsafe {
             buffer_copy(input, other_input, range.start, target, range.len());
         }
+        debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", std::any::type_name::<CrossoverReplaceMutatorDY<S>>());
+        trace!("Trace: {trace}");
         Ok(MutationResult::Mutated)
     }
 }
@@ -711,6 +754,12 @@ where
 {
     fn name(&self) -> &str {
         std::any::type_name::<CrossoverReplaceMutatorDY<S>>()
+            .splitn(2, '<')
+            .collect::<Vec<&str>>()[0]
+            .split(':')
+            .collect::<Vec<&str>>()
+            .last()
+            .unwrap()
     }
 }
 
@@ -739,7 +788,7 @@ where
 
 impl<S, M> Mutator<Trace<M>, S> for SpliceMutatorDY<S>
 where
-    S: HasCorpus + HasRand + HasMaxSize,
+    S: HasCorpus + HasRand + HasMaxSize + 'static,
     M: Matcher,
     //        <S as libafl::inputs::UsesInput>::Input = BytesInput,
     S: libafl::inputs::UsesInput<Input = Trace<M>>,
@@ -751,12 +800,15 @@ where
         trace: &mut Trace<M>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
+        trace!("Start mutate with {:?}", self.name());
+
         if !self.with_bit_level {
             debug!("[Mutation-bit] Mutate SpliceMutatorDY skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
         }
 
         let Some((input, _)) = choose_payload_mut(trace, state) else {
+            trace!("choose_payload_mut failed");
             return Ok(MutationResult::Skipped);
         };
 
@@ -765,6 +817,7 @@ where
         let idx = random_corpus_id!(state.corpus(), state.rand_mut());
         if let Some(cur) = state.corpus().current() {
             if idx == *cur {
+                trace!("Same other testcase");
                 return Ok(MutationResult::Skipped);
             }
         }
@@ -776,6 +829,7 @@ where
             other_input_trace.all_payloads().len()
         };
         if size_vec_payloads < 1 {
+            trace!("other payload is too short: {size_vec_payloads}");
             return Ok(MutationResult::Skipped);
         }
         let payload_idx = state // we need to split the choice of other_input int two steps to
@@ -808,6 +862,7 @@ where
                     break (f as u64, l as u64);
                 }
                 if counter == 3 {
+                    trace!("counter is 3");
                     return Ok(MutationResult::Skipped);
                 }
                 counter += 1;
@@ -823,7 +878,8 @@ where
             .bytes();
 
         input.splice(split_at.., other_input[split_at..].iter().copied());
-
+        debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", std::any::type_name::<SpliceMutatorDY<S>>());
+        trace!("Trace: {trace}");
         Ok(MutationResult::Mutated)
     }
 }
@@ -834,5 +890,11 @@ where
 {
     fn name(&self) -> &str {
         std::any::type_name::<SpliceMutatorDY<S>>()
+            .splitn(2, '<')
+            .collect::<Vec<&str>>()[0]
+            .split(':')
+            .collect::<Vec<&str>>()
+            .last()
+            .unwrap()
     }
 }

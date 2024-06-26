@@ -10,7 +10,11 @@ use log4rs::Handle;
 
 use super::harness;
 use crate::{
-    fuzzer::{mutations::trace_mutations, stats_monitor::StatsMonitor, utils::TermConstraints},
+    fuzzer::{
+        mutations::{trace_mutations, MutationConfig},
+        stats_monitor::StatsMonitor,
+        utils::TermConstraints,
+    },
     log::create_file_config,
     protocol::ProtocolBehavior,
     put_registry::PutRegistry,
@@ -56,33 +60,6 @@ impl Default for MutationStageConfig {
         Self {
             max_iterations_per_stage: 256,
             max_mutations_per_iteration: 16,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct MutationConfig {
-    pub fresh_zoo_after: u64,
-    pub max_trace_length: usize,
-    pub min_trace_length: usize,
-    /// Below this term size we no longer mutate. Note that it is possible to reach
-    /// smaller terms by having a mutation which removes all symbols in a single mutation.
-    /// Above this term size we no longer mutate.
-    pub term_constraints: TermConstraints,
-    pub with_bit_level: bool,
-    pub with_dy: bool,
-}
-
-impl Default for MutationConfig {
-    //  TODO:EVAL: evaluate modif to this config
-    fn default() -> Self {
-        Self {
-            fresh_zoo_after: 100000,
-            max_trace_length: 15,
-            min_trace_length: 2,
-            term_constraints: TermConstraints::default(),
-            with_bit_level: true,
-            with_dy: true,
         }
     }
 }
