@@ -13,6 +13,10 @@ use puffin::{
 };
 
 use crate::{
+    claims::{
+        TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
+        TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
+    },
     tls,
     tls::{
         fn_impl::*,
@@ -515,6 +519,13 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
         NewSessionTicketExtension,
         Vec<NewSessionTicketExtension>,
         NewSessionTicketExtensions,
+        TranscriptServerHello,
+        TranscriptClientFinished,
+        TranscriptServerFinished,
+        TranscriptCertificate,
+        TlsTranscript,
+        TranscriptClientHello,
+        TranscriptPartialClientHello,
         Compressions,
         Compression,
         Vec<Compression>,

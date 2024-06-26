@@ -4,12 +4,20 @@ use puffin::{
     agent::{AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
     claims::Claim,
+    codec::Encode,
     variable_data::VariableData,
 };
 use smallvec::SmallVec;
 
 #[derive(Debug, Clone)]
 pub struct TlsTranscript(pub [u8; 64], pub i32);
+
+impl Encode for TlsTranscript {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.0);
+        b.extend(self.1.to_ne_bytes());
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct TranscriptClientHello(pub TlsTranscript);
@@ -19,6 +27,13 @@ impl Transcript for TranscriptClientHello {
         &transcript.0[..transcript.1 as usize]
     }
 }
+
+impl Encode for TranscriptClientHello {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.as_slice())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TranscriptPartialClientHello(pub TlsTranscript);
 impl Transcript for TranscriptPartialClientHello {
@@ -27,6 +42,13 @@ impl Transcript for TranscriptPartialClientHello {
         &transcript.0[..transcript.1 as usize]
     }
 }
+
+impl Encode for TranscriptPartialClientHello {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.as_slice())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TranscriptServerHello(pub TlsTranscript);
 impl Transcript for TranscriptServerHello {
@@ -35,6 +57,13 @@ impl Transcript for TranscriptServerHello {
         &transcript.0[..transcript.1 as usize]
     }
 }
+
+impl Encode for TranscriptServerHello {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.as_slice())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TranscriptServerFinished(pub TlsTranscript);
 impl Transcript for TranscriptServerFinished {
@@ -43,12 +72,25 @@ impl Transcript for TranscriptServerFinished {
         &transcript.0[..transcript.1 as usize]
     }
 }
+
+impl Encode for TranscriptServerFinished {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.as_slice())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TranscriptClientFinished(pub TlsTranscript);
 impl Transcript for TranscriptClientFinished {
     fn as_slice(&self) -> &[u8] {
         let transcript = &self.0;
         &transcript.0[..transcript.1 as usize]
+    }
+}
+
+impl Encode for TranscriptClientFinished {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.as_slice())
     }
 }
 #[derive(Debug, Clone)]
@@ -60,6 +102,11 @@ impl Transcript for TranscriptCertificate {
     }
 }
 
+impl Encode for TranscriptCertificate {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.as_slice())
+    }
+}
 pub trait Transcript {
     fn as_slice(&self) -> &[u8];
 }
