@@ -141,7 +141,7 @@ where
     };
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
-        if let Err(err) = seed(&put_registry) {
+        if let Err(err) = seed(&put_registry, default_put) {
             log::error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -442,9 +442,10 @@ fn plot<PB: ProtocolBehavior>(
 
 fn seed<PB: ProtocolBehavior>(
     _put_registry: &PutRegistry<PB>,
+    default_put: PutDescriptor,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
-    for (trace, name) in PB::create_corpus() {
+    for (trace, name) in PB::create_corpus(default_put) {
         trace.to_file(format!("./seeds/{}.trace", name))?;
     }
 

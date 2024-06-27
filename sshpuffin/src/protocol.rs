@@ -1,6 +1,7 @@
 use puffin::{
     algebra::{signature::Signature, AnyMatcher},
     protocol::ProtocolBehavior,
+    put_registry::PutDescriptor,
     trace::Trace,
 };
 
@@ -27,7 +28,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
         &SSH_SIGNATURE
     }
 
-    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+    fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::Matcher>, &'static str)> {
         vec![] // TODO
     }
 }

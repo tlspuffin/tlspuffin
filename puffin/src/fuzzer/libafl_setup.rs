@@ -453,7 +453,7 @@ where
                 *fresh_zoo_after,
                 PB::signature(),
             ))
-            .with_initial_inputs(PB::create_corpus())
+            .with_initial_inputs(PB::create_corpus(put.clone()))
             .with_rand(StdRand::new())
             .with_corpus(
                 //InMemoryCorpus::new(),
