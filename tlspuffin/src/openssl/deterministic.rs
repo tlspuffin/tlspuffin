@@ -1,12 +1,10 @@
-use log::debug;
-
 extern "C" {
     fn deterministic_rng_set();
     fn deterministic_rng_reseed(buffer: *const u8, length: libc::size_t);
 }
 
 pub fn rng_set() {
-    debug!("setting OpenSSL in deterministic mode");
+    log::debug!("setting OpenSSL in deterministic mode");
     unsafe {
         deterministic_rng_set();
     }
@@ -27,7 +25,7 @@ pub fn rng_reseed_with(buffer: &[u8]) {
 mod tests {
     use openssl::rand::rand_bytes;
 
-    #[test]
+    #[test_log::test]
     fn test_openssl_rng_reseed_with_default_seed_has_not_changed() {
         crate::openssl::deterministic::rng_set();
         crate::openssl::deterministic::rng_reseed();
@@ -37,7 +35,7 @@ mod tests {
         assert_eq!(bytes, [183, 96]);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_openssl_rng_reseed_with_same_seed_are_identical() {
         const SEED: [u8; 8] = 789u64.to_le().to_ne_bytes();
 
@@ -54,7 +52,7 @@ mod tests {
         assert_eq!(reseed1, reseed2);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_openssl_rng_reseed_with_different_seeds_are_different() {
         const SEED1: [u8; 8] = 123u64.to_le().to_ne_bytes();
         const SEED2: [u8; 8] = 321u64.to_le().to_ne_bytes();

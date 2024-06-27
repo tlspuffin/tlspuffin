@@ -3,23 +3,37 @@ use std::{
     fmt::{Debug, Formatter},
 };
 
-use log::debug;
+use itertools::Itertools;
 
 use crate::{
     agent::AgentDescriptor,
     error::Error,
     protocol::ProtocolBehavior,
-    put::{Put, PutName},
+    put::{Put, PutName, PutOptions},
     trace::TraceContext,
 };
 
 pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
+
+// FIXME TCP_PUT should be defined in the tlspuffin package
+//
+//     The TCP PUT is specific to TLS and is therefore defined in the `tlspuffin` package. However,
+//     we expose it here in `puffin` so that the generic CLI is able to provide the `tcp` command.
+//
+//     Once we factor out the `tcp` command, we can move this definition into `tlspuffin`.
+pub const TCP_PUT: PutName = PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']);
 
 /// Registry for [Factories](Factory). An instance of this is usually defined statically and then
 /// used throughout the fuzzer.
 pub struct PutRegistry<PB> {
     factories: HashMap<String, Box<dyn Factory<PB>>>,
     default_put: String,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
+pub struct PutDescriptor {
+    pub factory: PutName,
+    pub options: PutOptions,
 }
 
 impl<PB: ProtocolBehavior> PartialEq for PutRegistry<PB> {
@@ -35,9 +49,12 @@ impl<PB: ProtocolBehavior> PartialEq for PutRegistry<PB> {
 
 impl<PB: ProtocolBehavior> Debug for PutRegistry<PB> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PutRegistry (default only)")
-            .field("default", &self.default().name())
-            .finish()
+        f.write_str("PutRegistry(")?;
+        f.debug_list()
+            .entries(self.factories.keys().sorted())
+            .finish()?;
+        f.write_str(")")?;
+        Ok(())
     }
 }
 
@@ -67,10 +84,8 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
             .unwrap_or_else(|| panic!("default PUT {} is not in registry", &self.default_put))
     }
 
-    pub fn puts(&self) -> impl Iterator<Item = (&str, &dyn Factory<PB>)> {
-        self.factories
-            .iter()
-            .map(|(n, f)| (n.as_str(), f.to_owned().as_ref()))
+    pub fn puts(&self) -> impl Iterator<Item = &dyn Factory<PB>> {
+        self.factories.values().map(|f| f.to_owned().as_ref())
     }
 
     pub fn find_by_id<S: AsRef<str>>(&self, id: S) -> Option<&dyn Factory<PB>> {
@@ -79,18 +94,10 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
             .map(|f| f.to_owned().as_ref())
     }
 
-    /// To be called at the beginning of all fuzzing campaigns!
-    pub fn determinism_set_reseed_all_factories(&self) {
-        debug!("== Set and reseed all ({}):", self.factories.len());
-        for (_, factory) in self.factories.iter() {
-            factory.determinism_set_reseed();
-        }
-    }
-
     pub fn determinism_reseed_all_factories(&self) {
-        debug!("== Reseed all ({}):", self.factories.len());
+        log::debug!("== [RNG] reseed all PUT factories");
         for (_, factory) in self.factories.iter() {
-            factory.determinism_reseed();
+            factory.rng_reseed();
         }
     }
 }
@@ -124,8 +131,9 @@ pub trait Factory<PB: ProtocolBehavior> {
     fn name(&self) -> PutName;
     fn versions(&self) -> Vec<(String, String)>;
 
-    fn determinism_set_reseed(&self);
-    fn determinism_reseed(&self);
-
     fn clone_factory(&self) -> Box<dyn Factory<PB>>;
+
+    fn rng_reseed(&self) {
+        log::debug!("[RNG] reseed failed ({}): not supported", self.name());
+    }
 }

@@ -5,6 +5,8 @@ mod determinism;
 mod mutations;
 mod term_zoo;
 
+use test_log::test;
+
 #[test]
 fn version_test() {
     let registry = tls_registry();

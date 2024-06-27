@@ -5,6 +5,7 @@ mod tests {
         algebra::dynamic_function::DescribableFunction, fuzzer::term_zoo::TermZoo,
         libafl::bolts::rands::StdRand,
     };
+    use test_log::test;
 
     use crate::{
         query::TlsQueryMatcher,

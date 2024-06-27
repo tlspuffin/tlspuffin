@@ -454,12 +454,12 @@ fn cvt_n<F: Fallible>(r: c_int, fallible: &F) -> Result<c_int, F::Error> {
     }
 }
 
-const LIBSSH_OK: i32 = libssh_sys::SSH_OK as i32;
-const LIBSSH_AUTH_ERROR: i32 = libssh_sys::ssh_auth_e_SSH_AUTH_ERROR as i32;
-const LIBSSH_AUTH_SUCCESS: i32 = libssh_sys::ssh_auth_e_SSH_AUTH_SUCCESS as i32;
-const LIBSSH_AUTH_AGAIN: i32 = libssh_sys::ssh_auth_e_SSH_AUTH_AGAIN as i32;
-const LIBSSH_AUTH_PARTIAL: i32 = libssh_sys::ssh_auth_e_SSH_AUTH_PARTIAL as i32;
-const LIBSSH_AUTH_DENIED: i32 = libssh_sys::ssh_auth_e_SSH_AUTH_DENIED as i32;
+const LIBSSH_OK: c_int = libssh_sys::SSH_OK as c_int;
+const LIBSSH_AUTH_ERROR: c_int = libssh_sys::ssh_auth_e_SSH_AUTH_ERROR;
+const LIBSSH_AUTH_SUCCESS: c_int = libssh_sys::ssh_auth_e_SSH_AUTH_SUCCESS;
+const LIBSSH_AUTH_AGAIN: c_int = libssh_sys::ssh_auth_e_SSH_AUTH_AGAIN;
+const LIBSSH_AUTH_PARTIAL: c_int = libssh_sys::ssh_auth_e_SSH_AUTH_PARTIAL;
+const LIBSSH_AUTH_DENIED: c_int = libssh_sys::ssh_auth_e_SSH_AUTH_DENIED;
 
 fn cvt_io<F: Fallible>(r: c_int, fallible: &F) -> Result<SshResult, F::Error> {
     if r == libssh_sys::SSH_ERROR {
@@ -500,7 +500,7 @@ mod tests {
     use crate::libssh::ssh::{
         set_log_level, SessionOption, SshBind, SshBindOption, SshKey, SshSession,
     };
-    const OPENSSH_RSA_PRIVATE_KEY: &'static str = "-----BEGIN OPENSSH PRIVATE KEY-----
+    const OPENSSH_RSA_PRIVATE_KEY: &str = "-----BEGIN OPENSSH PRIVATE KEY-----
 b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn
 NhAAAAAwEAAQAAAYEAt64tFPuOmhkrMjTdXgD6MrLhV0BBX0gC6yp+fAaFA+Mbz+28OZ0j
 UhDV7QFL2C1b0Yz9ykb4jTzhJT5Cxi05fPZCrE+3BChvBobXF+h5kgNRLBk2EmVVSzVO1D
@@ -555,7 +555,7 @@ FVCIVIuCGO0unWSrPlL7FFPldcYMTy7S33HmlzIuywlUdqD8qCMbA1IP2a9+oD9SAhzk4f
         //let mut client_stream = UnixStream::connect_addr(&addr).unwrap();
         let client_stream = UnixStream::connect(path).unwrap();
         // Unlink directly as we have the addresses now
-        fs::remove_file(&path).unwrap();
+        fs::remove_file(path).unwrap();
 
         client_stream.set_nonblocking(true).unwrap();
         let server_stream = listener.incoming().next().unwrap().unwrap();

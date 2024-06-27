@@ -1072,7 +1072,6 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher
 
 #[cfg(test)]
 pub mod tests {
-
     use test_log::test;
 
     use crate::tls::{trace_helper::TraceHelper, vulnerabilities::*};
@@ -1169,7 +1168,7 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-25640"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25640() {
-        use crate::tls::trace_helper::TraceExecutor;
+        use crate::tls::trace_helper::TraceHelperExecutor;
 
         let ctx = seed_cve_2022_25640.execute_trace();
         assert!(ctx.agents_successful());
@@ -1182,7 +1181,7 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-25640"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25640_simple() {
-        use crate::tls::trace_helper::TraceExecutor;
+        use crate::tls::trace_helper::TraceHelperExecutor;
 
         let ctx = seed_cve_2022_25640_simple.execute_trace();
         assert!(ctx.agents_successful());
@@ -1195,7 +1194,7 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-25638"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25638() {
-        use crate::tls::trace_helper::TraceExecutor;
+        use crate::tls::trace_helper::TraceHelperExecutor;
 
         let ctx = seed_cve_2022_25638.execute_trace();
         assert!(ctx.agents_successful());
@@ -1225,7 +1224,7 @@ pub mod tests {
     fn test_seed_cve_2022_38153() {
         use puffin::put::PutOptions;
 
-        use crate::{test_utils::expect_trace_crash, tls::trace_helper::TraceExecutor};
+        use crate::{test_utils::expect_trace_crash, tls::trace_helper::TraceHelperExecutor};
 
         for _ in 0..50 {
             crate::tls::seeds::seed_successful12_with_tickets.execute_trace();
@@ -1300,11 +1299,7 @@ pub mod tests {
     }
 
     mod tcp {
-        use log::info;
-        use puffin::{
-            agent::{AgentName, TLSVersion},
-            put::PutDescriptor,
-        };
+        use puffin::{agent::TLSVersion, put_registry::PutDescriptor};
         use test_log::test;
 
         use crate::{
@@ -1316,19 +1311,15 @@ pub mod tests {
         #[test]
         #[ignore] // wolfssl example server and client are not available in CI
         fn test_wolfssl_openssl_test_seed_cve_2022_38153() {
-            let port = 44336;
-
-            let server_guard = openssl_server(port, TLSVersion::V1_2);
+            let server_guard = openssl_server(44336, TLSVersion::V1_2);
             let server = PutDescriptor {
-                name: TCP_PUT,
+                factory: TCP_PUT,
                 options: server_guard.build_options(),
             };
 
-            let port = 44337;
-
-            let client_guard = wolfssl_client(port, TLSVersion::V1_2, Some(50));
+            let client_guard = wolfssl_client(44337, TLSVersion::V1_2, Some(50));
             let client = PutDescriptor {
-                name: TCP_PUT,
+                factory: TCP_PUT,
                 options: client_guard.build_options(),
             };
 
@@ -1344,36 +1335,33 @@ pub mod tests {
                 )
                 .unwrap();
 
-            let client = AgentName::first();
-            let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
-            info!("{}", shutdown);
+            let shutdown = context.find_agent_mut(client_name).unwrap().shutdown();
+            log::info!("client: {}", shutdown);
             assert!(shutdown.contains("free(): invalid pointer"));
         }
 
         #[test]
         #[ignore] // wolfssl example server and client are not available in CI
         fn test_wolfssl_cve_2022_39173() {
-            let port = 44338;
-            let guard = wolfssl_server(port, TLSVersion::V1_3);
-            let put = PutDescriptor {
-                name: TCP_PUT,
+            let guard = wolfssl_server(44338, TLSVersion::V1_3);
+            let server_put = PutDescriptor {
+                factory: TCP_PUT,
                 options: guard.build_options(),
             };
 
             let put_registry = tls_registry();
             let trace = seed_cve_2022_39173_full.build_trace();
-            let initial_server = trace.prior_traces[0].descriptors[0].name;
-            let server = trace.descriptors[0].name;
+            let init_server = trace.prior_traces[0].descriptors[0].name;
+            let next_server = trace.descriptors[0].name;
             let mut context = trace
                 .execute_with_non_default_puts(
                     &put_registry,
-                    &[(initial_server, put.clone()), (server, put)],
+                    &[(init_server, server_put.clone()), (next_server, server_put)],
                 )
                 .unwrap();
 
-            let server = AgentName::first().next();
-            let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
-            info!("{}", shutdown);
+            let shutdown = context.find_agent_mut(next_server).unwrap().shutdown();
+            log::info!("server: {}", shutdown);
         }
     }
 }

@@ -142,6 +142,7 @@ impl HandshakeJoiner {
 #[cfg(test)]
 mod tests {
     use puffin::codec::Codec;
+    use test_log::test;
 
     use super::HandshakeJoiner;
     use crate::tls::rustls::msgs::{

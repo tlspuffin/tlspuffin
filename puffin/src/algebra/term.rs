@@ -232,6 +232,8 @@ pub(crate) fn remove_fn_prefix(str: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use test_log::test;
+
     use crate::algebra::remove_prefix;
 
     #[test]

@@ -38,12 +38,12 @@
 //!                         Signature::new_function(&fn_client_hello),
 //!                         vec![
 //!                             Term::Variable(Signature::new_var_with_type::<ProtocolVersion, _>(
-//!                                     Some(Source::Agent(client)),  
+//!                                     Some(Source::Agent(client)),
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Random, _>(
-//!                                     Some(Source::Agent(client)),  
+//!                                     Some(Source::Agent(client)),
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
@@ -104,10 +104,13 @@
 
 #[cfg(feature = "boringssl-binding")]
 pub mod boringssl;
-pub mod claims;
-pub mod debug;
 #[cfg(feature = "openssl-binding")]
 pub mod openssl;
+#[cfg(feature = "wolfssl-binding")]
+pub mod wolfssl;
+
+pub mod claims;
+pub mod debug;
 mod protocol;
 pub mod put;
 pub mod put_registry;
@@ -115,8 +118,6 @@ pub mod query;
 pub mod static_certs;
 pub mod tcp;
 pub mod tls;
-#[cfg(feature = "wolfssl-binding")]
-pub mod wolfssl;
 
 #[cfg(test)]
 mod integration_tests;

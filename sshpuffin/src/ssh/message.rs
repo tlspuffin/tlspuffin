@@ -1,4 +1,3 @@
-use log::debug;
 use puffin::{
     codec::{Codec, Reader},
     error::Error,
@@ -281,7 +280,7 @@ impl ProtocolMessage<SshQueryMatcher, RawSshMessage> for SshMessage {
     }
 
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self)
+        log::debug!("{}: {:?}", info, self)
     }
 }
 
@@ -426,7 +425,7 @@ impl ExtractKnowledge<SshQueryMatcher> for SshMessage {
 
 impl OpaqueProtocolMessage<SshQueryMatcher> for RawSshMessage {
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self)
+        log::debug!("{}: {:?}", info, self)
     }
 }
 

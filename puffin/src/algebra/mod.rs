@@ -633,19 +633,12 @@ pub mod test_signature {
         fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {
             Box::new(TestFactory {})
         }
-
-        fn determinism_set_reseed(&self) {
-            panic!("Not implemented for test stub");
-        }
-
-        fn determinism_reseed(&self) {
-            panic!("Not implemented for test stub");
-        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use test_log::test;
 
     use super::test_signature::*;
     use crate::{

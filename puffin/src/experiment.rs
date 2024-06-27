@@ -32,9 +32,9 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
         title = &title,
         put_versions = put_registry
             .puts()
-            .map(|(n, p)| format!(
+            .map(|p| format!(
                 "{} ({})",
-                n,
+                p.name(),
                 p.versions()
                     .into_iter()
                     .map(|(c, v)| format!("{} ({})", c, v))

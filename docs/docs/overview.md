@@ -51,14 +51,20 @@ The interfaces between the modules are defined by the following Rust traits whic
 
 ```Rust
 pub trait ProtocolBehavior: 'static {
+    type Matcher: Matcher;
     type Claim: Claim;
     type SecurityViolationPolicy: SecurityViolationPolicy<Self::Claim>;
 
-    type ProtocolMessage: ProtocolMessage<Self::OpaqueProtocolMessage>;
-    type OpaqueProtocolMessage: OpaqueProtocolMessage;
-
-    type Matcher: Matcher
-        + for<'a> TryFrom<&'a MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>>;
+    type ProtocolMessage: ProtocolMessage<Self::Matcher, Self::OpaqueProtocolMessage>;
+    type OpaqueProtocolMessage: OpaqueProtocolMessage<Self::Matcher>;
+    type ProtocolMessageFlight: ProtocolMessageFlight<
+        Self::Matcher,
+        Self::ProtocolMessage,
+        Self::OpaqueProtocolMessage,
+        Self::OpaqueProtocolMessageFlight,
+    >;
+    type OpaqueProtocolMessageFlight: OpaqueProtocolMessageFlight<Self::Matcher, Self::OpaqueProtocolMessage>
+        + From<Self::ProtocolMessageFlight>;
 
     /// Get the signature that is used in the protocol
     fn signature() -> &'static Signature;
@@ -67,22 +73,28 @@ pub trait ProtocolBehavior: 'static {
     fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)>;
 }
 
-pub struct MessageResult<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>(pub Option<M>, pub O);
-
 /// A structured message. This type defines how all possible messages of a protocol.
 /// Usually this is implemented using an `enum`.
-pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug {
+pub trait ProtocolMessage<Mt: Matcher, O: OpaqueProtocolMessage<Mt>>:
+    Clone + Debug + ExtractKnowledge<Mt>
+{
     fn create_opaque(&self) -> O;
     fn debug(&self, info: &str);
-    fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;
 }
 
 /// A non-structured version of [`ProtocolMessage`]. This can be used for example for encrypted messages
 /// which do not have a structure.
-pub trait OpaqueProtocolMessage: Clone + Debug + Codec {
+pub trait OpaqueProtocolMessage<Mt: Matcher>: Clone + Debug + Codec + ExtractKnowledge<Mt> {
     fn debug(&self, info: &str);
+}
 
-    fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;
+/// Store a flight of opaque messages, a vec of all the messages sent by the PUT between two steps
+pub trait OpaqueProtocolMessageFlight<Mt: Matcher, O: OpaqueProtocolMessage<Mt>>:
+    Clone + Debug + Codec + From<O> + ExtractKnowledge<Mt>
+{
+    fn new() -> Self;
+    fn debug(&self, info: &str);
+    fn push(&mut self, msg: O);
 }
 ```
 
@@ -94,33 +106,18 @@ pub trait Put<PB: ProtocolBehavior>:
     Stream<PB::ProtocolMessage, PB::OpaqueProtocolMessage> + 'static
 {
     /// Process incoming buffer, internal progress, can fill in the output buffer
-    fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
+    fn progress(&mut self) -> Result<(), Error>;
 
     /// In-place reset of the state
-    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error>;
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error>;
 
     fn descriptor(&self) -> &AgentDescriptor;
 
-    /// Register a new claim for agent_name
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, agent_name: AgentName);
-
-    /// Remove all claims in self
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self);
-
-    /// Propagate agent changes to the PUT
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error>;
-
     /// Returns a textual representation of the state in which self is
-    fn describe_state(&self) -> &str;
+    fn describe_state(&self) -> String;
 
     /// Checks whether the Put is in a good state
     fn is_state_successful(&self) -> bool;
-
-    /// Make the PUT used by self deterministic in the future by making its PRNG "deterministic"
-    /// Now subsumed by Factory-level functions to reseed globally: `determinism_reseed`
-    fn determinism_reseed(&mut self) -> Result<(), Error>;
 
     /// checks whether a agent is reusable with the descriptor
     fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {

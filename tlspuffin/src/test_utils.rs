@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use log::info;
 use puffin::{
     execution::{forked_execution, ExecutionStatus},
     put::PutOptions,
@@ -47,10 +46,10 @@ pub fn expect_trace_crash(
         .map(|status| {
             use ExecutionStatus as S;
             match &status {
-                Ok(S::Failure(_)) | Ok(S::Crashed) => info!("trace execution crashed"),
-                Ok(S::Timeout) => info!("trace execution timed out"),
-                Ok(S::Success) => info!("expected trace execution to crash, but succeeded"),
-                Err(reason) => info!("trace execution error: {reason}"),
+                Ok(S::Failure(_)) | Ok(S::Crashed) => log::info!("trace execution crashed"),
+                Ok(S::Timeout) => log::info!("trace execution timed out"),
+                Ok(S::Success) => log::info!("expected trace execution to crash, but succeeded"),
+                Err(reason) => log::info!("trace execution error: {reason}"),
             };
             status
         })

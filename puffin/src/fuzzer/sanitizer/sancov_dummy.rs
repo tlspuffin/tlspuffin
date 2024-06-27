@@ -1,3 +1,5 @@
+#![allow(clippy::missing_safety_doc)]
+
 // Provides a dummy implementation for sancov for usage in tests
 
 #[no_mangle]

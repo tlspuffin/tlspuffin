@@ -40,6 +40,7 @@ openssl111k = [
     "transcript-extraction",
     "client-authentication-transcript-extraction",
 ]
+
 openssl111j = [
     "openssl-src",
     "openssl-src/openssl111j",
@@ -54,6 +55,7 @@ openssl111j = [
     "transcript-extraction",
     "client-authentication-transcript-extraction",
 ]
+
 openssl111u = [
     "openssl-src",
     "openssl-src/openssl111u",
@@ -68,6 +70,7 @@ openssl111u = [
     "transcript-extraction",
     "client-authentication-transcript-extraction",
 ]
+
 openssl312 = [
     "openssl-src",
     "openssl-src/openssl312",
@@ -90,6 +93,7 @@ openssl101f = [
     "openssl101-binding",
     "tls12-session-resumption",
 ]
+
 openssl102u = [
     "openssl-src",
     "openssl-src/openssl102u",
@@ -120,7 +124,8 @@ wolfssl430 = [
     "wolfssl-binding",
     "transcript-extraction",
     # Does not support any kind of resumption right now: https://github.com/trailofbits/tlspuffin/issues/12
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 wolfssl510 = [
@@ -132,7 +137,8 @@ wolfssl510 = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 wolfssl520 = [
@@ -144,7 +150,8 @@ wolfssl520 = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 wolfssl530 = [
@@ -156,7 +163,8 @@ wolfssl530 = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 wolfssl540 = [
@@ -168,7 +176,8 @@ wolfssl540 = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 fix-CVE-2022-25638 = ["wolfssl-sys?/fix-CVE-2022-25638"]
@@ -186,9 +195,9 @@ wolfsslmaster = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
-
 
 boringsslmaster = [
     "boringssl-sys/vendored-master",
@@ -314,7 +323,7 @@ openssl-src = { version = "*", features = [], optional = true }
 
 [dev-dependencies]
 test-log = "0.2.10"
-env_logger = "0.9.0"
+env_logger = "0.10.0"
 nix = "0.25.0"
 serde_json = "1.0.81"
 tempfile = "3.3.0"

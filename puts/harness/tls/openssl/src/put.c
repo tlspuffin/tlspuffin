@@ -30,7 +30,6 @@ static const C_PUT_TYPE OPENSSL_PUT = {
 
     .progress = NULL,
     .reset = NULL,
-    .rename = NULL,
     .describe_state = NULL,
     .is_state_successful = NULL,
     .set_deterministic = NULL,

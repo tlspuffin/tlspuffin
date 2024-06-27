@@ -8,7 +8,6 @@ use std::{
 };
 
 use itertools::Itertools;
-use log::{debug, trace};
 
 use crate::{agent::AgentName, algebra::dynamic_function::TypeShape, variable_data::VariableData};
 
@@ -52,7 +51,7 @@ impl<C: Claim> ClaimList<C> {
 impl<C: Claim> ClaimList<C> {
     pub fn log(&self) {
         // TODO: skip logging completely during fuzzing -> more performance
-        debug!(
+        log::debug!(
             "New Claims: {}",
             &self
                 .claims
@@ -61,7 +60,7 @@ impl<C: Claim> ClaimList<C> {
                 .join(", ")
         );
         for claim in &self.claims {
-            trace!("{:?}", claim);
+            log::trace!("{:?}", claim);
         }
     }
 }

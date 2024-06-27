@@ -82,6 +82,8 @@ impl MessageFragmenter {
 mod tests {
     use std::collections::VecDeque;
 
+    use test_log::test;
+
     use super::{MessageFragmenter, PACKET_OVERHEAD};
     use crate::tls::rustls::msgs::{
         base::Payload,
