@@ -18,7 +18,6 @@ use puffin::{
 
 use crate::{
     claims::TlsClaim,
-    openssl::util::{set_max_protocol_version, static_rsa_cert},
     protocol::TLSProtocolBehavior,
     put::TlsPutConfig,
     put_registry::OPENSSL_RUST_PUT,
@@ -31,7 +30,6 @@ use crate::{
 
 mod bindings;
 mod deterministic;
-mod util;
 
 pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct OpenSSLFactory {
@@ -243,7 +241,8 @@ impl OpenSSL {
     fn create_server_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
 
-        let (cert, key) = static_rsa_cert(ALICE_PRIVATE_KEY.0.as_bytes(), ALICE_CERT.0.as_bytes())?;
+        let (cert, key) =
+            bindings::static_rsa_cert(ALICE_PRIVATE_KEY.0.as_bytes(), ALICE_CERT.0.as_bytes())?;
         ctx_builder.set_certificate(&cert)?;
         ctx_builder.set_private_key(&key)?;
 
@@ -265,7 +264,7 @@ impl OpenSSL {
         #[cfg(feature = "openssl111-binding")]
         bindings::set_allow_no_dhe_kex(&mut ctx_builder);
 
-        set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
+        bindings::set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
         #[cfg(any(feature = "openssl101-binding", feature = "openssl102-binding"))]
         {
@@ -298,7 +297,7 @@ impl OpenSSL {
         #[cfg(feature = "openssl111-binding")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-        set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
+        bindings::set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
         // Disallow EXPORT in client
         ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
@@ -306,7 +305,8 @@ impl OpenSSL {
         ctx_builder.set_verify(SslVerifyMode::NONE);
 
         if descriptor.client_authentication {
-            let (cert, key) = static_rsa_cert(BOB_PRIVATE_KEY.0.as_bytes(), BOB_CERT.0.as_bytes())?;
+            let (cert, key) =
+                bindings::static_rsa_cert(BOB_PRIVATE_KEY.0.as_bytes(), BOB_CERT.0.as_bytes())?;
             ctx_builder.set_certificate(&cert)?;
             ctx_builder.set_private_key(&key)?;
         }

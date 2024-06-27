@@ -21,7 +21,6 @@ use puffin::{
 };
 
 use crate::{
-    boringssl::util::{set_max_protocol_version, static_rsa_cert},
     claims::{
         ClaimData, ClaimDataTranscript, TlsClaim, TranscriptCertificate, TranscriptClientFinished,
         TranscriptServerFinished, TranscriptServerHello,
@@ -36,10 +35,9 @@ use crate::{
     },
 };
 
-#[cfg(feature = "deterministic")]
+mod bindings;
 mod deterministic;
 mod transcript;
-mod util;
 
 use std::ops::Deref;
 
@@ -230,7 +228,8 @@ impl BoringSSL {
     fn create_server(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
 
-        let (cert, key) = static_rsa_cert(ALICE_PRIVATE_KEY.0.as_bytes(), ALICE_CERT.0.as_bytes())?;
+        let (cert, key) =
+            bindings::static_rsa_cert(ALICE_PRIVATE_KEY.0.as_bytes(), ALICE_CERT.0.as_bytes())?;
         ctx_builder.set_certificate(&cert)?;
         ctx_builder.set_private_key(&key)?;
 
@@ -246,7 +245,7 @@ impl BoringSSL {
             ctx_builder.set_verify(SslVerifyMode::NONE);
         }
 
-        set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
+        bindings::set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
         // Allow EXPORT in server
         ctx_builder.set_cipher_list("ALL:EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
@@ -259,7 +258,7 @@ impl BoringSSL {
 
     fn create_client(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
-        set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
+        bindings::set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
 
         // Disallow EXPORT in client
         ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
@@ -267,7 +266,8 @@ impl BoringSSL {
         ctx_builder.set_verify(SslVerifyMode::NONE);
 
         if descriptor.client_authentication {
-            let (cert, key) = static_rsa_cert(BOB_PRIVATE_KEY.0.as_bytes(), BOB_CERT.0.as_bytes())?;
+            let (cert, key) =
+                bindings::static_rsa_cert(BOB_PRIVATE_KEY.0.as_bytes(), BOB_CERT.0.as_bytes())?;
             ctx_builder.set_certificate(&cert)?;
             ctx_builder.set_private_key(&key)?;
         }
