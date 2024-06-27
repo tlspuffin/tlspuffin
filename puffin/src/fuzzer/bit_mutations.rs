@@ -131,7 +131,7 @@ impl<S, M> Mutator<Trace<M>, S> for [<$mutation  DY>]<S>
         trace!("Start mutate with {:?}", self.name());
 
         if !self.with_bit_level {
-            debug!("[Mutation-bit] Mutate {} skipped because bit-level mutations are disabled", std::any::type_name::<[<$mutation  DY>]<S>>());
+            debug!("[Mutation-bit] Mutate {} skipped because bit-level mutations are disabled", self.name());
             return Ok(MutationResult::Skipped)
         }
         let rand = state.rand_mut();
@@ -145,11 +145,11 @@ impl<S, M> Mutator<Trace<M>, S> for [<$mutation  DY>]<S>
             // TODO: balance out this trade-off
             rand,
         ) {
-            debug!("[Mutation-bit] Mutate {} on term\n{}", std::any::type_name::<[<$mutation  DY>]<S>>(), &to_mutate);
+            debug!("[Mutation-bit] Mutate {} on term\n{}", self.name(), &to_mutate);
             if let Some(payloads) = &mut to_mutate.payloads {
                 libafl::mutators::mutations::$mutation.mutate(state, &mut payloads.payload, stage_idx)
             } else {
-                panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", std::any::type_name::<[<$mutation  DY>]<S>>());
+                panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
             }
         } else {
             Ok(MutationResult::Skipped)
@@ -268,7 +268,7 @@ where
         ) {
             debug!(
                 "[Mutation-bit] Mutate {} on term\n{}",
-                std::any::type_name::<BytesInsertCopyMutatorDY<S>>(),
+                self.name(),
                 &to_mutate
             );
             if let Some(payloads) = &mut to_mutate.payloads {
@@ -279,7 +279,7 @@ where
                     stage_idx,
                 )
             } else {
-                panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", std::any::type_name:: <BytesInsertCopyMutatorDY<S>> ());
+                panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
             }
         } else {
             Ok(MutationResult::Skipped)
@@ -352,7 +352,7 @@ where
         ) {
             debug!(
                 "[Mutation-bit] Mutate {} on term\n{}",
-                std::any::type_name::<BytesInsertCopyMutatorDY<S>>(),
+                self.name(),
                 &to_mutate
             );
             if let Some(payloads) = &mut to_mutate.payloads {
@@ -363,7 +363,7 @@ where
                     stage_idx,
                 )
             } else {
-                panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", std::any::type_name:: <BytesInsertCopyMutatorDY<S>> ());
+                panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
             }
         } else {
             Ok(MutationResult::Skipped)
@@ -613,7 +613,7 @@ where
         unsafe {
             buffer_copy(input, other_input, range.start, target, range.len());
         }
-        debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", std::any::type_name::<CrossoverInsertMutatorDY<S>>());
+        debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", self.name());
         trace!("Trace: {trace}");
         Ok(MutationResult::Mutated)
     }
@@ -742,7 +742,7 @@ where
         unsafe {
             buffer_copy(input, other_input, range.start, target, range.len());
         }
-        debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", std::any::type_name::<CrossoverReplaceMutatorDY<S>>());
+        debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", self.name());
         trace!("Trace: {trace}");
         Ok(MutationResult::Mutated)
     }
@@ -878,7 +878,7 @@ where
             .bytes();
 
         input.splice(split_at.., other_input[split_at..].iter().copied());
-        debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", std::any::type_name::<SpliceMutatorDY<S>>());
+        debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", self.name());
         trace!("Trace: {trace}");
         Ok(MutationResult::Mutated)
     }
