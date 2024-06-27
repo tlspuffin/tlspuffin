@@ -1528,23 +1528,23 @@ pub fn _seed_client_attacker_full(
                 }),
             },
             OutputAction::new_step(server),
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                         fn_encrypt_application(
-                            fn_alert_close_notify,
-                            (@server_hello_transcript),
-                            (@server_finished_transcript),
-                            (fn_get_server_key_share(((server, 0)))),
-                            fn_no_psk,
-                            fn_named_group_secp384r1,
-                            fn_seq_0  // sequence 0
-                        )
-                    },
-                }),
-            },
-            OutputAction::new_step(server),
+            // Step {
+            //     agent: server,
+            //     action: Action::Input(InputAction {
+            //         recipe: term! {
+            //              fn_encrypt_application(
+            //                 fn_alert_close_notify,
+            //                 (@server_hello_transcript),
+            //                 (@server_finished_transcript),
+            //                 (fn_get_server_key_share(((server, 0)))),
+            //                 fn_no_psk,
+            //                 fn_named_group_secp384r1,
+            //                 fn_seq_0  // sequence 0
+            //             )
+            //         },
+            //     }),
+            // },
+            // OutputAction::new_step(server),
         ],
     };
 
