@@ -494,6 +494,13 @@ impl<M: Matcher> Trace<M> {
             .flatten()
             .collect()
     }
+
+    pub fn is_symbolic(&self) -> bool {
+        self.steps.iter().all(|e| match &e.action {
+            Input(r) => r.recipe.is_symbolic(),
+            _ => true,
+        })
+    }
 }
 
 impl<M: Matcher> fmt::Debug for Trace<M> {
