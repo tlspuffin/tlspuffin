@@ -1,5 +1,6 @@
 use puffin::{
     agent::AgentName,
+    put_registry::PutDescriptor,
     trace::{Trace, TraceContext, TraceExecutor},
 };
 
@@ -13,11 +14,22 @@ pub trait TraceHelper<A>: TraceHelperExecutor<A> {
 
 pub trait TraceHelperExecutor<A> {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior>;
+    fn execute_with(self, put: &str) -> TraceContext<TLSProtocolBehavior>;
 }
 
 impl<A, H: TraceHelper<A>> TraceHelperExecutor<A> for H {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior> {
         TraceContext::builder(&tls_registry())
+            .execute(&self.build_trace())
+            .unwrap()
+    }
+
+    fn execute_with(self, put: &str) -> TraceContext<TLSProtocolBehavior> {
+        TraceContext::builder(&tls_registry())
+            .set_default_put(PutDescriptor {
+                factory: put.to_owned(),
+                options: Default::default(),
+            })
             .execute(&self.build_trace())
             .unwrap()
     }

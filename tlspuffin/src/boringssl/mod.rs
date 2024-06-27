@@ -112,7 +112,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
         fn determinism_reseed(&self) {
             log::debug!("[Determinism] reseed BoringSSL");
-            deterministic::reset_rand();
+            deterministic::rand_reseed();
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
