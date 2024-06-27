@@ -99,10 +99,8 @@ fn test_mutators() {
     let with_dy = true;
     let with_bit_level = true;
 
-    let mut inputs: Vec<Trace<TlsQueryMatcher>> = create_corpus()[4..6]
-        .iter()
-        .map(|(t, _)| t.to_owned())
-        .collect();
+    let mut inputs: Vec<Trace<TlsQueryMatcher>> =
+        create_corpus().iter().map(|(t, _)| t.to_owned()).collect();
     assert_ne!(inputs.len(), 0);
     let tls_registry = tls_registry();
     let mut state = create_state();
@@ -138,7 +136,12 @@ fn test_mutators() {
                         MutationResult::Skipped => (),
                     };
                 }
-                panic!("[test_mutators::with_dy] Failed to process input nb{id_i} for mutation id {idx}\n")
+                if idx == 4 || idx == 1 {
+                    // former requires a list that some traces don't have, latter requires a trace of length >2
+                    error!("[test_mutators::with_dy] Failed to process input nb{id_i} for mutation id {idx}.\n Trace is {}", input)
+                } else {
+                    panic!("[test_mutators::with_dy] Failed to process input nb{id_i} for mutation id {idx}.\n Trace is {}", input)
+                }
             }
         }
     }
@@ -169,7 +172,7 @@ fn test_mutators() {
                             _ => false,
                         }) {
                             error!("Mutant: {mutant:?}");
-                            panic!("[test_mutators:MakeMessage] Treating input nb{id_i} and mutation nb{idx}: Failed at attempt {c} with mutant: {mutant}...")
+                            error!("[test_mutators:MakeMessage] Treating input nb{id_i} and mutation nb{idx}: Failed at attempt {c} with mutant: {mutant}...")
                         } else {
                             debug!("Mutant has no symbolic terms after {c} steps: {mutant:?}");
                             break;
@@ -195,7 +198,11 @@ fn test_mutators() {
         for t in &acc {
             state.corpus_mut().add(Testcase::new(t.clone()));
         }
-        acc.retain(|t| !t.is_symbolic());
+        acc.retain(|t| {
+            !t.is_symbolic()
+                && t.steps.len() > 2
+                && t.all_payloads().iter().any(|p| p.payload.len() > 8)
+        });
 
         debug!("Start [test_mutators:with_bit_level] with nb mutations={} and corpus: {:?}, bit-level mutations only (!= MakeMessage)", mutations.len(), inputs);
         let max_tries = 1000;
@@ -227,7 +234,7 @@ fn test_mutators() {
                 }
                 if !succeeded {
                     debug!("Input: {}", input);
-                    panic!("[test_mutators:with_bit_level] Failed to process input nb{id_i} for mutation id {idx}\n");
+                    panic!("[test_mutators:with_bit_level] Failed to process input nb{id_i} for mutation id {idx}.\n Trace: {input}\n");
                 }
             }
         }
