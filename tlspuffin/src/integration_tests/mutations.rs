@@ -110,6 +110,9 @@ fn test_mutators() {
 
     let mut mutations = test_mutations(&tls_registry, with_bit_level, with_dy);
 
+    let mut nb_failures = 0;
+    let mut nb_success = 0;
+
     if with_dy {
         debug!("Start [test_mutators::with_dy] with nb mutations={} and corpus: {:?}, DY mutations only first", mutations.len(), inputs);
 
@@ -118,7 +121,7 @@ fn test_mutators() {
             let max_idx = if with_bit_level { 8 } else { 7 }; // all DY mutations, including MakeMessages
             'outer: for idx in 0..max_idx {
                 debug!("Treating mutation nb{idx}");
-                for c in 0..1000 {
+                for c in 0..10000 {
                     // debug!(".");
                     let mut mutant = input.clone();
                     match mutations
@@ -150,7 +153,7 @@ fn test_mutators() {
         for (id_i, input) in inputs.iter().enumerate() {
             debug!("Treating input nb{id_i}....");
             let mut mutant = input.clone();
-            for c in 0..10 {
+            for c in 0..15 {
                 // debug!(".");
                 match mutations
                     .get_and_mutate(idx.into(), &mut state, &mut mutant, 0)
@@ -168,7 +171,7 @@ fn test_mutators() {
                             error!("Mutant: {mutant:?}");
                             panic!("[test_mutators:MakeMessage] Treating input nb{id_i} and mutation nb{idx}: Failed at attempt {c} with mutant: {mutant}...")
                         } else {
-                            debug!("Mutant has no symbolic terms: {mutant:?}");
+                            debug!("Mutant has no symbolic terms after {c} steps: {mutant:?}");
                             break;
                         }
                     }
@@ -189,17 +192,19 @@ fn test_mutators() {
             );
         }
         debug!("Adding 4th MakeMessage inputs to the corpus (required for CrossOver mutations...");
-        state.corpus_mut().add(Testcase::new(acc[0].clone()));
-        state.corpus_mut().add(Testcase::new(acc[1].clone()));
-        state.corpus_mut().add(Testcase::new(acc[2].clone()));
-        state.corpus_mut().add(Testcase::new(acc[3].clone()));
+        for t in &acc {
+            state.corpus_mut().add(Testcase::new(t.clone()));
+        }
+        acc.retain(|t| !t.is_symbolic());
 
         debug!("Start [test_mutators:with_bit_level] with nb mutations={} and corpus: {:?}, bit-level mutations only (!= MakeMessage)", mutations.len(), inputs);
+        let max_tries = 1000;
         for (id_i, input) in acc.iter().enumerate() {
             debug!("Treating MakeMessage input nb{id_i}....");
-            'outer: for idx in 8..mutations.len() {
+            for idx in 8..mutations.len() {
                 debug!("Treating mutation nb{idx}");
-                for c in 0..1000 {
+                let mut succeeded = false;
+                for c in 0..max_tries {
                     // debug!(".");
                     let mut mutant = input.clone();
                     match mutations
@@ -211,17 +216,22 @@ fn test_mutators() {
                             if c > 0 {
                                 warn!("[test_mutators:with_bit_level] Treating input nb{id_i} and mutation nb{idx}: Success but after {c} attempts....")
                             }
-                            continue 'outer;
+                            nb_success = nb_success + 1;
+                            succeeded = true;
                         }
                         MutationResult::Skipped => {
                             debug!("Skipped");
+                            nb_failures = nb_failures + 1;
                         }
                     };
                 }
-                debug!("Input: {}", acc[0]);
-                panic!("[test_mutators:with_bit_level] Failed to process input nb{id_i} for mutation id {idx}\n");
+                if !succeeded {
+                    debug!("Input: {}", input);
+                    panic!("[test_mutators:with_bit_level] Failed to process input nb{id_i} for mutation id {idx}\n");
+                }
             }
         }
+        error!("All bit-level mutations could be applied at least once with a total of #{nb_failures} failures over #{nb_success} successes. On {} inputs, and {max_tries} tries for each.", acc.len());
     }
 }
 

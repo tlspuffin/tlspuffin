@@ -1,7 +1,7 @@
 use std::cmp::max;
 
 use libafl::bolts::rands::Rand;
-use log::error;
+use log::{debug, error, trace};
 
 use crate::{
     algebra::{Matcher, Term, TermEval, TermType},
@@ -110,6 +110,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
     constraints: TermConstraints,
     rand: &mut R,
 ) -> Option<(&'a TermEval<M>, TracePath)> {
+    // trace!("[reservoir_sample] Start");
     // If if_wighted is set to true, we run a Reservoir Sampling algorithm per depth (of chosen sub-terms
     // in the overall recipe. See the two vectors: depth_counts and depth_reservoir, indices are depths.
     // Otherwise, the two above vectors have size 1 and we only store one counter and one sample, as
@@ -142,6 +143,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
 
                 let size = term.size();
                 if size <= constraints.min_term_size || size >= constraints.max_term_size {
+                    trace!("[reservoir_sample] Skip step {step_index} because of size constraints for term: {term}");
                     continue;
                     //TODO-bitlevel: consider removing this, we just want to exclude picking such terms
                     // but it is OK to enter the term and look for suitable sub-terms
@@ -151,7 +153,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                     vec![(term, (step_index, TermPath::new()), false, 0)]; // bool is true for terms inside a list (e.g., fn_append)
                                                                            // usize is for depth
 
-                // DFS Algo: the version with if_weighted inplements the reservoir sampling algorithm
+                // DFS Algo: the version with if_weighted implements the reservoir sampling algorithm
                 // at each depth, independently
                 while let Some((term, path, is_inside_list, depth)) = stack.pop() {
                     // push next terms onto stack
@@ -190,6 +192,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                             0
                         };
                         depth_counts[level] += 1;
+                        // trace!("[reservoir_sample] Considering adding a term with count {}, term is {term} and currently stored term is {:?}", depth_counts[level], depth_reservoir[level]);
 
                         // consider in sampling
                         if depth_reservoir[level].is_none() {
@@ -198,7 +201,10 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                         } else {
                             // `1/visited` chance of overwriting
                             // replace elements with gradually decreasing probability
-                            if rand.between(1, depth_counts[level]) == 1 {
+                            let r = rand.between(1, depth_counts[level]);
+                            // trace!("[reservoir_sample] Random value was {r} in [1,{}]", depth_counts[level]     );
+                            if r == 1 {
+                                // trace!("[reservoir_sample] Replacing term!");
                                 depth_reservoir[level] = Some((term, path));
                             }
                         }
@@ -206,6 +212,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                 }
             }
             Action::Output(_) => {
+                continue;
                 // no term -> skip
             }
         }
@@ -332,7 +339,7 @@ pub fn choose_mut<'a, R: Rand, M: Matcher>(
     constraints: TermConstraints,
     rand: &mut R,
 ) -> Option<(&'a mut TermEval<M>, (usize, TermPath))> {
-    if let Some((t, (u, path))) = reservoir_sample(trace, |_| true, constraints, rand) {
+    if let Some((_, (u, path))) = reservoir_sample(trace, |_| true, constraints, rand) {
         let t = find_term_mut(trace, &(u, path.clone()));
         t.map(|t| (t, (u, path)))
     } else {
