@@ -227,6 +227,11 @@ impl ExtractKnowledge<TlsQueryMatcher> for MessagePayload {
         matcher: Option<TlsQueryMatcher>,
         source: &Source,
     ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
         match &self {
             MessagePayload::Alert(alert) => {
                 knowledges.push(Knowledge {
@@ -278,6 +283,11 @@ impl ExtractKnowledge<TlsQueryMatcher> for HandshakeMessagePayload {
         knowledges.push(Knowledge {
             source: source.clone(),
             matcher,
+            data: Box::new(self.clone()),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
             data: Box::new(self.typ),
         });
         self.payload
@@ -293,6 +303,11 @@ impl ExtractKnowledge<TlsQueryMatcher> for HandshakePayload {
         matcher: Option<TlsQueryMatcher>,
         source: &Source,
     ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
         match &self {
             HandshakePayload::HelloRequest => {}
             HandshakePayload::ClientHello(ch) => {
@@ -330,6 +345,11 @@ impl ExtractKnowledge<TlsQueryMatcher> for CertificatePayload {
         knowledges.push(Knowledge {
             source: source.clone(),
             matcher,
+            data: Box::new(self.clone()),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
             data: Box::new(self.0.clone()),
         });
         Ok(())
@@ -343,6 +363,11 @@ impl ExtractKnowledge<TlsQueryMatcher> for ServerKeyExchangePayload {
         matcher: Option<TlsQueryMatcher>,
         source: &Source,
     ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
         match self {
             ServerKeyExchangePayload::ECDHE(ecdhe) => {
                 // this path wont be taken because we do not know the key exchange algorithm
@@ -383,6 +408,11 @@ impl ExtractKnowledge<TlsQueryMatcher> for Payload {
         knowledges.push(Knowledge {
             source: source.clone(),
             matcher,
+            data: Box::new(self.clone()),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
             data: Box::new(self.0.clone()),
         });
         Ok(())
@@ -396,6 +426,11 @@ impl ExtractKnowledge<TlsQueryMatcher> for ClientHelloPayload {
         matcher: Option<TlsQueryMatcher>,
         source: &Source,
     ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
         knowledges.push(Knowledge {
             source: source.clone(),
             matcher,
@@ -460,6 +495,11 @@ impl ExtractKnowledge<TlsQueryMatcher> for NewSessionTicketPayload {
         knowledges.push(Knowledge {
             source: source.clone(),
             matcher,
+            data: Box::new(self.clone()),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
             data: Box::new(self.lifetime_hint as u64),
         });
         knowledges.push(Knowledge {
@@ -478,6 +518,11 @@ impl ExtractKnowledge<TlsQueryMatcher> for ServerHelloPayload {
         matcher: Option<TlsQueryMatcher>,
         source: &Source,
     ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
         knowledges.push(Knowledge {
             source: source.clone(),
             matcher,
