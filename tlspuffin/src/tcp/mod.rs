@@ -1,21 +1,20 @@
 use std::{
     ffi::OsStr,
-    io,
-    io::{ErrorKind, Write},
+    io::{self, ErrorKind, Read, Write},
     net::{AddrParseError, IpAddr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs},
     path::Path,
     process::{Child, Command, Stdio},
     str::FromStr,
-    sync::{mpsc, mpsc::channel},
+    sync::mpsc::{self, channel},
     thread,
     time::Duration,
 };
 
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
+    codec::Codec,
     error::Error,
-    protocol::MessageResult,
     put::{Put, PutDescriptor, PutName},
     put_registry::{Factory, PutKind},
     stream::Stream,
@@ -24,12 +23,10 @@ use puffin::{
 };
 
 use crate::{
-    protocol::TLSProtocolBehavior,
+    protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
     put_registry::TCP_PUT,
-    tls::rustls::msgs::{
-        deframer::MessageDeframer,
-        message::{Message, OpaqueMessage},
-    },
+    query::TlsQueryMatcher,
+    tls::rustls::msgs::message::{Message, OpaqueMessage},
 };
 
 pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
@@ -117,11 +114,9 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 }
 
 trait TcpPut {
-    fn deframer_mut(&mut self) -> &mut MessageDeframer;
-
     fn write_to_stream(&mut self, buf: &[u8]) -> io::Result<()>;
 
-    fn read_to_deframer(&mut self) -> io::Result<usize>;
+    fn read_to_flight(&mut self) -> Result<Option<OpaqueMessageFlight>, Error>;
 }
 
 /// A PUT which is backed by a TCP stream to a server.
@@ -132,23 +127,21 @@ trait TcpPut {
 /// ```
 pub struct TcpClientPut {
     stream: TcpStream,
-    deframer: MessageDeframer,
     agent_descriptor: AgentDescriptor,
     process: Option<TLSProcess>,
 }
 
 impl TcpPut for TcpClientPut {
-    fn deframer_mut(&mut self) -> &mut MessageDeframer {
-        &mut self.deframer
-    }
-
     fn write_to_stream(&mut self, buf: &[u8]) -> io::Result<()> {
         self.stream.write_all(buf)?;
         self.stream.flush()
     }
 
-    fn read_to_deframer(&mut self) -> io::Result<usize> {
-        self.deframer.read(&mut self.stream)
+    fn read_to_flight(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
+        let mut buf = vec![];
+        let _ = self.stream.read_to_end(&mut buf);
+        let flight = OpaqueMessageFlight::read_bytes(&mut buf);
+        Ok(flight)
     }
 }
 
@@ -162,7 +155,6 @@ impl TcpClientPut {
 
         Ok(Self {
             stream,
-            deframer: Default::default(),
             agent_descriptor: agent_descriptor.clone(),
             process: None,
         })
@@ -203,7 +195,6 @@ impl TcpClientPut {
 pub struct TcpServerPut {
     stream: Option<(TcpStream, TcpListener)>,
     stream_receiver: mpsc::Receiver<(TcpStream, TcpListener)>,
-    deframer: MessageDeframer,
     agent_descriptor: AgentDescriptor,
     process: Option<TLSProcess>,
 }
@@ -235,7 +226,6 @@ impl TcpServerPut {
         Ok(Self {
             stream: None,
             stream_receiver,
-            deframer: Default::default(),
             agent_descriptor: agent_descriptor.clone(),
             process: None,
         })
@@ -259,10 +249,6 @@ impl TcpServerPut {
 }
 
 impl TcpPut for TcpServerPut {
-    fn deframer_mut(&mut self) -> &mut MessageDeframer {
-        &mut self.deframer
-    }
-
     fn write_to_stream(&mut self, buf: &[u8]) -> io::Result<()> {
         self.receive_stream();
         let stream = &mut self.stream.as_mut().unwrap().0;
@@ -271,79 +257,41 @@ impl TcpPut for TcpServerPut {
         Ok(())
     }
 
-    fn read_to_deframer(&mut self) -> io::Result<usize> {
+    fn read_to_flight(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
         self.receive_stream();
-        let stream = &mut self.stream.as_mut().unwrap().0;
-        self.deframer.read(stream)
+        let mut buf = vec![];
+        let _ = self.stream.as_mut().unwrap().0.read_to_end(&mut buf);
+        let flight = OpaqueMessageFlight::read_bytes(&mut buf);
+        Ok(flight)
     }
 }
 
-impl Stream<Message, OpaqueMessage> for TcpServerPut {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.write_to_stream(&opaque_message.clone().encode())
+impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for TcpServerPut {
+    fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight) {
+        self.write_to_stream(&opaque_flight.clone().get_encoding())
             .unwrap();
     }
 
-    fn take_message_from_outbound(
-        &mut self,
-    ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
+    fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
         take_message_from_outbound(self)
     }
 }
 
-impl Stream<Message, OpaqueMessage> for TcpClientPut {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
-        self.write_to_stream(&opaque_message.clone().encode())
+impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for TcpClientPut {
+    fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight) {
+        self.write_to_stream(&opaque_flight.clone().get_encoding())
             .unwrap();
     }
 
-    fn take_message_from_outbound(
-        &mut self,
-    ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
+    fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
         take_message_from_outbound(self)
     }
 }
 
 fn take_message_from_outbound<P: TcpPut>(
     put: &mut P,
-) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
-    // Retry to read if no more frames in the deframer buffer
-    let opaque_message = loop {
-        if let Some(opaque_message) = put.deframer_mut().frames.pop_front() {
-            break Some(opaque_message);
-        } else {
-            match put.read_to_deframer() {
-                Ok(v) => {
-                    if v == 0 {
-                        break None;
-                    }
-                }
-                Err(err) => match err.kind() {
-                    ErrorKind::WouldBlock => {
-                        // This is not a hard error. It just means we will should read again from
-                        // the TCPStream in the next steps.
-                        break None;
-                    }
-                    _ => return Err(err.into()),
-                },
-            }
-        }
-    };
-
-    if let Some(opaque_message) = opaque_message {
-        let message = match Message::try_from(opaque_message.clone().into_plain_message()) {
-            Ok(message) => Some(message),
-            Err(err) => {
-                error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
-                None
-            }
-        };
-
-        Ok(Some(MessageResult(message, opaque_message)))
-    } else {
-        // no message to return
-        Ok(None)
-    }
+) -> Result<Option<OpaqueMessageFlight>, Error> {
+    put.read_to_flight()
 }
 
 fn addr_from_config(put_descriptor: &PutDescriptor) -> Result<SocketAddr, AddrParseError> {

@@ -17,24 +17,25 @@
 //! If Bob is an [`Agent`](crate::agent::Agent), which has an underlying *PUT state* then OpenSSL may write into the
 //! *outbound channel* of Bob.
 
-use std::{
-    io,
-    io::{ErrorKind, Read, Write},
-};
-
-use log::error;
+use std::io::{self, Read, Write};
 
 use crate::{
-    codec::Codec,
+    algebra::Matcher,
     error::Error,
-    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolMessage, ProtocolMessageDeframer},
+    protocol::{OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolMessage},
 };
 
-pub trait Stream<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> {
-    fn add_to_inbound(&mut self, opaque_message: &O);
+pub trait Stream<
+    Mt: Matcher,
+    M: ProtocolMessage<Mt, O>,
+    O: OpaqueProtocolMessage<Mt>,
+    OF: OpaqueProtocolMessageFlight<Mt, O>,
+>
+{
+    fn add_to_inbound(&mut self, message_flight: &OF);
 
     /// Takes a single TLS message from the outbound channel
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageResult<M, O>>, Error>;
+    fn take_message_from_outbound(&mut self) -> Result<Option<OF>, Error>;
 }
 
 /// Describes in- or outbound channels of an [`crate::agent::Agent`]. Each [`crate::agent::Agent`] can send and receive data.
@@ -51,79 +52,41 @@ pub type Channel = io::Cursor<Vec<u8>>;
 ///
 /// **Note: There need to be two separate buffer! Else for example a TLS socket would read and write
 /// into the same buffer**
-pub struct MemoryStream<D: ProtocolMessageDeframer> {
+pub struct MemoryStream {
     inbound: Channel,
     outbound: Channel,
-    deframer: D,
 }
 
-impl<D: ProtocolMessageDeframer> MemoryStream<D> {
-    pub fn new(deframer: D) -> Self {
+impl MemoryStream {
+    pub fn new() -> Self {
         Self {
             inbound: io::Cursor::new(Vec::new()),
             outbound: io::Cursor::new(Vec::new()),
-            deframer,
         }
     }
 }
 
-impl<M, D: ProtocolMessageDeframer, E> Stream<M, D::OpaqueProtocolMessage> for MemoryStream<D>
-where
-    M: ProtocolMessage<D::OpaqueProtocolMessage>,
-    D::OpaqueProtocolMessage: TryInto<M, Error = E>,
-    E: Into<Error>,
-    M: TryInto<M>,
+impl<
+        Mt: Matcher,
+        M: ProtocolMessage<Mt, O>,
+        O: OpaqueProtocolMessage<Mt>,
+        OF: OpaqueProtocolMessageFlight<Mt, O>,
+    > Stream<Mt, M, O, OF> for MemoryStream
 {
-    fn add_to_inbound(&mut self, opaque_message: &D::OpaqueProtocolMessage) {
-        opaque_message.encode(self.inbound.get_mut());
+    fn add_to_inbound(&mut self, message_flight: &OF) {
+        message_flight.encode(self.inbound.get_mut());
     }
 
-    fn take_message_from_outbound(
-        &mut self,
-    ) -> Result<Option<MessageResult<M, D::OpaqueProtocolMessage>>, Error> {
-        // Retry to read if no more frames in the deframer buffer
-        let opaque_message = loop {
-            if let Some(opaque_message) = self.deframer.pop_frame() {
-                break Some(opaque_message);
-            } else {
-                match self.deframer.read(&mut self.outbound.get_ref().as_slice()) {
-                    Ok(v) => {
-                        self.outbound.set_position(0);
-                        self.outbound.get_mut().clear();
-                        if v == 0 {
-                            break None;
-                        }
-                    }
-                    Err(err) => match err.kind() {
-                        ErrorKind::WouldBlock => {
-                            // This is not a hard error. It just means we will should read again from
-                            // the TCPStream in the next steps.
-                            break None;
-                        }
-                        _ => return Err(err.into()),
-                    },
-                }
-            }
-        };
+    fn take_message_from_outbound(&mut self) -> Result<Option<OF>, Error> {
+        let flight = OF::read_bytes(&mut self.outbound.get_ref().as_slice());
+        self.outbound.set_position(0);
+        self.outbound.get_mut().clear();
 
-        if let Some(opaque_message) = opaque_message {
-            let message = match opaque_message.clone().try_into() {
-                Ok(message) => Some(message),
-                Err(err) => {
-                    error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err.into());
-                    None
-                }
-            };
-
-            Ok(Some(MessageResult(message, opaque_message)))
-        } else {
-            // no message to return
-            Ok(None)
-        }
+        Ok(flight)
     }
 }
 
-impl<D: ProtocolMessageDeframer> Read for MemoryStream<D> {
+impl Read for MemoryStream {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let n = self.inbound.read(buf)?;
 
@@ -142,7 +105,7 @@ impl<D: ProtocolMessageDeframer> Read for MemoryStream<D> {
     }
 }
 
-impl<D: ProtocolMessageDeframer> Write for MemoryStream<D> {
+impl Write for MemoryStream {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.outbound.write(buf)
     }

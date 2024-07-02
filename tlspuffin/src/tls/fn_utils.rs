@@ -6,26 +6,30 @@ use std::convert::TryFrom;
 use puffin::{
     algebra::error::FnError,
     codec::{Codec, Reader},
+    protocol::{OpaqueProtocolMessageFlight, ProtocolMessageFlight},
 };
 
-use crate::tls::{
-    key_exchange::{tls12_key_exchange, tls12_new_secrets},
-    key_schedule::*,
-    rustls::{
-        conn::Side,
-        hash_hs::HandshakeHash,
-        key::Certificate,
-        msgs::{
-            base::PayloadU8,
-            enums::{HandshakeType, NamedGroup},
-            handshake::{
-                CertificateEntry, CertificateExtension, CertificateExtensions,
-                HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
+use crate::{
+    protocol::{MessageFlight, OpaqueMessageFlight},
+    tls::{
+        key_exchange::{tls12_key_exchange, tls12_new_secrets},
+        key_schedule::*,
+        rustls::{
+            conn::Side,
+            hash_hs::HandshakeHash,
+            key::Certificate,
+            msgs::{
+                base::PayloadU8,
+                enums::{HandshakeType, NamedGroup},
+                handshake::{
+                    CertificateEntry, CertificateExtension, CertificateExtensions,
+                    HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
+                },
+                message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
             },
-            message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
+            tls12,
+            tls13::key_schedule::KeyScheduleEarly,
         },
-        tls12,
-        tls13::key_schedule::KeyScheduleEarly,
     },
 };
 
@@ -49,34 +53,61 @@ pub fn fn_append_transcript(
     Ok(new_transcript)
 }
 
-pub fn fn_decrypt_handshake(
-    application_data: &Message,
+pub fn fn_new_flight() -> Result<MessageFlight, FnError> {
+    Ok(MessageFlight::new())
+}
+
+pub fn fn_append_flight(flight: &MessageFlight, msg: &Message) -> Result<MessageFlight, FnError> {
+    let mut new_flight = flight.clone();
+    new_flight.messages.push(msg.clone());
+    Ok(new_flight)
+}
+
+pub fn fn_new_opaque_flight() -> Result<OpaqueMessageFlight, FnError> {
+    Ok(OpaqueMessageFlight::new())
+}
+
+pub fn fn_append_opaque_flight(
+    flight: &OpaqueMessageFlight,
+    msg: &OpaqueMessage,
+) -> Result<OpaqueMessageFlight, FnError> {
+    let mut new_flight = flight.clone();
+    new_flight.messages.push(msg.clone());
+    Ok(new_flight)
+}
+
+/// Decrypt a whole flight of handshake messages and return a Vec of decrypted messages
+pub fn fn_decrypt_handshake_flight(
+    flight: &MessageFlight,
     server_hello_transcript: &HandshakeHash,
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
     group: &NamedGroup,
     client: &bool,
     sequence: &u64,
-) -> Result<Message, FnError> {
-    let (suite, key, _) = tls13_handshake_traffic_secret(
-        server_hello_transcript,
-        server_key_share,
-        psk,
-        !*client,
-        group,
-    )?;
-    let decrypter = suite
-        .tls13()
-        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
-        .derive_decrypter(&key);
-    let message = decrypter
-        .decrypt(
-            PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
-            *sequence,
-        )
-        .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
-    Message::try_from(message)
-        .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
+) -> Result<MessageFlight, FnError> {
+    let mut sequence_number = *sequence;
+
+    let mut decrypted_flight = MessageFlight::new();
+
+    for msg in &flight.messages {
+        if let MessagePayload::ApplicationData(_) = &msg.payload {
+            let decrypted_msg = fn_decrypt_multiple_handshake_messages(
+                &msg,
+                server_hello_transcript,
+                server_key_share,
+                psk,
+                group,
+                client,
+                &sequence_number,
+            )?;
+
+            decrypted_flight.messages.extend(decrypted_msg);
+            sequence_number += 1;
+        }
+    }
+
+    Ok(decrypted_flight)
 }
 
 /// Decrypt an Application data message containing multiple handshake messages
@@ -122,8 +153,8 @@ pub fn fn_decrypt_multiple_handshake_messages(
     Ok(messages)
 }
 
-pub fn fn_find_server_certificate(messages: &Vec<Message>) -> Result<Message, FnError> {
-    for msg in messages {
+pub fn fn_find_server_certificate(flight: &MessageFlight) -> Result<Message, FnError> {
+    for msg in &flight.messages {
         if let MessagePayload::Handshake(x) = &msg.payload {
             if x.typ == HandshakeType::Certificate {
                 return Ok(msg.clone());
@@ -133,8 +164,8 @@ pub fn fn_find_server_certificate(messages: &Vec<Message>) -> Result<Message, Fn
     Err(FnError::Unknown("no server certificate".to_owned()))
 }
 
-pub fn fn_find_server_ticket(messages: &Vec<Message>) -> Result<Message, FnError> {
-    for msg in messages {
+pub fn fn_find_server_ticket(flight: &MessageFlight) -> Result<Message, FnError> {
+    for msg in &flight.messages {
         if let MessagePayload::Handshake(x) = &msg.payload {
             if x.typ == HandshakeType::NewSessionTicket {
                 return Ok(msg.clone());
@@ -144,8 +175,8 @@ pub fn fn_find_server_ticket(messages: &Vec<Message>) -> Result<Message, FnError
     Err(FnError::Unknown("no server tickets".to_owned()))
 }
 
-pub fn fn_find_server_certificate_request(messages: &Vec<Message>) -> Result<Message, FnError> {
-    for msg in messages {
+pub fn fn_find_server_certificate_request(flight: &MessageFlight) -> Result<Message, FnError> {
+    for msg in &flight.messages {
         if let MessagePayload::Handshake(x) = &msg.payload {
             if x.typ == HandshakeType::CertificateRequest {
                 return Ok(msg.clone());
@@ -155,8 +186,8 @@ pub fn fn_find_server_certificate_request(messages: &Vec<Message>) -> Result<Mes
     Err(FnError::Unknown("no server tickets".to_owned()))
 }
 
-pub fn fn_find_encrypted_extensions(messages: &Vec<Message>) -> Result<Message, FnError> {
-    for msg in messages {
+pub fn fn_find_encrypted_extensions(flight: &MessageFlight) -> Result<Message, FnError> {
+    for msg in &flight.messages {
         if let MessagePayload::Handshake(x) = &msg.payload {
             if x.typ == HandshakeType::EncryptedExtensions {
                 return Ok(msg.clone());
@@ -166,8 +197,8 @@ pub fn fn_find_encrypted_extensions(messages: &Vec<Message>) -> Result<Message, 
     Err(FnError::Unknown("no encrypted extensions".to_owned()))
 }
 
-pub fn fn_find_server_certificate_verify(messages: &Vec<Message>) -> Result<Message, FnError> {
-    for msg in messages {
+pub fn fn_find_server_certificate_verify(flight: &MessageFlight) -> Result<Message, FnError> {
+    for msg in &flight.messages {
         if let MessagePayload::Handshake(x) = &msg.payload {
             if x.typ == HandshakeType::CertificateVerify {
                 return Ok(msg.clone());
@@ -177,8 +208,8 @@ pub fn fn_find_server_certificate_verify(messages: &Vec<Message>) -> Result<Mess
     Err(FnError::Unknown("no certificate verify".to_owned()))
 }
 
-pub fn fn_find_server_finished(messages: &Vec<Message>) -> Result<Message, FnError> {
-    for msg in messages {
+pub fn fn_find_server_finished(flight: &MessageFlight) -> Result<Message, FnError> {
+    for msg in &flight.messages {
         if let MessagePayload::Handshake(x) = &msg.payload {
             if x.typ == HandshakeType::Finished {
                 return Ok(msg.clone());
@@ -194,6 +225,42 @@ pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {
 
 pub fn fn_psk(some: &Vec<u8>) -> Result<Option<Vec<u8>>, FnError> {
     Ok(Some(some.clone()))
+}
+
+/// Decrypt a whole flight of application messages and return a Vec of decrypted messages
+pub fn fn_decrypt_application_flight(
+    flight: &MessageFlight,
+    server_hello_transcript: &HandshakeHash,
+    server_finished_transcript: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
+    psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
+    sequence: &u64,
+) -> Result<MessageFlight, FnError> {
+    let mut sequence_number = *sequence;
+
+    let mut decrypted_flight = MessageFlight::new();
+
+    for msg in &flight.messages {
+        if let MessagePayload::ApplicationData(_) = &msg.payload {
+            let decrypted_msg = fn_decrypt_application(
+                &msg,
+                server_hello_transcript,
+                server_finished_transcript,
+                server_key_share,
+                psk,
+                group,
+                client,
+                &sequence_number,
+            )?;
+
+            decrypted_flight.push(decrypted_msg);
+            sequence_number += 1;
+        }
+    }
+
+    Ok(decrypted_flight)
 }
 
 pub fn fn_decrypt_application(

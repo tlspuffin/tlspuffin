@@ -22,6 +22,7 @@ use std::{
     marker::PhantomData,
 };
 
+use clap::error::Result;
 use log::{debug, trace, warn};
 use serde::{Deserialize, Serialize};
 
@@ -32,15 +33,18 @@ use crate::{
     algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
-    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
+    protocol::{
+        ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+        ProtocolMessage, ProtocolMessageFlight,
+    },
     put::{PutDescriptor, PutOptions},
     put_registry::PutRegistry,
     variable_data::VariableData,
 };
 
-#[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct Query<M> {
-    pub agent_name: AgentName,
+    pub source: Option<Source>,
     pub matcher: Option<M>,
     pub counter: u16, // in case an agent sends multiple messages of the same type
 }
@@ -49,8 +53,8 @@ impl<M: Matcher> fmt::Display for Query<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "({}, {})[{:?}]",
-            self.agent_name, self.counter, self.matcher
+            "({:?}, {})[{:?}]",
+            self.source, self.counter, self.matcher
         )
     }
 }
@@ -61,34 +65,139 @@ impl<M: Matcher> Knowledge<M> {
     }
 }
 
+/// [Source] stores the origin of a knowledge, whether the agent name or
+/// the label of the precomputation that produced it
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Deserialize, Serialize)]
+pub enum Source {
+    Agent(AgentName),
+    Label(String),
+}
+
+impl fmt::Display for Source {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Agent(x) => write!(f, "agent:{}", x),
+            Self::Label(x) => write!(f, "label:{}", x),
+        }
+    }
+}
+
 /// [Knowledge] describes an atomic piece of knowledge inferred by the
-/// [`crate::protocol::ProtocolMessage::extract_knowledge`] function
-/// [Knowledge] is made of the data, the agent that produced the output, the TLS message type and the internal type.
+/// [`crate::protocol::ExtractKnowledge::extract_knowledge`] function
+/// [Knowledge] is made of the data, the source of the output, the
+/// TLS message type and the internal type.
 #[derive(Debug)]
 pub struct Knowledge<M: Matcher> {
-    pub agent_name: AgentName,
+    pub source: Source,
     pub matcher: Option<M>,
     pub data: Box<dyn VariableData>,
 }
 
 impl<M: Matcher> Knowledge<M> {
-    pub fn debug_print<PB>(&self, ctx: &TraceContext<PB>, agent_name: &AgentName)
+    pub fn debug_print<PB>(&self, ctx: &TraceContext<PB>, source: &Source)
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        let data_type_id = self.data.as_ref().type_id();
+        let data_type_id = self.data.type_id();
         debug!(
             "New knowledge {}: {}  (counter: {})",
             &self,
             remove_prefix(self.data.type_name()),
-            ctx.number_matching_message(*agent_name, data_type_id, &self.matcher)
+            ctx.number_matching_message_with_source(source.clone(), data_type_id, &self.matcher)
         );
         trace!("Knowledge data: {:?}", self.data);
     }
 }
+
 impl<M: Matcher> fmt::Display for Knowledge<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "({})/{:?}", self.agent_name, self.matcher)
+        write!(f, "({})/{:?}", self.source, self.matcher)
+    }
+}
+
+#[derive(Debug)]
+pub struct KnowledgeStore<PB: ProtocolBehavior> {
+    knowledge: Vec<Knowledge<PB::Matcher>>,
+}
+
+impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
+    pub fn new() -> Self {
+        Self { knowledge: vec![] }
+    }
+
+    pub fn add_knowledge(&mut self, knowledge: Knowledge<PB::Matcher>) {
+        self.knowledge.push(knowledge);
+    }
+
+    pub fn do_extract_knowledge<T: ExtractKnowledge<PB::Matcher> + 'static>(
+        &mut self,
+        data: T,
+        source: Source,
+    ) -> Result<usize, Error> {
+        let count_before = self.knowledge.len();
+        log::trace!("Extracting knowledge on : {:?}", data);
+        data.extract_knowledge(&mut self.knowledge, None, &source)?;
+
+        Ok(self.knowledge.len() - count_before)
+    }
+
+    pub fn number_matching_message_with_source(
+        &self,
+        source: Source,
+        type_id: TypeId,
+        tls_message_type: &Option<PB::Matcher>,
+    ) -> usize {
+        self.knowledge
+            .iter()
+            .filter(|knowledge| {
+                knowledge.source == source
+                    && knowledge.matcher == *tls_message_type
+                    && knowledge.data.type_id() == type_id
+            })
+            .count()
+    }
+
+    /// Count the number of sub-messages of type `type_id` in the output message.
+    pub fn number_matching_message(
+        &self,
+        type_id: TypeId,
+        tls_message_type: &Option<PB::Matcher>,
+    ) -> usize {
+        self.knowledge
+            .iter()
+            .filter(|knowledge| {
+                knowledge.matcher == *tls_message_type && knowledge.data.type_id() == type_id
+            })
+            .count()
+    }
+
+    /// Returns the variable which matches best -> highest specificity
+    /// If we want a variable with lower specificity, then we can just query less specific
+    pub fn find_variable(
+        &self,
+        query_type_shape: TypeShape,
+        query: &Query<PB::Matcher>,
+    ) -> Option<&(dyn VariableData)> {
+        let query_type_id: TypeId = query_type_shape.into();
+
+        let mut possibilities: Vec<&Knowledge<PB::Matcher>> = Vec::new();
+
+        for knowledge in &self.knowledge {
+            let data: &dyn VariableData = knowledge.data.as_ref();
+
+            if query_type_id == data.type_id()
+                && (query.source == None || query.source == Some(knowledge.source.clone()))
+                && knowledge.matcher.matches(&query.matcher)
+            {
+                possibilities.push(knowledge);
+            }
+        }
+
+        possibilities.sort_by_key(|a| a.specificity());
+
+        possibilities
+            .get(query.counter as usize)
+            .map(|possibility| possibility.data.as_ref())
     }
 }
 
@@ -100,7 +209,7 @@ impl<M: Matcher> fmt::Display for Knowledge<M> {
 #[derive(Debug)]
 pub struct TraceContext<PB: ProtocolBehavior> {
     /// The knowledge of the attacker
-    knowledge: Vec<Knowledge<PB::Matcher>>,
+    pub knowledge_store: KnowledgeStore<PB>,
     agents: Vec<Agent<PB>>,
     claims: GlobalClaimList<<PB as ProtocolBehavior>::Claim>,
 
@@ -117,9 +226,9 @@ impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
         write!(
             f,
             "Knowledge [not displaying other fields] (size={}):",
-            self.knowledge.len()
+            self.knowledge_store.knowledge.len()
         )?;
-        for k in &self.knowledge {
+        for k in &self.knowledge_store.knowledge {
             write!(f, "\n   {},          --  {:?}", k, k)?;
         }
         Ok(())
@@ -133,7 +242,8 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
             && self.deterministic_put == other.deterministic_put
             && self.default_put_options == other.default_put_options
             && self.non_default_put_descriptors == other.non_default_put_descriptors
-            && format!("{:?}", self.knowledge) == format!("{:?}", other.knowledge)
+            && format!("{:?}", self.knowledge_store.knowledge)
+                == format!("{:?}", other.knowledge_store.knowledge)
             && format!("{:?}", self.claims) == format!("{:?}", other.claims)
     }
 }
@@ -145,7 +255,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         let claims = GlobalClaimList::new();
 
         Self {
-            knowledge: vec![],
+            knowledge_store: KnowledgeStore::new(),
             agents: vec![],
             claims,
             non_default_put_descriptors: Default::default(),
@@ -174,25 +284,25 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         Ok(())
     }
 
-    pub fn add_knowledge(&mut self, knowledge: Knowledge<PB::Matcher>) {
-        self.knowledge.push(knowledge)
-    }
-
-    /// Count the number of sub-messages of type `type_id`.
-    pub fn number_matching_message(
+    /// Count the number of sub-messages of type `type_id` with the correct source
+    pub fn number_matching_message_with_source(
         &self,
-        agent: AgentName,
+        source: Source,
         type_id: TypeId,
         tls_message_type: &Option<PB::Matcher>,
     ) -> usize {
-        self.knowledge
-            .iter()
-            .filter(|knowledge| {
-                knowledge.agent_name == agent
-                    && knowledge.matcher == *tls_message_type
-                    && knowledge.data.as_ref().type_id() == type_id
-            })
-            .count()
+        self.knowledge_store
+            .number_matching_message_with_source(source, type_id, tls_message_type)
+    }
+
+    /// Count the number of sub-messages of type `type_id` in the output message.
+    pub fn number_matching_message(
+        &self,
+        type_id: TypeId,
+        tls_message_type: &Option<PB::Matcher>,
+    ) -> usize {
+        self.knowledge_store
+            .number_matching_message(type_id, tls_message_type)
     }
 
     pub fn find_claim(
@@ -213,36 +323,17 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         query_type_shape: TypeShape,
         query: &Query<PB::Matcher>,
     ) -> Option<&(dyn VariableData)> {
-        let query_type_id: TypeId = query_type_shape.into();
-
-        let mut possibilities: Vec<&Knowledge<PB::Matcher>> = Vec::new();
-
-        for knowledge in &self.knowledge {
-            let data: &dyn VariableData = knowledge.data.as_ref();
-
-            if query_type_id == data.type_id()
-                && query.agent_name == knowledge.agent_name
-                && knowledge.matcher.matches(&query.matcher)
-            {
-                possibilities.push(knowledge);
-            }
-        }
-
-        possibilities.sort_by_key(|a| a.specificity());
-
-        possibilities
-            .get(query.counter as usize)
-            .map(|possibility| possibility.data.as_ref())
+        self.knowledge_store.find_variable(query_type_shape, query)
     }
 
     /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
     pub fn add_to_inbound(
         &mut self,
         agent_name: AgentName,
-        message: &PB::OpaqueProtocolMessage,
+        message_flight: &PB::OpaqueProtocolMessageFlight,
     ) -> Result<(), Error> {
         self.find_agent_mut(agent_name)
-            .map(|agent| agent.put_mut().add_to_inbound(message))
+            .map(|agent| agent.put_mut().add_to_inbound(message_flight))
     }
 
     pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
@@ -255,7 +346,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn take_message_from_outbound(
         &mut self,
         agent_name: AgentName,
-    ) -> Result<Option<MessageResult<PB::ProtocolMessage, PB::OpaqueProtocolMessage>>, Error> {
+    ) -> Result<Option<PB::OpaqueProtocolMessageFlight>, Error> {
         let agent = self.find_agent_mut(agent_name)?;
         agent.put_mut().take_message_from_outbound()
     }
@@ -537,43 +628,35 @@ impl<M: Matcher> OutputAction<M> {
     {
         ctx.next_state(step.agent)?;
 
-        while let Some(message_result) = ctx.take_message_from_outbound(step.agent)? {
-            let matcher = message_result.create_matcher::<PB>();
+        let source = Source::Agent(step.agent);
 
-            let MessageResult(message, opaque_message) = message_result;
+        let opaque_flight_result = ctx.take_message_from_outbound(step.agent)?;
 
-            let knowledge = message
-                .and_then(|message| message.extract_knowledge().ok())
-                .unwrap_or_default();
-            let opaque_knowledge = opaque_message.extract_knowledge()?;
+        if let Some(opaque_flight) = opaque_flight_result {
+            let flight = TryInto::<PB::ProtocolMessageFlight>::try_into(opaque_flight.clone());
 
-            debug!(
-                "Knowledge increased by {:?}",
-                knowledge.len() + opaque_knowledge.len()
-            ); // +1 because of the OpaqueMessage below
-
-            for variable in knowledge {
-                let knowledge = Knowledge::<M> {
-                    agent_name: step.agent,
-                    matcher: matcher.clone(),
-                    data: variable,
-                };
-
-                knowledge.debug_print(ctx, &step.agent);
-                ctx.add_knowledge(knowledge)
+            if let Ok(num) = ctx
+                .knowledge_store
+                .do_extract_knowledge(opaque_flight, source.clone())
+            {
+                debug!("Knowledge increased by {}", num);
             }
 
-            for variable in opaque_knowledge {
-                let knowledge = Knowledge::<M> {
-                    agent_name: step.agent,
-                    matcher: None, // none because we can not trust the decoding of tls_message_type, because the message could be encrypted like in TLS 1.2
-                    data: variable,
-                };
-
-                knowledge.debug_print(ctx, &step.agent);
-                ctx.add_knowledge(knowledge)
+            if let Ok(f) = flight {
+                if let Ok(num) = ctx.knowledge_store.do_extract_knowledge(f, source.clone()) {
+                    debug!("Knowledge increased by {}", num);
+                }
             }
         }
+
+        // let flight_knowledge = Knowledge::<M> {
+        //     agent_name: step.agent,
+        //     matcher: None,
+        //     data: Box::new(flight),
+        // };
+        // flight_knowledge.debug_print(ctx, &step.agent);
+        // ctx.add_knowledge(flight_knowledge);
+
         Ok(())
     }
 }
@@ -614,19 +697,34 @@ impl<M: Matcher> InputAction<M> {
         // message controlled by the attacker
         let evaluated = self.recipe.evaluate(ctx)?;
 
-        if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
+        if let Some(flight) = evaluated
+            .as_ref()
+            .downcast_ref::<PB::ProtocolMessageFlight>()
+        {
+            flight.debug("Input message flight");
+
+            ctx.add_to_inbound(step.agent, &flight.clone().into())?;
+        } else if let Some(flight) = evaluated
+            .as_ref()
+            .downcast_ref::<PB::OpaqueProtocolMessageFlight>()
+        {
+            flight.debug("Input opaque message flight");
+
+            ctx.add_to_inbound(step.agent, &flight)?;
+        } else if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");
 
-            ctx.add_to_inbound(step.agent, &msg.create_opaque())?;
+            let message_flight: PB::ProtocolMessageFlight = msg.clone().into();
+            ctx.add_to_inbound(step.agent, &message_flight.into())?;
         } else if let Some(opaque_message) = evaluated
             .as_ref()
             .downcast_ref::<PB::OpaqueProtocolMessage>()
         {
             opaque_message.debug("Input opaque message");
-            ctx.add_to_inbound(step.agent, opaque_message)?;
+            ctx.add_to_inbound(step.agent, &opaque_message.clone().into())?;
         } else {
             return Err(FnError::Unknown(String::from(
-                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`!",
+                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`, `OpaqueMessageFlight` !",
             ))
             .into());
         }

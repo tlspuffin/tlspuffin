@@ -1,13 +1,15 @@
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    algebra::AnyMatcher,
     term,
     trace::{InputAction, OutputAction, Trace},
 };
 
-use crate::ssh::{fn_impl::*, message::*};
+use crate::{
+    query::SshQueryMatcher,
+    ssh::{fn_impl::*, message::*},
+};
 
-pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<AnyMatcher> {
+pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshQueryMatcher> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![

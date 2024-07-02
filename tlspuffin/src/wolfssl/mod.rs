@@ -2,13 +2,11 @@
 
 use std::{cell::RefCell, io::ErrorKind, ops::Deref, rc::Rc};
 
-use foreign_types::{ForeignType, ForeignTypeRef};
-use log::{error, warn};
+use log::error;
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
     error::Error,
-    protocol::MessageResult,
     put::{Put, PutName},
     put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
@@ -29,12 +27,12 @@ use crate::{
         TranscriptCertificate, TranscriptClientFinished, TranscriptServerFinished,
         TranscriptServerHello,
     },
-    protocol::TLSProtocolBehavior,
+    protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
     put::TlsPutConfig,
     put_registry::WOLFSSL520_PUT,
+    query::TlsQueryMatcher,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     tls::rustls::msgs::{
-        deframer::MessageDeframer,
         enums::HandshakeType,
         message::{Message, OpaqueMessage},
     },
@@ -142,24 +140,23 @@ impl From<WolfSSLErrorStack> for Error {
 }
 
 pub struct WolfSSL {
-    stream: SslStream<MemoryStream<MessageDeframer>>,
+    stream: SslStream<MemoryStream>,
     ctx: SslContext,
     config: TlsPutConfig,
 }
 
-impl Stream<Message, OpaqueMessage> for WolfSSL {
-    fn add_to_inbound(&mut self, opaque_message: &OpaqueMessage) {
+impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for WolfSSL {
+    fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight) {
         let raw_stream = self.stream.get_mut();
-        <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage>>::add_to_inbound(
+        <MemoryStream as Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight>>::add_to_inbound(
             raw_stream,
-            opaque_message,
+            opaque_flight,
         )
     }
 
-    fn take_message_from_outbound(
-        &mut self,
-    ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
-        self.stream.get_mut().take_message_from_outbound()
+    fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
+        let raw_stream = self.stream.get_mut();
+        <MemoryStream as Stream<TlsQueryMatcher,Message, OpaqueMessage, OpaqueMessageFlight>>::take_message_from_outbound(raw_stream)
     }
 }
 
@@ -209,16 +206,13 @@ impl WolfSSL {
     fn new_stream(
         ctx: &SslContextRef,
         config: &TlsPutConfig,
-    ) -> Result<SslStream<MemoryStream<MessageDeframer>>, WolfSSLErrorStack> {
+    ) -> Result<SslStream<MemoryStream>, WolfSSLErrorStack> {
         let ssl = match config.descriptor.typ {
             AgentType::Server => Self::create_server(ctx)?,
             AgentType::Client => Self::create_client(ctx)?,
         };
 
-        Ok(SslStream::new(
-            ssl,
-            MemoryStream::new(MessageDeframer::new()),
-        )?)
+        Ok(SslStream::new(ssl, MemoryStream::new())?)
     }
 }
 

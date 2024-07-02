@@ -1,10 +1,7 @@
-use puffin::{algebra::Matcher, error::Error, protocol::MessageResult};
+use puffin::algebra::Matcher;
 use serde::{Deserialize, Serialize};
 
-use crate::tls::rustls::msgs::{
-    enums::{ContentType, HandshakeType},
-    message::{Message, MessagePayload, OpaqueMessage},
-};
+use crate::tls::rustls::msgs::enums::HandshakeType;
 
 /// [TlsQueryMatcher] contains TLS-related typing information, this is to be distinguished from the *.typ fields
 /// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
@@ -42,31 +39,6 @@ impl Matcher for TlsQueryMatcher {
                 }
             }
             _ => 0,
-        }
-    }
-}
-
-impl TryFrom<&MessageResult<Message, OpaqueMessage>> for TlsQueryMatcher {
-    type Error = Error;
-
-    fn try_from(
-        message_result: &MessageResult<Message, OpaqueMessage>,
-    ) -> Result<Self, Self::Error> {
-        let tls_opaque_type = message_result.1.typ;
-        match (tls_opaque_type, message_result) {
-            (ContentType::Handshake, MessageResult(Some(message), _)) => match &message.payload {
-                MessagePayload::Handshake(handshake_payload) => {
-                    Ok(TlsQueryMatcher::Handshake(Some(handshake_payload.typ)))
-                }
-                MessagePayload::TLS12EncryptedHandshake(_) => Ok(TlsQueryMatcher::Handshake(None)),
-                _ => Err(Error::Extraction()),
-            },
-            (ContentType::Handshake, _) => Ok(TlsQueryMatcher::Handshake(None)),
-            (ContentType::ApplicationData, _) => Ok(TlsQueryMatcher::ApplicationData),
-            (ContentType::Heartbeat, _) => Ok(TlsQueryMatcher::Heartbeat),
-            (ContentType::Alert, _) => Ok(TlsQueryMatcher::Alert),
-            (ContentType::ChangeCipherSpec, _) => Ok(TlsQueryMatcher::ChangeCipherSpec),
-            (ContentType::Unknown(_), _) => Err(Error::Extraction()),
         }
     }
 }

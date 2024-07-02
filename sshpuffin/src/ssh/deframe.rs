@@ -2,7 +2,10 @@ use std::{collections::VecDeque, io};
 
 use puffin::{codec, codec::Codec, protocol::ProtocolMessageDeframer};
 
-use crate::ssh::message::{OnWireData, RawSshMessage};
+use crate::{
+    query::SshQueryMatcher,
+    ssh::message::{OnWireData, RawSshMessage},
+};
 
 const MAX_WIRE_SIZE: usize = 35000;
 
@@ -143,7 +146,7 @@ impl SshMessageDeframer {
     }
 }
 
-impl ProtocolMessageDeframer for SshMessageDeframer {
+impl ProtocolMessageDeframer<SshQueryMatcher> for SshMessageDeframer {
     type OpaqueProtocolMessage = RawSshMessage;
 
     fn pop_frame(&mut self) -> Option<RawSshMessage> {

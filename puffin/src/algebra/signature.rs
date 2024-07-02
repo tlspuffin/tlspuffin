@@ -8,7 +8,6 @@ use once_cell::sync::Lazy;
 
 use super::atoms::Function;
 use crate::{
-    agent::AgentName,
     algebra::{
         atoms::Variable,
         dynamic_function::{
@@ -16,7 +15,7 @@ use crate::{
         },
         Matcher,
     },
-    trace::Query,
+    trace::{Query, Source},
 };
 
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
@@ -87,22 +86,22 @@ impl Signature {
     }
 
     pub fn new_var_with_type<T: 'static, M: Matcher>(
-        agent_name: AgentName,
+        source: Option<Source>,
         matcher: Option<M>,
         counter: u16,
     ) -> Variable<M> {
         let type_shape = TypeShape::of::<T>();
-        Self::new_var(type_shape, agent_name, matcher, counter)
+        Self::new_var(type_shape, source, matcher, counter)
     }
 
     pub fn new_var<M: Matcher>(
         type_shape: TypeShape,
-        agent_name: AgentName,
+        source: Option<Source>,
         matcher: Option<M>,
         counter: u16,
     ) -> Variable<M> {
         let query = Query {
-            agent_name,
+            source,
             matcher,
             counter,
         };
