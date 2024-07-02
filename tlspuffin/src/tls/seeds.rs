@@ -1256,18 +1256,20 @@ pub fn seed_session_resumption_ke(
 ) -> Trace<TlsQueryMatcher> {
     let initial_handshake = seed_client_attacker(initial_server);
 
-    let new_ticket_message = term! {
-        fn_decrypt_application(
-            ((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
+    let extensions = term! {
+        fn_decrypt_application_flight(
+            ((initial_server, 1)/MessageFlight), // The first flight of messages sent by the server
             (fn_server_hello_transcript(((initial_server, 0)))),
             (fn_server_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)))),
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
+            fn_seq_0  // sequence 0
         )
     };
+
+    let new_ticket_message = term! {fn_find_server_ticket((@extensions))};
 
     let client_hello = term! {
           fn_client_hello(
