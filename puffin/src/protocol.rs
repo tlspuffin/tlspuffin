@@ -43,11 +43,6 @@ pub trait OpaqueProtocolMessageFlight<Mt: Matcher, O: OpaqueProtocolMessage<Mt>>
     fn new() -> Self;
     fn debug(&self, info: &str);
     fn push(&mut self, msg: O);
-    fn get_encoding(self) -> Vec<u8> {
-        let mut buf = Vec::new();
-        self.encode(&mut buf);
-        buf
-    }
 }
 
 /// A structured message. This type defines how all possible messages of a protocol.
