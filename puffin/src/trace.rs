@@ -135,6 +135,7 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
         source: Source,
     ) -> Result<usize, Error> {
         let count_before = self.knowledge.len();
+        log::trace!("Extracting knowledge on : {:?}", data);
         data.extract_knowledge(&mut self.knowledge, None, &source)?;
 
         Ok(self.knowledge.len() - count_before)

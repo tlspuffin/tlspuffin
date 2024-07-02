@@ -10,7 +10,7 @@ use crate::{
 
 /// Provide a way to extract knowledge out of a Message/OpaqueMessage or any type that
 /// might be used in a precomputation
-pub trait ExtractKnowledge<M: Matcher> {
+pub trait ExtractKnowledge<M: Matcher>: std::fmt::Debug {
     /// Fill `knowledges` with new knowledge gathered form the type implementing ExtractKnowledge
     /// by recursively calling extract_knowledge on all contained element
     /// This will put source as the source of all the produced knowledges, matcher is also passed
