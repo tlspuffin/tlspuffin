@@ -5,6 +5,8 @@ mod bindings {
     #![allow(improper_ctypes)]
     #![allow(dead_code)]
     #![allow(clippy::all)]
+    use security_claims::Claim;
+
     include!(env!("RUST_BINDINGS_FILE"));
 }
 
@@ -119,14 +121,14 @@ pub unsafe fn to_string(ptr: *const c_char) -> String {
     CStr::from_ptr(ptr).to_string_lossy().as_ref().to_owned()
 }
 
-use crate::bindings::{RESULT_CODE_RESULT_IO_WOULD_BLOCK, RESULT_CODE_RESULT_OK};
+use crate::bindings::RESULT_CODE;
 
 unsafe extern "C" fn make_result(code: RESULT_CODE, description: *const c_char) -> *mut c_void {
     let reason = to_string(description);
 
     let result = Box::new(match code {
-        RESULT_CODE_RESULT_OK => Ok(reason),
-        RESULT_CODE_RESULT_IO_WOULD_BLOCK => Err(CError {
+        RESULT_CODE::RESULT_OK => Ok(reason),
+        RESULT_CODE::RESULT_IO_WOULD_BLOCK => Err(CError {
             kind: CErrorKind::IOWouldBlock,
             reason,
         }),
@@ -170,8 +172,9 @@ impl From<CError> for Error {
     }
 }
 
-pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
-    HashMap::from([
+pub fn tls_puts() -> HashMap<String, HashSet<String>> {
+    #[allow(unused_mut)]
+    let mut result: HashMap<String, HashSet<String>> = [
         #[cfg(feature = "libressl333")]
         (
             "libressl333",
@@ -530,5 +533,35 @@ pub fn tls_puts() -> HashMap<&'static str, HashSet<&'static str>> {
                 "llvm_cov",
             ]),
         ),
-    ])
+    ]
+    .into_iter()
+    .map(|t: (&str, HashSet<&str>)| (t.0.to_owned(), t.1.into_iter().map(str::to_owned).collect()))
+    .collect();
+
+    #[cfg(feature = "cputs")]
+    crate::register(
+        |_harness: CPutHarness, library: CPutLibrary, interface: *const C_PUT_TYPE| {
+            if interface.is_null() {
+                log::error!("C PUT registration failed: pointer to PUT struct is NULL");
+            }
+
+            result.insert(
+                library.name.to_string(),
+                HashSet::from([
+                    "tls12".to_owned(),
+                    "tls13".to_owned(),
+                    "tls12_session_resumption".to_owned(),
+                    "tls13_session_resumption".to_owned(),
+                    "deterministic".to_owned(),
+                    "claims".to_owned(),
+                    "transcript_extraction".to_owned(),
+                    "client_authentication_transcript_extraction".to_owned(),
+                    "openssl_binding".to_owned(),
+                    "openssl111_binding".to_owned(),
+                ]),
+            );
+        },
+    );
+
+    result
 }

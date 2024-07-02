@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 
+list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
+
 project(puts VERSION 0.1 LANGUAGES C)
 
 if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
@@ -17,6 +19,10 @@ endif()
 
 enable_testing()
 
+include(FindClaimsLibrary)
+
+find_claims(TARGET_NAME claims)
+
 set(PUTS "")
 set(PUT_LIBS "")
 
@@ -27,9 +33,10 @@ foreach(library_path IN LISTS LIBRARIES)
     set(PROTOCOL "tls")
     set(HARNESS_NAME "openssl")
     set(HARNESS_VERSION "tlspuffin-harness-sys ${CMAKE_PROJECT_VERSION}")
-    set(LIBRARY_NAME "openssl")
+    set(LIBRARY_NAME "cput")
     set(LIBRARY_VERSION "<placeholder library version>")
     set(CONFIG_HASH "<placeholder library config hash>")
+    set(HAS_CLAIMS TRUE)
     get_filename_component(CONFIG_NAME ${library_path} NAME)
 
     # FIXME use mk_vendor config uid if available rather than library_path
@@ -44,6 +51,13 @@ foreach(library_path IN LISTS LIBRARIES)
     target_include_directories(put-${PROTOCOL}-${PUT_ID} PRIVATE "include")
     target_include_directories(put-${PROTOCOL}-${PUT_ID} PRIVATE "${library_path}/include")
     target_compile_definitions(put-${PROTOCOL}-${PUT_ID} PRIVATE PUT_ID=${PUT_ID} REGISTER=register_${PUT_ID})
+
+    target_compile_definitions(put-${PROTOCOL}-${PUT_ID} PRIVATE USE_CUSTOM_PRNG=1)
+    target_link_libraries(put-${PROTOCOL}-${PUT_ID} PRIVATE claims)
+
+    if(HAS_CLAIMS)
+      target_compile_definitions(put-${PROTOCOL}-${PUT_ID} PRIVATE HAS_CLAIMS=1)
+    endif()
 
     add_custom_command(
         COMMAND clang -flto -nostdlib -no-pie -Wl,-r $<TARGET_OBJECTS:put-${PROTOCOL}-${PUT_ID}> "-L${library_path}/lib" -lssl -lcrypto -o ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${PUT_ID}.o

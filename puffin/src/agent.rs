@@ -15,6 +15,12 @@ use crate::{error::Error, protocol::ProtocolBehavior, put::Put, stream::Stream};
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct AgentName(u8);
 
+impl From<AgentName> for u8 {
+    fn from(val: AgentName) -> Self {
+        val.0
+    }
+}
+
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum AgentType {
     Server,

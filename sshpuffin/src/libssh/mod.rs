@@ -334,13 +334,14 @@ impl Put<SshProtocolBehavior> for LibSSL {
         &self.agent_descriptor
     }
 
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         // TODO: We can use internal state
         match self.state {
             PutState::ExchangingKeys => "ExchangingKeys",
             PutState::Authenticating => "Authenticating",
             PutState::Done => "Done",
         }
+        .to_owned()
     }
 
     fn is_state_successful(&self) -> bool {

@@ -2318,6 +2318,7 @@ dependencies = [
  "libc",
  "log",
  "puffin",
+ "security-claims",
 ]
 
 [[package]]

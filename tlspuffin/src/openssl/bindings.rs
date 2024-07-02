@@ -1,10 +1,9 @@
 use foreign_types_openssl::ForeignTypeRef;
 use libc::c_int;
-use openssl::ssl::SslRef;
 use openssl::{
     error::ErrorStack,
     pkey::{PKey, Private},
-    ssl::SslContextBuilder,
+    ssl::{SslContextBuilder, SslRef},
     x509::X509,
 };
 use openssl_sys::SSL;

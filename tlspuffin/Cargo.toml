@@ -14,7 +14,7 @@ categories.workspace = true
 [features]
 default = ["sancov_libafl", "introspection"]
 
-cputs = []
+cputs = ["tls-harness/cputs"]
 
 openssl111 = ["openssl111k"]
 

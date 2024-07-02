@@ -33,7 +33,7 @@ fn main() {
     tls_harness::tls_puts()
         .iter()
         .for_each(|(name, capabilities)| {
-            println!("cargo:rustc-cfg={}=\"{}\"", name, name);
+            println!("cargo:rustc-cfg={}", name);
             println!("cargo:rustc-cfg=has_put=\"{}\"", name);
             capabilities
                 .iter()

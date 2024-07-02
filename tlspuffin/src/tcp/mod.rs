@@ -364,7 +364,7 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         &self.agent_descriptor
     }
 
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         panic!("Not supported")
     }
 
@@ -400,7 +400,7 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         &self.agent_descriptor
     }
 
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         panic!("Not supported")
     }
 

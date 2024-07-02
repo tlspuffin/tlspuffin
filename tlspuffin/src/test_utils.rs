@@ -88,6 +88,7 @@ macro_rules! test_puts {
     // expand `puts` argument when `all` was requested
     ( $func:ident, puts = all, attrs = $attrs:tt, filter = $filter:meta ) => {
         test_puts!($func, puts = [
+                cput,
                 openssl312,
                 openssl111u,
                 openssl111k,
