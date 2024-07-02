@@ -118,7 +118,7 @@ impl<M: Matcher> Term<M> {
                     if let Some(Source::Agent(agent_name)) = variable.query.source {
                         context.find_claim(agent_name, variable.typ)
                     } else {
-                        None
+                        todo!("Implement querying by label");
                     }
                 })
                 .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),

@@ -15,7 +15,6 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     codec::Codec,
     error::Error,
-    protocol::OpaqueProtocolMessageFlight,
     put::{Put, PutDescriptor, PutName},
     put_registry::{Factory, PutKind},
     stream::Stream,
