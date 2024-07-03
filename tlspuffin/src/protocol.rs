@@ -18,13 +18,16 @@ use crate::{
     tls::{
         rustls::msgs::{
             self,
+            alert::AlertMessagePayload,
             base::Payload,
+            ccs::ChangeCipherSpecPayload,
             deframer::MessageDeframer,
             handshake::{
                 CertificatePayload, ClientHelloPayload, ECDHEServerKeyExchange,
                 HandshakeMessagePayload, HandshakePayload, NewSessionTicketPayload,
                 ServerHelloPayload, ServerKeyExchangePayload,
             },
+            heartbeat::HeartbeatPayload,
             message::{Message, MessagePayload, OpaqueMessage},
         },
         seeds::create_corpus,
@@ -233,42 +236,82 @@ impl ExtractKnowledge<TlsQueryMatcher> for MessagePayload {
             data: Box::new(self.clone()),
         });
         match &self {
-            MessagePayload::Alert(alert) => {
-                knowledges.push(Knowledge {
-                    source: source.clone(),
-                    matcher,
-                    data: Box::new(alert.description),
-                });
-                knowledges.push(Knowledge {
-                    source: source.clone(),
-                    matcher,
-                    data: Box::new(alert.level),
-                });
-            }
+            MessagePayload::Alert(alert) => alert.extract_knowledge(knowledges, matcher, source)?,
             MessagePayload::Handshake(hs) => hs.extract_knowledge(knowledges, matcher, source)?,
-            MessagePayload::ChangeCipherSpec(_ccs) => {}
+            MessagePayload::ChangeCipherSpec(ccs) => {
+                ccs.extract_knowledge(knowledges, matcher, source)?
+            }
             MessagePayload::ApplicationData(opaque) => {
-                knowledges.push(Knowledge {
-                    source: source.clone(),
-                    matcher,
-                    data: Box::new(opaque.0.clone()),
-                });
+                opaque.extract_knowledge(knowledges, matcher, source)?
             }
-            MessagePayload::Heartbeat(h) => {
-                knowledges.push(Knowledge {
-                    source: source.clone(),
-                    matcher,
-                    data: Box::new(h.payload.0.clone()),
-                });
-            }
+            MessagePayload::Heartbeat(h) => h.extract_knowledge(knowledges, matcher, source)?,
             MessagePayload::TLS12EncryptedHandshake(tls12encrypted) => {
-                knowledges.push(Knowledge {
-                    source: source.clone(),
-                    matcher,
-                    data: Box::new(tls12encrypted.0.clone()),
-                });
+                tls12encrypted.extract_knowledge(knowledges, matcher, source)?
             }
         }
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for ChangeCipherSpecPayload {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
+
+        Ok(())
+    }
+}
+impl ExtractKnowledge<TlsQueryMatcher> for HeartbeatPayload {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.payload.0.clone()),
+        });
+        Ok(())
+    }
+}
+
+impl ExtractKnowledge<TlsQueryMatcher> for AlertMessagePayload {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<TlsQueryMatcher>>,
+        matcher: Option<TlsQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.clone()),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.description),
+        });
+        knowledges.push(Knowledge {
+            source: source.clone(),
+            matcher,
+            data: Box::new(self.level),
+        });
         Ok(())
     }
 }
