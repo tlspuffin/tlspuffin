@@ -34,11 +34,7 @@ use once_cell::sync::OnceCell;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub use self::term::*;
-use crate::{
-    algebra::signature::Signature,
-    error::Error,
-    protocol::{MessageResult, OpaqueProtocolMessage, ProtocolMessage},
-};
+use crate::algebra::signature::Signature;
 
 pub mod atoms;
 pub mod dynamic_function;
@@ -102,14 +98,6 @@ impl Matcher for AnyMatcher {
     }
 }
 
-impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> TryFrom<&MessageResult<M, O>> for AnyMatcher {
-    type Error = Error;
-
-    fn try_from(_: &MessageResult<M, O>) -> Result<Self, Self::Error> {
-        Ok(AnyMatcher)
-    }
-}
-
 #[cfg(test)]
 #[allow(clippy::ptr_arg)]
 pub mod test_signature {
@@ -127,12 +115,13 @@ pub mod test_signature {
         define_signature,
         error::Error,
         protocol::{
-            OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer,
+            ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+            ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
         },
         put::{Put, PutName},
         put_registry::{Factory, PutKind},
         term,
-        trace::{Action, InputAction, Step, Trace, TraceContext},
+        trace::{Action, InputAction, Knowledge, Source, Step, Trace, TraceContext},
         variable_data::VariableData,
         VERSION_STR,
     };
@@ -427,12 +416,19 @@ pub mod test_signature {
         }
     }
 
-    impl OpaqueProtocolMessage for TestOpaqueMessage {
+    impl OpaqueProtocolMessage<AnyMatcher> for TestOpaqueMessage {
         fn debug(&self, _info: &str) {
             panic!("Not implemented for test stub");
         }
+    }
 
-        fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
+    impl ExtractKnowledge<AnyMatcher> for TestOpaqueMessage {
+        fn extract_knowledge(
+            &self,
+            _: &mut Vec<Knowledge<AnyMatcher>>,
+            _: Option<AnyMatcher>,
+            _: &Source,
+        ) -> Result<(), Error> {
             panic!("Not implemented for test stub");
         }
     }
@@ -451,7 +447,7 @@ pub mod test_signature {
         }
     }
 
-    impl ProtocolMessage<TestOpaqueMessage> for TestMessage {
+    impl ProtocolMessage<AnyMatcher, TestOpaqueMessage> for TestMessage {
         fn create_opaque(&self) -> TestOpaqueMessage {
             panic!("Not implemented for test stub");
         }
@@ -459,15 +455,22 @@ pub mod test_signature {
         fn debug(&self, _info: &str) {
             panic!("Not implemented for test stub");
         }
+    }
 
-        fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
+    impl ExtractKnowledge<AnyMatcher> for TestMessage {
+        fn extract_knowledge(
+            &self,
+            _: &mut Vec<Knowledge<AnyMatcher>>,
+            _: Option<AnyMatcher>,
+            _: &Source,
+        ) -> Result<(), Error> {
             panic!("Not implemented for test stub");
         }
     }
 
     pub struct TestMessageDeframer;
 
-    impl ProtocolMessageDeframer for TestMessageDeframer {
+    impl ProtocolMessageDeframer<AnyMatcher> for TestMessageDeframer {
         type OpaqueProtocolMessage = TestOpaqueMessage;
 
         fn pop_frame(&mut self) -> Option<TestOpaqueMessage> {
@@ -486,6 +489,100 @@ pub mod test_signature {
         }
     }
 
+    #[derive(Debug, Clone)]
+    pub struct TestMessageFlight;
+
+    impl ProtocolMessageFlight<AnyMatcher, TestMessage, TestOpaqueMessage, TestOpaqueMessageFlight>
+        for TestMessageFlight
+    {
+        fn new() -> Self {
+            Self {}
+        }
+
+        fn push(&mut self, _msg: TestMessage) {
+            panic!("Not implemented for test stub");
+        }
+
+        fn debug(&self, _info: &str) {
+            panic!("Not implemented for test stub");
+        }
+    }
+
+    impl TryFrom<TestOpaqueMessageFlight> for TestMessageFlight {
+        type Error = ();
+
+        fn try_from(_value: TestOpaqueMessageFlight) -> Result<Self, Self::Error> {
+            Ok(Self)
+        }
+    }
+
+    impl ExtractKnowledge<AnyMatcher> for TestMessageFlight {
+        fn extract_knowledge(
+            &self,
+            _: &mut Vec<Knowledge<AnyMatcher>>,
+            _: Option<AnyMatcher>,
+            _: &Source,
+        ) -> Result<(), Error> {
+            panic!("Not implemented for test stub");
+        }
+    }
+
+    impl From<TestMessage> for TestMessageFlight {
+        fn from(_value: TestMessage) -> Self {
+            Self {}
+        }
+    }
+
+    #[derive(Debug, Clone)]
+    pub struct TestOpaqueMessageFlight;
+
+    impl OpaqueProtocolMessageFlight<AnyMatcher, TestOpaqueMessage> for TestOpaqueMessageFlight {
+        fn new() -> Self {
+            Self {}
+        }
+
+        fn push(&mut self, _msg: TestOpaqueMessage) {
+            panic!("Not implemented for test stub");
+        }
+
+        fn debug(&self, _info: &str) {
+            panic!("Not implemented for test stub");
+        }
+    }
+
+    impl ExtractKnowledge<AnyMatcher> for TestOpaqueMessageFlight {
+        fn extract_knowledge(
+            &self,
+            _: &mut Vec<Knowledge<AnyMatcher>>,
+            _: Option<AnyMatcher>,
+            _: &Source,
+        ) -> Result<(), Error> {
+            panic!("Not implemented for test stub");
+        }
+    }
+
+    impl From<TestOpaqueMessage> for TestOpaqueMessageFlight {
+        fn from(_value: TestOpaqueMessage) -> Self {
+            Self {}
+        }
+    }
+
+    impl Codec for TestOpaqueMessageFlight {
+        fn encode(&self, _bytes: &mut Vec<u8>) {
+            panic!("Not implemented for test stub");
+        }
+
+        fn read(_: &mut Reader) -> Option<Self> {
+            panic!("Not implemented for test stub");
+        }
+    }
+
+    impl From<TestMessageFlight> for TestOpaqueMessageFlight {
+        fn from(_value: TestMessageFlight) -> Self {
+            Self {}
+        }
+    }
+
     #[derive(Debug, PartialEq)]
     pub struct TestProtocolBehavior;
 
@@ -495,6 +592,8 @@ pub mod test_signature {
         type ProtocolMessage = TestMessage;
         type OpaqueProtocolMessage = TestOpaqueMessage;
         type Matcher = AnyMatcher;
+        type ProtocolMessageFlight = TestMessageFlight;
+        type OpaqueProtocolMessageFlight = TestOpaqueMessageFlight;
 
         fn signature() -> &'static Signature {
             panic!("Not implemented for test stub");
@@ -557,7 +656,7 @@ mod tests {
         put::PutOptions,
         put_registry::{Factory, PutRegistry},
         term,
-        trace::{Knowledge, TraceContext},
+        trace::{Knowledge, Source, TraceContext},
     };
 
     #[allow(dead_code)]
@@ -616,8 +715,12 @@ mod tests {
 
         //println!("TypeId of vec array {:?}", data.type_id());
 
-        let variable: Variable<AnyMatcher> =
-            Signature::new_var(TypeShape::of::<Vec<u8>>(), AgentName::first(), None, 0);
+        let variable: Variable<AnyMatcher> = Signature::new_var(
+            TypeShape::of::<Vec<u8>>(),
+            Some(Source::Agent(AgentName::first())),
+            None,
+            0,
+        );
 
         let generated_term = Term::Application(
             hmac256,
@@ -636,8 +739,8 @@ mod tests {
         let put_registry =
             PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
         let mut context = TraceContext::new(&put_registry, PutOptions::default());
-        context.add_knowledge(Knowledge {
-            agent_name: AgentName::first(),
+        context.knowledge_store.add_knowledge(Knowledge {
+            source: Source::Agent(AgentName::first()),
             matcher: None,
             data: Box::new(data),
         });
@@ -681,7 +784,7 @@ mod tests {
                                 Term::Application(Signature::new_function(&example_op_c), vec![]),
                                 Term::Variable(
                                     Signature::new_var_with_type::<SessionID, AnyMatcher>(
-                                        AgentName::first(),
+                                        Some(Source::Agent(AgentName::first())),
                                         None,
                                         0,
                                     ),
@@ -689,7 +792,7 @@ mod tests {
                             ],
                         ),
                         Term::Variable(Signature::new_var_with_type::<SessionID, AnyMatcher>(
-                            AgentName::first(),
+                            Some(Source::Agent(AgentName::first())),
                             None,
                             0,
                         )),
@@ -702,7 +805,7 @@ mod tests {
                             Signature::new_function(&example_op_c),
                             vec![
                                 Term::Variable(Signature::new_var_with_type::<SessionID, _>(
-                                    AgentName::first(),
+                                    Some(Source::Agent(AgentName::first())),
                                     None,
                                     0,
                                 )),
@@ -710,7 +813,7 @@ mod tests {
                             ],
                         ),
                         Term::Variable(Signature::new_var_with_type::<SessionID, _>(
-                            AgentName::first(),
+                            Some(Source::Agent(AgentName::first())),
                             None,
                             0,
                         )),

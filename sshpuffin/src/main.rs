@@ -2,6 +2,7 @@ mod claim;
 mod libssh;
 mod protocol;
 mod put_registry;
+mod query;
 mod ssh;
 mod violation;
 
