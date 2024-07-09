@@ -6,6 +6,7 @@ use puffin::{
         ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
         ProtocolMessageDeframer, ProtocolMessageFlight,
     },
+    put_registry::PutDescriptor,
     trace::{Knowledge, Source, Trace},
 };
 
@@ -174,7 +175,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
         &SSH_SIGNATURE
     }
 
-    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+    fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::Matcher>, &'static str)> {
         vec![] // TODO
     }
 }

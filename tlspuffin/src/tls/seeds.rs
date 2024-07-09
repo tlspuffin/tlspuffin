@@ -10,7 +10,7 @@ use puffin::{
 };
 
 use crate::{
-    protocol::MessageFlight,
+    protocol::{MessageFlight, TLSProtocolBehavior},
     query::TlsQueryMatcher,
     tls::{
         fn_impl::*,
@@ -1755,19 +1755,15 @@ macro_rules! corpus {
         vec![]
     };
 
-    ( $( $func:ident : cfg($( $meta:meta),* ) ),* ) => {
+    ( $( $func:ident : $cond:expr ),* $(,)?) => {
         {
-            #[cfg(any( $( $( $meta ),* ),* ))]
             use crate::tls::trace_helper::TraceHelper;
-            #[cfg(any( $( $( $meta ),* ),* ))]
             let mut corpus = vec![];
 
-            #[cfg(not(any( $( $( $meta ),* ),* )))]
-            let corpus = vec![];
-
             $(
-                #[cfg( $( $meta ),* )]
-                corpus.push(($func.build_trace(), $func.fn_name()));
+                if $cond {
+                    corpus.push(($func.build_trace(), $func.fn_name()));
+                }
             )*
 
             corpus
@@ -1775,24 +1771,26 @@ macro_rules! corpus {
     };
 }
 
-pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
+pub fn create_corpus(
+    put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
+) -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
     corpus!(
         // Full Handshakes
-        seed_successful: cfg(feature = "tls13"),
-        seed_successful_with_ccs: cfg(feature = "tls13"),
-        seed_successful_with_tickets: cfg(feature = "tls13"),
-        seed_successful12: cfg(all(feature = "tls12", not(feature = "tls12-session-resumption"))),
-        seed_successful12_with_tickets: cfg(all(feature = "tls12", feature = "tls12-session-resumption")),
+        seed_successful: put.supports("tls13"),
+        seed_successful_with_ccs: put.supports("tls13"),
+        seed_successful_with_tickets: put.supports("tls13"),
+        seed_successful12: put.supports("tls12") && !put.supports("tls12_session_resumption"),
+        seed_successful12_with_tickets: put.supports("tls12") && put.supports("tls12_session_resumption"),
         // Client Attackers
-        seed_client_attacker: cfg(feature = "tls13"),
-        seed_client_attacker_full: cfg(feature = "tls13"),
-        seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction")),
-        seed_client_attacker12: cfg(feature = "tls12"),
+        seed_client_attacker: put.supports("tls13"),
+        seed_client_attacker_full: put.supports("tls13") && !put.supports("boringssl_binding"),
+        seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction") && !put.supports("boringssl_binding"),
+        seed_client_attacker12: put.supports("tls12"),
         // Session resumption
-        seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
-        seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
+        seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption"),
         // Server Attackers
-        seed_server_attacker_full: cfg(feature = "tls13")
+        seed_server_attacker_full: put.supports("tls13"),
     )
 }
 
@@ -1800,9 +1798,12 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
 pub mod tests {
     use puffin::{agent::AgentName, trace::Action};
     use test_log::test;
+    use tlspuffin_macros::apply;
 
     use super::*;
-    use crate::{put_registry::tls_registry, tls::trace_helper::TraceHelper};
+    use crate::{
+        put_registry::tls_registry, test_utils::test_puts, tls::trace_helper::TraceHelper,
+    };
 
     #[test]
     fn test_version() {
@@ -1978,12 +1979,16 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[test]
-    fn test_corpus_file_sizes() {
-        let client = AgentName::first();
-        let _server = client.next();
+    #[apply(test_puts)]
+    fn test_corpus_file_sizes(put: &str) {
+        use crate::put_registry::tls_registry;
 
-        for (trace, name) in create_corpus() {
+        let registry = tls_registry();
+        let factory = registry
+            .find_by_id(put)
+            .expect("missing PUT in TLS registry");
+
+        for (trace, name) in create_corpus(factory) {
             for step in &trace.steps {
                 match &step.action {
                     Action::Input(input) => {

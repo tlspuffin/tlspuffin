@@ -119,7 +119,7 @@ pub mod test_signature {
             ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
         },
         put::{Put, PutOptions},
-        put_registry::{Factory, PutKind},
+        put_registry::{Factory, PutDescriptor, PutKind},
         term,
         trace::{Action, InputAction, Knowledge, Source, Step, Trace},
         variable_data::VariableData,
@@ -599,7 +599,7 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+        fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::Matcher>, &'static str)> {
             panic!("Not implemented for test stub");
         }
     }

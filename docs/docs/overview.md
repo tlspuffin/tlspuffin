@@ -70,7 +70,7 @@ pub trait ProtocolBehavior: 'static {
     fn signature() -> &'static Signature;
 
     /// Creates a sane initial seed corpus.
-    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)>;
+    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::Matcher>, &'static str)>;
 }
 
 /// A structured message. This type defines how all possible messages of a protocol.

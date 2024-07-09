@@ -5,6 +5,7 @@ use crate::{
     claims::{Claim, SecurityViolationPolicy},
     codec::Codec,
     error::Error,
+    put_registry::PutDescriptor,
     trace::{Knowledge, Source, Trace},
 };
 
@@ -99,5 +100,5 @@ pub trait ProtocolBehavior: 'static {
     fn signature() -> &'static Signature;
 
     /// Creates a sane initial seed corpus.
-    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)>;
+    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::Matcher>, &'static str)>;
 }

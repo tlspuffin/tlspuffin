@@ -6,6 +6,7 @@ use puffin::{
         ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
         ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
     },
+    put_registry::PutDescriptor,
     trace::{Knowledge, Source, Trace},
     variable_data::VariableData,
 };
@@ -13,6 +14,7 @@ use puffin::{
 use crate::{
     claims::TlsClaim,
     debug::{debug_message_with_info, debug_opaque_message_with_info},
+    put_registry::tls_registry,
     query::TlsQueryMatcher,
     tls::{
         rustls::msgs::{
@@ -29,7 +31,6 @@ use crate::{
             heartbeat::HeartbeatPayload,
             message::{Message, MessagePayload, OpaqueMessage},
         },
-        seeds::create_corpus,
         violation::TlsSecurityViolationPolicy,
         TLS_SIGNATURE,
     },
@@ -663,7 +664,11 @@ impl ProtocolBehavior for TLSProtocolBehavior {
         &TLS_SIGNATURE
     }
 
-    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
-        create_corpus()
+    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::Matcher>, &'static str)> {
+        crate::tls::seeds::create_corpus(
+            tls_registry()
+                .find_by_id(put.factory)
+                .expect("missing PUT in TLS registry"),
+        )
     }
 }
