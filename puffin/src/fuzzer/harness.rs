@@ -1,36 +1,20 @@
 use libafl::executors::ExitKind;
-use once_cell::sync::OnceCell;
 use rand::Rng;
 
 use crate::{
     error::Error,
     fuzzer::stats_stage::*,
     protocol::ProtocolBehavior,
-    put::PutOptions,
-    put_registry::PutRegistry,
+    put_registry::{PutDescriptor, PutRegistry},
     trace::{Action, Trace, TraceContext},
 };
 
-static DEFAULT_PUT_OPTIONS: OnceCell<PutOptions> = OnceCell::new();
-
-/// Returns the current default put options which are used
-pub fn default_put_options() -> &'static PutOptions {
-    DEFAULT_PUT_OPTIONS
-        .get()
-        .expect("current default put options needs to be set")
-}
-
-pub fn set_default_put_options(default_put_options: PutOptions) -> Result<(), ()> {
-    DEFAULT_PUT_OPTIONS
-        .set(default_put_options)
-        .map_err(|_err| ())
-}
-
 pub fn harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
+    put: PutDescriptor,
     input: &Trace<PB::Matcher>,
 ) -> ExitKind {
-    let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+    let mut ctx = TraceContext::new(put_registry, put);
 
     TRACE_LENGTH.update(input.steps.len());
 

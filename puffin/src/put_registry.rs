@@ -9,11 +9,9 @@ use crate::{
     agent::AgentDescriptor,
     error::Error,
     protocol::ProtocolBehavior,
-    put::{Put, PutName, PutOptions},
+    put::{Put, PutOptions},
     trace::TraceContext,
 };
-
-pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
 
 // FIXME TCP_PUT should be defined in the tlspuffin package
 //
@@ -21,25 +19,23 @@ pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 
 //     we expose it here in `puffin` so that the generic CLI is able to provide the `tcp` command.
 //
 //     Once we factor out the `tcp` command, we can move this definition into `tlspuffin`.
-pub const TCP_PUT: PutName = PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']);
+pub const TCP_PUT: &str = "rust-put-tcp";
 
 /// Registry for [Factories](Factory). An instance of this is usually defined statically and then
 /// used throughout the fuzzer.
 pub struct PutRegistry<PB> {
     factories: HashMap<String, Box<dyn Factory<PB>>>,
-    default_put: String,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub struct PutDescriptor {
-    pub factory: PutName,
+    pub factory: String,
     pub options: PutOptions,
 }
 
 impl<PB: ProtocolBehavior> PartialEq for PutRegistry<PB> {
     fn eq(&self, other: &Self) -> bool {
-        self.default_put == other.default_put
-            && self.factories.len() == other.factories.len()
+        self.factories.len() == other.factories.len()
             && self
                 .factories
                 .keys()
@@ -59,29 +55,25 @@ impl<PB: ProtocolBehavior> Debug for PutRegistry<PB> {
 }
 
 impl<PB: ProtocolBehavior> PutRegistry<PB> {
-    pub fn new<SI, I, S>(puts: I, default: S) -> Self
+    pub fn new<SI, I>(puts: I) -> Self
     where
         SI: Into<String>,
         I: IntoIterator<Item = (SI, Box<dyn Factory<PB>>)>,
-        S: Into<String>,
     {
-        let result = Self {
+        Self {
             factories: puts
                 .into_iter()
                 .map(|(id, f)| (Into::<String>::into(id), f))
                 .collect(),
-            default_put: default.into(),
-        };
-
-        // check that the default PUT is actually in the registry
-        let _ = result.find_by_id(&result.default_put);
-
-        result
+        }
     }
 
+    // FIXME remove PutRegistry::default() once compile-time PUT definitions are removed
     pub fn default(&self) -> &dyn Factory<PB> {
-        self.find_by_id(&self.default_put)
-            .unwrap_or_else(|| panic!("default PUT {} is not in registry", &self.default_put))
+        // grab the first non-TCP PUT if any, else the TCP PUT
+        self.puts()
+            .find(|p| p.name() != TCP_PUT)
+            .unwrap_or_else(|| self.find_by_id(TCP_PUT).expect("PUT registry is empty"))
     }
 
     pub fn puts(&self) -> impl Iterator<Item = &dyn Factory<PB>> {
@@ -108,7 +100,6 @@ impl<PB: ProtocolBehavior> Clone for PutRegistry<PB> {
             self.factories
                 .iter()
                 .map(|(n, f)| (n.clone(), f.clone_factory())),
-            self.default_put.clone(),
         )
     }
 }
@@ -128,7 +119,7 @@ pub trait Factory<PB: ProtocolBehavior> {
     ) -> Result<Box<dyn Put<PB>>, Error>;
 
     fn kind(&self) -> PutKind;
-    fn name(&self) -> PutName;
+    fn name(&self) -> String;
     fn versions(&self) -> Vec<(String, String)>;
 
     fn clone_factory(&self) -> Box<dyn Factory<PB>>;

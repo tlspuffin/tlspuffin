@@ -17,7 +17,6 @@ use crate::{
     execution::forked_execution,
     experiment::*,
     fuzzer::{
-        harness::{default_put_options, set_default_put_options},
         sanitizer::asan::{asan_info, setup_asan_env},
         start, FuzzerConfig,
     },
@@ -135,9 +134,11 @@ where
     if put_use_clear {
         options.push(("use_clear".to_string(), put_use_clear.to_string()))
     }
-    if set_default_put_options(PutOptions::new(options)).is_err() {
-        log::error!("Failed to initialize default put options");
-    }
+
+    let default_put = PutDescriptor {
+        factory: put_registry.default().name(),
+        options: PutOptions::new(options),
+    };
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         if let Err(err) = seed(&put_registry) {
@@ -212,7 +213,7 @@ where
 
         for path in lookup_paths {
             log::info!("Executing: {}", path.display());
-            execute(path, &put_registry);
+            execute(path, &put_registry, default_put.clone());
         }
 
         if !lookup_paths.is_empty() {
@@ -265,7 +266,7 @@ where
 
         for path in paths {
             log::info!("Executing: {}", path.display());
-            execute(path, &put_registry);
+            execute(path, &put_registry, default_put.clone());
         }
 
         return ExitCode::SUCCESS;
@@ -306,7 +307,7 @@ where
         }
 
         let put = PutDescriptor {
-            factory: TCP_PUT,
+            factory: TCP_PUT.to_owned(),
             options: PutOptions::from_slice_vec(options),
         };
 
@@ -386,7 +387,7 @@ where
             no_launcher,
         };
 
-        if let Err(err) = start::<PB>(&put_registry, config, handle) {
+        if let Err(err) = start::<PB>(&put_registry, default_put, config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {
                     log::info!("\nFuzzing stopped by user. Good Bye.")
@@ -451,7 +452,11 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutRegistry<PB>) {
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
+    input: P,
+    put_registry: &PutRegistry<PB>,
+    put: PutDescriptor,
+) {
     let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
         Ok(t) => t,
         Err(_) => {
@@ -466,7 +471,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutReg
     // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
     let status = forked_execution(
         move || {
-            let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+            let mut ctx = TraceContext::new(put_registry, put.clone());
             if let Err(err) = trace.execute(&mut ctx) {
                 log::error!(
                     "Failed to execute trace {}: {:?}",

@@ -12,7 +12,7 @@ use crate::{
     },
     log::{config_fuzzing, config_fuzzing_client},
     protocol::ProtocolBehavior,
-    put_registry::PutRegistry,
+    put_registry::{PutDescriptor, PutRegistry},
     trace::Trace,
 };
 
@@ -402,6 +402,7 @@ where
 /// Starts the fuzzing loop
 pub fn start<PB>(
     put_registry: &PutRegistry<PB>,
+    put: PutDescriptor,
     config: FuzzerConfig,
     log_handle: Handle,
 ) -> Result<(), Error>
@@ -440,7 +441,8 @@ where
             .clone()
             .set_config(config_fuzzing_client(log_file));
 
-        let harness_fn = &mut (|input: &_| harness::harness::<PB>(put_registry, input));
+        let harness_fn =
+            &mut (|input: &_| harness::harness::<PB>(put_registry, put.clone(), input));
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder

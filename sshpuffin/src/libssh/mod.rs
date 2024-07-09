@@ -22,7 +22,7 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     codec::Codec,
     error::Error,
-    put::{Put, PutName},
+    put::Put,
     put_registry::{Factory, PutKind},
     stream::Stream,
     trace::TraceContext,
@@ -35,7 +35,7 @@ use crate::{
         SshResult, SshSession,
     },
     protocol::{RawSshMessageFlight, SshProtocolBehavior},
-    put_registry::LIBSSH_PUT,
+    put_registry::LIBSSH_RUST_PUT,
     query::SshQueryMatcher,
     ssh::message::{RawSshMessage, SshMessage},
 };
@@ -151,15 +151,15 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            LIBSSH_PUT
+        fn name(&self) -> String {
+            LIBSSH_RUST_PUT.to_owned()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", LIBSSH_PUT, VERSION_STR),
+                    format!("{} ({})", LIBSSH_RUST_PUT, VERSION_STR),
                 ),
                 (
                     "library".to_string(),

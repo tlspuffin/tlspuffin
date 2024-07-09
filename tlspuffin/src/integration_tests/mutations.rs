@@ -12,7 +12,7 @@ use puffin::{
         mutators::{MutationResult, Mutator},
         state::StdState,
     },
-    put::PutOptions,
+    put_registry::PutDescriptor,
     trace::{Action, Step, Trace, TraceContext},
 };
 use test_log::test;
@@ -221,7 +221,11 @@ fn test_mutate_seed_cve_2021_3449() {
                 println!("attempts 5: {}", attempts);
 
                 let put_registry = tls_registry();
-                let mut context = TraceContext::new(&put_registry, PutOptions::default());
+                let put = PutDescriptor {
+                    factory: put_registry.default().name(),
+                    options: Default::default(),
+                };
+                let mut context = TraceContext::new(&put_registry, put);
                 let _ = trace.execute(&mut context);
                 println!("try");
             }

@@ -5,7 +5,7 @@
     feature = "boringssl-binding", // neither OpenSSL nor WolfSSL are fully deterministic yet (time/date in tickets)
 ))]
 fn test_deterministic_client_attacker_full() {
-    use puffin::{put::PutOptions, trace::TraceContext};
+    use puffin::{put_registry::PutDescriptor, trace::TraceContext};
 
     use crate::{
         put_registry::tls_registry,
@@ -13,15 +13,19 @@ fn test_deterministic_client_attacker_full() {
     };
 
     let put_registry = tls_registry();
+    let put = PutDescriptor {
+        factory: put_registry.default().name(),
+        options: Default::default(),
+    };
 
     let trace = seed_client_attacker_full.build_trace();
 
-    let mut ctx_1 = TraceContext::new(&put_registry, PutOptions::default());
-    ctx_1 = trace.execute(&mut ctx_1).unwrap();
+    let mut ctx_1 = TraceContext::new(&put_registry, put.clone());
+    trace.execute(&mut ctx_1).unwrap();
 
     for i in 0..200 {
         println!("Attempt #{i}...");
-        let mut ctx_2 = TraceContext::new(&put_registry, PutOptions::default());
+        let mut ctx_2 = TraceContext::new(&put_registry, put.clone());
         trace.execute(&mut ctx_2).unwrap();
         assert_eq!(ctx_1, ctx_2);
     }

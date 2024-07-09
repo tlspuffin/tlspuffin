@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use puffin::{
     execution::{forked_execution, ExecutionStatus},
-    put::PutOptions,
+    put_registry::PutDescriptor,
     trace::Trace,
 };
 
@@ -24,7 +24,7 @@ use crate::{put_registry::tls_registry, query::TlsQueryMatcher};
 #[allow(dead_code)]
 pub fn expect_trace_crash(
     trace: Trace<TlsQueryMatcher>,
-    default_put_options: PutOptions,
+    put: PutDescriptor,
     timeout: Option<Duration>,
     retry: Option<usize>,
 ) {
@@ -38,7 +38,7 @@ pub fn expect_trace_crash(
                     // Ignore Rust errors
                     let _ = trace
                         .clone()
-                        .execute_deterministic(&tls_registry(), default_put_options.clone());
+                        .execute_deterministic(&tls_registry(), put.clone());
                 },
                 timeout,
             )

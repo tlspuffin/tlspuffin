@@ -7,7 +7,7 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
     algebra::dynamic_function::TypeShape,
     error::Error,
-    put::{Put, PutName},
+    put::Put,
     put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
     trace::TraceContext,
@@ -29,7 +29,7 @@ use crate::{
     },
     protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
     put::TlsPutConfig,
-    put_registry::WOLFSSL520_PUT,
+    put_registry::WOLFSSL_RUST_PUT,
     query::TlsQueryMatcher,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     tls::rustls::msgs::{
@@ -78,8 +78,8 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            WOLFSSL520_PUT
+        fn name(&self) -> String {
+            WOLFSSL_RUST_PUT.to_owned()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -102,7 +102,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", WOLFSSL520_PUT, VERSION_STR),
+                    format!("{} ({})", WOLFSSL_RUST_PUT, VERSION_STR),
                 ),
                 (
                     "library".to_string(),

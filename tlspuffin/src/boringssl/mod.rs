@@ -12,7 +12,7 @@ use foreign_types::ForeignTypeRef;
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     error::Error,
-    put::{Put, PutName},
+    put::Put,
     put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
     trace::TraceContext,
@@ -26,7 +26,7 @@ use crate::{
     },
     protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
     put::TlsPutConfig,
-    put_registry::BORINGSSL_PUT,
+    put_registry::BORINGSSL_RUST_PUT,
     query::TlsQueryMatcher,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
     tls::rustls::msgs::message::{Message, OpaqueMessage},
@@ -83,8 +83,8 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            BORINGSSL_PUT
+        fn name(&self) -> String {
+            BORINGSSL_RUST_PUT.to_owned()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -101,7 +101,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", BORINGSSL_PUT, VERSION_STR),
+                    format!("{} ({})", BORINGSSL_RUST_PUT, VERSION_STR),
                 ),
                 (
                     "library".to_string(),
