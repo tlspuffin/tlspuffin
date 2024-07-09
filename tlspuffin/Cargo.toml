@@ -355,6 +355,8 @@ tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", featu
 foreign-types = { version = "0.5.0", optional = true }
 
 [build-dependencies]
+puffin = { path = "../puffin" }
+
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
 openssl-src = { version = "*", features = [], optional = true }
 tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", features = ["tls"] }

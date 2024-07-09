@@ -117,7 +117,9 @@ foreach(library_path IN LISTS LIBRARIES)
       HARNESS "${HARNESS_NAME}"
       LIBRARY "${PUT_LIB}"
       SOURCES
+        tls/${HARNESS_NAME}/src/bindings.c
         tls/${HARNESS_NAME}/src/put.c
+        tls/${HARNESS_NAME}/src/rng.c
     )
 
     target_include_directories(${PUT} PRIVATE "tls/${HARNESS_NAME}/include")

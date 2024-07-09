@@ -2304,6 +2304,7 @@ dependencies = [
  "log",
  "once_cell",
  "puffin",
+ "security-claims",
 ]
 
 [[package]]

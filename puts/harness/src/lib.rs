@@ -5,6 +5,8 @@ mod bindings {
     #![allow(improper_ctypes)]
     #![allow(dead_code)]
     #![allow(clippy::all)]
+    use security_claims::Claim;
+
     include!(env!("RUST_BINDINGS_FILE"));
 }
 

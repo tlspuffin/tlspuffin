@@ -45,6 +45,7 @@ wolfssl_disable_postauth = []
 [dependencies]
 libc = { version = "0.2.126" }
 puffin = { path = "../../puffin" }
+security-claims = { version = "0.1.0", optional = false }
 log = "0.4.17"
 once_cell = "1.19.0"
 
@@ -52,3 +53,4 @@ once_cell = "1.19.0"
 cmake = "0.1"
 cc = "1.0"
 bindgen = "0.69.1"
+security-claims = { version = "0.1.0", optional = false }

@@ -29,6 +29,14 @@ pub fn main() {
         .impl_debug(true)
         .no_copy("^AGENT_DESCRIPTOR$")
         .header("include/tlspuffin/put.h")
+        .clang_arg(format!(
+            "-I{}",
+            src_dir
+                .join("..")
+                .join("..")
+                .join("tlspuffin-claims")
+                .display()
+        ))
         .generate()
         .expect("Unable to generate Rust bindings for tlspuffin-harness-sys")
         .write_to_file(&bindings_path)

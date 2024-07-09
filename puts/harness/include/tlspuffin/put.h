@@ -1,10 +1,12 @@
 #ifndef TLSPUFFIN_PUT_H
 #define TLSPUFFIN_PUT_H
 
-#include <inttypes.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+#include <claim-interface.h>
 
 // TODO re-design to remove TLS-specific constructs
 //
@@ -67,6 +69,24 @@ typedef struct
     const size_t store_length;
 } AGENT_DESCRIPTOR;
 
+typedef struct
+{
+    /*
+     * Any opaque data needed by the callback.
+     */
+    void *context;
+
+    /*
+     * The actual callback function, called on each claim.
+     */
+    void (*const notify)(void *context, Claim claim);
+
+    /*
+     * Perform the necessary cleanup steps to destroy the callback.
+     */
+    void (*const destroy)(void *context);
+} CLAIMER_CB;
+
 typedef struct C_PUT_INTERFACE
 {
     /*
@@ -96,7 +116,11 @@ typedef struct C_PUT_INTERFACE
     RESULT (*const reset)(void *agent, uint8_t agent_name);
     const char *(*const describe_state)(void *agent);
     bool (*const is_state_successful)(void *agent);
-    const char *(*const shutdown)(void *agent);
+
+    /*
+     * Register a claim callback
+     */
+    void (*const register_claimer)(void *agent, const CLAIMER_CB *callback);
 
     /*
      * Attempt to write <length> bytes from <bytes> into the <agent> input

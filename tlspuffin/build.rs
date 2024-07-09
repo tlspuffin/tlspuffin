@@ -38,6 +38,10 @@ fn main() {
     tls_harness::tls_puts()
         .iter()
         .for_each(|(name, (harness, library, _))| {
+            let identifier = make_identifier(library);
+
+            puts.push((identifier, name.clone()));
+
             if library.with_sancov {
                 println!("cargo:rust-cfg={}=\"sancov\"", name);
             }
