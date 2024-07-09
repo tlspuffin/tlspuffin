@@ -1802,7 +1802,9 @@ pub mod tests {
 
     use super::*;
     use crate::{
-        put_registry::tls_registry, test_utils::test_puts, tls::trace_helper::TraceHelper,
+        put_registry::tls_registry,
+        test_utils::{supports, test_puts},
+        tls::trace_helper::TraceHelper,
     };
 
     #[test]
@@ -1815,167 +1817,154 @@ pub mod tests {
         }
     }
 
-    #[test]
-    #[cfg(feature = "tls12")]
-    fn test_seed_client_attacker12() {
+    #[apply(test_puts, filter = tls12)]
+    fn test_seed_client_attacker12(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_client_attacker12.execute_with(&put);
+        let ctx = seed_client_attacker12.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(feature = "transcript-extraction")] // this depends on extracted transcripts -> claims are required
-    #[test]
-    fn test_seed_client_attacker() {
+    #[apply(test_puts, filter = all(tls13, transcript_extraction))]
+    fn test_seed_client_attacker(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_client_attacker.execute_with(&put);
+        let ctx = seed_client_attacker.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(feature = "client-authentication-transcript-extraction")]
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
-    fn test_seed_client_attacker_auth() {
+    #[apply(test_puts, filter = all(tls13, client_authentication_transcript_extraction, not(boringssl_binding)))]
+    fn test_seed_client_attacker_auth(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_client_attacker_auth.execute_with(&put);
+        let ctx = seed_client_attacker_auth.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[test]
-    fn test_seed_client_attacker_full() {
+    #[apply(test_puts, filter = tls13)]
+    fn test_seed_client_attacker_full(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_client_attacker_full.execute_with(&put);
+        let ctx = seed_client_attacker_full.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
-    fn test_seed_server_attacker_full() {
+    #[apply(test_puts, filter = all(tls13, not(boringssl_binding)))]
+    fn test_seed_server_attacker_full(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_server_attacker_full.execute_with(&put);
+        let ctx = seed_server_attacker_full.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(not(feature = "wolfssl-disable-postauth"))]
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
-    fn test_seed_session_resumption_dhe() {
+    #[apply(test_puts, filter = all(
+        tls13,
+        tls13_session_resumption,
+        not(wolfssl_disable_postauth),
+        not(boringssl_binding)
+    ))]
+    fn test_seed_session_resumption_dhe(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_session_resumption_dhe.execute_with(&put);
+        let ctx = seed_session_resumption_dhe.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(not(feature = "wolfssl-disable-postauth"))]
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
-    fn test_seed_session_resumption_dhe_full() {
+    #[apply(test_puts, filter = all(
+        tls13,
+        tls13_session_resumption,
+        not(wolfssl_disable_postauth),
+        not(boringssl_binding)
+    ))]
+    fn test_seed_session_resumption_dhe_full(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_session_resumption_dhe_full.execute_with(&put);
+        let ctx = seed_session_resumption_dhe_full.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(not(feature = "wolfssl-disable-postauth"))]
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
-    fn test_seed_session_resumption_ke() {
+    #[apply(test_puts, filter = all(
+        tls13,
+        tls13_session_resumption,
+        not(wolfssl_disable_postauth),
+        not(boringssl_binding)
+    ))]
+    fn test_seed_session_resumption_ke(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_session_resumption_ke.execute_with(&put);
+        let ctx = seed_session_resumption_ke.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
-    fn test_seed_successful() {
+    #[apply(test_puts, filter = all(
+        tls13,
+        not(boringssl_binding)
+    ))]
+    fn test_seed_successful(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_successful.execute_with(&put);
+        let ctx = seed_successful.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
-    fn test_seed_successful_client_auth() {
+    #[apply(test_puts, filter = all(
+        tls13,
+        not(boringssl_binding)
+    ))]
+    fn test_seed_successful_client_auth(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_successful_client_auth.execute_with(&put);
+        let ctx = seed_successful_client_auth.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[test]
     // Cases:
     // expected = "Not the best cipher choosen", // in case MITM attack succeeded because transcript is ignored -> We detect the MITM and error
     // expected = "decryption failed or bad record mac"  // in case MITM attack did fail
-    #[should_panic]
-    fn test_seed_successful_mitm() {
+    #[apply(test_puts, attrs = [should_panic], filter = tls13)]
+    fn test_seed_successful_mitm(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_successful_mitm.execute_with(&put);
+        let ctx = seed_successful_mitm.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
-    fn test_seed_successful_with_ccs() {
+    #[apply(test_puts, filter = all(
+        tls13,
+        not(boringssl_binding)
+    ))]
+    fn test_seed_successful_with_ccs(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_successful_with_ccs.execute_with(&put);
+        let ctx = seed_successful_with_ccs.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    // require version which supports TLS 1.3 and session resumption (else no tickets are sent)
-    // LibreSSL does not yet support PSK
-    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test]
-    fn test_seed_successful_with_tickets() {
+    #[apply(test_puts, filter = all(
+        tls13,
+        tls13_session_resumption,
+        not(boringssl_binding)
+    ))]
+    fn test_seed_successful_with_tickets(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_successful_with_tickets.execute_with(&put);
+        let ctx = seed_successful_with_tickets.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[test]
-    #[cfg(feature = "tls12")]
-    #[cfg(not(feature = "boringssl-binding"))]
-    fn test_seed_successful12() {
+    #[apply(test_puts, filter = all(
+        tls12,
+        not(boringssl_binding)
+    ))]
+    fn test_seed_successful12(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        #[cfg(feature = "tls12-session-resumption")]
-        let ctx = seed_successful12_with_tickets.execute_with(&put);
-        #[cfg(not(feature = "tls12-session-resumption"))]
-        let ctx = seed_successful12.execute_with(&put);
+        let ctx = if supports!(put, "tls12_session_resumption") {
+            seed_successful12_with_tickets.execute_with(put)
+        } else {
+            seed_successful12.execute_with(put)
+        };
+
         assert!(ctx.agents_successful());
     }
 

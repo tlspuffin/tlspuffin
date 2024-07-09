@@ -1073,8 +1073,12 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher
 #[cfg(test)]
 pub mod tests {
     use test_log::test;
+    use tlspuffin_macros::apply;
 
-    use crate::tls::{trace_helper::TraceHelper, vulnerabilities::*};
+    use crate::{
+        test_utils::test_puts,
+        tls::{trace_helper::TraceHelper, vulnerabilities::*},
+    };
 
     #[test]
     fn test_term_sizes() {
@@ -1111,19 +1115,17 @@ pub mod tests {
         }
     }
 
-    // Vulnerable up until OpenSSL 1.0.1j
-    #[cfg(all(feature = "openssl101-binding", feature = "asan"))]
-    #[cfg(feature = "tls12")]
-    #[test]
-    #[ignore] // We cannot check for this vulnerability right now
-    fn test_seed_freak() {
+    #[apply(test_puts,
+        attrs = [ignore], // We cannot check for this vulnerability right now
+        filter = all(tls12, cve_2015_0204, asan)
+    )]
+    fn test_seed_freak(put_name: &str) {
         use puffin::put_registry::PutDescriptor;
 
-        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
+        use crate::test_utils::expect_trace_crash;
 
-        let put_registry = tls_registry();
         let put = PutDescriptor {
-            factory: put_registry.default().name(),
+            factory: put_name.to_owned(),
             options: Default::default(),
         };
 
@@ -1135,17 +1137,14 @@ pub mod tests {
         );
     }
 
-    #[cfg(all(feature = "openssl101-binding", feature = "asan"))]
-    #[cfg(feature = "tls12")]
-    #[test]
-    fn test_seed_heartbleed() {
+    #[apply(test_puts, filter = all(tls12, cve_2014_0160, asan))]
+    fn test_seed_heartbleed(put_name: &str) {
         use puffin::put_registry::PutDescriptor;
 
-        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
+        use crate::test_utils::expect_trace_crash;
 
-        let put_registry = tls_registry();
         let put = PutDescriptor {
-            factory: put_registry.default().name(),
+            factory: put_name.to_owned(),
             options: Default::default(),
         };
 
@@ -1157,17 +1156,14 @@ pub mod tests {
         );
     }
 
-    #[test]
-    #[cfg(feature = "openssl111j")]
-    #[cfg(feature = "tls12")]
-    fn test_seed_cve_2021_3449() {
+    #[apply(test_puts, filter = cve_2021_3449)]
+    fn test_seed_cve_2021_3449(put_name: &str) {
         use puffin::put_registry::PutDescriptor;
 
-        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
+        use crate::test_utils::expect_trace_crash;
 
-        let put_registry = tls_registry();
         let put = PutDescriptor {
-            factory: put_registry.default().name(),
+            factory: put_name.to_owned(),
             options: Default::default(),
         };
 
@@ -1179,60 +1175,65 @@ pub mod tests {
         );
     }
 
-    #[test]
-    #[cfg(feature = "wolfssl510")]
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(feature = "client-authentication-transcript-extraction")]
-    #[cfg(not(feature = "fix-CVE-2022-25640"))]
-    #[should_panic(expected = "Authentication bypass")]
-    fn test_seed_cve_2022_25640() {
+    #[apply(test_puts,
+        puts = [wolfssl510:"wolfssl510"],
+        attrs = [should_panic(expected = "Authentication bypass")],
+        filter = all(
+            tls13,
+            client_authentication_transcript_extraction,
+            cve_2022_25640
+        )
+    )]
+    fn test_seed_cve_2022_25640(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_cve_2022_25640.execute_with(&put);
+        let ctx = seed_cve_2022_25640.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[test]
-    #[cfg(feature = "wolfssl510")]
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(feature = "client-authentication-transcript-extraction")]
-    #[cfg(not(feature = "fix-CVE-2022-25640"))]
-    #[should_panic(expected = "Authentication bypass")]
-    fn test_seed_cve_2022_25640_simple() {
+    #[apply(test_puts,
+        puts = [wolfssl510:"woflssl510"],
+        attrs = [should_panic(expected = "Authentication bypass")],
+        filter = all(
+            tls13,
+            client_authentication_transcript_extraction,
+            cve_2022_25640
+        )
+    )]
+    fn test_seed_cve_2022_25640_simple(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_cve_2022_25640_simple.execute_with(&put);
+        let ctx = seed_cve_2022_25640_simple.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[test]
-    #[cfg(feature = "wolfssl510")]
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(feature = "client-authentication-transcript-extraction")]
-    #[cfg(not(feature = "fix-CVE-2022-25638"))]
-    #[should_panic(expected = "Authentication bypass")]
-    fn test_seed_cve_2022_25638() {
+    #[apply(test_puts,
+        puts = [wolfssl510:"wolfssl510"],
+        attrs = [should_panic(expected = "Authentication bypass")],
+        filter = all(
+            tls13,
+            client_authentication_transcript_extraction,
+            cve_2022_25638
+        )
+    )]
+    fn test_seed_cve_2022_25638(put: &str) {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let put = crate::put_registry::tls_registry().default().name();
-        let ctx = seed_cve_2022_25638.execute_with(&put);
+        let ctx = seed_cve_2022_25638.execute_with(put);
         assert!(ctx.agents_successful());
     }
 
-    #[test]
-    #[cfg(feature = "tls12")]
-    #[cfg(feature = "wolfssl540")]
-    #[cfg(feature = "wolfssl-disable-postauth")]
-    fn test_seed_cve_2022_38152() {
+    #[apply(test_puts,
+        puts = [wolfssl540:"wolfssl540"],
+        filter = all(tls12, cve_2022_38152)
+    )]
+    fn test_seed_cve_2022_38152(put_name: &str) {
         use puffin::{put::PutOptions, put_registry::PutDescriptor};
 
-        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
+        use crate::test_utils::expect_trace_crash;
 
-        let put_registry = tls_registry();
         let put = PutDescriptor {
-            factory: put_registry.default().name(),
+            factory: put_name.to_owned(),
             options: PutOptions::from_slice_vec(vec![("use_clear", &true.to_string())]),
         };
 
@@ -1244,27 +1245,19 @@ pub mod tests {
         );
     }
 
-    #[test]
-    #[cfg(feature = "tls12")]
-    #[cfg(feature = "tls12-session-resumption")]
-    #[cfg(feature = "wolfssl530")]
-    fn test_seed_cve_2022_38153() {
+    #[apply(test_puts, filter = all(tls12, tls12_session_resumption, cve_2022_38153))]
+    fn test_seed_cve_2022_38153(put_name: &str) {
         use puffin::put_registry::PutDescriptor;
 
-        use crate::{
-            put_registry::tls_registry, test_utils::expect_trace_crash,
-            tls::trace_helper::TraceHelperExecutor,
-        };
+        use crate::{test_utils::expect_trace_crash, tls::trace_helper::TraceHelperExecutor};
 
-        let put_name = crate::put_registry::tls_registry().default().name();
-        let put_registry = tls_registry();
         let put = PutDescriptor {
-            factory: put_registry.default().name(),
+            factory: put_name.to_owned(),
             options: Default::default(),
         };
 
         for _ in 0..50 {
-            crate::tls::seeds::seed_successful12_with_tickets.execute_with(&put_name);
+            crate::tls::seeds::seed_successful12_with_tickets.execute_with(put_name);
         }
 
         expect_trace_crash(
@@ -1275,21 +1268,17 @@ pub mod tests {
         );
     }
 
-    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(all(
-        any(feature = "wolfssl540", feature = "wolfssl530", feature = "wolfssl510"),
-        feature = "asan"
-    ))]
-    #[cfg(not(feature = "fix-CVE-2022-39173"))]
-    #[test]
-    fn test_seed_cve_2022_39173() {
+    #[apply(test_puts,
+        puts = [wolfssl540:"wolfssl540", wolfssl530:"wolfssl530", wolfssl510:"wolfssl510"],
+        filter = all(tls13, tls13_session_resumption, asan, cve_2022_39173)
+    )]
+    fn test_seed_cve_2022_39173(put_name: &str) {
         use puffin::put_registry::PutDescriptor;
 
-        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
+        use crate::test_utils::expect_trace_crash;
 
-        let put_registry = tls_registry();
         let put = PutDescriptor {
-            factory: put_registry.default().name(),
+            factory: put_name.to_owned(),
             options: Default::default(),
         };
 
@@ -1301,21 +1290,17 @@ pub mod tests {
         );
     }
 
-    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(all(
-        any(feature = "wolfssl540", feature = "wolfssl530", feature = "wolfssl510"),
-        feature = "asan"
-    ))]
-    #[cfg(not(feature = "fix-CVE-2022-39173"))]
-    #[test]
-    fn test_seed_cve_2022_39173_full() {
+    #[apply(test_puts,
+        puts = [wolfssl540:"wolfssl540", wolfssl530:"wolfssl530", wolfssl510:"wolfssl510"],
+        filter = all(tls13, tls13_session_resumption, asan, cve_2022_39173)
+    )]
+    fn test_seed_cve_2022_39173_full(put_name: &str) {
         use puffin::put_registry::PutDescriptor;
 
-        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
+        use crate::test_utils::expect_trace_crash;
 
-        let put_registry = tls_registry();
         let put = PutDescriptor {
-            factory: put_registry.default().name(),
+            factory: put_name.to_owned(),
             options: Default::default(),
         };
 
@@ -1327,21 +1312,17 @@ pub mod tests {
         );
     }
 
-    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(all(
-        any(feature = "wolfssl540", feature = "wolfssl530", feature = "wolfssl510"),
-        feature = "asan"
-    ))]
-    #[cfg(not(feature = "fix-CVE-2022-39173"))]
-    #[test]
-    fn test_seed_cve_2022_39173_minimized() {
+    #[apply(test_puts,
+        puts = [wolfssl540:"wolfssl540", wolfssl530:"wolfssl530", wolfssl510:"wolfssl510"],
+        filter = all(tls13, tls13_session_resumption, asan, cve_2022_39173)
+    )]
+    fn test_seed_cve_2022_39173_minimized(put_name: &str) {
         use puffin::put_registry::PutDescriptor;
 
-        use crate::{put_registry::tls_registry, test_utils::expect_trace_crash};
+        use crate::test_utils::expect_trace_crash;
 
-        let put_registry = tls_registry();
         let put = PutDescriptor {
-            factory: put_registry.default().name(),
+            factory: put_name.to_owned(),
             options: Default::default(),
         };
 
