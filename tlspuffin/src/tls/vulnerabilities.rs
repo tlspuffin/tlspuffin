@@ -1188,7 +1188,8 @@ pub mod tests {
     fn test_seed_cve_2022_25640() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_cve_2022_25640.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_cve_2022_25640.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1201,7 +1202,8 @@ pub mod tests {
     fn test_seed_cve_2022_25640_simple() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_cve_2022_25640_simple.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_cve_2022_25640_simple.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1214,7 +1216,8 @@ pub mod tests {
     fn test_seed_cve_2022_25638() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_cve_2022_25638.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_cve_2022_25638.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1253,6 +1256,7 @@ pub mod tests {
             tls::trace_helper::TraceHelperExecutor,
         };
 
+        let put_name = crate::put_registry::tls_registry().default().name();
         let put_registry = tls_registry();
         let put = PutDescriptor {
             factory: put_registry.default().name(),
@@ -1260,7 +1264,7 @@ pub mod tests {
         };
 
         for _ in 0..50 {
-            crate::tls::seeds::seed_successful12_with_tickets.execute_trace();
+            crate::tls::seeds::seed_successful12_with_tickets.execute_with(&put_name);
         }
 
         expect_trace_crash(

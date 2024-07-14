@@ -1819,7 +1819,8 @@ pub mod tests {
     fn test_seed_client_attacker12() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_client_attacker12.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_client_attacker12.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1829,7 +1830,8 @@ pub mod tests {
     fn test_seed_client_attacker() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_client_attacker.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_client_attacker.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1840,7 +1842,8 @@ pub mod tests {
     fn test_seed_client_attacker_auth() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_client_attacker_auth.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_client_attacker_auth.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1849,7 +1852,8 @@ pub mod tests {
     fn test_seed_client_attacker_full() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_client_attacker_full.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_client_attacker_full.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1859,7 +1863,8 @@ pub mod tests {
     fn test_seed_server_attacker_full() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_server_attacker_full.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_server_attacker_full.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1870,7 +1875,8 @@ pub mod tests {
     fn test_seed_session_resumption_dhe() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_session_resumption_dhe.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_session_resumption_dhe.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1881,7 +1887,8 @@ pub mod tests {
     fn test_seed_session_resumption_dhe_full() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_session_resumption_dhe_full.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_session_resumption_dhe_full.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1892,7 +1899,8 @@ pub mod tests {
     fn test_seed_session_resumption_ke() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_session_resumption_ke.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_session_resumption_ke.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1902,7 +1910,8 @@ pub mod tests {
     fn test_seed_successful() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_successful.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_successful.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1912,7 +1921,8 @@ pub mod tests {
     fn test_seed_successful_client_auth() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_successful_client_auth.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_successful_client_auth.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1925,7 +1935,8 @@ pub mod tests {
     fn test_seed_successful_mitm() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_successful_mitm.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_successful_mitm.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1935,7 +1946,8 @@ pub mod tests {
     fn test_seed_successful_with_ccs() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_successful_with_ccs.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_successful_with_ccs.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1947,7 +1959,8 @@ pub mod tests {
     fn test_seed_successful_with_tickets() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
-        let ctx = seed_successful_with_tickets.execute_trace();
+        let put = crate::put_registry::tls_registry().default().name();
+        let ctx = seed_successful_with_tickets.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 
@@ -1957,10 +1970,11 @@ pub mod tests {
     fn test_seed_successful12() {
         use crate::tls::trace_helper::TraceHelperExecutor;
 
+        let put = crate::put_registry::tls_registry().default().name();
         #[cfg(feature = "tls12-session-resumption")]
-        let ctx = seed_successful12_with_tickets.execute_trace();
+        let ctx = seed_successful12_with_tickets.execute_with(&put);
         #[cfg(not(feature = "tls12-session-resumption"))]
-        let ctx = seed_successful12.execute_trace();
+        let ctx = seed_successful12.execute_with(&put);
         assert!(ctx.agents_successful());
     }
 

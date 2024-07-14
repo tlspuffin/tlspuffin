@@ -14,13 +14,18 @@ pub trait TraceHelper<A>: TraceHelperExecutor<A> {
 
 pub trait TraceHelperExecutor<A> {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior>;
+    fn execute_with<S: AsRef<str> + ?Sized>(self, put: &S) -> TraceContext<TLSProtocolBehavior>;
 }
 
 impl<A, H: TraceHelper<A>> TraceHelperExecutor<A> for H {
     fn execute_trace(self) -> TraceContext<TLSProtocolBehavior> {
+        self.execute_with(&tls_registry().default().name())
+    }
+
+    fn execute_with<S: AsRef<str> + ?Sized>(self, put: &S) -> TraceContext<TLSProtocolBehavior> {
         let put_registry = tls_registry();
         let put = PutDescriptor {
-            factory: put_registry.default().name(),
+            factory: put.as_ref().to_owned(),
             options: Default::default(),
         };
         self.build_trace()
