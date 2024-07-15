@@ -30,7 +30,9 @@ use serde::{Deserialize, Serialize};
 use crate::stream::Channel;
 use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
-    algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
+    algebra::{
+        atoms::Variable, dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term,
+    },
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     error::Error,
     protocol::{
@@ -173,12 +175,8 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
 
     /// Returns the variable which matches best -> highest specificity
     /// If we want a variable with lower specificity, then we can just query less specific
-    pub fn find_variable(
-        &self,
-        query_type_shape: TypeShape,
-        query: &Query<PB::Matcher>,
-    ) -> Option<&(dyn VariableData)> {
-        let query_type_id: TypeId = query_type_shape.into();
+    pub fn find_variable(&self, variable: &Variable<PB::Matcher>) -> Option<Box<dyn Any>> {
+        let query_type_id: TypeId = variable.typ.into();
 
         let mut possibilities: Vec<&Knowledge<PB::Matcher>> = Vec::new();
 
@@ -186,8 +184,9 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
             let data: &dyn VariableData = knowledge.data.as_ref();
 
             if query_type_id == data.type_id()
-                && (query.source == None || query.source == Some(knowledge.source.clone()))
-                && knowledge.matcher.matches(&query.matcher)
+                && (variable.query.source == None
+                    || variable.query.source == Some(knowledge.source.clone()))
+                && knowledge.matcher.matches(&variable.query.matcher)
             {
                 possibilities.push(knowledge);
             }
@@ -196,8 +195,8 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
         possibilities.sort_by_key(|a| a.specificity());
 
         possibilities
-            .get(query.counter as usize)
-            .map(|possibility| possibility.data.as_ref())
+            .get(variable.query.counter as usize)
+            .map(|possibility| possibility.data.as_ref().boxed_any())
     }
 }
 
@@ -318,12 +317,14 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     /// Returns the variable which matches best -> highest specificity
     /// If we want a variable with lower specificity, then we can just query less specific
-    pub fn find_variable(
-        &self,
-        query_type_shape: TypeShape,
-        query: &Query<PB::Matcher>,
-    ) -> Option<&(dyn VariableData)> {
-        self.knowledge_store.find_variable(query_type_shape, query)
+    pub fn find_variable(&self, variable: &Variable<PB::Matcher>) -> Option<Box<dyn Any>> {
+        self.knowledge_store.find_variable(variable).or_else(|| {
+            if let Some(Source::Agent(agent_name)) = variable.query.source {
+                self.find_claim(agent_name, variable.typ)
+            } else {
+                todo!("Implement querying by label");
+            }
+        })
     }
 
     /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
@@ -694,8 +695,7 @@ impl<M: Matcher> InputAction<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        // message controlled by the attacker
-        let evaluated = self.recipe.evaluate(ctx)?;
+        let evaluated = self.recipe.evaluate(&mut |v| ctx.find_variable(v))?;
 
         if let Some(flight) = evaluated
             .as_ref()

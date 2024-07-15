@@ -274,7 +274,7 @@ where
         let input: &String = matches.get_one("input").unwrap();
         let output: &String = matches.get_one("output").unwrap();
 
-        if let Err(err) = binary_attack(input, output, &put_registry) {
+        if let Err(err) = binary_attack::<PB>(input, output) {
             error!("Failed to create trace output: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -494,19 +494,17 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutReg
 fn binary_attack<PB: ProtocolBehavior>(
     input: &str,
     output: &str,
-    put_registry: &PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let trace = Trace::<PB::Matcher>::from_file(input)?;
-    let ctx = TraceContext::new(put_registry, default_put_options().clone());
 
     info!("Agents: {:?}", &trace.descriptors);
 
-    let mut f = File::create(output).expect("Unable to create file");
+    let mut f = File::create(output).expect("Unable to create output file");
 
     for step in trace.steps {
         match step.action {
             Action::Input(input) => {
-                if let Ok(evaluated) = input.recipe.evaluate(&ctx) {
+                if let Ok(evaluated) = input.recipe.evaluate(&mut |_| None) {
                     if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
                         let mut data: Vec<u8> = Vec::new();
                         msg.create_opaque().encode(&mut data);
