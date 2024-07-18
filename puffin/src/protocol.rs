@@ -4,8 +4,7 @@ use crate::{
     algebra::{signature::Signature, Matcher},
     claims::{Claim, SecurityViolationPolicy},
     codec::Codec,
-    error::Error,
-    trace::{Knowledge, Source, Trace},
+    trace::{KnowledgeStackItem, Source, Trace},
 };
 
 /// Provide a way to extract knowledge out of a Message/OpaqueMessage or any type that
@@ -15,12 +14,11 @@ pub trait ExtractKnowledge<M: Matcher>: std::fmt::Debug {
     /// by recursively calling extract_knowledge on all contained element
     /// This will put source as the source of all the produced knowledges, matcher is also passed
     /// recursively but might be overriten by a type with a more specific matcher
-    fn extract_knowledge(
-        &self,
-        knowledges: &mut Vec<Knowledge<M>>,
+    fn extract_knowledge<'a>(
+        &'a self,
         matcher: Option<M>,
-        source: &Source,
-    ) -> Result<(), Error>;
+        source: &'a Source,
+    ) -> Vec<KnowledgeStackItem<'a, M>>;
 }
 
 /// Store a message flight, a vec of all the messages sent by the PUT between two steps

@@ -59,7 +59,7 @@ impl<M: Matcher> fmt::Display for Query<M> {
     }
 }
 
-impl<M: Matcher> Knowledge<M> {
+impl<M: Matcher> Knowledge<'_, M> {
     pub fn specificity(&self) -> u32 {
         self.matcher.specificity()
     }
@@ -87,13 +87,78 @@ impl fmt::Display for Source {
 /// [Knowledge] is made of the data, the source of the output, the
 /// TLS message type and the internal type.
 #[derive(Debug)]
-pub struct Knowledge<M: Matcher> {
-    pub source: Source,
+pub struct Knowledge<'a, M: Matcher> {
+    pub source: &'a Source,
     pub matcher: Option<M>,
-    pub data: Box<dyn VariableData>,
+    pub data: &'a dyn VariableData,
 }
 
-impl<M: Matcher> Knowledge<M> {
+/// [RawKnowledge] stores
+#[derive(Debug)]
+pub struct RawKnowledge<M: Matcher> {
+    pub source: Source,
+    pub matcher: Option<M>,
+    pub data: Box<dyn ExtractKnowledge<M>>,
+}
+
+impl<M: Matcher> fmt::Display for RawKnowledge<M> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({})/{:?}", self.source, self.matcher)
+    }
+}
+
+impl<'a, M: Matcher> IntoIterator for &'a RawKnowledge<M> {
+    type Item = Knowledge<'a, M>;
+    type IntoIter = RawKnowledgeHolder<'a, M>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        RawKnowledgeHolder {
+            stack: vec![KnowledgeStackItem::Extractable(Extractable {
+                source: &self.source,
+                matcher: self.matcher.clone(),
+                data: self.data.as_ref(),
+            })],
+        }
+    }
+}
+
+pub struct Extractable<'a, M: Matcher> {
+    pub source: &'a Source,
+    pub matcher: Option<M>,
+    pub data: &'a dyn ExtractKnowledge<M>,
+}
+
+pub enum KnowledgeStackItem<'a, M: Matcher> {
+    Knowledge(Knowledge<'a, M>),
+    Extractable(Extractable<'a, M>),
+}
+
+pub struct RawKnowledgeHolder<'a, M: Matcher> {
+    stack: Vec<KnowledgeStackItem<'a, M>>,
+}
+
+impl<'a, M: Matcher> Iterator for RawKnowledgeHolder<'a, M> {
+    type Item = Knowledge<'a, M>;
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut item = self.stack.pop()?;
+        while let KnowledgeStackItem::Extractable(x) = item {
+            self.stack.extend(
+                x.data
+                    .extract_knowledge(x.matcher, x.source)
+                    .into_iter()
+                    .rev(),
+            );
+            item = self.stack.pop()?;
+        }
+
+        match item {
+            KnowledgeStackItem::Knowledge(x) => Some(x),
+            _ => None,
+        }
+    }
+}
+
+impl<M: Matcher> Knowledge<'_, M> {
     pub fn debug_print<PB>(&self, ctx: &TraceContext<PB>, source: &Source)
     where
         PB: ProtocolBehavior<Matcher = M>,
@@ -109,7 +174,7 @@ impl<M: Matcher> Knowledge<M> {
     }
 }
 
-impl<M: Matcher> fmt::Display for Knowledge<M> {
+impl<M: Matcher> fmt::Display for Knowledge<'_, M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({})/{:?}", self.source, self.matcher)
     }
@@ -117,28 +182,33 @@ impl<M: Matcher> fmt::Display for Knowledge<M> {
 
 #[derive(Debug)]
 pub struct KnowledgeStore<PB: ProtocolBehavior> {
-    knowledge: Vec<Knowledge<PB::Matcher>>,
+    raw_knowledge: Vec<RawKnowledge<PB::Matcher>>,
 }
 
 impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
     pub fn new() -> Self {
-        Self { knowledge: vec![] }
+        Self {
+            raw_knowledge: vec![],
+        }
     }
 
-    pub fn add_knowledge(&mut self, knowledge: Knowledge<PB::Matcher>) {
-        self.knowledge.push(knowledge);
-    }
+    // pub fn add_knowledge(&mut self, knowledge: Knowledge<PB::Matcher>) {
+    //     self.knowledge.push(knowledge);
+    // }
 
-    pub fn do_extract_knowledge<T: ExtractKnowledge<PB::Matcher> + 'static>(
+    pub fn add_raw_knowledge<T: ExtractKnowledge<PB::Matcher> + 'static>(
         &mut self,
         data: T,
         source: Source,
     ) -> Result<usize, Error> {
-        let count_before = self.knowledge.len();
-        log::trace!("Extracting knowledge on : {:?}", data);
-        data.extract_knowledge(&mut self.knowledge, None, &source)?;
+        log::trace!("Adding raw knowledge : {:?}", &data);
+        self.raw_knowledge.push(RawKnowledge {
+            source,
+            matcher: None,
+            data: Box::new(data),
+        });
 
-        Ok(self.knowledge.len() - count_before)
+        Ok(self.raw_knowledge.len())
     }
 
     pub fn number_matching_message_with_source(
@@ -147,12 +217,12 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
         type_id: TypeId,
         tls_message_type: &Option<PB::Matcher>,
     ) -> usize {
-        self.knowledge
+        self.raw_knowledge
             .iter()
+            .filter(|raw| raw.source == source)
+            .flatten()
             .filter(|knowledge| {
-                knowledge.source == source
-                    && knowledge.matcher == *tls_message_type
-                    && knowledge.data.type_id() == type_id
+                knowledge.matcher == *tls_message_type && knowledge.data.type_id() == type_id
             })
             .count()
     }
@@ -163,8 +233,9 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
         type_id: TypeId,
         tls_message_type: &Option<PB::Matcher>,
     ) -> usize {
-        self.knowledge
+        self.raw_knowledge
             .iter()
+            .flatten()
             .filter(|knowledge| {
                 knowledge.matcher == *tls_message_type && knowledge.data.type_id() == type_id
             })
@@ -180,24 +251,22 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
     ) -> Option<&(dyn VariableData)> {
         let query_type_id: TypeId = query_type_shape.into();
 
-        let mut possibilities: Vec<&Knowledge<PB::Matcher>> = Vec::new();
-
-        for knowledge in &self.knowledge {
-            let data: &dyn VariableData = knowledge.data.as_ref();
-
-            if query_type_id == data.type_id()
-                && (query.source == None || query.source == Some(knowledge.source.clone()))
-                && knowledge.matcher.matches(&query.matcher)
-            {
-                possibilities.push(knowledge);
-            }
-        }
+        let mut possibilities: Vec<Knowledge<PB::Matcher>> = self
+            .raw_knowledge
+            .iter()
+            .filter(|raw| (query.source == None || query.source == Some(raw.source.clone())))
+            .flatten()
+            .filter(|knowledge| {
+                let data: &dyn VariableData = knowledge.data;
+                query_type_id == data.type_id() && knowledge.matcher.matches(&query.matcher)
+            })
+            .collect();
 
         possibilities.sort_by_key(|a| a.specificity());
 
         possibilities
             .get(query.counter as usize)
-            .map(|possibility| possibility.data.as_ref())
+            .map(|possibility| possibility.data)
     }
 }
 
@@ -226,9 +295,9 @@ impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
         write!(
             f,
             "Knowledge [not displaying other fields] (size={}):",
-            self.knowledge_store.knowledge.len()
+            self.knowledge_store.raw_knowledge.len()
         )?;
-        for k in &self.knowledge_store.knowledge {
+        for k in &self.knowledge_store.raw_knowledge {
             write!(f, "\n   {},          --  {:?}", k, k)?;
         }
         Ok(())
@@ -242,8 +311,8 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
             && self.deterministic_put == other.deterministic_put
             && self.default_put_options == other.default_put_options
             && self.non_default_put_descriptors == other.non_default_put_descriptors
-            && format!("{:?}", self.knowledge_store.knowledge)
-                == format!("{:?}", other.knowledge_store.knowledge)
+            && format!("{:?}", self.knowledge_store.raw_knowledge)
+                == format!("{:?}", other.knowledge_store.raw_knowledge)
             && format!("{:?}", self.claims) == format!("{:?}", other.claims)
     }
 }
@@ -637,14 +706,14 @@ impl<M: Matcher> OutputAction<M> {
 
             if let Ok(num) = ctx
                 .knowledge_store
-                .do_extract_knowledge(opaque_flight, source.clone())
+                .add_raw_knowledge(opaque_flight, source.clone())
             {
-                debug!("Knowledge increased by {}", num);
+                debug!("Raw Knowledge increased to {}", num);
             }
 
             if let Ok(f) = flight {
-                if let Ok(num) = ctx.knowledge_store.do_extract_knowledge(f, source.clone()) {
-                    debug!("Knowledge increased by {}", num);
+                if let Ok(num) = ctx.knowledge_store.add_raw_knowledge(f, source.clone()) {
+                    debug!("Raw Knowledge increased to {}", num);
                 }
             }
         }
