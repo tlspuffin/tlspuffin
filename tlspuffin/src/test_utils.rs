@@ -32,7 +32,9 @@ pub fn expect_trace_crash(
 
     let _ = std::iter::repeat(())
         .take(nb_retry)
-        .map(|_| {
+        .enumerate()
+        .map(|(i, _)| {
+            log::debug!("expect_trace_crash at retry {}", i);
             forked_execution(
                 || {
                     // Ignore Rust errors
@@ -53,13 +55,12 @@ pub fn expect_trace_crash(
             };
             status
         })
-        .take_while(|status| {
+        .find(|status| {
             matches!(
                 status,
                 Ok(ExecutionStatus::Failure(_)) | Ok(ExecutionStatus::Crashed)
             )
         })
-        .next()
         .unwrap_or_else(|| {
             panic!(
                 "expected trace execution to crash (retried {} times)",
