@@ -9,16 +9,17 @@ use std::fmt::{Debug, Formatter};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    error::Error,
-    protocol::ProtocolBehavior,
-    put::{Put, PutDescriptor},
-    trace::TraceContext,
-};
+use crate::{error::Error, protocol::ProtocolBehavior, put::Put, stream::Stream};
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct AgentName(u8);
+
+impl From<AgentName> for u8 {
+    fn from(val: AgentName) -> Self {
+        val.0
+    }
+}
 
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum AgentType {
@@ -56,10 +57,10 @@ impl fmt::Display for AgentName {
 /// AgentDescriptors act like a blueprint to spawn [`Agent`]s with a corresponding server or
 /// client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 ///
-/// The difference between an [`AgentDescriptor`] and a [`PutDescriptor`] is that values of
-/// the [`AgentDescriptor`] are required for seed traces to succeed. They are the same for every
-/// invocation of the seed. Values in the [`PutDescriptor`] are supposed to differ between
-/// invocations.
+/// The difference between an [`AgentDescriptor`] and a [`crate::put_registry::PutDescriptor`] is
+/// that values of the [`AgentDescriptor`] are required for seed traces to succeed. They are the
+/// same for every invocation of the seed. Values in the [`crate::put_registry::PutDescriptor`] are
+/// supposed to differ between invocations.
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 pub struct AgentDescriptor {
     pub name: AgentName,
@@ -99,26 +100,6 @@ impl Default for AgentDescriptor {
 }
 
 impl AgentDescriptor {
-    pub fn new_reusable_server(name: AgentName, tls_version: TLSVersion) -> Self {
-        Self {
-            name,
-            tls_version,
-            typ: AgentType::Server,
-            try_reuse: true,
-            ..AgentDescriptor::default()
-        }
-    }
-
-    pub fn new_reusable_client(name: AgentName, tls_version: TLSVersion) -> Self {
-        Self {
-            name,
-            tls_version,
-            typ: AgentType::Client,
-            try_reuse: true,
-            ..AgentDescriptor::default()
-        }
-    }
-
     pub fn new_server(name: AgentName, tls_version: TLSVersion) -> Self {
         Self {
             name,
@@ -146,80 +127,78 @@ pub enum TLSVersion {
 
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent<PB: ProtocolBehavior> {
-    name: AgentName,
-
+    descriptor: AgentDescriptor,
     put: Box<dyn Put<PB>>,
-    put_descriptor: PutDescriptor,
 }
 
 impl<PB: ProtocolBehavior> Debug for Agent<PB> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("Agent")
-            .field("name", &self.name)
+            .field("descriptor", &self.descriptor)
             .field("put", &self.put.describe_state())
-            .field("put_descriptor", &self.put_descriptor)
             .finish()
     }
 }
 
 impl<PB: ProtocolBehavior> PartialEq for Agent<PB> {
     fn eq(&self, other: &Self) -> bool {
-        self.name.eq(&other.name)
+        self.descriptor.name.eq(&other.descriptor.name)
             && self.put.describe_state() == other.put.describe_state()
-            && self.put_descriptor.eq(&other.put_descriptor)
     }
 }
 
 impl<PB: ProtocolBehavior> Agent<PB> {
-    pub fn new(
-        context: &TraceContext<PB>,
-        agent_descriptor: &AgentDescriptor,
-    ) -> Result<Self, Error> {
-        let put_descriptor = context.put_descriptor(agent_descriptor);
-
-        let (_, factory) = context
-            .put_registry()
-            .puts()
-            .find(|(_, factory)| factory.name() == put_descriptor.name)
-            .ok_or_else(|| {
-                Error::Agent(format!(
-                    "unable to find PUT {} factory in binary",
-                    &put_descriptor.name
-                ))
-            })?;
-
-        let stream = factory.create(context, agent_descriptor)?;
-        let agent = Agent {
-            name: agent_descriptor.name,
-            put: stream,
-            put_descriptor,
-        };
-
-        Ok(agent)
+    pub fn new(descriptor: &AgentDescriptor, put: Box<dyn Put<PB>>) -> Self {
+        Self {
+            descriptor: descriptor.clone(),
+            put,
+        }
     }
 
-    pub fn descriptor(&self) -> &PutDescriptor {
-        &self.put_descriptor
+    pub fn progress(&mut self) -> Result<(), Error> {
+        self.put.progress()
     }
 
-    pub fn rename(&mut self, new_name: AgentName) -> Result<(), Error> {
-        self.name = new_name;
-        self.put.rename_agent(new_name)
+    pub fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.descriptor.name = new_name;
+        self.put.reset(new_name)
     }
 
-    pub fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        self.put.reset(agent_name)
+    /// Shut down the agent by consuming it and returning a string that summarizes the execution.
+    pub fn shutdown(&mut self) -> String {
+        self.put.shutdown()
+    }
+
+    /// Checks whether the agent is in a good state.
+    pub fn is_state_successful(&self) -> bool {
+        self.put.is_state_successful()
+    }
+
+    /// Checks whether the agent is reusable with the descriptor.
+    pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
+        self.descriptor.typ == other.typ && self.descriptor.tls_version == other.tls_version
     }
 
     pub fn name(&self) -> AgentName {
-        self.name
+        self.descriptor.name
+    }
+}
+
+impl<PB: ProtocolBehavior>
+    Stream<
+        PB::Matcher,
+        PB::ProtocolMessage,
+        PB::OpaqueProtocolMessage,
+        PB::OpaqueProtocolMessageFlight,
+    > for Agent<PB>
+{
+    fn add_to_inbound(&mut self, message_flight: &PB::OpaqueProtocolMessageFlight) {
+        self.put.add_to_inbound(message_flight)
     }
 
-    pub fn put(&self) -> &dyn Put<PB> {
-        self.put.as_ref()
-    }
-
-    pub fn put_mut(&mut self) -> &mut dyn Put<PB> {
-        self.put.as_mut()
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<PB::OpaqueProtocolMessageFlight>, Error> {
+        self.put.take_message_from_outbound()
     }
 }

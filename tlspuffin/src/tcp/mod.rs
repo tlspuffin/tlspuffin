@@ -10,21 +10,20 @@ use std::{
     time::Duration,
 };
 
-use log::{debug, info, warn};
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
+    claims::GlobalClaimList,
     codec::Codec,
     error::Error,
-    put::{Put, PutDescriptor, PutName},
-    put_registry::{Factory, PutKind},
+    protocol::ProtocolBehavior,
+    put::{Put, PutOptions},
+    put_registry::{Factory, PutKind, TCP_PUT},
     stream::Stream,
-    trace::TraceContext,
     VERSION_STR,
 };
 
 use crate::{
     protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
-    put_registry::TCP_PUT,
     query::TlsQueryMatcher,
     tls::rustls::msgs::message::{Message, OpaqueMessage},
 };
@@ -34,19 +33,16 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     impl Factory<TLSProtocolBehavior> for TCPFactory {
         fn create(
             &self,
-            context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
+            _claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
+            options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
-            let put_descriptor = context.put_descriptor(agent_descriptor);
-
-            let options = &put_descriptor.options;
-
             if options.get_option("args").is_some() {
-                info!("Trace contains TCP running information we shall reuse.");
+                log::info!("Trace contains TCP running information we shall reuse.");
                 let args = options
                     .get_option("args")
                     .ok_or_else(|| {
-                        Error::Agent(format!("{} // {:?}", "Unable to find args", put_descriptor))
+                        Error::Agent(format!("{} // {:?}", "Unable to find args", options))
                     })?
                     .to_owned();
                 let prog = options
@@ -58,22 +54,22 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                     .map(|cwd| Some(cwd.to_owned()))
                     .unwrap_or_default();
                 if agent_descriptor.typ == AgentType::Client {
-                    let mut server = TcpServerPut::new(agent_descriptor, &put_descriptor)?;
+                    let mut server = TcpServerPut::new(agent_descriptor, options)?;
                     server.set_process(TLSProcess::new(&prog, &args, cwd.as_ref()));
                     Ok(Box::new(server))
                 } else {
                     let process = TLSProcess::new(&prog, &args, cwd);
-                    let mut client = TcpClientPut::new(agent_descriptor, &put_descriptor)?;
+                    let mut client = TcpClientPut::new(agent_descriptor, options)?;
                     client.set_process(process);
                     Ok(Box::new(client))
                 }
             } else {
-                info!("Trace contains no TCP running information so we fall back to external TCP client and servers.");
+                log::info!("Trace contains no TCP running information so we fall back to external TCP client and servers.");
                 if agent_descriptor.typ == AgentType::Client {
-                    let server = TcpServerPut::new(agent_descriptor, &put_descriptor)?;
+                    let server = TcpServerPut::new(agent_descriptor, options)?;
                     Ok(Box::new(server))
                 } else {
-                    let client = TcpClientPut::new(agent_descriptor, &put_descriptor)?;
+                    let client = TcpClientPut::new(agent_descriptor, options)?;
                     Ok(Box::new(client))
                 }
             }
@@ -83,8 +79,8 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            TCP_PUT
+        fn name(&self) -> String {
+            TCP_PUT.to_owned()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -94,15 +90,8 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             )]
         }
 
-        fn determinism_set_reseed(&self) {
-            debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
-        }
-
-        fn determinism_reseed(&self) {
-            debug!(
-                " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
-                self.name()
-            );
+        fn supports(&self, _capability: &str) -> bool {
+            false
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
@@ -140,17 +129,14 @@ impl TcpPut for TcpClientPut {
     fn read_to_flight(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
         let mut buf = vec![];
         let _ = self.stream.read_to_end(&mut buf);
-        let flight = OpaqueMessageFlight::read_bytes(&mut buf);
+        let flight = OpaqueMessageFlight::read_bytes(&buf);
         Ok(flight)
     }
 }
 
 impl TcpClientPut {
-    fn new(
-        agent_descriptor: &AgentDescriptor,
-        put_descriptor: &PutDescriptor,
-    ) -> Result<Self, Error> {
-        let addr = addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?;
+    fn new(agent_descriptor: &AgentDescriptor, options: &PutOptions) -> Result<Self, Error> {
+        let addr = addr_from_config(options).map_err(|err| Error::Put(err.to_string()))?;
         let stream = Self::new_stream(addr)?;
 
         Ok(Self {
@@ -200,12 +186,9 @@ pub struct TcpServerPut {
 }
 
 impl TcpServerPut {
-    fn new(
-        agent_descriptor: &AgentDescriptor,
-        put_descriptor: &PutDescriptor,
-    ) -> Result<Self, Error> {
+    fn new(agent_descriptor: &AgentDescriptor, options: &PutOptions) -> Result<Self, Error> {
         let (sender, stream_receiver) = channel();
-        let addr = addr_from_config(put_descriptor).map_err(|err| Error::Put(err.to_string()))?;
+        let addr = addr_from_config(options).map_err(|err| Error::Put(err.to_string()))?;
 
         let listener = TcpListener::bind(addr).unwrap();
 
@@ -261,7 +244,7 @@ impl TcpPut for TcpServerPut {
         self.receive_stream();
         let mut buf = vec![];
         let _ = self.stream.as_mut().unwrap().0.read_to_end(&mut buf);
-        let flight = OpaqueMessageFlight::read_bytes(&mut buf);
+        let flight = OpaqueMessageFlight::read_bytes(&buf);
         Ok(flight)
     }
 }
@@ -294,15 +277,14 @@ fn take_message_from_outbound<P: TcpPut>(
     put.read_to_flight()
 }
 
-fn addr_from_config(put_descriptor: &PutDescriptor) -> Result<SocketAddr, AddrParseError> {
-    let options = &put_descriptor.options;
+fn addr_from_config(options: &PutOptions) -> Result<SocketAddr, AddrParseError> {
     let host = options.get_option("host").unwrap_or("127.0.0.1");
     let port = options
         .get_option("port")
         .and_then(|value| u16::from_str(value).ok())
         .unwrap_or_else(|| {
             let port = 44338;
-            warn!(
+            log::warn!(
                 "Failed to parse port option (maybe you executed a trace that was not produced in \
             TCP mode?). We anyway fall back to port {port}."
             );
@@ -313,11 +295,12 @@ fn addr_from_config(put_descriptor: &PutDescriptor) -> Result<SocketAddr, AddrPa
 }
 
 impl Put<TLSProtocolBehavior> for TcpServerPut {
-    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
+    fn progress(&mut self) -> Result<(), Error> {
         Ok(())
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.agent_descriptor.name = new_name;
         panic!("Not supported")
     }
 
@@ -325,32 +308,12 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         &self.agent_descriptor
     }
 
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, _agent_name: AgentName) {
-        panic!("Claims are not supported with TcpPut")
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {
-        panic!("Claims are not supported with TcpPut")
-    }
-
-    fn rename_agent(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        Ok(())
-    }
-
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         panic!("Not supported")
     }
 
     fn is_state_successful(&self) -> bool {
         false
-    }
-
-    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
-        Err(Error::Agent(
-            "[deterministic] Unable to reseed TCP PUT!".to_string(),
-        ))
     }
 
     fn shutdown(&mut self) -> String {
@@ -366,11 +329,12 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
 }
 
 impl Put<TLSProtocolBehavior> for TcpClientPut {
-    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
+    fn progress(&mut self) -> Result<(), Error> {
         Ok(())
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.agent_descriptor.name = new_name;
         let address = self.stream.peer_addr()?;
         self.stream = Self::new_stream(address)?;
         Ok(())
@@ -380,32 +344,12 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         &self.agent_descriptor
     }
 
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, _agent_name: AgentName) {
-        panic!("Claims are not supported with TcpPut")
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {
-        panic!("Claims are not supported with TcpPut")
-    }
-
-    fn rename_agent(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        Ok(())
-    }
-
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         panic!("Not supported")
     }
 
     fn is_state_successful(&self) -> bool {
         false
-    }
-
-    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
-        Err(Error::Agent(
-            "[deterministic] Unable to reseed TCP PUT!".to_string(),
-        ))
     }
 
     fn shutdown(&mut self) -> String {
@@ -677,15 +621,15 @@ pub mod tcp_puts {
 
 #[cfg(test)]
 mod tests {
-    use log::info;
     use puffin::{
-        agent::{AgentName, TLSVersion},
-        put::PutDescriptor,
+        agent::TLSVersion,
+        put_registry::{PutDescriptor, TCP_PUT},
+        trace::{TraceContext, TraceExecutor},
     };
     use test_log::test;
 
     use crate::{
-        put_registry::{tls_registry, TCP_PUT},
+        put_registry::tls_registry,
         tcp::tcp_puts::{openssl_client, openssl_server, wolfssl_client},
         tls::{
             seeds::{
@@ -698,27 +642,24 @@ mod tests {
 
     #[test]
     fn test_openssl_session_resumption_dhe_full() {
-        let port = 44330;
-        let guard = openssl_server(port, TLSVersion::V1_3);
-        let put = PutDescriptor {
-            name: TCP_PUT,
+        let guard = openssl_server(44330, TLSVersion::V1_3);
+        let server_put = PutDescriptor {
+            factory: TCP_PUT.to_string(),
             options: guard.build_options(),
         };
 
         let put_registry = tls_registry();
         let trace = seed_session_resumption_dhe_full.build_trace();
-        let initial_server = trace.prior_traces[0].descriptors[0].name;
-        let server = trace.descriptors[0].name;
-        let mut context = trace
-            .execute_with_non_default_puts(
-                &put_registry,
-                &[(initial_server, put.clone()), (server, put)],
-            )
+        let init_server = trace.prior_traces[0].descriptors[0].name;
+        let next_server = trace.descriptors[0].name;
+        let mut context = TraceContext::builder(&put_registry)
+            .set_put(init_server, server_put.clone())
+            .set_put(next_server, server_put)
+            .execute(&trace)
             .unwrap();
 
-        let server = AgentName::first().next();
-        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
+        let shutdown = context.find_agent_mut(next_server).unwrap().shutdown();
+        log::info!("server: {}", shutdown);
         assert!(shutdown.contains("Reused session-id"));
     }
 
@@ -728,20 +669,20 @@ mod tests {
 
         let guard = openssl_server(port, TLSVersion::V1_3);
         let put = PutDescriptor {
-            name: TCP_PUT,
+            factory: TCP_PUT.to_string(),
             options: guard.build_options(),
         };
 
         let put_registry = tls_registry();
         let trace = seed_client_attacker_full.build_trace();
         let server = trace.descriptors[0].name;
-        let mut context = trace
-            .execute_with_non_default_puts(&put_registry, &[(server, put)])
+        let mut context = TraceContext::builder(&put_registry)
+            .set_put(server, put)
+            .execute(&trace)
             .unwrap();
 
-        let server = AgentName::first();
-        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
+        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
+        log::info!("server: {}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
         assert!(!shutdown.contains("Reused session-id"));
     }
@@ -752,7 +693,7 @@ mod tests {
 
         let server_guard = openssl_server(port, TLSVersion::V1_2);
         let server = PutDescriptor {
-            name: TCP_PUT,
+            factory: TCP_PUT.to_string(),
             options: server_guard.build_options(),
         };
 
@@ -760,7 +701,7 @@ mod tests {
 
         let client_guard = openssl_client(port, TLSVersion::V1_2);
         let client = PutDescriptor {
-            name: TCP_PUT,
+            factory: TCP_PUT.to_string(),
             options: client_guard.build_options(),
         };
 
@@ -769,21 +710,18 @@ mod tests {
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
         let server_name = descriptors[1].name;
-        let mut context = trace
-            .execute_with_non_default_puts(
-                &put_registry,
-                &[(client_name, client), (server_name, server)],
-            )
+        let mut context = TraceContext::builder(&put_registry)
+            .set_put(client_name, client)
+            .set_put(server_name, server)
+            .execute(&trace)
             .unwrap();
 
-        let client = AgentName::first();
-        let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
+        let shutdown = context.find_agent_mut(client_name).unwrap().shutdown();
+        log::info!("client: {}", shutdown);
         assert!(shutdown.contains("Timeout   : 7200 (sec)"));
 
-        let server = client.next();
-        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
+        let shutdown = context.find_agent_mut(server_name).unwrap().shutdown();
+        log::info!("server: {}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
 
@@ -794,7 +732,7 @@ mod tests {
 
         let server_guard = openssl_server(port, TLSVersion::V1_2);
         let server = PutDescriptor {
-            name: TCP_PUT,
+            factory: TCP_PUT.to_string(),
             options: server_guard.build_options(),
         };
 
@@ -802,7 +740,7 @@ mod tests {
 
         let client_guard = wolfssl_client(port, TLSVersion::V1_2, None);
         let client = PutDescriptor {
-            name: TCP_PUT,
+            factory: TCP_PUT.to_string(),
             options: client_guard.build_options(),
         };
 
@@ -811,21 +749,18 @@ mod tests {
         let descriptors = &trace.descriptors;
         let client_name = descriptors[0].name;
         let server_name = descriptors[1].name;
-        let mut context = trace
-            .execute_with_non_default_puts(
-                &put_registry,
-                &[(client_name, client), (server_name, server)],
-            )
+        let mut context = TraceContext::builder(&put_registry)
+            .set_put(client_name, client)
+            .set_put(server_name, server)
+            .execute(&trace)
             .unwrap();
 
-        let client = AgentName::first();
-        let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
+        let shutdown = context.find_agent_mut(client_name).unwrap().shutdown();
+        log::info!("client: {}", shutdown);
         assert!(!shutdown.contains("fail"));
 
-        let server = client.next();
-        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
+        let shutdown = context.find_agent_mut(server_name).unwrap().shutdown();
+        log::info!("server: {}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
 }

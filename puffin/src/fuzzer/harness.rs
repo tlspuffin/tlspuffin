@@ -1,38 +1,19 @@
 use libafl::executors::ExitKind;
-use log::{info, trace, warn};
-use once_cell::sync::OnceCell;
 use rand::Rng;
 
 use crate::{
     error::Error,
     fuzzer::stats_stage::*,
     protocol::ProtocolBehavior,
-    put::PutOptions,
-    put_registry::PutRegistry,
-    trace::{Action, Trace, TraceContext},
+    put_registry::{PutDescriptor, PutRegistry},
+    trace::{Action, Trace, TraceContext, TraceExecutor},
 };
-
-static DEFAULT_PUT_OPTIONS: OnceCell<PutOptions> = OnceCell::new();
-
-/// Returns the current default put options which are used
-pub fn default_put_options() -> &'static PutOptions {
-    DEFAULT_PUT_OPTIONS
-        .get()
-        .expect("current default put options needs to be set")
-}
-
-pub fn set_default_put_options(default_put_options: PutOptions) -> Result<(), ()> {
-    DEFAULT_PUT_OPTIONS
-        .set(default_put_options)
-        .map_err(|_err| ())
-}
 
 pub fn harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
+    put: PutDescriptor,
     input: &Trace<PB::Matcher>,
 ) -> ExitKind {
-    let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
-
     TRACE_LENGTH.update(input.steps.len());
 
     for step in &input.steps {
@@ -44,7 +25,10 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         }
     }
 
-    if let Err(err) = input.execute(&mut ctx) {
+    if let Err(err) = TraceContext::builder(put_registry)
+        .set_default_put(put)
+        .execute(input)
+    {
         match &err {
             Error::Fn(_) => FN_ERROR.increment(),
             Error::Term(_e) => TERM.increment(),
@@ -54,12 +38,12 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
             Error::Stream(_) => STREAM.increment(),
             Error::Extraction() => EXTRACTION.increment(),
             Error::SecurityClaim(msg) => {
-                warn!("{}", msg);
+                log::warn!("{}", msg);
                 std::process::abort()
             }
         }
 
-        trace!("{}", err);
+        log::trace!("{}", err);
     }
 
     ExitKind::Ok
@@ -70,7 +54,7 @@ pub fn dummy_harness<PB: ProtocolBehavior + 'static>(_input: &Trace<PB::Matcher>
     let mut rng = rand::thread_rng();
 
     let n1 = rng.gen_range(0..10);
-    info!("Run {}", n1);
+    log::info!("Run {}", n1);
     if n1 <= 5 {
         return ExitKind::Timeout;
     }

@@ -1,0 +1,52 @@
+extern "C" {
+    fn register_@PUT_UID@();
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn register_one_@PUT_UID@(
+    interface_ptr: *const C_PUT_INTERFACE,
+    capabilities_ptr: *const *const std::ffi::c_char,
+    capabilities_length: std::ffi::c_uint
+) {
+    if interface_ptr.is_null() {
+        log::error!("registration failed for PUT @CONFIG_NAME@: interface is NULL");
+        return;
+    }
+
+    let interface = unsafe { *interface_ptr.clone() };
+    let capabilities = if capabilities_ptr.is_null() {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(capabilities_ptr, capabilities_length as usize) }
+    }
+    .into_iter()
+    .map(|s| unsafe { crate::to_string(*s) })
+    .filter(|s| !s.is_empty());
+
+    let harness: CPutHarness = CPutHarness {
+        name: String::from("@HARNESS_NAME@"),
+        version: String::from("@HARNESS_VERSION@"),
+        capabilities: std::collections::HashSet::from_iter(capabilities.into_iter()),
+    };
+
+    let library: CPutLibrary = CPutLibrary {
+        name: String::from("@LIBRARY_NAME@"),
+        version: String::from("@LIBRARY_VERSION@"),
+
+        config_name: String::from("@CONFIG_NAME@"),
+        config_hash: String::from("@CONFIG_HASH@"),
+
+        with_sancov: @WITH_SANCOV@,
+        with_asan: @WITH_ASAN@,
+        with_gcov: @WITH_GCOV@,
+        with_llvm_cov: @WITH_LLVM_COV@,
+
+        known_vulnerabilities: "@KNOWN_VULNERABILITIES@"
+            .split(';')
+            .map(str::to_owned)
+            .filter(|s| !s.is_empty())
+            .collect()
+    };
+
+    register_one_put(harness, library, interface);
+}

@@ -42,7 +42,7 @@ force-engine = []
 # Uses clang to compile OpenSSL with sancov support
 sancov = ["libressl-src?/sancov"]
 # Deterministic random
-no-rand = []
+no-rand = ["libressl-src?/no-rand"]
 # Enables -fsanitize=address
 asan = ["libressl-src?/asan"]
 # Export coverage during runtime

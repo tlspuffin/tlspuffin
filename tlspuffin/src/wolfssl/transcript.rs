@@ -1,7 +1,8 @@
 use foreign_types::ForeignTypeRef;
+use wolfssl::ssl::SslRef;
 use wolfssl_sys as wolf;
 
-use crate::{claims::TlsTranscript, wolfssl::SslRef};
+use crate::claims::TlsTranscript;
 
 pub fn extract_current_transcript(ssl: &SslRef) -> Option<TlsTranscript> {
     unsafe {

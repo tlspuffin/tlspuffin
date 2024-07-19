@@ -26,7 +26,7 @@ impl fmt::Display for Error {
         match self {
             Error::Fn(err) => write!(f, "error executing a function symbol: {}", err),
             Error::Term(err) => write!(f, "error evaluating a term: {}", err),
-            Error::Put(err) => write!(f, "error in openssl: {}", err),
+            Error::Put(err) => write!(f, "error in PUT library: {}", err),
             Error::IO(err) => write!(
                 f,
                 "error in io of openssl (this should not happen): {}",

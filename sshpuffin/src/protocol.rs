@@ -1,4 +1,3 @@
-use log::debug;
 use puffin::{
     algebra::signature::Signature,
     codec::{Codec, Reader},
@@ -7,6 +6,7 @@ use puffin::{
         ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
         ProtocolMessageDeframer, ProtocolMessageFlight,
     },
+    put_registry::PutDescriptor,
     trace::{Knowledge, Source, Trace},
 };
 
@@ -38,7 +38,7 @@ impl ProtocolMessageFlight<SshQueryMatcher, SshMessage, RawSshMessage, RawSshMes
     }
 
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
+        log::debug!("{}: {:?}", info, self);
     }
 }
 
@@ -84,7 +84,7 @@ impl OpaqueProtocolMessageFlight<SshQueryMatcher, RawSshMessage> for RawSshMessa
     }
 
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
+        log::debug!("{}: {:?}", info, self);
     }
 }
 
@@ -119,11 +119,7 @@ impl TryFrom<RawSshMessageFlight> for SshMessageFlight {
                 .collect(),
         };
 
-        if flight.messages.len() == 0 {
-            Err(())
-        } else {
-            Ok(flight)
-        }
+        (!flight.messages.is_empty()).then_some(flight).ok_or(())
     }
 }
 
@@ -179,7 +175,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
         &SSH_SIGNATURE
     }
 
-    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+    fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::Matcher>, &'static str)> {
         vec![] // TODO
     }
 }

@@ -1,24 +1,30 @@
-{ pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/nixos-23.11.tar.gz") {} }:
+{ pkgs ? import (fetchTarball "https://github.com/NixOS/nixpkgs/archive/nixos-24.05.tar.gz") {} }:
 
-pkgs.llvmPackages_14.stdenv.mkDerivation {
-  name = "llvm_shell";
-  nativeBuildInputs = [
+let
+  llvmPackages = pkgs.llvmPackages_14;
+in
+
+pkgs.mkShell.override { stdenv = llvmPackages.stdenv; } {
+  name = "tlspuffin-dev";
+
+  packages = [
+    (pkgs.lib.hiPrio pkgs.clang-tools)
+
+    pkgs.git
     pkgs.rustup
     pkgs.just
-
     pkgs.cmake
-    pkgs.llvmPackages_14.llvm
 
-    # wolfSSL
-    pkgs.autoconf
-    pkgs.automake
-    pkgs.libtool
+    pkgs.perl # OpenSSL, mk_vendor
 
-    # BoringSSL
-    pkgs.go
+    pkgs.autoconf # wolfSSL
+    pkgs.automake # wolfSSL
+    pkgs.libtool  # wolfSSL
 
-    # openssh
-    pkgs.openssl
+    pkgs.go # BoringSSL
+
+    pkgs.openssl # sshpuffin
+    pkgs.zlib    # sshpuffin
 
     pkgs.graphviz
     pkgs.yajl
@@ -40,7 +46,10 @@ pkgs.llvmPackages_14.stdenv.mkDerivation {
   hardeningDisable = [ "all" ];
   
   shellHook = ''
-    export LIBCLANG_PATH="${pkgs.llvmPackages_14.libclang.lib}/lib";
-    export LIBAFL_EDGES_MAP_SIZE=262144 # 2^18
+    export CARGO_HOME=''${CARGO_HOME:-~/.cargo}
+    export RUSTUP_HOME=''${RUSTUP_HOME:-~/.rustup}
+    export PATH=''${PATH}:''${CARGO_HOME}/bin
+    export LIBCLANG_PATH="${llvmPackages.libclang.lib}/lib";
+    export LIBAFL_EDGES_MAP_SIZE=524288 # 2^19
   '';
 }

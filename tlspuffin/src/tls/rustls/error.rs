@@ -207,6 +207,8 @@ impl From<rand::GetRandomFailed> for Error {
 
 #[cfg(test)]
 mod tests {
+    use test_log::test;
+
     use super::{CorruptMessagePayload, Error};
 
     #[test]

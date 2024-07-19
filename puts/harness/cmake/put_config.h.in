@@ -1,0 +1,16 @@
+#ifndef PUFFIN_PUT_@PUT_UID@_H
+#define PUFFIN_PUT_@PUT_UID@_H
+
+#include <tlspuffin/put.h>
+
+#define PUT_UID @PUT_UID@
+#define REGISTER register_@PUT_UID@
+#define REGISTER_PUT register_one_@PUT_UID@
+
+extern void REGISTER_PUT(
+    const C_PUT_INTERFACE *interface,
+    const char *capabilities[],
+    int capabilities_size
+);
+
+#endif // PUFFIN_PUT_@PUT_UID@_H

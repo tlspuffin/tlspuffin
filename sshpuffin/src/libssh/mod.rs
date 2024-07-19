@@ -18,15 +18,14 @@ use std::{
     },
 };
 
-use log::debug;
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
+    claims::GlobalClaimList,
     codec::Codec,
     error::Error,
-    put::{Put, PutName},
+    put::{Put, PutOptions},
     put_registry::{Factory, PutKind},
     stream::Stream,
-    trace::TraceContext,
     VERSION_STR,
 };
 
@@ -36,7 +35,7 @@ use crate::{
         SshResult, SshSession,
     },
     protocol::{RawSshMessageFlight, SshProtocolBehavior},
-    put_registry::LIBSSH_PUT,
+    put_registry::LIBSSH_RUST_PUT,
     query::SshQueryMatcher,
     ssh::message::{RawSshMessage, SshMessage},
 };
@@ -88,8 +87,11 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
     impl Factory<SshProtocolBehavior> for LibSSLFactory {
         fn create(
             &self,
-            _context: &TraceContext<SshProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
+            _claims: &GlobalClaimList<
+                <SshProtocolBehavior as puffin::protocol::ProtocolBehavior>::Claim,
+            >,
+            _options: &PutOptions,
         ) -> Result<Box<dyn Put<SshProtocolBehavior>>, Error> {
             // FIXME: Switch to UDS with stabilization in Rust 1.70
             //let addr = SocketAddr::from_abstract_namespace(b"\0socket").unwrap();
@@ -152,15 +154,15 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            LIBSSH_PUT
+        fn name(&self) -> String {
+            LIBSSH_RUST_PUT.to_owned()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", LIBSSH_PUT, VERSION_STR),
+                    format!("{} ({})", LIBSSH_RUST_PUT, VERSION_STR),
                 ),
                 (
                     "library".to_string(),
@@ -169,15 +171,8 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             ]
         }
 
-        fn determinism_set_reseed(&self) {
-            debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
-        }
-
-        fn determinism_reseed(&self) {
-            debug!(
-                " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
-                self.name()
-            );
+        fn supports(&self, _capability: &str) -> bool {
+            false
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<SshProtocolBehavior>> {
@@ -218,12 +213,12 @@ impl Stream<SshQueryMatcher, SshMessage, RawSshMessage, RawSshMessageFlight> for
         let mut buf = vec![];
         let _ = self.fuzz_stream.read_to_end(&mut buf);
 
-        Ok(RawSshMessageFlight::read_bytes(&mut buf))
+        Ok(RawSshMessageFlight::read_bytes(&buf))
     }
 }
 
 impl Put<SshProtocolBehavior> for LibSSL {
-    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
+    fn progress(&mut self) -> Result<(), Error> {
         let session = &mut self.session;
         match &self.agent_descriptor.typ {
             AgentType::Server => match &self.state {
@@ -280,7 +275,8 @@ impl Put<SshProtocolBehavior> for LibSSL {
         Ok(())
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.agent_descriptor.name = new_name;
         panic!("Not supported")
     }
 
@@ -288,27 +284,14 @@ impl Put<SshProtocolBehavior> for LibSSL {
         &self.agent_descriptor
     }
 
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, _agent_name: AgentName) {
-        panic!("Not supported")
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {
-        panic!("Not supported")
-    }
-
-    fn rename_agent(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        panic!("Not supported")
-    }
-
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         // TODO: We can use internal state
         match self.state {
             PutState::ExchangingKeys => "ExchangingKeys",
             PutState::Authenticating => "Authenticating",
             PutState::Done => "Done",
         }
+        .to_owned()
     }
 
     fn is_state_successful(&self) -> bool {
@@ -325,10 +308,5 @@ impl Put<SshProtocolBehavior> for LibSSL {
 
     fn shutdown(&mut self) -> String {
         panic!("Not supported")
-    }
-    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
-        Err(Error::Put(
-            "libssh does not support determinism".to_string(),
-        ))
     }
 }

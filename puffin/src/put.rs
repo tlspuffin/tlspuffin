@@ -1,34 +1,13 @@
-use std::{
-    fmt::{Debug, Display, Formatter},
-    hash::Hash,
-};
-
-use serde::{Deserialize, Serialize};
+use std::{fmt::Debug, hash::Hash};
 
 use crate::{
     agent::{AgentDescriptor, AgentName},
     error::Error,
     protocol::ProtocolBehavior,
-    put_registry::DUMMY_PUT,
     stream::Stream,
 };
 
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
-pub struct PutName(pub [char; 10]);
-
-impl Default for PutName {
-    fn default() -> Self {
-        DUMMY_PUT
-    }
-}
-
-impl Display for PutName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", String::from_iter(self.0))
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
 pub struct PutOptions {
     options: Vec<(String, String)>,
 }
@@ -58,12 +37,6 @@ impl PutOptions {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
-pub struct PutDescriptor {
-    pub name: PutName,
-    pub options: PutOptions,
-}
-
 /// Generic trait used to define the interface with a concrete library
 /// implementing the protocol.
 pub trait Put<PB: ProtocolBehavior>:
@@ -75,39 +48,18 @@ pub trait Put<PB: ProtocolBehavior>:
     > + 'static
 {
     /// Process incoming buffer, internal progress, can fill in the output buffer
-    fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
+    fn progress(&mut self) -> Result<(), Error>;
 
     /// In-place reset of the state
-    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error>;
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error>;
 
     fn descriptor(&self) -> &AgentDescriptor;
 
-    /// Register a new claim for agent_name
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, agent_name: AgentName);
-
-    /// Remove all claims in self
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self);
-
-    /// Propagate agent changes to the PUT
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error>;
-
     /// Returns a textual representation of the state in which self is
-    fn describe_state(&self) -> &str;
+    fn describe_state(&self) -> String;
 
     /// Checks whether the Put is in a good state
     fn is_state_successful(&self) -> bool;
-
-    /// Make the PUT used by self deterministic in the future by making its PRNG "deterministic"
-    /// Now subsumed by Factory-level functions to reseed globally: `determinism_reseed`
-    fn determinism_reseed(&mut self) -> Result<(), Error>;
-
-    /// checks whether a agent is reusable with the descriptor
-    fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
-        let agent_descriptor = self.descriptor();
-        agent_descriptor.typ == other.typ && agent_descriptor.tls_version == other.tls_version
-    }
 
     /// Shut down the PUT by consuming it and returning a string that summarizes the execution.
     fn shutdown(&mut self) -> String;

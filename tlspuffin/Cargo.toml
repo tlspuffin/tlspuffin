@@ -14,19 +14,12 @@ categories.workspace = true
 [features]
 default = ["sancov_libafl", "introspection"]
 
-cputs = ["tls-harness"]
-
-openssl-default = [
-    "tls12",
-    "tls13",
-    "tls12-session-resumption",
-    "tls13-session-resumption",
-    "openssl-binding",
-]
+cputs = ["tls-harness/cputs"]
 
 openssl111 = ["openssl111k"]
 
 openssl111k = [
+    "tls-harness/openssl111k",
     "openssl-src",
     "openssl-src/openssl111k",
     "openssl-src/no-rand",
@@ -40,7 +33,9 @@ openssl111k = [
     "transcript-extraction",
     "client-authentication-transcript-extraction",
 ]
+
 openssl111j = [
+    "tls-harness/openssl111j",
     "openssl-src",
     "openssl-src/openssl111j",
     "openssl-src/no-rand",
@@ -54,7 +49,9 @@ openssl111j = [
     "transcript-extraction",
     "client-authentication-transcript-extraction",
 ]
+
 openssl111u = [
+    "tls-harness/openssl111u",
     "openssl-src",
     "openssl-src/openssl111u",
     "openssl-src/no-rand",
@@ -68,7 +65,9 @@ openssl111u = [
     "transcript-extraction",
     "client-authentication-transcript-extraction",
 ]
+
 openssl312 = [
+    "tls-harness/openssl312",
     "openssl-src",
     "openssl-src/openssl312",
     "openssl-src/no-rand",
@@ -83,36 +82,48 @@ openssl312 = [
     "client-authentication-transcript-extraction",
 ]
 openssl101f = [
+    "tls-harness/openssl101f",
     "openssl-src",
     "openssl-src/openssl101f",
     "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
-    "tls12",
+    "openssl-src/no-rand",
     "openssl101-binding",
+    "tls12",
     "tls12-session-resumption",
+    "deterministic",
 ]
+
 openssl102u = [
+    "tls-harness/openssl102u",
     "openssl-src",
     "openssl-src/openssl102u",
     "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
-    "tls12",
+    "openssl-src/no-rand",
     "openssl102-binding",
-    "tls12-session-resumption"
+    "tls12",
+    "tls12-session-resumption",
+    "deterministic"
 ]
 
-libressl = [ "libressl333" ]
+# NOTE feature "libressl" is kept only for backward compatibility
+libressl = ["libressl333"]
 
-# Some LibreSSL version
 libressl333 = [
+    "tls-harness/libressl333",
+    "openssl-src",
     "openssl-src/libressl333",
+    "openssl-src/no-rand",
+    "openssl-binding",
     "tls12",
     "tls13",
     "tls12-session-resumption",
     "claims",
-    "openssl-binding",
     "transcript-extraction",
+    "deterministic"
 ]
 
 wolfssl430 = [
+    "tls-harness/wolfssl430",
     "wolfssl-sys/wolfssl430",
     "wolfssl/wolfssl430",
     "tls12",
@@ -120,10 +131,12 @@ wolfssl430 = [
     "wolfssl-binding",
     "transcript-extraction",
     # Does not support any kind of resumption right now: https://github.com/trailofbits/tlspuffin/issues/12
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 wolfssl510 = [
+    "tls-harness/wolfssl510",
     "wolfssl-sys/wolfssl510",
     "tls12",
     "tls13",
@@ -131,11 +144,13 @@ wolfssl510 = [
     "tls12-session-resumption",
     "tls13-session-resumption",
     "transcript-extraction",
-    "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    "client-authentication-transcript-extraction",
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 wolfssl520 = [
+    "tls-harness/wolfssl520",
     "wolfssl-sys/wolfssl520",
     "tls12",
     "tls13",
@@ -144,10 +159,12 @@ wolfssl520 = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 wolfssl530 = [
+    "tls-harness/wolfssl530",
     "wolfssl-sys/wolfssl530",
     "tls12",
     "tls13",
@@ -156,10 +173,12 @@ wolfssl530 = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
 wolfssl540 = [
+    "tls-harness/wolfssl540",
     "wolfssl-sys/wolfssl540",
     "tls12",
     "tls13",
@@ -168,14 +187,15 @@ wolfssl540 = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
 
-fix-CVE-2022-25638 = ["wolfssl-sys?/fix-CVE-2022-25638"]
-fix-CVE-2022-25640 = ["wolfssl-sys?/fix-CVE-2022-25640"]
-fix-CVE-2022-39173 = ["wolfssl-sys?/fix-CVE-2022-39173"]
-fix-CVE-2022-42905 = ["wolfssl-sys?/fix-CVE-2022-42905"]
-wolfssl-disable-postauth = ["wolfssl-sys?/wolfssl-disable-postauth"]
+fix-CVE-2022-25638 = ["wolfssl-sys?/fix-CVE-2022-25638", "tls-harness/wolfssl_fix_CVE_2022_25638"]
+fix-CVE-2022-25640 = ["wolfssl-sys?/fix-CVE-2022-25640", "tls-harness/wolfssl_fix_CVE_2022_25640"]
+fix-CVE-2022-39173 = ["wolfssl-sys?/fix-CVE-2022-39173", "tls-harness/wolfssl_fix_CVE_2022_39173"]
+fix-CVE-2022-42905 = ["wolfssl-sys?/fix-CVE-2022-42905", "tls-harness/wolfssl_fix_CVE_2022_42905"]
+wolfssl-disable-postauth = ["wolfssl-sys?/wolfssl-disable-postauth", "tls-harness/wolfssl_disable_postauth"]
 
 wolfsslmaster = [
     "wolfssl-sys/master",
@@ -186,9 +206,9 @@ wolfsslmaster = [
     "tls13-session-resumption",
     "transcript-extraction",
     "client-authentication-transcript-extraction"
-    # FIXME: support "claims", "deterministic"
+    # TODO support "claims"
+    # TODO support "deterministic"
 ]
-
 
 boringsslmaster = [
     "boringssl-sys/vendored-master",
@@ -204,6 +224,7 @@ boringsslmaster = [
 ]
 
 boringssl202311 = [
+    "tls-harness/boringssl202311",
     "boringssl-sys/boring-2023-11-18",
     "tls12",
     "tls13",
@@ -217,6 +238,7 @@ boringssl202311 = [
 ]
 
 boringssl202403 = [
+    "tls-harness/boringssl202403",
     "boringssl-sys/boring-2024-03-22",
     "tls12",
     "tls13",
@@ -232,14 +254,37 @@ boringssl202403 = [
 
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = ["puffin/sancov_pcguard_log"]
+
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
-sancov_libafl = ["puffin/sancov_libafl", "openssl-src?/sancov", "wolfssl-sys?/sancov", "boringssl-sys?/sancov"]
+sancov_libafl = [
+    "tls-harness/sancov",
+    "puffin/sancov_libafl",
+    "openssl-src?/sancov",
+    "wolfssl-sys?/sancov",
+    "boringssl-sys?/sancov"
+]
 
 # Enables ASAN
-asan = ["openssl-src?/asan", "wolfssl-sys?/asan", "boringssl-sys?/asan"]
+asan = [
+    "tls-harness/asan",
+    "openssl-src?/asan",
+    "wolfssl-sys?/asan",
+    "boringssl-sys?/asan"
+]
 
-gcov_analysis = ["openssl-src?/gcov_analysis", "wolfssl-sys?/gcov_analysis", "boringssl-sys?/gcov_analysis"]
-llvm_cov_analysis = ["openssl-src?/llvm_cov_analysis", "wolfssl-sys?/llvm_cov_analysis", "boringssl-sys?/llvm_cov_analysis"]
+gcov_analysis = [
+    "tls-harness/gcov",
+    "openssl-src?/gcov_analysis",
+    "wolfssl-sys?/gcov_analysis",
+    "boringssl-sys?/gcov_analysis"
+]
+
+llvm_cov_analysis = [
+    "tls-harness/llvm_cov",
+    "openssl-src?/llvm_cov_analysis",
+    "wolfssl-sys?/llvm_cov_analysis",
+    "boringssl-sys?/llvm_cov_analysis"
+]
 
 # WolfSSL bindings are used
 wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]
@@ -305,16 +350,22 @@ wolfssl-sys = { path = "../crates/wolfssl-sys", features = [], optional = true }
 boring = { path = "../crates/boring", optional = true }
 boringssl-sys = { path = "../crates/boringssl-sys", features = [], optional = true }
 
-tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", features = ["tls"], optional = true }
+tlspuffin-macros = { path = "../tlspuffin-macros" }
+tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", features = ["tls"] }
 foreign-types = { version = "0.5.0", optional = true }
 
 [build-dependencies]
+puffin = { path = "../puffin" }
+
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
 openssl-src = { version = "*", features = [], optional = true }
+tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", features = ["tls"] }
+itertools = "0.10.3"
+syn = { version = "2.0.66", features = ["full"] }
 
 [dev-dependencies]
 test-log = "0.2.10"
-env_logger = "0.9.0"
+env_logger = "0.10.0"
 nix = "0.25.0"
 serde_json = "1.0.81"
 tempfile = "3.3.0"

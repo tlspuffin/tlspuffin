@@ -3,29 +3,39 @@ use std::{
     fmt::{Debug, Formatter},
 };
 
-use log::debug;
+use itertools::Itertools;
 
 use crate::{
     agent::AgentDescriptor,
+    claims::GlobalClaimList,
     error::Error,
     protocol::ProtocolBehavior,
-    put::{Put, PutName},
-    trace::TraceContext,
+    put::{Put, PutOptions},
 };
 
-pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
+// FIXME TCP_PUT should be defined in the tlspuffin package
+//
+//     The TCP PUT is specific to TLS and is therefore defined in the `tlspuffin` package. However,
+//     we expose it here in `puffin` so that the generic CLI is able to provide the `tcp` command.
+//
+//     Once we factor out the `tcp` command, we can move this definition into `tlspuffin`.
+pub const TCP_PUT: &str = "rust-put-tcp";
 
 /// Registry for [Factories](Factory). An instance of this is usually defined statically and then
 /// used throughout the fuzzer.
 pub struct PutRegistry<PB> {
     factories: HashMap<String, Box<dyn Factory<PB>>>,
-    default_put: String,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, Default)]
+pub struct PutDescriptor {
+    pub factory: String,
+    pub options: PutOptions,
 }
 
 impl<PB: ProtocolBehavior> PartialEq for PutRegistry<PB> {
     fn eq(&self, other: &Self) -> bool {
-        self.default_put == other.default_put
-            && self.factories.len() == other.factories.len()
+        self.factories.len() == other.factories.len()
             && self
                 .factories
                 .keys()
@@ -35,42 +45,35 @@ impl<PB: ProtocolBehavior> PartialEq for PutRegistry<PB> {
 
 impl<PB: ProtocolBehavior> Debug for PutRegistry<PB> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PutRegistry (default only)")
-            .field("default", &self.default().name())
-            .finish()
+        f.write_str("PutRegistry(")?;
+        f.debug_list()
+            .entries(self.factories.keys().sorted())
+            .finish()?;
+        f.write_str(")")?;
+        Ok(())
     }
 }
 
 impl<PB: ProtocolBehavior> PutRegistry<PB> {
-    pub fn new<SI, I, S>(puts: I, default: S) -> Self
+    pub fn new<I>(puts: I) -> Self
     where
-        SI: Into<String>,
-        I: IntoIterator<Item = (SI, Box<dyn Factory<PB>>)>,
-        S: Into<String>,
+        I: IntoIterator<Item = Box<dyn Factory<PB>>>,
     {
-        let result = Self {
-            factories: puts
-                .into_iter()
-                .map(|(id, f)| (Into::<String>::into(id), f))
-                .collect(),
-            default_put: default.into(),
-        };
-
-        // check that the default PUT is actually in the registry
-        let _ = result.find_by_id(&result.default_put);
-
-        result
+        Self {
+            factories: puts.into_iter().map(|f| (f.name(), f)).collect(),
+        }
     }
 
+    // FIXME remove PutRegistry::default() once compile-time PUT definitions are removed
     pub fn default(&self) -> &dyn Factory<PB> {
-        self.find_by_id(&self.default_put)
-            .unwrap_or_else(|| panic!("default PUT {} is not in registry", &self.default_put))
+        // grab the first non-TCP PUT if any, else the TCP PUT
+        self.puts()
+            .find(|p| p.name() != TCP_PUT)
+            .unwrap_or_else(|| self.find_by_id(TCP_PUT).expect("PUT registry is empty"))
     }
 
-    pub fn puts(&self) -> impl Iterator<Item = (&str, &dyn Factory<PB>)> {
-        self.factories
-            .iter()
-            .map(|(n, f)| (n.as_str(), f.to_owned().as_ref()))
+    pub fn puts(&self) -> impl Iterator<Item = &dyn Factory<PB>> {
+        self.factories.values().map(|f| f.to_owned().as_ref())
     }
 
     pub fn find_by_id<S: AsRef<str>>(&self, id: S) -> Option<&dyn Factory<PB>> {
@@ -79,30 +82,17 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
             .map(|f| f.to_owned().as_ref())
     }
 
-    /// To be called at the beginning of all fuzzing campaigns!
-    pub fn determinism_set_reseed_all_factories(&self) {
-        debug!("== Set and reseed all ({}):", self.factories.len());
-        for (_, factory) in self.factories.iter() {
-            factory.determinism_set_reseed();
-        }
-    }
-
     pub fn determinism_reseed_all_factories(&self) {
-        debug!("== Reseed all ({}):", self.factories.len());
+        log::debug!("== [RNG] reseed all PUT factories");
         for (_, factory) in self.factories.iter() {
-            factory.determinism_reseed();
+            factory.rng_reseed();
         }
     }
 }
 
 impl<PB: ProtocolBehavior> Clone for PutRegistry<PB> {
     fn clone(&self) -> Self {
-        Self::new(
-            self.factories
-                .iter()
-                .map(|(n, f)| (n.clone(), f.clone_factory())),
-            self.default_put.clone(),
-        )
+        Self::new(self.factories.values().map(|f| f.clone_factory()))
     }
 }
 
@@ -116,16 +106,20 @@ pub enum PutKind {
 pub trait Factory<PB: ProtocolBehavior> {
     fn create(
         &self,
-        context: &TraceContext<PB>,
         agent_descriptor: &AgentDescriptor,
+        claims: &GlobalClaimList<PB::Claim>,
+        options: &PutOptions,
     ) -> Result<Box<dyn Put<PB>>, Error>;
 
     fn kind(&self) -> PutKind;
-    fn name(&self) -> PutName;
+    fn name(&self) -> String;
     fn versions(&self) -> Vec<(String, String)>;
 
-    fn determinism_set_reseed(&self);
-    fn determinism_reseed(&self);
+    fn supports(&self, capability: &str) -> bool;
 
     fn clone_factory(&self) -> Box<dyn Factory<PB>>;
+
+    fn rng_reseed(&self) {
+        log::debug!("[RNG] reseed failed ({}): not supported", self.name());
+    }
 }

@@ -406,6 +406,7 @@ pub const DOWNGRADE_SENTINEL: [u8; 8] = [0x44, 0x4f, 0x57, 0x4e, 0x47, 0x52, 0x4
 #[cfg(test)]
 mod tests {
     use puffin::codec::Reader;
+    use test_log::test;
 
     use super::*;
     use crate::tls::rustls::msgs::handshake::{ClientECDHParams, ServerECDHParams};

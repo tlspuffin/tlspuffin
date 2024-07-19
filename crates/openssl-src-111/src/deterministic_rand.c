@@ -3,6 +3,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+void deterministic_rng_set();
+void deterministic_rng_reseed(const uint8_t *buffer, size_t length);
+
 #ifndef thread_local
 // since C11 the standard include _Thread_local
 #if __STDC_VERSION__ >= 201112 && !defined __STDC_NO_THREADS__
@@ -17,14 +20,25 @@
 #endif
 #endif
 
+#ifndef USE_CUSTOM_PRNG // use OpenSSL's default PRNG
+
+void deterministic_rng_set()
+{
+    // nothing to do: use the default PRNG
+}
+
+void deterministic_rng_reseed(const uint8_t *buffer, size_t length)
+{
+    RAND_seed(buffer, length);
+}
+
+#else // use our custom PRNG
+
 #define DEFAULT_RNG_SEED 42
 
 static thread_local uint64_t seed = DEFAULT_RNG_SEED;
 
 #define UNUSED(x) (void)(x)
-
-void deterministic_rng_set();
-void deterministic_rng_reseed(const uint8_t *buffer, size_t length);
 
 static int stdlib_rand_seed(const void *buf, int num)
 {
@@ -78,7 +92,10 @@ void deterministic_rng_reseed(const uint8_t *buffer, size_t length)
     if (buffer == NULL || length < sizeof(uint64_t))
     {
         seed = DEFAULT_RNG_SEED;
+        return;
     }
 
     seed = *((uint64_t *)buffer);
 }
+
+#endif // USE_CUSTOM_PRNG

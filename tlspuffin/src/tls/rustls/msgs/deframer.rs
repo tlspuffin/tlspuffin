@@ -135,6 +135,8 @@ impl MessageDeframer {
 mod tests {
     use std::{convert::TryFrom, io};
 
+    use test_log::test;
+
     use super::MessageDeframer;
     use crate::tls::rustls::{msgs, msgs::message::Message};
 

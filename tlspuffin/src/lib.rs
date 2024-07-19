@@ -38,12 +38,12 @@
 //!                         Signature::new_function(&fn_client_hello),
 //!                         vec![
 //!                             Term::Variable(Signature::new_var_with_type::<ProtocolVersion, _>(
-//!                                     Some(Source::Agent(client)),  
+//!                                     Some(Source::Agent(client)),
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
 //!                             Term::Variable(Signature::new_var_with_type::<Random, _>(
-//!                                     Some(Source::Agent(client)),  
+//!                                     Some(Source::Agent(client)),
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             )),
@@ -103,11 +103,35 @@
 //!
 
 #[cfg(feature = "boringssl-binding")]
-pub mod boringssl;
-pub mod claims;
-pub mod debug;
+mod boringssl;
 #[cfg(feature = "openssl-binding")]
-pub mod openssl;
+mod openssl;
+#[cfg(feature = "wolfssl-binding")]
+mod wolfssl;
+
+pub mod rust_put {
+    #[cfg(feature = "boringssl-binding")]
+    pub use crate::boringssl::*;
+    #[cfg(feature = "openssl-binding")]
+    pub use crate::openssl::*;
+    #[cfg(feature = "wolfssl-binding")]
+    pub use crate::wolfssl::*;
+
+    #[cfg(not(any(
+        feature = "openssl-binding",
+        feature = "wolfssl-binding",
+        feature = "boringssl-binding"
+    )))]
+    pub fn new_factory(
+        _name: &str,
+    ) -> Box<dyn puffin::put_registry::Factory<crate::protocol::TLSProtocolBehavior>> {
+        panic!("no Rust PUT binding");
+    }
+}
+
+pub mod claims;
+pub mod cput;
+pub mod debug;
 mod protocol;
 pub mod put;
 pub mod put_registry;
@@ -115,8 +139,6 @@ pub mod query;
 pub mod static_certs;
 pub mod tcp;
 pub mod tls;
-#[cfg(feature = "wolfssl-binding")]
-pub mod wolfssl;
 
 #[cfg(test)]
 mod integration_tests;

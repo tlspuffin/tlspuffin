@@ -52,6 +52,7 @@ pub type Channel = io::Cursor<Vec<u8>>;
 ///
 /// **Note: There need to be two separate buffer! Else for example a TLS socket would read and write
 /// into the same buffer**
+#[derive(Default)]
 pub struct MemoryStream {
     inbound: Channel,
     outbound: Channel,
@@ -78,7 +79,7 @@ impl<
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OF>, Error> {
-        let flight = OF::read_bytes(&mut self.outbound.get_ref().as_slice());
+        let flight = OF::read_bytes(self.outbound.get_ref().as_slice());
         self.outbound.set_position(0);
         self.outbound.get_mut().clear();
 

@@ -1,10 +1,9 @@
 use std::time::Duration;
 
-use log::info;
 use puffin::{
     execution::{forked_execution, ExecutionStatus},
-    put::PutOptions,
-    trace::Trace,
+    put_registry::PutDescriptor,
+    trace::{Trace, TraceContext, TraceExecutor},
 };
 
 use crate::{put_registry::tls_registry, query::TlsQueryMatcher};
@@ -25,7 +24,7 @@ use crate::{put_registry::tls_registry, query::TlsQueryMatcher};
 #[allow(dead_code)]
 pub fn expect_trace_crash(
     trace: Trace<TlsQueryMatcher>,
-    default_put_options: PutOptions,
+    put: PutDescriptor,
     timeout: Option<Duration>,
     retry: Option<usize>,
 ) {
@@ -33,13 +32,15 @@ pub fn expect_trace_crash(
 
     let _ = std::iter::repeat(())
         .take(nb_retry)
-        .map(|_| {
+        .enumerate()
+        .map(|(i, _)| {
+            log::debug!("expect_trace_crash at retry {}", i);
             forked_execution(
                 || {
-                    // Ignore Rust errors
-                    let _ = trace
-                        .clone()
-                        .execute_deterministic(&tls_registry(), default_put_options.clone());
+                    // NOTE we ignore Rust errors because we expect a crash
+                    let _ = TraceContext::builder(&tls_registry())
+                        .set_default_put(put.clone())
+                        .execute(&trace.clone());
                 },
                 timeout,
             )
@@ -47,20 +48,19 @@ pub fn expect_trace_crash(
         .map(|status| {
             use ExecutionStatus as S;
             match &status {
-                Ok(S::Failure(_)) | Ok(S::Crashed) => info!("trace execution crashed"),
-                Ok(S::Timeout) => info!("trace execution timed out"),
-                Ok(S::Success) => info!("expected trace execution to crash, but succeeded"),
-                Err(reason) => info!("trace execution error: {reason}"),
+                Ok(S::Failure(_)) | Ok(S::Crashed) => log::info!("trace execution crashed"),
+                Ok(S::Timeout) => log::info!("trace execution timed out"),
+                Ok(S::Success) => log::info!("expected trace execution to crash, but succeeded"),
+                Err(reason) => log::info!("trace execution error: {reason}"),
             };
             status
         })
-        .take_while(|status| {
+        .find(|status| {
             matches!(
                 status,
                 Ok(ExecutionStatus::Failure(_)) | Ok(ExecutionStatus::Crashed)
             )
         })
-        .next()
         .unwrap_or_else(|| {
             panic!(
                 "expected trace execution to crash (retried {} times)",
@@ -68,3 +68,76 @@ pub fn expect_trace_crash(
             )
         });
 }
+
+macro_rules! test_puts {
+    // handle default arguments
+    ( $func:ident) => { test_puts!( $func, attrs = [], filter = all() ); };
+    ( $func:ident, puts = $puts:tt ) => { test_puts!( $func, puts = $puts, attrs = [], filter = all() ); };
+    ( $func:ident, puts = $puts:tt, attrs = $attrs:tt ) => { test_puts!( $func, puts = $puts, attrs = $attrs, filter = all() ); };
+    ( $func:ident, puts = $puts:tt, filter = $filter:meta ) => { test_puts!( $func, puts = $puts, attrs = [], filter = $filter ); };
+    ( $func:ident, attrs = $attrs:tt  ) => { test_puts!( $func, puts = all, attrs = $attrs, filter = all() ); };
+    ( $func:ident, filter = $filter:meta ) => { test_puts!( $func, puts = all, attrs = [], filter = $filter ); };
+    ( $func:ident, attrs = $attrs:tt, filter = $filter:meta ) => { test_puts!( $func, puts = all, attrs = $attrs, filter = $filter ); };
+
+    // put arguments in a canonical order
+    ( $func:ident, attrs = $attrs:tt, puts = $puts:tt, filter = $filter:meta ) => { test_puts!($func, puts = $puts, attrs = $attrs, filter = $filter); };
+    ( $func:ident, attrs = $attrs:tt, filter = $filter:meta, puts = $puts:tt ) => { test_puts!($func, puts = $puts, attrs = $attrs, filter = $filter); };
+    ( $func:ident, filter = $filter:meta, puts = $puts:tt, attrs = $attrs:tt ) => { test_puts!($func, puts = $puts, attrs = $attrs, filter = $filter); };
+    ( $func:ident, filter = $filter:meta, attrs = $attrs:tt, puts = $puts:tt ) => { test_puts!($func, puts = $puts, attrs = $attrs, filter = $filter); };
+    ( $func:ident, puts = $puts:tt, filter = $filter:meta, attrs = $attrs:tt ) => { test_puts!($func, puts = $puts, attrs = $attrs, filter = $filter); };
+
+    // expand `puts` argument when `all` was requested
+    ( $func:ident, puts = all, attrs = $attrs:tt, filter = $filter:meta ) => {
+        mod $func {
+            #![allow(unused_imports)]
+
+            use super::$func;
+            use super::test_puts;
+            use tlspuffin_macros::expand_cfg;
+            use crate::put_registry::macros::for_puts;
+
+            for_puts!(
+                test_puts!(@expand-one $func, put = __PUT__:__PUTSTR__, attrs = $attrs, filter = $filter);
+            );
+        }
+    };
+
+    // actual expansion with canonical arguments
+    ( $func:ident, puts = [ $($put:ident : $putstr:literal),* ], attrs = $attrs:tt, filter = $filter:meta ) => {
+        mod $func {
+            #![allow(unused_imports)]
+
+            use super::$func;
+            use super::test_puts;
+            use tlspuffin_macros::expand_cfg;
+
+            $(
+                test_puts!(@expand-one $func, put = $put : $putstr, attrs = $attrs, filter = $filter);
+            )*
+        }
+    };
+
+    (@expand-one $func:ident, put = $put:ident : $putstr:literal, attrs = [ $( $attr:meta ),* ], filter = $filter:meta) => {
+        #[cfg(has_put = $putstr)]
+        #[expand_cfg($putstr, $filter)]
+        #[test_log::test]
+        $( #[$attr] )*
+        fn $put() {
+            $func($putstr);
+        }
+    };
+}
+
+macro_rules! supports {
+    ( $put:expr, $cap:expr ) => {{
+        use crate::put_registry::tls_registry;
+
+        tls_registry()
+            .find_by_id($put)
+            .expect("PUT was not found")
+            .supports($cap)
+    }};
+}
+
+pub(crate) use supports;
+pub(crate) use test_puts;

@@ -9,16 +9,34 @@ pub fn main() {
     println!("cargo:rerun-if-changed={}", env!("CARGO_MANIFEST_DIR"));
 
     let out_dir = env::var("OUT_DIR").unwrap();
+    let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let inc_dir = src_dir.join("include");
+    let dst_dir = PathBuf::from(&out_dir);
 
-    let bindings_path = PathBuf::from(&out_dir).join("bindings.rs");
+    let bindings_path = PathBuf::from(out_dir).join("bindings.rs");
     bindgen::Builder::default()
         .ctypes_prefix("::libc")
-        .raw_line("use libc::*;")
         .allowlist_file(".*/tlspuffin/[^/]+\\.h")
         .allowlist_recursively(false)
-        .no_copy("^AGENT_DESCRIPTOR$")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
+        .rustified_enum(".*")
+        .derive_copy(true)
+        .derive_debug(true)
+        .derive_eq(true)
+        .derive_default(true)
+        .derive_partialeq(true)
+        .impl_partialeq(true)
+        .impl_debug(true)
+        .no_copy("^AGENT_DESCRIPTOR$")
         .header("include/tlspuffin/put.h")
+        .clang_arg(format!(
+            "-I{}",
+            src_dir
+                .join("..")
+                .join("..")
+                .join("tlspuffin-claims")
+                .display()
+        ))
         .generate()
         .expect("Unable to generate Rust bindings for tlspuffin-harness-sys")
         .write_to_file(&bindings_path)
@@ -28,10 +46,6 @@ pub fn main() {
         "cargo:rustc-env=RUST_BINDINGS_FILE={}",
         bindings_path.to_string_lossy()
     );
-
-    let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let inc_dir = src_dir.join("include");
-    let dst_dir = PathBuf::from(out_dir);
 
     std::fs::create_dir_all(&inc_dir).unwrap();
 
@@ -62,7 +76,12 @@ pub fn main() {
     );
 
     let library_names = env::var("WITH_PUT")
-        .map(|wp| wp.split(',').map(|s| s.to_string()).collect::<Vec<_>>())
+        .map(|wp| {
+            wp.split(',')
+                .filter(|&s| !s.is_empty())
+                .map(|s| s.trim().to_string())
+                .collect::<Vec<_>>()
+        })
         .unwrap_or_else(|_| {
             println!("cargo:rerun-if-changed={}", &vendor_dir.to_str().unwrap());
             all_libraries(&vendor_dir)
@@ -80,13 +99,17 @@ pub fn build_puts(vendor_dir: &Path, library_names: Vec<String>) {
     let src_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    let libraries: Vec<String> = library_names
-        .iter()
-        .map(|vendor| vendor_dir.join(vendor).to_str().unwrap().to_string())
-        .collect();
+    let libraries: Vec<String> = if cfg!(feature = "cputs") {
+        library_names
+            .iter()
+            .map(|name| vendor_dir.join(name).to_str().unwrap().to_string())
+            .collect()
+    } else {
+        vec![]
+    };
 
-    for vendor in libraries.iter() {
-        println!("cargo:rerun-if-changed={}", vendor);
+    for library_path in libraries.iter() {
+        println!("cargo:rerun-if-changed={}", library_path);
     }
 
     cmake::Config::new(src_dir)
@@ -103,7 +126,7 @@ pub fn build_puts(vendor_dir: &Path, library_names: Vec<String>) {
 
     println!(
         "cargo:rustc-env=RUST_PUTS_INIT_FILE={}",
-        out_dir.join("init.rs").to_str().unwrap()
+        out_dir.join("puts-bundle-init.rs").to_str().unwrap()
     );
     println!("cargo:rustc-link-lib=static=puts-bundle");
 }

@@ -769,6 +769,7 @@ mod tests {
         mutators::{MutationResult, Mutator},
         state::StdState,
     };
+    use test_log::test;
 
     use super::*;
     use crate::{

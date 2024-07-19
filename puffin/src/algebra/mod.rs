@@ -110,7 +110,7 @@ pub mod test_signature {
     use crate::{
         agent::{AgentDescriptor, AgentName, TLSVersion},
         algebra::{dynamic_function::TypeShape, error::FnError, AnyMatcher, Term},
-        claims::{Claim, SecurityViolationPolicy},
+        claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
         codec::{Codec, Reader},
         define_signature,
         error::Error,
@@ -118,10 +118,10 @@ pub mod test_signature {
             ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
             ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
         },
-        put::{Put, PutName},
-        put_registry::{Factory, PutKind},
+        put::{Put, PutOptions},
+        put_registry::{Factory, PutDescriptor, PutKind},
         term,
-        trace::{Action, InputAction, Knowledge, Source, Step, Trace, TraceContext},
+        trace::{Action, InputAction, Knowledge, Source, Step, Trace},
         variable_data::VariableData,
         VERSION_STR,
     };
@@ -599,7 +599,7 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+        fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::Matcher>, &'static str)> {
             panic!("Not implemented for test stub");
         }
     }
@@ -609,8 +609,9 @@ pub mod test_signature {
     impl Factory<TestProtocolBehavior> for TestFactory {
         fn create(
             &self,
-            _context: &TraceContext<TestProtocolBehavior>,
             _agent_descriptor: &AgentDescriptor,
+            _claims: &GlobalClaimList<<TestProtocolBehavior as ProtocolBehavior>::Claim>,
+            _options: &PutOptions,
         ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {
             panic!("Not implemented for test stub");
         }
@@ -619,8 +620,8 @@ pub mod test_signature {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            PutName(['T', 'E', 'S', 'T', 'S', 'T', 'U', 'B', '_', '_'])
+        fn name(&self) -> String {
+            "TESTSTUB_RUST_PUT".to_owned()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -630,22 +631,19 @@ pub mod test_signature {
             )]
         }
 
+        fn supports(&self, _capability: &str) -> bool {
+            false
+        }
+
         fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {
             Box::new(TestFactory {})
-        }
-
-        fn determinism_set_reseed(&self) {
-            panic!("Not implemented for test stub");
-        }
-
-        fn determinism_reseed(&self) {
-            panic!("Not implemented for test stub");
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use test_log::test;
 
     use super::test_signature::*;
     use crate::{
@@ -653,15 +651,12 @@ mod tests {
         algebra::{
             atoms::Variable, dynamic_function::TypeShape, signature::Signature, AnyMatcher, Term,
         },
-        put::PutOptions,
-        put_registry::{Factory, PutRegistry},
         term,
-        trace::{Knowledge, Source, TraceContext},
+        trace::Source,
     };
 
     #[allow(dead_code)]
     fn test_compilation() {
-        // reminds me of Lisp, lol
         let client = AgentName::first();
         let _test_nested_with_variable: TestTerm = term! {
            fn_client_hello(
@@ -709,11 +704,7 @@ mod tests {
     fn example() {
         let hmac256_new_key = Signature::new_function(&fn_hmac256_new_key);
         let hmac256 = Signature::new_function(&fn_hmac256);
-        let _client_hello = Signature::new_function(&fn_client_hello);
-
         let data = "hello".as_bytes().to_vec();
-
-        //println!("TypeId of vec array {:?}", data.type_id());
 
         let variable: Variable<AnyMatcher> = Signature::new_var(
             TypeShape::of::<Vec<u8>>(),
@@ -730,37 +721,16 @@ mod tests {
             ],
         );
 
-        //println!("{}", generated_term);
-
-        fn dummy_factory() -> Box<dyn Factory<TestProtocolBehavior>> {
-            Box::new(TestFactory)
-        }
-
-        let put_registry =
-            PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
-        let mut context = TraceContext::new(&put_registry, PutOptions::default());
-        context.knowledge_store.add_knowledge(Knowledge {
-            source: Source::Agent(AgentName::first()),
-            matcher: None,
-            data: Box::new(data),
-        });
-
         let _string = generated_term
-            .evaluate(&context)
+            .evaluate(&mut |_| Some(Box::new(data.clone())))
             .as_ref()
             .unwrap()
             .downcast_ref::<Vec<u8>>();
-        //println!("{:?}", string);
     }
 
     #[test]
     fn playground() {
         let _var_data = fn_new_session_id();
-
-        //println!("vec {:?}", TypeId::of::<Vec<u8>>());
-        //println!("vec {:?}", TypeId::of::<Vec<u16>>());
-
-        ////println!("{:?}", var_data.type_id());
 
         let func = Signature::new_function(&example_op_c);
         let dynamic_fn = func.dynamic_fn();
@@ -768,9 +738,7 @@ mod tests {
             .unwrap()
             .downcast_ref::<u16>()
             .unwrap();
-        //println!("{:?}", string);
         let _string = Signature::new_function(&example_op_c).shape();
-        //println!("{}", string);
 
         let constructed_term = Term::Application(
             Signature::new_function(&example_op_c),
@@ -822,8 +790,6 @@ mod tests {
             ],
         );
 
-        //println!("{}", constructed_term);
         let _graph = constructed_term.dot_subgraph(true, 0, "test");
-        //println!("{}", graph);
     }
 }

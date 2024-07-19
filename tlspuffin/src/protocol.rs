@@ -1,4 +1,3 @@
-use log::debug;
 use puffin::{
     algebra::{signature::Signature, Matcher},
     codec::{Codec, Reader},
@@ -7,6 +6,7 @@ use puffin::{
         ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
         ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
     },
+    put_registry::PutDescriptor,
     trace::{Knowledge, Source, Trace},
     variable_data::VariableData,
 };
@@ -14,6 +14,7 @@ use puffin::{
 use crate::{
     claims::TlsClaim,
     debug::{debug_message_with_info, debug_opaque_message_with_info},
+    put_registry::tls_registry,
     query::TlsQueryMatcher,
     tls::{
         rustls::msgs::{
@@ -30,7 +31,6 @@ use crate::{
             heartbeat::HeartbeatPayload,
             message::{Message, MessagePayload, OpaqueMessage},
         },
-        seeds::create_corpus,
         violation::TlsSecurityViolationPolicy,
         TLS_SIGNATURE,
     },
@@ -53,7 +53,7 @@ impl ProtocolMessageFlight<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessag
     }
 
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
+        log::debug!("{}: {:?}", info, self);
     }
 }
 
@@ -80,7 +80,7 @@ impl OpaqueProtocolMessageFlight<TlsQueryMatcher, OpaqueMessage> for OpaqueMessa
     }
 
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
+        log::debug!("{}: {:?}", info, self);
     }
 }
 
@@ -102,7 +102,7 @@ impl Codec for OpaqueMessageFlight {
             let _ = deframer.read(&mut reader.rest());
         }
 
-        Some(flight)
+        (!flight.messages.is_empty()).then_some(flight)
     }
 }
 
@@ -126,7 +126,7 @@ impl TryFrom<OpaqueMessageFlight> for MessageFlight {
                 .collect(),
         };
 
-        if flight.messages.len() == 0 {
+        if flight.messages.is_empty() {
             Err(())
         } else {
             Ok(flight)
@@ -664,7 +664,11 @@ impl ProtocolBehavior for TLSProtocolBehavior {
         &TLS_SIGNATURE
     }
 
-    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
-        create_corpus()
+    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::Matcher>, &'static str)> {
+        crate::tls::seeds::create_corpus(
+            tls_registry()
+                .find_by_id(put.factory)
+                .expect("missing PUT in TLS registry"),
+        )
     }
 }

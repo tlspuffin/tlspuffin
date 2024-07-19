@@ -1,4 +1,7 @@
-use std::process::Command;
+use std::{fs::File, io::Write, path::PathBuf, process::Command};
+
+use itertools::Itertools;
+use tls_harness::CPutLibrary;
 
 #[cfg(any(
     all(feature = "openssl-binding", feature = "wolfssl-binding"),
@@ -28,6 +31,56 @@ fn main() {
         println!("cargo:rustc-link-arg=-fprofile-instr-generate");
         println!("cargo:rustc-link-arg=-fcoverage-mapping");
     }
+
+    let mut puts: Vec<(String, String)> = vec![];
+
+    // expose the capabilities of linked PUTs as cfg
+    tls_harness::tls_puts()
+        .iter()
+        .for_each(|(name, (harness, library, _))| {
+            let identifier = make_identifier(library);
+
+            puts.push((identifier, name.clone()));
+
+            if library.with_sancov {
+                println!("cargo:rust-cfg={}=\"sancov\"", name);
+            }
+            if library.with_asan {
+                println!("cargo:rust-cfg={}=\"asan\"", name);
+            }
+            if library.with_gcov {
+                println!("cargo:rust-cfg={}=\"gcov\"", name);
+            }
+            if library.with_llvm_cov {
+                println!("cargo:rust-cfg={}=\"llvm_cov\"", name);
+            }
+
+            println!("cargo:rustc-cfg=has_put=\"{}\"", name);
+
+            harness
+                .capabilities
+                .iter()
+                .for_each(|capability| println!("cargo:rustc-cfg={}=\"{}\"", capability, name));
+
+            library
+                .known_vulnerabilities
+                .iter()
+                .for_each(|vulnerability| {
+                    println!("cargo:rustc-cfg={}=\"{}\"", vulnerability, name)
+                });
+        });
+
+    // generate the `for_puts` macro
+    let macros_path = PathBuf::from(std::env::var("OUT_DIR").unwrap()).join("macros.rs");
+    let mut macros_file = File::create(&macros_path).unwrap();
+    macros_file
+        .write_all(gen_puts_macros(&puts).as_bytes())
+        .unwrap();
+
+    println!(
+        "cargo:rustc-env=TLSPUFFIN_MACROS_RS={}",
+        macros_path.display()
+    );
 }
 
 fn runtime_dir() -> String {
@@ -86,4 +139,50 @@ fn runtime_dir_fallback() -> String {
     }
 
     runtime_dir
+}
+
+fn gen_puts_macros(puts: &[(String, String)]) -> String {
+    let replacements = puts
+        .iter()
+        .map(|(ident, name)| {
+            format!(
+                "tlspuffin_macros::replace!(__PUTSTR__ => \"{name}\" in {{ tlspuffin_macros::replace!(__PUT__ => {ident} in {{ $($tail)* }}); }});"
+            )
+        })
+        .join("\n");
+
+    format!(
+        r#"
+            #[allow(unused_macros)]
+            macro_rules! for_puts {{
+                ( $($tail:tt)* ) => {{
+                    {}
+                }};
+            }}
+
+            #[allow(unused_imports)]
+            pub(crate) use for_puts;
+        "#,
+        replacements
+    )
+}
+
+fn make_identifier(library: &CPutLibrary) -> String {
+    let mut result = library.config_name.to_string();
+
+    result = result.replace(' ', "_");
+    result = result.replace('-', "_");
+
+    if syn::parse_str::<syn::Ident>(&result).is_err() {
+        result = format!("put_{}", library.config_hash);
+    }
+
+    if syn::parse_str::<syn::Ident>(&result).is_err() {
+        panic!(
+            "failed to generate a valid Rust identifier for library {}",
+            library.config_name
+        );
+    }
+
+    result
 }
