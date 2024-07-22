@@ -118,10 +118,10 @@ pub mod test_signature {
             ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
             ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
         },
-        put::{Put, PutName, PutOptions},
+        put::{Put, PutOptions},
         put_registry::{Factory, PutKind},
         term,
-        trace::{Action, InputAction, Knowledge, Source, Step, Trace, TraceContext},
+        trace::{Action, InputAction, Knowledge, Source, Step, Trace},
         variable_data::VariableData,
         VERSION_STR,
     };
@@ -620,8 +620,8 @@ pub mod test_signature {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            PutName(['T', 'E', 'S', 'T', 'S', 'T', 'U', 'B', '_', '_'])
+        fn name(&self) -> String {
+            String::from("TESTSTUB_RUST_PUT")
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -739,7 +739,7 @@ mod tests {
 
         let put_registry =
             PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
-        let mut context = TraceContext::new(&put_registry, PutOptions::default());
+        let mut context = TraceContext::new(&put_registry, Default::default());
         context.knowledge_store.add_knowledge(Knowledge {
             source: Source::Agent(AgentName::first()),
             matcher: None,

@@ -16,15 +16,14 @@ use puffin::{
     codec::Codec,
     error::Error,
     protocol::ProtocolBehavior,
-    put::{Put, PutName, PutOptions},
-    put_registry::{Factory, PutKind},
+    put::{Put, PutOptions},
+    put_registry::{Factory, PutKind, TCP_PUT},
     stream::Stream,
     VERSION_STR,
 };
 
 use crate::{
     protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
-    put_registry::TCP_PUT,
     query::TlsQueryMatcher,
     tls::rustls::msgs::message::{Message, OpaqueMessage},
 };
@@ -80,8 +79,8 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            TCP_PUT
+        fn name(&self) -> String {
+            String::from(TCP_PUT)
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -484,19 +483,17 @@ mod tests {
     use puffin::{
         agent::{AgentName, TLSVersion},
         put::PutDescriptor,
+        put_registry::TCP_PUT,
     };
 
     #[allow(unused_imports)]
-    use crate::{put_registry::TCP_PUT, test_utils::prelude::*, tls::seeds::*};
+    use crate::{test_utils::prelude::*, tls::seeds::*};
 
     #[test_log::test]
     fn test_openssl_session_resumption_dhe_full() {
         let port = 44330;
         let guard = openssl_server(port, TLSVersion::V1_3);
-        let put = PutDescriptor {
-            name: TCP_PUT,
-            options: guard.build_options(),
-        };
+        let put = PutDescriptor::new(TCP_PUT, guard.build_options());
 
         let put_registry = tls_registry();
         let trace = seed_session_resumption_dhe_full.build_trace();
@@ -520,10 +517,7 @@ mod tests {
         let port = 44331;
 
         let guard = openssl_server(port, TLSVersion::V1_3);
-        let put = PutDescriptor {
-            name: TCP_PUT,
-            options: guard.build_options(),
-        };
+        let put = PutDescriptor::new(TCP_PUT, guard.build_options());
 
         let put_registry = tls_registry();
         let trace = seed_client_attacker_full.build_trace();
@@ -544,18 +538,12 @@ mod tests {
         let port = 44332;
 
         let server_guard = openssl_server(port, TLSVersion::V1_2);
-        let server = PutDescriptor {
-            name: TCP_PUT,
-            options: server_guard.build_options(),
-        };
+        let server = PutDescriptor::new(TCP_PUT, server_guard.build_options());
 
         let port = 44333;
 
         let client_guard = openssl_client(port, TLSVersion::V1_2);
-        let client = PutDescriptor {
-            name: TCP_PUT,
-            options: client_guard.build_options(),
-        };
+        let client = PutDescriptor::new(TCP_PUT, client_guard.build_options());
 
         let put_registry = tls_registry();
         let trace = seed_successful12_with_tickets.build_trace();
@@ -586,18 +574,12 @@ mod tests {
         let port = 44334;
 
         let server_guard = openssl_server(port, TLSVersion::V1_2);
-        let server = PutDescriptor {
-            name: TCP_PUT,
-            options: server_guard.build_options(),
-        };
+        let server = PutDescriptor::new(TCP_PUT, server_guard.build_options());
 
         let port = 44335;
 
         let client_guard = wolfssl_client(port, TLSVersion::V1_2, None);
-        let client = PutDescriptor {
-            name: TCP_PUT,
-            options: client_guard.build_options(),
-        };
+        let client = PutDescriptor::new(TCP_PUT, client_guard.build_options());
 
         let put_registry = tls_registry();
         let trace = seed_successful12_with_tickets.build_trace();

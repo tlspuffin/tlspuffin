@@ -12,6 +12,7 @@ use clap::{
 use libafl::inputs::Input;
 
 use crate::{
+    agent::AgentName,
     algebra::set_deserialize_signature,
     codec::Codec,
     execution::forked_execution,
@@ -24,8 +25,8 @@ use crate::{
     graphviz::write_graphviz,
     log::config_default,
     protocol::{ProtocolBehavior, ProtocolMessage},
-    put::PutOptions,
-    put_registry::PutRegistry,
+    put::{PutDescriptor, PutOptions},
+    put_registry::{PutRegistry, TCP_PUT},
     trace::{Action, Trace, TraceContext},
 };
 
@@ -305,11 +306,7 @@ where
             options.push(("cwd", cwd))
         }
 
-        let put = PutDescriptor {
-            name: PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']),
-            options: PutOptions::from_slice_vec(options),
-        };
-
+        let put = PutDescriptor::new(TCP_PUT, options);
         let server = trace.descriptors[0].name;
         let mut context = trace
             .execute_with_non_default_puts(&put_registry, &[(server, put)])
@@ -450,11 +447,6 @@ fn seed<PB: ProtocolBehavior>(
     log::info!("Generated seed traces into the directory ./seeds");
     Ok(())
 }
-
-use crate::{
-    agent::AgentName,
-    put::{PutDescriptor, PutName},
-};
 
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutRegistry<PB>) {
     let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
