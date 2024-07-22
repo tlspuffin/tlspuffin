@@ -1,4 +1,3 @@
-use std::fmt;
 use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
@@ -6,23 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::agent::{AgentDescriptor, AgentName};
 use crate::error::Error;
 use crate::protocol::ProtocolBehavior;
-use crate::put_registry::DUMMY_PUT;
 use crate::stream::Stream;
-
-#[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
-pub struct PutName(pub [char; 10]);
-
-impl Default for PutName {
-    fn default() -> Self {
-        DUMMY_PUT
-    }
-}
-
-impl fmt::Display for PutName {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", String::from_iter(self.0))
-    }
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
 pub struct PutOptions {
@@ -32,16 +15,6 @@ pub struct PutOptions {
 impl PutOptions {
     pub fn new(options: Vec<(String, String)>) -> Self {
         Self { options }
-    }
-
-    pub fn from_slice_vec(options: Vec<(&str, &str)>) -> Self {
-        Self {
-            options: Vec::from_iter(
-                options
-                    .iter()
-                    .map(|(key, value)| (key.to_string(), value.to_string())),
-            ),
-        }
     }
 }
 
@@ -54,10 +27,42 @@ impl PutOptions {
     }
 }
 
+impl<S> From<Vec<(S, S)>> for PutOptions
+where
+    S: Into<String>,
+{
+    fn from(value: Vec<(S, S)>) -> Self {
+        Self {
+            options: value
+                .into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
 pub struct PutDescriptor {
-    pub name: PutName,
+    pub factory: String,
     pub options: PutOptions,
+}
+
+impl PutDescriptor {
+    pub fn new(factory: impl Into<String>, options: impl Into<PutOptions>) -> Self {
+        Self {
+            factory: factory.into(),
+            options: options.into(),
+        }
+    }
+}
+
+impl<S> From<S> for PutDescriptor
+where
+    S: Into<String>,
+{
+    fn from(name: S) -> Self {
+        PutDescriptor::new(name, PutOptions::default())
+    }
 }
 
 /// Generic trait used to define the interface with a concrete library

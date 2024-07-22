@@ -393,11 +393,11 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         let (_, factory) = self
             .put_registry()
             .puts()
-            .find(|(_, factory)| factory.name() == put_descriptor.name)
+            .find(|(_, factory)| factory.name() == put_descriptor.factory)
             .ok_or_else(|| {
                 Error::Agent(format!(
                     "unable to find PUT {} factory in binary",
-                    &put_descriptor.name
+                    &put_descriptor.factory
                 ))
             })?;
 
@@ -440,10 +440,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     fn default_put_descriptor(&self) -> PutDescriptor {
         let factory = self.put_registry.default();
-        PutDescriptor {
-            name: factory.name(),
-            options: self.default_put_options.clone(),
-        }
+        PutDescriptor::new(factory.name(), self.default_put_options.clone())
     }
 
     /// Makes agents use the non-default PUT
@@ -575,7 +572,7 @@ impl<M: Matcher> Trace<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        let mut ctx = TraceContext::new(put_registry, PutOptions::default());
+        let mut ctx = TraceContext::new(put_registry, Default::default());
 
         ctx.set_non_default_puts(descriptors);
 
