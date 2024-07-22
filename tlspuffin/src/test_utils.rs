@@ -95,7 +95,7 @@ pub mod tcp {
             if let Some(cwd) = &self.cwd {
                 options.push(("cwd", cwd));
             }
-            PutOptions::from_slice_vec(options)
+            options.into()
         }
     }
 

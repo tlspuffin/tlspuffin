@@ -14,7 +14,7 @@ use puffin::agent::{AgentDescriptor, AgentName, AgentType};
 use puffin::claims::GlobalClaimList;
 use puffin::error::Error;
 use puffin::protocol::ProtocolBehavior;
-use puffin::put::{Put, PutName, PutOptions};
+use puffin::put::{Put, PutOptions};
 use puffin::put_registry::{Factory, PutKind};
 use puffin::stream::{MemoryStream, Stream};
 use puffin::VERSION_STR;
@@ -26,7 +26,7 @@ use crate::claims::{
 };
 use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
 use crate::put::TlsPutConfig;
-use crate::put_registry::BORINGSSL_PUT;
+use crate::put_registry::BORINGSSL_RUST_PUT;
 use crate::query::TlsQueryMatcher;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
@@ -79,8 +79,8 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            BORINGSSL_PUT
+        fn name(&self) -> String {
+            String::from(BORINGSSL_RUST_PUT)
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -97,7 +97,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", BORINGSSL_PUT, VERSION_STR),
+                    format!("{} ({})", BORINGSSL_RUST_PUT, VERSION_STR),
                 ),
                 (
                     "library".to_string(),

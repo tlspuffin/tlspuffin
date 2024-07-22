@@ -19,7 +19,7 @@ use puffin::algebra::ConcreteMessage;
 use puffin::claims::GlobalClaimList;
 use puffin::codec::Codec;
 use puffin::error::Error;
-use puffin::put::{Put, PutName, PutOptions};
+use puffin::put::{Put, PutOptions};
 use puffin::put_registry::{Factory, PutKind};
 use puffin::stream::Stream;
 use puffin::VERSION_STR;
@@ -29,7 +29,7 @@ use crate::libssh::ssh::{
     SshResult, SshSession,
 };
 use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior};
-use crate::put_registry::LIBSSH_PUT;
+use crate::put_registry::LIBSSH_RUST_PUT;
 use crate::query::SshQueryMatcher;
 use crate::ssh::message::{RawSshMessage, SshMessage};
 
@@ -147,15 +147,15 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            LIBSSH_PUT
+        fn name(&self) -> String {
+            String::from(LIBSSH_RUST_PUT)
         }
 
         fn versions(&self) -> Vec<(String, String)> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", LIBSSH_PUT, VERSION_STR),
+                    format!("{} ({})", LIBSSH_RUST_PUT, VERSION_STR),
                 ),
                 (
                     "library".to_string(),

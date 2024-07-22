@@ -1213,7 +1213,7 @@ pub mod tests {
 
         expect_trace_crash(
             seed_session_resumption_dhe_full.build_trace(),
-            PutOptions::from_slice_vec(vec![("use_clear", "true")]),
+            PutOptions::from(vec![("use_clear", "true")]),
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
@@ -1287,8 +1287,8 @@ pub mod tests {
     mod tcp {
         use puffin::agent::{AgentName, TLSVersion};
         use puffin::put::PutDescriptor;
+        use puffin::put_registry::TCP_PUT;
 
-        use crate::put_registry::TCP_PUT;
         use crate::test_utils::prelude::*;
         use crate::tls::vulnerabilities::*;
 
@@ -1298,18 +1298,12 @@ pub mod tests {
             let port = 44336;
 
             let server_guard = openssl_server(port, TLSVersion::V1_2);
-            let server = PutDescriptor {
-                name: TCP_PUT,
-                options: server_guard.build_options(),
-            };
+            let server = PutDescriptor::new(TCP_PUT, server_guard.build_options());
 
             let port = 44337;
 
             let client_guard = wolfssl_client(port, TLSVersion::V1_2, Some(50));
-            let client = PutDescriptor {
-                name: TCP_PUT,
-                options: client_guard.build_options(),
-            };
+            let client = PutDescriptor::new(TCP_PUT, client_guard.build_options());
 
             let put_registry = tls_registry();
             let trace = seed_cve_2022_38153.build_trace();
@@ -1334,10 +1328,7 @@ pub mod tests {
         fn test_wolfssl_cve_2022_39173() {
             let port = 44338;
             let guard = wolfssl_server(port, TLSVersion::V1_3);
-            let put = PutDescriptor {
-                name: TCP_PUT,
-                options: guard.build_options(),
-            };
+            let put = PutDescriptor::new(TCP_PUT, guard.build_options());
 
             let put_registry = tls_registry();
             let trace = seed_cve_2022_39173_full.build_trace();

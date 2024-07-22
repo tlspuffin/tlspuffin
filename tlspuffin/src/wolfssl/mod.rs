@@ -11,7 +11,7 @@ use puffin::algebra::ConcreteMessage;
 use puffin::claims::GlobalClaimList;
 use puffin::error::Error;
 use puffin::protocol::ProtocolBehavior;
-use puffin::put::{Put, PutName, PutOptions};
+use puffin::put::{Put, PutOptions};
 use puffin::put_registry::{Factory, PutKind};
 use puffin::stream::{MemoryStream, Stream};
 use puffin::VERSION_STR;
@@ -27,7 +27,7 @@ use crate::claims::{
 };
 use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
 use crate::put::TlsPutConfig;
-use crate::put_registry::WOLFSSL520_PUT;
+use crate::put_registry::WOLFSSL_RUST_PUT;
 use crate::query::TlsQueryMatcher;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 use crate::tls::rustls::msgs::enums::HandshakeType;
@@ -68,8 +68,8 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            WOLFSSL520_PUT
+        fn name(&self) -> String {
+            String::from(WOLFSSL_RUST_PUT)
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -92,7 +92,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", WOLFSSL520_PUT, VERSION_STR),
+                    format!("{} ({})", WOLFSSL_RUST_PUT, VERSION_STR),
                 ),
                 (
                     "library".to_string(),

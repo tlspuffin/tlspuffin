@@ -2117,7 +2117,6 @@ pub mod tests {
         use std::convert::TryFrom;
 
         use puffin::codec::{Codec, Reader};
-        use test_log::test;
 
         use crate::tls::rustls::msgs::base::Payload;
         use crate::tls::rustls::msgs::enums::{ContentType, HandshakeType, ProtocolVersion};
