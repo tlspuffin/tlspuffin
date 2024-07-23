@@ -658,7 +658,7 @@ mod tests {
     use crate::put::PutOptions;
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
-    use crate::trace::{Knowledge, Source, TraceContext};
+    use crate::trace::{Knowledge, Source, Spawner, TraceContext};
 
     impl ExtractKnowledge<AnyMatcher> for Vec<u8> {
         fn extract_knowledge<'a>(
@@ -755,9 +755,10 @@ mod tests {
 
         let put_registry =
             PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
-        let mut context = TraceContext::new(&put_registry, PutOptions::default());
 
-        let _ = context
+        let spawner = Spawner::new(put_registry.clone());
+        let mut context = TraceContext::new(&put_registry, spawner);
+        context
             .knowledge_store
             .add_raw_knowledge(data, Source::Agent(AgentName::first()));
 

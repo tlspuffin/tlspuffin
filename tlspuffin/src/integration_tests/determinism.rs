@@ -9,17 +9,16 @@ fn test_attacker_full_det_recreate() {
     use crate::tls::seeds::seed_client_attacker_full;
 
     let put_registry = tls_registry();
-
-    put_registry.determinism_set_reseed_all_factories();
+    let spawner = Spawner::new(put_registry.clone());
 
     let trace = seed_client_attacker_full.build_trace();
 
-    let mut ctx_1 = TraceContext::new(&put_registry, Default::default());
+    let mut ctx_1 = TraceContext::new(put_registry.clone(), spawner);
     trace.execute(&mut ctx_1);
 
     for i in 0..200 {
         println!("Attempt #{i}...");
-        let mut ctx_2 = TraceContext::new(&put_registry, Default::default());
+        let mut ctx_2 = TraceContext::new(put_registry.clone(), spawner);
         trace.execute(&mut ctx_2);
         assert_eq!(ctx_1, ctx_2);
     }

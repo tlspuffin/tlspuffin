@@ -13,13 +13,12 @@ use puffin::claims::GlobalClaimList;
 use puffin::codec::Codec;
 use puffin::error::Error;
 use puffin::protocol::ProtocolBehavior;
-use puffin::put::{Put, PutName, PutOptions};
-use puffin::put_registry::{Factory, PutKind};
+use puffin::put::{Put, PutOptions};
+use puffin::put_registry::{Factory, PutKind, TCP_PUT};
 use puffin::stream::Stream;
 use puffin::VERSION_STR;
 
 use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
-use crate::put_registry::TCP_PUT;
 use crate::query::TlsQueryMatcher;
 use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 

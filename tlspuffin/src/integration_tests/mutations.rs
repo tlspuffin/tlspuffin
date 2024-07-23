@@ -12,7 +12,7 @@ use puffin::libafl::state::StdState;
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 use puffin::put::PutOptions;
 use puffin::test_utils::AssertExecution;
-use puffin::trace::{Action, Step, Trace, TraceContext};
+use puffin::trace::{Action, Spawner, Step, Trace, TraceContext};
 
 use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
@@ -214,7 +214,8 @@ fn test_mutate_seed_cve_2021_3449() {
                 println!("attempts 5: {}", attempts);
 
                 let put_registry = tls_registry();
-                let mut context = TraceContext::new(&put_registry, Default::default());
+                let spawner = Spawner::new(put_registry.clone());
+                let mut context = TraceContext::new(&put_registry, spawner);
                 let _ = trace.execute(&mut context);
                 println!("try");
             }
