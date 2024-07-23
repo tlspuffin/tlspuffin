@@ -13,6 +13,7 @@ use crate::{
     error::Error,
     protocol::ProtocolBehavior,
     put::{Put, PutDescriptor},
+    stream::Stream,
 };
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
@@ -182,6 +183,10 @@ impl<PB: ProtocolBehavior> Agent<PB> {
         }
     }
 
+    pub fn progress(&mut self) -> Result<(), Error> {
+        self.put.progress()
+    }
+
     pub fn descriptor(&self) -> &PutDescriptor {
         &self.put_descriptor
     }
@@ -205,5 +210,24 @@ impl<PB: ProtocolBehavior> Agent<PB> {
 
     pub fn put_mut(&mut self) -> &mut dyn Put<PB> {
         self.put.as_mut()
+    }
+}
+
+impl<PB: ProtocolBehavior>
+    Stream<
+        PB::Matcher,
+        PB::ProtocolMessage,
+        PB::OpaqueProtocolMessage,
+        PB::OpaqueProtocolMessageFlight,
+    > for Agent<PB>
+{
+    fn add_to_inbound(&mut self, message_flight: &PB::OpaqueProtocolMessageFlight) {
+        self.put.add_to_inbound(message_flight)
+    }
+
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<PB::OpaqueProtocolMessageFlight>, Error> {
+        self.put.take_message_from_outbound()
     }
 }
