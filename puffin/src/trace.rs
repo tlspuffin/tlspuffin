@@ -240,7 +240,6 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     claims: GlobalClaimList<<PB as ProtocolBehavior>::Claim>,
 
     put_registry: PutRegistry<PB>,
-    deterministic_put: bool,
     default_put_options: PutOptions,
     non_default_put_descriptors: HashMap<AgentName, PutDescriptor>,
 
@@ -265,7 +264,6 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
     fn eq(&self, other: &Self) -> bool {
         self.agents == other.agents
             && self.put_registry == other.put_registry
-            && self.deterministic_put == other.deterministic_put
             && self.default_put_options == other.default_put_options
             && self.non_default_put_descriptors == other.non_default_put_descriptors
             && format!("{:?}", self.knowledge_store.raw_knowledge)
@@ -286,7 +284,6 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             claims,
             non_default_put_descriptors: Default::default(),
             put_registry: put_registry.clone(),
-            deterministic_put: false,
             phantom: Default::default(),
             default_put_options,
         }
@@ -376,7 +373,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             })?;
 
         let put = factory.create(descriptor, &self.claims, &put_descriptor.options)?;
-        let agent = Agent::new(descriptor, put, put_descriptor);
+        let agent = Agent::new(descriptor.clone(), put);
 
         self.add_agent(agent);
 
@@ -436,13 +433,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     pub fn agents_successful(&self) -> bool {
-        self.agents
-            .iter()
-            .all(|agent| agent.put().is_state_successful())
-    }
-
-    pub fn set_deterministic(&mut self, deterministic: bool) {
-        self.deterministic_put = deterministic;
+        self.agents.iter().all(|agent| agent.is_state_successful())
     }
 }
 
@@ -462,26 +453,17 @@ pub struct Trace<M: Matcher> {
 impl<M: Matcher> Trace<M> {
     fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
         for descriptor in &self.descriptors {
-            let name = if let Some(reusable) = ctx
+            if let Some(reusable) = ctx
                 .agents
                 .iter_mut()
-                .find(|existing| existing.put().is_reusable_with(descriptor))
+                .find(|existing| existing.is_reusable_with(descriptor))
             {
                 // rename if it already exists and we want to reuse
-                reusable.rename(descriptor.name)?;
-                descriptor.name
+                reusable.reset(descriptor.name)?;
             } else {
                 // only spawn completely new if not yet existing
-                ctx.new_agent(descriptor)?
+                ctx.new_agent(descriptor)?;
             };
-
-            if ctx.deterministic_put {
-                if let Ok(agent) = ctx.find_agent_mut(name) {
-                    if let Err(err) = agent.put_mut().determinism_reseed() {
-                        log::warn!("Unable to make agent {} deterministic: {}", name, err)
-                    }
-                }
-            }
         }
 
         Ok(())
@@ -519,7 +501,6 @@ impl<M: Matcher> Trace<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         let mut ctx = TraceContext::new(put_registry, default_put_options);
-        ctx.set_deterministic(true);
         self.execute(&mut ctx)?;
         Ok(ctx)
     }

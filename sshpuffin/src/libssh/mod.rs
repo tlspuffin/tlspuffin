@@ -274,7 +274,7 @@ impl Put<SshProtocolBehavior> for LibSSL {
         Ok(())
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, _new_name: AgentName) -> Result<(), Error> {
         panic!("Not supported")
     }
 
@@ -283,16 +283,12 @@ impl Put<SshProtocolBehavior> for LibSSL {
     }
 
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, _agent_name: AgentName) {
+    fn register_claimer(&mut self) {
         panic!("Not supported")
     }
 
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {
-        panic!("Not supported")
-    }
-
-    fn rename_agent(&mut self, _agent_name: AgentName) -> Result<(), Error> {
         panic!("Not supported")
     }
 

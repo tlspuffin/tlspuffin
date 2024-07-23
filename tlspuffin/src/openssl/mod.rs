@@ -166,24 +166,29 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
         result
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.config.descriptor.name = new_name;
+
+        #[cfg(feature = "claims")]
+        self.deregister_claimer();
+
         if self.config.use_clear {
             bindings::clear(self.stream.ssl());
         } else {
             self.stream = Self::new_stream(&self.ctx, &self.config).map_err(|err| {
                 Error::Put(format!("OpenSSL error during stream creation: {}", err))
             })?;
-
-            // FIXME don't force-register a new claimer on reset
-            //
-            //    Because OpenSSL vendor libraries crash when no claimer is
-            //    registered (#253), we are forced to register a new one on
-            //    reset. This should be removed once this bug is fixed.
-            //
-            //    See the WolfSSL module for comparison.
-            #[cfg(feature = "claims")]
-            self.register_claimer(self.config.descriptor.name);
         }
+
+        // FIXME don't force-register a new claimer on reset
+        //
+        //    Because OpenSSL vendor libraries crash when no claimer is
+        //    registered (#253), we are forced to register a new one on
+        //    reset. This should be removed once this bug is fixed.
+        //
+        //    See the WolfSSL module for comparison.
+        #[cfg(feature = "claims")]
+        self.register_claimer();
 
         Ok(())
     }
@@ -193,10 +198,11 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     }
 
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, agent_name: AgentName) {
+    fn register_claimer(&mut self) {
         unsafe {
             use foreign_types_openssl::ForeignTypeRef;
 
+            let agent_name = self.config.descriptor.name;
             let claims = self.config.claims.clone();
             let protocol_version = self.config.descriptor.tls_version;
             let origin = self.config.descriptor.typ;
@@ -225,16 +231,6 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
             use foreign_types_openssl::ForeignTypeRef;
             security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
         }
-    }
-
-    #[allow(unused_variables)]
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        #[cfg(feature = "claims")]
-        {
-            self.deregister_claimer();
-            self.register_claimer(agent_name);
-        }
-        Ok(())
     }
 
     fn describe_state(&self) -> &str {
@@ -285,9 +281,6 @@ impl OpenSSL {
 
         let stream = Self::new_stream(&ctx, &config)?;
 
-        #[cfg(feature = "claims")]
-        let agent_name = agent_descriptor.name;
-
         #[allow(unused_mut)]
         let mut openssl = OpenSSL {
             config,
@@ -296,7 +289,7 @@ impl OpenSSL {
         };
 
         #[cfg(feature = "claims")]
-        openssl.register_claimer(agent_name);
+        openssl.register_claimer();
 
         Ok(openssl)
     }
