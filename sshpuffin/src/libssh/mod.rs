@@ -215,7 +215,7 @@ impl Stream<SshQueryMatcher, SshMessage, RawSshMessage, RawSshMessageFlight> for
 }
 
 impl Put<SshProtocolBehavior> for LibSSL {
-    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
+    fn progress(&mut self) -> Result<(), Error> {
         let session = &mut self.session;
         match &self.agent_descriptor.typ {
             AgentType::Server => match &self.state {

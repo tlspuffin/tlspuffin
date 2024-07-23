@@ -76,7 +76,7 @@ pub trait Put<PB: ProtocolBehavior>:
     > + 'static
 {
     /// Process incoming buffer, internal progress, can fill in the output buffer
-    fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
+    fn progress(&mut self) -> Result<(), Error>;
 
     /// In-place reset of the state
     fn reset(&mut self, agent_name: AgentName) -> Result<(), Error>;

@@ -228,7 +228,10 @@ mod tests {
     #[test_log::test]
     #[ignore] // OLD STUFF! SHOULD BE REMOVED!?
     fn test_evaluate_recipe_input_compare_new() {
+        use puffin::stream::Stream;
+
         use crate::tls::trace_helper::TraceExecutor;
+
         let tls_registry = tls_registry();
 
         for (tr, name) in create_corpus() {
@@ -258,11 +261,11 @@ mod tests {
                             let evaluated_lazy = evaluate_lazy_test(&input.recipe, &ctx).expect("a");
                             if let Some(msg_old) = evaluated_lazy.as_ref().downcast_ref::<<TLSProtocolBehavior as ProtocolBehavior>::ProtocolMessage>() {
                                 debug!("Term {}\n could be parsed as ProtocolMessage", input.recipe);
-                                let evaluated = input.recipe.evaluate(&mut ctx).expect("a");
+                                let evaluated = input.recipe.evaluate(&ctx).expect("a");
                                 if let Some(msg) = <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage::read_bytes(&evaluated) {
                                     debug!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
                                     assert_eq!(msg_old.create_opaque().get_encoding(), msg.get_encoding());
-                                    ctx.add_to_inbound(step.agent, &msg.get_encoding()).expect("");
+                                    ctx.find_agent_mut(step.agent).unwrap().add_to_inbound(&msg.get_encoding());
                                 } else {
                                     panic!("Should not happen")
                                 }
@@ -272,11 +275,11 @@ mod tests {
                                 .downcast_ref::<<TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage>()
                             {
                                 debug!("Term {}\n could be parsed as OpaqueProtocolMessage", input.recipe);
-                                let evaluated = input.recipe.evaluate(&mut ctx).expect("c");
+                                let evaluated = input.recipe.evaluate(&ctx).expect("c");
                                 if let Some(msg) = <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage::read_bytes(&evaluated) {
                                     debug!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
                                     assert_eq!(opaque_message_old.get_encoding(), msg.get_encoding());
-                                    ctx.add_to_inbound(step.agent, &msg.get_encoding()).expect("");
+                                    ctx.find_agent_mut(step.agent).unwrap().add_to_inbound(&msg.get_encoding());
                                 } else {
                                     panic!("Should not happen")
                                 }
@@ -284,14 +287,14 @@ mod tests {
                                 panic!("Should not happen")
                             }
 
-                            ctx.next_state(step.agent)
+                            ctx.find_agent_mut(step.agent).unwrap().progress()
                         }.expect("TODO: panic message");
 
                         let output_step = &OutputAction::<TlsQueryMatcher>::new_step(step.agent);
-                        output_step.action.execute(output_step, &mut ctx);
+                        output_step.execute(&mut ctx);
                     }
                     Action::Output(_) => {
-                        step.action.execute(step, &mut ctx);
+                        step.execute(&mut ctx);
                     }
                 }
 

@@ -644,7 +644,7 @@ mod tests {
         let tls_registry = tls_registry();
         let mut rand = StdRand::with_seed(101);
         let all_functions_shape = TLS_SIGNATURE.functions.to_owned();
-        let mut ctx = TraceContext::new(&tls_registry, Default::default());
+        let ctx = TraceContext::new(&tls_registry, Default::default());
         let mut eval_count = 0;
         let mut count_lazy_fail = 0;
         let mut read_count = 0;
