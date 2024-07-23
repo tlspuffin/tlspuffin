@@ -316,7 +316,7 @@ where
             .unwrap();
 
         let server = AgentName::first();
-        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         log::info!("{}", shutdown);
 
         return ExitCode::SUCCESS;

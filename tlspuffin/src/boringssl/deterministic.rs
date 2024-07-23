@@ -22,10 +22,8 @@ mod tests {
 
         let trace = seed_client_attacker_full.build_trace();
         let mut ctx1 = TraceContext::new(&put_registry, Default::default());
-        ctx1.set_deterministic(true);
         let _ = trace.execute(&mut ctx1);
         let mut ctx2 = TraceContext::new(&put_registry, Default::default());
-        ctx2.set_deterministic(true);
         let _ = trace.execute(&mut ctx2);
 
         assert_eq!(ctx1, ctx2);

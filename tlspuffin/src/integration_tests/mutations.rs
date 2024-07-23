@@ -247,7 +247,6 @@ fn test_make_message() {
     > = MakeMessage::new(TermConstraints::default(), &tls_registry, true, true);
 
     let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
-    ctx.set_deterministic(true);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());
 
@@ -300,7 +299,6 @@ fn test_byte_remove_payloads() {
     );
 
     let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
-    ctx.set_deterministic(true);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());
     let mut i = 0;
@@ -390,7 +388,6 @@ fn test_byte_simple() {
     let mut mutator_byte = ByteFlipMutatorDY::new(true);
 
     let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
-    ctx.set_deterministic(true);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());
     let mut i = 0;
@@ -477,7 +474,6 @@ fn test_byte_interesting() {
     let mut mutator_byte_interesting = ByteInterestingMutatorDY::new(true);
 
     let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
-    ctx.set_deterministic(true);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());
     let mut i = 0;

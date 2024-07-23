@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::algebra::ConcreteMessage;
 use crate::error::Error;
 use crate::protocol::ProtocolBehavior;
-use crate::put::{Put, PutDescriptor};
+use crate::put::Put;
 use crate::stream::Stream;
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
@@ -52,13 +52,13 @@ impl fmt::Display for AgentName {
     }
 }
 
-/// AgentDescriptors act like a blueprint to spawn [`Agent`]s with a corresponding server or
+/// [`AgentDescriptor`]s act like a blueprint to spawn [`Agent`]s with a corresponding server or
 /// client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 ///
-/// The difference between an [`AgentDescriptor`] and a [`PutDescriptor`] is that values of
-/// the [`AgentDescriptor`] are required for seed traces to succeed. They are the same for every
-/// invocation of the seed. Values in the [`PutDescriptor`] are supposed to differ between
-/// invocations.
+/// The difference between an [`AgentDescriptor`] and a [`crate::put::PutDescriptor`] is that
+/// values of the [`AgentDescriptor`] are required for seed traces to succeed. They are the same for
+/// every invocation of the seed. Values in the [`crate::put::PutDescriptor`] are supposed to
+/// differ between invocations.
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 pub struct AgentDescriptor {
     pub name: AgentName,
@@ -145,62 +145,57 @@ pub enum TLSVersion {
 
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent<PB: ProtocolBehavior> {
-    name: AgentName,
-
+    descriptor: AgentDescriptor,
     put: Box<dyn Put<PB>>,
-    put_descriptor: PutDescriptor,
 }
 
 impl<PB: ProtocolBehavior> fmt::Debug for Agent<PB> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Agent")
-            .field("name", &self.name)
+            .field("descriptor", &self.descriptor)
             .field("put", &self.put.describe_state())
-            .field("put_descriptor", &self.put_descriptor)
             .finish()
     }
 }
 
 impl<PB: ProtocolBehavior> PartialEq for Agent<PB> {
     fn eq(&self, other: &Self) -> bool {
-        self.name.eq(&other.name)
+        self.descriptor.name.eq(&other.descriptor.name)
             && self.put.describe_state() == other.put.describe_state()
-            && self.put_descriptor.eq(&other.put_descriptor)
     }
 }
 
 impl<PB: ProtocolBehavior> Agent<PB> {
-    pub fn new(
-        descriptor: &AgentDescriptor,
-        put: Box<dyn Put<PB>>,
-        put_descriptor: PutDescriptor,
-    ) -> Self {
-        Self {
-            name: descriptor.name,
-            put,
-            put_descriptor,
-        }
+    pub fn new(descriptor: AgentDescriptor, put: Box<dyn Put<PB>>) -> Self {
+        Self { descriptor, put }
     }
 
     pub fn progress(&mut self) -> Result<(), Error> {
         self.put.progress()
     }
 
-    pub fn descriptor(&self) -> &PutDescriptor {
-        &self.put_descriptor
+    pub fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.descriptor.name = new_name;
+        self.put.reset(new_name)
     }
 
-    pub fn rename(&mut self, new_name: AgentName) -> Result<(), Error> {
-        self.name = new_name;
-        self.put.rename_agent(new_name)
+    /// Shut down the agent by consuming it and returning a string that summarizes the execution.
+    pub fn shutdown(&mut self) -> String {
+        self.put.shutdown()
     }
 
-    pub fn reset(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        self.put.reset(agent_name)
+    /// Checks whether the agent is in a good state.
+    pub fn is_state_successful(&self) -> bool {
+        self.put.is_state_successful()
+    }
+
+    /// Checks whether the agent is reusable with the descriptor.
+    pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
+        self.descriptor.typ == other.typ && self.descriptor.tls_version == other.tls_version
     }
 
     pub fn name(&self) -> AgentName {
-        self.name
+        self.descriptor.name
     }
 
     pub fn put(&self) -> &dyn Put<PB> {

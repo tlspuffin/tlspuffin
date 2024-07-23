@@ -179,32 +179,31 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
         result
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        self.stream.ssl_mut().clear();
-        Ok(())
-    }
-
     fn descriptor(&self) -> &AgentDescriptor {
         &self.config.descriptor
     }
 
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, agent_name: AgentName) {
-        self.set_msg_callback(Self::create_msg_callback(agent_name.clone(), &self.config))
-            .expect("Failed to set msg_callback to extract transcript");
+    fn register_claimer(&mut self) {
+        self.set_msg_callback(Self::create_msg_callback(
+            self.config.descriptor.name.clone(),
+            &self.config,
+        ))
+        .expect("Failed to set msg_callback to extract transcript");
     }
 
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {}
 
-    #[allow(unused_variables)]
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.config.descriptor.name = new_name;
         #[cfg(feature = "claims")]
         {
             self.deregister_claimer();
-            self.register_claimer(agent_name);
+            self.register_claimer();
         }
-        self.register_claimer(agent_name);
+        self.stream.ssl_mut().clear();
+        self.register_claimer();
         Ok(())
     }
 
@@ -254,12 +253,10 @@ impl BoringSSL {
 
         let stream = SslStream::new(ssl, MemoryStream::new())?;
 
-        let agent_name = agent_descriptor.name;
-
         let mut boringssl = BoringSSL { config, stream };
 
         #[cfg(feature = "claims")]
-        boringssl.register_claimer(agent_name);
+        boringssl.register_claimer();
 
         Ok(boringssl)
     }

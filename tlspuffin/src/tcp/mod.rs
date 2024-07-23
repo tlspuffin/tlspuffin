@@ -299,7 +299,7 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         Ok(())
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, _new_name: AgentName) -> Result<(), Error> {
         panic!("Not supported")
     }
 
@@ -308,17 +308,13 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
     }
 
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, _agent_name: AgentName) {
+    fn register_claimer(&mut self) {
         panic!("Claims are not supported with TcpPut")
     }
 
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {
         panic!("Claims are not supported with TcpPut")
-    }
-
-    fn rename_agent(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        Ok(())
     }
 
     fn describe_state(&self) -> &str {
@@ -352,7 +348,8 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         Ok(())
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.agent_descriptor.name = new_name;
         let address = self.stream.peer_addr()?;
         self.stream = Self::new_stream(address)?;
         Ok(())
@@ -363,17 +360,13 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
     }
 
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, _agent_name: AgentName) {
+    fn register_claimer(&mut self) {
         panic!("Claims are not supported with TcpPut")
     }
 
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {
         panic!("Claims are not supported with TcpPut")
-    }
-
-    fn rename_agent(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        Ok(())
     }
 
     fn describe_state(&self) -> &str {
@@ -498,7 +491,7 @@ mod tests {
             .unwrap();
 
         let server = AgentName::first().next();
-        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         log::info!("{}", shutdown);
         assert!(shutdown.contains("Reused session-id"));
     }
@@ -518,7 +511,7 @@ mod tests {
             .unwrap();
 
         let server = AgentName::first();
-        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         log::info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
         assert!(!shutdown.contains("Reused session-id"));
@@ -549,12 +542,12 @@ mod tests {
             .unwrap();
 
         let client = AgentName::first();
-        let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
+        let shutdown = context.find_agent_mut(client).unwrap().shutdown();
         log::info!("{}", shutdown);
         assert!(shutdown.contains("Timeout   : 7200 (sec)"));
 
         let server = client.next();
-        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         log::info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
@@ -585,12 +578,12 @@ mod tests {
             .unwrap();
 
         let client = AgentName::first();
-        let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
+        let shutdown = context.find_agent_mut(client).unwrap().shutdown();
         log::info!("{}", shutdown);
         assert!(!shutdown.contains("fail"));
 
         let server = client.next();
-        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         log::info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }

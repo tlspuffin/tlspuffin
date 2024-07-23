@@ -69,7 +69,6 @@ mod tests {
         let tls_registry = tls_registry();
         let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
         let mut trace = seed_client_attacker_full.build_trace();
-        ctx.set_deterministic(true);
         trace.execute(&mut ctx);
         let step0_before = vec![
             22, 3, 3, // path=0: fn_protocol_version12 -> ProtocolVersion,
@@ -241,7 +240,6 @@ mod tests {
                 continue;
             }
             let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
-            ctx.set_deterministic(true);
 
             for trace in &tr.prior_traces {
                 trace.spawn_agents(&mut ctx).expect("d");
