@@ -152,7 +152,7 @@ impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for Op
 }
 
 impl Put<TLSProtocolBehavior> for OpenSSL {
-    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
+    fn progress(&mut self) -> Result<(), Error> {
         let result = if self.is_state_successful() {
             // Trigger another read
             let mut vec: Vec<u8> = Vec::from([1; 128]);

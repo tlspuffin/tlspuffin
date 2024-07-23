@@ -37,8 +37,7 @@ use crate::protocol::{
 };
 use crate::put::{PutDescriptor, PutOptions};
 use crate::put_registry::PutRegistry;
-#[allow(unused)] // used in docs
-use crate::stream::Channel;
+use crate::stream::Stream;
 use crate::variable_data::VariableData;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
@@ -157,15 +156,14 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
         &mut self,
         data: T,
         source: Source,
-    ) -> Result<usize, Error> {
-        log::trace!("Adding raw knowledge : {:?}", &data);
+    ) {
+        log::trace!("Adding raw knowledge for {:?}", &data);
+
         self.raw_knowledge.push(RawKnowledge {
             source,
             matcher: None,
             data: Box::new(data),
         });
-
-        Ok(self.raw_knowledge.len())
     }
 
     pub fn number_matching_message_with_source(
@@ -304,6 +302,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
     pub fn verify_security_violations(&self) -> Result<(), Error> {
         let claims = self.claims.deref_borrow();
+        claims.log();
         if let Some(msg) = PB::SecurityViolationPolicy::check_violation(claims.slice()) {
             // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a
             // blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
@@ -354,31 +353,6 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         query: &Query<PB::Matcher>,
     ) -> Option<&(dyn VariableData)> {
         self.knowledge_store.find_variable(query_type_shape, query)
-    }
-
-    /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
-    pub fn add_to_inbound(
-        &mut self,
-        agent_name: AgentName,
-        message_flight: &PB::OpaqueProtocolMessageFlight,
-    ) -> Result<(), Error> {
-        self.find_agent_mut(agent_name)
-            .map(|agent| agent.put_mut().add_to_inbound(message_flight))
-    }
-
-    pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        let agent = self.find_agent_mut(agent_name)?;
-        agent.put_mut().progress(&agent_name)
-    }
-
-    /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter
-    /// "agent". See [`crate::stream::Stream::take_message_from_outbound`]
-    pub fn take_message_from_outbound(
-        &mut self,
-        agent_name: AgentName,
-    ) -> Result<Option<PB::OpaqueProtocolMessageFlight>, Error> {
-        let agent = self.find_agent_mut(agent_name)?;
-        agent.put_mut().take_message_from_outbound()
     }
 
     fn add_agent(&mut self, agent: Agent<PB>) -> AgentName {
@@ -521,7 +495,6 @@ impl<M: Matcher> Trace<M> {
         ctx.put_registry.determinism_reseed_all_factories();
 
         for trace in &self.prior_traces {
-            trace.spawn_agents(ctx)?;
             trace.execute(ctx)?;
             ctx.reset_agents()?;
         }
@@ -529,20 +502,7 @@ impl<M: Matcher> Trace<M> {
         let steps = &self.steps;
         for (i, step) in steps.iter().enumerate() {
             log::debug!("Executing step #{}", i);
-
-            step.action.execute(step, ctx)?;
-
-            // Output after each InputAction step
-            match step.action {
-                Action::Input(_) => {
-                    let output_step = &OutputAction::<M>::new_step(step.agent);
-
-                    output_step.action.execute(output_step, ctx)?;
-                }
-                Action::Output(_) => {}
-            }
-
-            ctx.claims.deref_borrow().log();
+            step.execute(ctx)?;
 
             ctx.verify_security_violations()?;
         }
@@ -612,34 +572,39 @@ pub struct Step<M: Matcher> {
     pub action: Action<M>,
 }
 
-/// The actions performed on an [`Agent`].
+impl<M: Matcher> Step<M> {
+    fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        match &self.action {
+            Action::Input(input) => input.execute(self.agent, ctx).and_then(|_| {
+                // NOTE force output after each InputAction step
+                (OutputAction {
+                    phantom: Default::default(),
+                })
+                .execute(self.agent, ctx)
+            }),
+            Action::Output(output) => output.execute(self.agent, ctx),
+        }
+    }
+}
+
+/// There are two action types [`OutputAction`] and [`InputAction`].
 ///
-/// There are two action types [`OutputAction`] and [`InputAction`] differ. Both actions drive the
-/// internal state machine of an [`Agent`] forward by calling `next_state()`. The [`OutputAction`]
-/// first forwards the state machine and then extracts knowledge from the TLS messages produced by
-/// the underlying stream by calling  `take_message_from_outbound(...)`. The [`InputAction`]
-/// evaluates the recipe term and injects the newly produced message into the *inbound channel* of
-/// the [`Agent`] referenced through the corresponding [`Step`]s by calling `add_to_inbound(...)`
-/// and then drives the state machine forward. Therefore, the difference is that one step
-/// *increases* the knowledge of the attacker, whereas the other action *uses* the available
-/// knowledge.
+/// Both actions drive the internal state machine of an [`Agent`] forward by calling `progress()`.
+/// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
+/// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
+/// The [`InputAction`] evaluates the recipe term and injects the newly produced message
+/// into the *inbound channel* of the [`Agent`] referenced through the corresponding [`Step`]s
+/// by calling `add_to_inbound(...)` and then drives the state machine forward.
+/// Therefore, the difference is that one step *increases* the knowledge of the attacker,
+/// whereas the other action *uses* the available knowledge.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
 pub enum Action<M: Matcher> {
     Input(InputAction<M>),
     Output(OutputAction<M>),
-}
-
-impl<M: Matcher> Action<M> {
-    fn execute<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        match self {
-            Action::Input(input) => input.input(step, ctx),
-            Action::Output(output) => output.output(step, ctx),
-        }
-    }
 }
 
 impl<M: Matcher> fmt::Display for Action<M> {
@@ -671,30 +636,21 @@ impl<M: Matcher> OutputAction<M> {
         }
     }
 
-    fn output<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    fn execute<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        ctx.next_state(step.agent)?;
+        let source = Source::Agent(agent_name);
+        let agent = ctx.find_agent_mut(agent_name)?;
 
-        let source = Source::Agent(step.agent);
+        agent.progress()?;
 
-        let opaque_flight_result = ctx.take_message_from_outbound(step.agent)?;
+        if let Some(opaque_flight) = agent.take_message_from_outbound()? {
+            ctx.knowledge_store
+                .add_raw_knowledge(opaque_flight.clone(), source.clone());
 
-        if let Some(opaque_flight) = opaque_flight_result {
-            let flight = TryInto::<PB::ProtocolMessageFlight>::try_into(opaque_flight.clone());
-
-            if let Ok(num) = ctx
-                .knowledge_store
-                .add_raw_knowledge(opaque_flight, source.clone())
-            {
-                log::debug!("Raw Knowledge increased by {}", num);
-            }
-
-            if let Ok(f) = flight {
-                if let Ok(num) = ctx.knowledge_store.add_raw_knowledge(f, source.clone()) {
-                    log::debug!("Raw Knowledge increased by {}", num);
-                }
+            if let Ok(flight) = TryInto::<PB::ProtocolMessageFlight>::try_into(opaque_flight) {
+                ctx.knowledge_store.add_raw_knowledge(flight, source);
             }
         }
 
@@ -729,46 +685,19 @@ impl<M: Matcher> InputAction<M> {
         }
     }
 
-    fn input<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    fn execute<PB: ProtocolBehavior>(
+        &self,
+        agent_name: AgentName,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        // message controlled by the attacker
-        let evaluated = self.recipe.evaluate(ctx)?;
+        let message = as_message_flight::<PB>(self.recipe.evaluate(ctx)?)?;
+        let agent = ctx.find_agent_mut(agent_name)?;
 
-        if let Some(flight) = evaluated
-            .as_ref()
-            .downcast_ref::<PB::ProtocolMessageFlight>()
-        {
-            flight.debug("Input message flight");
-
-            ctx.add_to_inbound(step.agent, &flight.clone().into())?;
-        } else if let Some(flight) = evaluated
-            .as_ref()
-            .downcast_ref::<PB::OpaqueProtocolMessageFlight>()
-        {
-            flight.debug("Input opaque message flight");
-
-            ctx.add_to_inbound(step.agent, flight)?;
-        } else if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
-            msg.debug("Input message");
-
-            let message_flight: PB::ProtocolMessageFlight = msg.clone().into();
-            ctx.add_to_inbound(step.agent, &message_flight.into())?;
-        } else if let Some(opaque_message) = evaluated
-            .as_ref()
-            .downcast_ref::<PB::OpaqueProtocolMessage>()
-        {
-            opaque_message.debug("Input opaque message");
-            ctx.add_to_inbound(step.agent, &opaque_message.clone().into())?;
-        } else {
-            return Err(FnError::Unknown(String::from(
-                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`, `OpaqueMessageFlight` !",
-            ))
-            .into());
-        }
-
-        ctx.next_state(step.agent)
+        agent.add_to_inbound(&message);
+        agent.progress()
     }
 }
 
@@ -776,4 +705,28 @@ impl<M: Matcher> fmt::Display for InputAction<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "InputAction:\n{}", self.recipe)
     }
+}
+
+fn as_message_flight<PB: ProtocolBehavior>(
+    value: Box<dyn Any>,
+) -> Result<PB::OpaqueProtocolMessageFlight, Error> {
+    Err(value)
+        .or_else(|v| {
+            v.downcast::<PB::OpaqueProtocolMessageFlight>().map(|m| { m.debug("Input opaque message flight"); *m})
+        })
+        .or_else(|v| {
+            v.downcast::<PB::ProtocolMessageFlight>().map(|m| { m.debug("Input message flight"); (*m).into() })
+        })
+        .or_else(|v| {
+            v.downcast::<PB::ProtocolMessage>().map(|m| { m.debug("Input message"); Into::<PB::ProtocolMessageFlight>::into(*m).into() })
+        })
+        .or_else(|v| {
+            v.downcast::<PB::OpaqueProtocolMessage>().map(|m| { m.debug("Input opaque message"); (*m).into() })
+        })
+        .map_err(|_| {
+            FnError::Unknown(String::from(
+            "value is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`, `OpaqueMessageFlight` !",
+            ))
+            .into()
+        })
 }
