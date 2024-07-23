@@ -27,7 +27,7 @@ use crate::{
     protocol::{ProtocolBehavior, ProtocolMessage},
     put::{PutDescriptor, PutOptions},
     put_registry::{PutRegistry, TCP_PUT},
-    trace::{Action, Trace, TraceContext},
+    trace::{Action, Spawner, Trace, TraceContext},
 };
 
 fn create_app<S>(title: S) -> Command
@@ -459,11 +459,14 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutReg
 
     log::info!("Agents: {:?}", &trace.descriptors);
 
+    let put = PutDescriptor::new(put_registry.default().name(), default_put_options().clone());
+    let spawner = Spawner::new(put_registry.clone()).with_default(put);
+
     // When generating coverage a crash means that no coverage is stored
     // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
     let status = forked_execution(
         move || {
-            let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+            let mut ctx = TraceContext::new(put_registry, spawner);
             if let Err(err) = trace.execute(&mut ctx) {
                 log::error!(
                     "Failed to execute trace {}: {:?}",
@@ -487,8 +490,10 @@ fn binary_attack<PB: ProtocolBehavior>(
     output: &str,
     put_registry: &PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let put = PutDescriptor::new(put_registry.default().name(), default_put_options().clone());
+    let spawner = Spawner::new(put_registry.clone()).with_default(put);
+    let ctx = TraceContext::new(put_registry, spawner);
     let trace = Trace::<PB::Matcher>::from_file(input)?;
-    let ctx = TraceContext::new(put_registry, default_put_options().clone());
 
     log::info!("Agents: {:?}", &trace.descriptors);
 

@@ -8,7 +8,7 @@ use crate::{
     protocol::ProtocolBehavior,
     put::PutOptions,
     put_registry::PutRegistry,
-    trace::{Action, Trace, TraceContext},
+    trace::{Action, Spawner, Trace, TraceContext},
 };
 
 static DEFAULT_PUT_OPTIONS: OnceCell<PutOptions> = OnceCell::new();
@@ -30,7 +30,8 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
     input: &Trace<PB::Matcher>,
 ) -> ExitKind {
-    let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+    let spawner = Spawner::new(put_registry.clone());
+    let mut ctx = TraceContext::new(put_registry, spawner);
 
     TRACE_LENGTH.update(input.steps.len());
 

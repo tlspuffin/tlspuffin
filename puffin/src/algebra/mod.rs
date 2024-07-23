@@ -654,10 +654,9 @@ mod tests {
         algebra::{
             atoms::Variable, dynamic_function::TypeShape, signature::Signature, AnyMatcher, Term,
         },
-        put::PutOptions,
         put_registry::{Factory, PutRegistry},
         term,
-        trace::{Knowledge, Source, TraceContext},
+        trace::{Knowledge, Source, Spawner, TraceContext},
     };
 
     #[allow(dead_code)]
@@ -739,7 +738,9 @@ mod tests {
 
         let put_registry =
             PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
-        let mut context = TraceContext::new(&put_registry, Default::default());
+        let spawner = Spawner::new(put_registry.clone());
+
+        let mut context = TraceContext::new(&put_registry, spawner);
         context.knowledge_store.add_knowledge(Knowledge {
             source: Source::Agent(AgentName::first()),
             matcher: None,
