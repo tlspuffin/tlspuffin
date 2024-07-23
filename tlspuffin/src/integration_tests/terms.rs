@@ -2,15 +2,12 @@
 #[allow(clippy::ptr_arg)]
 #[cfg(test)]
 mod tests {
-
-    use log::debug;
     use puffin::algebra::{evaluate_lazy_test, TermType};
     use puffin::codec::Codec;
     use puffin::fuzzer::utils::{find_term_by_term_path, find_term_by_term_path_mut};
     use puffin::protocol::{ProtocolBehavior, ProtocolMessage};
-    use puffin::put::PutOptions;
     use puffin::trace::Action::Input;
-    use puffin::trace::{Action, OutputAction, Trace, TraceContext};
+    use puffin::trace::{Action, OutputAction, Spawner, Trace, TraceContext};
 
     use crate::integration_tests::tls_registry;
     use crate::protocol::TLSProtocolBehavior;
@@ -29,7 +26,7 @@ mod tests {
         if let Input(input) = &mut trace.steps[step_nb].action {
             let term = &mut input.recipe;
             let e_before = term.evaluate(ctx).expect("OUPS1");
-            debug!("Term: {term}\nTerm eval: {e_before:?}.");
+            log::debug!("Term: {term}\nTerm eval: {e_before:?}.");
 
             let sub = find_term_by_term_path_mut(term, &mut path.clone()).expect("OUPS2");
             sub.erase_payloads_subterms(false);
@@ -37,10 +34,12 @@ mod tests {
             let sub_before = sub.clone();
             let e_sub_before = sub_before.evaluate_symbolic(ctx).expect("OUPS3"); // evaluate_symbolic:
                                                                                   // mimicking term::make_payload ! We loose all previous mutations on sub-terms!
-            debug!("Subterm before: {sub_before}\nSubterm eval_symbolic before: {e_sub_before:?}");
+            log::debug!(
+                "Subterm before: {sub_before}\nSubterm eval_symbolic before: {e_sub_before:?}"
+            );
             if let Some(p) = &mut sub.payloads {
                 p.payload = new_sub_vec.clone().into();
-                debug!("Payload_0: {:?}", p.payload_0);
+                log::debug!("Payload_0: {:?}", p.payload_0);
             } else {
                 panic!("No payload after make_payload!");
             }
@@ -48,10 +47,10 @@ mod tests {
             let e_after = term.evaluate(ctx).expect("OUPS4");
             let sub_after = find_term_by_term_path(term, &mut path.clone()).expect("OUPS5");
             let e_sub_after = sub_after.evaluate(ctx).expect("OUPS6");
-            debug!("Subterm eval after: {e_sub_after:?}");
-            debug!("Eval before: {e_before:?}");
-            debug!("Eval after: {e_after:?}");
-            debug!("Assert eq for step {step_nb} with path {path:?}:");
+            log::debug!("Subterm eval after: {e_sub_after:?}");
+            log::debug!("Eval before: {e_before:?}");
+            log::debug!("Eval after: {e_after:?}");
+            log::debug!("Assert eq for step {step_nb} with path {path:?}:");
             assert_eq!(e_after, expected_vec);
         }
     }
@@ -67,7 +66,8 @@ mod tests {
     #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))] // only for boring as we hard-coded payloads for this PUT in the test
     fn test_replace_bitstring_multiple() {
         let tls_registry = tls_registry();
-        let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
+        let spawner = Spawner::new(tls_registry.clone());
+        let mut ctx = TraceContext::new(&tls_registry, spawner);
         let mut trace = seed_client_attacker_full.build_trace();
         trace.execute(&mut ctx);
         let step0_before = vec![
@@ -229,39 +229,36 @@ mod tests {
     fn test_evaluate_recipe_input_compare_new() {
         use puffin::stream::Stream;
 
-        use crate::tls::trace_helper::TraceExecutor;
-
         let tls_registry = tls_registry();
+        let spawner = Spawner::new(tls_registry.clone());
 
         for (tr, name) in create_corpus() {
-            debug!("\n\n============= Executing trace {name}");
+            log::debug!("\n\n============= Executing trace {name}");
             if name == "tlspuffin::tls::seeds::seed_client_attacker_auth" {
                 // currently failing traces because of broken certs (?), even before my edits
                 continue;
             }
-            let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
+            let mut ctx = TraceContext::new(&tls_registry, spawner.clone());
 
             for trace in &tr.prior_traces {
-                trace.spawn_agents(&mut ctx).expect("d");
                 trace.execute(&mut ctx).expect("d");
-                ctx.reset_agents().expect("d");
             }
 
             tr.spawn_agents(&mut ctx).unwrap();
             let steps = &tr.steps;
             for (i, step) in steps.iter().enumerate() {
-                debug!("Executing step #{}", i);
+                log::debug!("Executing step #{}", i);
 
                 match &step.action {
                     Action::Input(input) => {
-                        debug!("Running custom test for inputs...");
+                        log::debug!("Running custom test for inputs...");
                         {
                             let evaluated_lazy = evaluate_lazy_test(&input.recipe, &ctx).expect("a");
                             if let Some(msg_old) = evaluated_lazy.as_ref().downcast_ref::<<TLSProtocolBehavior as ProtocolBehavior>::ProtocolMessage>() {
-                                debug!("Term {}\n could be parsed as ProtocolMessage", input.recipe);
+                                log::debug!("Term {}\n could be parsed as ProtocolMessage", input.recipe);
                                 let evaluated = input.recipe.evaluate(&ctx).expect("a");
                                 if let Some(msg) = <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage::read_bytes(&evaluated) {
-                                    debug!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
+                                    log::debug!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
                                     assert_eq!(msg_old.create_opaque().get_encoding(), msg.get_encoding());
                                     ctx.find_agent_mut(step.agent).unwrap().add_to_inbound(&msg.get_encoding());
                                 } else {
@@ -272,10 +269,10 @@ mod tests {
                                 .as_ref()
                                 .downcast_ref::<<TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage>()
                             {
-                                debug!("Term {}\n could be parsed as OpaqueProtocolMessage", input.recipe);
+                                log::debug!("Term {}\n could be parsed as OpaqueProtocolMessage", input.recipe);
                                 let evaluated = input.recipe.evaluate(&ctx).expect("c");
                                 if let Some(msg) = <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage::read_bytes(&evaluated) {
-                                    debug!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
+                                    log::debug!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
                                     assert_eq!(opaque_message_old.get_encoding(), msg.get_encoding());
                                     ctx.find_agent_mut(step.agent).unwrap().add_to_inbound(&msg.get_encoding());
                                 } else {

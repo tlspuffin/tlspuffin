@@ -20,7 +20,7 @@ use puffin::protocol::ProtocolBehavior;
 use puffin::put::PutOptions;
 use puffin::put_registry::PutRegistry;
 use puffin::test_utils::AssertExecution;
-use puffin::trace::{Action, Step, Trace, TraceContext};
+use puffin::trace::{Action, Spawner, Step, Trace, TraceContext};
 use puffin::trace_helper::TraceHelper;
 
 use crate::protocol::TLSProtocolBehavior;
@@ -235,6 +235,7 @@ fn test_mutators() {
 #[test_log::test]
 fn test_make_message() {
     let tls_registry = tls_registry();
+    let spawner = Spawner::new(tls_registry.clone());
     let mut state = create_state();
     let mut mutator: MakeMessage<
         StdState<
@@ -246,7 +247,7 @@ fn test_make_message() {
         TLSProtocolBehavior,
     > = MakeMessage::new(TermConstraints::default(), &tls_registry, true, true);
 
-    let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
+    let mut ctx = TraceContext::new(&tls_registry, spawner);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());
 
@@ -279,6 +280,7 @@ fn test_make_message() {
 #[test_log::test]
 fn test_byte_remove_payloads() {
     let tls_registry = tls_registry();
+    let spawner = Spawner::new(tls_registry.clone());
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
@@ -298,7 +300,7 @@ fn test_byte_remove_payloads() {
         true,
     );
 
-    let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
+    let mut ctx = TraceContext::new(&tls_registry, spawner);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());
     let mut i = 0;
@@ -367,6 +369,7 @@ fn test_byte_remove_payloads() {
 #[test_log::test]
 fn test_byte_simple() {
     let tls_registry = tls_registry();
+    let spawner = Spawner::new(tls_registry.clone());
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
@@ -387,7 +390,7 @@ fn test_byte_simple() {
     );
     let mut mutator_byte = ByteFlipMutatorDY::new(true);
 
-    let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
+    let mut ctx = TraceContext::new(&tls_registry, spawner);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());
     let mut i = 0;
@@ -453,6 +456,7 @@ fn test_byte_simple() {
 #[test_log::test]
 fn test_byte_interesting() {
     let tls_registry = tls_registry();
+    let spawner = Spawner::new(tls_registry.clone());
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
@@ -473,7 +477,7 @@ fn test_byte_interesting() {
     );
     let mut mutator_byte_interesting = ByteInterestingMutatorDY::new(true);
 
-    let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
+    let mut ctx = TraceContext::new(&tls_registry, spawner);
     let mut trace = seed_client_attacker_full.build_trace();
     set_default_put_options(PutOptions::default());
     let mut i = 0;
@@ -733,7 +737,8 @@ fn test_mutate_seed_cve_2021_3449() {
                 println!("attempts 5: {}", attempts);
 
                 let put_registry = tls_registry();
-                let mut context = TraceContext::new(&put_registry, Default::default());
+                let spawner = Spawner::new(put_registry.clone());
+                let mut context = TraceContext::new(&put_registry, spawner);
                 let _ = trace.execute(&mut context);
                 println!("try");
             }

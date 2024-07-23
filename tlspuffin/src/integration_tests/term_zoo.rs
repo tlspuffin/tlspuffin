@@ -19,7 +19,7 @@ mod tests {
     use puffin::libafl_bolts::rands::{Rand, StdRand};
     use puffin::protocol::ProtocolBehavior;
     use puffin::trace::Action::Input;
-    use puffin::trace::{InputAction, Step, Trace, TraceContext};
+    use puffin::trace::{InputAction, Spawner, Step, Trace, TraceContext};
 
     use crate::protocol::TLSProtocolBehavior;
     use crate::put_registry::tls_registry;
@@ -144,6 +144,7 @@ mod tests {
     #[test_log::test]
     fn test_term_lazy_eval() {
         let tls_registry = tls_registry();
+        let spawner = Spawner::new(tls_registry.clone());
         let mut rand = StdRand::with_seed(101);
         let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
         // debug!("zoo size: {}", zoo.terms().len());
@@ -166,7 +167,7 @@ mod tests {
             .map(|(shape, _)| shape.name.to_string())
             .collect::<HashSet<String>>();
 
-        let ctx = TraceContext::new(&tls_registry, Default::default());
+        let ctx = TraceContext::new(&tls_registry, spawner);
         let mut successfully_built_functions = zoo
             .terms()
             .iter()
@@ -200,11 +201,12 @@ mod tests {
     /// correctly evaluated
     fn test_term_eval() {
         let tls_registry = tls_registry();
+        let spawner = Spawner::new(tls_registry.clone());
         let mut rand = StdRand::with_seed(101);
         let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
         let terms = zoo.terms();
         let number_terms = terms.len();
-        let ctx = TraceContext::new(&tls_registry, Default::default());
+        let ctx = TraceContext::new(&tls_registry, spawner);
         let mut eval_count = 0;
         let mut count_lazy_fail = 0;
         let mut count_any_encode_fail = 0;
@@ -439,9 +441,10 @@ mod tests {
     /// correctly evaluated
     fn test_term_payloads_eval() {
         let tls_registry = tls_registry();
+        let spawner = Spawner::new(tls_registry.clone());
         let mut rand = StdRand::with_seed(101);
         let all_functions_shape = TLS_SIGNATURE.functions.to_owned();
-        let mut ctx = TraceContext::new(&tls_registry, Default::default());
+        let mut ctx = TraceContext::new(&tls_registry, spawner);
         let mut eval_count = 0;
         let mut count_lazy_fail = 0;
         let mut count_payload_fail = 0;
@@ -642,9 +645,10 @@ mod tests {
     /// correctly evaluated
     fn test_term_read_encode() {
         let tls_registry = tls_registry();
+        let spawner = Spawner::new(tls_registry.clone());
         let mut rand = StdRand::with_seed(101);
         let all_functions_shape = TLS_SIGNATURE.functions.to_owned();
-        let ctx = TraceContext::new(&tls_registry, Default::default());
+        let ctx = TraceContext::new(&tls_registry, spawner);
         let mut eval_count = 0;
         let mut count_lazy_fail = 0;
         let mut read_count = 0;

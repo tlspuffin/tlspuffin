@@ -8,11 +8,10 @@ use crate::algebra::atoms::Function;
 use crate::algebra::signature::Signature;
 use crate::algebra::{DYTerm, Matcher, Subterms, Term, TermType};
 use crate::fuzzer::bit_mutations::*;
-use crate::fuzzer::harness::default_put_options;
 use crate::fuzzer::term_zoo::TermZoo;
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
-use crate::trace::{Trace, TraceContext};
+use crate::trace::{Spawner, Trace, TraceContext};
 
 #[derive(Clone, Copy, Debug)]
 pub struct MutationConfig {
@@ -750,7 +749,8 @@ where
             choose(trace, constraints_make_message, rand)
         {
             debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
-            let mut ctx = TraceContext::new(self.put_registry, default_put_options().clone());
+            let spawner = Spawner::new(self.put_registry.clone());
+            let mut ctx = TraceContext::new(self.put_registry, spawner);
             match make_message_term(trace, &(step_index, term_path), &mut ctx) {
                 // TODO: possibly we would need to make sure the mutated trace can be executed (if
                 // not directly dropped by the feedback loop once executed)

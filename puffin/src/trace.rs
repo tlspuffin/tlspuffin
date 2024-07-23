@@ -223,6 +223,78 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
     }
 }
 
+#[derive(Debug)]
+pub struct Spawner<PB: ProtocolBehavior> {
+    registry: PutRegistry<PB>,
+    descriptors: HashMap<AgentName, PutDescriptor>,
+    default: PutDescriptor,
+}
+
+impl<PB: ProtocolBehavior> Spawner<PB> {
+    pub fn new(registry: impl Into<PutRegistry<PB>>) -> Self {
+        let registry = registry.into();
+
+        Self {
+            default: PutDescriptor::from(registry.default().name()),
+            registry,
+            descriptors: Default::default(),
+        }
+    }
+
+    pub fn with_mapping(mut self, descriptors: &[(AgentName, PutDescriptor)]) -> Self {
+        self.descriptors.extend(descriptors.iter().cloned());
+        self
+    }
+
+    pub fn with_default(mut self, put: impl Into<PutDescriptor>) -> Self {
+        self.default = put.into();
+        self
+    }
+
+    pub fn spawn(
+        &self,
+        claims: &GlobalClaimList<PB::Claim>,
+        descriptor: &AgentDescriptor,
+    ) -> Result<Agent<PB>, Error> {
+        let put_descriptor = self
+            .descriptors
+            .get(&descriptor.name)
+            .cloned()
+            .unwrap_or_else(|| self.default.clone());
+
+        let factory = self
+            .registry
+            .find_by_id(&put_descriptor.factory)
+            .ok_or_else(|| {
+                Error::Agent(format!(
+                    "unable to find PUT {} factory in binary",
+                    &put_descriptor.factory
+                ))
+            })?;
+
+        let put = factory.create(descriptor, claims, &put_descriptor.options)?;
+        Ok(Agent::new(descriptor.clone(), put))
+    }
+}
+
+impl<PB: ProtocolBehavior + PartialEq> PartialEq for Spawner<PB> {
+    fn eq(&self, other: &Self) -> bool {
+        self.registry == other.registry
+            && self.descriptors == other.descriptors
+            && self.default == other.default
+    }
+}
+
+impl<PB: ProtocolBehavior> Clone for Spawner<PB> {
+    fn clone(&self) -> Self {
+        Self {
+            registry: self.registry.clone(),
+            descriptors: self.descriptors.clone(),
+            default: self.default.clone(),
+        }
+    }
+}
+
 /// The [`TraceContext`] represents the state of an execution.
 ///
 /// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
@@ -237,9 +309,8 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     agents: Vec<Agent<PB>>,
     claims: GlobalClaimList<<PB as ProtocolBehavior>::Claim>,
 
+    spawner: Spawner<PB>,
     put_registry: PutRegistry<PB>,
-    default_put_options: PutOptions,
-    non_default_put_descriptors: HashMap<AgentName, PutDescriptor>,
 
     phantom: PhantomData<PB>,
 }
@@ -261,9 +332,7 @@ impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
 impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
     fn eq(&self, other: &Self) -> bool {
         self.agents == other.agents
-            && self.put_registry == other.put_registry
-            && self.default_put_options == other.default_put_options
-            && self.non_default_put_descriptors == other.non_default_put_descriptors
+            && self.spawner == other.spawner
             && format!("{:?}", self.knowledge_store.raw_knowledge)
                 == format!("{:?}", other.knowledge_store.raw_knowledge)
             && format!("{:?}", self.claims) == format!("{:?}", other.claims)
@@ -271,7 +340,7 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
 }
 
 impl<PB: ProtocolBehavior> TraceContext<PB> {
-    pub fn new(put_registry: &PutRegistry<PB>, default_put_options: PutOptions) -> Self {
+    pub fn new(put_registry: &PutRegistry<PB>, spawner: Spawner<PB>) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
         let claims = GlobalClaimList::new();
@@ -280,19 +349,10 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             knowledge_store: KnowledgeStore::new(),
             agents: vec![],
             claims,
-            non_default_put_descriptors: Default::default(),
             put_registry: put_registry.clone(),
+            spawner,
             phantom: Default::default(),
-            default_put_options,
         }
-    }
-
-    pub fn put_registry(&self) -> &PutRegistry<PB> {
-        &self.put_registry
-    }
-
-    pub fn claims(&self) -> &GlobalClaimList<PB::Claim> {
-        &self.claims
     }
 
     pub fn verify_security_violations(&self) -> Result<(), Error> {
@@ -350,32 +410,11 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         self.knowledge_store.find_variable(query_type_shape, query)
     }
 
-    fn add_agent(&mut self, agent: Agent<PB>) -> AgentName {
-        let name = agent.name();
+    pub fn spawn(&mut self, descriptor: &AgentDescriptor) -> Result<(), Error> {
+        let agent = self.spawner.spawn(&self.claims, descriptor)?;
         self.agents.push(agent);
-        name
-    }
 
-    pub fn new_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        let put_descriptor = self.put_descriptor(descriptor);
-
-        let (_, factory) = self
-            .put_registry()
-            .puts()
-            .find(|(_, factory)| factory.name() == put_descriptor.factory)
-            .ok_or_else(|| {
-                Error::Agent(format!(
-                    "unable to find PUT {} factory in binary",
-                    &put_descriptor.factory
-                ))
-            })?;
-
-        let put = factory.create(descriptor, &self.claims, &put_descriptor.options)?;
-        let agent = Agent::new(descriptor.clone(), put);
-
-        self.add_agent(agent);
-
-        Ok(descriptor.name)
+        Ok(())
     }
 
     pub fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent<PB>, Error> {
@@ -397,37 +436,6 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
                 name
             ))
         })
-    }
-
-    /// Gets the PUT descriptor which should be used for all agents
-    pub fn put_descriptor(&self, agent_descriptor: &AgentDescriptor) -> PutDescriptor {
-        self.non_default_put_descriptors
-            .get(&agent_descriptor.name)
-            .cloned()
-            .unwrap_or_else(|| self.default_put_descriptor())
-    }
-
-    fn default_put_descriptor(&self) -> PutDescriptor {
-        let factory = self.put_registry.default();
-        PutDescriptor::new(factory.name(), self.default_put_options.clone())
-    }
-
-    /// Makes agents use the non-default PUT
-    pub fn set_non_default_put(&mut self, agent_name: AgentName, put_descriptor: PutDescriptor) {
-        self.non_default_put_descriptors
-            .insert(agent_name, put_descriptor);
-    }
-
-    pub fn set_non_default_puts(&mut self, descriptors: &[(AgentName, PutDescriptor)]) {
-        self.non_default_put_descriptors
-            .extend(descriptors.iter().cloned());
-    }
-
-    pub fn reset_agents(&mut self) -> Result<(), Error> {
-        for agent in &mut self.agents {
-            agent.reset(agent.name())?;
-        }
-        Ok(())
     }
 
     pub fn agents_successful(&self) -> bool {
@@ -463,7 +471,7 @@ impl<M: Matcher> Trace<M> {
                 reusable.reset(descriptor.name)?;
             } else {
                 // only spawn completely new if not yet existing
-                ctx.new_agent(descriptor)?;
+                ctx.spawn(descriptor)?;
             };
         }
 
@@ -483,8 +491,8 @@ impl<M: Matcher> Trace<M> {
 
         for trace in &self.prior_traces {
             trace.execute(ctx)?;
-            ctx.reset_agents()?;
         }
+
         self.spawn_agents(ctx)?;
         let steps = &self.steps[0..nb_steps];
         for (i, step) in steps.iter().enumerate() {
@@ -512,7 +520,9 @@ impl<M: Matcher> Trace<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        let mut ctx = TraceContext::new(put_registry, default_put_options);
+        let put = PutDescriptor::new(put_registry.default().name(), default_put_options);
+        let spawner = Spawner::new(put_registry.clone()).with_default(put);
+        let mut ctx = TraceContext::new(put_registry, spawner);
         self.execute(&mut ctx)?;
         Ok(ctx)
     }
@@ -525,9 +535,8 @@ impl<M: Matcher> Trace<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        let mut ctx = TraceContext::new(put_registry, Default::default());
-
-        ctx.set_non_default_puts(descriptors);
+        let spawner = Spawner::new(put_registry.clone()).with_mapping(descriptors);
+        let mut ctx = TraceContext::new(put_registry, spawner);
 
         self.execute(&mut ctx)?;
         Ok(ctx)
@@ -707,11 +716,7 @@ impl<M: Matcher> InputAction<M> {
         }
     }
 
-    fn execute<PB: ProtocolBehavior>(
-        &self,
-        agent_name: AgentName,
-        ctx: &mut TraceContext<PB>,
-    ) -> Result<(), Error>
+    fn execute<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
