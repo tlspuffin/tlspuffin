@@ -1,7 +1,7 @@
 use puffin::{
     agent::AgentName,
     algebra::{dynamic_function::DescribableFunction, Term},
-    execution::forked_execution,
+    execution::run_in_subprocess,
     fuzzer::mutations::{
         util::TermConstraints, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator,
         ReplaceReuseMutator,
@@ -45,7 +45,7 @@ fn test_mutate_seed_cve_2021_3449() {
     let runner = default_runner_for(tls_registry().default().name());
     let mut state = create_state();
 
-    forked_execution(
+    run_in_subprocess(
         move || {
             for _i in 0..5 {
                 let mut attempts = 0;
@@ -222,7 +222,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 println!("try");
             }
         },
-        Some(std::time::Duration::from_secs(30)),
+        std::time::Duration::from_secs(30),
     )
     .expect_crash();
 }

@@ -15,7 +15,7 @@ use crate::{
     agent::AgentName,
     algebra::set_deserialize_signature,
     codec::Codec,
-    execution::{forked_execution, Runner, TraceRunner},
+    execution::{ForkedRunner, Runner, TraceRunner},
     experiment::*,
     fuzzer::{
         sanitizer::asan::{asan_info, setup_asan_env},
@@ -471,19 +471,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) 
 
     // When generating coverage a crash means that no coverage is stored
     // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
-    let status = forked_execution(
-        move || {
-            if let Err(err) = runner.execute(trace) {
-                log::error!(
-                    "Failed to execute trace {}: {:?}",
-                    input.as_ref().display(),
-                    err
-                );
-                std::process::exit(1);
-            }
-        },
-        None,
-    );
+    let status = ForkedRunner::new(runner).execute(trace);
 
     match status {
         Ok(s) => log::info!("execution finished with status {s:?}"),
