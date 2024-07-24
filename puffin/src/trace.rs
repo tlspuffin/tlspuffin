@@ -35,7 +35,7 @@ use crate::protocol::{
     ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
     ProtocolMessage, ProtocolMessageFlight,
 };
-use crate::put::{PutDescriptor, PutOptions};
+use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
 use crate::stream::Stream;
 use crate::variable_data::VariableData;
@@ -235,9 +235,8 @@ pub struct Spawner<PB: ProtocolBehavior> {
 impl<PB: ProtocolBehavior> Spawner<PB> {
     pub fn new(registry: impl Into<PutRegistry<PB>>) -> Self {
         let registry = registry.into();
-
         Self {
-            default: PutDescriptor::from(registry.default().name()),
+            default: registry.default().name().into(),
             registry,
             descriptors: Default::default(),
         }
@@ -312,7 +311,6 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     claims: GlobalClaimList<<PB as ProtocolBehavior>::Claim>,
 
     spawner: Spawner<PB>,
-    put_registry: PutRegistry<PB>,
 
     phantom: PhantomData<PB>,
 }
@@ -342,7 +340,7 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
 }
 
 impl<PB: ProtocolBehavior> TraceContext<PB> {
-    pub fn new(put_registry: &PutRegistry<PB>, spawner: Spawner<PB>) -> Self {
+    pub fn new(spawner: Spawner<PB>) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
         let claims = GlobalClaimList::new();
@@ -351,7 +349,6 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             knowledge_store: KnowledgeStore::new(),
             agents: vec![],
             claims,
-            put_registry: put_registry.clone(),
             spawner,
             phantom: Default::default(),
         }
@@ -481,9 +478,6 @@ impl<M: Matcher> Trace<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        // We reseed all PUTs before executing a trace!
-        ctx.put_registry.determinism_reseed_all_factories();
-
         for trace in &self.prior_traces {
             trace.execute(ctx)?;
         }
@@ -498,36 +492,6 @@ impl<M: Matcher> Trace<M> {
         }
 
         Ok(())
-    }
-
-    pub fn execute_deterministic<PB>(
-        &self,
-        put_registry: &PutRegistry<PB>,
-        default_put_options: PutOptions,
-    ) -> Result<TraceContext<PB>, Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        let put = PutDescriptor::new(put_registry.default().name(), default_put_options);
-        let spawner = Spawner::new(put_registry.clone()).with_default(put);
-        let mut ctx = TraceContext::new(put_registry, spawner);
-        self.execute(&mut ctx)?;
-        Ok(ctx)
-    }
-
-    pub fn execute_with_non_default_puts<PB>(
-        &self,
-        put_registry: &PutRegistry<PB>,
-        descriptors: &[(AgentName, PutDescriptor)],
-    ) -> Result<TraceContext<PB>, Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        let spawner = Spawner::new(put_registry.clone()).with_mapping(descriptors);
-        let mut ctx = TraceContext::new(put_registry, spawner);
-
-        self.execute(&mut ctx)?;
-        Ok(ctx)
     }
 
     pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {
@@ -552,6 +516,12 @@ impl<M: Matcher> fmt::Display for Trace<M> {
             write!(f, "\n{} -> {}", step.agent, step.action)?;
         }
         Ok(())
+    }
+}
+
+impl<M: Matcher> AsRef<Trace<M>> for Trace<M> {
+    fn as_ref(&self) -> &Trace<M> {
+        self
     }
 }
 

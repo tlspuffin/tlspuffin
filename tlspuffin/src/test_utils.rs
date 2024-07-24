@@ -1,11 +1,19 @@
 use std::time::Duration;
 
-use puffin::execution::{forked_execution, ExecutionStatus};
-use puffin::put::PutOptions;
-use puffin::trace::Trace;
+use puffin::execution::{forked_execution, ExecutionStatus, Runner, TraceRunner};
+use puffin::put::PutDescriptor;
+use puffin::trace::{Spawner, Trace};
 
+use crate::protocol::TLSProtocolBehavior;
 use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
+
+pub fn default_runner_for(put: impl Into<PutDescriptor>) -> Runner<TLSProtocolBehavior> {
+    let registry = tls_registry();
+    let spawner = Spawner::new(registry.clone()).with_default(put.into());
+
+    Runner::new(registry, spawner)
+}
 
 // TODO refactor forked execution into a build pattern
 //
@@ -23,7 +31,7 @@ use crate::query::TlsQueryMatcher;
 #[allow(dead_code)]
 pub fn expect_trace_crash(
     trace: Trace<TlsQueryMatcher>,
-    default_put_options: PutOptions,
+    runner: Runner<TLSProtocolBehavior>,
     timeout: Option<Duration>,
     retry: Option<usize>,
 ) {
@@ -37,9 +45,7 @@ pub fn expect_trace_crash(
             forked_execution(
                 || {
                     // Ignore Rust errors
-                    let _ = trace
-                        .clone()
-                        .execute_deterministic(&tls_registry(), default_put_options.clone());
+                    let _ = runner.clone().execute(&trace);
                 },
                 timeout,
             )
@@ -256,11 +262,12 @@ pub mod tcp {
 
 pub mod prelude {
     #![allow(unused_imports)]
+
+    pub use puffin::execution::TraceRunner;
     pub use puffin::test_utils::AssertExecution;
     pub use puffin::trace_helper::TraceHelper;
 
     pub use crate::put_registry::tls_registry;
-    pub use crate::test_utils::expect_trace_crash;
     pub use crate::test_utils::tcp::*;
-    pub use crate::tls::trace_helper::TraceExecutor;
+    pub use crate::test_utils::{default_runner_for, expect_trace_crash};
 }

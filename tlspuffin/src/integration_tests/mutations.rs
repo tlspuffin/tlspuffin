@@ -1,7 +1,7 @@
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
 use puffin::algebra::Term;
-use puffin::execution::forked_execution;
+use puffin::execution::{forked_execution, TraceRunner};
 use puffin::fuzzer::mutations::util::TermConstraints;
 use puffin::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
@@ -10,12 +10,12 @@ use puffin::libafl::corpus::InMemoryCorpus;
 use puffin::libafl::mutators::{MutationResult, Mutator};
 use puffin::libafl::state::StdState;
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
-use puffin::put::PutOptions;
 use puffin::test_utils::AssertExecution;
-use puffin::trace::{Action, Spawner, Step, Trace, TraceContext};
+use puffin::trace::{Action, Step, Trace};
 
 use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
+use crate::test_utils::default_runner_for;
 use crate::tls::fn_impl::{
     fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
     fn_support_group_extension,
@@ -37,8 +37,8 @@ fn create_state() -> StdState<
 #[test_log::test]
 #[ignore]
 fn test_mutate_seed_cve_2021_3449() {
+    let runner = default_runner_for(tls_registry().default().name());
     let mut state = create_state();
-    let _server = AgentName::first();
 
     forked_execution(
         move || {
@@ -213,10 +213,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 }
                 println!("attempts 5: {}", attempts);
 
-                let put_registry = tls_registry();
-                let spawner = Spawner::new(put_registry.clone());
-                let mut context = TraceContext::new(&put_registry, spawner);
-                let _ = trace.execute(&mut context);
+                let _ = runner.execute(trace);
                 println!("try");
             }
         },

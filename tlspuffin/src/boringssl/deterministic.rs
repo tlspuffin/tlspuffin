@@ -17,14 +17,11 @@ mod tests {
 
     #[test_log::test]
     fn test_boringssl_no_randomness_full() {
-        let put_registry = tls_registry();
-        let spawner = Spawner::new(put_registry.clone());
+        let runner = default_runner_for(tls_registry().default().name());
 
         let trace = seed_client_attacker_full.build_trace();
-        let mut ctx1 = TraceContext::new(&put_registry, spawner);
-        let _ = trace.execute(&mut ctx1);
-        let mut ctx2 = TraceContext::new(&put_registry, spawner);
-        let _ = trace.execute(&mut ctx2);
+        let ctx1 = runner.execute(&trace);
+        let ctx2 = runner.execute(&trace);
 
         assert_eq!(ctx1, ctx2);
     }

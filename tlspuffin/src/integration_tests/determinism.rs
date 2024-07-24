@@ -8,18 +8,14 @@ fn test_attacker_full_det_recreate() {
     use crate::test_utils::prelude::*;
     use crate::tls::seeds::seed_client_attacker_full;
 
-    let put_registry = tls_registry();
-    let spawner = Spawner::new(put_registry.clone());
-
+    let runner = default_runner_for(tls_registry().default().name());
     let trace = seed_client_attacker_full.build_trace();
 
-    let mut ctx_1 = TraceContext::new(put_registry.clone(), spawner);
-    trace.execute(&mut ctx_1);
+    let ctx_1 = runner.execute(&trace);
 
     for i in 0..200 {
         println!("Attempt #{i}...");
-        let mut ctx_2 = TraceContext::new(put_registry.clone(), spawner);
-        trace.execute(&mut ctx_2);
+        let ctx_2 = runner.execute(&trace);
         assert_eq!(ctx_1, ctx_2);
     }
 

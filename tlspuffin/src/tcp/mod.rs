@@ -467,9 +467,11 @@ where
 
 #[cfg(test)]
 mod tests {
-    use puffin::agent::{AgentName, TLSVersion};
+    use puffin::agent::TLSVersion;
+    use puffin::execution::{Runner, TraceRunner};
     use puffin::put::PutDescriptor;
     use puffin::put_registry::TCP_PUT;
+    use puffin::trace::Spawner;
 
     #[allow(unused_imports)]
     use crate::{test_utils::prelude::*, tls::seeds::*};
@@ -478,20 +480,12 @@ mod tests {
     fn test_openssl_session_resumption_dhe_full() {
         let port = 44330;
         let guard = openssl_server(port, TLSVersion::V1_3);
-        let put = PutDescriptor::new(TCP_PUT, guard.build_options());
-
-        let put_registry = tls_registry();
         let trace = seed_session_resumption_dhe_full.build_trace();
-        let initial_server = trace.prior_traces[0].descriptors[0].name;
         let server = trace.descriptors[0].name;
-        let mut context = trace
-            .execute_with_non_default_puts(
-                &put_registry,
-                &[(initial_server, put.clone()), (server, put)],
-            )
-            .unwrap();
+        let runner = default_runner_for(PutDescriptor::new(TCP_PUT, guard.build_options()));
 
-        let server = AgentName::first().next();
+        let mut context = runner.execute(trace).unwrap();
+
         let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         log::info!("{}", shutdown);
         assert!(shutdown.contains("Reused session-id"));
@@ -500,18 +494,13 @@ mod tests {
     #[test_log::test]
     fn test_openssl_seed_client_attacker_full() {
         let port = 44331;
-
         let guard = openssl_server(port, TLSVersion::V1_3);
-        let put = PutDescriptor::new(TCP_PUT, guard.build_options());
-
-        let put_registry = tls_registry();
+        let runner = default_runner_for(PutDescriptor::new(TCP_PUT, guard.build_options()));
         let trace = seed_client_attacker_full.build_trace();
         let server = trace.descriptors[0].name;
-        let mut context = trace
-            .execute_with_non_default_puts(&put_registry, &[(server, put)])
-            .unwrap();
 
-        let server = AgentName::first();
+        let mut context = runner.execute(trace).unwrap();
+
         let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         log::info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
@@ -520,35 +509,32 @@ mod tests {
 
     #[test_log::test]
     fn test_openssl_openssl_seed_successful12() {
-        let port = 44332;
+        let trace = seed_successful12_with_tickets.build_trace();
 
-        let server_guard = openssl_server(port, TLSVersion::V1_2);
+        let server_port = 44332;
+        let server_agent = trace.descriptors[1].name;
+        let server_guard = openssl_server(server_port, TLSVersion::V1_2);
         let server = PutDescriptor::new(TCP_PUT, server_guard.build_options());
 
-        let port = 44333;
-
-        let client_guard = openssl_client(port, TLSVersion::V1_2);
+        let client_port = 44333;
+        let client_agent = trace.descriptors[0].name;
+        let client_guard = openssl_client(client_port, TLSVersion::V1_2);
         let client = PutDescriptor::new(TCP_PUT, client_guard.build_options());
 
         let put_registry = tls_registry();
-        let trace = seed_successful12_with_tickets.build_trace();
-        let descriptors = &trace.descriptors;
-        let client_name = descriptors[0].name;
-        let server_name = descriptors[1].name;
-        let mut context = trace
-            .execute_with_non_default_puts(
-                &put_registry,
-                &[(client_name, client), (server_name, server)],
-            )
-            .unwrap();
+        let runner = Runner::new(
+            put_registry.clone(),
+            Spawner::new(put_registry)
+                .with_mapping(&[(client_agent, client), (server_agent, server)]),
+        );
 
-        let client = AgentName::first();
-        let shutdown = context.find_agent_mut(client).unwrap().shutdown();
+        let mut context = runner.execute(trace).unwrap();
+
+        let shutdown = context.find_agent_mut(client_agent).unwrap().shutdown();
         log::info!("{}", shutdown);
         assert!(shutdown.contains("Timeout   : 7200 (sec)"));
 
-        let server = client.next();
-        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
+        let shutdown = context.find_agent_mut(server_agent).unwrap().shutdown();
         log::info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
@@ -556,35 +542,32 @@ mod tests {
     #[test_log::test]
     #[ignore] // wolfssl example server and client are not available in CI
     fn test_wolfssl_openssl_seed_successful12() {
-        let port = 44334;
+        let trace = seed_successful12_with_tickets.build_trace();
 
-        let server_guard = openssl_server(port, TLSVersion::V1_2);
+        let server_port = 44334;
+        let server_agent = trace.descriptors[1].name;
+        let server_guard = openssl_server(server_port, TLSVersion::V1_2);
         let server = PutDescriptor::new(TCP_PUT, server_guard.build_options());
 
-        let port = 44335;
-
-        let client_guard = wolfssl_client(port, TLSVersion::V1_2, None);
+        let client_port = 44335;
+        let client_agent = trace.descriptors[0].name;
+        let client_guard = wolfssl_client(client_port, TLSVersion::V1_2, None);
         let client = PutDescriptor::new(TCP_PUT, client_guard.build_options());
 
         let put_registry = tls_registry();
-        let trace = seed_successful12_with_tickets.build_trace();
-        let descriptors = &trace.descriptors;
-        let client_name = descriptors[0].name;
-        let server_name = descriptors[1].name;
-        let mut context = trace
-            .execute_with_non_default_puts(
-                &put_registry,
-                &[(client_name, client), (server_name, server)],
-            )
-            .unwrap();
+        let runner = Runner::new(
+            put_registry.clone(),
+            Spawner::new(put_registry)
+                .with_mapping(&[(client_agent, client), (server_agent, server)]),
+        );
 
-        let client = AgentName::first();
-        let shutdown = context.find_agent_mut(client).unwrap().shutdown();
+        let mut context = runner.execute(trace).unwrap();
+
+        let shutdown = context.find_agent_mut(client_agent).unwrap().shutdown();
         log::info!("{}", shutdown);
         assert!(!shutdown.contains("fail"));
 
-        let server = client.next();
-        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
+        let shutdown = context.find_agent_mut(server_agent).unwrap().shutdown();
         log::info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
