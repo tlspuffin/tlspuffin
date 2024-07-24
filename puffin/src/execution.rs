@@ -55,6 +55,60 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
     }
 }
 
+#[derive(Debug)]
+pub struct ForkedRunner<T: TraceRunner> {
+    runner: T,
+    timeout: Option<Duration>,
+}
+
+impl<T: TraceRunner> ForkedRunner<T> {
+    pub fn new(runner: T) -> Self {
+        Self {
+            runner,
+            timeout: None,
+        }
+    }
+
+    pub fn with_timeout(mut self, timeout: impl Into<Option<Duration>>) -> Self {
+        self.timeout = timeout.into();
+        self
+    }
+}
+
+impl<T> From<T> for ForkedRunner<T>
+where
+    T: TraceRunner,
+{
+    fn from(runner: T) -> Self {
+        ForkedRunner::new(runner)
+    }
+}
+
+impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
+    type E = ForkError;
+    type PB = T::PB;
+    type R = ExecutionStatus;
+
+    fn execute<Tr>(self, trace: Tr) -> Result<Self::R, Self::E>
+    where
+        Tr: AsRef<Trace<<Self::PB as ProtocolBehavior>::Matcher>>,
+    {
+        let runner = self.runner.clone();
+
+        run_in_subprocess(
+            || {
+                let ret = match runner.execute(trace) {
+                    Ok(_) => 0,
+                    Err(_) => 1,
+                };
+
+                std::process::exit(ret);
+            },
+            self.timeout,
+        )
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ForkError {
     reason: String,
@@ -74,7 +128,7 @@ impl From<Errno> for ForkError {
     }
 }
 
-pub fn forked_execution<R>(
+pub fn run_in_subprocess<R>(
     func: R,
     timeout: impl Into<Option<Duration>>,
 ) -> Result<ExecutionStatus, ForkError>

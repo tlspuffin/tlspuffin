@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use puffin::execution::{forked_execution, ExecutionStatus, Runner, TraceRunner};
+use puffin::execution::{ExecutionStatus, ForkedRunner, Runner, TraceRunner};
 use puffin::put::PutDescriptor;
 use puffin::trace::{Spawner, Trace};
 
@@ -15,19 +15,6 @@ pub fn default_runner_for(put: impl Into<PutDescriptor>) -> Runner<TLSProtocolBe
     Runner::new(registry, spawner)
 }
 
-// TODO refactor forked execution into a build pattern
-//
-//     Because we now have several optional arguments to execute a trace and
-//     several more in [`forked_execution()`], the API is difficult to read at
-//     call site.
-//
-//     It would make sense to group everything into a builder pattern for
-//     creating an trace execution. This would give something like:
-//
-//     Execution::builder(trace, options)
-//         .timeout(Duration::from_secs(10))
-//         .retry(5)
-//         .expect_crash()
 #[allow(dead_code)]
 pub fn expect_trace_crash(
     trace: Trace<TlsQueryMatcher>,
@@ -36,7 +23,7 @@ pub fn expect_trace_crash(
     retry: Option<usize>,
 ) {
     let nb_retry = retry.unwrap_or(1);
-    let timeout = timeout.into();
+    let forked_runner = ForkedRunner::new(&runner).with_timeout(timeout);
 
     let _ = std::iter::repeat(())
         .take(nb_retry)
@@ -44,15 +31,7 @@ pub fn expect_trace_crash(
         .inspect(|(i, _)| {
             log::debug!("expect_trace_crash (retry {})", i);
         })
-        .map(|_| {
-            forked_execution(
-                || {
-                    // Ignore Rust errors
-                    let _ = runner.clone().execute(&trace);
-                },
-                timeout,
-            )
-        })
+        .map(|_| forked_runner.execute(&trace))
         .inspect(|status| {
             use ExecutionStatus as S;
             match &status {
