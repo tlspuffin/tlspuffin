@@ -1121,7 +1121,7 @@ pub mod tests {
         expect_trace_crash(
             seed_freak.build_trace(),
             default_runner_for(tls_registry().default().name()),
-            Some(std::time::Duration::from_secs(20)),
+            std::time::Duration::from_secs(20),
             Some(20),
         );
     }
@@ -1133,7 +1133,7 @@ pub mod tests {
         expect_trace_crash(
             seed_heartbleed.build_trace(),
             default_runner_for(tls_registry().default().name()),
-            Some(std::time::Duration::from_secs(20)),
+            std::time::Duration::from_secs(20),
             Some(20),
         );
     }
@@ -1145,7 +1145,7 @@ pub mod tests {
         expect_trace_crash(
             seed_cve_2021_3449.build_trace(),
             default_runner_for(tls_registry().default().name()),
-            Some(std::time::Duration::from_secs(20)),
+            std::time::Duration::from_secs(20),
             Some(20),
         );
     }
@@ -1206,7 +1206,7 @@ pub mod tests {
                 tls_registry().default().name(),
                 vec![("use_clear", "true")],
             )),
-            Some(std::time::Duration::from_secs(20)),
+            std::time::Duration::from_secs(20),
             Some(20),
         );
     }
@@ -1226,7 +1226,7 @@ pub mod tests {
         expect_trace_crash(
             seed_cve_2022_38153.build_trace(),
             runner,
-            Some(std::time::Duration::from_secs(20)),
+            std::time::Duration::from_secs(20),
             Some(20),
         );
     }
@@ -1242,7 +1242,7 @@ pub mod tests {
         expect_trace_crash(
             seed_cve_2022_39173.build_trace(),
             default_runner_for(tls_registry().default().name()),
-            Some(std::time::Duration::from_secs(20)),
+            std::time::Duration::from_secs(20),
             Some(20),
         );
     }
@@ -1258,7 +1258,7 @@ pub mod tests {
         expect_trace_crash(
             seed_cve_2022_39173_full.build_trace(),
             default_runner_for(tls_registry().default().name()),
-            Some(std::time::Duration::from_secs(20)),
+            std::time::Duration::from_secs(20),
             Some(20),
         );
     }
@@ -1274,7 +1274,7 @@ pub mod tests {
         expect_trace_crash(
             seed_cve_2022_39173_minimized.build_trace(),
             default_runner_for(tls_registry().default().name()),
-            Some(std::time::Duration::from_secs(20)),
+            std::time::Duration::from_secs(20),
             Some(20),
         );
     }
