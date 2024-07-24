@@ -1,6 +1,6 @@
 use crate::{
     algebra::{Matcher, Term},
-    execution::ExecutionStatus,
+    execution::{ExecutionStatus, ForkError},
     graphviz::write_graphviz,
     trace::{Action, Trace},
 };
@@ -55,12 +55,14 @@ pub trait AssertExecution {
     fn expect_crash(self);
 }
 
-impl AssertExecution for Result<ExecutionStatus, String> {
+impl AssertExecution for Result<ExecutionStatus, ForkError> {
     fn expect_crash(self) {
         use ExecutionStatus as S;
         match self {
-            Ok(S::Failure(_)) | Ok(S::Crashed) => (),
+            Ok(S::Crashed) => (),
+            Ok(S::Failure(_)) => panic!("invalid trace"),
             Ok(S::Timeout) => panic!("trace execution timed out"),
+            Ok(S::Interrupted) => panic!("trace execution interrupted"),
             Ok(S::Success) => panic!("expected trace execution to crash, but succeeded"),
             Err(reason) => panic!("trace execution error: {reason}"),
         }
