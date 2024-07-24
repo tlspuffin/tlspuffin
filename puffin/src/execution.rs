@@ -11,6 +11,56 @@ use nix::{
     unistd::{fork, ForkResult, Pid},
 };
 
+use crate::{
+    error::Error,
+    protocol::ProtocolBehavior,
+    put_registry::PutRegistry,
+    trace::{Spawner, Trace, TraceContext},
+};
+
+pub trait TraceRunner {
+    type PB: ProtocolBehavior;
+    type R;
+    type E;
+
+    fn execute<T>(self, trace: T) -> Result<Self::R, Self::E>
+    where
+        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::Matcher>>;
+}
+
+#[derive(Debug, Clone)]
+pub struct Runner<PB: ProtocolBehavior> {
+    registry: PutRegistry<PB>,
+    spawner: Spawner<PB>,
+}
+
+impl<PB: ProtocolBehavior> Runner<PB> {
+    pub fn new(registry: impl Into<PutRegistry<PB>>, spawner: impl Into<Spawner<PB>>) -> Self {
+        Self {
+            registry: registry.into(),
+            spawner: spawner.into(),
+        }
+    }
+}
+
+impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
+    type PB = PB;
+    type R = TraceContext<Self::PB>;
+    type E = Error;
+
+    fn execute<T>(self, trace: T) -> Result<Self::R, Self::E>
+    where
+        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::Matcher>>,
+    {
+        // We reseed all PUTs before executing a trace!
+        self.registry.determinism_reseed_all_factories();
+
+        let mut ctx = TraceContext::new(self.spawner.clone());
+        trace.as_ref().execute(&mut ctx)?;
+        Ok(ctx)
+    }
+}
+
 pub fn forked_execution<R>(func: R, timeout: Option<Duration>) -> Result<ExecutionStatus, String>
 where
     R: FnOnce(),

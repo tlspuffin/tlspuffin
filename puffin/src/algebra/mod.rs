@@ -736,11 +736,11 @@ mod tests {
             Box::new(TestFactory)
         }
 
-        let put_registry =
+        let registry =
             PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
-        let spawner = Spawner::new(put_registry.clone());
+        let spawner = Spawner::new(registry);
 
-        let mut context = TraceContext::new(&put_registry, spawner);
+        let mut context = TraceContext::new(spawner);
         context.knowledge_store.add_knowledge(Knowledge {
             source: Source::Agent(AgentName::first()),
             matcher: None,

@@ -12,7 +12,7 @@ use puffin::{
         mutators::{MutationResult, Mutator},
         state::StdState,
     },
-    trace::{Action, Spawner, Step, Trace, TraceContext},
+    trace::{Action, Step, Trace},
 };
 
 use crate::{
@@ -42,8 +42,8 @@ fn create_state() -> StdState<
 #[test_log::test]
 #[ignore]
 fn test_mutate_seed_cve_2021_3449() {
+    let runner = default_runner_for(tls_registry().default().name());
     let mut state = create_state();
-    let _server = AgentName::first();
 
     forked_execution(
         move || {
@@ -218,10 +218,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 }
                 println!("attempts 5: {}", attempts);
 
-                let put_registry = tls_registry();
-                let spawner = Spawner::new(put_registry.clone());
-                let mut context = TraceContext::new(&put_registry, spawner);
-                let _ = trace.execute(&mut context);
+                let _ = runner.execute(trace);
                 println!("try");
             }
         },

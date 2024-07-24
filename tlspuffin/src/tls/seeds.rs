@@ -1815,7 +1815,11 @@ pub mod tests {
     #[test_log::test]
     #[cfg(feature = "tls12")]
     fn test_seed_client_attacker12() {
-        let ctx = seed_client_attacker12.execute_trace();
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_client_attacker12.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1823,7 +1827,11 @@ pub mod tests {
     #[cfg(feature = "transcript-extraction")] // this depends on extracted transcripts -> claims are required
     #[test_log::test]
     fn test_seed_client_attacker() {
-        let ctx = seed_client_attacker.execute_trace();
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_client_attacker.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1832,14 +1840,22 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_client_attacker_auth() {
-        let ctx = seed_client_attacker_auth.execute_trace();
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_client_attacker_auth.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test_log::test]
     fn test_seed_client_attacker_full() {
-        let ctx = seed_client_attacker_full.execute_trace();
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_client_attacker_full.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1847,7 +1863,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_server_attacker_full() {
-        let ctx = seed_server_attacker_full.execute_trace();
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_server_attacker_full.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1856,7 +1876,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_session_resumption_dhe() {
-        let ctx = seed_session_resumption_dhe.execute_trace();
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_session_resumption_dhe.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1865,7 +1889,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_session_resumption_dhe_full() {
-        let ctx = seed_session_resumption_dhe_full.execute_trace();
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_session_resumption_dhe_full.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1874,7 +1902,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_session_resumption_ke() {
-        let ctx = seed_session_resumption_ke.execute_trace();
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_session_resumption_ke.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1882,7 +1914,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_successful() {
-        let ctx = seed_successful.execute_trace();
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_successful.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1890,7 +1926,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_successful_client_auth() {
-        let ctx = seed_successful_client_auth.execute_trace();
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_successful_client_auth.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1901,7 +1941,11 @@ pub mod tests {
     // expected = "decryption failed or bad record mac"  // in case MITM attack did fail
     #[should_panic]
     fn test_seed_successful_mitm() {
-        let ctx = seed_successful_mitm.execute_trace();
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_successful_mitm.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1909,7 +1953,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_successful_with_ccs() {
-        let ctx = seed_successful_with_ccs.execute_trace();
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_successful_with_ccs.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1919,7 +1967,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_successful_with_tickets() {
-        let ctx = seed_successful_with_tickets.execute_trace();
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_successful_with_tickets.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1927,10 +1979,14 @@ pub mod tests {
     #[cfg(feature = "tls12")]
     #[cfg(not(feature = "boringssl-binding"))]
     fn test_seed_successful12() {
+        let runner = default_runner_for(tls_registry().default().name());
         #[cfg(feature = "tls12-session-resumption")]
-        let ctx = seed_successful12_with_tickets.execute_trace();
+        let trace = seed_successful12_with_tickets.build_trace();
         #[cfg(not(feature = "tls12-session-resumption"))]
-        let ctx = seed_successful12.execute_trace();
+        let trace = seed_successful12.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
