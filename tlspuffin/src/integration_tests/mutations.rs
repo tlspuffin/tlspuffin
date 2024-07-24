@@ -2,7 +2,7 @@ use log::{debug, error, warn};
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
 use puffin::algebra::{DYTerm, TermType};
-use puffin::execution::{forked_execution, TraceRunner};
+use puffin::execution::{run_in_subprocess, TraceRunner};
 use puffin::fuzzer::bit_mutations::{ByteFlipMutatorDY, ByteInterestingMutatorDY};
 use puffin::fuzzer::mutations::{
     trace_mutations, MakeMessage, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
@@ -554,7 +554,7 @@ fn test_mutate_seed_cve_2021_3449() {
     let runner = default_runner_for(tls_registry().default().name());
     let mut state = create_state();
 
-    forked_execution(
+    run_in_subprocess(
         move || {
             for _i in 0..5 {
                 let mut attempts = 0;
@@ -728,7 +728,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 println!("try");
             }
         },
-        Some(std::time::Duration::from_secs(30)),
+        std::time::Duration::from_secs(30),
     )
     .expect_crash();
 }

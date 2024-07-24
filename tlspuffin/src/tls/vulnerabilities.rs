@@ -1238,7 +1238,7 @@ pub mod tests {
     #[cfg(feature = "wolfssl530")]
     fn test_seed_cve_2022_38153() {
         let runner = default_runner_for(tls_registry().default().name());
-        let trace = crate::tls::seeds::seed_successful12_with_tickets.build_trace();
+        let trace = seed_successful12_with_tickets.build_trace();
 
         for _ in 0..50 {
             let _ = runner.execute(trace).unwrap();
