@@ -32,16 +32,19 @@ pub fn default_runner_for(put: impl Into<PutDescriptor>) -> Runner<TLSProtocolBe
 pub fn expect_trace_crash(
     trace: Trace<TlsQueryMatcher>,
     runner: Runner<TLSProtocolBehavior>,
-    timeout: Option<Duration>,
+    timeout: impl Into<Option<Duration>>,
     retry: Option<usize>,
 ) {
     let nb_retry = retry.unwrap_or(1);
+    let timeout = timeout.into();
 
     let _ = std::iter::repeat(())
         .take(nb_retry)
         .enumerate()
-        .map(|(i, _)| {
-            log::debug!("expect_trace_crash at retry {}", i);
+        .inspect(|(i, _)| {
+            log::debug!("expect_trace_crash (retry {})", i);
+        })
+        .map(|_| {
             forked_execution(
                 || {
                     // Ignore Rust errors
@@ -52,19 +55,16 @@ pub fn expect_trace_crash(
         })
         .inspect(|status| {
             use ExecutionStatus as S;
-            match status {
-                Ok(S::Failure(_)) | Ok(S::Crashed) => log::info!("trace execution crashed"),
-                Ok(S::Timeout) => log::info!("trace execution timed out"),
-                Ok(S::Success) => log::info!("expected trace execution to crash, but succeeded"),
-                Err(reason) => log::info!("trace execution error: {reason}"),
+            match &status {
+                Ok(S::Crashed) => log::debug!("trace execution crashed"),
+                Ok(S::Failure(_)) => log::debug!("invalid trace"),
+                Ok(S::Timeout) => log::debug!("trace execution timed out"),
+                Ok(S::Interrupted) => log::debug!("trace execution interrupted"),
+                Ok(S::Success) => log::debug!("expected trace execution to crash, but succeeded"),
+                Err(reason) => log::debug!("trace execution error: {reason}"),
             };
         })
-        .find(|status| {
-            matches!(
-                status,
-                Ok(ExecutionStatus::Failure(_)) | Ok(ExecutionStatus::Crashed)
-            )
-        })
+        .find(|status| matches!(status, Ok(ExecutionStatus::Crashed)))
         .unwrap_or_else(|| {
             panic!(
                 "expected trace execution to crash (retried {} times)",
