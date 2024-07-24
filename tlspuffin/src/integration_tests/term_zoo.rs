@@ -167,7 +167,7 @@ mod tests {
             .map(|(shape, _)| shape.name.to_string())
             .collect::<HashSet<String>>();
 
-        let ctx = TraceContext::new(&tls_registry, spawner);
+        let ctx = TraceContext::new(spawner);
         let mut successfully_built_functions = zoo
             .terms()
             .iter()
@@ -206,7 +206,7 @@ mod tests {
         let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
         let terms = zoo.terms();
         let number_terms = terms.len();
-        let ctx = TraceContext::new(&tls_registry, spawner);
+        let ctx = TraceContext::new(spawner);
         let mut eval_count = 0;
         let mut count_lazy_fail = 0;
         let mut count_any_encode_fail = 0;
@@ -444,7 +444,7 @@ mod tests {
         let spawner = Spawner::new(tls_registry.clone());
         let mut rand = StdRand::with_seed(101);
         let all_functions_shape = TLS_SIGNATURE.functions.to_owned();
-        let mut ctx = TraceContext::new(&tls_registry, spawner);
+        let ctx = TraceContext::new(spawner);
         let mut eval_count = 0;
         let mut count_lazy_fail = 0;
         let mut count_payload_fail = 0;
@@ -648,7 +648,7 @@ mod tests {
         let spawner = Spawner::new(tls_registry.clone());
         let mut rand = StdRand::with_seed(101);
         let all_functions_shape = TLS_SIGNATURE.functions.to_owned();
-        let ctx = TraceContext::new(&tls_registry, spawner);
+        let ctx = TraceContext::new(spawner);
         let mut eval_count = 0;
         let mut count_lazy_fail = 0;
         let mut read_count = 0;

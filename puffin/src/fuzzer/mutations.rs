@@ -750,7 +750,7 @@ where
         {
             debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
             let spawner = Spawner::new(self.put_registry.clone());
-            let mut ctx = TraceContext::new(self.put_registry, spawner);
+            let mut ctx = TraceContext::new(spawner);
             match make_message_term(trace, &(step_index, term_path), &mut ctx) {
                 // TODO: possibly we would need to make sure the mutated trace can be executed (if
                 // not directly dropped by the feedback loop once executed)

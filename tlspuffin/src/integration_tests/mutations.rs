@@ -2,9 +2,8 @@ use log::{debug, error, warn};
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
 use puffin::algebra::{DYTerm, TermType};
-use puffin::execution::forked_execution;
+use puffin::execution::{forked_execution, TraceRunner};
 use puffin::fuzzer::bit_mutations::{ByteFlipMutatorDY, ByteInterestingMutatorDY};
-use puffin::fuzzer::harness::set_default_put_options;
 use puffin::fuzzer::mutations::{
     trace_mutations, MakeMessage, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
     ReplaceMatchMutator, ReplaceReuseMutator,
@@ -17,7 +16,6 @@ use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 use puffin::libafl_bolts::tuples::HasConstLen;
 use puffin::libafl_bolts::HasLen;
 use puffin::protocol::ProtocolBehavior;
-use puffin::put::PutOptions;
 use puffin::put_registry::PutRegistry;
 use puffin::test_utils::AssertExecution;
 use puffin::trace::{Action, Spawner, Step, Trace, TraceContext};
@@ -26,6 +24,7 @@ use puffin::trace_helper::TraceHelper;
 use crate::protocol::TLSProtocolBehavior;
 use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
+use crate::test_utils::default_runner_for;
 use crate::tls::fn_impl::{
     fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
     fn_support_group_extension,
@@ -92,7 +91,6 @@ fn test_mutators() {
 
     let tls_registry = tls_registry();
     let mut state = create_state();
-    set_default_put_options(PutOptions::default());
 
     let mut mutations = test_mutations(&tls_registry, with_bit_level, with_dy);
 
@@ -235,7 +233,6 @@ fn test_mutators() {
 #[test_log::test]
 fn test_make_message() {
     let tls_registry = tls_registry();
-    let spawner = Spawner::new(tls_registry.clone());
     let mut state = create_state();
     let mut mutator: MakeMessage<
         StdState<
@@ -247,9 +244,7 @@ fn test_make_message() {
         TLSProtocolBehavior,
     > = MakeMessage::new(TermConstraints::default(), &tls_registry, true, true);
 
-    let mut ctx = TraceContext::new(&tls_registry, spawner);
     let mut trace = seed_client_attacker_full.build_trace();
-    set_default_put_options(PutOptions::default());
 
     loop {
         mutator.mutate(&mut state, &mut trace, 0).unwrap();
@@ -280,7 +275,6 @@ fn test_make_message() {
 #[test_log::test]
 fn test_byte_remove_payloads() {
     let tls_registry = tls_registry();
-    let spawner = Spawner::new(tls_registry.clone());
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
@@ -300,9 +294,7 @@ fn test_byte_remove_payloads() {
         true,
     );
 
-    let mut ctx = TraceContext::new(&tls_registry, spawner);
     let mut trace = seed_client_attacker_full.build_trace();
-    set_default_put_options(PutOptions::default());
     let mut i = 0;
     let MAX = 1000;
 
@@ -369,7 +361,6 @@ fn test_byte_remove_payloads() {
 #[test_log::test]
 fn test_byte_simple() {
     let tls_registry = tls_registry();
-    let spawner = Spawner::new(tls_registry.clone());
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
@@ -390,9 +381,7 @@ fn test_byte_simple() {
     );
     let mut mutator_byte = ByteFlipMutatorDY::new(true);
 
-    let mut ctx = TraceContext::new(&tls_registry, spawner);
     let mut trace = seed_client_attacker_full.build_trace();
-    set_default_put_options(PutOptions::default());
     let mut i = 0;
     let MAX = 1000;
 
@@ -477,9 +466,8 @@ fn test_byte_interesting() {
     );
     let mut mutator_byte_interesting = ByteInterestingMutatorDY::new(true);
 
-    let mut ctx = TraceContext::new(&tls_registry, spawner);
+    let ctx = TraceContext::new(spawner);
     let mut trace = seed_client_attacker_full.build_trace();
-    set_default_put_options(PutOptions::default());
     let mut i = 0;
     let MAX = 1000;
 
@@ -563,8 +551,8 @@ fn test_byte_interesting() {
 #[test_log::test]
 #[ignore]
 fn test_mutate_seed_cve_2021_3449() {
+    let runner = default_runner_for(tls_registry().default().name());
     let mut state = create_state();
-    let _server = AgentName::first();
 
     forked_execution(
         move || {
@@ -736,10 +724,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 }
                 println!("attempts 5: {}", attempts);
 
-                let put_registry = tls_registry();
-                let spawner = Spawner::new(put_registry.clone());
-                let mut context = TraceContext::new(&put_registry, spawner);
-                let _ = trace.execute(&mut context);
+                let _ = runner.execute(trace);
                 println!("try");
             }
         },

@@ -65,9 +65,8 @@ mod tests {
     #[test_log::test]
     #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))] // only for boring as we hard-coded payloads for this PUT in the test
     fn test_replace_bitstring_multiple() {
-        let tls_registry = tls_registry();
-        let spawner = Spawner::new(tls_registry.clone());
-        let mut ctx = TraceContext::new(&tls_registry, spawner);
+        let spawner = Spawner::new(tls_registry());
+        let mut ctx = TraceContext::new(spawner);
         let mut trace = seed_client_attacker_full.build_trace();
         trace.execute(&mut ctx);
         let step0_before = vec![
@@ -229,8 +228,7 @@ mod tests {
     fn test_evaluate_recipe_input_compare_new() {
         use puffin::stream::Stream;
 
-        let tls_registry = tls_registry();
-        let spawner = Spawner::new(tls_registry.clone());
+        let spawner = Spawner::new(tls_registry());
 
         for (tr, name) in create_corpus() {
             log::debug!("\n\n============= Executing trace {name}");
@@ -238,7 +236,7 @@ mod tests {
                 // currently failing traces because of broken certs (?), even before my edits
                 continue;
             }
-            let mut ctx = TraceContext::new(&tls_registry, spawner.clone());
+            let mut ctx = TraceContext::new(spawner.clone());
 
             for trace in &tr.prior_traces {
                 trace.execute(&mut ctx).expect("d");
