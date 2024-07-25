@@ -88,5 +88,5 @@ jobs:
           git config --global user.email tlspuffin@tlspuffin
           git config --global user.name tlspuffin
           git add website
-          git commit -m "deploy from ${{ github.repository }}/${{ github.ref}}@${{ github.sha }}"
+          git commit -m "deploy from ${{ github.repository }}/${{ github.ref}}@${{ github.sha }}" || true
           git push
