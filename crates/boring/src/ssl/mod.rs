@@ -61,7 +61,6 @@ use std::{
     any::TypeId,
     cmp,
     collections::HashMap,
-    convert::TryInto,
     ffi::{CStr, CString},
     fmt, io,
     io::prelude::*,

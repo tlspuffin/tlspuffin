@@ -198,7 +198,7 @@ mod test {
 
     use super::HandshakeHashBuffer;
 
-    #[test]
+    #[test_log::test]
     fn hashes_correctly() {
         let mut hhb = HandshakeHashBuffer::new();
         hhb.update_raw(b"hello");
@@ -214,7 +214,7 @@ mod test {
         assert_eq!(h[3], 0x5c);
     }
 
-    #[test]
+    #[test_log::test]
     fn buffers_correctly() {
         let mut hhb = HandshakeHashBuffer::new();
         hhb.set_client_auth_enabled();
@@ -234,7 +234,7 @@ mod test {
         assert_eq!(Some(b"helloworld".to_vec()), buf);
     }
 
-    #[test]
+    #[test_log::test]
     fn abandon() {
         let mut hhb = HandshakeHashBuffer::new();
         hhb.set_client_auth_enabled();

@@ -151,7 +151,7 @@ mod tests {
         message::{Message, MessagePayload, PlainMessage},
     };
 
-    #[test]
+    #[test_log::test]
     fn want() {
         let hj = HandshakeJoiner::new();
         assert!(hj.is_empty());
@@ -184,7 +184,7 @@ mod tests {
         assert_eq!(left, right);
     }
 
-    #[test]
+    #[test_log::test]
     fn split() {
         // Check we split two handshake messages within one PDU.
         let mut hj = HandshakeJoiner::new();
@@ -213,7 +213,7 @@ mod tests {
         pop_eq(&expect, &mut hj);
     }
 
-    #[test]
+    #[test_log::test]
     fn broken() {
         // Check obvious crap payloads are reported as errors, not panics.
         let mut hj = HandshakeJoiner::new();
@@ -229,7 +229,7 @@ mod tests {
         assert_eq!(hj.take_message(msg), None);
     }
 
-    #[test]
+    #[test_log::test]
     fn join() {
         // Check we join one handshake message split over two PDUs.
         let mut hj = HandshakeJoiner::new();
@@ -281,7 +281,7 @@ mod tests {
         pop_eq(&expect, &mut hj);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_rejects_giant_certs() {
         let mut hj = HandshakeJoiner::new();
         let msg = PlainMessage {

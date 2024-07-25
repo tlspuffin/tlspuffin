@@ -23,7 +23,6 @@ use std::{
 };
 
 use clap::error::Result;
-use log::{debug, trace, warn};
 use serde::{Deserialize, Serialize};
 
 #[allow(unused)] // used in docs
@@ -99,13 +98,13 @@ impl<M: Matcher> Knowledge<M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         let data_type_id = self.data.type_id();
-        debug!(
+        log::debug!(
             "New knowledge {}: {}  (counter: {})",
             &self,
             remove_prefix(self.data.type_name()),
             ctx.number_matching_message_with_source(source.clone(), data_type_id, &self.matcher)
         );
-        trace!("Knowledge data: {:?}", self.data);
+        log::trace!("Knowledge data: {:?}", self.data);
     }
 }
 
@@ -459,7 +458,7 @@ impl<M: Matcher> Trace<M> {
             if ctx.deterministic_put {
                 if let Ok(agent) = ctx.find_agent_mut(name) {
                     if let Err(err) = agent.put_mut().determinism_reseed() {
-                        warn!("Unable to make agent {} deterministic: {}", name, err)
+                        log::warn!("Unable to make agent {} deterministic: {}", name, err)
                     }
                 }
             }
@@ -483,7 +482,7 @@ impl<M: Matcher> Trace<M> {
         self.spawn_agents(ctx)?;
         let steps = &self.steps;
         for (i, step) in steps.iter().enumerate() {
-            debug!("Executing step #{}", i);
+            log::debug!("Executing step #{}", i);
 
             step.action.execute(step, ctx)?;
 
@@ -639,12 +638,12 @@ impl<M: Matcher> OutputAction<M> {
                 .knowledge_store
                 .do_extract_knowledge(opaque_flight, source.clone())
             {
-                debug!("Knowledge increased by {}", num);
+                log::debug!("Knowledge increased by {}", num);
             }
 
             if let Ok(f) = flight {
                 if let Ok(num) = ctx.knowledge_store.do_extract_knowledge(f, source.clone()) {
-                    debug!("Knowledge increased by {}", num);
+                    log::debug!("Knowledge increased by {}", num);
                 }
             }
         }

@@ -83,7 +83,7 @@ where
 mod test {
     type Test = super::LimitedCache<String, usize>;
 
-    #[test]
+    #[test_log::test]
     fn test_updates_existing_item() {
         let mut t = Test::new(3);
         t.insert("abc".into(), 1);
@@ -91,7 +91,7 @@ mod test {
         assert_eq!(t.get("abc"), Some(&2));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_evicts_oldest_item() {
         let mut t = Test::new(3);
         t.insert("abc".into(), 1);
@@ -103,7 +103,7 @@ mod test {
         assert_eq!(t.get("ghi"), Some(&3));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_evicts_second_oldest_item_if_first_removed() {
         let mut t = Test::new(3);
         t.insert("abc".into(), 1);
@@ -120,7 +120,7 @@ mod test {
         assert_eq!(t.get("jkl"), Some(&4));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_evicts_after_second_oldest_item_removed() {
         let mut t = Test::new(3);
         t.insert("abc".into(), 1);
@@ -138,7 +138,7 @@ mod test {
         assert_eq!(t.get("jkl"), Some(&4));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_removes_all_items() {
         let mut t = Test::new(3);
         t.insert("abc".into(), 1);
@@ -158,7 +158,7 @@ mod test {
         assert_eq!(t.get("mno"), Some(&5));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_inserts_many_items() {
         let mut t = Test::new(3);
 

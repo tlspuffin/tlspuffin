@@ -139,7 +139,7 @@ impl ChunkVecBuffer {
 mod test {
     use super::ChunkVecBuffer;
 
-    #[test]
+    #[test_log::test]
     fn short_append_copy_with_limit() {
         let mut cvb = ChunkVecBuffer::new(Some(12));
         assert_eq!(cvb.append_limited_copy(b"hello"), 5);
@@ -153,7 +153,7 @@ mod test {
     }
 
     #[cfg(read_buf)]
-    #[test]
+    #[test_log::test]
     fn read_buf() {
         use std::{io::ReadBuf, mem::MaybeUninit};
 

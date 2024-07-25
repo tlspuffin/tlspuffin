@@ -705,7 +705,7 @@ mod tests {
         };
     }
 
-    #[test]
+    #[test_log::test]
     fn example() {
         let hmac256_new_key = Signature::new_function(&fn_hmac256_new_key);
         let hmac256 = Signature::new_function(&fn_hmac256);
@@ -753,7 +753,7 @@ mod tests {
         //println!("{:?}", string);
     }
 
-    #[test]
+    #[test_log::test]
     fn playground() {
         let _var_data = fn_new_session_id();
 

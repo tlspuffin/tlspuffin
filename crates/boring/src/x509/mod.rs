@@ -8,7 +8,6 @@
 //! the secure protocol for browsing the web.
 
 use std::{
-    convert::TryInto,
     error::Error,
     ffi::{CStr, CString},
     fmt,

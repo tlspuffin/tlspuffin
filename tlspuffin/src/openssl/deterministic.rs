@@ -1,12 +1,10 @@
-use log::debug;
-
 extern "C" {
     fn deterministic_rng_set();
     fn deterministic_rng_reseed(buffer: *const u8, length: libc::size_t);
 }
 
 pub fn rng_set() {
-    debug!("setting OpenSSL in deterministic mode");
+    log::debug!("setting OpenSSL in deterministic mode");
     unsafe {
         deterministic_rng_set();
     }

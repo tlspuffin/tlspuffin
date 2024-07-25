@@ -1,6 +1,3 @@
-use std::convert::TryFrom;
-
-use log::debug;
 use puffin::codec::Reader;
 
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
@@ -17,14 +14,14 @@ pub fn debug_binary_message_with_info(info: &'static str, buffer: &dyn AsRef<[u8
                 debug_message_with_info(info, &message);
             }
             Err(err) => {
-                debug!(
+                log::debug!(
                     "Failed to debug message as decoding to an Message failed: {}",
                     err
                 );
             }
         },
         Err(err) => {
-            debug!(
+            log::debug!(
                 "Failed to debug message as decoding to an OpaqueMessage failed: {:?}",
                 err
             );
@@ -37,7 +34,7 @@ pub fn debug_message(message: &Message) {
 }
 
 pub fn debug_opaque_message_with_info(info: &str, message: &OpaqueMessage) {
-    debug!(
+    log::debug!(
         "{}Opaque Message  ({} bytes) ({:?}): {:?}",
         if info.is_empty() {
             info.to_string()
@@ -65,7 +62,7 @@ pub fn debug_message_with_info(info: &str, message: &Message) {
         MessagePayload::Heartbeat(_) => "Heartbeat".to_string(),
     };
 
-    debug!(
+    log::debug!(
         "{}Message ({:?}): {}",
         if info.is_empty() {
             info.to_string()

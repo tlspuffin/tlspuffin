@@ -44,7 +44,7 @@ fn test_enum8<T: Codec>(first: T, last: T) {
     }
 }
 
-#[test]
+#[test_log::test]
 fn test_enums() {
     test_enum16::<ProtocolVersion>(ProtocolVersion::SSLv2, ProtocolVersion::TLSv1_3);
     test_enum8::<HashAlgorithm>(HashAlgorithm::NONE, HashAlgorithm::SHA512);
@@ -94,7 +94,7 @@ fn test_enums() {
     test_enum8::<CertificateStatusType>(CertificateStatusType::OCSP, CertificateStatusType::OCSP);
 }
 
-#[test]
+#[test_log::test]
 fn test_string_macro() {
     let suite = CipherSuite::TLS13_AES_256_GCM_SHA384;
     let s = suite.as_str().unwrap();

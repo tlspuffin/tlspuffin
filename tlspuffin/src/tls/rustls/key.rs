@@ -34,7 +34,7 @@ impl fmt::Debug for Certificate {
 mod test {
     use super::Certificate;
 
-    #[test]
+    #[test_log::test]
     fn certificate_debug() {
         assert_eq!(
             "Certificate([97, 98])",

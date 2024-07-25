@@ -1,11 +1,11 @@
-use crate::put_registry::tls_registry;
+use crate::test_utils::prelude::*;
 
 #[cfg(feature = "deterministic")]
 mod determinism;
 mod mutations;
 mod term_zoo;
 
-#[test]
+#[test_log::test]
 fn version_test() {
     let registry = tls_registry();
     let versions = registry.default().versions();

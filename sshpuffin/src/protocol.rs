@@ -1,4 +1,3 @@
-use log::debug;
 use puffin::{
     algebra::signature::Signature,
     codec::{Codec, Reader},
@@ -38,7 +37,7 @@ impl ProtocolMessageFlight<SshQueryMatcher, SshMessage, RawSshMessage, RawSshMes
     }
 
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
+        log::debug!("{}: {:?}", info, self);
     }
 }
 
@@ -84,7 +83,7 @@ impl OpaqueProtocolMessageFlight<SshQueryMatcher, RawSshMessage> for RawSshMessa
     }
 
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
+        log::debug!("{}: {:?}", info, self);
     }
 }
 

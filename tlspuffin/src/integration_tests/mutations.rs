@@ -1,7 +1,7 @@
 use puffin::{
     agent::AgentName,
     algebra::{dynamic_function::DescribableFunction, Term},
-    execution::{forked_execution, AssertExecution},
+    execution::forked_execution,
     fuzzer::mutations::{
         util::TermConstraints, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator,
         ReplaceReuseMutator,
@@ -17,8 +17,8 @@ use puffin::{
 };
 
 use crate::{
-    put_registry::tls_registry,
     query::TlsQueryMatcher,
+    test_utils::prelude::*,
     tls::{
         fn_impl::{
             fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript,
@@ -40,7 +40,7 @@ fn create_state() -> StdState<
     StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
 }
 
-#[test]
+#[test_log::test]
 #[ignore]
 fn test_mutate_seed_cve_2021_3449() {
     let mut state = create_state();

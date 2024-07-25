@@ -11,7 +11,7 @@ mod tests {
         tls::{fn_impl::*, TLS_SIGNATURE},
     };
 
-    #[test]
+    #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms
     fn test_term_generation() {
         let mut rand = StdRand::with_seed(101);

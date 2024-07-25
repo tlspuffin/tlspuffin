@@ -197,7 +197,7 @@ mod test {
     use super::*;
     use crate::tls::rustls::msgs::enums::CipherSuite;
 
-    #[test]
+    #[test_log::test]
     fn test_client_pref() {
         let client = vec![
             CipherSuite::TLS13_AES_128_GCM_SHA256,
@@ -209,7 +209,7 @@ mod test {
         assert_eq!(chosen.unwrap(), TLS13_AES_128_GCM_SHA256);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_server_pref() {
         let client = vec![
             CipherSuite::TLS13_AES_128_GCM_SHA256,
@@ -221,7 +221,7 @@ mod test {
         assert_eq!(chosen.unwrap(), TLS13_AES_256_GCM_SHA384);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_pref_fails() {
         assert!(choose_ciphersuite_preferring_client(
             &[CipherSuite::TLS_NULL_WITH_NULL_NULL],
@@ -235,12 +235,12 @@ mod test {
         .is_none());
     }
 
-    #[test]
+    #[test_log::test]
     fn test_scs_is_debug() {
         // println!("{:?}", ALL_CIPHER_SUITES);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_can_resume_to() {
         assert!(TLS13_AES_128_GCM_SHA256
             .tls13()

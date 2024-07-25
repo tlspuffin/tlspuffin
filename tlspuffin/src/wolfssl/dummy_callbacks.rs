@@ -1,7 +1,5 @@
 use std::mem;
-
 use libc::{c_int, c_ulong, c_void};
-use log::debug;
 use security_claims::register::Claimer;
 use wolfssl_sys as wolf;
 
@@ -30,25 +28,25 @@ pub unsafe extern "C" fn SSL_keylog13(
 ) -> i32 {
     /*match a as u32 {
         wolf::Tls13Secret_CLIENT_EARLY_TRAFFIC_SECRET => {
-            info!("Tls13Secret_CLIENT_EARLY_TRAFFIC_SECRET");
+            log::info!("Tls13Secret_CLIENT_EARLY_TRAFFIC_SECRET");
         }
         wolf::Tls13Secret_CLIENT_HANDSHAKE_TRAFFIC_SECRET => {
-            info!("Tls13Secret_CLIENT_HANDSHAKE_TRAFFIC_SECRET");
+            log::info!("Tls13Secret_CLIENT_HANDSHAKE_TRAFFIC_SECRET");
         }
         wolf::Tls13Secret_SERVER_HANDSHAKE_TRAFFIC_SECRET => {
-            info!("Tls13Secret_SERVER_HANDSHAKE_TRAFFIC_SECRET");
+            log::info!("Tls13Secret_SERVER_HANDSHAKE_TRAFFIC_SECRET");
         }
         wolf::Tls13Secret_CLIENT_TRAFFIC_SECRET => {
-            info!("Tls13Secret_CLIENT_TRAFFIC_SECRET");
+            log::info!("Tls13Secret_CLIENT_TRAFFIC_SECRET");
         }
         wolf::Tls13Secret_SERVER_TRAFFIC_SECRET => {
-            info!("Tls13Secret_SERVER_TRAFFIC_SECRET");
+            log::info!("Tls13Secret_SERVER_TRAFFIC_SECRET");
         }
         wolf::Tls13Secret_EARLY_EXPORTER_SECRET => {
-            info!("Tls13Secret_EARLY_EXPORTER_SECRET");
+            log::info!("Tls13Secret_EARLY_EXPORTER_SECRET");
         }
         wolf::Tls13Secret_EXPORTER_SECRET => {
-            info!("Tls13Secret_EXPORTER_SECRET");
+            log::info!("Tls13Secret_EXPORTER_SECRET");
         }
         _ => {}
     };*/
@@ -91,6 +89,6 @@ pub unsafe extern "C" fn SSL_connect_timeout_ex(_info: *mut wolf::TimeoutInfo) -
 }
 
 pub unsafe extern "C" fn SSL_connect_ex(_info: *mut wolf::HandShakeInfo) -> i32 {
-    debug!("SSL_connect_ex");
+    log::debug!("SSL_connect_ex");
     0
 }

@@ -248,17 +248,17 @@ pub(crate) fn remove_fn_prefix(str: &str) -> String {
 mod tests {
     use crate::algebra::remove_prefix;
 
-    #[test]
+    #[test_log::test]
     fn test_normal() {
         assert_eq!(remove_prefix("test::test::Test"), "Test");
     }
 
-    #[test]
+    #[test_log::test]
     fn test_generic() {
         assert_eq!(remove_prefix("test::test::Test<Asdf>"), "Test<Asdf>");
     }
 
-    #[test]
+    #[test_log::test]
     fn test_generic_recursive() {
         assert_eq!(remove_prefix("test::test::Test<asdf::Asdf>"), "Test<Asdf>");
     }

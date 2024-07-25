@@ -569,7 +569,7 @@ mod test {
     use super::{derive_traffic_iv, derive_traffic_key, KeySchedule, SecretKind};
     use crate::tls::rustls::key_log::KeyLog;
 
-    #[test]
+    #[test_log::test]
     fn test_vectors() {
         /* These test vectors generated with OpenSSL. */
         let hs_start_hash = [

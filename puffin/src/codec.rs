@@ -1,4 +1,4 @@
-use std::{convert::TryInto, fmt::Debug};
+use std::fmt::Debug;
 
 /// Read from a byte slice.
 pub struct Reader<'a> {

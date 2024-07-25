@@ -133,7 +133,7 @@ impl MessageDeframer {
 
 #[cfg(test)]
 mod tests {
-    use std::{convert::TryFrom, io};
+    use std::io;
 
     use super::MessageDeframer;
     use crate::tls::rustls::{msgs, msgs::message::Message};
@@ -259,7 +259,7 @@ mod tests {
         Message::try_from(m.into_plain_message()).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn check_incremental() {
         let mut d = MessageDeframer::new();
         assert!(!d.has_pending());
@@ -271,7 +271,7 @@ mod tests {
         assert!(!d.desynced);
     }
 
-    #[test]
+    #[test_log::test]
     fn check_incremental_2() {
         let mut d = MessageDeframer::new();
         assert!(!d.has_pending());
@@ -287,7 +287,7 @@ mod tests {
         assert!(!d.desynced);
     }
 
-    #[test]
+    #[test_log::test]
     fn check_whole() {
         let mut d = MessageDeframer::new();
         assert!(!d.has_pending());
@@ -299,7 +299,7 @@ mod tests {
         assert!(!d.desynced);
     }
 
-    #[test]
+    #[test_log::test]
     fn check_whole_2() {
         let mut d = MessageDeframer::new();
         assert!(!d.has_pending());
@@ -312,7 +312,7 @@ mod tests {
         assert!(!d.desynced);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_two_in_one_read() {
         let mut d = MessageDeframer::new();
         assert!(!d.has_pending());
@@ -327,7 +327,7 @@ mod tests {
         assert!(!d.desynced);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_two_in_one_read_shortest_first() {
         let mut d = MessageDeframer::new();
         assert!(!d.has_pending());
@@ -342,7 +342,7 @@ mod tests {
         assert!(!d.desynced);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_incremental_with_nonfatal_read_error() {
         let mut d = MessageDeframer::new();
         assert_len(3, input_bytes(&mut d, &FIRST_MESSAGE[..3]));
@@ -357,7 +357,7 @@ mod tests {
         assert!(!d.desynced);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_invalid_contenttype_errors() {
         let mut d = MessageDeframer::new();
         assert_len(
@@ -367,7 +367,7 @@ mod tests {
         assert!(d.desynced);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_invalid_version_errors() {
         let mut d = MessageDeframer::new();
         assert_len(
@@ -377,7 +377,7 @@ mod tests {
         assert!(d.desynced);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_invalid_length_errors() {
         let mut d = MessageDeframer::new();
         assert_len(
@@ -387,7 +387,7 @@ mod tests {
         assert!(d.desynced);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_empty_applicationdata() {
         let mut d = MessageDeframer::new();
         assert_len(
@@ -401,7 +401,7 @@ mod tests {
         assert!(!d.desynced);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_invalid_empty_errors() {
         let mut d = MessageDeframer::new();
         assert_len(

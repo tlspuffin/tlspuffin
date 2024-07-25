@@ -1,9 +1,4 @@
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Formatter},
-};
-
-use log::debug;
+use std::{collections::HashMap, fmt};
 
 use crate::{
     agent::AgentDescriptor,
@@ -33,8 +28,8 @@ impl<PB: ProtocolBehavior> PartialEq for PutRegistry<PB> {
     }
 }
 
-impl<PB: ProtocolBehavior> Debug for PutRegistry<PB> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl<PB: ProtocolBehavior> fmt::Debug for PutRegistry<PB> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PutRegistry (default only)")
             .field("default", &self.default().name())
             .finish()
@@ -81,14 +76,14 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
 
     /// To be called at the beginning of all fuzzing campaigns!
     pub fn determinism_set_reseed_all_factories(&self) {
-        debug!("== Set and reseed all ({}):", self.factories.len());
+        log::debug!("== Set and reseed all ({}):", self.factories.len());
         for (_, factory) in self.factories.iter() {
             factory.determinism_set_reseed();
         }
     }
 
     pub fn determinism_reseed_all_factories(&self) {
-        debug!("== Reseed all ({}):", self.factories.len());
+        log::debug!("== Reseed all ({}):", self.factories.len());
         for (_, factory) in self.factories.iter() {
             factory.determinism_reseed();
         }

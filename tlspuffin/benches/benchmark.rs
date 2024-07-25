@@ -12,14 +12,11 @@ use puffin::{
     },
     term,
     trace::Trace,
+    trace_helper::TraceHelper,
 };
 use tlspuffin::{
     query::TlsQueryMatcher,
-    tls::{
-        fn_impl::*,
-        seeds::*,
-        trace_helper::{TraceExecutor, TraceHelper},
-    },
+    tls::{fn_impl::*, seeds::*, trace_helper::TraceExecutor},
 };
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {

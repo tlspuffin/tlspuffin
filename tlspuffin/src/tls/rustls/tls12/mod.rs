@@ -419,7 +419,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn server_ecdhe_remaining_bytes() {
         let key = kx::KeyExchange::start(&kx::X25519).unwrap();
         let server_params = ServerECDHParams::new(key.group(), key.pubkey.as_ref());
@@ -429,7 +429,7 @@ mod tests {
         assert!(decode_ecdh_params_::<ServerECDHParams>(&server_buf).is_none());
     }
 
-    #[test]
+    #[test_log::test]
     fn client_ecdhe_invalid() {
         assert!(decode_ecdh_params_::<ClientECDHParams>(&[34]).is_none());
     }
