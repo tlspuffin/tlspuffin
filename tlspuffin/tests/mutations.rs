@@ -14,8 +14,7 @@ use puffin::{
     },
     trace::{Action, Step, Trace},
 };
-
-use crate::{
+use tlspuffin::{
     query::TlsQueryMatcher,
     test_utils::prelude::*,
     tls::{
