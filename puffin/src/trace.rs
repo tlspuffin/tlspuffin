@@ -20,6 +20,7 @@ use std::{
     fmt::Debug,
     hash::Hash,
     marker::PhantomData,
+    vec::IntoIter,
 };
 
 use clap::error::Result;
@@ -109,52 +110,14 @@ impl<M: Matcher> fmt::Display for RawKnowledge<M> {
 
 impl<'a, M: Matcher> IntoIterator for &'a RawKnowledge<M> {
     type Item = Knowledge<'a, M>;
-    type IntoIter = RawKnowledgeHolder<'a, M>;
+    type IntoIter = IntoIter<Knowledge<'a, M>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        RawKnowledgeHolder {
-            stack: vec![KnowledgeStackItem::Extractable(Extractable {
-                source: &self.source,
-                matcher: self.matcher.clone(),
-                data: self.data.as_ref(),
-            })],
-        }
-    }
-}
-
-pub struct Extractable<'a, M: Matcher> {
-    pub source: &'a Source,
-    pub matcher: Option<M>,
-    pub data: &'a dyn ExtractKnowledge<M>,
-}
-
-pub enum KnowledgeStackItem<'a, M: Matcher> {
-    Knowledge(Knowledge<'a, M>),
-    Extractable(Extractable<'a, M>),
-}
-
-pub struct RawKnowledgeHolder<'a, M: Matcher> {
-    stack: Vec<KnowledgeStackItem<'a, M>>,
-}
-
-impl<'a, M: Matcher> Iterator for RawKnowledgeHolder<'a, M> {
-    type Item = Knowledge<'a, M>;
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut item = self.stack.pop()?;
-        while let KnowledgeStackItem::Extractable(x) = item {
-            self.stack.extend(
-                x.data
-                    .extract_knowledge(x.matcher, x.source)
-                    .into_iter()
-                    .rev(),
-            );
-            item = self.stack.pop()?;
-        }
-
-        match item {
-            KnowledgeStackItem::Knowledge(x) => Some(x),
-            _ => None,
-        }
+        let mut knowledges = vec![];
+        let _ = self
+            .data
+            .extract_knowledge(&mut knowledges, self.matcher.clone(), &self.source);
+        knowledges.into_iter()
     }
 }
 

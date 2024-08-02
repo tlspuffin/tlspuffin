@@ -2,11 +2,12 @@ use log::debug;
 use puffin::{
     algebra::{signature::Signature, Matcher},
     codec::{Codec, Reader},
+    error::Error,
     protocol::{
         ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
         ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
     },
-    trace::{Extractable, Knowledge, KnowledgeStackItem, Source, Trace},
+    trace::{Knowledge, Source, Trace},
 };
 
 use crate::{
@@ -152,59 +153,54 @@ impl ProtocolMessage<TlsQueryMatcher, OpaqueMessage> for Message {
 impl ExtractKnowledge<TlsQueryMatcher> for MessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        let mut k = Vec::with_capacity(1 + self.messages.len());
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: self,
-        }));
+        });
 
         for msg in &self.messages {
-            k.push(KnowledgeStackItem::Extractable(Extractable {
-                source,
-                matcher,
-                data: msg,
-            }))
+            msg.extract_knowledge(knowledges, matcher, source)?;
         }
-
-        k
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for OpaqueMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        let mut k = Vec::with_capacity(1 + self.messages.len());
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: self,
-        }));
-
+        });
         for msg in &self.messages {
-            k.push(KnowledgeStackItem::Extractable(Extractable {
-                source,
-                matcher,
-                data: msg,
-            }))
+            msg.extract_knowledge(knowledges, matcher, source)?;
         }
-
-        k
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for Message {
+    /// Extracts knowledge from a [`crate::tls::rustls::msgs::message::Message`].
+    /// Only plaintext messages yield more knowledge than their binary payload.
+    /// If a message is an ApplicationData (TLS 1.3) or an encrypted Heartbeet
+    /// or Handhake message (TLS 1.2), then only the message itself and the
+    /// binary payload is returned.
     fn extract_knowledge<'a>(
         &'a self,
-        _matcher: Option<TlsQueryMatcher>,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        _: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
+    ) -> Result<(), Error> {
         let matcher = match &self.payload {
             MessagePayload::Alert(_) => Some(TlsQueryMatcher::Alert),
             MessagePayload::Handshake(hs) => Some(TlsQueryMatcher::Handshake(Some(hs.typ))),
@@ -214,401 +210,397 @@ impl ExtractKnowledge<TlsQueryMatcher> for Message {
             MessagePayload::TLS12EncryptedHandshake(_) => Some(TlsQueryMatcher::Handshake(None)),
         };
 
-        vec![
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: self,
-            }),
-            KnowledgeStackItem::Extractable(Extractable {
-                source,
-                matcher,
-                data: &self.payload,
-            }),
-        ]
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+
+        self.payload
+            .extract_knowledge(knowledges, matcher, source)?;
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for MessagePayload {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        vec![
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: self,
-            }),
-            KnowledgeStackItem::Extractable(Extractable {
-                source,
-                matcher,
-                data: match &self {
-                    MessagePayload::Alert(alert) => alert,
-                    MessagePayload::Handshake(hs) => hs,
-                    MessagePayload::ChangeCipherSpec(ccs) => ccs,
-                    MessagePayload::ApplicationData(opaque) => opaque,
-                    MessagePayload::Heartbeat(h) => h,
-                    MessagePayload::TLS12EncryptedHandshake(tls12encrypted) => tls12encrypted,
-                },
-            }),
-        ]
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+        match &self {
+            MessagePayload::Alert(alert) => alert.extract_knowledge(knowledges, matcher, source)?,
+            MessagePayload::Handshake(hs) => hs.extract_knowledge(knowledges, matcher, source)?,
+            MessagePayload::ChangeCipherSpec(ccs) => {
+                ccs.extract_knowledge(knowledges, matcher, source)?
+            }
+            MessagePayload::ApplicationData(opaque) => {
+                opaque.extract_knowledge(knowledges, matcher, source)?
+            }
+            MessagePayload::Heartbeat(h) => h.extract_knowledge(knowledges, matcher, source)?,
+            MessagePayload::TLS12EncryptedHandshake(tls12encrypted) => {
+                tls12encrypted.extract_knowledge(knowledges, matcher, source)?
+            }
+        }
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for ChangeCipherSpecPayload {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        vec![KnowledgeStackItem::Knowledge(Knowledge {
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: self,
-        })]
+        });
+
+        Ok(())
     }
 }
 impl ExtractKnowledge<TlsQueryMatcher> for HeartbeatPayload {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        vec![
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: self,
-            }),
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: &self.payload.0,
-            }),
-        ]
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.payload.0,
+        });
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for AlertMessagePayload {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        vec![
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: self,
-            }),
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: &self.description,
-            }),
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: &self.level,
-            }),
-        ]
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.description,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.level,
+        });
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for HandshakeMessagePayload {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        vec![
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: self,
-            }),
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: &self.typ,
-            }),
-            KnowledgeStackItem::Extractable(Extractable {
-                source,
-                matcher,
-                data: &self.payload,
-            }),
-        ]
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.typ,
+        });
+        self.payload
+            .extract_knowledge(knowledges, matcher, source)?;
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for HandshakePayload {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        let mut k = Vec::with_capacity(2);
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: self,
-        }));
-
-        if let Some(x) = match &self {
-            HandshakePayload::HelloRequest => None,
-            HandshakePayload::ClientHello(ch) => Some(ch as &dyn ExtractKnowledge<TlsQueryMatcher>),
-            HandshakePayload::ServerHello(sh) => Some(sh as &dyn ExtractKnowledge<TlsQueryMatcher>),
-            HandshakePayload::Certificate(c) => Some(c as &dyn ExtractKnowledge<TlsQueryMatcher>),
-            HandshakePayload::ServerKeyExchange(ske) => {
-                Some(ske as &dyn ExtractKnowledge<TlsQueryMatcher>)
+        });
+        match &self {
+            HandshakePayload::HelloRequest => {}
+            HandshakePayload::ClientHello(ch) => {
+                ch.extract_knowledge(knowledges, matcher, source)?;
             }
-            HandshakePayload::ServerHelloDone => None,
+            HandshakePayload::ServerHello(sh) => {
+                sh.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::Certificate(c) => {
+                c.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::ServerKeyExchange(ske) => {
+                ske.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::ServerHelloDone => {}
             HandshakePayload::ClientKeyExchange(cke) => {
-                Some(cke as &dyn ExtractKnowledge<TlsQueryMatcher>)
+                cke.extract_knowledge(knowledges, matcher, source)?;
             }
             HandshakePayload::NewSessionTicket(ticket) => {
-                Some(ticket as &dyn ExtractKnowledge<TlsQueryMatcher>)
+                ticket.extract_knowledge(knowledges, matcher, source)?;
             }
-            _ => None,
-        } {
-            k.push(KnowledgeStackItem::Extractable(Extractable {
-                source,
-                matcher,
-                data: x,
-            }));
+            _ => return Err(Error::Extraction()),
         }
-        k
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for CertificatePayload {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        vec![
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: self,
-            }),
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: &self.0,
-            }),
-        ]
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.0,
+        });
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for ServerKeyExchangePayload {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        vec![
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: self,
-            }),
-            KnowledgeStackItem::Extractable(Extractable {
-                source,
-                matcher,
-                data: match self {
-                    ServerKeyExchangePayload::ECDHE(ecdhe) => ecdhe,
-                    ServerKeyExchangePayload::Unknown(unknown) => unknown,
-                },
-            }),
-        ]
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+        match self {
+            ServerKeyExchangePayload::ECDHE(ecdhe) => {
+                // this path wont be taken because we do not know the key exchange algorithm
+                // in advance
+                ecdhe.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ServerKeyExchangePayload::Unknown(unknown) => {
+                unknown.extract_knowledge(knowledges, matcher, source)?;
+            }
+        }
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for ECDHEServerKeyExchange {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        vec![KnowledgeStackItem::Knowledge(Knowledge {
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: self,
-        })]
+        });
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for Payload {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        vec![
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: self,
-            }),
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: &self.0,
-            }),
-        ]
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.0,
+        });
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for ClientHelloPayload {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        let mut k = Vec::with_capacity(
-            7 + self.extensions.len() + self.compression_methods.len() + self.cipher_suites.len(),
-        );
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: self,
-        }));
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+        });
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.random,
-        }));
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+        });
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.session_id,
-        }));
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+        });
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.client_version,
-        }));
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+        });
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.extensions,
-        }));
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+        });
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.compression_methods,
-        }));
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+        });
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.cipher_suites,
-        }));
+        });
 
-        k.extend(self.extensions.iter().map(|extension| {
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: extension,
-            })
+        knowledges.extend(self.extensions.iter().map(|extension| Knowledge {
+            source,
+            matcher,
+            data: extension,
         }));
-        k.extend(self.compression_methods.iter().map(|compression| {
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: compression,
-            })
+        knowledges.extend(
+            self.compression_methods
+                .iter()
+                .map(|compression| Knowledge {
+                    source,
+                    matcher,
+                    data: compression,
+                }),
+        );
+        knowledges.extend(self.cipher_suites.iter().map(|cipher_suite| Knowledge {
+            source,
+            matcher,
+            data: cipher_suite,
         }));
-        k.extend(self.cipher_suites.iter().map(|cipher_suite| {
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: cipher_suite,
-            })
-        }));
-        k
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for NewSessionTicketPayload {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        vec![
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: self,
-            }),
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: &self.lifetime_hint,
-            }),
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: &self.ticket.0,
-            }),
-        ]
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.lifetime_hint,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.ticket.0,
+        });
+        Ok(())
     }
 }
 
 impl ExtractKnowledge<TlsQueryMatcher> for ServerHelloPayload {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        let mut k = Vec::with_capacity(7 + self.extensions.len());
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: self,
-        }));
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+        });
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.random,
-        }));
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+        });
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.session_id,
-        }));
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+        });
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.cipher_suite,
-        }));
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+        });
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.compression_method,
-        }));
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+        });
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.legacy_version,
-        }));
-        k.push(KnowledgeStackItem::Knowledge(Knowledge {
+        });
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.extensions,
+        });
+        knowledges.extend(self.extensions.iter().map(|extension| Knowledge {
+            source,
+            matcher,
+            data: extension,
         }));
-        k.extend(self.extensions.iter().map(|extension| {
-            KnowledgeStackItem::Knowledge(Knowledge {
-                source,
-                matcher,
-                data: extension,
-            })
-        }));
-        k
+        Ok(())
     }
 }
 
@@ -632,14 +624,16 @@ impl OpaqueProtocolMessage<TlsQueryMatcher> for OpaqueMessage {
 impl ExtractKnowledge<TlsQueryMatcher> for OpaqueMessage {
     fn extract_knowledge<'a>(
         &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
-    ) -> Vec<puffin::trace::KnowledgeStackItem<'a, TlsQueryMatcher>> {
-        vec![KnowledgeStackItem::Knowledge(Knowledge {
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
             source,
             matcher,
             data: self,
-        })]
+        });
+        Ok(())
     }
 }
 
