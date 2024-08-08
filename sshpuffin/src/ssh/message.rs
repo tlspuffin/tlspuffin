@@ -302,11 +302,11 @@ impl TryFrom<RawSshMessage> for SshMessage {
 }
 
 impl ExtractKnowledge<SshQueryMatcher> for SshMessage {
-    fn extract_knowledge(
-        &self,
-        knowledges: &mut Vec<Knowledge<SshQueryMatcher>>,
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, SshQueryMatcher>>,
         matcher: Option<SshQueryMatcher>,
-        source: &Source,
+        source: &'a Source,
     ) -> Result<(), Error> {
         match &self {
             SshMessage::KexInit(KexInitMessage {
@@ -324,73 +324,73 @@ impl ExtractKnowledge<SshQueryMatcher> for SshMessage {
                 first_kex_packet_follows,
             }) => {
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(*cookie),
+                    data: cookie,
                 });
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(kex_algorithms.clone()),
+                    data: kex_algorithms,
                 });
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(server_host_key_algorithms.clone()),
+                    data: server_host_key_algorithms,
                 });
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(encryption_algorithms_server_to_client.clone()),
+                    data: encryption_algorithms_server_to_client,
                 });
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(encryption_algorithms_client_to_server.clone()),
+                    data: encryption_algorithms_client_to_server,
                 });
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(mac_algorithms_client_to_server.clone()),
+                    data: mac_algorithms_client_to_server,
                 });
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(mac_algorithms_server_to_client.clone()),
+                    data: mac_algorithms_server_to_client,
                 });
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(compression_algorithms_client_to_server.clone()),
+                    data: compression_algorithms_client_to_server,
                 });
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(compression_algorithms_server_to_client.clone()),
+                    data: compression_algorithms_server_to_client,
                 });
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(languages_client_to_server.clone()),
+                    data: languages_client_to_server,
                 });
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(languages_server_to_client.clone()),
+                    data: languages_server_to_client,
                 });
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(*first_kex_packet_follows),
+                    data: first_kex_packet_follows,
                 });
             }
             SshMessage::KexEcdhInit(KexEcdhInitMessage {
                 ephemeral_public_key,
             }) => {
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(ephemeral_public_key.clone()),
+                    data: ephemeral_public_key,
                 });
             }
             SshMessage::KexEcdhReply(KexEcdhReplyMessage {
@@ -399,21 +399,21 @@ impl ExtractKnowledge<SshQueryMatcher> for SshMessage {
                 signature,
             }) => {
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(public_host_key.clone()),
+                    data: public_host_key,
                 });
 
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(ephemeral_public_key.clone()),
+                    data: ephemeral_public_key,
                 });
 
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(signature.clone()),
+                    data: signature,
                 });
             }
 
@@ -431,42 +431,31 @@ impl OpaqueProtocolMessage<SshQueryMatcher> for RawSshMessage {
 }
 
 impl ExtractKnowledge<SshQueryMatcher> for RawSshMessage {
-    fn extract_knowledge(
-        &self,
-        knowledges: &mut Vec<Knowledge<SshQueryMatcher>>,
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, SshQueryMatcher>>,
         matcher: Option<SshQueryMatcher>,
-        source: &Source,
+        source: &'a Source,
     ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
         match &self {
             RawSshMessage::Banner(banner) => {
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(self.clone()),
-                });
-                knowledges.push(Knowledge {
-                    source: source.clone(),
-                    matcher,
-                    data: Box::new(banner.clone()),
+                    data: banner,
                 });
             }
-            RawSshMessage::Packet(_) => {
-                knowledges.push(Knowledge {
-                    source: source.clone(),
-                    matcher,
-                    data: Box::new(self.clone()),
-                });
-            }
+            RawSshMessage::Packet(_) => {}
             RawSshMessage::OnWire(onwire) => {
                 knowledges.push(Knowledge {
-                    source: source.clone(),
+                    source,
                     matcher,
-                    data: Box::new(self.clone()),
-                });
-                knowledges.push(Knowledge {
-                    source: source.clone(),
-                    matcher,
-                    data: Box::new(onwire.clone()),
+                    data: onwire,
                 });
             }
         };

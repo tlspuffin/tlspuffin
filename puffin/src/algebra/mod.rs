@@ -653,11 +653,28 @@ mod tests {
         algebra::{
             atoms::Variable, dynamic_function::TypeShape, signature::Signature, AnyMatcher, Term,
         },
+        protocol::ExtractKnowledge,
         put::PutOptions,
         put_registry::{Factory, PutRegistry},
         term,
         trace::{Knowledge, Source, TraceContext},
     };
+
+    impl ExtractKnowledge<AnyMatcher> for Vec<u8> {
+        fn extract_knowledge<'a>(
+            &'a self,
+            knowledges: &mut Vec<Knowledge<'a, AnyMatcher>>,
+            matcher: Option<AnyMatcher>,
+            source: &'a Source,
+        ) -> Result<(), crate::error::Error> {
+            knowledges.push(Knowledge {
+                source,
+                matcher,
+                data: self,
+            });
+            Ok(())
+        }
+    }
 
     #[allow(dead_code)]
     fn test_compilation() {
@@ -739,11 +756,10 @@ mod tests {
         let put_registry =
             PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
         let mut context = TraceContext::new(&put_registry, PutOptions::default());
-        context.knowledge_store.add_knowledge(Knowledge {
-            source: Source::Agent(AgentName::first()),
-            matcher: None,
-            data: Box::new(data),
-        });
+
+        let _ = context
+            .knowledge_store
+            .add_raw_knowledge(data, Source::Agent(AgentName::first()));
 
         let _string = generated_term
             .evaluate(&context)
