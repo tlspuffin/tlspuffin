@@ -192,7 +192,7 @@ nyi_fn! {
     /// hello_verify_request_RESERVED => 0x03,
 }
 /// NewSessionTicket => 0x04,
-pub fn fn_new_session_ticket(lifetime_hint: &u64, ticket: &Vec<u8>) -> Result<Message, FnError> {
+pub fn fn_new_session_ticket(lifetime_hint: &u32, ticket: &Vec<u8>) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(Message {

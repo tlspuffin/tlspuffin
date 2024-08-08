@@ -15,11 +15,11 @@ pub trait ExtractKnowledge<M: Matcher>: std::fmt::Debug {
     /// by recursively calling extract_knowledge on all contained element
     /// This will put source as the source of all the produced knowledges, matcher is also passed
     /// recursively but might be overriten by a type with a more specific matcher
-    fn extract_knowledge(
-        &self,
-        knowledges: &mut Vec<Knowledge<M>>,
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, M>>,
         matcher: Option<M>,
-        source: &Source,
+        source: &'a Source,
     ) -> Result<(), Error>;
 }
 
