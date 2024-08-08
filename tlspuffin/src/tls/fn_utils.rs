@@ -570,3 +570,7 @@ pub fn fn_named_group_secp384r1() -> Result<NamedGroup, FnError> {
 pub fn fn_named_group_x25519() -> Result<NamedGroup, FnError> {
     Ok(NamedGroup::X25519)
 }
+
+pub fn fn_u64_to_u32(input: &u64) -> Result<u32, FnError> {
+    Ok(*input as u32)
+}

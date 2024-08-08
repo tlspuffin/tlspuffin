@@ -217,11 +217,12 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
         let mut possibilities: Vec<Knowledge<PB::Matcher>> = self
             .raw_knowledge
             .iter()
-            .filter(|raw| (query.source == None || query.source == Some(raw.source.clone())))
+            .filter(|raw| (query.source == None || query.source.as_ref().unwrap() == &raw.source))
             .flatten()
             .filter(|knowledge| {
-                let data: &dyn VariableData = knowledge.data;
-                query_type_id == data.type_id() && knowledge.matcher.matches(&query.matcher)
+                // let data: &dyn VariableData = knowledge.data;
+                query_type_id == knowledge.data.type_id()
+                    && knowledge.matcher.matches(&query.matcher)
             })
             .collect();
 
