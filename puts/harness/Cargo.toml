@@ -2,6 +2,7 @@
 name = "tlspuffin-harness-sys"
 description = "Harness code for interfacing a PUT with tlspuffin"
 version.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true

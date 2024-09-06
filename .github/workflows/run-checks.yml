@@ -56,3 +56,19 @@ jobs:
         run: just check-crate wolfssl-sys wolfssl540,fix-CVE-2022-39173,fix-CVE-2022-42905
       - name: check `boringssl-sys`
         run: just check-crate boringssl-sys boringssl202403
+
+  msrv:
+    name: msrv
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        id: setup
+        uses: ./.github/actions/setup
+      - name: check with MSRV
+        run: just check-workspace
+        env:
+          RUSTUP_TOOLCHAIN: ${{ steps.setup.minrust_toolchain }}

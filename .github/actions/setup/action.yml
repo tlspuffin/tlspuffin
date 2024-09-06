@@ -3,11 +3,20 @@ description: Setup toolchains and tools
 
 inputs:
   rust-toolchain:
-    description: 'The Rust toolchain to setup'
+    description: 'The default Rust toolchain to setup'
     required: false
   rust-cachekey:
     description: 'A cache key for Rust dependencies'
     required: false
+    
+outputs:
+  nightly_toolchain:
+    description: "The Rust nightly toolchain identifier (e.g. nightly-2018-11-23)"
+    value: ${{ steps.toolchains-config.outputs.nightly }}
+
+  minrust_toolchain:
+    description: "The Rust MSRV toolchain identifier (e.g. 1.70)"
+    value: ${{ steps.toolchains-config.outputs.minrust }}
 
 runs:
   using: "composite"
@@ -53,10 +62,12 @@ runs:
 
         DEFAULT_TOOLCHAIN=$(just run printf '%s\\n' "\${DEFAULT_TOOLCHAIN}")
         NIGHTLY_TOOLCHAIN=$(just run printf '%s\\n' "\${NIGHTLY_TOOLCHAIN}")
+        MINRUST_TOOLCHAIN=$(just run printf '%s\\n' "\${MINRUST_TOOLCHAIN}")
         printf 'RUSTUP_TOOLCHAIN=%s\n' "${DEFAULT_TOOLCHAIN}" >> "${GITHUB_ENV}"
 
         printf 'default=%s\n' "${DEFAULT_TOOLCHAIN}" >> "${GITHUB_OUTPUT}"
         printf 'nightly=%s\n' "${NIGHTLY_TOOLCHAIN}" >> "${GITHUB_OUTPUT}"
+        printf 'minrust=%s\n' "${MINRUST_TOOLCHAIN}" >> "${GITHUB_OUTPUT}"
         printf 'rustup-home=%s\n' "$(just run rustup show home)" >> "${GITHUB_OUTPUT}"
 
     - uses: actions/cache@v4
@@ -75,6 +86,7 @@ runs:
         #!/usr/bin/env bash
         just install-rust-toolchain ${{ steps.toolchains-config.outputs.default }}
         just install-rust-toolchain ${{ steps.toolchains-config.outputs.nightly }}
+        just install-rust-toolchain ${{ steps.toolchains-config.outputs.minrust }}
 
     - uses: Swatinem/rust-cache@v2
       with:

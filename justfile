@@ -5,9 +5,11 @@
 set shell := ["bash", "-c"]
 set positional-arguments := true
 
-export DEFAULT_TOOLCHAIN := env_var_or_default("RUSTUP_TOOLCHAIN", "1.70")
-export CARGO_TARGET_DIR := env_var_or_default("CARGO_TARGET_DIR", justfile_directory() / "target")
+export MINRUST_TOOLCHAIN := "1.70"
 export NIGHTLY_TOOLCHAIN := "nightly-2024-09-05"
+
+export DEFAULT_TOOLCHAIN := env_var_or_default("RUSTUP_TOOLCHAIN", NIGHTLY_TOOLCHAIN)
+export CARGO_TARGET_DIR := env_var_or_default("CARGO_TARGET_DIR", justfile_directory() / "target")
 export RUSTUP_TOOLCHAIN := DEFAULT_TOOLCHAIN
 export CARGO_TERM_COLOR := "always"
 export RUST_BACKTRACE := "1"
@@ -49,7 +51,7 @@ install-rust-tooling TOOLCHAIN *FLAGS: (install-rust-toolchain TOOLCHAIN FLAGS)
     case "${flag}" in -q|--quiet) exec 1>/dev/null;; esac
   done
 
-  RUSTUP_TOOLCHAIN='{{ TOOLCHAIN }}' cargo install toml-cli --locked --version "0.2.3" # mk_vendor
+  RUSTUP_TOOLCHAIN=stable cargo install toml-cli --locked --version "0.2.3" # mk_vendor
 
 install-rust-toolchain-default *FLAGS: (install-rust-toolchain DEFAULT_TOOLCHAIN FLAGS)
 install-rust-toolchain-nightly *FLAGS: (install-rust-toolchain NIGHTLY_TOOLCHAIN FLAGS)

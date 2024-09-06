@@ -2,6 +2,7 @@
 name = "security-claims"
 description = "Optional instrumentation for PUTs"
 version.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
