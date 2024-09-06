@@ -62,7 +62,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
             (fn_get_context((@certificate_request_message))),
             //fn_empty_certificate_chain
             // Or append eve cert
-            (fn_append_certificate_entry(
+            (fn_chain_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_eve_cert
                 )),
@@ -217,7 +217,7 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
     let certificate = term! {
         fn_certificate13(
             (fn_get_context((@certificate_request_message))),
-            (fn_append_certificate_entry(
+            (fn_chain_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_eve_cert
                 )),
