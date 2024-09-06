@@ -41,7 +41,6 @@ libc = { workspace = true }
 clap = { workspace = true, features = ["cargo"] }
 rand = { workspace = true }
 dyn-clone = { workspace = true }
-smallvec = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 once_cell = { workspace = true }
 chrono = { workspace = true }

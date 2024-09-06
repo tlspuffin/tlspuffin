@@ -18,33 +18,11 @@ claims = ['puffin/claims']
 [dependencies]
 libssh-sys = { path = "../crates/libssh-sys", features = ["libssh0104"] }
 puffin = { path = "../puffin" }
-
 log = { workspace = true }
-thiserror = "1.0"
 serde = { workspace = true, features = ["derive"] }
 
 # libssh
-byteorder = "1.3"
-digest = "0.10.3"
-flate2 = { version = "1.0" }
-generic-array = "0.14"
-rand = { workspace = true }
-sha2 = "0.10.2"
-
-futures = "0.3"
-tokio = { version = "1.17.0", features = [
-    "io-util",
-    "rt-multi-thread",
-    "time",
-    "net",
-    "sync",
-    "macros",
-    "process",
-] }
-
-# libssh
 foreign-types = { workspace = true }
-bitflags = { version = "1.3.2" }
 
 [dev-dependencies]
 env_logger = { workspace = true }

@@ -60,6 +60,5 @@ libressl333 = ["libressl-src", "libressl", "libressl-src/libressl333"]
 libressl = []
 
 [dependencies]
-cc = "1.0"
-security-claims = { path = "../../tlspuffin-claims" }
 libressl-src = { path = "../libressl-src", optional = true }
+cc = "1.0"

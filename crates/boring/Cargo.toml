@@ -1,7 +1,10 @@
 [package]
 name = "boring"
 version = "4.0.0"
-authors = ["Steven Fackler <sfackler@gmail.com>", "Ivan Nikulin <ifaaan@gmail.com>"]
+authors = [
+    "Steven Fackler <sfackler@gmail.com>",
+    "Ivan Nikulin <ifaaan@gmail.com>",
+]
 license = "Apache-2.0"
 description = "BoringSSL bindings"
 documentation = "https://docs.rs/boring"
@@ -68,4 +71,3 @@ boringssl-sys = { path = "../boringssl-sys" }
 
 [dev-dependencies]
 hex = "0.4"
-rusty-hook = "^0.11"
