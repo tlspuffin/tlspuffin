@@ -13,8 +13,8 @@ categories.workspace = true
 build = "build.rs"
 
 [dependencies]
-hex = "0.4.3"
-itertools = "0.10.3"
+hex = { workspace = true }
+itertools = { workspace = true }
 
 [build-dependencies]
-bindgen = "0.69.1"
+bindgen = { workspace = true }

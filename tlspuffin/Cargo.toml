@@ -228,7 +228,6 @@ boringssl202403 = [
     "deterministic",
 ]
 
-
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = ["puffin/sancov_pcguard_log"]
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov are mutally exclusive
@@ -241,7 +240,6 @@ sancov = [
 
 # Enables ASAN
 asan = ["openssl-src?/asan", "wolfssl-sys?/asan", "boringssl-sys?/asan"]
-
 gcov = ["openssl-src?/gcov", "wolfssl-sys?/gcov", "boringssl-sys?/gcov"]
 llvm_cov = [
     "openssl-src?/llvm_cov",
@@ -285,13 +283,13 @@ introspection = ["puffin/introspection"]
 
 puffin = { path = "../puffin" }
 
-log = { version = "0.4.17" }
-itertools = "0.10.3"
-smallvec = "1.8.1"
-libc = { version = "0.2.126" }
-cfg-if = "1.0.0"
-hex = "0.4.3"
-serde = { version = "1.0.137", features = ["derive"] }
+log = { workspace = true }
+itertools = { workspace = true }
+libc = { workspace = true }
+hex = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+cfg-if = { workspace = true }
+smallvec = { workspace = true }
 
 ring = { version = "0.16.20", features = ["std"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
@@ -299,37 +297,35 @@ sct = "0.7.0"
 
 # OpenSSL
 
-# Up to verison 111
+# Up to version 111
 openssl = { version = "0.10.41", features = ["vendored"], optional = true }
 openssl-sys = { version = "*", features = ["vendored"], optional = true }
 
 foreign-types-openssl = { version = "0.3.1", package = "foreign-types", optional = true }
 security-claims = { version = "0.1.0", optional = false }
 
+
 # WolfSSL
 wolfssl = { path = "../crates/wolfssl", optional = true }
 wolfssl-sys = { path = "../crates/wolfssl-sys", features = [], optional = true }
-
 boring = { path = "../crates/boring", optional = true }
 boringssl-sys = { path = "../crates/boringssl-sys", features = [
 ], optional = true }
-
 tls-harness = { path = "../puts/harness", package = "tlspuffin-harness-sys", features = [
     "tls",
 ], optional = true }
-foreign-types = { version = "0.5.0", optional = true }
-
+foreign-types = { workspace = true, optional = true }
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
 openssl-src = { version = "*", features = [], optional = true }
 
 [dev-dependencies]
-test-log = "0.2.10"
-env_logger = "0.9.0"
-nix = "0.25.0"
-serde_json = "1.0.81"
-tempfile = "3.3.0"
-criterion = "0.3.5"
+test-log = { workspace = true }
+env_logger = { workspace = true }
+nix = { workspace = true }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+criterion = { workspace = true }
 
 [[bench]]
 name = "benchmark"
