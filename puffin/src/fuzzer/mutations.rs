@@ -1,4 +1,5 @@
 use libafl::prelude::*;
+use libafl_bolts::prelude::*;
 use util::{Choosable, *};
 
 use crate::{
@@ -511,7 +512,7 @@ where
 }
 
 pub mod util {
-    use libafl::bolts::rands::Rand;
+    use libafl_bolts::rands::Rand;
 
     use crate::{
         algebra::{Matcher, Term},
@@ -764,11 +765,11 @@ mod tests {
     use std::collections::{HashMap, HashSet};
 
     use libafl::{
-        bolts::rands::{RomuDuoJrRand, StdRand},
         corpus::InMemoryCorpus,
         mutators::{MutationResult, Mutator},
         state::StdState,
     };
+    use libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 
     use super::*;
     use crate::{

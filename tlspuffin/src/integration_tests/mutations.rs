@@ -7,11 +7,11 @@ use puffin::{
         ReplaceReuseMutator,
     },
     libafl::{
-        bolts::rands::{RomuDuoJrRand, StdRand},
         corpus::InMemoryCorpus,
         mutators::{MutationResult, Mutator},
         state::StdState,
     },
+    libafl_bolts::rands::{RomuDuoJrRand, StdRand},
     put::PutOptions,
     trace::{Action, Step, Trace, TraceContext},
 };

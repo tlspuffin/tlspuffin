@@ -4,12 +4,8 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use puffin::{
     algebra::{dynamic_function::make_dynamic, error::FnError, Term},
     fuzzer::mutations::{util::TermConstraints, ReplaceReuseMutator},
-    libafl::{
-        bolts::rands::{RomuDuoJrRand, StdRand},
-        corpus::InMemoryCorpus,
-        mutators::Mutator,
-        state::StdState,
-    },
+    libafl::{corpus::InMemoryCorpus, mutators::Mutator, state::StdState},
+    libafl_bolts::rands::{RomuDuoJrRand, StdRand},
     term,
     trace::Trace,
 };

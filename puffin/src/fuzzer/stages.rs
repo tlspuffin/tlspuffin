@@ -1,6 +1,7 @@
 use std::{fmt, fmt::Debug, marker::PhantomData};
 
 use libafl::prelude::{mutational::MutatedTransform, *};
+use libafl_bolts::prelude::*;
 
 /// The default mutational stage
 #[derive(Clone, Debug)]
@@ -123,6 +124,17 @@ where
             self.mutations.len(),
             core::any::type_name::<I>()
         )
+    }
+}
+
+impl<I, MT, S> Named for PuffinScheduledMutator<I, MT, S>
+where
+    I: Input,
+    MT: MutatorsTuple<I, S>,
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        "PuffinScheduledMutator"
     }
 }
 

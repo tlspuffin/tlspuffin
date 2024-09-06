@@ -3,7 +3,7 @@ mod tests {
 
     use puffin::{
         algebra::dynamic_function::DescribableFunction, fuzzer::term_zoo::TermZoo,
-        libafl::bolts::rands::StdRand,
+        libafl_bolts::rands::StdRand,
     };
 
     use crate::{

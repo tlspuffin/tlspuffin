@@ -4,7 +4,8 @@
 use std::hash::{BuildHasher, Hash, Hasher};
 
 use chrono::Utc;
-use libafl::{bolts::HasLen, inputs::Input};
+use libafl::inputs::Input;
+use libafl_bolts::HasLen;
 
 use crate::trace::Trace;
 

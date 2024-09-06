@@ -2,6 +2,7 @@ use core::time::Duration;
 use std::{fmt, path::PathBuf};
 
 use libafl::{corpus::ondisk::OnDiskMetadataFormat, prelude::*};
+use libafl_bolts::prelude::*;
 use log4rs::Handle;
 
 use super::harness;
@@ -458,7 +459,7 @@ where
                 CachedOnDiskCorpus::with_meta_format(
                     corpus_dir.clone(),
                     4096, // mimicking libafl_sugar: https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/lib.rs#L78
-                    OnDiskMetadataFormat::Json,
+                    Some(OnDiskMetadataFormat::Json),
                 )
                 .unwrap(),
             )
@@ -466,7 +467,7 @@ where
                 CachedOnDiskCorpus::with_meta_format(
                     objective_dir.clone(),
                     4096, // mimicking libafl_sugar: https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/lib.rs#L78
-                    OnDiskMetadataFormat::Json,
+                    Some(OnDiskMetadataFormat::Json),
                 )
                 .unwrap(),
             )
