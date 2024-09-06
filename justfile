@@ -30,18 +30,20 @@ install-rust-toolchain TOOLCHAIN *FLAGS:
     case "${flag}" in -q|--quiet) exec 1>/dev/null;; esac
   done
 
-  # install toolchain
-  rustup install --no-self-update '{{ TOOLCHAIN }}'
+  if ! rustup show | grep -q -e '^{{ TOOLCHAIN }}'; then
+    # install toolchain
+    rustup install --no-self-update '{{ TOOLCHAIN }}'
 
-  # install toolchain components
-  rustup component add --toolchain '{{ TOOLCHAIN }}' \
-    cargo        \
-    clippy       \
-    rust-docs    \
-    rust-std     \
-    rustc        \
-    rustfmt      \
-    rust-src
+    # install toolchain components
+    rustup component add --toolchain '{{ TOOLCHAIN }}' \
+      cargo        \
+      clippy       \
+      rust-docs    \
+      rust-std     \
+      rustc        \
+      rustfmt      \
+      rust-src
+  fi
 
 # install rust tooling dependencies
 install-rust-tooling TOOLCHAIN *FLAGS: (install-rust-toolchain TOOLCHAIN FLAGS)
