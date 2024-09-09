@@ -57,12 +57,12 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
             Error::Stream(_) => STREAM.increment(),
             Error::Extraction() => EXTRACTION.increment(),
             Error::SecurityClaim(msg) => {
-                warn!("{}", msg);
+                log::warn!("{}", msg);
                 std::process::abort()
             }
         }
 
-        trace!("{}", err);
+        log::trace!("{}", err);
     }
 
     ExitKind::Ok
@@ -73,7 +73,7 @@ pub fn dummy_harness<PB: ProtocolBehavior + 'static>(_input: &Trace<PB::Matcher>
     let mut rng = rand::thread_rng();
 
     let n1 = rng.gen_range(0..10);
-    info!("Run {}", n1);
+    log::info!("Run {}", n1);
     if n1 <= 5 {
         return ExitKind::Timeout;
     }

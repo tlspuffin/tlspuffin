@@ -1,5 +1,3 @@
-use std::convert::TryInto;
-
 use puffin::algebra::error::FnError;
 use ring::test::rand::FixedByteRandom;
 
@@ -88,12 +86,10 @@ pub fn tls12_new_secrets(
 
 #[cfg(test)]
 mod tests {
-    use test_log::test;
-
     use crate::tls::key_exchange::deterministic_key_exchange;
     use crate::tls::rustls::kx::SECP384R1;
 
-    #[test]
+    #[test_log::test]
     fn test_deterministic_key() {
         let a = deterministic_key_exchange(&SECP384R1).unwrap();
         let b = deterministic_key_exchange(&SECP384R1).unwrap();

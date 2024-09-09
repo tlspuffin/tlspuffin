@@ -70,4 +70,5 @@ libc = "0.2"
 boringssl-sys = { path = "../boringssl-sys" }
 
 [dev-dependencies]
+test-log = "0.2"
 hex = "0.4"

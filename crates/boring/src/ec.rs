@@ -856,25 +856,25 @@ impl<T> fmt::Debug for EcKey<T> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use hex::FromHex;
 
     use super::*;
     use crate::bn::{BigNum, BigNumContext};
     use crate::nid::Nid;
 
-    #[test]
+    #[test_log::test]
     fn key_new_by_curve_name() {
         EcKey::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn generate() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         EcKey::generate(&group).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn cofactor() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let mut ctx = BigNumContext::new().unwrap();
@@ -884,7 +884,7 @@ mod test {
         assert_eq!(cofactor, one);
     }
 
-    #[test]
+    #[test_log::test]
     #[allow(clippy::redundant_clone)]
     fn dup() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
@@ -892,13 +892,13 @@ mod test {
         drop(key.clone());
     }
 
-    #[test]
+    #[test_log::test]
     fn point_new() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         EcPoint::new(&group).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn point_bytes() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let key = EcKey::generate(&group).unwrap();
@@ -911,7 +911,7 @@ mod test {
         assert!(point.eq(&group, &point2, &mut ctx).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn point_owned() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let key = EcKey::generate(&group).unwrap();
@@ -921,7 +921,7 @@ mod test {
         assert!(owned.eq(&group, point, &mut ctx).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn mul_generator() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let key = EcKey::generate(&group).unwrap();
@@ -933,7 +933,7 @@ mod test {
         assert!(public_key.eq(&group, key.public_key(), &mut ctx).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn generator() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let gen = group.generator();
@@ -944,7 +944,7 @@ mod test {
         assert!(ecp.eq(&group, gen, &mut ctx).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn key_from_public_key() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let key = EcKey::generate(&group).unwrap();
@@ -960,7 +960,7 @@ mod test {
         assert!(ec_key.check_key().is_ok());
     }
 
-    #[test]
+    #[test_log::test]
     fn key_from_private_components() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let key = EcKey::generate(&group).unwrap();
@@ -972,7 +972,7 @@ mod test {
         assert!(key.private_key() == dup_key.private_key());
     }
 
-    #[test]
+    #[test_log::test]
     fn key_from_affine_coordinates() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let x = Vec::from_hex("30a0424cd21c2944838a2d75c92b37e76ea20d9f00893a3b4eee8a3c0aafec3e")
@@ -987,7 +987,7 @@ mod test {
         assert!(ec_key.check_key().is_ok());
     }
 
-    #[test]
+    #[test_log::test]
     fn get_affine_coordinates() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let x = Vec::from_hex("30a0424cd21c2944838a2d75c92b37e76ea20d9f00893a3b4eee8a3c0aafec3e")

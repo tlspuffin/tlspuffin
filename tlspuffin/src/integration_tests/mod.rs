@@ -6,7 +6,7 @@ mod mutations;
 mod term_zoo;
 mod terms;
 
-#[test]
+#[test_log::test]
 fn version_test() {
     let registry = tls_registry();
     let versions = registry.default().versions();

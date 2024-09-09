@@ -1052,17 +1052,17 @@ impl Nid {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::Nid;
 
-    #[test]
+    #[test_log::test]
     fn signature_digest() {
         let algs = Nid::SHA256WITHRSAENCRYPTION.signature_algorithms().unwrap();
         assert_eq!(algs.digest, Nid::SHA256);
         assert_eq!(algs.pkey, Nid::RSAENCRYPTION);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_long_name_conversion() {
         let common_name = Nid::COMMONNAME;
         let organizational_unit_name = Nid::ORGANIZATIONALUNITNAME;
@@ -1094,7 +1094,7 @@ mod test {
         );
     }
 
-    #[test]
+    #[test_log::test]
     fn test_short_name_conversion() {
         let common_name = Nid::COMMONNAME;
         let organizational_unit_name = Nid::ORGANIZATIONALUNITNAME;

@@ -8,7 +8,6 @@ use std::sync::mpsc::{self, channel};
 use std::thread;
 use std::time::Duration;
 
-use log::{debug, info, warn};
 use puffin::agent::{AgentDescriptor, AgentName, AgentType};
 use puffin::algebra::ConcreteMessage;
 use puffin::codec::Codec;
@@ -37,7 +36,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             let options = &put_descriptor.options;
 
             if options.get_option("args").is_some() {
-                info!("Trace contains TCP running information we shall reuse.");
+                log::info!("Trace contains TCP running information we shall reuse.");
                 let args = options
                     .get_option("args")
                     .ok_or_else(|| {
@@ -63,7 +62,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                     Ok(Box::new(client))
                 }
             } else {
-                info!("Trace contains no TCP running information so we fall back to external TCP client and servers.");
+                log::info!("Trace contains no TCP running information so we fall back to external TCP client and servers.");
                 if agent_descriptor.typ == AgentType::Client {
                     let server = TcpServerPut::new(agent_descriptor, &put_descriptor)?;
                     Ok(Box::new(server))
@@ -90,11 +89,11 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn determinism_set_reseed(&self) {
-            debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
+            log::debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
         }
 
         fn determinism_reseed(&self) {
-            debug!(
+            log::debug!(
                 " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
                 self.name()
             );
@@ -295,7 +294,7 @@ fn addr_from_config(put_descriptor: &PutDescriptor) -> Result<SocketAddr, AddrPa
         .and_then(|value| u16::from_str(value).ok())
         .unwrap_or_else(|| {
             let port = 44338;
-            warn!(
+            log::warn!(
                 "Failed to parse port option (maybe you executed a trace that was not produced in \
             TCP mode?). We anyway fall back to port {port}."
             );
@@ -671,10 +670,8 @@ pub mod tcp_puts {
 
 #[cfg(test)]
 mod tests {
-    use log::info;
     use puffin::agent::{AgentName, TLSVersion};
     use puffin::put::PutDescriptor;
-    use test_log::test;
 
     use crate::put_registry::{tls_registry, TCP_PUT};
     use crate::tcp::tcp_puts::{openssl_client, openssl_server, wolfssl_client};
@@ -683,7 +680,7 @@ mod tests {
     };
     use crate::tls::trace_helper::TraceHelper;
 
-    #[test]
+    #[test_log::test]
     fn test_openssl_session_resumption_dhe_full() {
         let port = 44330;
         let guard = openssl_server(port, TLSVersion::V1_3);
@@ -705,11 +702,11 @@ mod tests {
 
         let server = AgentName::first().next();
         let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
+        log::info!("{}", shutdown);
         assert!(shutdown.contains("Reused session-id"));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_openssl_seed_client_attacker_full() {
         let port = 44331;
 
@@ -728,12 +725,12 @@ mod tests {
 
         let server = AgentName::first();
         let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
+        log::info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
         assert!(!shutdown.contains("Reused session-id"));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_openssl_openssl_seed_successful12() {
         let port = 44332;
 
@@ -765,16 +762,16 @@ mod tests {
 
         let client = AgentName::first();
         let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
+        log::info!("{}", shutdown);
         assert!(shutdown.contains("Timeout   : 7200 (sec)"));
 
         let server = client.next();
         let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
+        log::info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
 
-    #[test]
+    #[test_log::test]
     #[ignore] // wolfssl example server and client are not available in CI
     fn test_wolfssl_openssl_seed_successful12() {
         let port = 44334;
@@ -807,12 +804,12 @@ mod tests {
 
         let client = AgentName::first();
         let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
+        log::info!("{}", shutdown);
         assert!(!shutdown.contains("fail"));
 
         let server = client.next();
         let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
+        log::info!("{}", shutdown);
         assert!(shutdown.contains("BEGIN SSL SESSION PARAMETERS"));
     }
 }

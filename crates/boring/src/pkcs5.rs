@@ -144,7 +144,7 @@ mod tests {
 
     // Test vectors from
     // https://git.lysator.liu.se/nettle/nettle/blob/nettle_3.1.1_release_20150424/testsuite/pbkdf2-test.c
-    #[test]
+    #[test_log::test]
     fn pbkdf2_hmac_sha256() {
         let mut buf = [0; 16];
 
@@ -176,7 +176,7 @@ mod tests {
 
     // Test vectors from
     // https://git.lysator.liu.se/nettle/nettle/blob/nettle_3.1.1_release_20150424/testsuite/pbkdf2-test.c
-    #[test]
+    #[test_log::test]
     fn pbkdf2_hmac_sha512() {
         let mut buf = [0; 64];
 
@@ -240,7 +240,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[test_log::test]
     fn bytes_to_key() {
         let salt = [16_u8, 34_u8, 19_u8, 23_u8, 141_u8, 4_u8, 207_u8, 221_u8];
 
@@ -276,7 +276,7 @@ mod tests {
         );
     }
 
-    #[test]
+    #[test_log::test]
     fn scrypt() {
         use hex;
 

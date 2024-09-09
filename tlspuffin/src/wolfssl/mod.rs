@@ -5,7 +5,6 @@ use std::io::ErrorKind;
 use std::ops::Deref;
 use std::rc::Rc;
 
-use log::error;
 use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::algebra::ConcreteMessage;
@@ -105,11 +104,11 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn determinism_set_reseed(&self) -> () {
-            error!("[determinism_set_reseed] Not yet implemented.")
+            log::error!("[determinism_set_reseed] Not yet implemented.")
         }
 
         fn determinism_reseed(&self) -> () {
-            error!("[determinism_reseed] Not yet implemented.")
+            log::error!("[determinism_reseed] Not yet implemented.")
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
@@ -561,8 +560,7 @@ impl<T> From<Result<T, SslError>> for MaybeError {
                 match io_error.kind() {
                     ErrorKind::WouldBlock => {
                         // Not actually an error, we just reached the end of the stream, thrown in
-                        // MemoryStream debug!("Would have blocked but the
-                        // underlying stream is non-blocking!");
+                        // MemoryStream
                         MaybeError::Ok
                     }
                     _ => MaybeError::Err(Error::IO(format!("Unexpected IO Error: {}", io_error))),

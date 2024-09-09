@@ -2,7 +2,6 @@
 
 use std::any::Any;
 use std::fmt;
-use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
 use itertools::Itertools;
@@ -41,13 +40,13 @@ pub enum DYTerm<M: Matcher> {
 }
 
 impl<M: Matcher> fmt::Display for DYTerm<M> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", display_term_at_depth(self, 0, false))
     }
 }
 
 /// Trait for data we can treat as terms (either DYTerm or Term)
-pub trait TermType<M>: Display + Debug + Clone {
+pub trait TermType<M>: fmt::Display + fmt::Debug + Clone {
     fn resistant_id(&self) -> u32;
     fn size(&self) -> usize;
     fn is_leaf(&self) -> bool;
@@ -324,8 +323,8 @@ pub fn has_payload_to_replace_rec<M: Matcher>(term: &Term<M>, include_root: bool
     false
 }
 
-impl<M: Matcher> Display for Term<M> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl<M: Matcher> fmt::Display for Term<M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.display_at_depth(0))
     }
 }
@@ -610,17 +609,17 @@ where
 mod tests {
     use crate::algebra::remove_prefix;
 
-    #[test]
+    #[test_log::test]
     fn test_normal() {
         assert_eq!(remove_prefix("test::test::Test"), "Test");
     }
 
-    #[test]
+    #[test_log::test]
     fn test_generic() {
         assert_eq!(remove_prefix("test::test::Test<Asdf>"), "Test<Asdf>");
     }
 
-    #[test]
+    #[test_log::test]
     fn test_generic_recursive() {
         assert_eq!(remove_prefix("test::test::Test<asdf::Asdf>"), "Test<Asdf>");
     }

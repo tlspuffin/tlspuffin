@@ -100,20 +100,25 @@ pub fn dir() -> &'static str {
     }
 }
 
-/// This test ensures that we do not segfault when calling the functions of this module
-/// and that the strings respect a reasonable format.
-#[test]
-fn test_versions() {
-    println!("Number: '{}'", number());
-    println!("Version: '{}'", version());
-    println!("C flags: '{}'", c_flags());
-    println!("Built on: '{}'", built_on());
-    println!("Platform: '{}'", platform());
-    println!("Dir: '{}'", dir());
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    assert!(number() > 0);
-    assert!(version().starts_with("BoringSSL"));
-    assert!(c_flags().starts_with("compiler:"));
-    assert!(built_on().starts_with("built on:"));
-    assert!(dir().starts_with("OPENSSLDIR:"));
+    /// This test ensures that we do not segfault when calling the functions of this module
+    /// and that the strings respect a reasonable format.
+    #[test_log::test]
+    fn test_versions() {
+        println!("Number: '{}'", number());
+        println!("Version: '{}'", version());
+        println!("C flags: '{}'", c_flags());
+        println!("Built on: '{}'", built_on());
+        println!("Platform: '{}'", platform());
+        println!("Dir: '{}'", dir());
+
+        assert!(number() > 0);
+        assert!(version().starts_with("BoringSSL"));
+        assert!(c_flags().starts_with("compiler:"));
+        assert!(built_on().starts_with("built on:"));
+        assert!(dir().starts_with("OPENSSLDIR:"));
+    }
 }

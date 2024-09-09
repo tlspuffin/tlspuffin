@@ -8,8 +8,7 @@ use clap::parser::ValuesRef;
 use clap::{arg, crate_authors, crate_name, crate_version, value_parser, Command};
 use libafl::inputs::Input;
 use libafl_bolts::prelude::Cores;
-use log::{error, info};
-
+use log::log;
 use crate::algebra::set_deserialize_signature;
 use crate::execution::forked_execution;
 use crate::experiment::*;
@@ -114,13 +113,13 @@ where
     let without_bit_level = matches.get_flag("wo-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
 
-    info!("Git Version: {}", crate::GIT_REF);
-    info!("Put Versions:");
+    log::info!("Git Version: {}", crate::GIT_REF);
+    log::info!("Put Versions:");
 
     for (id, put) in put_registry.puts() {
-        info!("({:?}) {}:", put.kind(), id);
+        log::info!("({:?}) {}:", put.kind(), id);
         for (component, version) in put.versions().into_iter() {
-            info!("    {}: {}", component, version);
+            log::info!("    {}: {}", component, version);
         }
     }
 
@@ -130,7 +129,7 @@ where
     // Initialize global state
 
     if set_deserialize_signature(PB::signature()).is_err() {
-        error!("Failed to initialize deserialization");
+        log::error!("Failed to initialize deserialization");
     }
 
     let mut options: Vec<(String, String)> = Vec::new();
@@ -138,12 +137,12 @@ where
         options.push(("use_clear".to_string(), put_use_clear.to_string()))
     }
     if set_default_put_options(PutOptions::new(options)).is_err() {
-        error!("Failed to initialize default put options");
+        log::error!("Failed to initialize default put options");
     }
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         if let Err(err) = seed(&put_registry) {
-            error!("Failed to create seeds on disk: {:?}", err);
+            log::error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
         }
     } else if let Some(matches) = matches.subcommand_matches("plot") {
@@ -155,7 +154,7 @@ where
         let is_tree = matches.get_flag("tree");
 
         if let Err(err) = plot::<PB>(input, format, output_prefix, is_multiple, is_tree) {
-            error!("Failed to plot trace: {:?}", err);
+            log::error!("Failed to plot trace: {:?}", err);
             return ExitCode::FAILURE;
         }
     } else if let Some(matches) = matches.subcommand_matches("execute") {
@@ -206,8 +205,8 @@ where
             &paths[0..0]
         };
 
-        info!("execute: found {} inputs", paths.len());
-        info!(
+        log::info!("execute: found {} inputs", paths.len());
+        log::info!(
             "execute: running on subset [{}..{}] ({} inputs)",
             index,
             index + n,
@@ -215,7 +214,7 @@ where
         );
 
         for path in lookup_paths {
-            info!("Executing: {}", path.display());
+            log::info!("Executing: {}", path.display());
             execute(path, &put_registry);
         }
 
@@ -265,10 +264,10 @@ where
                 .unwrap()
         });
 
-        info!("execute: found {} inputs", paths.len());
+        log::info!("execute: found {} inputs", paths.len());
 
         for path in paths {
-            info!("Executing: {}", path.display());
+            log::info!("Executing: {}", path.display());
             execute(path, &put_registry);
         }
 
@@ -278,7 +277,7 @@ where
         let output: &String = matches.get_one("output").unwrap();
 
         if let Err(err) = binary_attack(input, output, &put_registry) {
-            error!("Failed to create trace output: {:?}", err);
+            log::error!("Failed to create trace output: {:?}", err);
             return ExitCode::FAILURE;
         }
     } else if let Some(matches) = matches.subcommand_matches("tcp") {
@@ -321,7 +320,7 @@ where
 
         let server = AgentName::first();
         let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
-        info!("{}", shutdown);
+        log::info!("{}", shutdown);
 
         return ExitCode::SUCCESS;
     } else {
@@ -354,7 +353,7 @@ where
                 matches,
                 port,
             ) {
-                error!("Failed to write readme: {:?}", err);
+                log::error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
             }
 
@@ -400,7 +399,7 @@ where
                 &matches,
                 port,
             ) {
-                error!("Failed to write readme: {:?}", err);
+                log::error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
             }
             experiment_path
@@ -409,7 +408,7 @@ where
         };
 
         if let Err(err) = fs::create_dir_all(&experiment_path) {
-            error!("Failed to create directories: {:?}", err);
+            log::error!("Failed to create directories: {:?}", err);
             return ExitCode::FAILURE;
         }
 
@@ -486,7 +485,7 @@ fn plot<PB: ProtocolBehavior>(
         }
     }
 
-    info!("Created plots");
+    log::info!("Created plots");
     Ok(())
 }
 
@@ -498,7 +497,7 @@ fn seed<PB: ProtocolBehavior>(
         trace.to_file(format!("./seeds/{}.trace", name))?;
     }
 
-    info!("Generated seed traces into the directory ./seeds");
+    log::info!("Generated seed traces into the directory ./seeds");
     Ok(())
 }
 
@@ -510,12 +509,12 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutReg
     let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
         Ok(t) => t,
         Err(_) => {
-            error!("Invalid trace file {}", input.as_ref().display());
+            log::error!("Invalid trace file {}", input.as_ref().display());
             return;
         }
     };
 
-    info!("Agents: {:?}", &trace.descriptors);
+    log::info!("Agents: {:?}", &trace.descriptors);
 
     // When generating coverage a crash means that no coverage is stored
     // By executing in a fork, even when that process crashes, the other executed code will still
@@ -524,7 +523,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutReg
         move || {
             let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
             if let Err(err) = trace.execute(&mut ctx) {
-                error!(
+                log::error!(
                     "Failed to execute trace {}: {:?}",
                     input.as_ref().display(),
                     err
@@ -536,7 +535,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutReg
     );
 
     match status {
-        Ok(s) => info!("execution finished with status {s:?}"),
+        Ok(s) => log::info!("execution finished with status {s:?}"),
         Err(reason) => panic!("failed to execute trace: {reason}"),
     }
 }
@@ -549,7 +548,7 @@ fn binary_attack<PB: ProtocolBehavior>(
     let trace = Trace::<PB::Matcher>::from_file(input)?;
     let ctx = TraceContext::new(put_registry, default_put_options().clone());
 
-    info!("Agents: {:?}", &trace.descriptors);
+    log::info!("Agents: {:?}", &trace.descriptors);
 
     let mut f = File::create(output).expect("Unable to create file");
 
@@ -559,7 +558,7 @@ fn binary_attack<PB: ProtocolBehavior>(
                 if let Ok(evaluated) = input.recipe.evaluate(&ctx) {
                     f.write_all(&evaluated).expect("Unable to write data");
                 } else {
-                    error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!")
+                    log::error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!")
                 }
             }
             Action::Output(_) => {}

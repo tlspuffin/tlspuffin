@@ -1,7 +1,5 @@
-use core::any::{Any, TypeId};
-
-use log::debug;
 use puffin::algebra::signature::Signature;
+use core::any::{Any, TypeId};
 use puffin::algebra::{ConcreteMessage, Matcher};
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
@@ -48,7 +46,7 @@ impl ProtocolMessageFlight<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessag
     }
 
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
+        log::debug!("{}: {:?}", info, self);
     }
 }
 
@@ -92,7 +90,7 @@ impl OpaqueProtocolMessageFlight<TlsQueryMatcher, OpaqueMessage> for OpaqueMessa
     }
 
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
+        log::debug!("{}: {:?}", info, self);
     }
 }
 

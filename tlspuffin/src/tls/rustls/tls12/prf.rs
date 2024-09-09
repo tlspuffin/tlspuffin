@@ -39,7 +39,7 @@ pub fn prf(out: &mut [u8], alg: hmac::Algorithm, secret: &[u8], label: &[u8], se
 mod tests {
     use ring::hmac::{HMAC_SHA256, HMAC_SHA512};
 
-    #[test]
+    #[test_log::test]
     fn check_sha256() {
         let secret = b"\x9b\xbe\x43\x6b\xa9\x40\xf0\x17\xb1\x76\x52\x84\x9a\x71\xdb\x35";
         let seed = b"\xa0\xba\x9f\x93\x6c\xda\x31\x18\x27\xa6\xf7\x96\xff\xd5\x19\x8c";
@@ -52,7 +52,7 @@ mod tests {
         assert_eq!(expect.to_vec(), output.to_vec());
     }
 
-    #[test]
+    #[test_log::test]
     fn check_sha512() {
         let secret = b"\xb0\x32\x35\x23\xc1\x85\x35\x99\x58\x4d\x88\x56\x8b\xbb\x05\xeb";
         let seed = b"\xd4\x64\x0e\x12\xe4\xbc\xdb\xfb\x43\x7f\x03\xe6\xae\x41\x8e\xe5";

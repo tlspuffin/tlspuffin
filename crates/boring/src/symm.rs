@@ -680,7 +680,7 @@ mod tests {
 
     use super::*;
 
-    #[test]
+    #[test_log::test]
     fn test_stream_cipher_output() {
         let key = [0u8; 16];
         let iv = [0u8; 16];
@@ -699,7 +699,7 @@ mod tests {
 
     // Test vectors from FIPS-197:
     // http://csrc.nist.gov/publications/fips/fips197/fips-197.pdf
-    #[test]
+    #[test_log::test]
     fn test_aes_256_ecb() {
         let k0 = [
             0x00u8, 0x01u8, 0x02u8, 0x03u8, 0x04u8, 0x05u8, 0x06u8, 0x07u8, 0x08u8, 0x09u8, 0x0au8,
@@ -743,7 +743,7 @@ mod tests {
         assert_eq!(hex::encode(p1), hex::encode(p0));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes_256_cbc_decrypt() {
         let iv = [
             4_u8, 223_u8, 153_u8, 219_u8, 28_u8, 142_u8, 234_u8, 68_u8, 227_u8, 69_u8, 98_u8,
@@ -799,7 +799,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_rc4() {
         let pt = "0000000000000000000000000000000000000000000000000000000000000000000000000000";
         let ct = "A68686B04D686AA107BD8D4CAB191A3EEC0A6294BC78B60F65C25CB47BD7BB3A48EFC4D26BE4";
@@ -809,7 +809,7 @@ mod tests {
         cipher_test(super::Cipher::rc4(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes128_ctr() {
         let pt = "6BC1BEE22E409F96E93D7E117393172AAE2D8A571E03AC9C9EB76FAC45AF8E5130C81C46A35CE411\
                   E5FBC1191A0A52EFF69F2445DF4F9B17AD2B417BE66C3710";
@@ -821,7 +821,7 @@ mod tests {
         cipher_test(super::Cipher::aes_128_ctr(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes128_ofb() {
         // Lifted from http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
 
@@ -833,7 +833,7 @@ mod tests {
         cipher_test(super::Cipher::aes_128_ofb(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes192_ctr() {
         // Lifted from http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
 
@@ -845,7 +845,7 @@ mod tests {
         cipher_test(super::Cipher::aes_192_ctr(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes192_ofb() {
         // Lifted from http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
 
@@ -857,7 +857,7 @@ mod tests {
         cipher_test(super::Cipher::aes_192_ofb(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes256_ofb() {
         // Lifted from http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
 
@@ -869,7 +869,7 @@ mod tests {
         cipher_test(super::Cipher::aes_256_ofb(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_des_cbc() {
         let pt = "54686973206973206120746573742e";
         let ct = "6f2867cfefda048a4046ef7e556c7132";
@@ -879,7 +879,7 @@ mod tests {
         cipher_test(super::Cipher::des_cbc(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_des_ecb() {
         let pt = "54686973206973206120746573742e";
         let ct = "0050ab8aecec758843fe157b4dde938c";
@@ -889,7 +889,7 @@ mod tests {
         cipher_test(super::Cipher::des_ecb(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_des_ede3() {
         let pt = "9994f4c69d40ae4f34ff403b5cf39d4c8207ea5d3e19a5fd";
         let ct = "9e5c4297d60582f81071ac8ab7d0698d4c79de8b94c519858207ea5d3e19a5fd";
@@ -899,7 +899,7 @@ mod tests {
         cipher_test(super::Cipher::des_ede3(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_des_ede3_cbc() {
         let pt = "54686973206973206120746573742e";
         let ct = "6f2867cfefda048a4046ef7e556c7132";
@@ -909,7 +909,7 @@ mod tests {
         cipher_test(super::Cipher::des_ede3_cbc(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes128_gcm() {
         let key = "0e00c76561d2bd9b40c3c15427e2b08f";
         let iv = "492cadaccd3ca3fbc9cf9f06eb3325c4e159850b0dbe98199b89b7af528806610b6f63998e1eae80c348e7\

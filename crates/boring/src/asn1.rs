@@ -588,7 +588,7 @@ mod tests {
     use crate::nid::Nid;
 
     /// Tests conversion between BigNum and Asn1Integer.
-    #[test]
+    #[test_log::test]
     fn bn_cvt() {
         fn roundtrip(bn: BigNum) {
             let large = Asn1Integer::from_bn(&bn).unwrap();
@@ -601,18 +601,18 @@ mod tests {
         roundtrip(-BigNum::from_u32(1234).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn time_from_str() {
         Asn1Time::from_str("99991231235959Z").unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn time_from_unix() {
         let t = Asn1Time::from_unix(0).unwrap();
         assert_eq!("Jan  1 00:00:00 1970 GMT", t.to_string());
     }
 
-    #[test]
+    #[test_log::test]
     fn time_eq() {
         let a = Asn1Time::from_str("99991231235959Z").unwrap();
         let b = Asn1Time::from_str("99991231235959Z").unwrap();
@@ -630,7 +630,7 @@ mod tests {
         assert!(a_ref != c_ref);
     }
 
-    #[test]
+    #[test_log::test]
     fn time_ord() {
         let a = Asn1Time::from_str("99991231235959Z").unwrap();
         let b = Asn1Time::from_str("99991231235959Z").unwrap();
@@ -659,13 +659,13 @@ mod tests {
         assert!(c_ref < a_ref);
     }
 
-    #[test]
+    #[test_log::test]
     fn object_from_str() {
         let object = Asn1Object::from_str("2.16.840.1.101.3.4.2.1").unwrap();
         assert_eq!(object.nid(), Nid::SHA256);
     }
 
-    #[test]
+    #[test_log::test]
     fn object_from_str_with_invalid_input() {
         Asn1Object::from_str("NOT AN OID")
             .map(|object| object.to_string())

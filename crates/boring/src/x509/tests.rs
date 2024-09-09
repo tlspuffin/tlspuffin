@@ -19,7 +19,7 @@ fn pkey() -> PKey<Private> {
     PKey::from_rsa(rsa).unwrap()
 }
 
-#[test]
+#[test_log::test]
 fn test_cert_loading() {
     let cert = include_bytes!("../../test/cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -31,7 +31,7 @@ fn test_cert_loading() {
     assert_eq!(hash_vec, &*fingerprint);
 }
 
-#[test]
+#[test_log::test]
 fn test_debug() {
     let cert = include_bytes!("../../test/cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -45,7 +45,7 @@ fn test_debug() {
     assert!(debugged.contains(r#"not_after: Aug 12 17:00:03 2026 GMT"#));
 }
 
-#[test]
+#[test_log::test]
 fn test_cert_issue_validity() {
     let cert = include_bytes!("../../test/cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -56,7 +56,7 @@ fn test_cert_issue_validity() {
     assert_eq!(not_after, "Aug 12 17:00:03 2026 GMT");
 }
 
-#[test]
+#[test_log::test]
 fn test_save_der() {
     let cert = include_bytes!("../../test/cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -65,7 +65,7 @@ fn test_save_der() {
     assert!(!der.is_empty());
 }
 
-#[test]
+#[test_log::test]
 fn test_subject_read_cn() {
     let cert = include_bytes!("../../test/cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -74,7 +74,7 @@ fn test_subject_read_cn() {
     assert_eq!(cn.data().as_slice(), b"foobar.com")
 }
 
-#[test]
+#[test_log::test]
 fn test_nid_values() {
     let cert = include_bytes!("../../test/nid_test_cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -93,7 +93,7 @@ fn test_nid_values() {
     assert_eq!(&**friendly.data().as_utf8().unwrap(), "Example");
 }
 
-#[test]
+#[test_log::test]
 fn test_nameref_iterator() {
     let cert = include_bytes!("../../test/nid_test_cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -120,7 +120,7 @@ fn test_nameref_iterator() {
     }
 }
 
-#[test]
+#[test_log::test]
 fn test_nid_uid_value() {
     let cert = include_bytes!("../../test/nid_uid_test_cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -130,7 +130,7 @@ fn test_nid_uid_value() {
     assert_eq!(cn.data().as_slice(), b"this is the userId");
 }
 
-#[test]
+#[test_log::test]
 fn test_subject_alt_name() {
     let cert = include_bytes!("../../test/alt_name_cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -147,7 +147,7 @@ fn test_subject_alt_name() {
     assert_eq!(Some("http://www.example.com"), subject_alt_names[4].uri());
 }
 
-#[test]
+#[test_log::test]
 fn test_subject_alt_name_iter() {
     let cert = include_bytes!("../../test/alt_name_cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -177,7 +177,7 @@ fn test_subject_alt_name_iter() {
     assert!(subject_alt_names_iter.next().is_none());
 }
 
-#[test]
+#[test_log::test]
 fn x509_builder() {
     let pkey = pkey();
 
@@ -250,7 +250,7 @@ fn x509_builder() {
     assert_eq!(serial, x509.serial_number().to_bn().unwrap());
 }
 
-#[test]
+#[test_log::test]
 fn x509_extension_new() {
     assert!(X509Extension::new(None, None, "crlDistributionPoints", "section").is_err());
     assert!(X509Extension::new(None, None, "proxyCertInfo", "").is_err());
@@ -258,7 +258,7 @@ fn x509_extension_new() {
     assert!(X509Extension::new(None, None, "subjectAltName", "dirName:section").is_err());
 }
 
-#[test]
+#[test_log::test]
 fn x509_extension_to_der() {
     let builder = X509::builder().unwrap();
 
@@ -296,7 +296,7 @@ fn x509_extension_to_der() {
     }
 }
 
-#[test]
+#[test_log::test]
 fn eku_invalid_other() {
     assert!(ExtendedKeyUsage::new()
         .other("1.1.1.1.1,2.2.2.2.2")
@@ -304,7 +304,7 @@ fn eku_invalid_other() {
         .is_err());
 }
 
-#[test]
+#[test_log::test]
 fn x509_req_builder() {
     let pkey = pkey();
 
@@ -340,7 +340,7 @@ fn x509_req_builder() {
     assert!(req.verify(&pkey).unwrap());
 }
 
-#[test]
+#[test_log::test]
 fn test_stack_from_pem() {
     let certs = include_bytes!("../../test/certs.pem");
     let certs = X509::stack_from_pem(certs).unwrap();
@@ -356,7 +356,7 @@ fn test_stack_from_pem() {
     );
 }
 
-#[test]
+#[test_log::test]
 fn issued() {
     let cert = include_bytes!("../../test/cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -367,7 +367,7 @@ fn issued() {
     assert!(cert.issued(&cert).is_err());
 }
 
-#[test]
+#[test_log::test]
 fn signature() {
     let cert = include_bytes!("../../test/cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -387,7 +387,7 @@ fn signature() {
     assert_eq!(algorithm.object().to_string(), "sha256WithRSAEncryption");
 }
 
-#[test]
+#[test_log::test]
 #[allow(clippy::redundant_clone)]
 fn clone_x509() {
     let cert = include_bytes!("../../test/cert.pem");
@@ -395,7 +395,7 @@ fn clone_x509() {
     drop(cert.clone());
 }
 
-#[test]
+#[test_log::test]
 fn test_verify_cert() {
     let cert = include_bytes!("../../test/cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -416,7 +416,7 @@ fn test_verify_cert() {
         .unwrap());
 }
 
-#[test]
+#[test_log::test]
 fn test_verify_fails() {
     let cert = include_bytes!("../../test/cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -434,7 +434,7 @@ fn test_verify_fails() {
         .unwrap());
 }
 
-#[test]
+#[test_log::test]
 fn test_save_subject_der() {
     let cert = include_bytes!("../../test/cert.pem");
     let cert = X509::from_pem(cert).unwrap();
@@ -444,7 +444,7 @@ fn test_save_subject_der() {
     assert!(!der.is_empty());
 }
 
-#[test]
+#[test_log::test]
 fn test_load_subject_der() {
     // The subject from ../../test/cert.pem
     const SUBJECT_DER: &[u8] = &[

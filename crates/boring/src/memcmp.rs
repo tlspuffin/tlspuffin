@@ -78,14 +78,14 @@ pub fn eq(a: &[u8], b: &[u8]) -> bool {
 mod tests {
     use super::eq;
 
-    #[test]
+    #[test_log::test]
     fn test_eq() {
         assert!(eq(&[], &[]));
         assert!(eq(&[1], &[1]));
         assert!(!eq(&[1, 2, 3], &[1, 2, 4]));
     }
 
-    #[test]
+    #[test_log::test]
     #[should_panic]
     fn test_diff_lens() {
         eq(&[], &[1]);

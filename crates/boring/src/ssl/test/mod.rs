@@ -29,7 +29,7 @@ static ROOT_CERT: &[u8] = include_bytes!("../../../test/root-ca.pem");
 static CERT: &[u8] = include_bytes!("../../../test/cert.pem");
 static KEY: &[u8] = include_bytes!("../../../test/key.pem");
 
-#[test]
+#[test_log::test]
 fn verify_untrusted() {
     let mut server = Server::builder();
     server.should_error();
@@ -41,7 +41,7 @@ fn verify_untrusted() {
     client.connect_err();
 }
 
-#[test]
+#[test_log::test]
 fn verify_trusted() {
     let server = Server::builder().build();
     let client = server.client_with_root_ca();
@@ -49,7 +49,7 @@ fn verify_trusted() {
     client.connect();
 }
 
-#[test]
+#[test_log::test]
 fn verify_trusted_with_set_cert() {
     let server = Server::builder().build();
 
@@ -64,7 +64,7 @@ fn verify_trusted_with_set_cert() {
     client.connect();
 }
 
-#[test]
+#[test_log::test]
 fn verify_untrusted_callback_override_ok() {
     let server = Server::builder().build();
 
@@ -79,7 +79,7 @@ fn verify_untrusted_callback_override_ok() {
     client.connect();
 }
 
-#[test]
+#[test_log::test]
 fn verify_untrusted_callback_override_bad() {
     let mut server = Server::builder();
     server.should_error();
@@ -93,7 +93,7 @@ fn verify_untrusted_callback_override_bad() {
     client.connect_err();
 }
 
-#[test]
+#[test_log::test]
 fn verify_trusted_callback_override_ok() {
     let server = Server::builder().build();
     let mut client = server.client_with_root_ca();
@@ -108,7 +108,7 @@ fn verify_trusted_callback_override_ok() {
     client.connect();
 }
 
-#[test]
+#[test_log::test]
 fn verify_trusted_callback_override_bad() {
     let mut server = Server::builder();
 
@@ -124,7 +124,7 @@ fn verify_trusted_callback_override_bad() {
     client.connect_err();
 }
 
-#[test]
+#[test_log::test]
 fn verify_callback_load_certs() {
     let server = Server::builder().build();
 
@@ -139,7 +139,7 @@ fn verify_callback_load_certs() {
     client.connect();
 }
 
-#[test]
+#[test_log::test]
 fn verify_trusted_get_error_ok() {
     let server = Server::builder().build();
     let mut client = server.client_with_root_ca();
@@ -154,7 +154,7 @@ fn verify_trusted_get_error_ok() {
     client.connect();
 }
 
-#[test]
+#[test_log::test]
 fn verify_trusted_get_error_err() {
     let mut server = Server::builder();
     server.should_error();
@@ -171,7 +171,7 @@ fn verify_trusted_get_error_err() {
     client.connect_err();
 }
 
-#[test]
+#[test_log::test]
 fn verify_callback() {
     static CALLED_BACK: AtomicBool = AtomicBool::new(false);
 
@@ -193,7 +193,7 @@ fn verify_callback() {
     assert!(CALLED_BACK.load(Ordering::SeqCst));
 }
 
-#[test]
+#[test_log::test]
 fn ssl_verify_callback() {
     static CALLED_BACK: AtomicBool = AtomicBool::new(false);
 
@@ -215,20 +215,20 @@ fn ssl_verify_callback() {
     assert!(CALLED_BACK.load(Ordering::SeqCst));
 }
 
-#[test]
+#[test_log::test]
 fn get_ctx_options() {
     let ctx = SslContext::builder(SslMethod::tls()).unwrap();
     ctx.options();
 }
 
-#[test]
+#[test_log::test]
 fn set_ctx_options() {
     let mut ctx = SslContext::builder(SslMethod::tls()).unwrap();
     let opts = ctx.set_options(SslOptions::NO_TICKET);
     assert!(opts.contains(SslOptions::NO_TICKET));
 }
 
-#[test]
+#[test_log::test]
 fn clear_ctx_options() {
     let mut ctx = SslContext::builder(SslMethod::tls()).unwrap();
     ctx.set_options(SslOptions::NO_TICKET);
@@ -236,7 +236,7 @@ fn clear_ctx_options() {
     assert!(!opts.contains(SslOptions::NO_TICKET));
 }
 
-#[test]
+#[test_log::test]
 fn zero_length_buffers() {
     let server = Server::builder().build();
 
@@ -245,7 +245,7 @@ fn zero_length_buffers() {
     assert_eq!(s.read(&mut []).unwrap(), 0);
 }
 
-#[test]
+#[test_log::test]
 fn peer_certificate() {
     let server = Server::builder().build();
 
@@ -258,7 +258,7 @@ fn peer_certificate() {
     );
 }
 
-#[test]
+#[test_log::test]
 fn pending() {
     let mut server = Server::builder();
     server.io_cb(|mut s| s.write_all(&[0; 10]).unwrap());
@@ -271,7 +271,7 @@ fn pending() {
     assert_eq!(s.read(&mut [0; 10]).unwrap(), 9);
 }
 
-#[test]
+#[test_log::test]
 fn state() {
     let server = Server::builder().build();
 
@@ -287,7 +287,7 @@ fn state() {
 /// Tests that when both the client as well as the server use SRTP and their
 /// lists of supported protocols have an overlap -- with only ONE protocol
 /// being valid for both.
-#[test]
+#[test_log::test]
 fn test_connect_with_srtp_ctx() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
@@ -345,7 +345,7 @@ fn test_connect_with_srtp_ctx() {
 /// Tests that when both the client as well as the server use SRTP and their
 /// lists of supported protocols have an overlap -- with only ONE protocol
 /// being valid for both.
-#[test]
+#[test_log::test]
 fn test_connect_with_srtp_ssl() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
@@ -413,7 +413,7 @@ fn test_connect_with_srtp_ssl() {
 
 /// Tests that when the `SslStream` is created as a server stream, the protocols
 /// are correctly advertised to the client.
-#[test]
+#[test_log::test]
 fn test_alpn_server_advertise_multiple() {
     let mut server = Server::builder();
     server.ctx().set_alpn_select_callback(|_, client| {
@@ -427,7 +427,7 @@ fn test_alpn_server_advertise_multiple() {
     assert_eq!(s.ssl().selected_alpn_protocol(), Some(&b"spdy/3.1"[..]));
 }
 
-#[test]
+#[test_log::test]
 fn test_alpn_server_select_none_fatal() {
     let mut server = Server::builder();
     server.ctx().set_alpn_select_callback(|_, client| {
@@ -442,7 +442,7 @@ fn test_alpn_server_select_none_fatal() {
     client.connect_err();
 }
 
-#[test]
+#[test_log::test]
 fn test_alpn_server_select_none() {
     let mut server = Server::builder();
     server.ctx().set_alpn_select_callback(|_, client| {
@@ -456,7 +456,7 @@ fn test_alpn_server_select_none() {
     assert_eq!(None, s.ssl().selected_alpn_protocol());
 }
 
-#[test]
+#[test_log::test]
 fn test_alpn_server_unilateral() {
     let server = Server::builder().build();
 
@@ -466,7 +466,7 @@ fn test_alpn_server_unilateral() {
     assert_eq!(None, s.ssl().selected_alpn_protocol());
 }
 
-#[test]
+#[test_log::test]
 fn test_select_cert_ok() {
     let mut server = Server::builder();
     server
@@ -478,7 +478,7 @@ fn test_select_cert_ok() {
     client.connect();
 }
 
-#[test]
+#[test_log::test]
 fn test_select_cert_error() {
     let mut server = Server::builder();
     server.should_error();
@@ -491,7 +491,7 @@ fn test_select_cert_error() {
     client.connect_err();
 }
 
-#[test]
+#[test_log::test]
 fn test_select_cert_unknown_extension() {
     let mut server = Server::builder();
     let unknown_extension = std::sync::Arc::new(std::sync::Mutex::new(Some(vec![])));
@@ -515,7 +515,7 @@ fn test_select_cert_unknown_extension() {
     assert_eq!(unknown_extension.lock().unwrap().as_deref(), None);
 }
 
-#[test]
+#[test_log::test]
 fn test_select_cert_alpn_extension() {
     let mut server = Server::builder();
     let alpn_extension = std::sync::Arc::new(std::sync::Mutex::new(None));
@@ -542,7 +542,7 @@ fn test_select_cert_alpn_extension() {
     );
 }
 
-#[test]
+#[test_log::test]
 #[should_panic(expected = "blammo")]
 fn write_panic() {
     struct ExplodingStream(TcpStream);
@@ -573,7 +573,7 @@ fn write_panic() {
     let _ = Ssl::new(&ctx.build()).unwrap().connect(stream);
 }
 
-#[test]
+#[test_log::test]
 #[should_panic(expected = "blammo")]
 fn read_panic() {
     struct ExplodingStream(TcpStream);
@@ -604,7 +604,7 @@ fn read_panic() {
     let _ = Ssl::new(&ctx.build()).unwrap().connect(stream);
 }
 
-#[test]
+#[test_log::test]
 #[should_panic(expected = "blammo")]
 fn flush_panic() {
     struct ExplodingStream(TcpStream);
@@ -635,7 +635,7 @@ fn flush_panic() {
     let _ = Ssl::new(&ctx.build()).unwrap().connect(stream);
 }
 
-#[test]
+#[test_log::test]
 fn refcount_ssl_context() {
     let mut ssl = {
         let ctx = SslContext::builder(SslMethod::tls()).unwrap();
@@ -648,7 +648,7 @@ fn refcount_ssl_context() {
     }
 }
 
-#[test]
+#[test_log::test]
 #[cfg_attr(target_os = "windows", ignore)]
 #[cfg_attr(all(target_os = "macos", feature = "vendored"), ignore)]
 fn default_verify_paths() {
@@ -673,14 +673,14 @@ fn default_verify_paths() {
     assert!(result.ends_with(b"</HTML>\r\n") || result.ends_with(b"</html>"));
 }
 
-#[test]
+#[test_log::test]
 fn add_extra_chain_cert() {
     let cert = X509::from_pem(CERT).unwrap();
     let mut ctx = SslContext::builder(SslMethod::tls()).unwrap();
     ctx.add_extra_chain_cert(cert).unwrap();
 }
 
-#[test]
+#[test_log::test]
 fn verify_valid_hostname() {
     let server = Server::builder().build();
     let mut client = server.client_with_root_ca();
@@ -696,7 +696,7 @@ fn verify_valid_hostname() {
     client.connect();
 }
 
-#[test]
+#[test_log::test]
 fn verify_invalid_hostname() {
     let mut server = Server::builder();
 
@@ -716,7 +716,7 @@ fn verify_invalid_hostname() {
     client.connect_err();
 }
 
-#[test]
+#[test_log::test]
 fn connector_valid_hostname() {
     let server = Server::builder().build();
 
@@ -728,7 +728,7 @@ fn connector_valid_hostname() {
     s.read_exact(&mut [0]).unwrap();
 }
 
-#[test]
+#[test_log::test]
 fn connector_invalid_hostname() {
     let mut server = Server::builder();
     server.should_error();
@@ -741,7 +741,7 @@ fn connector_invalid_hostname() {
     connector.build().connect("bogus.com", s).unwrap_err();
 }
 
-#[test]
+#[test_log::test]
 fn connector_invalid_no_hostname_verification() {
     let server = Server::builder().build();
 
@@ -759,7 +759,7 @@ fn connector_invalid_no_hostname_verification() {
     s.read_exact(&mut [0]).unwrap();
 }
 
-#[test]
+#[test_log::test]
 fn connector_no_hostname_still_verifies() {
     let mut server = Server::builder();
     server.should_error();
@@ -776,7 +776,7 @@ fn connector_no_hostname_still_verifies() {
         .is_err());
 }
 
-#[test]
+#[test_log::test]
 fn connector_no_hostname_can_disable_verify() {
     let server = Server::builder().build();
 
@@ -825,22 +825,22 @@ fn test_mozilla_server(new: fn(SslMethod) -> Result<SslAcceptorBuilder, ErrorSta
     t.join().unwrap();
 }
 
-#[test]
+#[test_log::test]
 fn connector_client_server_mozilla_intermediate() {
     test_mozilla_server(SslAcceptor::mozilla_intermediate);
 }
 
-#[test]
+#[test_log::test]
 fn connector_client_server_mozilla_modern() {
     test_mozilla_server(SslAcceptor::mozilla_modern);
 }
 
-#[test]
+#[test_log::test]
 fn connector_client_server_mozilla_intermediate_v5() {
     test_mozilla_server(SslAcceptor::mozilla_intermediate_v5);
 }
 
-#[test]
+#[test_log::test]
 fn shutdown() {
     let mut server = Server::builder();
     server.io_cb(|mut s| {
@@ -861,7 +861,7 @@ fn shutdown() {
     );
 }
 
-#[test]
+#[test_log::test]
 fn client_ca_list() {
     let names = X509Name::load_client_ca_file("test/root-ca.pem").unwrap();
     assert_eq!(names.len(), 1);
@@ -870,7 +870,7 @@ fn client_ca_list() {
     ctx.set_client_ca_list(names);
 }
 
-#[test]
+#[test_log::test]
 fn cert_store() {
     let server = Server::builder().build();
 
@@ -882,7 +882,7 @@ fn cert_store() {
     client.connect();
 }
 
-#[test]
+#[test_log::test]
 fn keying_export() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
@@ -929,7 +929,7 @@ fn keying_export() {
     assert_eq!(buf, buf2);
 }
 
-#[test]
+#[test_log::test]
 fn no_version_overlap() {
     let mut server = Server::builder();
     server.ctx().set_min_proto_version(None).unwrap();
@@ -960,7 +960,7 @@ fn _check_kinds() {
     is_sync::<SslStream<TcpStream>>();
 }
 
-#[test]
+#[test_log::test]
 fn psk_ciphers() {
     const CIPHER: &str = "PSK-AES128-CBC-SHA";
     const PSK: &[u8] = b"thisisaverysecurekey";
@@ -998,7 +998,7 @@ fn psk_ciphers() {
     assert!(CLIENT_CALLED.load(Ordering::SeqCst) && SERVER_CALLED.load(Ordering::SeqCst));
 }
 
-#[test]
+#[test_log::test]
 fn sni_callback_swapped_ctx() {
     static CALLED_BACK: AtomicBool = AtomicBool::new(false);
 
@@ -1021,7 +1021,7 @@ fn sni_callback_swapped_ctx() {
 }
 
 #[cfg(feature = "kx-safe-default")]
-#[test]
+#[test_log::test]
 fn client_set_default_curves_list() {
     let ssl_ctx = crate::ssl::SslContextBuilder::new(SslMethod::tls())
         .unwrap()
@@ -1033,7 +1033,7 @@ fn client_set_default_curves_list() {
 }
 
 #[cfg(feature = "kx-safe-default")]
-#[test]
+#[test_log::test]
 fn server_set_default_curves_list() {
     let ssl_ctx = crate::ssl::SslContextBuilder::new(SslMethod::tls())
         .unwrap()

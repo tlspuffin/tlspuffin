@@ -53,7 +53,6 @@
 use std::any::{type_name, Any, TypeId};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
-use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
 
 use itertools::Itertools;
@@ -152,7 +151,7 @@ where
 }
 
 impl fmt::Debug for Box<dyn DynamicFunction> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "DynamicFunction")
     }
 }
@@ -292,7 +291,7 @@ impl Hash for TypeShape {
 }
 
 impl fmt::Display for TypeShape {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
 }

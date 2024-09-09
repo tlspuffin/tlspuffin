@@ -23,7 +23,6 @@ use std::marker::PhantomData;
 use std::vec::IntoIter;
 
 use clap::error::Result;
-use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};
@@ -126,13 +125,13 @@ impl<M: Matcher> Knowledge<'_, M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         let data_type_id = self.data.type_id();
-        debug!(
+        log::debug!(
             "New knowledge {}: {}  (counter: {})",
             &self,
             remove_prefix(self.data.type_name()),
             ctx.number_matching_message_with_source(source.clone(), data_type_id, &self.matcher)
         );
-        debug!("Knowledge data: {:?}", self.data);
+        log::debug!("Knowledge data: {:?}", self.data);
     }
 }
 
@@ -500,7 +499,7 @@ impl<M: Matcher> Trace<M> {
             if ctx.deterministic_put {
                 if let Ok(agent) = ctx.find_agent_mut(name) {
                     if let Err(err) = agent.put_mut().determinism_reseed() {
-                        warn!("Unable to make agent {} deterministic: {}", name, err)
+                        log::warn!("Unable to make agent {} deterministic: {}", name, err)
                     }
                 }
             }
@@ -528,7 +527,7 @@ impl<M: Matcher> Trace<M> {
         self.spawn_agents(ctx)?;
         let steps = &self.steps[0..nb_steps];
         for (i, step) in steps.iter().enumerate() {
-            debug!("Executing step #{}", i);
+            log::debug!("Executing step #{}", i);
 
             step.action.execute(step, ctx)?;
 
@@ -724,12 +723,12 @@ impl<M: Matcher> OutputAction<M> {
                 .knowledge_store
                 .add_raw_knowledge(opaque_flight, source.clone())
             {
-                debug!("Raw Knowledge increased to {}", num);
+                log::debug!("Raw Knowledge increased by {}", num);
             }
 
             if let Ok(f) = flight {
                 if let Ok(num) = ctx.knowledge_store.add_raw_knowledge(f, source.clone()) {
-                    debug!("Raw Knowledge increased to {}", num);
+                    log::debug!("Raw Knowledge increased by {}", num);
                 }
             }
         }

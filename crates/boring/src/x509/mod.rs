@@ -7,7 +7,6 @@
 //! Internet protocols, including SSL/TLS, which is the basis for HTTPS,
 //! the secure protocol for browsing the web.
 
-use std::convert::TryInto;
 use std::error::Error;
 use std::ffi::{CStr, CString};
 use std::marker::PhantomData;

@@ -43,7 +43,7 @@ pub fn rand_bytes(buf: &mut [u8]) -> Result<(), ErrorStack> {
 mod tests {
     use super::rand_bytes;
 
-    #[test]
+    #[test_log::test]
     fn test_rand_bytes() {
         let mut buf = [0; 32];
         rand_bytes(&mut buf).unwrap();

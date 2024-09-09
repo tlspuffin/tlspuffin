@@ -1,7 +1,6 @@
 //! This module provides an enum for terms. A term can either be a Variable or a Function.
 //! This also implements the serializability of terms.
 use std::fmt;
-use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
 
 use rand::random;
@@ -62,7 +61,7 @@ impl<M: Matcher> Variable<M> {
 }
 
 impl<M: Matcher> fmt::Display for Variable<M> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}/{}", self.query, remove_prefix(self.typ.name))
     }
 }
@@ -189,7 +188,7 @@ impl Function {
 }
 
 impl fmt::Display for Function {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.fn_container.shape.fmt(f)
     }
 }

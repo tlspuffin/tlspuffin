@@ -1,4 +1,3 @@
-use std::fmt::Formatter;
 use std::{fmt, io};
 
 use crate::algebra::error::FnError;
@@ -31,7 +30,7 @@ impl From<anyhow::Error> for Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::Fn(err) => write!(f, "error executing a function symbol: {}", err),
             Error::Term(err) => write!(f, "error evaluating a term: {}", err),

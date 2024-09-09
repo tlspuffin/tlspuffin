@@ -10,7 +10,6 @@ use boring::x509::store::X509StoreBuilder;
 use boring::x509::X509;
 use boringssl_sys::ssl_st;
 use foreign_types::ForeignTypeRef;
-use log::{debug, info, trace};
 use puffin::agent::{AgentDescriptor, AgentName, AgentType};
 use puffin::error::Error;
 use puffin::put::{Put, PutName};
@@ -60,7 +59,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
             // FIXME: Add non-clear method like in wolfssl
             if !use_clear {
-                info!("OpenSSL put does not support clearing mode")
+                log::info!("OpenSSL put does not support clearing mode")
             }
 
             let config = TlsPutConfig {
@@ -114,12 +113,14 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn determinism_set_reseed(&self) -> () {
-            debug!("[Determinism] BoringSSL set (already done at compile time) and reseed RAND");
+            log::debug!(
+                "[Determinism] BoringSSL set (already done at compile time) and reseed RAND"
+            );
             deterministic::reset_rand();
         }
 
         fn determinism_reseed(&self) -> () {
-            debug!("[Determinism] reseed BoringSSL");
+            log::debug!("[Determinism] reseed BoringSSL");
             deterministic::reset_rand();
         }
 
@@ -359,7 +360,7 @@ impl BoringSSL {
         let claims = config.claims.clone();
 
         move |ssl: &mut SslRef, info_type: i32| {
-            trace!(
+            log::trace!(
                 "BORING MSG CALLBACK : {} -- {}",
                 ssl.state_string_long(),
                 info_type
@@ -447,8 +448,7 @@ impl<T> From<Result<T, boring::ssl::Error>> for MaybeError {
                 match io_error.kind() {
                     ErrorKind::WouldBlock => {
                         // Not actually an error, we just reached the end of the stream, thrown in
-                        // MemoryStream debug!("Would have blocked but the
-                        // underlying stream is non-blocking!");
+                        // MemoryStream
                         MaybeError::Ok
                     }
                     _ => MaybeError::Err(Error::IO(format!("Unexpected IO Error: {}", io_error))),

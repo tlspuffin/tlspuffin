@@ -115,18 +115,9 @@ impl RootCertStore {
         for der_cert in der_certs {
             match self.add(&key::Certificate(der_cert.clone())) {
                 Ok(_) => valid_count += 1,
-                Err(_err) => {
-                    //trace!("invalid cert der {:?}", der_cert);
-                    //debug!("certificate parsing failed: {:?}", err);
-                    invalid_count += 1
-                }
+                Err(_err) => invalid_count += 1,
             }
         }
-
-        /*debug!(
-            "add_parsable_certificates processed {} valid and {} invalid certs",
-            valid_count, invalid_count
-        );*/
 
         (valid_count, invalid_count)
     }

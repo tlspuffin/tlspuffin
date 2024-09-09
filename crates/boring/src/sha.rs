@@ -396,12 +396,12 @@ impl Sha512_256 {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use hex;
 
     use super::*;
 
-    #[test]
+    #[test_log::test]
     fn standalone_1() {
         let data = b"abc";
         let expected = "a9993e364706816aba3e25717850c26c9cd0d89d";
@@ -409,7 +409,7 @@ mod test {
         assert_eq!(hex::encode(sha1(data)), expected);
     }
 
-    #[test]
+    #[test_log::test]
     fn struct_1() {
         let expected = "a9993e364706816aba3e25717850c26c9cd0d89d";
 
@@ -419,7 +419,7 @@ mod test {
         assert_eq!(hex::encode(hasher.finish()), expected);
     }
 
-    #[test]
+    #[test_log::test]
     fn cloning_allows_incremental_hashing() {
         let expected = "a9993e364706816aba3e25717850c26c9cd0d89d";
 
@@ -433,7 +433,7 @@ mod test {
         assert_ne!(hex::encode(hasher.finish()), expected);
     }
 
-    #[test]
+    #[test_log::test]
     fn standalone_224() {
         let data = b"abc";
         let expected = "23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7";
@@ -441,7 +441,7 @@ mod test {
         assert_eq!(hex::encode(sha224(data)), expected);
     }
 
-    #[test]
+    #[test_log::test]
     fn struct_224() {
         let expected = "23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7";
 
@@ -451,7 +451,7 @@ mod test {
         assert_eq!(hex::encode(hasher.finish()), expected);
     }
 
-    #[test]
+    #[test_log::test]
     fn standalone_256() {
         let data = b"abc";
         let expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
@@ -459,7 +459,7 @@ mod test {
         assert_eq!(hex::encode(sha256(data)), expected);
     }
 
-    #[test]
+    #[test_log::test]
     fn struct_256() {
         let expected = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 
@@ -469,7 +469,7 @@ mod test {
         assert_eq!(hex::encode(hasher.finish()), expected);
     }
 
-    #[test]
+    #[test_log::test]
     fn standalone_384() {
         let data = b"abc";
         let expected =
@@ -479,7 +479,7 @@ mod test {
         assert_eq!(hex::encode(&sha384(data)[..]), expected);
     }
 
-    #[test]
+    #[test_log::test]
     fn struct_384() {
         let expected =
             "cb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e\
@@ -491,7 +491,7 @@ mod test {
         assert_eq!(hex::encode(&hasher.finish()[..]), expected);
     }
 
-    #[test]
+    #[test_log::test]
     fn standalone_512() {
         let data = b"abc";
         let expected =
@@ -501,7 +501,7 @@ mod test {
         assert_eq!(hex::encode(&sha512(data)[..]), expected);
     }
 
-    #[test]
+    #[test_log::test]
     fn struct_512() {
         let expected =
             "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274\
@@ -513,7 +513,7 @@ mod test {
         assert_eq!(hex::encode(&hasher.finish()[..]), expected);
     }
 
-    #[test]
+    #[test_log::test]
     fn standalone_512_256() {
         let data = b"abc";
         let expected = "53048e2681941ef99b2e29b76b4c7dabe4c2d0c634fc6d46e0e2f13107e7af23";
@@ -521,7 +521,7 @@ mod test {
         assert_eq!(hex::encode(&sha512_256(data)[..]), expected);
     }
 
-    #[test]
+    #[test_log::test]
     fn struct_512_256() {
         let expected = "53048e2681941ef99b2e29b76b4c7dabe4c2d0c634fc6d46e0e2f13107e7af23";
 

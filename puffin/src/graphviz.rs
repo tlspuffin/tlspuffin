@@ -239,7 +239,7 @@ impl<M: Matcher> Term<M> {
 mod tests {
     use crate::algebra::test_signature::setup_simple_trace;
 
-    #[test]
+    #[test_log::test]
     fn test_dot_graph() {
         let trace = setup_simple_trace();
         let _string = trace.dot_graph(true);

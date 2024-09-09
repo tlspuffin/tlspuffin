@@ -1253,7 +1253,7 @@ impl Neg for BigNum {
 mod tests {
     use crate::bn::{BigNum, BigNumContext};
 
-    #[test]
+    #[test_log::test]
     fn test_to_from_slice() {
         let v0 = BigNum::from_u32(10_203_004).unwrap();
         let vec = v0.to_vec();
@@ -1262,7 +1262,7 @@ mod tests {
         assert_eq!(v0, v1);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_negation() {
         let a = BigNum::from_u32(909_829_283).unwrap();
 
@@ -1270,14 +1270,14 @@ mod tests {
         assert!((-a).is_negative());
     }
 
-    #[test]
+    #[test_log::test]
     fn test_shift() {
         let a = BigNum::from_u32(909_829_283).unwrap();
 
         assert_eq!(a, &(&a << 1) >> 1);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_rand_range() {
         let range = BigNum::from_u32(909_829_283).unwrap();
         let mut result = BigNum::from_dec_str(&range.to_dec_str().unwrap()).unwrap();
@@ -1285,7 +1285,7 @@ mod tests {
         assert!(result >= BigNum::from_u32(0).unwrap() && result < range);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_pseudo_rand_range() {
         let range = BigNum::from_u32(909_829_283).unwrap();
         let mut result = BigNum::from_dec_str(&range.to_dec_str().unwrap()).unwrap();
@@ -1293,7 +1293,7 @@ mod tests {
         assert!(result >= BigNum::from_u32(0).unwrap() && result < range);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_prime_numbers() {
         let a = BigNum::from_u32(19_029_017).unwrap();
         let mut p = BigNum::new().unwrap();

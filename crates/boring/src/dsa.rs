@@ -294,16 +294,16 @@ impl<T> fmt::Debug for Dsa<T> {
 use crate::ffi::{DSA_get0_key, DSA_get0_pqg, DSA_set0_key, DSA_set0_pqg};
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use crate::bn::BigNumContext;
 
-    #[test]
+    #[test_log::test]
     pub fn test_generate() {
         Dsa::generate(1024).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_pubkey_generation() {
         let dsa = Dsa::generate(1024).unwrap();
         let p = dsa.p();
@@ -316,7 +316,7 @@ mod test {
         assert_eq!(&calc, pub_key)
     }
 
-    #[test]
+    #[test_log::test]
     fn test_priv_key_from_parts() {
         let p = BigNum::from_u32(283).unwrap();
         let q = BigNum::from_u32(47).unwrap();
@@ -332,7 +332,7 @@ mod test {
         assert_eq!(dsa.g(), &BigNum::from_u32(60).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn test_pub_key_from_parts() {
         let p = BigNum::from_u32(283).unwrap();
         let q = BigNum::from_u32(47).unwrap();
@@ -346,7 +346,7 @@ mod test {
         assert_eq!(dsa.g(), &BigNum::from_u32(60).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     #[allow(clippy::redundant_clone)]
     fn clone() {
         let key = Dsa::generate(2048).unwrap();

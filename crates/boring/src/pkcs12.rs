@@ -201,7 +201,7 @@ impl Pkcs12Builder {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use hex;
 
     use super::*;
@@ -213,7 +213,7 @@ mod test {
     use crate::x509::extension::KeyUsage;
     use crate::x509::{X509Name, X509};
 
-    #[test]
+    #[test_log::test]
     fn parse() {
         let der = include_bytes!("../test/identity.p12");
         let pkcs12 = Pkcs12::from_der(der).unwrap();
@@ -232,7 +232,7 @@ mod test {
         );
     }
 
-    #[test]
+    #[test_log::test]
     fn parse_empty_chain() {
         let der = include_bytes!("../test/keystore-empty-chain.p12");
         let pkcs12 = Pkcs12::from_der(der).unwrap();
@@ -240,7 +240,7 @@ mod test {
         assert_eq!(parsed.chain.unwrap().len(), 0);
     }
 
-    #[test]
+    #[test_log::test]
     fn create() {
         let subject_name = "ns.example.com";
         let rsa = Rsa::generate(2048).unwrap();
