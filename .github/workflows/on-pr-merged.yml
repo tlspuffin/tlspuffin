@@ -68,8 +68,8 @@ jobs:
       - name: checkout website repository
         uses: actions/checkout@v4
         with:
-          repository: 'tlspuffin/tlspuffin.github.io'
-          ref: 'main'
+          repository: "tlspuffin/tlspuffin.github.io"
+          ref: "main"
           ssh-key: ${{ secrets.WEBSITE_REPO_KEY }}
 
       - name: remove previous website folder

@@ -128,7 +128,7 @@ typedef struct C_PUT_TYPE
      *
      * The number of bytes actually placed in <bytes> is given in <readbytes>.
      */
-    RESULT (*const take_outbound)
+    RESULT(*const take_outbound)
     (void *agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 } C_PUT_TYPE;
 

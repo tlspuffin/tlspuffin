@@ -3,12 +3,12 @@ description: Setup toolchains and tools
 
 inputs:
   rust-toolchain:
-    description: 'The default Rust toolchain to setup'
+    description: "The default Rust toolchain to setup"
     required: false
   rust-cachekey:
-    description: 'A cache key for Rust dependencies'
+    description: "A cache key for Rust dependencies"
     required: false
-    
+
 outputs:
   nightly_toolchain:
     description: "The Rust nightly toolchain identifier (e.g. nightly-2018-11-23)"
