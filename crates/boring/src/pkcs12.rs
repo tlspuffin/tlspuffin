@@ -1,19 +1,17 @@
 //! PKCS #12 archives.
 
-use std::{ffi::CString, ptr};
+use std::ffi::CString;
+use std::ptr;
 
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::c_int;
 
-use crate::{
-    cvt_0i, cvt_p,
-    error::ErrorStack,
-    ffi,
-    nid::Nid,
-    pkey::{HasPrivate, PKey, PKeyRef, Private},
-    stack::Stack,
-    x509::{X509Ref, X509},
-};
+use crate::error::ErrorStack;
+use crate::nid::Nid;
+use crate::pkey::{HasPrivate, PKey, PKeyRef, Private};
+use crate::stack::Stack;
+use crate::x509::{X509Ref, X509};
+use crate::{cvt_0i, cvt_p, ffi};
 
 pub const PKCS12_DEFAULT_ITER: c_int = 2048;
 
@@ -207,14 +205,13 @@ mod test {
     use hex;
 
     use super::*;
-    use crate::{
-        asn1::Asn1Time,
-        hash::MessageDigest,
-        nid::Nid,
-        pkey::PKey,
-        rsa::Rsa,
-        x509::{extension::KeyUsage, X509Name, X509},
-    };
+    use crate::asn1::Asn1Time;
+    use crate::hash::MessageDigest;
+    use crate::nid::Nid;
+    use crate::pkey::PKey;
+    use crate::rsa::Rsa;
+    use crate::x509::extension::KeyUsage;
+    use crate::x509::{X509Name, X509};
 
     #[test]
     fn parse() {

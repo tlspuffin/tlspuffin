@@ -1,18 +1,16 @@
-use std::{convert::TryFrom, sync::Arc, time::SystemTime};
+use std::convert::TryFrom;
+use std::sync::Arc;
+use std::time::SystemTime;
 
 use log::{debug, trace, warn};
 use ring::digest::Digest;
 
-use crate::tls::rustls::{
-    anchors::{OwnedTrustAnchor, RootCertStore},
-    client::client_conn::ServerName,
-    error::Error,
-    key::Certificate,
-    msgs::{
-        enums::SignatureScheme,
-        handshake::{DigitallySignedStruct, DistinguishedNames},
-    },
-};
+use crate::tls::rustls::anchors::{OwnedTrustAnchor, RootCertStore};
+use crate::tls::rustls::client::client_conn::ServerName;
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::key::Certificate;
+use crate::tls::rustls::msgs::enums::SignatureScheme;
+use crate::tls::rustls::msgs::handshake::{DigitallySignedStruct, DistinguishedNames};
 
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 

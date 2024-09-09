@@ -1,10 +1,8 @@
-use std::{
-    collections::HashSet,
-    io,
-    io::ErrorKind,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::collections::HashSet;
+use std::io;
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use autotools::Config;
 
@@ -105,8 +103,13 @@ fn build_wolfssl<P: AsRef<Path>>(dest: &P, options: &WolfSSLOptions) -> PathBuf 
         //FIXME broken: .cflag("-DHAVE_EX_DATA_CLEANUP_HOOKS") // Required for cleanup of ex data
         .cflag("-g")
         .cflag("-fPIC");
-    //.cflag("-DWC_RNG_SEED_CB") // FIXME: makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism
-    //.cflag("-DWOLFSSL_GENSEED_FORTEST"); // FIXME: makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism
+    //.cflag("-DWC_RNG_SEED_CB") // FIXME: makes test test_seed_cve_2022_38153 fail, but should be
+    //.cflag("-DWC_RNG_SEED_CB") used when evaluating coverage to get same coverage than other
+    //.cflag("-DWC_RNG_SEED_CB") fuzzers which use this flag to disable determinism
+    //.cflag("-DWOLFSSL_GENSEED_FORTEST"); // FIXME: makes test test_seed_cve_2022_38153 fail, but
+    //.cflag("-DWOLFSSL_GENSEED_FORTEST"); should be used when evaluating coverage to get same
+    //.cflag("-DWOLFSSL_GENSEED_FORTEST"); coverage than other fuzzers which use this flag to
+    //.cflag("-DWOLFSSL_GENSEED_FORTEST"); disable determinism
 
     #[cfg(target_arch = "x86_64")]
     {
@@ -147,7 +150,9 @@ fn build_wolfssl<P: AsRef<Path>>(dest: &P, options: &WolfSSLOptions) -> PathBuf 
         config
             .cflag("-fsanitize=address")
             .cflag("-shared-libsan")
-            .cflag(format!("-Wl,-rpath={}/lib/linux/", clang)); // We need to tell the library where ASAN is, else the tests fail within wolfSSL
+            .cflag(format!("-Wl,-rpath={}/lib/linux/", clang)); // We need to tell the library where
+                                                                // ASAN is, else the tests fail
+                                                                // within wolfSSL
     }
 
     config.env("CC", cc).build()

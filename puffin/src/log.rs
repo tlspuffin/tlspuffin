@@ -1,13 +1,13 @@
-use std::{env, path::Path, str::FromStr};
+use std::env;
+use std::path::Path;
+use std::str::FromStr;
 
 use log::LevelFilter;
-use log4rs::{
-    self,
-    append::{console::ConsoleAppender, file::FileAppender},
-    config::{Appender, Logger, Root},
-    encode::pattern::PatternEncoder,
-    Config,
-};
+use log4rs::append::console::ConsoleAppender;
+use log4rs::append::file::FileAppender;
+use log4rs::config::{Appender, Logger, Root};
+use log4rs::encode::pattern::PatternEncoder;
+use log4rs::{self, Config};
 
 pub fn config_default() -> log4rs::Config {
     Config::builder()

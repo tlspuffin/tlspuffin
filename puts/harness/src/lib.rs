@@ -22,7 +22,7 @@ use puffin::error::Error;
 pub type FnRegister = extern "C" fn(put: *const C_PUT_TYPE) -> ();
 
 macro_rules! define_extern_c_log {
-    ( $level:ident, $name:ident ) => {
+    ($level:ident, $name:ident) => {
         unsafe extern "C" fn $name(message: *const c_char) {
             log::log!(log::Level::$level, "{}", to_string(message));
         }
@@ -49,9 +49,8 @@ pub static TLSPUFFIN: C_TLSPUFFIN = C_TLSPUFFIN {
 ///
 /// * Passing a NULL pointer is allowed and will return an empty [String].
 ///
-/// * When `ptr` is non-NULL, the pointed memory must respect the same
-///   constraints as a memory buffer passed to [std::ffi::CStr::from_ptr].
-///
+/// * When `ptr` is non-NULL, the pointed memory must respect the same constraints as a memory
+///   buffer passed to [std::ffi::CStr::from_ptr].
 pub unsafe fn to_string(ptr: *const c_char) -> String {
     use std::ffi::CStr;
 

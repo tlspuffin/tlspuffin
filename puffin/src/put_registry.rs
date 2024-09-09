@@ -1,17 +1,13 @@
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Formatter},
-};
+use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 
 use log::debug;
 
-use crate::{
-    agent::AgentDescriptor,
-    error::Error,
-    protocol::ProtocolBehavior,
-    put::{Put, PutName},
-    trace::TraceContext,
-};
+use crate::agent::AgentDescriptor;
+use crate::error::Error;
+use crate::protocol::ProtocolBehavior;
+use crate::put::{Put, PutName};
+use crate::trace::TraceContext;
 
 pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
 

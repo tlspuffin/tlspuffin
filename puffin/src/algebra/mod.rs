@@ -28,10 +28,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use std::{fmt::Debug, hash::Hash};
+use std::fmt::Debug;
+use std::hash::Hash;
 
 use once_cell::sync::OnceCell;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 pub use self::term::*;
 use crate::algebra::signature::Signature;
@@ -101,30 +103,26 @@ impl Matcher for AnyMatcher {
 #[cfg(test)]
 #[allow(clippy::ptr_arg)]
 pub mod test_signature {
-    use std::{
-        any::{Any, TypeId},
-        fmt::{Debug, Formatter},
-        io::Read,
-    };
+    use std::any::{Any, TypeId};
+    use std::fmt::{Debug, Formatter};
+    use std::io::Read;
 
-    use crate::{
-        agent::{AgentDescriptor, AgentName, TLSVersion},
-        algebra::{dynamic_function::TypeShape, error::FnError, AnyMatcher, Term},
-        claims::{Claim, SecurityViolationPolicy},
-        codec::{Codec, Reader},
-        define_signature,
-        error::Error,
-        protocol::{
-            ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-            ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
-        },
-        put::{Put, PutName},
-        put_registry::{Factory, PutKind},
-        term,
-        trace::{Action, InputAction, Knowledge, Source, Step, Trace, TraceContext},
-        variable_data::VariableData,
-        VERSION_STR,
+    use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
+    use crate::algebra::dynamic_function::TypeShape;
+    use crate::algebra::error::FnError;
+    use crate::algebra::{AnyMatcher, Term};
+    use crate::claims::{Claim, SecurityViolationPolicy};
+    use crate::codec::{Codec, Reader};
+    use crate::error::Error;
+    use crate::protocol::{
+        ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+        ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
     };
+    use crate::put::{Put, PutName};
+    use crate::put_registry::{Factory, PutKind};
+    use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace, TraceContext};
+    use crate::variable_data::VariableData;
+    use crate::{define_signature, term, VERSION_STR};
 
     pub struct HmacKey;
     pub struct HandshakeMessage;
@@ -588,12 +586,12 @@ pub mod test_signature {
 
     impl ProtocolBehavior for TestProtocolBehavior {
         type Claim = TestClaim;
-        type SecurityViolationPolicy = TestSecurityViolationPolicy;
-        type ProtocolMessage = TestMessage;
-        type OpaqueProtocolMessage = TestOpaqueMessage;
         type Matcher = AnyMatcher;
-        type ProtocolMessageFlight = TestMessageFlight;
+        type OpaqueProtocolMessage = TestOpaqueMessage;
         type OpaqueProtocolMessageFlight = TestOpaqueMessageFlight;
+        type ProtocolMessage = TestMessage;
+        type ProtocolMessageFlight = TestMessageFlight;
+        type SecurityViolationPolicy = TestSecurityViolationPolicy;
 
         fn signature() -> &'static Signature {
             panic!("Not implemented for test stub");
@@ -646,19 +644,17 @@ pub mod test_signature {
 
 #[cfg(test)]
 mod tests {
-
     use super::test_signature::*;
-    use crate::{
-        agent::AgentName,
-        algebra::{
-            atoms::Variable, dynamic_function::TypeShape, signature::Signature, AnyMatcher, Term,
-        },
-        protocol::ExtractKnowledge,
-        put::PutOptions,
-        put_registry::{Factory, PutRegistry},
-        term,
-        trace::{Knowledge, Source, TraceContext},
-    };
+    use crate::agent::AgentName;
+    use crate::algebra::atoms::Variable;
+    use crate::algebra::dynamic_function::TypeShape;
+    use crate::algebra::signature::Signature;
+    use crate::algebra::{AnyMatcher, Term};
+    use crate::protocol::ExtractKnowledge;
+    use crate::put::PutOptions;
+    use crate::put_registry::{Factory, PutRegistry};
+    use crate::term;
+    use crate::trace::{Knowledge, Source, TraceContext};
 
     impl ExtractKnowledge<AnyMatcher> for Vec<u8> {
         fn extract_knowledge<'a>(

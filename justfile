@@ -105,15 +105,15 @@ benchmark: (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
   cargo bench -p tlspuffin --features "openssl111k"
 
 fmt-rust: (install-rust-toolchain NIGHTLY_TOOLCHAIN "--quiet")
-  RUSTUP_TOOLCHAIN='{{ NIGHTLY_TOOLCHAIN }}' cargo fmt
+  RUSTUP_TOOLCHAIN='{{ NIGHTLY_TOOLCHAIN }}' cargo fmt --all
 
 fmt-rust-check: (install-rust-toolchain NIGHTLY_TOOLCHAIN "--quiet")
-  RUSTUP_TOOLCHAIN='{{ NIGHTLY_TOOLCHAIN }}' cargo fmt -- --check
+  RUSTUP_TOOLCHAIN='{{ NIGHTLY_TOOLCHAIN }}' cargo fmt --all -- --check
 
 fmt-clang:
   #!/usr/bin/env bash
   FILES=$(
-    find {{ justfile_directory() }} -type f \
+    find '{{ justfile_directory() }}' -type f \
     | grep -v "^{{ justfile_directory() / "vendor" }}" \
     | grep -v "^{{ justfile_directory() / "target" }}" \
     | grep -E ".*\.(c|h|C|H|cpp|hpp|cc|hh|c\+\+|h\+\+|cxx|hxx)$"
@@ -124,7 +124,7 @@ fmt-clang:
 fmt-clang-check:
   #!/usr/bin/env bash
   FILES=$(
-    find {{ justfile_directory() }} -type f \
+    find '{{ justfile_directory() }}' -type f \
     | grep -v "^{{ justfile_directory() / "vendor" }}" \
     | grep -v "^{{ justfile_directory() / "target" }}" \
     | grep -E ".*\.(c|h|C|H|cpp|hpp|cc|hh|c\+\+|h\+\+|cxx|hxx)$"

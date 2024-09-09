@@ -1,18 +1,12 @@
-use std::{
-    convert::TryInto,
-    fmt, io,
-    io::prelude::*,
-    ops::{Deref, DerefMut},
-    ptr,
-};
+use std::convert::TryInto;
+use std::io::prelude::*;
+use std::ops::{Deref, DerefMut};
+use std::{fmt, io, ptr};
 
-use crate::{
-    cvt, cvt_p,
-    error::ErrorStack,
-    ffi,
-    ffi::{EVP_MD_CTX_free, EVP_MD_CTX_new},
-    nid::Nid,
-};
+use crate::error::ErrorStack;
+use crate::ffi::{EVP_MD_CTX_free, EVP_MD_CTX_new};
+use crate::nid::Nid;
+use crate::{cvt, cvt_p, ffi};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct MessageDigest(*const ffi::EVP_MD);

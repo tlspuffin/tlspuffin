@@ -16,7 +16,7 @@
 //! Generate a 2048-bit RSA key pair and use the public key to encrypt some data.
 //!
 //! ```rust
-//! use boring::rsa::{Rsa, Padding};
+//! use boring::rsa::{Padding, Rsa};
 //!
 //! let rsa = Rsa::generate(2048).unwrap();
 //! let data = b"foobar";
@@ -28,13 +28,10 @@ use std::{fmt, mem, ptr};
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::c_int;
 
-use crate::{
-    bn::{BigNum, BigNumRef},
-    cvt, cvt_n, cvt_p,
-    error::ErrorStack,
-    ffi,
-    pkey::{HasPrivate, HasPublic, Private, Public},
-};
+use crate::bn::{BigNum, BigNumRef};
+use crate::error::ErrorStack;
+use crate::pkey::{HasPrivate, HasPublic, Private, Public};
+use crate::{cvt, cvt_n, cvt_p, ffi};
 
 pub const EVP_PKEY_OP_SIGN: c_int = 1 << 3;
 pub const EVP_PKEY_OP_VERIFY: c_int = 1 << 4;
@@ -448,24 +445,6 @@ where
 }
 
 impl Rsa<Public> {
-    /// Creates a new RSA key with only public components.
-    ///
-    /// `n` is the modulus common to both public and private key.
-    /// `e` is the public exponent.
-    ///
-    /// This corresponds to [`RSA_new`] and uses [`RSA_set0_key`].
-    ///
-    /// [`RSA_new`]: https://www.openssl.org/docs/man1.1.0/crypto/RSA_new.html
-    /// [`RSA_set0_key`]: https://www.openssl.org/docs/man1.1.0/crypto/RSA_set0_key.html
-    pub fn from_public_components(n: BigNum, e: BigNum) -> Result<Rsa<Public>, ErrorStack> {
-        unsafe {
-            let rsa = cvt_p(ffi::RSA_new())?;
-            RSA_set0_key(rsa, n.as_ptr(), e.as_ptr(), ptr::null_mut());
-            mem::forget((n, e));
-            Ok(Rsa::from_ptr(rsa))
-        }
-    }
-
     from_pem! {
         /// Decodes a PEM-encoded SubjectPublicKeyInfo structure containing an RSA key.
         ///
@@ -514,6 +493,24 @@ impl Rsa<Public> {
         Rsa<Public>,
         ffi::d2i_RSAPublicKey,
         ::libc::c_long
+    }
+
+    /// Creates a new RSA key with only public components.
+    ///
+    /// `n` is the modulus common to both public and private key.
+    /// `e` is the public exponent.
+    ///
+    /// This corresponds to [`RSA_new`] and uses [`RSA_set0_key`].
+    ///
+    /// [`RSA_new`]: https://www.openssl.org/docs/man1.1.0/crypto/RSA_new.html
+    /// [`RSA_set0_key`]: https://www.openssl.org/docs/man1.1.0/crypto/RSA_set0_key.html
+    pub fn from_public_components(n: BigNum, e: BigNum) -> Result<Rsa<Public>, ErrorStack> {
+        unsafe {
+            let rsa = cvt_p(ffi::RSA_new())?;
+            RSA_set0_key(rsa, n.as_ptr(), e.as_ptr(), ptr::null_mut());
+            mem::forget((n, e));
+            Ok(Rsa::from_ptr(rsa))
+        }
     }
 }
 
@@ -592,6 +589,46 @@ impl RsaPrivateKeyBuilder {
 }
 
 impl Rsa<Private> {
+    // FIXME these need to identify input formats
+    private_key_from_pem! {
+        /// Deserializes a private key from a PEM-encoded PKCS#1 RSAPrivateKey structure.
+        ///
+        /// This corresponds to [`PEM_read_bio_RSAPrivateKey`].
+        ///
+        /// [`PEM_read_bio_RSAPrivateKey`]: https://www.openssl.org/docs/man1.1.0/crypto/PEM_read_bio_RSAPrivateKey.html
+        private_key_from_pem,
+
+        /// Deserializes a private key from a PEM-encoded encrypted PKCS#1 RSAPrivateKey structure.
+        ///
+        /// This corresponds to [`PEM_read_bio_RSAPrivateKey`].
+        ///
+        /// [`PEM_read_bio_RSAPrivateKey`]: https://www.openssl.org/docs/man1.1.0/crypto/PEM_read_bio_RSAPrivateKey.html
+        private_key_from_pem_passphrase,
+
+        /// Deserializes a private key from a PEM-encoded encrypted PKCS#1 RSAPrivateKey structure.
+        ///
+        /// The callback should fill the password into the provided buffer and return its length.
+        ///
+        /// This corresponds to [`PEM_read_bio_RSAPrivateKey`].
+        ///
+        /// [`PEM_read_bio_RSAPrivateKey`]: https://www.openssl.org/docs/man1.1.0/crypto/PEM_read_bio_RSAPrivateKey.html
+        private_key_from_pem_callback,
+        Rsa<Private>,
+        ffi::PEM_read_bio_RSAPrivateKey
+    }
+
+    from_der! {
+        /// Decodes a DER-encoded PKCS#1 RSAPrivateKey structure.
+        ///
+        /// This corresponds to [`d2i_RSAPrivateKey`].
+        ///
+        /// [`d2i_RSAPrivateKey`]: https://www.openssl.org/docs/man1.0.2/crypto/d2i_RSA_PUBKEY.html
+        private_key_from_der,
+        Rsa<Private>,
+        ffi::d2i_RSAPrivateKey,
+        ::libc::c_long
+    }
+
     /// Creates a new RSA key with private components (public components are assumed).
     ///
     /// This a convenience method over
@@ -643,46 +680,6 @@ impl Rsa<Private> {
             ))?;
             Ok(rsa)
         }
-    }
-
-    // FIXME these need to identify input formats
-    private_key_from_pem! {
-        /// Deserializes a private key from a PEM-encoded PKCS#1 RSAPrivateKey structure.
-        ///
-        /// This corresponds to [`PEM_read_bio_RSAPrivateKey`].
-        ///
-        /// [`PEM_read_bio_RSAPrivateKey`]: https://www.openssl.org/docs/man1.1.0/crypto/PEM_read_bio_RSAPrivateKey.html
-        private_key_from_pem,
-
-        /// Deserializes a private key from a PEM-encoded encrypted PKCS#1 RSAPrivateKey structure.
-        ///
-        /// This corresponds to [`PEM_read_bio_RSAPrivateKey`].
-        ///
-        /// [`PEM_read_bio_RSAPrivateKey`]: https://www.openssl.org/docs/man1.1.0/crypto/PEM_read_bio_RSAPrivateKey.html
-        private_key_from_pem_passphrase,
-
-        /// Deserializes a private key from a PEM-encoded encrypted PKCS#1 RSAPrivateKey structure.
-        ///
-        /// The callback should fill the password into the provided buffer and return its length.
-        ///
-        /// This corresponds to [`PEM_read_bio_RSAPrivateKey`].
-        ///
-        /// [`PEM_read_bio_RSAPrivateKey`]: https://www.openssl.org/docs/man1.1.0/crypto/PEM_read_bio_RSAPrivateKey.html
-        private_key_from_pem_callback,
-        Rsa<Private>,
-        ffi::PEM_read_bio_RSAPrivateKey
-    }
-
-    from_der! {
-        /// Decodes a DER-encoded PKCS#1 RSAPrivateKey structure.
-        ///
-        /// This corresponds to [`d2i_RSAPrivateKey`].
-        ///
-        /// [`d2i_RSAPrivateKey`]: https://www.openssl.org/docs/man1.0.2/crypto/d2i_RSA_PUBKEY.html
-        private_key_from_der,
-        Rsa<Private>,
-        ffi::d2i_RSAPrivateKey,
-        ::libc::c_long
     }
 }
 

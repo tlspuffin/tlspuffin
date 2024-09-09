@@ -3,7 +3,9 @@
 #![allow(non_upper_case_globals)]
 #![allow(clippy::all)]
 
-use std::{ffi::c_void, fmt, fmt::Formatter};
+use std::ffi::c_void;
+use std::fmt;
+use std::fmt::Formatter;
 
 pub type TLSLike = *const c_void;
 

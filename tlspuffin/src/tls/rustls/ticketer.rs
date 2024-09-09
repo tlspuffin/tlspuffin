@@ -1,12 +1,11 @@
-use std::{
-    mem,
-    sync::{Arc, Mutex, MutexGuard},
-    time,
-};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::{mem, time};
 
 use ring::aead;
 
-use crate::tls::rustls::{error::Error, rand, server::server_conn::ProducesTickets};
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::rand;
+use crate::tls::rustls::server::server_conn::ProducesTickets;
 
 /// The timebase for expiring and rolling tickets and ticketing
 /// keys.  This is UNIX wall time in seconds.
@@ -60,6 +59,7 @@ impl ProducesTickets for AeadTicketer {
     fn enabled(&self) -> bool {
         true
     }
+
     fn lifetime(&self) -> u32 {
         self.lifetime
     }
@@ -159,9 +159,8 @@ impl TicketSwitcher {
         // in the common case that the generator never fails. To achieve this
         // we run the following steps:
         //  1. If no switch is necessary, just return the mutexguard
-        //  2. Shift over all of the ticketers (so current becomes previous,
-        //     and next becomes current). After this, other threads can
-        //     start using the new current ticketer.
+        //  2. Shift over all of the ticketers (so current becomes previous, and next becomes
+        //     current). After this, other threads can start using the new current ticketer.
         //  3. unlock mutex and generate new ticketer.
         //  4. Place new ticketer in next and return current
         //

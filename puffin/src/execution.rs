@@ -1,15 +1,10 @@
-use std::{thread, time::Duration};
+use std::thread;
+use std::time::Duration;
 
-use nix::{
-    sys::{
-        signal::{kill, Signal},
-        wait::{
-            waitpid, WaitPidFlag,
-            WaitStatus::{Exited, Signaled},
-        },
-    },
-    unistd::{fork, ForkResult, Pid},
-};
+use nix::sys::signal::{kill, Signal};
+use nix::sys::wait::WaitStatus::{Exited, Signaled};
+use nix::sys::wait::{waitpid, WaitPidFlag};
+use nix::unistd::{fork, ForkResult, Pid};
 
 pub fn forked_execution<R>(func: R, timeout: Option<Duration>) -> Result<ExecutionStatus, String>
 where

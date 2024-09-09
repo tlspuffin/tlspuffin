@@ -3,7 +3,8 @@ use std::net::IpAddr;
 use foreign_types::ForeignTypeRef;
 use libc::c_uint;
 
-use crate::{cvt, error::ErrorStack, ffi};
+use crate::error::ErrorStack;
+use crate::{cvt, ffi};
 
 bitflags! {
     /// Flags used to check an `X509` certificate.

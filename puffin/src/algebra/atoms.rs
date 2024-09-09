@@ -1,29 +1,22 @@
 //! This module provides an enum for terms. A term can either be a Variable or a Function.
 //! This also implements the serializability of terms.
-//!
-use std::{
-    fmt,
-    fmt::Formatter,
-    hash::{Hash, Hasher},
-};
+use std::fmt;
+use std::fmt::Formatter;
+use std::hash::{Hash, Hasher};
 
 use rand::random;
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    algebra::{
-        atoms::fn_container::FnContainer,
-        dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
-        remove_prefix, Matcher,
-    },
-    trace::Query,
-};
+use crate::algebra::atoms::fn_container::FnContainer;
+use crate::algebra::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
+use crate::algebra::{remove_prefix, Matcher};
+use crate::trace::Query;
 
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Variable<M> {
-    /// Unique ID of this variable. Uniqueness is guaranteed across all [`Term`](crate::algebra::Term)s ever created. Cloning
-    /// change this ID.
+    /// Unique ID of this variable. Uniqueness is guaranteed across all
+    /// [`Term`](crate::algebra::Term)s ever created. Cloning change this ID.
     pub unique_id: u32,
     /// ID of this variable. This id stays the same during cloning.
     pub resistant_id: u32,
@@ -77,8 +70,8 @@ impl<M: Matcher> fmt::Display for Variable<M> {
 /// A function symbol with fixed arity and fixed types.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Function {
-    /// Unique ID of this function. Uniqueness is guaranteed across all [`Term`](crate::algebra::Term)s ever created. Cloning
-    /// change this ID.
+    /// Unique ID of this function. Uniqueness is guaranteed across all
+    /// [`Term`](crate::algebra::Term)s ever created. Cloning change this ID.
     pub unique_id: u32,
     /// ID of this function. This id stays the same during cloning.
     pub resistant_id: u32,
@@ -154,23 +147,16 @@ impl fmt::Display for Function {
 }
 
 mod fn_container {
-    use std::{
-        fmt,
-        hash::{Hash, Hasher},
-    };
+    use std::fmt;
+    use std::hash::{Hash, Hasher};
 
-    use serde::{
-        de,
-        de::{MapAccess, SeqAccess, Visitor},
-        ser::SerializeStruct,
-        Deserialize, Deserializer, Serialize, Serializer,
-    };
+    use serde::de::{MapAccess, SeqAccess, Visitor};
+    use serde::ser::SerializeStruct;
+    use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-    use crate::algebra::{
-        deserialize_signature,
-        dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape},
-        signature::Signature,
-    };
+    use crate::algebra::deserialize_signature;
+    use crate::algebra::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
+    use crate::algebra::signature::Signature;
 
     const NAME: &str = "name";
     const ARGUMENTS: &str = "arguments";

@@ -19,8 +19,7 @@ pub mod test_utils;
 pub mod trace;
 pub mod variable_data;
 
-pub use libafl;
-pub use libafl_bolts;
+pub use {libafl, libafl_bolts};
 
 pub const GIT_REF: &str = match option_env!("GIT_REF") {
     Some(env) => env,

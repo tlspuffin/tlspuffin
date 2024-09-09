@@ -1,6 +1,8 @@
 use std::any::Any;
 
-use puffin::{agent::AgentName, algebra::dynamic_function::TypeShape, claims::Claim};
+use puffin::agent::AgentName;
+use puffin::algebra::dynamic_function::TypeShape;
+use puffin::claims::Claim;
 
 #[derive(Debug, Clone)]
 pub struct SshClaimInner;

@@ -1,4 +1,6 @@
-use std::{convert::TryFrom, error::Error as StdError, fmt};
+use std::convert::TryFrom;
+use std::error::Error as StdError;
+use std::fmt;
 
 use crate::tls::rustls::verify;
 
@@ -65,6 +67,7 @@ impl ServerName {
 /// it as a DNS name.
 impl TryFrom<&str> for ServerName {
     type Error = InvalidDnsNameError;
+
     fn try_from(s: &str) -> Result<Self, Self::Error> {
         match webpki::DnsNameRef::try_from_ascii_str(s) {
             Ok(dns) => Ok(Self::DnsName(verify::DnsName(dns.into()))),

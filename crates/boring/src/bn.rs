@@ -13,30 +13,28 @@
 //! use boring::error::ErrorStack;
 //!
 //! fn main() -> Result<(), ErrorStack> {
-//!   let a = BigNum::new()?; // a = 0
-//!   let b = BigNum::from_dec_str("1234567890123456789012345")?;
-//!   let c = &a * &b;
-//!   assert_eq!(a, c);
-//!   Ok(())
+//!     let a = BigNum::new()?; // a = 0
+//!     let b = BigNum::from_dec_str("1234567890123456789012345")?;
+//!     let c = &a * &b;
+//!     assert_eq!(a, c);
+//!     Ok(())
 //! }
 //! ```
 //!
 //! [`BIGNUM`]: https://wiki.openssl.org/index.php/Manual:Bn_internal(3)
-use std::{
-    cmp::Ordering,
-    ffi::CString,
-    fmt,
-    ops::{Add, Deref, Div, Mul, Neg, Rem, Shl, Shr, Sub},
-    ptr,
-};
+use std::cmp::Ordering;
+use std::ffi::CString;
+use std::ops::{Add, Deref, Div, Mul, Neg, Rem, Shl, Shr, Sub};
+use std::{fmt, ptr};
 
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::{c_int, size_t};
 
-use crate::{
-    asn1::Asn1Integer, cvt, cvt_n, cvt_p, error::ErrorStack, ffi, ffi::BN_is_negative,
-    string::OpensslString,
-};
+use crate::asn1::Asn1Integer;
+use crate::error::ErrorStack;
+use crate::ffi::BN_is_negative;
+use crate::string::OpensslString;
+use crate::{cvt, cvt_n, cvt_p, ffi};
 
 /// Options for the most significant bits of a randomly generated `BigNum`.
 pub struct MsbOption(c_int);
@@ -44,10 +42,8 @@ pub struct MsbOption(c_int);
 impl MsbOption {
     /// The most significant bit of the number may be 0.
     pub const MAYBE_ZERO: MsbOption = MsbOption(-1);
-
     /// The most significant bit of the number must be 1.
     pub const ONE: MsbOption = MsbOption(0);
-
     /// The most significant two bits of the number must be 1.
     ///
     /// The number of bits in the product of two such numbers will always be exactly twice the
@@ -377,12 +373,12 @@ impl BigNumRef {
     /// use boring::bn::{BigNum, MsbOption};
     /// use boring::error::ErrorStack;
     ///
-    /// fn generate_random() -> Result< BigNum, ErrorStack > {
-    ///    let mut big = BigNum::new()?;
+    /// fn generate_random() -> Result<BigNum, ErrorStack> {
+    ///     let mut big = BigNum::new()?;
     ///
-    ///    // Generates a 128-bit odd random number
-    ///    big.rand(128, MsbOption::MAYBE_ZERO, true);
-    ///    Ok((big))
+    ///     // Generates a 128-bit odd random number
+    ///     big.rand(128, MsbOption::MAYBE_ZERO, true);
+    ///     Ok((big))
     /// }
     /// ```
     ///
@@ -436,12 +432,12 @@ impl BigNumRef {
     /// use boring::bn::BigNum;
     /// use boring::error::ErrorStack;
     ///
-    /// fn generate_weak_prime() -> Result< BigNum, ErrorStack > {
-    ///    let mut big = BigNum::new()?;
+    /// fn generate_weak_prime() -> Result<BigNum, ErrorStack> {
+    ///     let mut big = BigNum::new()?;
     ///
-    ///    // Generates a 128-bit simple prime number
-    ///    big.generate_prime(128, false, None, None);
-    ///    Ok((big))
+    ///     // Generates a 128-bit simple prime number
+    ///     big.generate_prime(128, false, None, None);
+    ///     Ok((big))
     /// }
     /// ```
     ///

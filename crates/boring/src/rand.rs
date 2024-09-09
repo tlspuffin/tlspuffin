@@ -12,7 +12,8 @@
 //! ```
 use libc::c_int;
 
-use crate::{cvt, error::ErrorStack, ffi};
+use crate::error::ErrorStack;
+use crate::{cvt, ffi};
 
 /// Fill buffer with cryptographically strong pseudo-random bytes.
 ///

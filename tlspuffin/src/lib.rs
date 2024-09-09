@@ -2,7 +2,9 @@
 //!
 //! ### Used protocol and cryptographic libraries
 //!
-//! In order to easily implement concrete functions, we use several libraries which provide us with predefined encoders for TLS packets, cryptographic primitives, as well as higher level cryptographic operations specific for TLS.
+//! In order to easily implement concrete functions, we use several libraries which provide us with
+//! predefined encoders for TLS packets, cryptographic primitives, as well as higher level
+//! cryptographic operations specific for TLS.
 //!
 //! We forked the [rustls](https://github.com/ctz/rustls) library for cryptographic operations like deriving secrets. We also use it to encode and decode TLS messages.
 //!
@@ -10,14 +12,19 @@
 //! # Example
 //!
 //! ```rust
-//! use puffin::agent::{AgentName, AgentDescriptor, TLSVersion::*};
-//! use puffin::trace::{Step, Source, TraceContext, Trace, Action, InputAction, OutputAction, Query};
-//! use puffin::algebra::{Term, signature::Signature};
-//! use tlspuffin::tls::fn_impl::fn_client_hello;
-//! use tlspuffin::tls::rustls::msgs::handshake::{SessionID, Random, ClientExtension};
-//! use tlspuffin::tls::rustls::msgs::enums::{ProtocolVersion, CipherSuite, Compression, HandshakeType};
+//! use puffin::agent::TLSVersion::*;
+//! use puffin::agent::{AgentDescriptor, AgentName};
+//! use puffin::algebra::signature::Signature;
+//! use puffin::algebra::Term;
+//! use puffin::trace::{
+//!     Action, InputAction, OutputAction, Query, Source, Step, Trace, TraceContext,
+//! };
 //! use tlspuffin::query::TlsQueryMatcher;
-//!
+//! use tlspuffin::tls::fn_impl::fn_client_hello;
+//! use tlspuffin::tls::rustls::msgs::enums::{
+//!     CipherSuite, Compression, HandshakeType, ProtocolVersion,
+//! };
+//! use tlspuffin::tls::rustls::msgs::handshake::{ClientExtension, Random, SessionID};
 //!
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
@@ -29,50 +36,54 @@
 //!         AgentDescriptor::new_server(server, V1_3),
 //!     ],
 //!     steps: vec![
-//!             OutputAction::new_step(client),
-//!             // Client: Hello Client -> Server
-//!             Step {
-//!                 agent: server,
-//!                 action: Action::Input(InputAction {
-//!                     recipe: Term::Application(
-//!                         Signature::new_function(&fn_client_hello),
-//!                         vec![
-//!                             Term::Variable(Signature::new_var_with_type::<ProtocolVersion, _>(
-//!                                     Some(Source::Agent(client)),  
-//!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
-//!                                     0
-//!                             )),
-//!                             Term::Variable(Signature::new_var_with_type::<Random, _>(
-//!                                     Some(Source::Agent(client)),  
-//!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
-//!                                     0
-//!                             )),
-//!                             Term::Variable(Signature::new_var_with_type::<SessionID, _>(
-//!                                     Some(Source::Agent(client)),
-//!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
-//!                                     0
-//!                             )),
-//!                             Term::Variable(Signature::new_var_with_type::<Vec<CipherSuite>, _>(
-//!                                     Some(Source::Agent(client)),
-//!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
-//!                                     0
-//!                             )),
-//!                             Term::Variable(Signature::new_var_with_type::<Vec<Compression>, _>(
-//!                                     Some(Source::Agent(client)),
-//!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
-//!                                     0
-//!                             )),
-//!                             Term::Variable(Signature::new_var_with_type::<Vec<ClientExtension>, _>(
-//!                                     Some(Source::Agent(client)),
-//!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
-//!                                     0
-//!                             )),
-//!                         ],
-//!                     ),
-//!                 }),
-//!             },
-//!     // further steps here
-//!     ]
+//!         OutputAction::new_step(client),
+//!         // Client: Hello Client -> Server
+//!         Step {
+//!             agent: server,
+//!             action: Action::Input(InputAction {
+//!                 recipe: Term::Application(
+//!                     Signature::new_function(&fn_client_hello),
+//!                     vec![
+//!                         Term::Variable(Signature::new_var_with_type::<ProtocolVersion, _>(
+//!                             Some(Source::Agent(client)),
+//!                             Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
+//!                             0,
+//!                         )),
+//!                         Term::Variable(Signature::new_var_with_type::<Random, _>(
+//!                             Some(Source::Agent(client)),
+//!                             Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
+//!                             0,
+//!                         )),
+//!                         Term::Variable(Signature::new_var_with_type::<SessionID, _>(
+//!                             Some(Source::Agent(client)),
+//!                             Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
+//!                             0,
+//!                         )),
+//!                         Term::Variable(Signature::new_var_with_type::<Vec<CipherSuite>, _>(
+//!                             Some(Source::Agent(client)),
+//!                             Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
+//!                             0,
+//!                         )),
+//!                         Term::Variable(Signature::new_var_with_type::<Vec<Compression>, _>(
+//!                             Some(Source::Agent(client)),
+//!                             Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
+//!                             0,
+//!                         )),
+//!                         Term::Variable(
+//!                             Signature::new_var_with_type::<Vec<ClientExtension>, _>(
+//!                                 Some(Source::Agent(client)),
+//!                                 Some(TlsQueryMatcher::Handshake(Some(
+//!                                     HandshakeType::ClientHello,
+//!                                 ))),
+//!                                 0,
+//!                             ),
+//!                         ),
+//!                     ],
+//!                 ),
+//!             }),
+//!         },
+//!         // further steps here
+//!     ],
 //! };
 //! ```
 //!
@@ -80,13 +91,15 @@
 //!
 //! ```rust
 //! use puffin::agent::AgentName;
-//! use puffin::term;
-//! use tlspuffin::tls::fn_impl::fn_client_hello;
-//! use tlspuffin::tls::rustls::msgs::handshake::{SessionID, Random, ClientExtension};
-//! use tlspuffin::tls::rustls::msgs::enums::{Compression, HandshakeType, ProtocolVersion, CipherSuite};
 //! use puffin::algebra::Term;
-//! use tlspuffin::query::TlsQueryMatcher;
+//! use puffin::term;
 //! use puffin::trace::Source;
+//! use tlspuffin::query::TlsQueryMatcher;
+//! use tlspuffin::tls::fn_impl::fn_client_hello;
+//! use tlspuffin::tls::rustls::msgs::enums::{
+//!     CipherSuite, Compression, HandshakeType, ProtocolVersion,
+//! };
+//! use tlspuffin::tls::rustls::msgs::handshake::{ClientExtension, Random, SessionID};
 //!
 //! let client = AgentName::first();
 //! let term: Term<TlsQueryMatcher> = term! {
@@ -100,7 +113,6 @@
 //!     )
 //! };
 //! ```
-//!
 
 #[cfg(feature = "boringssl-binding")]
 pub mod boringssl;

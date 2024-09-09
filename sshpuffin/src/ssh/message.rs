@@ -1,10 +1,8 @@
 use log::debug;
-use puffin::{
-    codec::{Codec, Reader},
-    error::Error,
-    protocol::{ExtractKnowledge, OpaqueProtocolMessage, ProtocolMessage},
-    trace::{Knowledge, Source},
-};
+use puffin::codec::{Codec, Reader};
+use puffin::error::Error;
+use puffin::protocol::{ExtractKnowledge, OpaqueProtocolMessage, ProtocolMessage};
+use puffin::trace::{Knowledge, Source};
 
 use crate::query::SshQueryMatcher;
 

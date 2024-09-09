@@ -1,4 +1,5 @@
-use crate::tls::rustls::{error::Error, msgs::enums::NamedGroup};
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::msgs::enums::NamedGroup;
 
 /// An in-progress key exchange.  This has the algorithm,
 /// our private key, and our public key.

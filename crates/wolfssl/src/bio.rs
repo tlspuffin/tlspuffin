@@ -4,14 +4,11 @@
 
 #![allow(non_snake_case)]
 
-use std::{
-    any::Any,
-    io,
-    io::{ErrorKind, Read, Write},
-    marker::PhantomData,
-    panic::{catch_unwind, AssertUnwindSafe},
-    ptr, slice,
-};
+use std::any::Any;
+use std::io::{ErrorKind, Read, Write};
+use std::marker::PhantomData;
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::{io, ptr, slice};
 
 use libc::{c_char, c_int, c_long, c_void, strlen};
 use wolfssl_sys as wolf;

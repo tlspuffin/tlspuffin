@@ -1,8 +1,6 @@
-use crate::{
-    algebra::{Matcher, Term},
-    graphviz::write_graphviz,
-    trace::{Action, Trace},
-};
+use crate::algebra::{Matcher, Term};
+use crate::graphviz::write_graphviz;
+use crate::trace::{Action, Trace};
 
 impl<M: Matcher> Trace<M> {
     pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {

@@ -6,25 +6,20 @@
 //!
 //! In the source code all IDs are available, but implementations are missing.
 //! Return type is `Message`
-//!
 
 use puffin::algebra::error::FnError;
 
-use crate::{
-    nyi_fn,
-    tls::rustls::{
-        key,
-        msgs::{
-            alert::AlertMessagePayload,
-            base::{Payload, PayloadU16, PayloadU24, PayloadU8},
-            ccs::ChangeCipherSpecPayload,
-            enums::*,
-            handshake::{CertificateEntry, CertificateStatus, HelloRetryExtension, *},
-            heartbeat::HeartbeatPayload,
-            message::{Message, MessagePayload, OpaqueMessage},
-        },
-    },
+use crate::nyi_fn;
+use crate::tls::rustls::key;
+use crate::tls::rustls::msgs::alert::AlertMessagePayload;
+use crate::tls::rustls::msgs::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
+use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
+use crate::tls::rustls::msgs::enums::*;
+use crate::tls::rustls::msgs::handshake::{
+    CertificateEntry, CertificateStatus, HelloRetryExtension, *,
 };
+use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
+use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
 
 pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
     Ok(message.clone())

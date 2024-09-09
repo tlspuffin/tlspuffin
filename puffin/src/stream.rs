@@ -3,9 +3,9 @@
 //! for this. Note that these are advantages for the implementation and are not
 //! strictly required from a theoretical point of view.
 //!
-//! * Having two buffers resembles how networking works in reality: Each computer has an input and an
-//!   output buffer. In case of TCP the input buffer can become full and therefore the transmission
-//!   is throttled.
+//! * Having two buffers resembles how networking works in reality: Each computer has an input and
+//!   an output buffer. In case of TCP the input buffer can become full and therefore the
+//!   transmission is throttled.
 //! * It is beneficial to model each agent with two buffers according to the Single-responsibility
 //!   principle. When sending or receiving data each agent only has to look at its own two buffer.
 //!   If each agent had only one buffer, then you would need to read from another agent which
@@ -14,16 +14,14 @@
 //!
 //! The [`Agent`](crate::agent::Agent) Alice can add data to the *inbound channel* of Bob.
 //! Bob can then read the data from his *inbound channel* and put data in his *outbound channel*.
-//! If Bob is an [`Agent`](crate::agent::Agent), which has an underlying *PUT state* then OpenSSL may write into the
-//! *outbound channel* of Bob.
+//! If Bob is an [`Agent`](crate::agent::Agent), which has an underlying *PUT state* then OpenSSL
+//! may write into the *outbound channel* of Bob.
 
 use std::io::{self, Read, Write};
 
-use crate::{
-    algebra::Matcher,
-    error::Error,
-    protocol::{OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolMessage},
-};
+use crate::algebra::Matcher;
+use crate::error::Error;
+use crate::protocol::{OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolMessage};
 
 pub trait Stream<
     Mt: Matcher,
@@ -38,17 +36,18 @@ pub trait Stream<
     fn take_message_from_outbound(&mut self) -> Result<Option<OF>, Error>;
 }
 
-/// Describes in- or outbound channels of an [`crate::agent::Agent`]. Each [`crate::agent::Agent`] can send and receive data.
-/// This is modeled by two separate Channels in [`MemoryStream`]. Internally a Channel is just an
-/// in-memory seekable buffer.
+/// Describes in- or outbound channels of an [`crate::agent::Agent`]. Each [`crate::agent::Agent`]
+/// can send and receive data. This is modeled by two separate Channels in [`MemoryStream`].
+/// Internally a Channel is just an in-memory seekable buffer.
 pub type Channel = io::Cursor<Vec<u8>>;
 
-/// A MemoryStream has two [`Channel`]s. The Stream also implements the [`Write`] and [`Read`] trait.
+/// A MemoryStream has two [`Channel`]s. The Stream also implements the [`Write`] and [`Read`]
+/// trait.
 /// * When writing to a MemoryStream its outbound channel gets filled.
 /// * When reading from a MemoryStream data is taken from the inbound channel.
 ///
-/// This makes it possible for an [`crate::agent::Agent`] to treat a [`MemoryStream`] like a TLS socket! By writing
-/// to this socket you are sending data out. By reading from it you receive data.
+/// This makes it possible for an [`crate::agent::Agent`] to treat a [`MemoryStream`] like a TLS
+/// socket! By writing to this socket you are sending data out. By reading from it you receive data.
 ///
 /// **Note: There need to be two separate buffer! Else for example a TLS socket would read and write
 /// into the same buffer**

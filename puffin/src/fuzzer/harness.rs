@@ -3,14 +3,12 @@ use log::{info, trace, warn};
 use once_cell::sync::OnceCell;
 use rand::Rng;
 
-use crate::{
-    error::Error,
-    fuzzer::stats_stage::*,
-    protocol::ProtocolBehavior,
-    put::PutOptions,
-    put_registry::PutRegistry,
-    trace::{Action, Trace, TraceContext},
-};
+use crate::error::Error;
+use crate::fuzzer::stats_stage::*;
+use crate::protocol::ProtocolBehavior;
+use crate::put::PutOptions;
+use crate::put_registry::PutRegistry;
+use crate::trace::{Action, Trace, TraceContext};
 
 static DEFAULT_PUT_OPTIONS: OnceCell<PutOptions> = OnceCell::new();
 

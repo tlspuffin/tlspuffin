@@ -1,16 +1,14 @@
 #![allow(dead_code)]
 
-use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    term,
-    trace::{Action, InputAction, OutputAction, Step, Trace},
-};
+use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
+use puffin::term;
+use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 
-use crate::{
-    protocol::MessageFlight,
-    query::TlsQueryMatcher,
-    tls::{fn_impl::*, rustls::msgs::enums::HandshakeType, seeds::*},
-};
+use crate::protocol::MessageFlight;
+use crate::query::TlsQueryMatcher;
+use crate::tls::fn_impl::*;
+use crate::tls::rustls::msgs::enums::HandshakeType;
+use crate::tls::seeds::*;
 
 /// <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638>
 pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
@@ -814,9 +812,10 @@ pub fn seed_cve_2022_39173(initial_server: AgentName, server: AgentName) -> Trac
         prior_traces: vec![initial_handshake],
         descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
-            // Step 2: sends a Client Hello (CH2) with a missing support_group_extension that will make the server
-            // enters the state `SERVER_HELLO_RETRY_REQUEST_COMPLETE` and with PSK resuming previous session.
-            // CH2 includes a list of repeated ciphers that will be stored in ssl->suites->suites.
+            // Step 2: sends a Client Hello (CH2) with a missing support_group_extension that will
+            // make the server enters the state `SERVER_HELLO_RETRY_REQUEST_COMPLETE`
+            // and with PSK resuming previous session. CH2 includes a list of repeated
+            // ciphers that will be stored in ssl->suites->suites.
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
@@ -825,12 +824,14 @@ pub fn seed_cve_2022_39173(initial_server: AgentName, server: AgentName) -> Trac
                     },
                 }),
             },
-            // Step 3: sends a Client Hello (CH3) with a missing support_group_extension that will keep the server
-            // in the state `SERVER_HELLO_RETRY_REQUEST_COMPLETE` and with PSK resuming previous session.
-            // CH3 includes a list of repeated ciphers that will be matched against ssl->suites->suites.
-            // Since ssl->suites->suites already contain repeated ciphers, the function refineSuites in tls13.c
-            // will wrongly consider all pairs leading to an explosion of sizeSz and the buffer overflow.
-            // Note: CH3 could also include support_group_extension.
+            // Step 3: sends a Client Hello (CH3) with a missing support_group_extension that will
+            // keep the server in the state `SERVER_HELLO_RETRY_REQUEST_COMPLETE` and
+            // with PSK resuming previous session. CH3 includes a list of repeated
+            // ciphers that will be matched against ssl->suites->suites.
+            // Since ssl->suites->suites already contain repeated ciphers, the function
+            // refineSuites in tls13.c will wrongly consider all pairs leading to an
+            // explosion of sizeSz and the buffer overflow. Note: CH3 could also
+            // include support_group_extension.
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
@@ -1075,7 +1076,8 @@ pub mod tests {
 
     use test_log::test;
 
-    use crate::tls::{trace_helper::TraceHelper, vulnerabilities::*};
+    use crate::tls::trace_helper::TraceHelper;
+    use crate::tls::vulnerabilities::*;
 
     #[test]
     fn test_term_sizes() {
@@ -1097,7 +1099,8 @@ pub mod tests {
             for step in &trace.steps {
                 match &step.action {
                     Action::Input(input) => {
-                        // should be below a certain threshold, else we should increase max_term_size in fuzzer setup
+                        // should be below a certain threshold, else we should increase
+                        // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
                             terms < 300,
@@ -1225,7 +1228,8 @@ pub mod tests {
     fn test_seed_cve_2022_38153() {
         use puffin::put::PutOptions;
 
-        use crate::{test_utils::expect_trace_crash, tls::trace_helper::TraceExecutor};
+        use crate::test_utils::expect_trace_crash;
+        use crate::tls::trace_helper::TraceExecutor;
 
         for _ in 0..50 {
             crate::tls::seeds::seed_successful12_with_tickets.execute_trace();
@@ -1301,17 +1305,14 @@ pub mod tests {
 
     mod tcp {
         use log::info;
-        use puffin::{
-            agent::{AgentName, TLSVersion},
-            put::PutDescriptor,
-        };
+        use puffin::agent::{AgentName, TLSVersion};
+        use puffin::put::PutDescriptor;
         use test_log::test;
 
-        use crate::{
-            put_registry::{tls_registry, TCP_PUT},
-            tcp::tcp_puts::{openssl_server, wolfssl_client, wolfssl_server},
-            tls::{trace_helper::TraceHelper, vulnerabilities::*},
-        };
+        use crate::put_registry::{tls_registry, TCP_PUT};
+        use crate::tcp::tcp_puts::{openssl_server, wolfssl_client, wolfssl_server};
+        use crate::tls::trace_helper::TraceHelper;
+        use crate::tls::vulnerabilities::*;
 
         #[test]
         #[ignore] // wolfssl example server and client are not available in CI

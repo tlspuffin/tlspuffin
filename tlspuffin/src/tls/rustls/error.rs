@@ -1,9 +1,9 @@
-use std::{error::Error as StdError, fmt, time::SystemTimeError};
+use std::error::Error as StdError;
+use std::fmt;
+use std::time::SystemTimeError;
 
-use crate::tls::rustls::{
-    msgs::enums::{AlertDescription, ContentType, HandshakeType},
-    rand,
-};
+use crate::tls::rustls::msgs::enums::{AlertDescription, ContentType, HandshakeType};
+use crate::tls::rustls::rand;
 
 /// Context around a corrupt TLS message payload that resulted in
 /// an error.

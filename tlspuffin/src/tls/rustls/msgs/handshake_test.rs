@@ -1,11 +1,9 @@
 use puffin::codec::{put_u16, Codec, Reader};
 use webpki::DnsNameRef;
 
-use super::{
-    base::{Payload, PayloadU16, PayloadU24, PayloadU8},
-    enums::*,
-    handshake::*,
-};
+use super::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
+use super::enums::*;
+use super::handshake::*;
 use crate::tls::rustls::key::Certificate;
 
 #[test]

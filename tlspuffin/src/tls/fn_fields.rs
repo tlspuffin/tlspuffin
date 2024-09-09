@@ -1,22 +1,18 @@
 #![allow(clippy::ptr_arg)]
 #![allow(dead_code)]
 
-use puffin::{
-    algebra::error::FnError,
-    codec::{Codec, Reader},
-};
+use puffin::algebra::error::FnError;
+use puffin::codec::{Codec, Reader};
 
-use crate::tls::{
-    key_exchange::tls12_new_secrets,
-    key_schedule::dhe_key_schedule,
-    rustls::{
-        hash_hs::HandshakeHash,
-        key_log::NoKeyLog,
-        msgs::{
-            enums::{CipherSuite, Compression, ExtensionType, NamedGroup, ProtocolVersion},
-            handshake::{ClientExtension, HasServerExtensions, Random, ServerExtension, SessionID},
-        },
-    },
+use crate::tls::key_exchange::tls12_new_secrets;
+use crate::tls::key_schedule::dhe_key_schedule;
+use crate::tls::rustls::hash_hs::HandshakeHash;
+use crate::tls::rustls::key_log::NoKeyLog;
+use crate::tls::rustls::msgs::enums::{
+    CipherSuite, Compression, ExtensionType, NamedGroup, ProtocolVersion,
+};
+use crate::tls::rustls::msgs::handshake::{
+    ClientExtension, HasServerExtensions, Random, ServerExtension, SessionID,
 };
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {

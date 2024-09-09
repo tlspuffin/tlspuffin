@@ -5,13 +5,14 @@
     feature = "tls13",
 ))]
 fn test_attacker_full_det_recreate() {
-    // Fail without global rand reset and reseed, BEFORE tracecontext are created (at least for OpenSSL)!
-    use puffin::{put::PutOptions, trace::TraceContext};
+    // Fail without global rand reset and reseed, BEFORE tracecontext are created (at least for
+    // OpenSSL)!
+    use puffin::put::PutOptions;
+    use puffin::trace::TraceContext;
 
-    use crate::{
-        put_registry::tls_registry,
-        tls::{seeds::seed_client_attacker_full, trace_helper::TraceHelper},
-    };
+    use crate::put_registry::tls_registry;
+    use crate::tls::seeds::seed_client_attacker_full;
+    use crate::tls::trace_helper::TraceHelper;
 
     let put_registry = tls_registry();
 
@@ -46,9 +47,9 @@ fn test_attacker_full_det_recreate() {
     //             data_1
     //         );
     //         let e_2 = app_data.evaluate(&ctx_2).unwrap();
-    //         if let Some(msg_2) = e_2.as_ref().downcast_ref::<<TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage>() {
-    //             let data_2 = msg_2.clone().encode();
-    //             assert_eq!(data_1, data_2);
+    //         if let Some(msg_2) = e_2.as_ref().downcast_ref::<<TLSProtocolBehavior as
+    // ProtocolBehavior>::OpaqueProtocolMessage>() {             let data_2 =
+    // msg_2.clone().encode();             assert_eq!(data_1, data_2);
     //         } else {
     //             panic!("Failed to encode enc{i} OpaqueMessage in ctx_2");
     //         }

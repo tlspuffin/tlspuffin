@@ -1,33 +1,26 @@
-use puffin::{
-    agent::AgentName,
-    algebra::{dynamic_function::DescribableFunction, Term},
-    execution::{forked_execution, AssertExecution},
-    fuzzer::mutations::{
-        util::TermConstraints, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator,
-        ReplaceReuseMutator,
-    },
-    libafl::{
-        corpus::InMemoryCorpus,
-        mutators::{MutationResult, Mutator},
-        state::StdState,
-    },
-    libafl_bolts::rands::{RomuDuoJrRand, StdRand},
-    put::PutOptions,
-    trace::{Action, Step, Trace, TraceContext},
+use puffin::agent::AgentName;
+use puffin::algebra::dynamic_function::DescribableFunction;
+use puffin::algebra::Term;
+use puffin::execution::{forked_execution, AssertExecution};
+use puffin::fuzzer::mutations::util::TermConstraints;
+use puffin::fuzzer::mutations::{
+    RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
 };
+use puffin::libafl::corpus::InMemoryCorpus;
+use puffin::libafl::mutators::{MutationResult, Mutator};
+use puffin::libafl::state::StdState;
+use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
+use puffin::put::PutOptions;
+use puffin::trace::{Action, Step, Trace, TraceContext};
 
-use crate::{
-    put_registry::tls_registry,
-    query::TlsQueryMatcher,
-    tls::{
-        fn_impl::{
-            fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript,
-            fn_signature_algorithm_extension, fn_support_group_extension,
-        },
-        seeds::_seed_client_attacker12,
-        TLS_SIGNATURE,
-    },
+use crate::put_registry::tls_registry;
+use crate::query::TlsQueryMatcher;
+use crate::tls::fn_impl::{
+    fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
+    fn_support_group_extension,
 };
+use crate::tls::seeds::_seed_client_attacker12;
+use crate::tls::TLS_SIGNATURE;
 
 fn create_state() -> StdState<
     Trace<TlsQueryMatcher>,

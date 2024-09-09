@@ -1,18 +1,15 @@
 use puffin::algebra::error::FnError;
-use ring::{digest, hkdf::Prk};
+use ring::digest;
+use ring::hkdf::Prk;
 
-use crate::tls::{
-    key_exchange::tls13_key_exchange,
-    rustls::{
-        hash_hs::HandshakeHash,
-        key_log::NoKeyLog,
-        msgs::enums::NamedGroup,
-        suites::SupportedCipherSuite,
-        tls13::key_schedule::{
-            KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleHandshakeStart,
-            KeySchedulePreHandshake, KeyScheduleTrafficWithClientFinishedPending,
-        },
-    },
+use crate::tls::key_exchange::tls13_key_exchange;
+use crate::tls::rustls::hash_hs::HandshakeHash;
+use crate::tls::rustls::key_log::NoKeyLog;
+use crate::tls::rustls::msgs::enums::NamedGroup;
+use crate::tls::rustls::suites::SupportedCipherSuite;
+use crate::tls::rustls::tls13::key_schedule::{
+    KeyScheduleEarly, KeyScheduleHandshake, KeyScheduleHandshakeStart, KeySchedulePreHandshake,
+    KeyScheduleTrafficWithClientFinishedPending,
 };
 
 pub fn tls13_handshake_traffic_secret(

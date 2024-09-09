@@ -7,39 +7,32 @@
 //! Internet protocols, including SSL/TLS, which is the basis for HTTPS,
 //! the secure protocol for browsing the web.
 
-use std::{
-    convert::TryInto,
-    error::Error,
-    ffi::{CStr, CString},
-    fmt,
-    marker::PhantomData,
-    mem,
-    net::IpAddr,
-    path::Path,
-    ptr, slice, str,
-};
+use std::convert::TryInto;
+use std::error::Error;
+use std::ffi::{CStr, CString};
+use std::marker::PhantomData;
+use std::net::IpAddr;
+use std::path::Path;
+use std::{fmt, mem, ptr, slice, str};
 
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::{c_int, c_long, c_void};
 
-use crate::{
-    asn1::{
-        Asn1BitStringRef, Asn1IntegerRef, Asn1Object, Asn1ObjectRef, Asn1StringRef, Asn1TimeRef,
-        Asn1Type,
-    },
-    bio::MemBioSlice,
-    conf::ConfRef,
-    cvt, cvt_n, cvt_p,
-    error::ErrorStack,
-    ex_data::Index,
-    ffi,
-    hash::{DigestBytes, MessageDigest},
-    nid::Nid,
-    pkey::{HasPrivate, HasPublic, PKey, PKeyRef, Public},
-    ssl::SslRef,
-    stack::{Stack, StackRef, Stackable},
-    string::OpensslString,
+use crate::asn1::{
+    Asn1BitStringRef, Asn1IntegerRef, Asn1Object, Asn1ObjectRef, Asn1StringRef, Asn1TimeRef,
+    Asn1Type,
 };
+use crate::bio::MemBioSlice;
+use crate::conf::ConfRef;
+use crate::error::ErrorStack;
+use crate::ex_data::Index;
+use crate::hash::{DigestBytes, MessageDigest};
+use crate::nid::Nid;
+use crate::pkey::{HasPrivate, HasPublic, PKey, PKeyRef, Public};
+use crate::ssl::SslRef;
+use crate::stack::{Stack, StackRef, Stackable};
+use crate::string::OpensslString;
+use crate::{cvt, cvt_n, cvt_p, ffi};
 
 pub mod extension;
 pub mod store;
@@ -103,9 +96,10 @@ impl X509StoreContextRef {
     }
 
     /// Initializes this context with the given certificate, certificates chain and certificate
-    /// store. After initializing the context, the `with_context` closure is called with the prepared
-    /// context. As long as the closure is running, the context stays initialized and can be used
-    /// to e.g. verify a certificate. The context will be cleaned up, after the closure finished.
+    /// store. After initializing the context, the `with_context` closure is called with the
+    /// prepared context. As long as the closure is running, the context stays initialized and
+    /// can be used to e.g. verify a certificate. The context will be cleaned up, after the
+    /// closure finished.
     ///
     /// * `trust` - The certificate store with the trusted certificates.
     /// * `cert` - The certificate that should be verified.
@@ -282,17 +276,21 @@ impl X509Builder {
 
     /// Sets the subject name of the certificate.
     ///
-    /// When building certificates, the `C`, `ST`, and `O` options are common when using the openssl command line tools.
-    /// The `CN` field is used for the common name, such as a DNS name.
+    /// When building certificates, the `C`, `ST`, and `O` options are common when using the openssl
+    /// command line tools. The `CN` field is used for the common name, such as a DNS name.
     ///
     /// ```
-    /// use boring::x509::{X509, X509NameBuilder};
+    /// use boring::x509::{X509NameBuilder, X509};
     ///
     /// let mut x509_name = boring::x509::X509NameBuilder::new().unwrap();
     /// x509_name.append_entry_by_text("C", "US").unwrap();
     /// x509_name.append_entry_by_text("ST", "CA").unwrap();
-    /// x509_name.append_entry_by_text("O", "Some organization").unwrap();
-    /// x509_name.append_entry_by_text("CN", "www.example.com").unwrap();
+    /// x509_name
+    ///     .append_entry_by_text("O", "Some organization")
+    ///     .unwrap();
+    /// x509_name
+    ///     .append_entry_by_text("CN", "www.example.com")
+    ///     .unwrap();
     /// let x509_name = x509_name.build();
     ///
     /// let mut x509 = boring::x509::X509::builder().unwrap();
@@ -392,6 +390,28 @@ foreign_type_and_impl_send_sync! {
 }
 
 impl X509Ref {
+    to_pem! {
+        /// Serializes the certificate into a PEM-encoded X509 structure.
+        ///
+        /// The output will have a header of `-----BEGIN CERTIFICATE-----`.
+        ///
+        /// This corresponds to [`PEM_write_bio_X509`].
+        ///
+        /// [`PEM_write_bio_X509`]: https://www.openssl.org/docs/man1.0.2/crypto/PEM_write_bio_X509.html
+        to_pem,
+        ffi::PEM_write_bio_X509
+    }
+
+    to_der! {
+        /// Serializes the certificate into a DER-encoded X509 structure.
+        ///
+        /// This corresponds to [`i2d_X509`].
+        ///
+        /// [`i2d_X509`]: https://www.openssl.org/docs/man1.1.0/crypto/i2d_X509.html
+        to_der,
+        ffi::i2d_X509
+    }
+
     /// Returns this certificate's subject name.
     ///
     /// This corresponds to [`X509_get_subject_name`].
@@ -584,28 +604,6 @@ impl X509Ref {
             Asn1IntegerRef::from_ptr(r)
         }
     }
-
-    to_pem! {
-        /// Serializes the certificate into a PEM-encoded X509 structure.
-        ///
-        /// The output will have a header of `-----BEGIN CERTIFICATE-----`.
-        ///
-        /// This corresponds to [`PEM_write_bio_X509`].
-        ///
-        /// [`PEM_write_bio_X509`]: https://www.openssl.org/docs/man1.0.2/crypto/PEM_write_bio_X509.html
-        to_pem,
-        ffi::PEM_write_bio_X509
-    }
-
-    to_der! {
-        /// Serializes the certificate into a DER-encoded X509 structure.
-        ///
-        /// This corresponds to [`i2d_X509`].
-        ///
-        /// [`i2d_X509`]: https://www.openssl.org/docs/man1.1.0/crypto/i2d_X509.html
-        to_der,
-        ffi::i2d_X509
-    }
 }
 
 impl ToOwned for X509Ref {
@@ -620,11 +618,6 @@ impl ToOwned for X509Ref {
 }
 
 impl X509 {
-    /// Returns a new builder.
-    pub fn builder() -> Result<X509Builder, ErrorStack> {
-        X509Builder::new()
-    }
-
     from_pem! {
         /// Deserializes a PEM-encoded X509 structure.
         ///
@@ -648,6 +641,11 @@ impl X509 {
         X509,
         ffi::d2i_X509,
         ::libc::c_long
+    }
+
+    /// Returns a new builder.
+    pub fn builder() -> Result<X509Builder, ErrorStack> {
+        X509Builder::new()
     }
 
     /// Deserializes a list of PEM-formatted certificates.
@@ -989,6 +987,18 @@ foreign_type_and_impl_send_sync! {
 }
 
 impl X509Name {
+    from_der! {
+        /// Deserializes a DER-encoded X509 name structure.
+        ///
+        /// This corresponds to [`d2i_X509_NAME`].
+        ///
+        /// [`d2i_X509_NAME`]: https://www.openssl.org/docs/manmaster/man3/d2i_X509_NAME.html
+        from_der,
+        X509Name,
+        ffi::d2i_X509_NAME,
+        ::libc::c_long
+    }
+
     /// Returns a new builder.
     pub fn builder() -> Result<X509NameBuilder, ErrorStack> {
         X509NameBuilder::new()
@@ -1001,18 +1011,6 @@ impl X509Name {
         let file = CString::new(file.as_ref().as_os_str().to_str().unwrap()).unwrap();
         unsafe { cvt_p(ffi::SSL_load_client_CA_file(file.as_ptr())).map(|p| Stack::from_ptr(p)) }
     }
-
-    from_der! {
-        /// Deserializes a DER-encoded X509 name structure.
-        ///
-        /// This corresponds to [`d2i_X509_NAME`].
-        ///
-        /// [`d2i_X509_NAME`]: https://www.openssl.org/docs/manmaster/man3/d2i_X509_NAME.html
-        from_der,
-        X509Name,
-        ffi::d2i_X509_NAME,
-        ::libc::c_long
-    }
 }
 
 impl Stackable for X509Name {
@@ -1020,6 +1018,16 @@ impl Stackable for X509Name {
 }
 
 impl X509NameRef {
+    to_der! {
+        /// Serializes the certificate into a DER-encoded X509 name structure.
+        ///
+        /// This corresponds to [`i2d_X509_NAME`].
+        ///
+        /// [`i2d_X509_NAME`]: https://www.openssl.org/docs/man1.1.0/crypto/i2d_X509_NAME.html
+        to_der,
+        ffi::i2d_X509_NAME
+    }
+
     /// Returns the name entries by the nid.
     pub fn entries_by_nid(&self, nid: Nid) -> X509NameEntries<'_> {
         X509NameEntries {
@@ -1036,16 +1044,6 @@ impl X509NameRef {
             nid: None,
             loc: -1,
         }
-    }
-
-    to_der! {
-        /// Serializes the certificate into a DER-encoded X509 name structure.
-        ///
-        /// This corresponds to [`i2d_X509_NAME`].
-        ///
-        /// [`i2d_X509_NAME`]: https://www.openssl.org/docs/man1.1.0/crypto/i2d_X509_NAME.html
-        to_der,
-        ffi::i2d_X509_NAME
     }
 }
 
@@ -1115,7 +1113,8 @@ impl X509NameEntryRef {
     }
 
     /// Returns the `Asn1Object` value of an `X509NameEntry`.
-    /// This is useful for finding out about the actual `Nid` when iterating over all `X509NameEntries`.
+    /// This is useful for finding out about the actual `Nid` when iterating over all
+    /// `X509NameEntries`.
     ///
     /// This corresponds to [`X509_NAME_ENTRY_get_object`].
     ///
@@ -1258,11 +1257,6 @@ foreign_type_and_impl_send_sync! {
 }
 
 impl X509Req {
-    /// A builder for `X509Req`.
-    pub fn builder() -> Result<X509ReqBuilder, ErrorStack> {
-        X509ReqBuilder::new()
-    }
-
     from_pem! {
         /// Deserializes a PEM-encoded PKCS#10 certificate request structure.
         ///
@@ -1286,6 +1280,11 @@ impl X509Req {
         X509Req,
         ffi::d2i_X509_REQ,
         ::libc::c_long
+    }
+
+    /// A builder for `X509Req`.
+    pub fn builder() -> Result<X509ReqBuilder, ErrorStack> {
+        X509ReqBuilder::new()
     }
 }
 
@@ -1433,82 +1432,82 @@ impl X509VerifyError {
 
 #[allow(missing_docs)] // no need to document the constants
 impl X509VerifyError {
-    pub const UNSPECIFIED: Self = Self(ffi::X509_V_ERR_UNSPECIFIED);
-    pub const UNABLE_TO_GET_ISSUER_CERT: Self = Self(ffi::X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT);
-    pub const UNABLE_TO_GET_CRL: Self = Self(ffi::X509_V_ERR_UNABLE_TO_GET_CRL);
-    pub const UNABLE_TO_DECRYPT_CERT_SIGNATURE: Self =
-        Self(ffi::X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE);
-    pub const UNABLE_TO_DECRYPT_CRL_SIGNATURE: Self =
-        Self(ffi::X509_V_ERR_UNABLE_TO_DECRYPT_CRL_SIGNATURE);
-    pub const UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY: Self =
-        Self(ffi::X509_V_ERR_UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY);
-    pub const CERT_SIGNATURE_FAILURE: Self = Self(ffi::X509_V_ERR_CERT_SIGNATURE_FAILURE);
-    pub const CRL_SIGNATURE_FAILURE: Self = Self(ffi::X509_V_ERR_CRL_SIGNATURE_FAILURE);
-    pub const CERT_NOT_YET_VALID: Self = Self(ffi::X509_V_ERR_CERT_NOT_YET_VALID);
+    pub const AKID_ISSUER_SERIAL_MISMATCH: Self = Self(ffi::X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH);
+    pub const AKID_SKID_MISMATCH: Self = Self(ffi::X509_V_ERR_AKID_SKID_MISMATCH);
+    pub const APPLICATION_VERIFICATION: Self = Self(ffi::X509_V_ERR_APPLICATION_VERIFICATION);
+    pub const CERT_CHAIN_TOO_LONG: Self = Self(ffi::X509_V_ERR_CERT_CHAIN_TOO_LONG);
     pub const CERT_HAS_EXPIRED: Self = Self(ffi::X509_V_ERR_CERT_HAS_EXPIRED);
-    pub const CRL_NOT_YET_VALID: Self = Self(ffi::X509_V_ERR_CRL_NOT_YET_VALID);
+    pub const CERT_NOT_YET_VALID: Self = Self(ffi::X509_V_ERR_CERT_NOT_YET_VALID);
+    pub const CERT_REJECTED: Self = Self(ffi::X509_V_ERR_CERT_REJECTED);
+    pub const CERT_REVOKED: Self = Self(ffi::X509_V_ERR_CERT_REVOKED);
+    pub const CERT_SIGNATURE_FAILURE: Self = Self(ffi::X509_V_ERR_CERT_SIGNATURE_FAILURE);
+    pub const CERT_UNTRUSTED: Self = Self(ffi::X509_V_ERR_CERT_UNTRUSTED);
     pub const CRL_HAS_EXPIRED: Self = Self(ffi::X509_V_ERR_CRL_HAS_EXPIRED);
-    pub const ERROR_IN_CERT_NOT_BEFORE_FIELD: Self =
-        Self(ffi::X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD);
+    pub const CRL_NOT_YET_VALID: Self = Self(ffi::X509_V_ERR_CRL_NOT_YET_VALID);
+    pub const CRL_PATH_VALIDATION_ERROR: Self = Self(ffi::X509_V_ERR_CRL_PATH_VALIDATION_ERROR);
+    pub const CRL_SIGNATURE_FAILURE: Self = Self(ffi::X509_V_ERR_CRL_SIGNATURE_FAILURE);
+    pub const DEPTH_ZERO_SELF_SIGNED_CERT: Self = Self(ffi::X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT);
+    pub const DIFFERENT_CRL_SCOPE: Self = Self(ffi::X509_V_ERR_DIFFERENT_CRL_SCOPE);
+    pub const EMAIL_MISMATCH: Self = Self(ffi::X509_V_ERR_EMAIL_MISMATCH);
     pub const ERROR_IN_CERT_NOT_AFTER_FIELD: Self =
         Self(ffi::X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD);
+    pub const ERROR_IN_CERT_NOT_BEFORE_FIELD: Self =
+        Self(ffi::X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD);
     pub const ERROR_IN_CRL_LAST_UPDATE_FIELD: Self =
         Self(ffi::X509_V_ERR_ERROR_IN_CRL_LAST_UPDATE_FIELD);
     pub const ERROR_IN_CRL_NEXT_UPDATE_FIELD: Self =
         Self(ffi::X509_V_ERR_ERROR_IN_CRL_NEXT_UPDATE_FIELD);
+    pub const EXCLUDED_VIOLATION: Self = Self(ffi::X509_V_ERR_EXCLUDED_VIOLATION);
+    pub const HOSTNAME_MISMATCH: Self = Self(ffi::X509_V_ERR_HOSTNAME_MISMATCH);
+    pub const INVALID_CA: Self = Self(ffi::X509_V_ERR_INVALID_CA);
+    pub const INVALID_CALL: Self = Self(ffi::X509_V_ERR_INVALID_CALL);
+    pub const INVALID_EXTENSION: Self = Self(ffi::X509_V_ERR_INVALID_EXTENSION);
+    pub const INVALID_NON_CA: Self = Self(ffi::X509_V_ERR_INVALID_NON_CA);
+    pub const INVALID_POLICY_EXTENSION: Self = Self(ffi::X509_V_ERR_INVALID_POLICY_EXTENSION);
+    pub const INVALID_PURPOSE: Self = Self(ffi::X509_V_ERR_INVALID_PURPOSE);
+    pub const IP_ADDRESS_MISMATCH: Self = Self(ffi::X509_V_ERR_IP_ADDRESS_MISMATCH);
+    pub const KEYUSAGE_NO_CERTSIGN: Self = Self(ffi::X509_V_ERR_KEYUSAGE_NO_CERTSIGN);
+    pub const KEYUSAGE_NO_CRL_SIGN: Self = Self(ffi::X509_V_ERR_KEYUSAGE_NO_CRL_SIGN);
+    pub const KEYUSAGE_NO_DIGITAL_SIGNATURE: Self =
+        Self(ffi::X509_V_ERR_KEYUSAGE_NO_DIGITAL_SIGNATURE);
+    pub const NAME_CONSTRAINTS_WITHOUT_SANS: Self =
+        Self(ffi::X509_V_ERR_NAME_CONSTRAINTS_WITHOUT_SANS);
+    pub const NO_EXPLICIT_POLICY: Self = Self(ffi::X509_V_ERR_NO_EXPLICIT_POLICY);
     pub const OUT_OF_MEM: Self = Self(ffi::X509_V_ERR_OUT_OF_MEM);
-    pub const DEPTH_ZERO_SELF_SIGNED_CERT: Self = Self(ffi::X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT);
+    pub const PATH_LENGTH_EXCEEDED: Self = Self(ffi::X509_V_ERR_PATH_LENGTH_EXCEEDED);
+    pub const PERMITTED_VIOLATION: Self = Self(ffi::X509_V_ERR_PERMITTED_VIOLATION);
+    pub const PROXY_CERTIFICATES_NOT_ALLOWED: Self =
+        Self(ffi::X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED);
+    pub const PROXY_PATH_LENGTH_EXCEEDED: Self = Self(ffi::X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED);
     pub const SELF_SIGNED_CERT_IN_CHAIN: Self = Self(ffi::X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN);
+    pub const STORE_LOOKUP: Self = Self(ffi::X509_V_ERR_STORE_LOOKUP);
+    pub const SUBJECT_ISSUER_MISMATCH: Self = Self(ffi::X509_V_ERR_SUBJECT_ISSUER_MISMATCH);
+    pub const SUBTREE_MINMAX: Self = Self(ffi::X509_V_ERR_SUBTREE_MINMAX);
+    pub const UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY: Self =
+        Self(ffi::X509_V_ERR_UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY);
+    pub const UNABLE_TO_DECRYPT_CERT_SIGNATURE: Self =
+        Self(ffi::X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE);
+    pub const UNABLE_TO_DECRYPT_CRL_SIGNATURE: Self =
+        Self(ffi::X509_V_ERR_UNABLE_TO_DECRYPT_CRL_SIGNATURE);
+    pub const UNABLE_TO_GET_CRL: Self = Self(ffi::X509_V_ERR_UNABLE_TO_GET_CRL);
+    pub const UNABLE_TO_GET_CRL_ISSUER: Self = Self(ffi::X509_V_ERR_UNABLE_TO_GET_CRL_ISSUER);
+    pub const UNABLE_TO_GET_ISSUER_CERT: Self = Self(ffi::X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT);
     pub const UNABLE_TO_GET_ISSUER_CERT_LOCALLY: Self =
         Self(ffi::X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY);
     pub const UNABLE_TO_VERIFY_LEAF_SIGNATURE: Self =
         Self(ffi::X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE);
-    pub const CERT_CHAIN_TOO_LONG: Self = Self(ffi::X509_V_ERR_CERT_CHAIN_TOO_LONG);
-    pub const CERT_REVOKED: Self = Self(ffi::X509_V_ERR_CERT_REVOKED);
-    pub const INVALID_CA: Self = Self(ffi::X509_V_ERR_INVALID_CA);
-    pub const PATH_LENGTH_EXCEEDED: Self = Self(ffi::X509_V_ERR_PATH_LENGTH_EXCEEDED);
-    pub const INVALID_PURPOSE: Self = Self(ffi::X509_V_ERR_INVALID_PURPOSE);
-    pub const CERT_UNTRUSTED: Self = Self(ffi::X509_V_ERR_CERT_UNTRUSTED);
-    pub const CERT_REJECTED: Self = Self(ffi::X509_V_ERR_CERT_REJECTED);
-    pub const SUBJECT_ISSUER_MISMATCH: Self = Self(ffi::X509_V_ERR_SUBJECT_ISSUER_MISMATCH);
-    pub const AKID_SKID_MISMATCH: Self = Self(ffi::X509_V_ERR_AKID_SKID_MISMATCH);
-    pub const AKID_ISSUER_SERIAL_MISMATCH: Self = Self(ffi::X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH);
-    pub const KEYUSAGE_NO_CERTSIGN: Self = Self(ffi::X509_V_ERR_KEYUSAGE_NO_CERTSIGN);
-    pub const UNABLE_TO_GET_CRL_ISSUER: Self = Self(ffi::X509_V_ERR_UNABLE_TO_GET_CRL_ISSUER);
-    pub const UNHANDLED_CRITICAL_EXTENSION: Self =
-        Self(ffi::X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION);
-    pub const KEYUSAGE_NO_CRL_SIGN: Self = Self(ffi::X509_V_ERR_KEYUSAGE_NO_CRL_SIGN);
     pub const UNHANDLED_CRITICAL_CRL_EXTENSION: Self =
         Self(ffi::X509_V_ERR_UNHANDLED_CRITICAL_CRL_EXTENSION);
-    pub const INVALID_NON_CA: Self = Self(ffi::X509_V_ERR_INVALID_NON_CA);
-    pub const PROXY_PATH_LENGTH_EXCEEDED: Self = Self(ffi::X509_V_ERR_PROXY_PATH_LENGTH_EXCEEDED);
-    pub const KEYUSAGE_NO_DIGITAL_SIGNATURE: Self =
-        Self(ffi::X509_V_ERR_KEYUSAGE_NO_DIGITAL_SIGNATURE);
-    pub const PROXY_CERTIFICATES_NOT_ALLOWED: Self =
-        Self(ffi::X509_V_ERR_PROXY_CERTIFICATES_NOT_ALLOWED);
-    pub const INVALID_EXTENSION: Self = Self(ffi::X509_V_ERR_INVALID_EXTENSION);
-    pub const INVALID_POLICY_EXTENSION: Self = Self(ffi::X509_V_ERR_INVALID_POLICY_EXTENSION);
-    pub const NO_EXPLICIT_POLICY: Self = Self(ffi::X509_V_ERR_NO_EXPLICIT_POLICY);
-    pub const DIFFERENT_CRL_SCOPE: Self = Self(ffi::X509_V_ERR_DIFFERENT_CRL_SCOPE);
-    pub const UNSUPPORTED_EXTENSION_FEATURE: Self =
-        Self(ffi::X509_V_ERR_UNSUPPORTED_EXTENSION_FEATURE);
+    pub const UNHANDLED_CRITICAL_EXTENSION: Self =
+        Self(ffi::X509_V_ERR_UNHANDLED_CRITICAL_EXTENSION);
     pub const UNNESTED_RESOURCE: Self = Self(ffi::X509_V_ERR_UNNESTED_RESOURCE);
-    pub const PERMITTED_VIOLATION: Self = Self(ffi::X509_V_ERR_PERMITTED_VIOLATION);
-    pub const EXCLUDED_VIOLATION: Self = Self(ffi::X509_V_ERR_EXCLUDED_VIOLATION);
-    pub const SUBTREE_MINMAX: Self = Self(ffi::X509_V_ERR_SUBTREE_MINMAX);
-    pub const APPLICATION_VERIFICATION: Self = Self(ffi::X509_V_ERR_APPLICATION_VERIFICATION);
-    pub const UNSUPPORTED_CONSTRAINT_TYPE: Self = Self(ffi::X509_V_ERR_UNSUPPORTED_CONSTRAINT_TYPE);
+    pub const UNSPECIFIED: Self = Self(ffi::X509_V_ERR_UNSPECIFIED);
     pub const UNSUPPORTED_CONSTRAINT_SYNTAX: Self =
         Self(ffi::X509_V_ERR_UNSUPPORTED_CONSTRAINT_SYNTAX);
+    pub const UNSUPPORTED_CONSTRAINT_TYPE: Self = Self(ffi::X509_V_ERR_UNSUPPORTED_CONSTRAINT_TYPE);
+    pub const UNSUPPORTED_EXTENSION_FEATURE: Self =
+        Self(ffi::X509_V_ERR_UNSUPPORTED_EXTENSION_FEATURE);
     pub const UNSUPPORTED_NAME_SYNTAX: Self = Self(ffi::X509_V_ERR_UNSUPPORTED_NAME_SYNTAX);
-    pub const CRL_PATH_VALIDATION_ERROR: Self = Self(ffi::X509_V_ERR_CRL_PATH_VALIDATION_ERROR);
-    pub const HOSTNAME_MISMATCH: Self = Self(ffi::X509_V_ERR_HOSTNAME_MISMATCH);
-    pub const EMAIL_MISMATCH: Self = Self(ffi::X509_V_ERR_EMAIL_MISMATCH);
-    pub const IP_ADDRESS_MISMATCH: Self = Self(ffi::X509_V_ERR_IP_ADDRESS_MISMATCH);
-    pub const INVALID_CALL: Self = Self(ffi::X509_V_ERR_INVALID_CALL);
-    pub const STORE_LOOKUP: Self = Self(ffi::X509_V_ERR_STORE_LOOKUP);
-    pub const NAME_CONSTRAINTS_WITHOUT_SANS: Self =
-        Self(ffi::X509_V_ERR_NAME_CONSTRAINTS_WITHOUT_SANS);
 }
 
 foreign_type_and_impl_send_sync! {

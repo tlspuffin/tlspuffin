@@ -1,17 +1,19 @@
-//! This module provides[`Term`]sas well as iterators over them.
+//! This module provides[`Term`]s as well as iterators over them.
 
-use std::{any::Any, fmt, fmt::Formatter};
+use std::any::Any;
+use std::fmt;
+use std::fmt::Formatter;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
-use crate::{
-    algebra::{dynamic_function::TypeShape, error::FnError, Matcher},
-    error::Error,
-    protocol::ProtocolBehavior,
-    trace::{Source, TraceContext},
-};
+use crate::algebra::dynamic_function::TypeShape;
+use crate::algebra::error::FnError;
+use crate::algebra::Matcher;
+use crate::error::Error;
+use crate::protocol::ProtocolBehavior;
+use crate::trace::{Source, TraceContext};
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
@@ -19,12 +21,11 @@ use crate::{
 pub enum Term<M: Matcher> {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
-    ///
     Variable(Variable<M>),
     /// An [`Function`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`).
     ///
-    /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be considered a constant.
-    ///
+    /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be
+    /// considered a constant.
     Application(Function, Vec<Term<M>>),
 }
 
@@ -115,8 +116,8 @@ impl<M: Matcher> Term<M> {
                 .find_variable(variable.typ, &variable.query)
                 .map(|data| data.boxed_any())
                 .or_else(|| {
-                    if let Some(Source::Agent(agent_name)) = variable.query.source {
-                        context.find_claim(agent_name, variable.typ)
+                    if let Some(Source::Agent(agent_name)) = &variable.query.source {
+                        context.find_claim(agent_name.clone(), variable.typ)
                     } else {
                         todo!("Implement querying by label");
                     }
@@ -159,8 +160,8 @@ fn append<'a, M: Matcher>(term: &'a Term<M>, v: &mut Vec<&'a Term<M>>) {
 /// * <https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node>
 /// * <https://sachanganesh.com/programming/graph-tree-traversals-in-rust/>
 impl<'a, M: Matcher> IntoIterator for &'a Term<M> {
-    type Item = &'a Term<M>;
     type IntoIter = std::vec::IntoIter<&'a Term<M>>;
+    type Item = &'a Term<M>;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut result = vec![];
@@ -195,7 +196,8 @@ impl<M: Matcher> Subterms<M> for Vec<Term<M>> {
     ///
     /// A grand subterm is defined as a subterm of a term in `self`.
     ///
-    /// Each grand subterm is returned together with its parent and the index of the parent in `self`.
+    /// Each grand subterm is returned together with its parent and the index of the parent in
+    /// `self`.
     fn filter_grand_subterms<P: Fn(&Term<M>, &Term<M>) -> bool + Copy>(
         &self,
         predicate: P,
@@ -221,7 +223,8 @@ impl<M: Matcher> Subterms<M> for Vec<Term<M>> {
 }
 
 /// `tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version`
-/// `alloc::Vec<rustls::msgs::handshake::ServerExtension>` -> `Vec<rustls::msgs::handshake::ServerExtension>`
+/// `alloc::Vec<rustls::msgs::handshake::ServerExtension>` ->
+/// `Vec<rustls::msgs::handshake::ServerExtension>`
 pub(crate) fn remove_prefix(str: &str) -> String {
     let split: Option<(&str, &str)> = str.split('<').collect_tuple();
 

@@ -1,28 +1,25 @@
-use std::{
-    io,
-    io::prelude::*,
-    mem,
-    net::{TcpListener, TcpStream},
-    path::Path,
-    sync::atomic::{AtomicBool, Ordering},
-    thread,
-};
+use std::io::prelude::*;
+use std::net::{TcpListener, TcpStream};
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::{io, mem, thread};
 
 use hex;
 
-use crate::{
-    error::ErrorStack,
-    hash::MessageDigest,
-    pkey::PKey,
-    srtp::SrtpProfileId,
-    ssl,
-    ssl::{
-        test::server::Server, ExtensionType, ShutdownResult, ShutdownState, Ssl, SslAcceptor,
-        SslAcceptorBuilder, SslConnector, SslContext, SslFiletype, SslMethod, SslOptions,
-        SslStream, SslVerifyMode, SslVersion,
-    },
-    x509::{store::X509StoreBuilder, verify::X509CheckFlags, X509Name, X509},
+use crate::error::ErrorStack;
+use crate::hash::MessageDigest;
+use crate::pkey::PKey;
+use crate::srtp::SrtpProfileId;
+use crate::ssl;
+use crate::ssl::test::server::Server;
+use crate::ssl::{
+    ExtensionType, ShutdownResult, ShutdownState, Ssl, SslAcceptor, SslAcceptorBuilder,
+    SslConnector, SslContext, SslFiletype, SslMethod, SslOptions, SslStream, SslVerifyMode,
+    SslVersion,
 };
+use crate::x509::store::X509StoreBuilder;
+use crate::x509::verify::X509CheckFlags;
+use crate::x509::{X509Name, X509};
 
 mod private_key_method;
 mod server;

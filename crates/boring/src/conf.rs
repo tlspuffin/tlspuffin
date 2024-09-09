@@ -2,7 +2,8 @@
 use foreign_types::ForeignType;
 use libc::c_void;
 
-use crate::{cvt_p, error::ErrorStack, ffi};
+use crate::error::ErrorStack;
+use crate::{cvt_p, ffi};
 
 pub struct ConfMethod(*mut c_void);
 

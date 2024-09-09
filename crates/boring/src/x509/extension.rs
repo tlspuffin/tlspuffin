@@ -19,12 +19,10 @@ use std::fmt::Write;
 
 use foreign_types::ForeignType;
 
-use crate::{
-    asn1::Asn1Object,
-    error::ErrorStack,
-    nid::Nid,
-    x509::{GeneralName, Stack, X509Extension, X509v3Context},
-};
+use crate::asn1::Asn1Object;
+use crate::error::ErrorStack;
+use crate::nid::Nid;
+use crate::x509::{GeneralName, Stack, X509Extension, X509v3Context};
 
 /// An extension which indicates whether a certificate is a CA certificate.
 pub struct BasicConstraints {

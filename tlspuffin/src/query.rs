@@ -3,8 +3,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::tls::rustls::msgs::enums::HandshakeType;
 
-/// [TlsQueryMatcher] contains TLS-related typing information, this is to be distinguished from the *.typ fields
-/// It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
+/// [TlsQueryMatcher] contains TLS-related typing information, this is to be distinguished from the
+/// *.typ fields It uses [rustls::msgs::enums::{ContentType,HandshakeType}].
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum TlsQueryMatcher {
     ChangeCipherSpec,

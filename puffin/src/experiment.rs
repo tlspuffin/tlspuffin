@@ -1,9 +1,15 @@
-use std::{fmt::Display, fs, fs::File, io, io::Write, path::Path};
+use std::fmt::Display;
+use std::fs::File;
+use std::io::Write;
+use std::path::Path;
+use std::{fs, io};
 
 use chrono::Local;
 use itertools::Itertools;
 
-use crate::{protocol::ProtocolBehavior, put_registry::PutRegistry, GIT_MSG, GIT_REF};
+use crate::protocol::ProtocolBehavior;
+use crate::put_registry::PutRegistry;
+use crate::{GIT_MSG, GIT_REF};
 
 pub fn format_title(title: Option<&str>, index: Option<usize>) -> String {
     let date = Local::now().format("%Y-%m-%d-%H%M%S");

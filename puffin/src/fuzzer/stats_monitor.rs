@@ -1,27 +1,22 @@
 //! Stats to display both cumulative and per-client stats
 
 use core::time::Duration;
-use std::{
-    fmt::Display,
-    fs::{File, OpenOptions},
-    io::BufWriter,
-    path::{Path, PathBuf},
-    time::SystemTime,
-};
+use std::fmt::Display;
+use std::fs::{File, OpenOptions};
+use std::io::BufWriter;
+use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 use dyn_clone::DynClone;
-use libafl::{
-    monitors::tui::{ui::TuiUI, TuiMonitor},
-    prelude::*,
-};
+use libafl::monitors::tui::ui::TuiUI;
+use libafl::monitors::tui::TuiMonitor;
+use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
-use crate::fuzzer::{
-    libafl_setup::MAP_FEEDBACK_NAME,
-    stats_stage::{RuntimeStats, STATS},
-};
+use crate::fuzzer::libafl_setup::MAP_FEEDBACK_NAME;
+use crate::fuzzer::stats_stage::{RuntimeStats, STATS};
 
 trait ClonableMonitor: Monitor + DynClone {}
 impl ClonableMonitor for TuiMonitor {}

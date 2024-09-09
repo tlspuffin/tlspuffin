@@ -13,18 +13,16 @@ pub trait KeyLog: Send + Sync {
     /// `secret` means:
     ///
     /// - `CLIENT_RANDOM`: `secret` is the master secret for a TLSv1.2 session.
-    /// - `CLIENT_EARLY_TRAFFIC_SECRET`: `secret` encrypts early data
-    ///   transmitted by a client
-    /// - `SERVER_HANDSHAKE_TRAFFIC_SECRET`: `secret` encrypts
-    ///   handshake messages from the server during a TLSv1.3 handshake.
-    /// - `CLIENT_HANDSHAKE_TRAFFIC_SECRET`: `secret` encrypts
-    ///   handshake messages from the client during a TLSv1.3 handshake.
-    /// - `SERVER_TRAFFIC_SECRET_0`: `secret` encrypts post-handshake data
-    ///   from the server in a TLSv1.3 session.
-    /// - `CLIENT_TRAFFIC_SECRET_0`: `secret` encrypts post-handshake data
-    ///   from the client in a TLSv1.3 session.
-    /// - `EXPORTER_SECRET`: `secret` is the post-handshake exporter secret
-    ///   in a TLSv1.3 session.
+    /// - `CLIENT_EARLY_TRAFFIC_SECRET`: `secret` encrypts early data transmitted by a client
+    /// - `SERVER_HANDSHAKE_TRAFFIC_SECRET`: `secret` encrypts handshake messages from the server
+    ///   during a TLSv1.3 handshake.
+    /// - `CLIENT_HANDSHAKE_TRAFFIC_SECRET`: `secret` encrypts handshake messages from the client
+    ///   during a TLSv1.3 handshake.
+    /// - `SERVER_TRAFFIC_SECRET_0`: `secret` encrypts post-handshake data from the server in a
+    ///   TLSv1.3 session.
+    /// - `CLIENT_TRAFFIC_SECRET_0`: `secret` encrypts post-handshake data from the client in a
+    ///   TLSv1.3 session.
+    /// - `EXPORTER_SECRET`: `secret` is the post-handshake exporter secret in a TLSv1.3 session.
     ///
     /// These strings are selected to match the NSS key log format:
     /// <https://developer.mozilla.org/en-US/docs/Mozilla/Projects/NSS/Key_Log_Format>
@@ -45,6 +43,7 @@ pub struct NoKeyLog;
 
 impl KeyLog for NoKeyLog {
     fn log(&self, _: &str, _: &[u8], _: &[u8]) {}
+
     #[inline]
     fn will_log(&self, _label: &str) -> bool {
         false

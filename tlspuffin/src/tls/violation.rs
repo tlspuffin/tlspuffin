@@ -1,13 +1,9 @@
 use itertools::Itertools;
-use puffin::{
-    agent::{AgentType, TLSVersion},
-    claims::SecurityViolationPolicy,
-};
+use puffin::agent::{AgentType, TLSVersion};
+use puffin::claims::SecurityViolationPolicy;
 
-use crate::{
-    claims::{ClaimData, ClaimDataMessage, Finished, TlsClaim},
-    static_certs::{ALICE_CERT, BOB_CERT},
-};
+use crate::claims::{ClaimData, ClaimDataMessage, Finished, TlsClaim};
+use crate::static_certs::{ALICE_CERT, BOB_CERT};
 
 pub struct TlsSecurityViolationPolicy;
 

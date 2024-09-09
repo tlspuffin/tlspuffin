@@ -1,4 +1,5 @@
-use puffin::{put::PutName, put_registry::PutRegistry};
+use puffin::put::PutName;
+use puffin::put_registry::PutRegistry;
 
 use crate::protocol::SshProtocolBehavior;
 

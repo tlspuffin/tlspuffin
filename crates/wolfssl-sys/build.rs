@@ -45,7 +45,8 @@ compile_error!(concat!(
     "] can be enabled at the same time."
 ));
 
-use std::{env, path::PathBuf};
+use std::env;
+use std::path::PathBuf;
 
 use wolfssl_src::{build, WolfSSLOptions};
 

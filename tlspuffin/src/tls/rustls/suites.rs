@@ -1,20 +1,18 @@
-use crate::tls::rustls::{
-    msgs::{
-        enums::{CipherSuite, ProtocolVersion, SignatureAlgorithm, SignatureScheme},
-        handshake::DecomposedSignatureScheme,
-    },
-    tls12::{
-        Tls12CipherSuite, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-        TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-        TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-        TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-    },
-    tls13::{
-        Tls13CipherSuite, TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384,
-        TLS13_CHACHA20_POLY1305_SHA256,
-    },
-    versions::{SupportedProtocolVersion, TLS12, TLS13},
+use crate::tls::rustls::msgs::enums::{
+    CipherSuite, ProtocolVersion, SignatureAlgorithm, SignatureScheme,
 };
+use crate::tls::rustls::msgs::handshake::DecomposedSignatureScheme;
+use crate::tls::rustls::tls12::{
+    Tls12CipherSuite, TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+    TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+    TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+    TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+};
+use crate::tls::rustls::tls13::{
+    Tls13CipherSuite, TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384,
+    TLS13_CHACHA20_POLY1305_SHA256,
+};
+use crate::tls::rustls::versions::{SupportedProtocolVersion, TLS12, TLS13};
 
 /// Bulk symmetric encryption scheme used by a cipher suite.
 #[allow(non_camel_case_types)]
@@ -100,7 +98,8 @@ impl SupportedCipherSuite {
     /// signatures.  This resolves to true for all TLS1.3 suites.
     pub fn usable_for_signature_algorithm(&self, _sig_alg: SignatureAlgorithm) -> bool {
         match self {
-            SupportedCipherSuite::Tls13(_) => true, // no constraint expressed by ciphersuite (e.g., TLS1.3)
+            SupportedCipherSuite::Tls13(_) => true, /* no constraint expressed by ciphersuite */
+            // (e.g., TLS1.3)
             SupportedCipherSuite::Tls12(inner) => {
                 inner.sign.iter().any(|scheme| scheme.sign() == _sig_alg)
             }

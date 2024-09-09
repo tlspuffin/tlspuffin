@@ -3,10 +3,8 @@ use std::mem;
 use puffin::codec::Codec;
 use ring::digest;
 
-use crate::tls::rustls::msgs::{
-    handshake::HandshakeMessagePayload,
-    message::{Message, MessagePayload},
-};
+use crate::tls::rustls::msgs::handshake::HandshakeMessagePayload;
+use crate::tls::rustls::msgs::message::{Message, MessagePayload};
 
 /// Early stage buffering of handshake payloads.
 ///

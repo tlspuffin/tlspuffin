@@ -2,8 +2,8 @@
 //!
 //! OpenSSL errors are stored in an `ErrorStack`.  Most methods in the crate
 //! returns a `Result<T, ErrorStack>` type.
-//!
-use std::{error, ffi::CStr, fmt, io, ptr, str};
+use std::ffi::CStr;
+use std::{error, fmt, io, ptr, str};
 
 use libc::{c_char, c_int, c_ulong};
 use wolfssl_sys as wolf;
@@ -185,24 +185,20 @@ impl error::Error for Error {}
 pub struct ErrorCode(c_int);
 
 impl ErrorCode {
-    /// The SSL session has been closed.
-    pub const ZERO_RETURN: ErrorCode = ErrorCode(wolf::WOLFSSL_ERROR_ZERO_RETURN);
-
+    /// An error occurred in the SSL library.
+    pub const SSL: ErrorCode = ErrorCode(wolf::WOLFSSL_ERROR_SSL);
+    /// A non-recoverable IO error occurred.
+    pub const SYSCALL: ErrorCode = ErrorCode(wolf::WOLFSSL_ERROR_SYSCALL);
     /// An attempt to read data from the underlying socket returned `WouldBlock`.
     ///
     /// Wait for read readiness and retry the operation.
     pub const WANT_READ: ErrorCode = ErrorCode(wolf::WOLFSSL_ERROR_WANT_READ);
-
     /// An attempt to write data to the underlying socket returned `WouldBlock`.
     ///
     /// Wait for write readiness and retry the operation.
     pub const WANT_WRITE: ErrorCode = ErrorCode(wolf::WOLFSSL_ERROR_WANT_WRITE);
-
-    /// A non-recoverable IO error occurred.
-    pub const SYSCALL: ErrorCode = ErrorCode(wolf::WOLFSSL_ERROR_SYSCALL);
-
-    /// An error occurred in the SSL library.
-    pub const SSL: ErrorCode = ErrorCode(wolf::WOLFSSL_ERROR_SSL);
+    /// The SSL session has been closed.
+    pub const ZERO_RETURN: ErrorCode = ErrorCode(wolf::WOLFSSL_ERROR_ZERO_RETURN);
 
     pub fn from_raw(raw: c_int) -> ErrorCode {
         ErrorCode(raw)

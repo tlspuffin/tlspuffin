@@ -1,10 +1,8 @@
 use puffin::codec;
 use ring::{aead, hkdf};
 
-use crate::tls::rustls::{
-    error::Error,
-    msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage},
-};
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage};
 
 /// Objects with this trait can decrypt TLS messages.
 pub trait MessageDecrypter: Send + Sync {
