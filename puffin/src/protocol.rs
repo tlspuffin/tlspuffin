@@ -70,6 +70,7 @@ pub trait ProtocolMessageDeframer<Mt: Matcher> {
 }
 
 /// Defines the protocol which is being tested.
+///
 /// The fuzzer is generally abstract over the used protocol. We assume that protocols have
 /// [opaque messages](ProtocolBehavior::OpaqueProtocolMessage), [structured
 /// messages](ProtocolBehavior::ProtocolMessage), and a way to [deframe](ProtocolMessageDeframer) an

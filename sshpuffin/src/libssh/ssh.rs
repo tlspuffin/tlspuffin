@@ -133,11 +133,7 @@ impl SshSessionRef {
                 Some(username) => username.as_ptr(),
             };
             cvt_auth(
-                libssh_sys::ssh_userauth_password(
-                    self.as_ptr(),
-                    username,
-                    password.as_ptr() as *const i8,
-                ),
+                libssh_sys::ssh_userauth_password(self.as_ptr(), username, password.as_ptr()),
                 self,
             )
         }

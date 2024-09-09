@@ -117,7 +117,7 @@ impl TryFrom<OpaqueMessageFlight> for MessageFlight {
                 .collect(),
         };
 
-        if flight.messages.len() == 0 {
+        if flight.messages.is_empty() {
             Err(())
         } else {
             Ok(flight)

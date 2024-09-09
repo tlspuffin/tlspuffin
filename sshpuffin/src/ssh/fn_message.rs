@@ -1,3 +1,5 @@
+#![allow(clippy::ptr_arg)]
+
 use puffin::algebra::error::FnError;
 
 use crate::ssh::message::{

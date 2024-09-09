@@ -1,4 +1,6 @@
-//!  These are currently implemented by using an in-memory buffer.
+//! The communication streams between [`Agent`](crate::agent::Agent)s.
+//!
+//! These are currently implemented by using an in-memory buffer.
 //! One might ask why we want two channels. There two very practical reasons
 //! for this. Note that these are advantages for the implementation and are not
 //! strictly required from a theoretical point of view.
@@ -8,9 +10,9 @@
 //!   transmission is throttled.
 //! * It is beneficial to model each agent with two buffers according to the Single-responsibility
 //!   principle. When sending or receiving data each agent only has to look at its own two buffer.
-//!   If each agent had only one buffer, then you would need to read from another agent which
-//! has the data you want. Or if you design it the other way around you would need to write to
-//! the buffer of the agent to which you want to send data.
+//!   If each agent had only one buffer, then you would need to read from another agent which has
+//!   the data you want. Or if you design it the other way around you would need to write to the
+//!   buffer of the agent to which you want to send data.
 //!
 //! The [`Agent`](crate::agent::Agent) Alice can add data to the *inbound channel* of Bob.
 //! Bob can then read the data from his *inbound channel* and put data in his *outbound channel*.
@@ -36,9 +38,10 @@ pub trait Stream<
     fn take_message_from_outbound(&mut self) -> Result<Option<OF>, Error>;
 }
 
-/// Describes in- or outbound channels of an [`crate::agent::Agent`]. Each [`crate::agent::Agent`]
-/// can send and receive data. This is modeled by two separate Channels in [`MemoryStream`].
-/// Internally a Channel is just an in-memory seekable buffer.
+/// Describes in- or outbound channels of an [`crate::agent::Agent`].
+///
+/// Each [`crate::agent::Agent`] can send and receive data. This is modeled by two separate Channels
+/// in [`MemoryStream`]. Internally a Channel is just an in-memory seekable buffer.
 pub type Channel = io::Cursor<Vec<u8>>;
 
 /// A MemoryStream has two [`Channel`]s. The Stream also implements the [`Write`] and [`Read`]
@@ -51,6 +54,7 @@ pub type Channel = io::Cursor<Vec<u8>>;
 ///
 /// **Note: There need to be two separate buffer! Else for example a TLS socket would read and write
 /// into the same buffer**
+#[derive(Default, Debug)]
 pub struct MemoryStream {
     inbound: Channel,
     outbound: Channel,
@@ -77,7 +81,7 @@ impl<
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OF>, Error> {
-        let flight = OF::read_bytes(&mut self.outbound.get_ref().as_slice());
+        let flight = OF::read_bytes(self.outbound.get_ref().as_slice());
         self.outbound.set_position(0);
         self.outbound.get_mut().clear();
 

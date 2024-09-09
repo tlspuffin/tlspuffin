@@ -1,4 +1,5 @@
 //! This module provides traits for calling rust functions dynamically.
+//!
 //! All functions which implement the DynamicFunction trait can be called by passing an array of
 //! [`Any`]s to it. The return value is again of type [`Any`].
 //!
@@ -249,11 +250,9 @@ dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 => R);
 
-pub fn make_dynamic<F: 'static, Types>(
-    f: &'static F,
-) -> (DynamicFunctionShape, Box<dyn DynamicFunction>)
+pub fn make_dynamic<F, Types>(f: &'static F) -> (DynamicFunctionShape, Box<dyn DynamicFunction>)
 where
-    F: DescribableFunction<Types>,
+    F: 'static + DescribableFunction<Types>,
 {
     (F::shape(), f.make_dynamic())
 }

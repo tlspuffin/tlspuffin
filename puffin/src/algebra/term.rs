@@ -104,10 +104,7 @@ impl<M: Matcher> Term<M> {
         }
     }
 
-    pub fn evaluate<PB: ProtocolBehavior>(
-        &self,
-        context: &TraceContext<PB>,
-    ) -> Result<Box<dyn Any>, Error>
+    pub fn evaluate<PB>(&self, context: &TraceContext<PB>) -> Result<Box<dyn Any>, Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -117,7 +114,7 @@ impl<M: Matcher> Term<M> {
                 .map(|data| data.boxed_any())
                 .or_else(|| {
                     if let Some(Source::Agent(agent_name)) = &variable.query.source {
-                        context.find_claim(agent_name.clone(), variable.typ)
+                        context.find_claim(*agent_name, variable.typ)
                     } else {
                         todo!("Implement querying by label");
                     }
