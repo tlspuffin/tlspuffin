@@ -460,10 +460,10 @@ impl Version {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
-    #[test]
+    #[test_log::test]
     fn short_packet_header_protection() {
         // https://www.rfc-editor.org/rfc/rfc9001.html#name-chacha20-poly1305-short-hea
 
@@ -511,7 +511,7 @@ mod test {
         assert_eq!(plain, &PLAIN[4..]);
     }
 
-    #[test]
+    #[test_log::test]
     fn key_update_test_vector() {
         fn equal_prk(x: &hkdf::Prk, y: &hkdf::Prk) -> bool {
             let mut x_data = [0; 16];

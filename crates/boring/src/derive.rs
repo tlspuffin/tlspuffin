@@ -102,13 +102,13 @@ impl<'a> Deriver<'a> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use crate::ec::{EcGroup, EcKey};
     use crate::nid::Nid;
     use crate::pkey::PKey;
 
-    #[test]
+    #[test_log::test]
     fn derive_without_peer() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let ec_key = EcKey::generate(&group).unwrap();
@@ -117,7 +117,7 @@ mod test {
         deriver.derive_to_vec().unwrap_err();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_ec_key_derive() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let ec_key = EcKey::generate(&group).unwrap();

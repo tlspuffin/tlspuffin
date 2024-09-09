@@ -783,7 +783,7 @@ mod tests {
     }
 
     /// Checks whether repeat can repeat the last step
-    #[test]
+    #[test_log::test]
     fn test_repeat_mutator() {
         let mut state = create_state();
 
@@ -815,7 +815,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_replace_match_mutator() {
         let _server = AgentName::first();
         let mut state = create_state();
@@ -843,7 +843,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_remove_lift_mutator() {
         // Should remove an extension
         let mut state = create_state();
@@ -870,7 +870,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_replace_reuse_mutator() {
         let mut state = create_state();
         let _server = AgentName::first();
@@ -899,7 +899,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_skip_mutator() {
         let mut state = create_state();
         let _server = AgentName::first();
@@ -916,7 +916,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_swap_mutator() {
         let mut state = create_state();
         let mut mutator = SwapMutator::new(TermConstraints::default());
@@ -955,7 +955,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_find_term() {
         let mut rand = StdRand::with_seed(45);
         let mut trace = setup_simple_trace();
@@ -972,7 +972,7 @@ mod tests {
         assert_eq!(term_size, stats.len());
     }
 
-    #[test]
+    #[test_log::test]
     fn test_reservoir_sample_randomness() {
         /// https://rust-lang-nursery.github.io/rust-cookbook/science/mathematics/statistics.html#standard-deviation
         fn std_deviation(data: &[u32]) -> Option<f32> {

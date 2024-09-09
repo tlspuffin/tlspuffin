@@ -87,7 +87,7 @@ mod tests {
     use crate::dh::Dh;
     use crate::ssl::{SslContext, SslMethod};
 
-    #[test]
+    #[test_log::test]
     fn test_dh() {
         let mut ctx = SslContext::builder(SslMethod::tls()).unwrap();
         let p = BigNum::from_hex_str(
@@ -114,7 +114,7 @@ mod tests {
         ctx.set_tmp_dh(&dh).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_dh_from_pem() {
         let mut ctx = SslContext::builder(SslMethod::tls()).unwrap();
         let params = include_bytes!("../test/dhparams.pem");
@@ -122,7 +122,7 @@ mod tests {
         ctx.set_tmp_dh(&dh).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_dh_from_der() {
         let params = include_bytes!("../test/dhparams.pem");
         let dh = Dh::params_from_pem(params).unwrap();

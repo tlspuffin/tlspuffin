@@ -695,17 +695,17 @@ use crate::ffi::{
 };
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use crate::symm::Cipher;
 
-    #[test]
+    #[test_log::test]
     fn test_from_password() {
         let key = include_bytes!("../test/rsa-encrypted.pem");
         Rsa::private_key_from_pem_passphrase(key, b"mypass").unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_from_password_callback() {
         let mut password_queried = false;
         let key = include_bytes!("../test/rsa-encrypted.pem");
@@ -719,7 +719,7 @@ mod test {
         assert!(password_queried);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_to_password() {
         let key = Rsa::generate(2048).unwrap();
         let pem = key
@@ -729,7 +729,7 @@ mod test {
         assert!(Rsa::private_key_from_pem_passphrase(&pem, b"fizzbuzz").is_err());
     }
 
-    #[test]
+    #[test_log::test]
     fn test_public_encrypt_private_decrypt_with_padding() {
         let key = include_bytes!("../test/rsa.pem.pub");
         let public_key = Rsa::public_key_from_pem(key).unwrap();
@@ -751,7 +751,7 @@ mod test {
         assert_eq!(&dec_result[..len], original_data);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_private_encrypt() {
         let k0 = super::Rsa::generate(512).unwrap();
         let k0pkey = k0.public_key_to_pem().unwrap();
@@ -769,7 +769,7 @@ mod test {
         assert_eq!(msg, &dmesg[..len]);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_public_encrypt() {
         let k0 = super::Rsa::generate(512).unwrap();
         let k0pkey = k0.private_key_to_pem().unwrap();
@@ -786,27 +786,27 @@ mod test {
         assert_eq!(msg, &dmesg[..len]);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_public_key_from_pem_pkcs1() {
         let key = include_bytes!("../test/pkcs1.pem.pub");
         Rsa::public_key_from_pem_pkcs1(key).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     #[should_panic]
     fn test_public_key_from_pem_pkcs1_file_panic() {
         let key = include_bytes!("../test/key.pem.pub");
         Rsa::public_key_from_pem_pkcs1(key).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_public_key_to_pem_pkcs1() {
         let keypair = super::Rsa::generate(512).unwrap();
         let pubkey_pem = keypair.public_key_to_pem_pkcs1().unwrap();
         super::Rsa::public_key_from_pem_pkcs1(&pubkey_pem).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     #[should_panic]
     fn test_public_key_from_pem_pkcs1_generate_panic() {
         let keypair = super::Rsa::generate(512).unwrap();
@@ -814,7 +814,7 @@ mod test {
         super::Rsa::public_key_from_pem_pkcs1(&pubkey_pem).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_pem_pkcs1_encrypt() {
         let keypair = super::Rsa::generate(2048).unwrap();
         let pubkey_pem = keypair.public_key_to_pem_pkcs1().unwrap();
@@ -834,7 +834,7 @@ mod test {
         assert_eq!(&decrypted[..len], msg);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_pem_pkcs1_padding() {
         let keypair = super::Rsa::generate(2048).unwrap();
         let pubkey_pem = keypair.public_key_to_pem_pkcs1().unwrap();
@@ -854,14 +854,14 @@ mod test {
         assert_ne!(encrypted1, encrypted2);
     }
 
-    #[test]
+    #[test_log::test]
     #[allow(clippy::redundant_clone)]
     fn clone() {
         let key = Rsa::generate(2048).unwrap();
         drop(key.clone());
     }
 
-    #[test]
+    #[test_log::test]
     fn generate_with_e() {
         let e = BigNum::from_u32(0x10001).unwrap();
         Rsa::generate_with_e(2048, &e).unwrap();

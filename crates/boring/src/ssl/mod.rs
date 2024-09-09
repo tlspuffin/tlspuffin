@@ -62,7 +62,6 @@
 //! ```
 use std::any::TypeId;
 use std::collections::HashMap;
-use std::convert::TryInto;
 use std::ffi::{CStr, CString};
 use std::io::prelude::*;
 use std::marker::PhantomData;

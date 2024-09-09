@@ -8,14 +8,14 @@ use crate::ssl::{
     SslMethod, SslOptions, SslSession, SslSessionCacheMode, SslVersion,
 };
 
-#[test]
+#[test_log::test]
 fn idle_session() {
     let ctx = SslContext::builder(SslMethod::tls()).unwrap().build();
     let ssl = Ssl::new(&ctx).unwrap();
     assert!(ssl.session().is_none());
 }
 
-#[test]
+#[test_log::test]
 fn active_session() {
     let server = Server::builder().build();
 
@@ -31,7 +31,7 @@ fn active_session() {
     assert_eq!(copied, len);
 }
 
-#[test]
+#[test_log::test]
 fn new_get_session_callback() {
     static FOUND_SESSION: AtomicBool = AtomicBool::new(false);
     static SERVER_SESSION_DER: OnceLock<Vec<u8>> = OnceLock::new();
@@ -101,7 +101,7 @@ fn new_get_session_callback() {
     assert!(FOUND_SESSION.load(Ordering::SeqCst));
 }
 
-#[test]
+#[test_log::test]
 fn new_get_session_callback_pending() {
     static CALLED_SERVER_CALLBACK: AtomicBool = AtomicBool::new(false);
 
@@ -149,7 +149,7 @@ fn new_get_session_callback_pending() {
     client.connect();
 }
 
-#[test]
+#[test_log::test]
 fn new_session_callback_swapped_ctx() {
     static CALLED_BACK: AtomicBool = AtomicBool::new(false);
 
@@ -177,7 +177,7 @@ fn new_session_callback_swapped_ctx() {
     assert!(CALLED_BACK.load(Ordering::SeqCst));
 }
 
-#[test]
+#[test_log::test]
 fn session_cache_size() {
     let mut ctx = SslContext::builder(SslMethod::tls()).unwrap();
     ctx.set_session_cache_size(1234);

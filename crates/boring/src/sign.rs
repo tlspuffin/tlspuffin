@@ -573,7 +573,7 @@ impl<'a> Write for Verifier<'a> {
 use crate::ffi::EVP_DigestVerifyFinal;
 
 #[cfg(test)]
-mod test {
+mod tests {
     use hex::{self, FromHex};
 
     use super::RsaPssSaltlen;
@@ -597,7 +597,7 @@ mod test {
          15911273a05f23b9e838faaf849d698429ef5a1e88798236c3d40e604522a544c8f27a7a2db80663d16cf7caea\
          56de405cb2215a45b2c25566b55ac1a748a070dfc8a32a469543d019eefb47";
 
-    #[test]
+    #[test_log::test]
     fn rsa_sign() {
         let key = include_bytes!("../test/rsa.pem");
         let private_key = Rsa::private_key_from_pem(key).unwrap();
@@ -612,7 +612,7 @@ mod test {
         assert_eq!(hex::encode(result), SIGNATURE);
     }
 
-    #[test]
+    #[test_log::test]
     fn rsa_verify_ok() {
         let key = include_bytes!("../test/rsa.pem");
         let private_key = Rsa::private_key_from_pem(key).unwrap();
@@ -624,7 +624,7 @@ mod test {
         assert!(verifier.verify(&Vec::from_hex(SIGNATURE).unwrap()).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn rsa_verify_invalid() {
         let key = include_bytes!("../test/rsa.pem");
         let private_key = Rsa::private_key_from_pem(key).unwrap();
@@ -636,7 +636,7 @@ mod test {
         assert!(!verifier.verify(&Vec::from_hex(SIGNATURE).unwrap()).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn ec() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let key = EcKey::generate(&group).unwrap();
@@ -651,7 +651,7 @@ mod test {
         assert!(verifier.verify(&signature).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn rsa_sign_verify() {
         let key = include_bytes!("../test/rsa.pem");
         let private_key = Rsa::private_key_from_pem(key).unwrap();

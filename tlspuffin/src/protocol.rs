@@ -1,4 +1,3 @@
-use log::debug;
 use puffin::algebra::signature::Signature;
 use puffin::algebra::Matcher;
 use puffin::codec::{Codec, Reader};
@@ -44,7 +43,7 @@ impl ProtocolMessageFlight<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessag
     }
 
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
+        log::debug!("{}: {:?}", info, self);
     }
 }
 
@@ -71,7 +70,7 @@ impl OpaqueProtocolMessageFlight<TlsQueryMatcher, OpaqueMessage> for OpaqueMessa
     }
 
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
+        log::debug!("{}: {:?}", info, self);
     }
 }
 

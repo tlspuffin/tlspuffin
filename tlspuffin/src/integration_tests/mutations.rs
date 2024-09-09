@@ -33,7 +33,7 @@ fn create_state() -> StdState<
     StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
 }
 
-#[test]
+#[test_log::test]
 #[ignore]
 fn test_mutate_seed_cve_2021_3449() {
     let mut state = create_state();

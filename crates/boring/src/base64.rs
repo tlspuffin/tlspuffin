@@ -104,7 +104,7 @@ fn decoded_len(src_len: usize) -> Option<usize> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[test_log::test]
     fn test_encode_block() {
         assert_eq!("".to_string(), encode_block(b""));
         assert_eq!("Zg==".to_string(), encode_block(b"f"));
@@ -115,7 +115,7 @@ mod tests {
         assert_eq!("Zm9vYmFy".to_string(), encode_block(b"foobar"));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_decode_block() {
         assert_eq!(b"".to_vec(), decode_block("").unwrap());
         assert_eq!(b"f".to_vec(), decode_block("Zg==").unwrap());
@@ -126,7 +126,7 @@ mod tests {
         assert_eq!(b"foobar".to_vec(), decode_block("Zm9vYmFy").unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn test_strip_whitespace() {
         assert_eq!(b"foobar".to_vec(), decode_block(" Zm9vYmFy\n").unwrap());
         assert_eq!(b"foob".to_vec(), decode_block(" Zm9vYg==\n").unwrap());

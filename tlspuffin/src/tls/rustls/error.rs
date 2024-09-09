@@ -209,7 +209,7 @@ impl From<rand::GetRandomFailed> for Error {
 mod tests {
     use super::{CorruptMessagePayload, Error};
 
-    #[test]
+    #[test_log::test]
     fn smoke() {
         use sct;
 
@@ -254,14 +254,14 @@ mod tests {
         }*/
     }
 
-    #[test]
+    #[test_log::test]
     fn rand_error_mapping() {
         use super::rand;
         let err: Error = rand::GetRandomFailed.into();
         assert_eq!(err, Error::FailedToGetRandomBytes);
     }
 
-    #[test]
+    #[test_log::test]
     fn time_error_mapping() {
         use std::time::SystemTime;
 

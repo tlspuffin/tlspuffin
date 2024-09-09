@@ -510,7 +510,7 @@ mod tests {
     use crate::rsa::Rsa;
     use crate::symm::Cipher;
 
-    #[test]
+    #[test_log::test]
     fn test_to_password() {
         let rsa = Rsa::generate(2048).unwrap();
         let pkey = PKey::from_rsa(rsa).unwrap();
@@ -521,19 +521,19 @@ mod tests {
         assert!(PKey::private_key_from_pem_passphrase(&pem, b"fizzbuzz").is_err());
     }
 
-    #[test]
+    #[test_log::test]
     fn test_unencrypted_pkcs8() {
         let key = include_bytes!("../test/pkcs8-nocrypt.der");
         PKey::private_key_from_pkcs8(key).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_encrypted_pkcs8_passphrase() {
         let key = include_bytes!("../test/pkcs8.der");
         PKey::private_key_from_pkcs8_passphrase(key, b"mypass").unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_encrypted_pkcs8_callback() {
         let mut password_queried = false;
         let key = include_bytes!("../test/pkcs8.der");
@@ -546,31 +546,31 @@ mod tests {
         assert!(password_queried);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_private_key_from_pem() {
         let key = include_bytes!("../test/key.pem");
         PKey::private_key_from_pem(key).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_public_key_from_pem() {
         let key = include_bytes!("../test/key.pem.pub");
         PKey::public_key_from_pem(key).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_public_key_from_der() {
         let key = include_bytes!("../test/key.der.pub");
         PKey::public_key_from_der(key).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_private_key_from_der() {
         let key = include_bytes!("../test/key.der");
         PKey::private_key_from_der(key).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_pem() {
         let key = include_bytes!("../test/key.pem");
         let key = PKey::private_key_from_pem(key).unwrap();
@@ -584,7 +584,7 @@ mod tests {
         assert!(pub_key.windows(10).any(|s| s == b"PUBLIC KEY"));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_der_pkcs8() {
         let key = include_bytes!("../test/key.der");
         let key = PKey::private_key_from_der(key).unwrap();
@@ -597,7 +597,7 @@ mod tests {
                                                                               // 1
     }
 
-    #[test]
+    #[test_log::test]
     fn test_rsa_accessor() {
         let rsa = Rsa::generate(2048).unwrap();
         let pkey = PKey::from_rsa(rsa).unwrap();
@@ -606,7 +606,7 @@ mod tests {
         assert!(pkey.dsa().is_err());
     }
 
-    #[test]
+    #[test_log::test]
     fn test_ec_key_accessor() {
         let ec_key = EcKey::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let pkey = PKey::from_ec_key(ec_key).unwrap();

@@ -1,8 +1,6 @@
 #![allow(clippy::ptr_arg)]
 #![allow(dead_code)]
 
-use std::convert::TryFrom;
-
 use puffin::algebra::error::FnError;
 use puffin::codec::{Codec, Reader};
 use puffin::protocol::{OpaqueProtocolMessageFlight, ProtocolMessageFlight};

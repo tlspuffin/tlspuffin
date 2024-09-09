@@ -1,4 +1,4 @@
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt;
 use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
@@ -18,8 +18,8 @@ impl Default for PutName {
     }
 }
 
-impl Display for PutName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for PutName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", String::from_iter(self.0))
     }
 }

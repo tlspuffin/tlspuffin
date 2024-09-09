@@ -12,10 +12,15 @@ pub fn enabled() -> bool {
     unsafe { ffi::FIPS_mode() != 0 }
 }
 
-#[test]
-fn is_enabled() {
-    #[cfg(any(feature = "fips", feature = "fips-link-precompiled"))]
-    assert!(enabled());
-    #[cfg(not(any(feature = "fips", feature = "fips-link-precompiled")))]
-    assert!(!enabled());
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test_log::test]
+    fn is_enabled() {
+        #[cfg(any(feature = "fips", feature = "fips-link-precompiled"))]
+        assert!(enabled());
+        #[cfg(not(any(feature = "fips", feature = "fips-link-precompiled")))]
+        assert!(!enabled());
+    }
 }

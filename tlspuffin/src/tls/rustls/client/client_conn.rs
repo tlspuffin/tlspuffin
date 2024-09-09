@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::error::Error as StdError;
 use std::fmt;
 
@@ -17,7 +16,6 @@ use crate::tls::rustls::verify;
 /// so you can do:
 ///
 /// ```
-/// # use std::convert::{TryInto, TryFrom};
 /// # use tlspuffin::tls::rustls::client::client_conn::ServerName;
 /// ServerName::try_from("example.com").expect("invalid DNS name");
 ///

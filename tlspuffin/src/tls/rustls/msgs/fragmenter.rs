@@ -100,7 +100,7 @@ mod tests {
         assert_eq!(total_len, buf.len());
     }
 
-    #[test]
+    #[test_log::test]
     fn smoke() {
         let typ = ContentType::Handshake;
         let version = ProtocolVersion::TLSv1_2;
@@ -144,7 +144,7 @@ mod tests {
         assert_eq!(q.len(), 0);
     }
 
-    #[test]
+    #[test_log::test]
     fn non_fragment() {
         let m = PlainMessage {
             typ: ContentType::Handshake,

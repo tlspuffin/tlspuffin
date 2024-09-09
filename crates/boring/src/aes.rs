@@ -181,13 +181,13 @@ pub fn unwrap_key(
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use hex::FromHex;
 
     use super::*;
 
     // from the RFC https://tools.ietf.org/html/rfc3394#section-2.2.3
-    #[test]
+    #[test_log::test]
     fn test_wrap_unwrap() {
         let raw_key = Vec::from_hex("000102030405060708090A0B0C0D0E0F").unwrap();
         let key_data = Vec::from_hex("00112233445566778899AABBCCDDEEFF").unwrap();

@@ -6,7 +6,6 @@
 //! Each [`Agent`] has an *inbound* and an *outbound* channel (see [`crate::stream`])
 
 use core::fmt;
-use std::fmt::{Debug, Formatter};
 
 use serde::{Deserialize, Serialize};
 
@@ -151,8 +150,8 @@ pub struct Agent<PB: ProtocolBehavior> {
     put_descriptor: PutDescriptor,
 }
 
-impl<PB: ProtocolBehavior> Debug for Agent<PB> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl<PB: ProtocolBehavior> fmt::Debug for Agent<PB> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Agent")
             .field("name", &self.name)
             .field("put", &self.put.describe_state())

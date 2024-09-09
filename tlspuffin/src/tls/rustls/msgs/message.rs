@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 use puffin::codec::{Codec, Reader};
 
 use crate::tls::rustls::error::Error;

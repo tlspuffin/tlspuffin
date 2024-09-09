@@ -6,14 +6,14 @@ use super::enums::*;
 use super::handshake::*;
 use crate::tls::rustls::key::Certificate;
 
-#[test]
+#[test_log::test]
 fn rejects_short_random() {
     let bytes = [0x01; 31];
     let mut rd = Reader::init(&bytes);
     assert_eq!(Random::read(&mut rd), None);
 }
 
-#[test]
+#[test_log::test]
 fn reads_random() {
     let bytes = [0x01; 32];
     let mut rd = Reader::init(&bytes);
@@ -23,28 +23,28 @@ fn reads_random() {
     assert!(!rd.any_left());
 }
 
-#[test]
+#[test_log::test]
 fn rejects_truncated_sessionid() {
     let bytes = [32; 32];
     let mut rd = Reader::init(&bytes);
     assert_eq!(SessionID::read(&mut rd), None);
 }
 
-#[test]
+#[test_log::test]
 fn rejects_sessionid_with_bad_length() {
     let bytes = [33; 33];
     let mut rd = Reader::init(&bytes);
     assert_eq!(SessionID::read(&mut rd), None);
 }
 
-#[test]
+#[test_log::test]
 fn sessionid_with_different_lengths_are_unequal() {
     let a = SessionID::read(&mut Reader::init(&[1u8, 1])).unwrap();
     let b = SessionID::read(&mut Reader::init(&[2u8, 1, 2])).unwrap();
     assert_ne!(a, b);
 }
 
-#[test]
+#[test_log::test]
 fn accepts_short_sessionid() {
     let bytes = [1; 2];
     let mut rd = Reader::init(&bytes);
@@ -56,7 +56,7 @@ fn accepts_short_sessionid() {
     assert!(!rd.any_left());
 }
 
-#[test]
+#[test_log::test]
 fn accepts_empty_sessionid() {
     let bytes = [0; 1];
     let mut rd = Reader::init(&bytes);
@@ -68,7 +68,7 @@ fn accepts_empty_sessionid() {
     assert!(!rd.any_left());
 }
 
-#[test]
+#[test_log::test]
 fn can_roundtrip_unknown_client_ext() {
     let bytes = [0x12u8, 0x34u8, 0, 3, 1, 2, 3];
     let mut rd = Reader::init(&bytes);
@@ -79,49 +79,49 @@ fn can_roundtrip_unknown_client_ext() {
     assert_eq!(bytes.to_vec(), ext.get_encoding());
 }
 
-#[test]
+#[test_log::test]
 fn refuses_client_ext_with_unparsed_bytes() {
     let bytes = [0x00u8, 0x0b, 0x00, 0x04, 0x02, 0xf8, 0x01, 0x02];
     let mut rd = Reader::init(&bytes);
     assert!(ClientExtension::read(&mut rd).is_none());
 }
 
-#[test]
+#[test_log::test]
 fn refuses_server_ext_with_unparsed_bytes() {
     let bytes = [0x00u8, 0x0b, 0x00, 0x04, 0x02, 0xf8, 0x01, 0x02];
     let mut rd = Reader::init(&bytes);
     assert!(ServerExtension::read(&mut rd).is_none());
 }
 
-#[test]
+#[test_log::test]
 fn refuses_certificate_ext_with_unparsed_bytes() {
     let bytes = [0x00u8, 0x12, 0x00, 0x03, 0x00, 0x00, 0x01];
     let mut rd = Reader::init(&bytes);
     assert!(CertificateExtension::read(&mut rd).is_none());
 }
 
-#[test]
+#[test_log::test]
 fn refuses_certificate_req_ext_with_unparsed_bytes() {
     let bytes = [0x00u8, 0x0d, 0x00, 0x05, 0x00, 0x02, 0x01, 0x02, 0xff];
     let mut rd = Reader::init(&bytes);
     assert!(CertReqExtension::read(&mut rd).is_none());
 }
 
-#[test]
+#[test_log::test]
 fn refuses_helloreq_ext_with_unparsed_bytes() {
     let bytes = [0x00u8, 0x2b, 0x00, 0x03, 0x00, 0x00, 0x01];
     let mut rd = Reader::init(&bytes);
     assert!(HelloRetryExtension::read(&mut rd).is_none());
 }
 
-#[test]
+#[test_log::test]
 fn refuses_newsessionticket_ext_with_unparsed_bytes() {
     let bytes = [0x00u8, 0x2a, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x01];
     let mut rd = Reader::init(&bytes);
     assert!(NewSessionTicketExtension::read(&mut rd).is_none());
 }
 
-#[test]
+#[test_log::test]
 fn can_roundtrip_single_sni() {
     let bytes = [0, 0, 0, 7, 0, 5, 0, 0, 2, 0x6c, 0x6f];
     let mut rd = Reader::init(&bytes);
@@ -132,7 +132,7 @@ fn can_roundtrip_single_sni() {
     assert_eq!(bytes.to_vec(), ext.get_encoding());
 }
 
-#[test]
+#[test_log::test]
 fn can_round_trip_mixed_case_sni() {
     let bytes = [0, 0, 0, 7, 0, 5, 0, 0, 2, 0x4c, 0x6f];
     let mut rd = Reader::init(&bytes);
@@ -143,7 +143,7 @@ fn can_round_trip_mixed_case_sni() {
     assert_eq!(bytes.to_vec(), ext.get_encoding());
 }
 
-#[test]
+#[test_log::test]
 fn can_roundtrip_other_sni_name_types() {
     let bytes = [0, 0, 0, 7, 0, 5, 1, 0, 2, 0x6c, 0x6f];
     let mut rd = Reader::init(&bytes);
@@ -154,7 +154,7 @@ fn can_roundtrip_other_sni_name_types() {
     assert_eq!(bytes.to_vec(), ext.get_encoding());
 }
 
-#[test]
+#[test_log::test]
 fn get_single_hostname_returns_none_for_other_sni_name_types() {
     let bytes = [0, 0, 0, 7, 0, 5, 1, 0, 2, 0x6c, 0x6f];
     let mut rd = Reader::init(&bytes);
@@ -170,7 +170,7 @@ fn get_single_hostname_returns_none_for_other_sni_name_types() {
     }
 }
 
-#[test]
+#[test_log::test]
 fn can_roundtrip_multiname_sni() {
     let bytes = [0, 0, 0, 12, 0, 10, 0, 0, 2, 0x68, 0x69, 0, 0, 2, 0x6c, 0x6f];
     let mut rd = Reader::init(&bytes);
@@ -195,7 +195,7 @@ fn can_roundtrip_multiname_sni() {
     }
 }
 
-#[test]
+#[test_log::test]
 fn rejects_truncated_sni() {
     let bytes = [0, 0, 0, 1, 0];
     assert!(ClientExtension::read(&mut Reader::init(&bytes)).is_none());
@@ -219,7 +219,7 @@ fn rejects_truncated_sni() {
     assert!(ClientExtension::read(&mut Reader::init(&bytes)).is_none());
 }
 
-#[test]
+#[test_log::test]
 fn can_roundtrip_psk_identity() {
     let bytes = [0, 0, 0x11, 0x22, 0x33, 0x44];
     let psk_id = PresharedKeyIdentity::read(&mut Reader::init(&bytes)).unwrap();
@@ -235,7 +235,7 @@ fn can_roundtrip_psk_identity() {
     assert_eq!(psk_id.get_encoding(), bytes.to_vec());
 }
 
-#[test]
+#[test_log::test]
 fn can_roundtrip_psk_offer() {
     let bytes = [
         0, 7, 0, 1, 0x99, 0x11, 0x22, 0x33, 0x44, 0, 4, 3, 0x01, 0x02, 0x3,
@@ -251,7 +251,7 @@ fn can_roundtrip_psk_offer() {
     assert_eq!(psko.get_encoding(), bytes.to_vec());
 }
 
-#[test]
+#[test_log::test]
 fn can_roundtrip_certstatusreq_for_ocsp() {
     let _ext = ClientExtension::CertificateStatusRequest(CertificateStatusRequest::build_ocsp());
     // println!("{:?}", ext);
@@ -267,7 +267,7 @@ fn can_roundtrip_certstatusreq_for_ocsp() {
     assert_eq!(csr.get_encoding(), bytes.to_vec());
 }
 
-#[test]
+#[test_log::test]
 fn can_roundtrip_certstatusreq_for_other() {
     let bytes = [
         0, 5, // CertificateStatusRequest
@@ -280,7 +280,7 @@ fn can_roundtrip_certstatusreq_for_other() {
     assert_eq!(csr.get_encoding(), bytes.to_vec());
 }
 
-#[test]
+#[test_log::test]
 fn can_roundtrip_multi_proto() {
     let bytes = [0, 16, 0, 8, 0, 6, 2, 0x68, 0x69, 2, 0x6c, 0x6f];
     let mut rd = Reader::init(&bytes);
@@ -299,7 +299,7 @@ fn can_roundtrip_multi_proto() {
     }
 }
 
-#[test]
+#[test_log::test]
 fn can_roundtrip_single_proto() {
     let bytes = [0, 16, 0, 5, 0, 3, 2, 0x68, 0x69];
     let mut rd = Reader::init(&bytes);
@@ -318,7 +318,7 @@ fn can_roundtrip_single_proto() {
     }
 }
 
-#[test]
+#[test_log::test]
 fn decomposed_signature_scheme_has_correct_mappings() {
     assert_eq!(
         SignatureScheme::make(SignatureAlgorithm::RSA, HashAlgorithm::SHA1),
@@ -399,17 +399,17 @@ fn get_sample_clienthellopayload() -> ClientHelloPayload {
     }
 }
 
-#[test]
+#[test_log::test]
 fn can_print_all_clientextensions() {
     // println!("client hello {:?}", get_sample_clienthellopayload());
 }
 
-#[test]
+#[test_log::test]
 fn can_clone_all_clientextensions() {
     let _ = get_sample_serverhellopayload().extensions;
 }
 
-#[test]
+#[test_log::test]
 fn client_has_duplicate_extensions_works() {
     let mut chp = get_sample_clienthellopayload();
     assert!(chp.has_duplicate_extension()); // due to SessionTicketRequest/SessionTicketOffer
@@ -421,7 +421,7 @@ fn client_has_duplicate_extensions_works() {
     assert!(!chp.has_duplicate_extension());
 }
 
-#[test]
+#[test_log::test]
 fn test_truncated_psk_offer() {
     let ext = ClientExtension::PresharedKey(PresharedKeyOffer {
         identities: PresharedKeyIdentities(vec![PresharedKeyIdentity::new(vec![3, 4, 5], 123456)]),
@@ -440,7 +440,7 @@ fn test_truncated_psk_offer() {
     }
 }
 
-#[test]
+#[test_log::test]
 fn test_truncated_client_hello_is_detected() {
     let ch = get_sample_clienthellopayload();
     let enc = ch.get_encoding();
@@ -455,7 +455,7 @@ fn test_truncated_client_hello_is_detected() {
     }
 }
 
-#[test]
+#[test_log::test]
 fn test_truncated_client_extension_is_detected() {
     let chp = get_sample_clienthellopayload();
 
@@ -504,75 +504,75 @@ fn test_client_extension_getter(typ: ExtensionType, getter: fn(&ClientHelloPaylo
     assert!(!getter(&chp));
 }
 
-#[test]
+#[test_log::test]
 fn client_get_sni_extension() {
     test_client_extension_getter(ExtensionType::ServerName, |chp| {
         chp.get_sni_extension().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn client_get_sigalgs_extension() {
     test_client_extension_getter(ExtensionType::SignatureAlgorithms, |chp| {
         chp.get_sigalgs_extension().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn client_get_namedgroups_extension() {
     test_client_extension_getter(ExtensionType::EllipticCurves, |chp| {
         chp.get_namedgroups_extension().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn client_get_ecpoints_extension() {
     test_client_extension_getter(ExtensionType::ECPointFormats, |chp| {
         chp.get_ecpoints_extension().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn client_get_alpn_extension() {
     test_client_extension_getter(ExtensionType::ALProtocolNegotiation, |chp| {
         chp.get_alpn_extension().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn client_get_quic_params_extension() {
     test_client_extension_getter(ExtensionType::TransportParameters, |chp| {
         chp.get_quic_params_extension().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn client_get_versions_extension() {
     test_client_extension_getter(ExtensionType::SupportedVersions, |chp| {
         chp.get_versions_extension().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn client_get_keyshare_extension() {
     test_client_extension_getter(ExtensionType::KeyShare, |chp| {
         chp.get_keyshare_extension().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn client_get_psk() {
     test_client_extension_getter(ExtensionType::PreSharedKey, |chp| chp.get_psk().is_some());
 }
 
-#[test]
+#[test_log::test]
 fn client_get_psk_modes() {
     test_client_extension_getter(ExtensionType::PSKKeyExchangeModes, |chp| {
         chp.get_psk_modes().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn test_truncated_helloretry_extension_is_detected() {
     let hrr = get_sample_helloretryrequest();
 
@@ -618,26 +618,26 @@ fn test_helloretry_extension_getter(typ: ExtensionType, getter: fn(&HelloRetryRe
     assert!(!getter(&hrr));
 }
 
-#[test]
+#[test_log::test]
 fn helloretry_get_requested_key_share_group() {
     test_helloretry_extension_getter(ExtensionType::KeyShare, |hrr| {
         hrr.get_requested_key_share_group().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn helloretry_get_cookie() {
     test_helloretry_extension_getter(ExtensionType::Cookie, |hrr| hrr.get_cookie().is_some());
 }
 
-#[test]
+#[test_log::test]
 fn helloretry_get_supported_versions() {
     test_helloretry_extension_getter(ExtensionType::SupportedVersions, |hrr| {
         hrr.get_supported_versions().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn test_truncated_server_extension_is_detected() {
     let shp = get_sample_serverhellopayload();
 
@@ -686,31 +686,31 @@ fn test_server_extension_getter(typ: ExtensionType, getter: fn(&ServerHelloPaylo
     assert!(!getter(&shp));
 }
 
-#[test]
+#[test_log::test]
 fn server_get_key_share() {
     test_server_extension_getter(ExtensionType::KeyShare, |shp| shp.get_key_share().is_some());
 }
 
-#[test]
+#[test_log::test]
 fn server_get_psk_index() {
     test_server_extension_getter(ExtensionType::PreSharedKey, |shp| {
         shp.get_psk_index().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn server_get_ecpoints_extension() {
     test_server_extension_getter(ExtensionType::ECPointFormats, |shp| {
         shp.get_ecpoints_extension().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn server_get_sct_list() {
     test_server_extension_getter(ExtensionType::SCT, |shp| shp.get_sct_list().is_some());
 }
 
-#[test]
+#[test_log::test]
 fn server_get_supported_versions() {
     test_server_extension_getter(ExtensionType::SupportedVersions, |shp| {
         shp.get_supported_versions().is_some()
@@ -734,14 +734,14 @@ fn test_cert_extension_getter(typ: ExtensionType, getter: fn(&CertificateEntry) 
     assert!(!getter(&ce));
 }
 
-#[test]
+#[test_log::test]
 fn certentry_get_ocsp_response() {
     test_cert_extension_getter(ExtensionType::StatusRequest, |ce| {
         ce.get_ocsp_response().is_some()
     });
 }
 
-#[test]
+#[test_log::test]
 fn certentry_get_scts() {
     test_cert_extension_getter(ExtensionType::SCT, |ce| ce.get_scts().is_some());
 }
@@ -776,12 +776,12 @@ fn get_sample_serverhellopayload() -> ServerHelloPayload {
     }
 }
 
-#[test]
+#[test_log::test]
 fn can_print_all_serverextensions() {
     // println!("server hello {:?}", get_sample_serverhellopayload());
 }
 
-#[test]
+#[test_log::test]
 fn can_clone_all_serverextensions() {
     let _ = get_sample_serverhellopayload().extensions;
 }
@@ -979,7 +979,7 @@ fn get_all_tls12_handshake_payloads() -> Vec<HandshakeMessagePayload> {
     ]
 }
 
-#[test]
+#[test_log::test]
 fn can_roundtrip_all_tls12_handshake_payloads() {
     for hm in get_all_tls12_handshake_payloads().iter() {
         // println!("{:?}", hm.typ);
@@ -994,7 +994,7 @@ fn can_roundtrip_all_tls12_handshake_payloads() {
     }
 }
 
-#[test]
+#[test_log::test]
 fn can_detect_truncation_of_all_tls12_handshake_payloads() {
     for hm in get_all_tls12_handshake_payloads().iter() {
         let mut enc = hm.get_encoding();
@@ -1118,7 +1118,7 @@ fn get_all_tls13_handshake_payloads() -> Vec<HandshakeMessagePayload> {
     ]
 }
 
-#[test]
+#[test_log::test]
 fn can_roundtrip_all_tls13_handshake_payloads() {
     for hm in get_all_tls13_handshake_payloads().iter() {
         // println!("{:?}", hm.typ);
@@ -1141,7 +1141,7 @@ fn put_u24(u: u32, b: &mut [u8]) {
     b[2] = u as u8;
 }
 
-#[test]
+#[test_log::test]
 fn can_detect_truncation_of_all_tls13_handshake_payloads() {
     for hm in get_all_tls13_handshake_payloads().iter() {
         let mut enc = hm.get_encoding();
@@ -1176,7 +1176,7 @@ fn can_detect_truncation_of_all_tls13_handshake_payloads() {
     }
 }
 
-#[test]
+#[test_log::test]
 fn cannot_read_messagehash_from_network() {
     let mh = HandshakeMessagePayload {
         typ: HandshakeType::MessageHash,
@@ -1187,7 +1187,7 @@ fn cannot_read_messagehash_from_network() {
     assert!(HandshakeMessagePayload::read_bytes(&enc).is_none());
 }
 
-#[test]
+#[test_log::test]
 fn cannot_decode_huge_certificate() {
     let mut buf = [0u8; 65 * 1024];
     // exactly 64KB decodes fine

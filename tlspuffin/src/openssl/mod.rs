@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::io::ErrorKind;
 use std::rc::Rc;
 
-use log::debug;
 use openssl::error::ErrorStack;
 use openssl::ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslStream, SslVerifyMode};
 use openssl::x509::store::X509StoreBuilder;
@@ -100,7 +99,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn determinism_set_reseed(&self) {
-            debug!("[Determinism] set and reseed");
+            log::debug!("[Determinism] set and reseed");
             #[cfg(feature = "deterministic")]
             {
                 deterministic::rng_set();
@@ -109,7 +108,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn determinism_reseed(&self) {
-            debug!("[Determinism] reseed");
+            log::debug!("[Determinism] reseed");
             #[cfg(feature = "deterministic")]
             deterministic::rng_reseed();
         }
@@ -422,8 +421,7 @@ impl<T> From<Result<T, openssl::ssl::Error>> for MaybeError {
                 match io_error.kind() {
                     ErrorKind::WouldBlock => {
                         // Not actually an error, we just reached the end of the stream, thrown in
-                        // MemoryStream debug!("Would have blocked but the
-                        // underlying stream is non-blocking!");
+                        // MemoryStream
                         MaybeError::Ok
                     }
                     _ => MaybeError::Err(Error::IO(format!("Unexpected IO Error: {}", io_error))),

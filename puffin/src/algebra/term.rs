@@ -2,7 +2,6 @@
 
 use std::any::Any;
 use std::fmt;
-use std::fmt::Formatter;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -30,7 +29,7 @@ pub enum Term<M: Matcher> {
 }
 
 impl<M: Matcher> fmt::Display for Term<M> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.display_at_depth(0))
     }
 }
@@ -248,17 +247,17 @@ pub(crate) fn remove_fn_prefix(str: &str) -> String {
 mod tests {
     use crate::algebra::remove_prefix;
 
-    #[test]
+    #[test_log::test]
     fn test_normal() {
         assert_eq!(remove_prefix("test::test::Test"), "Test");
     }
 
-    #[test]
+    #[test_log::test]
     fn test_generic() {
         assert_eq!(remove_prefix("test::test::Test<Asdf>"), "Test<Asdf>");
     }
 
-    #[test]
+    #[test_log::test]
     fn test_generic_recursive() {
         assert_eq!(remove_prefix("test::test::Test<asdf::Asdf>"), "Test<Asdf>");
     }

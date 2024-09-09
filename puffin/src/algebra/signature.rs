@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::fmt::{Debug, Formatter};
+use std::fmt;
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -24,8 +24,8 @@ pub struct Signature {
     pub types_by_name: HashMap<&'static str, TypeShape>,
 }
 
-impl Debug for Signature {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "functions; {:?}", self.functions)
     }
 }

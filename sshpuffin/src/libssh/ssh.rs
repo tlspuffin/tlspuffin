@@ -532,7 +532,7 @@ FVCIVIuCGO0unWSrPlL7FFPldcYMTy7S33HmlzIuywlUdqD8qCMbA1IP2a9+oD9SAhzk4f
 -----END OPENSSH PRIVATE KEY-----
 ";
 
-    #[test]
+    #[test_log::test]
     fn test() {
         set_log_level(100);
 

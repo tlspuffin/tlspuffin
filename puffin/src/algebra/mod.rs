@@ -29,7 +29,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-use std::fmt::Debug;
+use std::fmt;
 use std::hash::Hash;
 
 use once_cell::sync::OnceCell;
@@ -82,7 +82,9 @@ where
 }
 
 /// Determines whether two instances match. We can also ask it how specific it is.
-pub trait Matcher: Debug + Clone + Hash + serde::Serialize + DeserializeOwned + PartialEq {
+pub trait Matcher:
+    fmt::Debug + Clone + Hash + serde::Serialize + DeserializeOwned + PartialEq
+{
     fn matches(&self, matcher: &Self) -> bool;
 
     fn specificity(&self) -> u32;
@@ -105,7 +107,7 @@ impl Matcher for AnyMatcher {
 #[allow(clippy::ptr_arg)]
 pub mod test_signature {
     use std::any::{Any, TypeId};
-    use std::fmt::{Debug, Formatter};
+    use std::fmt;
     use std::io::Read;
 
     use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
@@ -371,8 +373,8 @@ pub mod test_signature {
         }
     }
 
-    impl Debug for TestClaim {
-        fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
+    impl fmt::Debug for TestClaim {
+        fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
             panic!("Not implemented for test stub");
         }
     }
@@ -399,8 +401,8 @@ pub mod test_signature {
         }
     }
 
-    impl Debug for TestOpaqueMessage {
-        fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
+    impl fmt::Debug for TestOpaqueMessage {
+        fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
             panic!("Not implemented for test stub");
         }
     }
@@ -440,8 +442,8 @@ pub mod test_signature {
         }
     }
 
-    impl Debug for TestMessage {
-        fn fmt(&self, _f: &mut Formatter<'_>) -> std::fmt::Result {
+    impl fmt::Debug for TestMessage {
+        fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
             panic!("Not implemented for test stub");
         }
     }
@@ -719,7 +721,7 @@ mod tests {
         };
     }
 
-    #[test]
+    #[test_log::test]
     fn example() {
         let hmac256_new_key = Signature::new_function(&fn_hmac256_new_key);
         let hmac256 = Signature::new_function(&fn_hmac256);
@@ -766,7 +768,7 @@ mod tests {
         //println!("{:?}", string);
     }
 
-    #[test]
+    #[test_log::test]
     fn playground() {
         let _var_data = fn_new_session_id();
 
