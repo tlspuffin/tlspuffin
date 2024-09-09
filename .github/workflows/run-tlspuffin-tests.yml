@@ -15,15 +15,15 @@ on:
       patches:
         required: false
         type: string
-        default: '[]'
+        default: "[]"
       options:
         required: false
         type: string
-        default: '[]'
+        default: "[]"
       features:
         required: false
         type: string
-        default: '[]'
+        default: "[]"
 
 permissions:
   contents: read
