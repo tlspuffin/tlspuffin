@@ -1,12 +1,10 @@
 extern crate autotools;
 
-use std::{
-    env, fs,
-    fs::{canonicalize, File},
-    io::Write,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::fs::{canonicalize, File};
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::{env, fs};
 
 const REF: &str = if cfg!(feature = "libressl333") {
     "fuzz-v3.3.3"
