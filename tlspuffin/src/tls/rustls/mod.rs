@@ -1,7 +1,9 @@
-//! Extracted from [rustls](https://github.com/tlspuffin/rustls/commit/0678516b124e3edf12a7d147a824db9e0fd0f5ec)
-//! fork. Upstreaming this fork is becoming unfeasible and there are not benefits in keeping up
-//! with the latest version of rustls. If we want to support fuzzing new features of upcomping TLS
-//! versions then we have to manually integrate them.
+//! Extracted from `rustls`.
+//!
+//! See [rustls](https://github.com/tlspuffin/rustls/commit/0678516b124e3edf12a7d147a824db9e0fd0f5ec) fork.
+//! Upstreaming this fork is becoming unfeasible and there are not benefits in keeping up with the
+//! latest version of rustls. If we want to support fuzzing new features of upcomping TLS versions
+//! then we have to manually integrate them.
 //!
 //! This module contains primitives required to perform TLS 1.2 and 1.3 handshakes.
 //!

@@ -135,7 +135,7 @@ impl TcpPut for TcpClientPut {
     fn read_to_flight(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
         let mut buf = vec![];
         let _ = self.stream.read_to_end(&mut buf);
-        let flight = OpaqueMessageFlight::read_bytes(&mut buf);
+        let flight = OpaqueMessageFlight::read_bytes(&buf);
         Ok(flight)
     }
 }
@@ -256,7 +256,7 @@ impl TcpPut for TcpServerPut {
         self.receive_stream();
         let mut buf = vec![];
         let _ = self.stream.as_mut().unwrap().0.read_to_end(&mut buf);
-        let flight = OpaqueMessageFlight::read_bytes(&mut buf);
+        let flight = OpaqueMessageFlight::read_bytes(&buf);
         Ok(flight)
     }
 }

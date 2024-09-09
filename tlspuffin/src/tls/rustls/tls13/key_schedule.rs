@@ -230,9 +230,10 @@ impl KeyScheduleHandshake {
     }
 }
 
-/// KeySchedule during traffic stage, retaining the ability to calculate the client's
-/// finished verify_data. The traffic stage key schedule can be extracted from it
-/// through signing the client finished hash.
+/// KeySchedule during traffic stage.
+///
+/// Note: Retains the ability to calculate the client's finished verify_data. The traffic stage key
+/// schedule can be extracted from it through signing the client finished hash.
 pub struct KeyScheduleTrafficWithClientFinishedPending {
     handshake_client_traffic_secret: hkdf::Prk,
     traffic: KeyScheduleTraffic,

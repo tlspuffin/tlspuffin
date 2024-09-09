@@ -208,7 +208,7 @@ impl Stream<SshQueryMatcher, SshMessage, RawSshMessage, RawSshMessageFlight> for
         let mut buf = vec![];
         let _ = self.fuzz_stream.read_to_end(&mut buf);
 
-        Ok(RawSshMessageFlight::read_bytes(&mut buf))
+        Ok(RawSshMessageFlight::read_bytes(&buf))
     }
 }
 

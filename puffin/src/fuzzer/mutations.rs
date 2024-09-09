@@ -278,12 +278,9 @@ where
 }
 
 /// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
-
-/// An example would be to replace a constant with another constant or the binary function
-
-/// fn_add with fn_sub.
-
-/// It can also replace any variable with a constant.
+///
+/// An example would be to replace a constant with another constant or the binary function fn_add
+/// with fn_sub. It can also replace any variable with a constant.
 pub struct ReplaceMatchMutator<S>
 where
     S: HasRand,

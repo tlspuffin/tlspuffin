@@ -1,6 +1,7 @@
-//! [`Agent`]s represent communication participants like Alice, Bob or Eve. Attackers are usually
-//! not represented by these [`Agent`]s.
-//! Attackers are represented through a recipe term (see [`crate::trace::InputAction`]).
+//! [`Agent`]s represent communication participants like Alice, Bob or Eve.
+//!
+//! Note that attackers are usually not represented by these [`Agent`]s but instead through a recipe
+//! term (see [`crate::trace::InputAction`]).
 //!
 //! Each [`Agent`] has an *inbound* and an *outbound* channel (see [`crate::stream`])
 
