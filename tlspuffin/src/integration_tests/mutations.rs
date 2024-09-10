@@ -2,7 +2,7 @@ use log::{debug, error, warn};
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
 use puffin::algebra::{DYTerm, TermType};
-use puffin::execution::{forked_execution, AssertExecution};
+use puffin::execution::forked_execution;
 use puffin::fuzzer::bit_mutations::{ByteFlipMutatorDY, ByteInterestingMutatorDY};
 use puffin::fuzzer::harness::set_default_put_options;
 use puffin::fuzzer::mutations::{
@@ -19,7 +19,9 @@ use puffin::libafl_bolts::HasLen;
 use puffin::protocol::ProtocolBehavior;
 use puffin::put::PutOptions;
 use puffin::put_registry::PutRegistry;
+use puffin::test_utils::AssertExecution;
 use puffin::trace::{Action, Step, Trace, TraceContext};
+use puffin::trace_helper::TraceHelper;
 
 use crate::protocol::TLSProtocolBehavior;
 use crate::put_registry::tls_registry;
@@ -31,7 +33,6 @@ use crate::tls::fn_impl::{
 use crate::tls::seeds::{
     _seed_client_attacker12, create_corpus, seed_client_attacker_full, seed_successful,
 };
-use crate::tls::trace_helper::TraceHelper;
 use crate::tls::TLS_SIGNATURE;
 
 pub type TLSState = StdState<

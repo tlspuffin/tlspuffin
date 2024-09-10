@@ -3,7 +3,7 @@ use std::any::Any;
 use criterion::{criterion_group, criterion_main, Criterion};
 use puffin::algebra::dynamic_function::make_dynamic;
 use puffin::algebra::error::FnError;
-use puffin::algebra::{DYTerm, Term};
+use puffin::algebra::Term;
 use puffin::fuzzer::mutations::ReplaceReuseMutator;
 use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::InMemoryCorpus;
@@ -12,10 +12,11 @@ use puffin::libafl::state::StdState;
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 use puffin::term;
 use puffin::trace::Trace;
+use puffin::trace_helper::TraceHelper;
 use tlspuffin::query::TlsQueryMatcher;
 use tlspuffin::tls::fn_impl::*;
 use tlspuffin::tls::seeds::*;
-use tlspuffin::tls::trace_helper::{TraceExecutor, TraceHelper};
+use tlspuffin::tls::trace_helper::TraceExecutor;
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
     Ok(*a * *a)
