@@ -60,19 +60,3 @@ pub enum ExecutionStatus {
     Success,
     Failure(i32),
 }
-
-pub trait AssertExecution {
-    fn expect_crash(self);
-}
-
-impl AssertExecution for Result<ExecutionStatus, String> {
-    fn expect_crash(self) {
-        use ExecutionStatus as S;
-        match self {
-            Ok(S::Failure(_)) | Ok(S::Crashed) => (),
-            Ok(S::Timeout) => panic!("trace execution timed out"),
-            Ok(S::Success) => panic!("expected trace execution to crash, but succeeded"),
-            Err(reason) => panic!("trace execution error: {reason}"),
-        }
-    }
-}

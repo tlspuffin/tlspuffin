@@ -1,4 +1,4 @@
-use crate::put_registry::tls_registry;
+use crate::test_utils::prelude::*;
 
 #[cfg(feature = "deterministic")]
 mod determinism;

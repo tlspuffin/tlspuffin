@@ -5,13 +5,8 @@
     feature = "tls13",
 ))]
 fn test_attacker_full_det_recreate() {
-    // Fail without global rand reset and reseed, BEFORE tracecontext are created (at least for
-    // OpenSSL)!
-    use puffin::trace::TraceContext;
-
-    use crate::put_registry::tls_registry;
+    use crate::test_utils::prelude::*;
     use crate::tls::seeds::seed_client_attacker_full;
-    use crate::tls::trace_helper::TraceHelper;
 
     let put_registry = tls_registry();
 

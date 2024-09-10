@@ -1,7 +1,7 @@
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
 use puffin::algebra::Term;
-use puffin::execution::{forked_execution, AssertExecution};
+use puffin::execution::forked_execution;
 use puffin::fuzzer::mutations::util::TermConstraints;
 use puffin::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
@@ -11,6 +11,7 @@ use puffin::libafl::mutators::{MutationResult, Mutator};
 use puffin::libafl::state::StdState;
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 use puffin::put::PutOptions;
+use puffin::test_utils::AssertExecution;
 use puffin::trace::{Action, Step, Trace, TraceContext};
 
 use crate::put_registry::tls_registry;

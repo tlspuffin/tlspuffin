@@ -1073,8 +1073,8 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher
 
 #[cfg(test)]
 pub mod tests {
-    use crate::tls::trace_helper::TraceHelper;
-    use crate::tls::vulnerabilities::*;
+    #[allow(unused_imports)]
+    use crate::{test_utils::prelude::*, tls::seeds::*, tls::vulnerabilities::*};
 
     #[test_log::test]
     fn test_term_sizes() {
@@ -1118,8 +1118,6 @@ pub mod tests {
     #[test_log::test]
     #[ignore] // We cannot check for this vulnerability right now
     fn test_seed_freak() {
-        use crate::test_utils::expect_trace_crash;
-
         expect_trace_crash(
             seed_freak.build_trace(),
             Default::default(),
@@ -1132,8 +1130,6 @@ pub mod tests {
     #[cfg(feature = "tls12")]
     #[test_log::test]
     fn test_seed_heartbleed() {
-        use crate::test_utils::expect_trace_crash;
-
         expect_trace_crash(
             seed_heartbleed.build_trace(),
             Default::default(),
@@ -1146,8 +1142,6 @@ pub mod tests {
     #[cfg(feature = "openssl111j")]
     #[cfg(feature = "tls12")]
     fn test_seed_cve_2021_3449() {
-        use crate::test_utils::expect_trace_crash;
-
         expect_trace_crash(
             seed_cve_2021_3449.build_trace(),
             Default::default(),
@@ -1163,8 +1157,6 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-25640"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25640() {
-        use crate::tls::trace_helper::TraceExecutor;
-
         let ctx = seed_cve_2022_25640.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1176,8 +1168,6 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-25640"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25640_simple() {
-        use crate::tls::trace_helper::TraceExecutor;
-
         let ctx = seed_cve_2022_25640_simple.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1189,8 +1179,6 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-25638"))]
     #[should_panic(expected = "Authentication bypass")]
     fn test_seed_cve_2022_25638() {
-        use crate::tls::trace_helper::TraceExecutor;
-
         let ctx = seed_cve_2022_25638.execute_trace();
         assert!(ctx.agents_successful());
     }
@@ -1202,11 +1190,9 @@ pub mod tests {
     fn test_seed_cve_2022_38152() {
         use puffin::put::PutOptions;
 
-        use crate::test_utils::expect_trace_crash;
-
         expect_trace_crash(
             seed_session_resumption_dhe_full.build_trace(),
-            PutOptions::from_slice_vec(vec![("use_clear", &true.to_string())]),
+            PutOptions::from_slice_vec(vec![("use_clear", "true")]),
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
@@ -1217,11 +1203,8 @@ pub mod tests {
     #[cfg(feature = "tls12-session-resumption")]
     #[cfg(feature = "wolfssl530")]
     fn test_seed_cve_2022_38153() {
-        use crate::test_utils::expect_trace_crash;
-        use crate::tls::trace_helper::TraceExecutor;
-
         for _ in 0..50 {
-            crate::tls::seeds::seed_successful12_with_tickets.execute_trace();
+            seed_successful12_with_tickets.execute_trace();
         }
 
         expect_trace_crash(
@@ -1240,8 +1223,6 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test_log::test]
     fn test_seed_cve_2022_39173() {
-        use crate::test_utils::expect_trace_crash;
-
         expect_trace_crash(
             seed_cve_2022_39173.build_trace(),
             Default::default(),
@@ -1258,8 +1239,6 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test_log::test]
     fn test_seed_cve_2022_39173_full() {
-        use crate::test_utils::expect_trace_crash;
-
         expect_trace_crash(
             seed_cve_2022_39173_full.build_trace(),
             Default::default(),
@@ -1276,8 +1255,6 @@ pub mod tests {
     #[cfg(not(feature = "fix-CVE-2022-39173"))]
     #[test_log::test]
     fn test_seed_cve_2022_39173_minimized() {
-        use crate::test_utils::expect_trace_crash;
-
         expect_trace_crash(
             seed_cve_2022_39173_minimized.build_trace(),
             Default::default(),
@@ -1290,9 +1267,8 @@ pub mod tests {
         use puffin::agent::{AgentName, TLSVersion};
         use puffin::put::PutDescriptor;
 
-        use crate::put_registry::{tls_registry, TCP_PUT};
-        use crate::tcp::tcp_puts::{openssl_server, wolfssl_client, wolfssl_server};
-        use crate::tls::trace_helper::TraceHelper;
+        use crate::put_registry::TCP_PUT;
+        use crate::test_utils::prelude::*;
         use crate::tls::vulnerabilities::*;
 
         #[test_log::test]

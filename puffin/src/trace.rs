@@ -402,11 +402,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             })?;
 
         let put = factory.create(descriptor, &self.claims, &put_descriptor.options)?;
-        let agent = Agent::new(
-            descriptor,
-            put,
-            put_descriptor
-        );
+        let agent = Agent::new(descriptor, put, put_descriptor);
 
         self.add_agent(agent);
 
