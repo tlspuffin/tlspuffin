@@ -323,7 +323,6 @@ openssl-src = { version = "*", features = [], optional = true }
 [dev-dependencies]
 test-log = { workspace = true }
 env_logger = { workspace = true }
-nix = { workspace = true }
 serde_json = { workspace = true }
 tempfile = { workspace = true }
 criterion = { workspace = true }

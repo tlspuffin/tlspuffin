@@ -1,0 +1,32 @@
+[boringsslmaster-asan]
+sources = { repo = "https://github.com/google/boringssl.git", branch = "master", version = "master" }
+builder = { type = "builtin", name = "boringssl" }
+asan = true
+sancov = true
+
+[boringsslmaster]
+sources = { repo = "https://github.com/google/boringssl.git", branch = "master", version = "master" }
+builder = { type = "builtin", name = "boringssl" }
+sancov = true
+
+[boringssl202403-asan]
+sources = { repo = "https://github.com/google/boringssl.git", commit = "368d0d87d0bd00f8227f74ce18e8e4384eaf6afa", version = "1.1.1g+git.368d0d87d0bd" }
+builder = { type = "builtin", name = "boringssl" }
+asan = true
+sancov = true
+
+[boringssl202403]
+sources = { repo = "https://github.com/google/boringssl.git", commit = "368d0d87d0bd00f8227f74ce18e8e4384eaf6afa", version = "1.1.1g+git.368d0d87d0bd" }
+builder = { type = "builtin", name = "boringssl" }
+sancov = true
+
+[boringssl202311-asan]
+sources = { repo = "https://github.com/google/boringssl.git", commit = "698aa894c96412d4df20e2bb031d9eb9c9d5919a", version = "1.1.1g+git.698aa894c964" }
+builder = { type = "builtin", name = "boringssl" }
+asan = true
+sancov = true
+
+[boringssl202311]
+sources = { repo = "https://github.com/google/boringssl.git", commit = "698aa894c96412d4df20e2bb031d9eb9c9d5919a", version = "1.1.1g+git.698aa894c964" }
+builder = { type = "builtin", name = "boringssl" }
+sancov = true

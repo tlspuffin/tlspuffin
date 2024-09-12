@@ -1,0 +1,60 @@
+diff --git a/crypto/rand_extra/deterministic.c b/crypto/rand_extra/deterministic.c
+index d1d582b07..a0e87f8d5 100644
+--- a/crypto/rand_extra/deterministic.c
++++ b/crypto/rand_extra/deterministic.c
+@@ -24,23 +24,50 @@
+ 
+ #include "../internal.h"
+ 
++#ifndef thread_local
++// since C11 the standard include _Thread_local
++#if __STDC_VERSION__ >= 201112 && !defined __STDC_NO_THREADS__
++#define thread_local _Thread_local
++
++// note that __GNUC__ covers clang and ICC
++#elif defined __GNUC__ || defined __SUNPRO_C || defined __xlC__
++#define thread_local __thread
++
++#else
++#error "no support for thread-local declarations"
++#endif
++#endif
+ 
+ // g_num_calls is the number of calls to |CRYPTO_sysrand| that have occurred.
+ //
+ // This is intentionally not thread-safe. If the fuzzer mode is ever used in a
+ // multi-threaded program, replace this with a thread-local. (A mutex would not
+ // be deterministic.)
+-static uint64_t g_num_calls = 0;
+-static CRYPTO_MUTEX g_num_calls_lock = CRYPTO_MUTEX_INIT;
++static thread_local uint64_t g_num_calls = 0;
++
++static void rand_thread_state_free(void *state_in) {
++  struct rand_thread_state *state = state_in;
++
++  if (state_in == NULL) {
++    return;
++  }
+ 
+-void RAND_reset_for_fuzzing(void) { g_num_calls = 0; }
++  OPENSSL_free(state);
++}
++
++void RAND_reset_for_fuzzing(void) {
++  g_num_calls = 0;
++  struct rand_thread_state *state =
++      CRYPTO_get_thread_local(OPENSSL_THREAD_LOCAL_RAND);
++  rand_thread_state_free(state);
++
++  CRYPTO_set_thread_local(OPENSSL_THREAD_LOCAL_RAND, NULL, NULL);
++}
+ 
+ void CRYPTO_sysrand(uint8_t *out, size_t requested) {
+   static const uint8_t kZeroKey[32];
+ 
+-  CRYPTO_MUTEX_lock_write(&g_num_calls_lock);
+   uint64_t num_calls = g_num_calls++;
+-  CRYPTO_MUTEX_unlock_write(&g_num_calls_lock);
+ 
+   uint8_t nonce[12];
+   OPENSSL_memset(nonce, 0, sizeof(nonce));
