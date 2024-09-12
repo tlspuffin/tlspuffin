@@ -1,0 +1,10 @@
+[libressl333-asan]
+sources = { repo = "https://github.com/tlspuffin/libressl.git", branch = "fuzz-v3.3.3", version = "3.3.3" }
+builder = { type = "builtin", name = "libressl" }
+asan = true
+sancov = true
+
+[libressl333]
+sources = { repo = "https://github.com/tlspuffin/libressl.git", branch = "fuzz-v3.3.3", version = "3.3.3" }
+builder = { type = "builtin", name = "libressl" }
+sancov = true

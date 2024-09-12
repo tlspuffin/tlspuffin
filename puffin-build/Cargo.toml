@@ -1,0 +1,28 @@
+[package]
+name = "puffin-build"
+description = "Common helpers for puffin's build process"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+log = { workspace = true }
+env_logger = { workspace = true }
+clap = { workspace = true, features = ["cargo", "derive"] }
+serde = { workspace = true, features = ["derive"] }
+toml = { workspace = true }
+itertools = { workspace = true }
+tempfile = { workspace = true }
+regex = { workspace = true }
+nix = { workspace = true, features = ["fs"] }
+
+
+[[bin]]
+name = "mk_vendor"
+path = "src/tools/mk_vendor.rs"
