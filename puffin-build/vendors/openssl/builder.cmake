@@ -23,8 +23,8 @@ include(CheckCCompilerCanPrintDeps)
 check_c_compiler_can_print_deps(${CMAKE_C_COMPILER})
 
 if(CC_CAN_PRINT_DEPS)
-  list(APPEND PATCH_COMMANDS COMMAND find <SOURCE_DIR> -type f -name Makefile -exec perl -pi.bak -e "s@^MAKEDEPPROG=.*@MAKEDEPPROG= ${CMAKE_C_COMPILER}@" {} +)
-  list(APPEND PATCH_COMMANDS COMMAND find <SOURCE_DIR> -type f -name domd -exec perl -pi.bak -e "s@\\\\.\\\\*gcc(\\\\$)@\\\\.\\\\*${CMAKE_C_COMPILER}@" {} +)
+  list(APPEND BUILD_COMMANDS COMMAND find <SOURCE_DIR> -type f -name Makefile -exec perl -pi.bak -e "s@^MAKEDEPPROG=.*@MAKEDEPPROG= ${CMAKE_C_COMPILER}@" {} +)
+  list(APPEND BUILD_COMMANDS COMMAND find <SOURCE_DIR> -type f -name domd -exec perl -pi.bak -e "s@\\.\\*gcc@.*${CMAKE_C_COMPILER}@" {} +)
 endif()
 
 if(${CMAKE_SYSTEM_NAME} STREQUAL Darwin)
@@ -98,7 +98,7 @@ list(APPEND CONFIGURE_COMMANDS COMMAND
 
 list(APPEND BUILD_COMMANDS
   COMMAND make -C "<SOURCE_DIR>" depend
-  COMMAND make -C "<SOURCE_DIR>" $<$<VERSION_LESS_EQUAL:${VENDOR_VERSION},1.1.1>:-j1>
+  COMMAND make -C "<SOURCE_DIR>" $<IF:$<VERSION_LESS_EQUAL:${VENDOR_VERSION},1.1.1>,-j1,-j>
 )
 
 list(APPEND INSTALL_COMMANDS COMMAND make -C "<SOURCE_DIR>" install_sw "prefix=${CMAKE_INSTALL_PREFIX}")

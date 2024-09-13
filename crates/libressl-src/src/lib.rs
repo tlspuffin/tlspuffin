@@ -115,5 +115,8 @@ impl Artifacts {
         }
         println!("cargo:include={}", self.include_dir.display());
         println!("cargo:lib={}", self.lib_dir.display());
+
+        println!("cargo:rerun-if-changed={}", self.lib_dir.display());
+        println!("cargo:rerun-if-changed={}", self.include_dir.display());
     }
 }

@@ -60,5 +60,6 @@ libressl333 = ["libressl-src", "libressl", "libressl-src/libressl333"]
 libressl = []
 
 [dependencies]
+puffin-build = { path = "../../puffin-build" }
 libressl-src = { path = "../libressl-src", optional = true }
 cc = "1.0"
