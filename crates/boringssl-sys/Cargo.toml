@@ -12,13 +12,13 @@ boringssl-src = { path = "../boringssl-src" }
 bindgen = "0.69.1"
 
 [features]
-vendored-master = []
-boring-2023-11-18 = []
-boring-2024-03-22 = []
+boringsslmaster = []
+boringssl202311 = []
+boringssl202403 = []
 
 sancov = []
 asan = []
 deterministic = []
 
-gcov_analysis = []
-llvm_cov_analysis = []
+gcov = []
+llvm_cov = []

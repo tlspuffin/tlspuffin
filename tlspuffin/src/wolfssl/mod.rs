@@ -81,17 +81,17 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn versions(&self) -> Vec<(String, String)> {
-            let wolfssl_shortname = if cfg!(feature = "vendored-wolfssl540") {
+            let wolfssl_shortname = if cfg!(feature = "wolfssl540") {
                 "wolfssl540"
-            } else if cfg!(feature = "vendored-wolfssl530") {
+            } else if cfg!(feature = "wolfssl530") {
                 "wolfssl530"
-            } else if cfg!(feature = "vendored-wolfssl520") {
+            } else if cfg!(feature = "wolfssl520") {
                 "wolfssl520"
-            } else if cfg!(feature = "vendored-wolfssl510") {
+            } else if cfg!(feature = "wolfssl510") {
                 "wolfssl510"
-            } else if cfg!(feature = "vendored-wolfssl430") {
+            } else if cfg!(feature = "wolfssl430") {
                 "wolfssl430"
-            } else if cfg!(feature = "vendored-master") {
+            } else if cfg!(feature = "wolfsslmaster") {
                 "master"
             } else {
                 "unknown"

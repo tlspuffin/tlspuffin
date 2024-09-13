@@ -11,8 +11,8 @@ fn main() {
     );
 
     build(&BoringSSLOptions {
-        gcov_analysis: false,
-        llvm_cov_analysis: false,
+        gcov: false,
+        llvm_cov: false,
         deterministic: false,
         asan: false,
         sancov: true,

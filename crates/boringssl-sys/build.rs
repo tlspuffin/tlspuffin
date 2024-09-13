@@ -3,9 +3,9 @@ use std::{env, path::PathBuf};
 use boringssl_src::{build, BoringSSLOptions, GitRef};
 
 fn main() {
-    let git_ref: GitRef = if cfg!(feature = "boring-2023-11-18") {
+    let git_ref: GitRef = if cfg!(feature = "boringssl202311") {
         GitRef::Commit(String::from("698aa894c96412d4df20e2bb031d9eb9c9d5919a"))
-    } else if cfg!(feature = "boring-2024-03-22") {
+    } else if cfg!(feature = "boringssl202403") {
         GitRef::Commit(String::from("368d0d87d0bd00f8227f74ce18e8e4384eaf6afa"))
     } else {
         GitRef::Branch(String::from("master"))
@@ -17,8 +17,8 @@ fn main() {
     build(&BoringSSLOptions {
         asan: cfg!(feature = "asan"),
         sancov: cfg!(feature = "sancov"),
-        gcov_analysis: cfg!(feature = "gcov_analysis"),
-        llvm_cov_analysis: cfg!(feature = "llvm_cov_analysis"),
+        gcov: cfg!(feature = "gcov"),
+        llvm_cov: cfg!(feature = "llvm_cov"),
         deterministic: cfg!(feature = "deterministic"),
         git_repo: repo,
         git_ref,
@@ -35,7 +35,7 @@ fn main() {
     println!("cargo:rustc-link-lib=static=ssl");
     println!("cargo:rustc-link-lib=stdc++");
 
-    if cfg!(feature = "gcov_analysis") {
+    if cfg!(feature = "gcov") {
         let clang_output = std::process::Command::new("clang")
             .args(["--print-resource-dir"])
             .output()

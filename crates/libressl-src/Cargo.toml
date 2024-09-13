@@ -1,7 +1,10 @@
 [package]
 name = "libressl-src"
 version = "111.0.0"
-authors = ["Dubiousjim <dubiousjim@gmail.com>", "Max Ammann <max@maxammann.org>"]
+authors = [
+    "Dubiousjim <dubiousjim@gmail.com>",
+    "Max Ammann <max@maxammann.org>",
+]
 license = "MIT/Apache-2.0"
 description = "Source of LibreSSL and logic to build it."
 repository = "https://github.com/dubiousjim/libressl-src"
@@ -9,11 +12,11 @@ readme = "README.md"
 exclude = ['libressl/*']
 
 [features]
-default = [ ]
+default = []
 sancov = []
-asan = [] # TODO
-gcov_analysis = [] # TODO
-llvm_cov_analysis = [] # TODO
+asan = []     # TODO
+gcov = []     # TODO
+llvm_cov = [] # TODO
 no-rand = []
 
 libressl333 = []
