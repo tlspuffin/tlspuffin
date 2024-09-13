@@ -17,8 +17,8 @@ fn main() {
     build(&BoringSSLOptions {
         asan: cfg!(feature = "asan"),
         sancov: cfg!(feature = "sancov"),
-        gcov_analysis: cfg!(feature = "gcov_analysis"),
-        llvm_cov_analysis: cfg!(feature = "llvm_cov_analysis"),
+        gcov: cfg!(feature = "gcov"),
+        llvm_cov: cfg!(feature = "llvm_cov"),
         deterministic: cfg!(feature = "deterministic"),
         git_repo: repo,
         git_ref,
@@ -35,7 +35,7 @@ fn main() {
     println!("cargo:rustc-link-lib=static=ssl");
     println!("cargo:rustc-link-lib=stdc++");
 
-    if cfg!(feature = "gcov_analysis") {
+    if cfg!(feature = "gcov") {
         let clang_output = std::process::Command::new("clang")
             .args(["--print-resource-dir"])
             .output()

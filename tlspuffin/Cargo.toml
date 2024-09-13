@@ -12,7 +12,7 @@ keywords.workspace = true
 categories.workspace = true
 
 [features]
-default = ["sancov_libafl", "introspection"]
+default = ["sancov", "introspection"]
 
 cputs = ["tls-harness"]
 
@@ -77,7 +77,7 @@ openssl312 = [
 openssl101f = [
     "openssl-src",
     "openssl-src/openssl101f",
-    "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
+    "openssl-src/weak-crypto",  # We want to allow weak-crypto for FREAK
     "openssl-src/no-rand",
     "openssl101-binding",
     "tls12",
@@ -87,12 +87,12 @@ openssl101f = [
 openssl102u = [
     "openssl-src",
     "openssl-src/openssl102u",
-    "openssl-src/weak-crypto", # We want to allow weak-crypto for FREAK
+    "openssl-src/weak-crypto",  # We want to allow weak-crypto for FREAK
     "openssl-src/no-rand",
     "openssl102-binding",
     "tls12",
     "tls12-session-resumption",
-    "deterministic"
+    "deterministic",
 ]
 
 # NOTE feature "libressl" is kept only for backward compatibility
@@ -108,7 +108,7 @@ libressl333 = [
     "tls12-session-resumption",
     "claims",
     "transcript-extraction",
-    "deterministic"
+    "deterministic",
 ]
 
 wolfssl430 = [
@@ -130,7 +130,7 @@ wolfssl510 = [
     "tls12-session-resumption",
     "tls13-session-resumption",
     "transcript-extraction",
-    "client-authentication-transcript-extraction"
+    "client-authentication-transcript-extraction",
     # FIXME: support "claims", "deterministic"
 ]
 
@@ -142,7 +142,7 @@ wolfssl520 = [
     "tls12-session-resumption",
     "tls13-session-resumption",
     "transcript-extraction",
-    "client-authentication-transcript-extraction"
+    "client-authentication-transcript-extraction",
     # FIXME: support "claims", "deterministic"
 ]
 
@@ -154,7 +154,7 @@ wolfssl530 = [
     "tls12-session-resumption",
     "tls13-session-resumption",
     "transcript-extraction",
-    "client-authentication-transcript-extraction"
+    "client-authentication-transcript-extraction",
     # FIXME: support "claims", "deterministic"
 ]
 
@@ -166,7 +166,7 @@ wolfssl540 = [
     "tls12-session-resumption",
     "tls13-session-resumption",
     "transcript-extraction",
-    "client-authentication-transcript-extraction"
+    "client-authentication-transcript-extraction",
     # FIXME: support "claims", "deterministic"
 ]
 
@@ -184,7 +184,7 @@ wolfsslmaster = [
     "tls12-session-resumption",
     "tls13-session-resumption",
     "transcript-extraction",
-    "client-authentication-transcript-extraction"
+    "client-authentication-transcript-extraction",
     # FIXME: support "claims", "deterministic"
 ]
 
@@ -199,7 +199,7 @@ boringsslmaster = [
     "transcript-extraction",
     "client-authentication-transcript-extraction",
     "deterministic",
-    "claims"
+    "claims",
 ]
 
 boringssl202311 = [
@@ -231,14 +231,23 @@ boringssl202403 = [
 
 # Logs each execution of __sanitizer_cov_trace_pc_guard*
 sancov_pcguard_log = ["puffin/sancov_pcguard_log"]
-# Uses libafl for the instrumentation. sancov_pcguard_log and sancov_libafl are mutally exclusive
-sancov_libafl = ["puffin/sancov_libafl", "openssl-src?/sancov", "wolfssl-sys?/sancov", "boringssl-sys?/sancov"]
+# Uses libafl for the instrumentation. sancov_pcguard_log and sancov are mutally exclusive
+sancov = [
+    "puffin/sancov",
+    "openssl-src?/sancov",
+    "wolfssl-sys?/sancov",
+    "boringssl-sys?/sancov",
+]
 
 # Enables ASAN
 asan = ["openssl-src?/asan", "wolfssl-sys?/asan", "boringssl-sys?/asan"]
 
-gcov_analysis = ["openssl-src?/gcov_analysis", "wolfssl-sys?/gcov_analysis", "boringssl-sys?/gcov_analysis"]
-llvm_cov_analysis = ["openssl-src?/llvm_cov_analysis", "wolfssl-sys?/llvm_cov_analysis", "boringssl-sys?/llvm_cov_analysis"]
+gcov = ["openssl-src?/gcov", "wolfssl-sys?/gcov", "boringssl-sys?/gcov"]
+llvm_cov = [
+    "openssl-src?/llvm_cov",
+    "wolfssl-sys?/llvm_cov",
+    "boringssl-sys?/llvm_cov",
+]
 
 # WolfSSL bindings are used
 wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]
@@ -302,9 +311,12 @@ wolfssl = { path = "../crates/wolfssl", optional = true }
 wolfssl-sys = { path = "../crates/wolfssl-sys", features = [], optional = true }
 
 boring = { path = "../crates/boring", optional = true }
-boringssl-sys = { path = "../crates/boringssl-sys", features = [], optional = true }
+boringssl-sys = { path = "../crates/boringssl-sys", features = [
+], optional = true }
 
-tls-harness = { path = "../puts/harness", package="tlspuffin-harness-sys", features = ["tls"], optional = true }
+tls-harness = { path = "../puts/harness", package = "tlspuffin-harness-sys", features = [
+    "tls",
+], optional = true }
 foreign-types = { version = "0.5.0", optional = true }
 
 [build-dependencies]

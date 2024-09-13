@@ -98,9 +98,9 @@ impl Build {
             "asan",
             #[cfg(feature = "sancov")]
             "sancov",
-            #[cfg(feature = "gcov_analysis")]
+            #[cfg(feature = "gcov")]
             "gcov",
-            #[cfg(feature = "llvm_cov_analysis")]
+            #[cfg(feature = "llvm_cov")]
             "llvm_cov",
         ];
 
