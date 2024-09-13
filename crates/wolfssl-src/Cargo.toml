@@ -4,8 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bindgen = "0.69.1"
-autotools = "0.2.6"
+puffin-build = { path = "../../puffin-build" }
 
 [[bin]]
 name = "build_static"

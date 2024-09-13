@@ -45,52 +45,95 @@ compile_error!(concat!(
     "] can be enabled at the same time."
 ));
 
+use std::collections::HashSet;
 use std::env;
 use std::path::PathBuf;
 
 use wolfssl_src::{build, WolfSSLOptions};
 
-const REF: &str = if cfg!(feature = "wolfssl540") {
-    "v5.4.0-stable"
+const PRESET: &str = if cfg!(feature = "wolfssl540") {
+    "wolfssl540"
 } else if cfg!(feature = "wolfssl530") {
-    "v5.3.0-stable"
+    "wolfssl530"
 } else if cfg!(feature = "wolfssl520") {
-    "v5.2.0-stable"
+    "wolfssl520"
 } else if cfg!(feature = "wolfssl510") {
-    "v5.1.0-stable"
+    "wolfssl510"
 } else if cfg!(feature = "wolfssl430") {
-    "v4.3.0-stable"
+    "wolfssl430"
 } else if cfg!(feature = "master") {
-    "master"
+    "wolfsslmaster"
 } else {
     panic!("Unknown version of WolfSSL requested!")
 };
 
+#[derive(Debug)]
+struct IgnoreMacros(HashSet<String>);
+
+impl bindgen::callbacks::ParseCallbacks for IgnoreMacros {
+    fn will_parse_macro(&self, name: &str) -> bindgen::callbacks::MacroParsingBehavior {
+        if self.0.contains(name) {
+            bindgen::callbacks::MacroParsingBehavior::Ignore
+        } else {
+            bindgen::callbacks::MacroParsingBehavior::Default
+        }
+    }
+}
+
 fn main() {
-    let source_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("../wolfssl-src");
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
-    build(&WolfSSLOptions {
-        fix_cve_2022_25638: cfg!(feature = "fix-CVE-2022-25638"),
-        fix_cve_2022_25640: cfg!(feature = "fix-CVE-2022-25640"),
-        fix_cve_2022_39173: cfg!(feature = "fix-CVE-2022-39173"),
-        fix_cve_2022_42905: cfg!(feature = "fix-CVE-2022-42905"),
-        wolfssl_disable_postauth: cfg!(feature = "wolfssl-disable-postauth"),
+
+    let wolfssl = build(&WolfSSLOptions {
+        fix: vec![
+            #[cfg(feature = "fix-CVE-2022-25638")]
+            "CVE-2022-25638".to_string(),
+            #[cfg(feature = "fix-CVE-2022-25640")]
+            "CVE-2022-25640".to_string(),
+            #[cfg(feature = "fix-CVE-2022-39173")]
+            "CVE-2022-39173".to_string(),
+            #[cfg(feature = "fix-CVE-2022-42905")]
+            "CVE-2022-42905".to_string(),
+        ],
+        postauth: (!cfg!(feature = "wolfssl-disable-postauth")),
         asan: cfg!(feature = "asan"),
         sancov: cfg!(feature = "sancov"),
         gcov: cfg!(feature = "gcov"),
         llvm_cov: cfg!(feature = "llvm_cov"),
-        git_ref: REF.to_string(),
-        out_dir: out_dir.clone(),
-        source_dir: source_dir.clone(),
-    })
-    .unwrap();
+        preset: String::from(PRESET),
+    });
 
-    // Linking Time!
-    println!("cargo:rustc-link-lib=static=wolfssl");
-    println!("cargo:rustc-link-search=native={}/lib/", out_dir.display());
-    println!("cargo:include={}", out_dir.display());
-    println!(
-        "cargo:rerun-if-changed={}",
-        source_dir.join("wrapper.h").display()
-    );
+    // Block some macros:https://github.com/rust-lang/rust-bindgen/issues/687
+    let mut ignored_macros = HashSet::new();
+    for i in &[
+        "IPPORT_RESERVED",
+        "EVP_PKEY_DH",
+        "BIO_CLOSE",
+        "BIO_NOCLOSE",
+        "CRYPTO_LOCK",
+        "ASN1_STRFLGS_ESC_MSB",
+        "SSL_MODE_RELEASE_BUFFERS",
+        // Woflss 4.3.0
+        "GEN_IPADD",
+        "EVP_PKEY_RSA",
+    ] {
+        ignored_macros.insert(i.to_string());
+    }
+    let ignored_macros = IgnoreMacros(ignored_macros);
+
+    let bindings = bindgen::Builder::default()
+        .size_t_is_usize(false)
+        .header(format!("{}/wrapper.h", env!("CARGO_MANIFEST_DIR")))
+        .header(format!("{}/wolfssl/internal.h", wolfssl.src_dir().display()))
+        .clang_arg(format!("-I{}", wolfssl.inc_dir().display()))
+        .clang_arg("-U__STDC_HOSTED__") // The stdatomic.h header is empty without this flag
+        .parse_callbacks(Box::new(ignored_macros))
+        .formatter(bindgen::Formatter::Rustfmt)
+        .generate()
+        .expect("Unable to generate bindings");
+
+    bindings
+        .write_to_file(out_dir.join("bindings.rs"))
+        .expect("Couldn't write bindings!");
+
+    wolfssl.print_cargo_metadata();
 }

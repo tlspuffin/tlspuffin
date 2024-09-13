@@ -1,40 +1,26 @@
 use std::env;
 use std::path::PathBuf;
 
-use boringssl_src::{build, BoringSSLOptions, GitRef};
+use boringssl_src::{build, BoringSSLOptions};
+
+const PRESET: &str = if cfg!(feature = "boringssl202403") {
+    "boringssl202403"
+} else if cfg!(feature = "boringssl202311") {
+    "boringssl202311"
+} else if cfg!(feature = "boringsslmaster") {
+    "boringsslmaster"
+} else {
+    panic!("Unknown version of BoringSSL requested!")
+};
 
 fn main() {
-    let git_ref: GitRef = if cfg!(feature = "boringssl202311") {
-        GitRef::Commit(String::from("698aa894c96412d4df20e2bb031d9eb9c9d5919a"))
-    } else if cfg!(feature = "boringssl202403") {
-        GitRef::Commit(String::from("368d0d87d0bd00f8227f74ce18e8e4384eaf6afa"))
-    } else {
-        GitRef::Branch(String::from("master"))
-    };
-
-    let repo = "https://github.com/google/boringssl.git".into();
-    let source_dir = PathBuf::from(env::var("OUT_DIR").unwrap()).join("boringssl");
-    let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap()).join("boring");
-    build(&BoringSSLOptions {
+    let boringssl = build(&BoringSSLOptions {
         asan: cfg!(feature = "asan"),
         sancov: cfg!(feature = "sancov"),
         gcov: cfg!(feature = "gcov"),
         llvm_cov: cfg!(feature = "llvm_cov"),
-        deterministic: cfg!(feature = "deterministic"),
-        git_repo: repo,
-        git_ref,
-        out_dir: out_dir.clone(),
-        source_dir,
-    })
-    .unwrap();
-
-    // Linking Time!
-    // The parameters to link BoringSSL are inspired from
-    // https://github.com/cloudflare/boring/blob/master/boring-sys/build/main.rs
-    println!("cargo:rustc-link-search={}/lib", out_dir.display());
-    println!("cargo:rustc-link-lib=static=crypto");
-    println!("cargo:rustc-link-lib=static=ssl");
-    println!("cargo:rustc-link-lib=stdc++");
+        preset: String::from(PRESET),
+    });
 
     if cfg!(feature = "gcov") {
         let clang_output = std::process::Command::new("clang")
@@ -45,8 +31,6 @@ fn main() {
         println!("cargo:rustc-link-search={}/lib/linux/", clang_resource_dir);
         println!("cargo:rustc-link-lib=static=clang_rt.profile-x86_64");
     }
-
-    let include_path = out_dir.join("include");
 
     let bindings_out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
@@ -73,7 +57,7 @@ fn main() {
         .layout_tests(true)
         .prepend_enum_name(true)
         .clang_arg("-I")
-        .clang_arg(include_path.display().to_string());
+        .clang_arg(boringssl.inc_dir().display().to_string());
 
     if cfg!(feature = "deterministic") {
         // Exposes RAND_reset_for_fuzzing
@@ -114,11 +98,21 @@ fn main() {
         "ssl.h",
     ];
     for header in &headers {
-        builder = builder.header(include_path.join("openssl").join(header).to_str().unwrap());
+        builder = builder.header(
+            boringssl
+                .inc_dir()
+                .join("openssl")
+                .join(header)
+                .to_str()
+                .unwrap(),
+        );
     }
 
     let bindings = builder.generate().expect("Unable to generate bindings");
     bindings
         .write_to_file(bindings_out_dir.join("bindings.rs"))
         .expect("Couldn't write bindings!");
+
+    boringssl.print_cargo_metadata();
+    println!("cargo:rustc-link-lib=stdc++");
 }

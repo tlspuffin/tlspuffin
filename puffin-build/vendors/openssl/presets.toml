@@ -43,18 +43,18 @@ builder = { type = "builtin", name = "openssl" }
 sancov = true
 
 [openssl102u-asan]
-sources = { repo = "https://github.com/tlspuffin/openssl", branch = "OpensSSL_1_0_2u", version = "1.0.2u" }
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "OpenSSL_1_0_2u", version = "1.0.2u" }
 builder = { type = "builtin", name = "openssl" }
 asan = true
 sancov = true
 
 [openssl102u]
-sources = { repo = "https://github.com/tlspuffin/openssl", branch = "OpensSSL_1_0_2u", version = "1.0.2u" }
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "OpenSSL_1_0_2u", version = "1.0.2u" }
 builder = { type = "builtin", name = "openssl" }
 sancov = true
 
 [openssl101f-asan]
-sources = { repo = "https://github.com/tlspuffin/openssl", branch = "OpensSSL_1_0_1f", version = "1.0.1f" }
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "OpenSSL_1_0_1f", version = "1.0.1f" }
 builder = { type = "builtin", name = "openssl" }
 asan = true
 sancov = true

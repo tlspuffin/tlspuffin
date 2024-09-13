@@ -3,9 +3,8 @@ extern crate cc;
 use std::env;
 use std::fs::canonicalize;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
 
-const MK_VENDOR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tools/mk_vendor");
+use puffin_build::vendor;
 
 const PRESET: &str = if cfg!(feature = "openssl101f") {
     "openssl101f"
@@ -88,44 +87,30 @@ impl Build {
     pub fn build(&mut self) -> Artifacts {
         let target = &self.target.as_ref().expect("TARGET dir not set")[..];
 
-        let mut mk_vendor_config: Vec<String> = vec![];
-        mk_vendor_config.push(format!("openssl:{}", PRESET));
+        let suffix = if cfg!(feature = "asan") { "-asan" } else { "" };
+        let name = format!("{PRESET}{suffix}");
 
-        let options: Vec<&str> = vec![
-            #[cfg(feature = "asan")]
-            "asan",
-            #[cfg(feature = "sancov")]
-            "sancov",
-            #[cfg(feature = "gcov")]
-            "gcov",
-            #[cfg(feature = "llvm_cov")]
-            "llvm_cov",
-        ];
+        let mut config = vendor::Config::preset("openssl", PRESET).unwrap();
 
-        mk_vendor_config.push(format!("--options={}", options.join(",")));
+        config.option("sancov", cfg!(feature = "sancov"));
+        config.option("asan", cfg!(feature = "asan"));
+        config.option("gcov", cfg!(feature = "gcov"));
+        config.option("llvm_cov", cfg!(feature = "llvm_cov"));
 
-        let suffix = if !options.is_empty() {
-            format!("-{}", options.join("-"))
-        } else {
-            "".to_string()
-        };
-        mk_vendor_config.push(format!("--name={}{}", PRESET, suffix));
+        let prefix = vendor::dir()
+            .lock(&name)
+            .and_then(|config_dir| {
+                if let Some(old_config) = config_dir.config()? {
+                    if old_config == config {
+                        return Ok(config_dir.path().to_path_buf());
+                    }
 
-        let mut build_cmd = Command::new(MK_VENDOR);
-        build_cmd.arg("make");
-        build_cmd.args(&mk_vendor_config);
+                    eprintln!("found incompatible config '{name}' in VENDOR_DIR, rebuilding...");
+                }
 
-        self.run_command(build_cmd, format!("Building OpenSSL {}", PRESET));
-
-        let mut locate_cmd = Command::new(MK_VENDOR);
-        locate_cmd.arg("locate");
-        locate_cmd.args(&mk_vendor_config);
-
-        let res = self.run_command(
-            locate_cmd,
-            format!("Getting install prefix for OpenSSL {}", PRESET),
-        );
-        let prefix = PathBuf::from(String::from_utf8_lossy(&res.stdout).into_owned().trim());
+                config_dir.make(config)
+            })
+            .unwrap();
 
         let openssl = Artifacts {
             lib_dir: prefix.join("lib"),
@@ -141,34 +126,6 @@ impl Build {
         println!("cargo:rerun-if-changed={}", openssl.include_dir.display());
 
         openssl
-    }
-
-    fn run_command(&self, mut command: Command, desc: impl AsRef<str>) -> Output {
-        println!("running {:?}", command);
-        let res = command.output().unwrap();
-
-        println!(
-            concat!(
-                "\n\n\n",
-                "{}:\n",
-                "    Command: {:?}\n",
-                "    Exit status: {}\n",
-                "    ===== stdout =====\n{}\n",
-                "    ===== stderr =====\n{}\n",
-                "\n\n"
-            ),
-            desc.as_ref(),
-            command,
-            res.status,
-            String::from_utf8_lossy(&res.stdout).into_owned().trim(),
-            String::from_utf8_lossy(&res.stderr).into_owned().trim()
-        );
-
-        if !res.status.success() {
-            panic!("Command failed. Cannot build OpenSSL vendor library.");
-        }
-
-        res
     }
 }
 
