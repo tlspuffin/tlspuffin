@@ -87,9 +87,9 @@ mod tests {
             fn_decrypt_application.name(),
             fn_decrypt_multiple_handshake_messages.name(),
         ]
-            .iter()
-            .map(|fn_name| fn_name.to_string())
-            .collect::<HashSet<String>>();
+        .iter()
+        .map(|fn_name| fn_name.to_string())
+        .collect::<HashSet<String>>();
         ignore_gen.extend(ignore_payloads);
         ignore_gen
     }
@@ -319,7 +319,7 @@ mod tests {
             .map(|s| s.to_owned())
             .collect::<HashSet<String>>();
 
-        let ignored_functions = ignore_lazy_eval    ();
+        let ignored_functions = ignore_lazy_eval();
 
         let successfully_built_functions_0 = successfully_built_functions.clone();
         successfully_built_functions.extend(ignored_functions.clone());

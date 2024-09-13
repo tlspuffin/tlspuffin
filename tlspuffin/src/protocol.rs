@@ -526,17 +526,17 @@ impl ExtractKnowledge<TlsQueryMatcher> for ClientHelloPayload {
         knowledges.push(Knowledge {
             source: source,
             matcher,
-            data: Box::new(self.extensions.0.clone()),
+            data: &self.extensions.0,
         });
         knowledges.push(Knowledge {
             source: source,
             matcher,
-            data: Box::new(self.compression_methods.0.clone()),
+            data: &self.compression_methods.0,
         });
         knowledges.push(Knowledge {
             source: source,
             matcher,
-            data: Box::new(self.cipher_suites.0.clone()),
+            data: &self.cipher_suites.0,
         });
         knowledges.extend(self.extensions.0.iter().map(|extension| Knowledge {
             source,
@@ -627,9 +627,9 @@ impl ExtractKnowledge<TlsQueryMatcher> for ServerHelloPayload {
         });
         // we add both the Vec<T> and below the Wrapper(T) too
         knowledges.push(Knowledge {
-            source: source.clone(),
+            source,
             matcher,
-            data: Box::new(self.extensions.0.clone()),
+            data: &self.extensions.0,
         });
         knowledges.push(Knowledge {
             source,
