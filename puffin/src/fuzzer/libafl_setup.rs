@@ -476,7 +476,7 @@ where
                 TimeoutFeedback::new()
             ));
 
-        //#[cfg(feature = "sancov_libafl")]
+        //#[cfg(feature = "sancov")]
         //{
         /*            let (feedback, observers) = builder.create_feedback_observers();*/
         /*            builder = builder*/
@@ -485,7 +485,7 @@ where
         /*                .with_scheduler(IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()));*/
         //}
 
-        //#[cfg(not(feature = "sancov_libafl"))]
+        //#[cfg(not(feature = "sancov"))]
         {
             // FIXME
             log::error!("Running without minimizer is unsupported");

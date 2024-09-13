@@ -18,8 +18,8 @@ pub struct WolfSSLOptions {
     pub asan: bool,
     pub sancov: bool,
 
-    pub gcov_analysis: bool,
-    pub llvm_cov_analysis: bool,
+    pub gcov: bool,
+    pub llvm_cov: bool,
 
     pub git_ref: String,
     pub out_dir: PathBuf,
@@ -126,11 +126,11 @@ fn build_wolfssl<P: AsRef<Path>>(dest: &P, options: &WolfSSLOptions) -> PathBuf 
         config.cflag("-fsanitize-coverage=trace-pc-guard");
     }
 
-    if options.gcov_analysis {
+    if options.gcov {
         config.cflag("-ftest-coverage").cflag("-fprofile-arcs");
     }
 
-    if options.llvm_cov_analysis {
+    if options.llvm_cov {
         config
             .cflag("-fprofile-instr-generate")
             .cflag("-fcoverage-mapping");

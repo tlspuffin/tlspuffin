@@ -46,7 +46,7 @@ generate_coverage () {
     cd "$build_dir"
 
     find -name "*.gcda" -delete
-    cargo build -p tlspuffin --target x86_64-unknown-linux-gnu --features "$features,gcov_analysis" --no-default-features
+    cargo build -p tlspuffin --target x86_64-unknown-linux-gnu --features "$features,gcov" --no-default-features
 
     $build_dir/target/x86_64-unknown-linux-gnu/debug/tlspuffin execute --index 0 -n 100 "$seeds"
     cov_data=$(gcovr --gcov-executable "llvm-cov gcov" "${excludes[@]}" --json-summary-pretty)

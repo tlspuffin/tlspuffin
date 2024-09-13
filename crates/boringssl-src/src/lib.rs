@@ -13,8 +13,8 @@ pub struct BoringSSLOptions {
     pub sancov: bool,
     pub deterministic: bool,
 
-    pub gcov_analysis: bool,
-    pub llvm_cov_analysis: bool,
+    pub gcov: bool,
+    pub llvm_cov: bool,
 
     pub git_repo: String,
     pub git_ref: GitRef,
@@ -120,7 +120,7 @@ fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> Path
             .cxxflag("-fsanitize-coverage=trace-pc-guard");
     }
 
-    if options.gcov_analysis {
+    if options.gcov {
         boring_conf
             .cflag("-ftest-coverage")
             .cflag("-fprofile-arcs")
@@ -128,7 +128,7 @@ fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> Path
             .cxxflag("-fprofile-arcs");
     }
 
-    if options.llvm_cov_analysis {
+    if options.llvm_cov {
         boring_conf
             .cflag("-fprofile-instr-generate")
             .cflag("-fcoverage-mapping")

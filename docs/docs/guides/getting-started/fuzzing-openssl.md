@@ -6,10 +6,10 @@ title: 'Fuzzing OpenSSL'
 
 Now that we have the OpenSSL library to serve as a fuzz target, we can create the corresponding fuzzer:
 ```sh
-cargo build --release --bin=tlspuffin --features=openssl312,sancov,asan
+cargo build --release --bin=tlspuffin --features=openssl312,asan
 ```
 
-By setting `--features=openssl312,sancov,asan`, the build process will automatically select the fuzz target located in `./vendor/openssl312-sancov-asan`.
+By setting `--features=openssl312,asan`, the build process will automatically select the fuzz target located in `./vendor/openssl312-asan`.
 The build process creates the fuzzer at `./target/release/tlspuffin`.
 
 ## Generating Seeds

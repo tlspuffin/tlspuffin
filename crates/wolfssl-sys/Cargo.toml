@@ -26,5 +26,5 @@ master = []
 sancov = []
 asan = []
 
-gcov_analysis = []
-llvm_cov_analysis = []
+gcov = []
+llvm_cov = []

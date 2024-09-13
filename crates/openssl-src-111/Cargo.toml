@@ -10,12 +10,12 @@ description = """
 Source of OpenSSL and logic to build it.
 """
 exclude = [
-  'openssl/boringssl/*',
-  'openssl/fuzz/*',
-  'openssl/krb5/*',
-  'openssl/pyca-cryptography/*',
-  'openssl/test/*',
-  'openssl/wycheproof/*',
+    'openssl/boringssl/*',
+    'openssl/fuzz/*',
+    'openssl/krb5/*',
+    'openssl/pyca-cryptography/*',
+    'openssl/test/*',
+    'openssl/wycheproof/*',
 ]
 
 [lib]
@@ -46,8 +46,8 @@ no-rand = ["libressl-src?/no-rand"]
 # Enables -fsanitize=address
 asan = ["libressl-src?/asan"]
 # Export coverage during runtime
-gcov_analysis = ["libressl-src?/gcov_analysis"]
-llvm_cov_analysis = ["libressl-src?/llvm_cov_analysis"]
+gcov = ["libressl-src?/gcov"]
+llvm_cov = ["libressl-src?/llvm_cov"]
 
 openssl101f = []
 openssl102u = []
