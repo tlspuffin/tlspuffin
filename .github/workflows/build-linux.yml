@@ -147,15 +147,3 @@ jobs:
         with:
           name: ${{ matrix.crate }}-${{ matrix.name }}
           path: target/x86_64-unknown-linux-gnu/release/${{ matrix.crate }}
-      - name: Check puffin
-        shell: bash
-        run: just check puffin x86_64-unknown-linux-gnu "" "${{ matrix.cargo-flags }}"
-      - name: Check
-        shell: bash
-        run: just check ${{ matrix.crate }} x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"
-      - name: Test puffin
-        shell: bash
-        run: just test puffin x86_64-unknown-linux-gnu "" "${{ matrix.cargo-flags }}"
-      - name: Test
-        shell: bash
-        run: just test ${{ matrix.crate }} x86_64-unknown-linux-gnu "${{ matrix.features }}" "${{ matrix.cargo-flags }}"

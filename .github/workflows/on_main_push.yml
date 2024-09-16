@@ -11,11 +11,5 @@ on:
 jobs:
   run-check:
     uses: ./.github/workflows/run-checks.yml
-  run-benchmarks:
-    uses: ./.github/workflows/run-benchmarks.yml
-  build-deploy-docs:
-    uses: ./.github/workflows/build-deploy-docs.yml
-    with:
-      deploy: ${{ github.ref == 'refs/heads/main' }}
   build-linux:
     uses: ./.github/workflows/build-linux.yml
