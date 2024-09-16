@@ -244,3 +244,46 @@ harness = false
 [[bin]]
 name = "tlspuffin"
 path = "src/main.rs"
+
+[[bin]]
+name = "tlspuffin-buf"
+path = "src/main.rs"
+required-features = ["wolfssl540","asan","fix-CVE-2022-42905"]
+#test = false            # Is tested by default.
+#doctest = false         # Documentation examples are tested by default.
+#bench = false           # Is benchmarked by default.
+#doc = false             # Is documented by default.
+#proc-macro = false     # Set to `true` for a proc-macro library.
+#harness = false         # Use libtest harness.
+## edition = "2015"       # The edition of the target.
+## crate-type = ["lib"]   # The crate types to generate.
+
+[[bin]]
+name = "tlspuffin-cdos"
+path = "src/main.rs"
+default-features = ["wolfssl530","asan","fix-CVE-2022-39173"]
+
+[[bin]]
+name = "tlspuffin-skip"
+path = "src/main.rs"
+default-features = ["wolfssl510","fix-CVE-2022-25638","fix-CVE-2022-39173"]
+
+[[bin]]
+name = "tlspuffin-heap"
+path = "src/main.rs"
+default-features = ["wolfssl540","asan","fix-CVE-2022-39173"]
+
+[[bin]]
+name = "tlspuffin-sdos2"
+path = "src/main.rs"
+default-features = ["wolfssl540","asan","wolfssl-disable-postauth","fix-CVE-2022-39173"]
+
+[[bin]]
+name = "tlspuffin-sdos1"
+path = "src/main.rs"
+default-features = ["openssl111j","asan"]
+
+[[bin]]
+name = "tlspuffin-sig"
+path = "src/main.rs"
+default-features = ["wolfssl510","fix-CVE-2022-25640","fix-CVE-2022-39173"]
