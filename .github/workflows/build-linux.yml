@@ -14,10 +14,8 @@ jobs:
       matrix:
         name:
           - openssl111
-          - openssl101f_asan
           - openssl102u
           - libressl
-          - wolfssl430
           - wolfssl510
           - wolfssl520
           - wolfssl520_asan
@@ -36,11 +34,6 @@ jobs:
             crate: tlspuffin
             features: openssl111j,asan
             clean-crates: openssl-sys
-          - name: openssl101f_asan
-            crate: tlspuffin
-            features: openssl101f,asan
-            apt-dependencies: xutils-dev
-            clean-crates: openssl-sys
           - name: openssl102u
             crate: tlspuffin
             features: openssl102u
@@ -48,9 +41,6 @@ jobs:
           - name: libressl
             crate: tlspuffin
             features: libressl
-          - name: wolfssl430
-            crate: tlspuffin
-            features: wolfssl430
           - name: wolfssl510
             crate: tlspuffin
             features: wolfssl510
