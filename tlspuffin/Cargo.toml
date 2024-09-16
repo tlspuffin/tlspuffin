@@ -246,7 +246,7 @@ name = "tlspuffin"
 path = "src/main.rs"
 
 [[bin]]
-name = "tlspuffin-buf"
+name = "tlspuffin-BUF"
 path = "src/main.rs"
 required-features = ["wolfssl540","asan","fix-CVE-2022-42905"]
 #test = false            # Is tested by default.
@@ -259,31 +259,31 @@ required-features = ["wolfssl540","asan","fix-CVE-2022-42905"]
 ## crate-type = ["lib"]   # The crate types to generate.
 
 [[bin]]
-name = "tlspuffin-cdos"
+name = "tlspuffin-CDOS"
 path = "src/main.rs"
-default-features = ["wolfssl530","asan","fix-CVE-2022-39173"]
+required-features = ["wolfssl530","asan","fix-CVE-2022-39173"]
 
 [[bin]]
-name = "tlspuffin-skip"
+name = "tlspuffin-SKIP"
 path = "src/main.rs"
-default-features = ["wolfssl510","fix-CVE-2022-25638","fix-CVE-2022-39173"]
+required-features = ["wolfssl510","fix-CVE-2022-25638","fix-CVE-2022-39173"]
 
 [[bin]]
-name = "tlspuffin-heap"
+name = "tlspuffin-HEAP"
 path = "src/main.rs"
-default-features = ["wolfssl540","asan","fix-CVE-2022-39173"]
+required-features = ["wolfssl540","asan","fix-CVE-2022-39173"]
 
 [[bin]]
-name = "tlspuffin-sdos2"
+name = "tlspuffin-SDOS2"
 path = "src/main.rs"
-default-features = ["wolfssl540","asan","wolfssl-disable-postauth","fix-CVE-2022-39173"]
+required-features = ["wolfssl540","asan","wolfssl-disable-postauth","fix-CVE-2022-39173"]
 
 [[bin]]
-name = "tlspuffin-sdos1"
+name = "tlspuffin-SDOS1"
 path = "src/main.rs"
-default-features = ["openssl111j","asan"]
+required-features = ["openssl111j","asan"]
 
 [[bin]]
-name = "tlspuffin-sig"
+name = "tlspuffin-SIG"
 path = "src/main.rs"
-default-features = ["wolfssl510","fix-CVE-2022-25640","fix-CVE-2022-39173"]
+required-features = ["wolfssl510","fix-CVE-2022-25640","fix-CVE-2022-39173"]

@@ -1,4 +1,5 @@
 #!/bin/bash
+# Run `./evaluate.sh "evaluation-2022" 12` (12 cores for 3h for all except SDOS1 and SIG, for which we used 1 core for 24h and run it 90 times)
 
 if [ "$#" -ne 2 ]; then
     echo "Illegal number of parameters"
@@ -33,7 +34,7 @@ fi
 
 echo "Downloading latest evaluation build"
 
-rm -rf tlspuffin-*
+rm -rf tlspuffin-wolf* tlspuffin-open*
 to_download=$(gh run list -R tlspuffin/tlspuffin -b "$BRANCH"  -L 1 --json databaseId --jq ".[0].databaseId")
 echo "https://github.com/tlspuffin/tlspuffin/actions/runs/$to_download"
 gh run download -p "tlspuffin-*" -R tlspuffin/tlspuffin "$to_download" || { echo >&2 "Failed to download"; exit 1; }
@@ -59,6 +60,9 @@ function start_experiment  {
 
   tmux new-window -t "$session:$window" -n "$experiment"
   end_core=$(( core + CORES_PER_EXPERIMENT - 1 ))
+
+  tmux send-keys " nix-shell " C-m
+  tmux send-keys " $binary seed " C-m
   tmux send-keys " $binary --cores $core-$end_core --port $port $additional_args experiment -d $experiment -t $experiment" C-m
 
   (( core += CORES_PER_EXPERIMENT ))
