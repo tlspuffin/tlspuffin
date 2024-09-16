@@ -80,7 +80,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 "openssl111u"
             } else if cfg!(feature = "openssl312") {
                 "openssl312"
-            } else if cfg!(feature = "libressl") {
+            } else if cfg!(feature = "libressl333") {
                 "libressl333"
             } else {
                 "unknown"

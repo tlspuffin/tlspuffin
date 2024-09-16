@@ -56,9 +56,9 @@
     "labels": [
       "fast"
     ],
-    "name": "libressl",
+    "name": "libressl333",
     "vendor": "libressl",
-    "preset": "libressl",
+    "preset": "libressl333",
     "options": [
       "sancov"
     ],
