@@ -23,13 +23,13 @@
         "--bin",
         "tlspuffin",
         "--features",
-        "libressl"
+        "libressl333"
       ],
       "problemMatcher": [
         "$rustc"
       ],
       "group": "build",
-      "label": "build libressl"
+      "label": "build libressl333"
     },
     {
       "type": "cargo",
