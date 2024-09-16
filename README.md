@@ -35,7 +35,7 @@
 </div>
 
 _Disclaimer: The term "symbolic-model-guided" should not be confused with symbolic execution or concolic fuzzing._
-
+ 
 ## Description
 
 Fuzzing implementations of cryptographic protocols is challenging.
