@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - trailofbits
+      - evaluation-2022
 
 jobs:
   run-check:
