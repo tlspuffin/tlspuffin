@@ -120,7 +120,7 @@ pub mod test_signature {
     use crate::error::Error;
     use crate::protocol::{
         ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-        ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
+        ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
     };
     use crate::put::{Put, PutOptions};
     use crate::put_registry::{Factory, PutKind};
@@ -351,8 +351,8 @@ pub mod test_signature {
         fn_seq_1
     );
 
-    pub type TestTrace = Trace<AnyMatcher>;
-    pub type TestTerm = Term<AnyMatcher>;
+    pub type TestTrace = Trace<TestProtocolTypes>;
+    pub type TestTerm = Term<TestProtocolTypes>;
 
     pub struct TestClaim;
 
@@ -418,16 +418,16 @@ pub mod test_signature {
         }
     }
 
-    impl OpaqueProtocolMessage<AnyMatcher> for TestOpaqueMessage {
+    impl OpaqueProtocolMessage<TestProtocolTypes> for TestOpaqueMessage {
         fn debug(&self, _info: &str) {
             panic!("Not implemented for test stub");
         }
     }
 
-    impl ExtractKnowledge<AnyMatcher> for TestOpaqueMessage {
+    impl ExtractKnowledge<TestProtocolTypes> for TestOpaqueMessage {
         fn extract_knowledge(
             &self,
-            _: &mut Vec<Knowledge<AnyMatcher>>,
+            _: &mut Vec<Knowledge<TestProtocolTypes>>,
             _: Option<AnyMatcher>,
             _: &Source,
         ) -> Result<(), Error> {
@@ -449,7 +449,7 @@ pub mod test_signature {
         }
     }
 
-    impl ProtocolMessage<AnyMatcher, TestOpaqueMessage> for TestMessage {
+    impl ProtocolMessage<TestProtocolTypes, TestOpaqueMessage> for TestMessage {
         fn create_opaque(&self) -> TestOpaqueMessage {
             panic!("Not implemented for test stub");
         }
@@ -459,10 +459,10 @@ pub mod test_signature {
         }
     }
 
-    impl ExtractKnowledge<AnyMatcher> for TestMessage {
+    impl ExtractKnowledge<TestProtocolTypes> for TestMessage {
         fn extract_knowledge(
             &self,
-            _: &mut Vec<Knowledge<AnyMatcher>>,
+            _: &mut Vec<Knowledge<TestProtocolTypes>>,
             _: Option<AnyMatcher>,
             _: &Source,
         ) -> Result<(), Error> {
@@ -472,7 +472,7 @@ pub mod test_signature {
 
     pub struct TestMessageDeframer;
 
-    impl ProtocolMessageDeframer<AnyMatcher> for TestMessageDeframer {
+    impl ProtocolMessageDeframer<TestProtocolTypes> for TestMessageDeframer {
         type OpaqueProtocolMessage = TestOpaqueMessage;
 
         fn pop_frame(&mut self) -> Option<TestOpaqueMessage> {
@@ -494,8 +494,13 @@ pub mod test_signature {
     #[derive(Debug, Clone)]
     pub struct TestMessageFlight;
 
-    impl ProtocolMessageFlight<AnyMatcher, TestMessage, TestOpaqueMessage, TestOpaqueMessageFlight>
-        for TestMessageFlight
+    impl
+        ProtocolMessageFlight<
+            TestProtocolTypes,
+            TestMessage,
+            TestOpaqueMessage,
+            TestOpaqueMessageFlight,
+        > for TestMessageFlight
     {
         fn new() -> Self {
             Self {}
@@ -518,10 +523,10 @@ pub mod test_signature {
         }
     }
 
-    impl ExtractKnowledge<AnyMatcher> for TestMessageFlight {
+    impl ExtractKnowledge<TestProtocolTypes> for TestMessageFlight {
         fn extract_knowledge(
             &self,
-            _: &mut Vec<Knowledge<AnyMatcher>>,
+            _: &mut Vec<Knowledge<TestProtocolTypes>>,
             _: Option<AnyMatcher>,
             _: &Source,
         ) -> Result<(), Error> {
@@ -538,7 +543,7 @@ pub mod test_signature {
     #[derive(Debug, Clone)]
     pub struct TestOpaqueMessageFlight;
 
-    impl OpaqueProtocolMessageFlight<AnyMatcher, TestOpaqueMessage> for TestOpaqueMessageFlight {
+    impl OpaqueProtocolMessageFlight<TestProtocolTypes, TestOpaqueMessage> for TestOpaqueMessageFlight {
         fn new() -> Self {
             Self {}
         }
@@ -552,10 +557,10 @@ pub mod test_signature {
         }
     }
 
-    impl ExtractKnowledge<AnyMatcher> for TestOpaqueMessageFlight {
+    impl ExtractKnowledge<TestProtocolTypes> for TestOpaqueMessageFlight {
         fn extract_knowledge(
             &self,
-            _: &mut Vec<Knowledge<AnyMatcher>>,
+            _: &mut Vec<Knowledge<TestProtocolTypes>>,
             _: Option<AnyMatcher>,
             _: &Source,
         ) -> Result<(), Error> {
@@ -585,23 +590,36 @@ pub mod test_signature {
         }
     }
 
+    #[derive(Clone, Debug, Hash)]
+    pub struct TestProtocolTypes;
+
+    impl ProtocolTypes for TestProtocolTypes {
+        type Matcher = AnyMatcher;
+
+        fn signature() -> &'static Signature {
+            panic!("Not implemented for test stub");
+        }
+    }
+
+    impl std::fmt::Display for TestProtocolTypes {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "")
+        }
+    }
+
     #[derive(Debug, PartialEq)]
     pub struct TestProtocolBehavior;
 
     impl ProtocolBehavior for TestProtocolBehavior {
         type Claim = TestClaim;
-        type Matcher = AnyMatcher;
         type OpaqueProtocolMessage = TestOpaqueMessage;
         type OpaqueProtocolMessageFlight = TestOpaqueMessageFlight;
         type ProtocolMessage = TestMessage;
         type ProtocolMessageFlight = TestMessageFlight;
+        type ProtocolTypes = TestProtocolTypes;
         type SecurityViolationPolicy = TestSecurityViolationPolicy;
 
-        fn signature() -> &'static Signature {
-            panic!("Not implemented for test stub");
-        }
-
-        fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+        fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
             panic!("Not implemented for test stub");
         }
 
@@ -661,10 +679,10 @@ mod tests {
     use crate::term;
     use crate::trace::{Knowledge, Source, Spawner, TraceContext};
 
-    impl ExtractKnowledge<AnyMatcher> for Vec<u8> {
+    impl ExtractKnowledge<TestProtocolTypes> for Vec<u8> {
         fn extract_knowledge<'a>(
             &'a self,
-            knowledges: &mut Vec<Knowledge<'a, AnyMatcher>>,
+            knowledges: &mut Vec<Knowledge<'a, TestProtocolTypes>>,
             matcher: Option<AnyMatcher>,
             source: &'a Source,
         ) -> Result<(), crate::error::Error> {
@@ -794,7 +812,7 @@ mod tests {
         let _string = Signature::new_function(&example_op_c).shape();
         //println!("{}", string);
 
-        let constructed_term = Term::from(DYTerm::Application(
+        let constructed_term = Term::<TestProtocolTypes>::from(DYTerm::Application(
             Signature::new_function(&example_op_c),
             vec![
                 Term::from(DYTerm::Application(

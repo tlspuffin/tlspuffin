@@ -9,7 +9,7 @@ use puffin::protocol::{
     ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
     ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
-use puffin::trace::{Knowledge, Source, Source, Trace, Trace};
+use puffin::trace::{Knowledge, Source, Trace};
 
 use crate::claim::SshClaim;
 use crate::query::SshQueryMatcher;

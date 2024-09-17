@@ -25,9 +25,7 @@ use crate::claims::{
 use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
 use crate::put::TlsPutConfig;
 use crate::put_registry::BORINGSSL_RUST_PUT;
-use crate::query::TlsQueryMatcher;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
-use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
 mod transcript;
 mod util;

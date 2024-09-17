@@ -795,7 +795,7 @@ mod tests {
     use crate::agent::AgentName;
     use crate::algebra::dynamic_function::DescribableFunction;
     use crate::algebra::test_signature::{TestTrace, *};
-    use crate::algebra::{AnyMatcher, DYTerm};
+    use crate::algebra::DYTerm;
     use crate::trace::{Action, Step};
 
     fn create_state(
@@ -813,7 +813,7 @@ mod tests {
 
         let mut mutator = RepeatMutator::new(15, true);
 
-        fn check_is_encrypt12(step: &Step<AnyMatcher>) -> bool {
+        fn check_is_encrypt12(step: &Step<TestProtocolTypes>) -> bool {
             if let Action::Input(input) = &step.action {
                 if input.recipe.name() == fn_encrypt12.name() {
                     return true;

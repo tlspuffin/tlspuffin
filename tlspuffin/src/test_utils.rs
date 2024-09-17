@@ -4,7 +4,7 @@ use puffin::execution::{ExecutionStatus, ForkedRunner, Runner, TraceRunner};
 use puffin::put::PutDescriptor;
 use puffin::trace::{Spawner, Trace};
 
-use crate::protocol::TLSProtocolBehavior;
+use crate::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put_registry::tls_registry;
 
 pub fn default_runner_for(put: impl Into<PutDescriptor>) -> Runner<TLSProtocolBehavior> {
@@ -13,7 +13,6 @@ pub fn default_runner_for(put: impl Into<PutDescriptor>) -> Runner<TLSProtocolBe
 
     Runner::new(registry, spawner)
 }
-use crate::protocol::TLSProtocolTypes;
 
 #[allow(dead_code)]
 pub fn expect_trace_crash(
