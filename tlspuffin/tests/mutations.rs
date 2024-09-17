@@ -15,14 +15,13 @@ use puffin::libafl::state::{HasCorpus, StdState};
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 use puffin::libafl_bolts::tuples::HasConstLen;
 use puffin::libafl_bolts::HasLen;
-use puffin::protocol::ProtocolBehavior;
+use puffin::protocol::{ProtocolBehavior, ProtocolTypes};
 use puffin::put_registry::PutRegistry;
 use puffin::test_utils::AssertExecution;
 use puffin::trace::{Action, Spawner, Step, Trace, TraceContext};
 use puffin::trace_helper::TraceHelper;
-use tlspuffin::protocol::TLSProtocolBehavior;
+use tlspuffin::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use tlspuffin::put_registry::tls_registry;
-use tlspuffin::query::TlsQueryMatcher;
 use tlspuffin::test_utils::default_runner_for;
 use tlspuffin::tls::fn_impl::{
     fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
@@ -34,10 +33,10 @@ use tlspuffin::tls::seeds::{
 use tlspuffin::tls::TLS_SIGNATURE;
 
 pub type TLSState = StdState<
-    Trace<TlsQueryMatcher>,
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+    Trace<TLSProtocolTypes>,
+    InMemoryCorpus<Trace<TLSProtocolTypes>>,
     RomuDuoJrRand,
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+    InMemoryCorpus<Trace<TLSProtocolTypes>>,
 >;
 
 fn create_state() -> TLSState {
@@ -51,7 +50,7 @@ fn test_mutations(
     registry: &PutRegistry<TLSProtocolBehavior>,
     with_bit_level: bool,
     with_dy: bool,
-) -> impl MutatorsTuple<Trace<TlsQueryMatcher>, TLSState> + '_ {
+) -> impl MutatorsTuple<Trace<TLSProtocolTypes>, TLSState> + '_ {
     let MutationConfig {
         fresh_zoo_after,
         max_trace_length,
@@ -62,14 +61,14 @@ fn test_mutations(
         ..
     } = MutationConfig::default();
 
-    trace_mutations::<TLSState, TlsQueryMatcher, TLSProtocolBehavior>(
+    trace_mutations::<TLSState, TLSProtocolTypes, TLSProtocolBehavior>(
         min_trace_length,
         max_trace_length,
         term_constraints,
         fresh_zoo_after,
         with_bit_level,
         with_dy,
-        TLSProtocolBehavior::signature(),
+        TLSProtocolTypes::signature(),
         registry,
     )
 }
@@ -80,7 +79,7 @@ fn test_mutators() {
     let with_dy = true;
     let with_bit_level = true;
 
-    let inputs: Vec<Trace<TlsQueryMatcher>> =
+    let inputs: Vec<Trace<TLSProtocolTypes>> =
         create_corpus().iter().map(|(t, _)| t.to_owned()).collect();
 
     if inputs.is_empty() {
@@ -235,10 +234,10 @@ fn test_make_message() {
     let mut state = create_state();
     let mut mutator: MakeMessage<
         StdState<
-            Trace<TlsQueryMatcher>,
-            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+            Trace<TLSProtocolTypes>,
+            InMemoryCorpus<Trace<TLSProtocolTypes>>,
             RomuDuoJrRand,
-            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+            InMemoryCorpus<Trace<TLSProtocolTypes>>,
         >,
         TLSProtocolBehavior,
     > = MakeMessage::new(TermConstraints::default(), &tls_registry, true, true);
@@ -277,10 +276,10 @@ fn test_byte_remove_payloads() {
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
-            Trace<TlsQueryMatcher>,
-            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+            Trace<TLSProtocolTypes>,
+            InMemoryCorpus<Trace<TLSProtocolTypes>>,
             RomuDuoJrRand,
-            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+            InMemoryCorpus<Trace<TLSProtocolTypes>>,
         >,
         TLSProtocolBehavior,
     > = MakeMessage::new(
@@ -363,10 +362,10 @@ fn test_byte_simple() {
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
-            Trace<TlsQueryMatcher>,
-            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+            Trace<TLSProtocolTypes>,
+            InMemoryCorpus<Trace<TLSProtocolTypes>>,
             RomuDuoJrRand,
-            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+            InMemoryCorpus<Trace<TLSProtocolTypes>>,
         >,
         TLSProtocolBehavior,
     > = MakeMessage::new(
@@ -448,10 +447,10 @@ fn test_byte_interesting() {
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
-            Trace<TlsQueryMatcher>,
-            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+            Trace<TLSProtocolTypes>,
+            InMemoryCorpus<Trace<TLSProtocolTypes>>,
             RomuDuoJrRand,
-            InMemoryCorpus<Trace<TlsQueryMatcher>>,
+            InMemoryCorpus<Trace<TLSProtocolTypes>>,
         >,
         TLSProtocolBehavior,
     > = MakeMessage::new(
@@ -564,7 +563,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 let mut mutator = RepeatMutator::new(15, true);
 
-                fn check_is_encrypt12(step: &Step<TlsQueryMatcher>) -> bool {
+                fn check_is_encrypt12(step: &Step<TLSProtocolTypes>) -> bool {
                     if let Action::Input(input) = &step.action {
                         if input.recipe.name() == fn_encrypt12.name() {
                             return true;

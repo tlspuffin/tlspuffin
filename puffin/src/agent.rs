@@ -207,14 +207,7 @@ impl<PB: ProtocolBehavior> Agent<PB> {
     }
 }
 
-impl<PB: ProtocolBehavior>
-    Stream<
-        PB::Matcher,
-        PB::ProtocolMessage,
-        PB::OpaqueProtocolMessage,
-        PB::OpaqueProtocolMessageFlight,
-    > for Agent<PB>
-{
+impl<PB: ProtocolBehavior> Stream<PB> for Agent<PB> {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         self.put.add_to_inbound(message)
     }

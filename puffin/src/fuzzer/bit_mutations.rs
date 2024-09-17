@@ -8,8 +8,9 @@ use libafl_bolts::Named;
 use log::{debug, trace};
 
 use super::utils::*;
-use crate::algebra::{Matcher, TermType};
+use crate::algebra::TermType;
 use crate::fuzzer::utils::choose_term_filtered_mut;
+use crate::protocol::ProtocolTypes;
 use crate::trace::Trace;
 
 pub type HavocMutationsTypeDY<S> = tuple_list_type!(
@@ -111,15 +112,15 @@ impl<S> [<$mutation  DY>]<S>
     }
 }
 
-impl<S, M> Mutator<Trace<M>, S> for [<$mutation  DY>]<S>
+impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S>
     where
         S: HasRand + HasMaxSize + 'static,
-        M: Matcher,
+        PT: ProtocolTypes,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         trace!("Start mutate with {:?}", self.name());
@@ -236,15 +237,15 @@ where
     }
 }
 
-impl<S, M> Mutator<Trace<M>, S> for BytesSwapMutatorDY<S>
+impl<S, PT> Mutator<Trace<PT>, S> for BytesSwapMutatorDY<S>
 where
     S: HasRand + HasMaxSize + 'static,
-    M: Matcher,
+    PT: ProtocolTypes,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         trace!("Start mutate with {:?}", self.name());
@@ -320,15 +321,15 @@ where
     }
 }
 
-impl<S, M> Mutator<Trace<M>, S> for BytesInsertCopyMutatorDY<S>
+impl<S, PT> Mutator<Trace<PT>, S> for BytesInsertCopyMutatorDY<S>
 where
     S: HasRand + HasMaxSize + 'static,
-    M: Matcher,
+    PT: ProtocolTypes,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         trace!("Start mutate with {:?}", self.name());
@@ -387,13 +388,13 @@ where
 
 /// Randomly choose a payload and its index (nth) in a trace (mutable reference), if there is any
 /// and if it has at least 2 bytes
-fn choose_payload_mut<'a, M, S>(
-    trace: &'a mut Trace<M>,
+fn choose_payload_mut<'a, PT, S>(
+    trace: &'a mut Trace<PT>,
     state: &mut S,
 ) -> Option<(&'a mut Vec<u8>, usize)>
 where
     S: HasCorpus + HasRand + HasMaxSize,
-    M: Matcher,
+    PT: ProtocolTypes,
 {
     let mut all_payloads: Vec<&'a mut Payloads> = trace.all_payloads_mut();
     if all_payloads.is_empty() {
@@ -410,10 +411,10 @@ where
 
 /// Randomly choose a payload and its index (n-th) in a trace, if there is any and if it has at
 /// least 2 bytes
-fn choose_payload<'a, M, S>(trace: &'a Trace<M>, state: &mut S) -> Option<(&'a [u8], usize)>
+fn choose_payload<'a, PT, S>(trace: &'a Trace<PT>, state: &mut S) -> Option<(&'a [u8], usize)>
 where
     S: HasCorpus + HasRand + HasMaxSize,
-    M: Matcher,
+    PT: ProtocolTypes,
 {
     let all_payloads = trace.all_payloads();
     if all_payloads.is_empty() {
@@ -428,9 +429,9 @@ where
 }
 
 /// Access the n-th payload of a trace, if it exists
-fn get_payload<M>(trace: &Trace<M>, idx: usize) -> Option<&[u8]>
+fn get_payload<PT>(trace: &Trace<PT>, idx: usize) -> Option<&[u8]>
 where
-    M: Matcher,
+    PT: ProtocolTypes,
 {
     let all_payloads = trace.all_payloads();
     if all_payloads.len() <= idx {
@@ -515,18 +516,16 @@ where
     }
 }
 
-impl<S, M> Mutator<Trace<M>, S> for CrossoverInsertMutatorDY<S>
+impl<S, PT> Mutator<Trace<PT>, S> for CrossoverInsertMutatorDY<S>
 where
     S: HasCorpus + HasRand + HasMaxSize + 'static,
-    M: Matcher,
-    //        <S as libafl::inputs::UsesInput>::Input = BytesInput,
-    S: libafl::inputs::UsesInput<Input = Trace<M>>,
-    M: Matcher,
+    S: libafl::inputs::UsesInput<Input = Trace<PT>>,
+    PT: ProtocolTypes,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         trace!("Start mutate with {:?}", self.name());
@@ -652,18 +651,16 @@ where
     }
 }
 
-impl<S, M> Mutator<Trace<M>, S> for CrossoverReplaceMutatorDY<S>
+impl<S, PT> Mutator<Trace<PT>, S> for CrossoverReplaceMutatorDY<S>
 where
     S: HasCorpus + HasRand + HasMaxSize + 'static,
-    M: Matcher,
-    //        <S as libafl::inputs::UsesInput>::Input = BytesInput,
-    S: libafl::inputs::UsesInput<Input = Trace<M>>,
-    M: Matcher,
+    S: libafl::inputs::UsesInput<Input = Trace<PT>>,
+    PT: ProtocolTypes,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         trace!("Start mutate with {:?}", self.name());
@@ -781,18 +778,17 @@ where
     }
 }
 
-impl<S, M> Mutator<Trace<M>, S> for SpliceMutatorDY<S>
+impl<S, PT> Mutator<Trace<PT>, S> for SpliceMutatorDY<S>
 where
     S: HasCorpus + HasRand + HasMaxSize + 'static,
-    M: Matcher,
     //        <S as libafl::inputs::UsesInput>::Input = BytesInput,
-    S: libafl::inputs::UsesInput<Input = Trace<M>>,
-    M: Matcher,
+    S: libafl::inputs::UsesInput<Input = Trace<PT>>,
+    PT: ProtocolTypes,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         trace!("Start mutate with {:?}", self.name());

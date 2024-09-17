@@ -112,25 +112,15 @@ impl Drop for BoringSSL {
     }
 }
 
-impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for BoringSSL {
+impl Stream<TLSProtocolBehavior> for BoringSSL {
     fn add_to_inbound(&mut self, result: &ConcreteMessage) {
-        <MemoryStream as Stream<
-            TlsQueryMatcher,
-            Message,
-            OpaqueMessage,
-            OpaqueMessageFlight,
-        >>::add_to_inbound(self.stream.get_mut(), result)
+        <MemoryStream as Stream<TLSProtocolBehavior>>::add_to_inbound(self.stream.get_mut(), result)
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
         let memory_stream = self.stream.get_mut();
 
-        <MemoryStream as Stream<
-            TlsQueryMatcher,
-            Message,
-            OpaqueMessage,
-            OpaqueMessageFlight,
-        >>::take_message_from_outbound(memory_stream)
+        <MemoryStream as Stream<TLSProtocolBehavior>>::take_message_from_outbound(memory_stream)
     }
 }
 

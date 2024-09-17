@@ -3,6 +3,7 @@ use puffin::error::Error;
 use puffin::protocol::{ExtractKnowledge, OpaqueProtocolMessage, ProtocolMessage};
 use puffin::trace::{Knowledge, Source};
 
+use crate::protocol::SshProtocolTypes;
 use crate::query::SshQueryMatcher;
 
 #[derive(Clone, Debug)]
@@ -263,7 +264,7 @@ impl TryFrom<&BinaryPacket> for SshMessage {
         SshMessage::read(&mut reader).ok_or_else(|| "Can not parse payload".to_string())
     }
 }
-impl ProtocolMessage<SshQueryMatcher, RawSshMessage> for SshMessage {
+impl ProtocolMessage<SshProtocolTypes, RawSshMessage> for SshMessage {
     fn create_opaque(&self) -> RawSshMessage {
         let mut payload = Vec::new();
         self.encode(&mut payload);
@@ -301,7 +302,7 @@ impl TryFrom<RawSshMessage> for SshMessage {
 impl ExtractKnowledge<SshQueryMatcher> for SshMessage {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, SshQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
         matcher: Option<SshQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -421,7 +422,7 @@ impl ExtractKnowledge<SshQueryMatcher> for SshMessage {
     }
 }
 
-impl OpaqueProtocolMessage<SshQueryMatcher> for RawSshMessage {
+impl OpaqueProtocolMessage<SshProtocolTypes> for RawSshMessage {
     fn debug(&self, info: &str) {
         log::debug!("{}: {:?}", info, self)
     }
@@ -430,7 +431,7 @@ impl OpaqueProtocolMessage<SshQueryMatcher> for RawSshMessage {
 impl ExtractKnowledge<SshQueryMatcher> for RawSshMessage {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, SshQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
         matcher: Option<SshQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {

@@ -14,6 +14,7 @@ use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 use puffin::term;
 use puffin::trace::{Spawner, Trace};
 use puffin::trace_helper::TraceHelper;
+use tlspuffin::protocol::TLSProtocolTypes;
 use tlspuffin::put_registry::tls_registry;
 use tlspuffin::query::TlsQueryMatcher;
 use tlspuffin::tls::fn_impl::*;
@@ -42,10 +43,10 @@ fn benchmark_dynamic(c: &mut Criterion) {
 }
 
 fn create_state() -> StdState<
-    Trace<TlsQueryMatcher>,
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+    Trace<TLSProtocolTypes>,
+    InMemoryCorpus<TLSProtocolTypes>,
     RomuDuoJrRand,
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+    InMemoryCorpus<TLSProtocolTypes>,
 > {
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();

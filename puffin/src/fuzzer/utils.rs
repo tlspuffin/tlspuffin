@@ -3,7 +3,8 @@ use std::cmp::max;
 use libafl_bolts::rands::Rand;
 use log::trace;
 
-use crate::algebra::{DYTerm, Matcher, Term, TermType};
+use crate::algebra::{DYTerm, Term, TermType};
+use crate::protocol::ProtocolTypes;
 use crate::trace::{Action, Step, Trace};
 
 #[derive(Copy, Clone, Debug)]
@@ -105,12 +106,12 @@ pub type TracePath = (StepIndex, TermPath);
 // is_symbolic() term Indeed, this latter term is considered atomic/leaf and is treated as a
 // bitstring.
 /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
-fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
-    trace: &'a Trace<M>,
+fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+    trace: &'a Trace<PT>,
     filter: P,
     constraints: TermConstraints,
     rand: &mut R,
-) -> Option<(&'a Term<M>, TracePath)> {
+) -> Option<(&'a Term<PT>, TracePath)> {
     // trace!("[reservoir_sample] Start");
     // If if_wighted is set to true, we run a Reservoir Sampling algorithm per depth (of chosen
     // sub-terms in the overall recipe. See the two vectors: depth_counts and depth_reservoir,
@@ -119,7 +120,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
     let if_weighted = constraints.weighted_depth;
     let mut max_depth = 1;
     let mut depth_counts: Vec<u64> = vec![0];
-    let mut depth_reservoir: Vec<Option<(&'a Term<M>, TracePath)>> = vec![None];
+    let mut depth_reservoir: Vec<Option<(&'a Term<PT>, TracePath)>> = vec![None];
     // if if_weighted=false, we will only access the first cell of those two vec
     // independently of the depth
 
@@ -151,7 +152,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
                     // suitable sub-terms
                 }
 
-                let mut stack: Vec<(&Term<M>, TracePath, bool, usize)> =
+                let mut stack: Vec<(&Term<PT>, TracePath, bool, usize)> =
                     vec![(term, (step_index, TermPath::new()), false, 0)]; // bool is true for terms inside a list (e.g., fn_append)
                                                                            // usize is for depth
 
@@ -253,10 +254,10 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
     reservoir
 }
 
-pub fn find_term_by_term_path_mut<'a, M: Matcher>(
-    term: &'a mut Term<M>,
+pub fn find_term_by_term_path_mut<'a, PT: ProtocolTypes>(
+    term: &'a mut Term<PT>,
     term_path: &[usize],
-) -> Option<&'a mut Term<M>> {
+) -> Option<&'a mut Term<PT>> {
     if term_path.is_empty() {
         return Some(term);
     }
@@ -274,10 +275,10 @@ pub fn find_term_by_term_path_mut<'a, M: Matcher>(
     }
 }
 
-pub fn find_term_by_term_path<'a, M: Matcher>(
-    term: &'a Term<M>,
+pub fn find_term_by_term_path<'a, PT: ProtocolTypes>(
+    term: &'a Term<PT>,
     term_path: &[usize],
-) -> Option<&'a Term<M>> {
+) -> Option<&'a Term<PT>> {
     if term_path.is_empty() {
         return Some(term);
     }
@@ -296,13 +297,13 @@ pub fn find_term_by_term_path<'a, M: Matcher>(
     }
 }
 
-pub fn find_term_mut<'a, M: Matcher>(
-    trace: &'a mut Trace<M>,
+pub fn find_term_mut<'a, PT: ProtocolTypes>(
+    trace: &'a mut Trace<PT>,
     trace_path: &TracePath,
-) -> Option<&'a mut Term<M>> {
+) -> Option<&'a mut Term<PT>> {
     let (step_index, term_path) = trace_path;
 
-    let step: Option<&mut Step<M>> = trace.steps.get_mut(*step_index);
+    let step: Option<&mut Step<PT>> = trace.steps.get_mut(*step_index);
     if let Some(step) = step {
         match &mut step.action {
             Action::Input(input) => {
@@ -315,13 +316,13 @@ pub fn find_term_mut<'a, M: Matcher>(
     }
 }
 
-pub fn find_term<'a, M: Matcher>(
-    trace: &'a Trace<M>,
+pub fn find_term<'a, PT: ProtocolTypes>(
+    trace: &'a Trace<PT>,
     trace_path: &TracePath,
-) -> Option<&'a Term<M>> {
+) -> Option<&'a Term<PT>> {
     let (step_index, term_path) = trace_path;
 
-    let step: Option<&Step<M>> = trace.steps.get(*step_index);
+    let step: Option<&Step<PT>> = trace.steps.get(*step_index);
     if let Some(step) = step {
         match &step.action {
             Action::Input(input) => find_term_by_term_path(&input.recipe, &mut term_path.clone()),
@@ -332,19 +333,19 @@ pub fn find_term<'a, M: Matcher>(
     }
 }
 
-pub fn choose<'a, R: Rand, M: Matcher>(
-    trace: &'a Trace<M>,
+pub fn choose<'a, R: Rand, PT: ProtocolTypes>(
+    trace: &'a Trace<PT>,
     constraints: TermConstraints,
     rand: &mut R,
-) -> Option<(&'a Term<M>, (usize, TermPath))> {
+) -> Option<(&'a Term<PT>, (usize, TermPath))> {
     reservoir_sample(trace, |_| true, constraints, rand)
 }
 
-pub fn choose_mut<'a, R: Rand, M: Matcher>(
-    trace: &'a mut Trace<M>,
+pub fn choose_mut<'a, R: Rand, PT: ProtocolTypes>(
+    trace: &'a mut Trace<PT>,
     constraints: TermConstraints,
     rand: &mut R,
-) -> Option<(&'a mut Term<M>, (usize, TermPath))> {
+) -> Option<(&'a mut Term<PT>, (usize, TermPath))> {
     if let Some((_, (u, path))) = reservoir_sample(trace, |_| true, constraints, rand) {
         let t = find_term_mut(trace, &(u, path.clone()));
         t.map(|t| (t, (u, path)))
@@ -353,19 +354,19 @@ pub fn choose_mut<'a, R: Rand, M: Matcher>(
     }
 }
 
-pub fn choose_term<'a, R: Rand, M: Matcher>(
-    trace: &'a Trace<M>,
+pub fn choose_term<'a, R: Rand, PT: ProtocolTypes>(
+    trace: &'a Trace<PT>,
     constraints: TermConstraints,
     rand: &mut R,
-) -> Option<&'a Term<M>> {
+) -> Option<&'a Term<PT>> {
     reservoir_sample(trace, |_| true, constraints, rand).map(|ret| ret.0)
 }
 
-pub fn choose_term_mut<'a, R: Rand, M: Matcher>(
-    trace: &'a mut Trace<M>,
+pub fn choose_term_mut<'a, R: Rand, PT: ProtocolTypes>(
+    trace: &'a mut Trace<PT>,
     constraints: TermConstraints,
     rand: &mut R,
-) -> Option<&'a mut Term<M>> {
+) -> Option<&'a mut Term<PT>> {
     if let Some(trace_path) = choose_term_path_filtered(trace, |_| true, constraints, rand) {
         find_term_mut(trace, &trace_path)
     } else {
@@ -373,12 +374,12 @@ pub fn choose_term_mut<'a, R: Rand, M: Matcher>(
     }
 }
 
-pub fn choose_term_filtered_mut<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
-    trace: &'a mut Trace<M>,
+pub fn choose_term_filtered_mut<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+    trace: &'a mut Trace<PT>,
     filter: P,
     constraints: TermConstraints,
     rand: &mut R,
-) -> Option<&'a mut Term<M>> {
+) -> Option<&'a mut Term<PT>> {
     if let Some(trace_path) = choose_term_path_filtered(trace, filter, constraints, rand) {
         find_term_mut(trace, &trace_path)
     } else {
@@ -386,16 +387,16 @@ pub fn choose_term_filtered_mut<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool
     }
 }
 
-pub fn choose_term_path<R: Rand, M: Matcher>(
-    trace: &Trace<M>,
+pub fn choose_term_path<R: Rand, PT: ProtocolTypes>(
+    trace: &Trace<PT>,
     constraints: TermConstraints,
     rand: &mut R,
 ) -> Option<TracePath> {
     choose_term_path_filtered(trace, |_| true, constraints, rand)
 }
 
-pub fn choose_term_path_filtered<R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
-    trace: &Trace<M>,
+pub fn choose_term_path_filtered<R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+    trace: &Trace<PT>,
     filter: P,
     constraints: TermConstraints,
     rand: &mut R,

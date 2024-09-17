@@ -84,14 +84,14 @@ where
 
 /// Determines whether two instances match. We can also ask it how specific it is.
 pub trait Matcher:
-    fmt::Debug + Clone + Hash + serde::Serialize + DeserializeOwned + PartialEq
+    fmt::Debug + Clone + Hash + serde::Serialize + DeserializeOwned + PartialEq + Eq
 {
     fn matches(&self, matcher: &Self) -> bool;
 
     fn specificity(&self) -> u32;
 }
 
-#[derive(Debug, Clone, Hash, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AnyMatcher;
 
 impl Matcher for AnyMatcher {

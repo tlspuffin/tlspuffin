@@ -3,15 +3,13 @@ use puffin::codec::Codec;
 use puffin::fuzzer::utils::{find_term_by_term_path, find_term_by_term_path_mut};
 use puffin::protocol::{ProtocolBehavior, ProtocolMessage};
 use puffin::trace::Action::Input;
-use puffin::trace::{Action, OutputAction, Spawner, Trace, TraceContext};
+use puffin::trace::{Action, OutputAction, Trace, TraceContext};
 use tlspuffin::protocol::TLSProtocolBehavior;
-use tlspuffin::query::TlsQueryMatcher;
 #[allow(unused_imports)]
-use tlspuffin::test_utils::prelude::*;
-use tlspuffin::tls::seeds::create_corpus;
+use tlspuffin::{test_utils::prelude::*, tls::seeds::*};
 
 fn test_one_replace(
-    trace: &mut Trace<TlsQueryMatcher>,
+    trace: &mut Trace<<TLSProtocolBehavior as ProtocolBehavior>::ProtocolTypes>,
     ctx: &TraceContext<TLSProtocolBehavior>,
     step_nb: usize,
     path: Vec<usize>,
@@ -59,10 +57,10 @@ fn test_one_replace(
 #[test_log::test]
 #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))] // only for boring as we hard-coded payloads for this PUT in the test
 fn test_replace_bitstring_multiple() {
-    let spawner = Spawner::new(tls_registry());
-    let mut ctx = TraceContext::new(spawner);
+    let runner = default_runner_for(tls_registry().default().name());
     let mut trace = seed_client_attacker_full.build_trace();
-    trace.execute(&mut ctx);
+    let ctx = runner.execute(&trace).unwrap();
+
     let step0_before = vec![
         22, 3, 3, // path=0: fn_protocol_version12 -> ProtocolVersion,
         0, 211, 1, 0, 0, 207, 3, 3, // Client Hello structure
@@ -218,6 +216,8 @@ fn test_replace_bitstring_multiple() {
 #[ignore] // OLD STUFF! SHOULD BE REMOVED!?
 fn test_evaluate_recipe_input_compare_new() {
     use puffin::stream::Stream;
+    use puffin::trace::Spawner;
+    use tlspuffin::protocol::TLSProtocolTypes;
 
     let spawner = Spawner::new(tls_registry());
 
@@ -274,7 +274,7 @@ fn test_evaluate_recipe_input_compare_new() {
                             ctx.find_agent_mut(step.agent).unwrap().progress()
                         }.expect("TODO: panic message");
 
-                    let output_step = &OutputAction::<TlsQueryMatcher>::new_step(step.agent);
+                    let output_step = &OutputAction::<TLSProtocolTypes>::new_step(step.agent);
                     output_step.execute(&mut ctx);
                 }
                 Action::Output(_) => {

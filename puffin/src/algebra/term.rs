@@ -13,10 +13,9 @@ use super::atoms::{Function, Variable};
 use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
-use crate::algebra::Matcher;
 use crate::error::Error;
 use crate::fuzzer::utils::TermPath;
-use crate::protocol::ProtocolBehavior;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
 const SIZE_LEAF: usize = 1;
@@ -26,26 +25,26 @@ pub type ConcreteMessage = Vec<u8>;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
-#[serde(bound = "M: Matcher")]
-pub enum DYTerm<M: Matcher> {
+#[serde(bound = "PT: ProtocolTypes")]
+pub enum DYTerm<PT: ProtocolTypes> {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
-    Variable(Variable<M>),
-    /// An [`Function`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`).
+    Variable(Variable<PT::Matcher>),
+    /// A [`Function`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`).
     ///
     /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be
     /// considered a constant.
-    Application(Function, Vec<Term<M>>),
+    Application(Function, Vec<Term<PT>>),
 }
 
-impl<M: Matcher> fmt::Display for DYTerm<M> {
+impl<PT: ProtocolTypes> fmt::Display for DYTerm<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", display_term_at_depth(self, 0, false))
     }
 }
 
 /// Trait for data we can treat as terms (either DYTerm or Term)
-pub trait TermType<M>: fmt::Display + fmt::Debug + Clone {
+pub trait TermType<PT>: fmt::Display + fmt::Debug + Clone {
     fn resistant_id(&self) -> u32;
     fn size(&self) -> usize;
     fn is_leaf(&self) -> bool;
@@ -63,7 +62,7 @@ pub trait TermType<M>: fmt::Display + fmt::Debug + Clone {
         with_payloads: bool,
     ) -> Result<ConcreteMessage, Error>
     where
-        PB: ProtocolBehavior<Matcher = M>;
+        PB: ProtocolBehavior<ProtocolTypes = PT>;
 
     /// Evaluate terms into bitstrings (considering Payloads)
     fn evaluate<PB: ProtocolBehavior>(
@@ -71,7 +70,7 @@ pub trait TermType<M>: fmt::Display + fmt::Debug + Clone {
         context: &TraceContext<PB>,
     ) -> Result<ConcreteMessage, Error>
     where
-        PB: ProtocolBehavior<Matcher = M>,
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         self.evaluate_config(context, true)
     }
@@ -83,13 +82,13 @@ pub trait TermType<M>: fmt::Display + fmt::Debug + Clone {
         ctx: &TraceContext<PB>,
     ) -> Result<ConcreteMessage, Error>
     where
-        PB: ProtocolBehavior<Matcher = M>,
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         self.evaluate_config(ctx, false)
     }
 }
 
-fn append<'a, M: Matcher>(term: &'a DYTerm<M>, v: &mut Vec<&'a DYTerm<M>>) {
+fn append<'a, PT: ProtocolTypes>(term: &'a DYTerm<PT>, v: &mut Vec<&'a DYTerm<PT>>) {
     match *term {
         DYTerm::Variable(_) => {}
         DYTerm::Application(_, ref subterms) => {
@@ -102,23 +101,23 @@ fn append<'a, M: Matcher>(term: &'a DYTerm<M>, v: &mut Vec<&'a DYTerm<M>>) {
     v.push(term);
 }
 
-/// Having the same mutator for &'a mut DYTerm is not possible in Rust:
-/// * https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node
-/// * https://sachanganesh.com/programming/graph-tree-traversals-in-rust/
-impl<'a, M: Matcher> IntoIterator for &'a DYTerm<M> {
-    type IntoIter = std::vec::IntoIter<&'a DYTerm<M>>;
-    type Item = &'a DYTerm<M>;
+/// Having the same mutator for &'a mut Term is not possible in Rust:
+/// * <https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node>
+/// * <https://sachanganesh.com/programming/graph-tree-traversals-in-rust/>
+impl<'a, PT: ProtocolTypes> IntoIterator for &'a DYTerm<PT> {
+    type IntoIter = std::vec::IntoIter<&'a DYTerm<PT>>;
+    type Item = &'a DYTerm<PT>;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut result = vec![];
-        append::<M>(self, &mut result);
+        append::<PT>(self, &mut result);
         result.into_iter()
     }
 }
 
-pub trait Subterms<M: Matcher, T>
+pub trait Subterms<PT: ProtocolTypes, T>
 where
-    T: TermType<M>,
+    T: TermType<PT>,
 {
     fn find_subterm_same_shape(&self, term: &T) -> Option<&T>;
 
@@ -158,14 +157,14 @@ pub(crate) fn remove_fn_prefix(str: &str) -> String {
 /// `Term`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
 /// symbolic terms.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
-#[serde(bound = "M: Matcher")]
-pub struct Term<M: Matcher> {
-    pub term: DYTerm<M>, // initial DY term
+#[serde(bound = "PT: ProtocolTypes")]
+pub struct Term<PT: ProtocolTypes> {
+    pub term: DYTerm<PT>, // initial DY term
     pub payloads: Option<Payloads>, /* None until make_message mutation is used and fill this
-                          * with term.evaluate() */
+                           * with term.evaluate() */
 }
 
-impl<M: Matcher> Term<M> {
+impl<PT: ProtocolTypes> Term<PT> {
     /// Height of term, considering non-symbolic terms as atoms
     pub fn height(&self) -> usize {
         match &self.term {
@@ -227,7 +226,7 @@ impl<M: Matcher> Term<M> {
     /// opaque
     pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) -> Result<(), Error>
     where
-        PB: ProtocolBehavior<Matcher = M>,
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         let eval = self.evaluate_symbolic(ctx)?;
         self.add_payload(eval);
@@ -249,7 +248,7 @@ impl<M: Matcher> Term<M> {
     pub fn all_payloads_mut(&mut self) -> Vec<&mut Payloads> {
         // unable to implement as_iter_map for Term due to its tree structure so:
         // do it manually instead!
-        fn rec<'a, M: Matcher>(term: &'a mut Term<M>, acc: &mut Vec<&'a mut Payloads>) {
+        fn rec<'a, PT: ProtocolTypes>(term: &'a mut Term<PT>, acc: &mut Vec<&'a mut Payloads>) {
             if let Some(p) = &mut term.payloads {
                 acc.push(p);
             }
@@ -270,7 +269,7 @@ impl<M: Matcher> Term<M> {
     /// Return all payloads contained in a term, except those under opaque terms.
     /// The deeper the first in the returned vector.
     pub fn payloads_to_replace(&self) -> Vec<&Payloads> {
-        pub fn rec<'a, M: Matcher>(term: &'a Term<M>, acc: &mut Vec<&'a Payloads>) {
+        pub fn rec<'a, PT: ProtocolTypes>(term: &'a Term<PT>, acc: &mut Vec<&'a Payloads>) {
             match &term.term {
                 DYTerm::Variable(_) => {}
                 DYTerm::Application(_, args) => {
@@ -302,7 +301,7 @@ impl<M: Matcher> Term<M> {
     }
 }
 
-pub fn has_payload_to_replace_rec<M: Matcher>(term: &Term<M>, include_root: bool) -> bool {
+pub fn has_payload_to_replace_rec<PT: ProtocolTypes>(term: &Term<PT>, include_root: bool) -> bool {
     if let (Some(_), true) = (&term.payloads, include_root) {
         return true;
     } else {
@@ -322,13 +321,13 @@ pub fn has_payload_to_replace_rec<M: Matcher>(term: &Term<M>, include_root: bool
     false
 }
 
-impl<M: Matcher> fmt::Display for Term<M> {
+impl<PT: ProtocolTypes> fmt::Display for Term<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.display_at_depth(0))
     }
 }
-impl<M: Matcher> From<DYTerm<M>> for Term<M> {
-    fn from(term: DYTerm<M>) -> Self {
+impl<PT: ProtocolTypes> From<DYTerm<PT>> for Term<PT> {
+    fn from(term: DYTerm<PT>) -> Self {
         Term {
             term,
             payloads: None,
@@ -336,13 +335,17 @@ impl<M: Matcher> From<DYTerm<M>> for Term<M> {
     }
 }
 
-impl<M: Matcher> From<Term<M>> for DYTerm<M> {
-    fn from(term: Term<M>) -> Self {
+impl<PT: ProtocolTypes> From<Term<PT>> for DYTerm<PT> {
+    fn from(term: Term<PT>) -> Self {
         term.term
     }
 }
 
-fn display_term_at_depth<M: Matcher>(term: &DYTerm<M>, depth: usize, is_bitstring: bool) -> String {
+fn display_term_at_depth<PT: ProtocolTypes>(
+    term: &DYTerm<PT>,
+    depth: usize,
+    is_bitstring: bool,
+) -> String {
     let tabs = "\t".repeat(depth);
     match term {
         DYTerm::Variable(ref v) => {
@@ -369,7 +372,7 @@ fn display_term_at_depth<M: Matcher>(term: &DYTerm<M>, depth: usize, is_bitstrin
     }
 }
 
-fn append_eval<'a, M: Matcher>(term_eval: &'a Term<M>, v: &mut Vec<&'a Term<M>>) {
+fn append_eval<'a, PT: ProtocolTypes>(term_eval: &'a Term<PT>, v: &mut Vec<&'a Term<PT>>) {
     match term_eval.term {
         DYTerm::Variable(_) => {}
         DYTerm::Application(_, ref subterms) => {
@@ -382,7 +385,7 @@ fn append_eval<'a, M: Matcher>(term_eval: &'a Term<M>, v: &mut Vec<&'a Term<M>>)
     v.push(term_eval);
 }
 
-impl<M: Matcher> TermType<M> for Term<M> {
+impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
     /// Evaluate terms into bitstrings (considering Payloads)
     fn evaluate_config<PB: ProtocolBehavior>(
         &self,
@@ -390,7 +393,7 @@ impl<M: Matcher> TermType<M> for Term<M> {
         with_payloads: bool,
     ) -> Result<ConcreteMessage, Error>
     where
-        PB: ProtocolBehavior<Matcher = M>,
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         debug!("[evaluate_config] About to evaluate {}\n===================================================================", &self);
         let mut eval_tree = EvalTree::init();
@@ -490,7 +493,7 @@ impl<M: Matcher> TermType<M> for Term<M> {
         }
     }
 
-    fn mutate(&mut self, other: Term<M>) {
+    fn mutate(&mut self, other: Term<PT>) {
         *self = other;
     }
 
@@ -510,25 +513,25 @@ impl<M: Matcher> TermType<M> for Term<M> {
 /// Having the same mutator for &'a mut DYTerm is not possible in Rust:
 /// * <https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node>
 /// * <https://sachanganesh.com/programming/graph-tree-traversals-in-rust/>
-impl<'a, M: Matcher> IntoIterator for &'a Term<M> {
-    type IntoIter = std::vec::IntoIter<&'a Term<M>>;
-    type Item = &'a Term<M>;
+impl<'a, PT: ProtocolTypes> IntoIterator for &'a Term<PT> {
+    type IntoIter = std::vec::IntoIter<&'a Term<PT>>;
+    type Item = &'a Term<PT>;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut result = vec![];
-        append_eval::<M>(self, &mut result);
+        append_eval::<PT>(self, &mut result);
         result.into_iter()
     }
 }
 
-impl<M: Matcher> Subterms<M, Term<M>> for Vec<Term<M>> {
+impl<PT: ProtocolTypes> Subterms<PT, Term<PT>> for Vec<Term<PT>> {
     /// Finds a subterm with the same type as `term`
-    fn find_subterm_same_shape(&self, term: &Term<M>) -> Option<&Term<M>> {
+    fn find_subterm_same_shape(&self, term: &Term<PT>) -> Option<&Term<PT>> {
         self.find_subterm(|subterm| term.get_type_shape() == subterm.get_type_shape())
     }
 
     /// Finds a subterm in this vector
-    fn find_subterm<P: Fn(&&Term<M>) -> bool + Copy>(&self, predicate: P) -> Option<&Term<M>> {
+    fn find_subterm<P: Fn(&&Term<PT>) -> bool + Copy>(&self, predicate: P) -> Option<&Term<PT>> {
         self.iter().find(predicate)
     }
 
@@ -538,10 +541,10 @@ impl<M: Matcher> Subterms<M, Term<M>> for Vec<Term<M>> {
     ///
     /// Each grand subterm is returned together with its parent and the index of the parent in
     /// `self`.
-    fn filter_grand_subterms<P: Fn(&Term<M>, &Term<M>) -> bool + Copy>(
+    fn filter_grand_subterms<P: Fn(&Term<PT>, &Term<PT>) -> bool + Copy>(
         &self,
         predicate: P,
-    ) -> Vec<((usize, &Term<M>), &Term<M>)> {
+    ) -> Vec<((usize, &Term<PT>), &Term<PT>)> {
         let mut found_grand_subterms = vec![];
 
         for (i, subterm) in self.iter().enumerate() {
@@ -565,13 +568,13 @@ impl<M: Matcher> Subterms<M, Term<M>> for Vec<Term<M>> {
 }
 
 // FOR TESTING ONLY
-pub fn evaluate_lazy_test<PB, M>(
-    term: &Term<M>,
+pub fn evaluate_lazy_test<PB, PT>(
+    term: &Term<PT>,
     context: &TraceContext<PB>,
 ) -> Result<Box<dyn Any>, Error>
 where
-    M: Matcher,
-    PB: ProtocolBehavior<Matcher = M>,
+    PT: ProtocolTypes,
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
     match &term.term {
         DYTerm::Variable(variable) => context

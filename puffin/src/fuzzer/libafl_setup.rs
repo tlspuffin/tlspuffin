@@ -11,7 +11,7 @@ use super::harness;
 use crate::fuzzer::mutations::{trace_mutations, MutationConfig};
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::log::{config_fuzzing, config_fuzzing_client};
-use crate::protocol::ProtocolBehavior;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
 use crate::trace::Trace;
 
@@ -420,7 +420,7 @@ where
     log::info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
     log_handle.set_config(config_fuzzing(log_file));
 
-    let mut run_client = |state: Option<StdState<Trace<PB::Matcher>, _, _, _>>,
+    let mut run_client = |state: Option<StdState<Trace<PB::ProtocolTypes>, _, _, _>>,
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
                           _core_id: CoreId|
      -> Result<(), Error> {
@@ -439,7 +439,7 @@ where
                 *fresh_zoo_after,
                 *with_bit_level,
                 *with_dy,
-                PB::signature(),
+                <PB::ProtocolTypes as ProtocolTypes>::signature(),
                 put_registry,
             ))
             .with_initial_inputs(PB::create_corpus())

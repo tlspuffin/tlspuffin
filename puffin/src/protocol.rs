@@ -1,5 +1,6 @@
 use core::any::{Any, TypeId};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
+use std::hash::Hash;
 
 use crate::algebra::signature::Signature;
 use crate::algebra::{ConcreteMessage, Matcher};
@@ -7,29 +8,28 @@ use crate::claims::{Claim, SecurityViolationPolicy};
 use crate::codec::Codec;
 use crate::error::Error;
 use crate::trace::{Knowledge, Source, Trace};
-
 /// Provide a way to extract knowledge out of a Message/OpaqueMessage or any type that
 /// might be used in a precomputation
-pub trait ExtractKnowledge<M: Matcher>: std::fmt::Debug {
+pub trait ExtractKnowledge<PT: ProtocolTypes>: std::fmt::Debug {
     /// Fill `knowledge` with new knowledge gathered form the type implementing ExtractKnowledge
     /// by recursively calling extract_knowledge on all contained element
     /// This will put source as the source of all the produced knowledge, matcher is also passed
     /// recursively but might be overwritten by a type with a more specific matcher
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, M>>,
-        matcher: Option<M>,
+        knowledges: &mut Vec<Knowledge<'a, PT>>,
+        matcher: Option<PT::Matcher>,
         source: &'a Source,
     ) -> Result<(), Error>;
 }
 
 /// Store a message flight, a vec of all the messages sent by the PUT between two steps
 pub trait ProtocolMessageFlight<
-    Mt: Matcher,
-    M: ProtocolMessage<Mt, O>,
-    O: OpaqueProtocolMessage<Mt>,
-    OF: OpaqueProtocolMessageFlight<Mt, O>,
->: Clone + Debug + From<M> + TryFrom<OF> + Into<OF> + ExtractKnowledge<Mt>
+    PT: ProtocolTypes,
+    M: ProtocolMessage<PT, O>,
+    O: OpaqueProtocolMessage<PT>,
+    OF: OpaqueProtocolMessageFlight<PT, O>,
+>: Clone + Debug + From<M> + TryFrom<OF> + Into<OF> + ExtractKnowledge<PT>
 {
     fn new() -> Self;
     fn push(&mut self, msg: M);
@@ -37,8 +37,8 @@ pub trait ProtocolMessageFlight<
 }
 
 /// Store a flight of opaque messages, a vec of all the messages sent by the PUT between two steps
-pub trait OpaqueProtocolMessageFlight<Mt: Matcher, O: OpaqueProtocolMessage<Mt>>:
-    Clone + Debug + Codec + From<O> + ExtractKnowledge<Mt>
+pub trait OpaqueProtocolMessageFlight<PT: ProtocolTypes, O: OpaqueProtocolMessage<PT>>:
+    Clone + Debug + Codec + From<O> + ExtractKnowledge<PT>
 {
     fn new() -> Self;
     fn debug(&self, info: &str);
@@ -47,8 +47,8 @@ pub trait OpaqueProtocolMessageFlight<Mt: Matcher, O: OpaqueProtocolMessage<Mt>>
 
 /// A structured message. This type defines how all possible messages of a protocol.
 /// Usually this is implemented using an `enum`.
-pub trait ProtocolMessage<Mt: Matcher, O: OpaqueProtocolMessage<Mt>>:
-    Clone + Debug + ExtractKnowledge<Mt>
+pub trait ProtocolMessage<PT: ProtocolTypes, O: OpaqueProtocolMessage<PT>>:
+    Clone + Debug + ExtractKnowledge<PT>
 {
     fn create_opaque(&self) -> O;
     fn debug(&self, info: &str);
@@ -56,18 +56,28 @@ pub trait ProtocolMessage<Mt: Matcher, O: OpaqueProtocolMessage<Mt>>:
 
 /// A non-structured version of [`ProtocolMessage`]. This can be used for example for encrypted
 /// messages which do not have a structure.
-pub trait OpaqueProtocolMessage<Mt: Matcher>: Clone + Debug + Codec + ExtractKnowledge<Mt> {
+pub trait OpaqueProtocolMessage<PT: ProtocolTypes>:
+    Clone + Debug + Codec + ExtractKnowledge<PT>
+{
     fn debug(&self, info: &str);
 }
 
 /// Deframes a stream of bytes into distinct [OpaqueProtocolMessages](OpaqueProtocolMessage).
 /// A deframer is usually state-ful. This means it produces as many messages from the input bytes
 /// and stores them.
-pub trait ProtocolMessageDeframer<Mt: Matcher> {
-    type OpaqueProtocolMessage: OpaqueProtocolMessage<Mt>;
+pub trait ProtocolMessageDeframer<PT: ProtocolTypes> {
+    type OpaqueProtocolMessage: OpaqueProtocolMessage<PT>;
 
     fn pop_frame(&mut self) -> Option<Self::OpaqueProtocolMessage>;
     fn read(&mut self, rd: &mut dyn std::io::Read) -> std::io::Result<usize>;
+}
+
+/// Defines the types used to manipulate and concretize Terms
+pub trait ProtocolTypes: 'static + Clone + Hash + Display + Debug {
+    type Matcher: Matcher;
+
+    /// Get the signature that is used in the protocol
+    fn signature() -> &'static Signature;
 }
 
 /// Defines the protocol which is being tested.
@@ -82,27 +92,23 @@ pub trait ProtocolMessageDeframer<Mt: Matcher> {
 /// sequences of them. Finally, there is a [matcher](Matcher) which allows traces to include
 /// queries for [knowledge](crate::trace::Knowledge).
 pub trait ProtocolBehavior: 'static {
-    type Matcher: Matcher;
+    type ProtocolTypes: ProtocolTypes;
     type Claim: Claim;
     type SecurityViolationPolicy: SecurityViolationPolicy<Self::Claim>;
 
-    type ProtocolMessage: ProtocolMessage<Self::Matcher, Self::OpaqueProtocolMessage>;
-    type OpaqueProtocolMessage: OpaqueProtocolMessage<Self::Matcher> + Codec;
+    type ProtocolMessage: ProtocolMessage<Self::ProtocolTypes, Self::OpaqueProtocolMessage>;
+    type OpaqueProtocolMessage: OpaqueProtocolMessage<Self::ProtocolTypes>;
     type ProtocolMessageFlight: ProtocolMessageFlight<
-        Self::Matcher,
+        Self::ProtocolTypes,
         Self::ProtocolMessage,
         Self::OpaqueProtocolMessage,
         Self::OpaqueProtocolMessageFlight,
     >;
-    type OpaqueProtocolMessageFlight: OpaqueProtocolMessageFlight<Self::Matcher, Self::OpaqueProtocolMessage>
-        + From<Self::ProtocolMessageFlight>
-        + Codec;
-
-    /// Get the signature that is used in the protocol
-    fn signature() -> &'static Signature;
+    type OpaqueProtocolMessageFlight: OpaqueProtocolMessageFlight<Self::ProtocolTypes, Self::OpaqueProtocolMessage>
+        + From<Self::ProtocolMessageFlight>;
 
     /// Creates a sane initial seed corpus.
-    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)>;
+    fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)>;
 
     /// Downcast from Box<dyn Any> and encode as bitstring any message as per the PB's internal
     /// structure

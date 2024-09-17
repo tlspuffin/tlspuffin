@@ -28,8 +28,8 @@ use crate::libssh::ssh::{
     SessionOption, SessionState, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest,
     SshResult, SshSession,
 };
-use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior};
-use crate::put_registry::LIBSSH_RUST_PUT;
+use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior, SshProtocolBehavior};
+use crate::put_registry::{LIBSSH_PUT, LIBSSH_RUST_PUT};
 use crate::query::SshQueryMatcher;
 use crate::ssh::message::{RawSshMessage, SshMessage};
 
@@ -190,7 +190,7 @@ pub struct LibSSL {
 
 impl LibSSL {}
 
-impl Stream<SshQueryMatcher, SshMessage, RawSshMessage, RawSshMessageFlight> for LibSSL {
+impl Stream<SshProtocolBehavior> for LibSSL {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         self.fuzz_stream.write_all(message).unwrap();
     }

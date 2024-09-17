@@ -20,8 +20,6 @@ use puffin::stream::Stream;
 use puffin::VERSION_STR;
 
 use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
-use crate::query::TlsQueryMatcher;
-use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
 pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct TCPFactory;
@@ -240,7 +238,7 @@ impl TcpPut for TcpServerPut {
     }
 }
 
-impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for TcpServerPut {
+impl Stream<TLSProtocolBehavior> for TcpServerPut {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         self.write_to_stream(message).unwrap();
     }
@@ -250,7 +248,7 @@ impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for Tc
     }
 }
 
-impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for TcpClientPut {
+impl Stream<TLSProtocolBehavior> for TcpClientPut {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         self.write_to_stream(message).unwrap();
     }

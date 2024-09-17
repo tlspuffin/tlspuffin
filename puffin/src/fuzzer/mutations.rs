@@ -6,10 +6,10 @@ use log::{debug, trace};
 use super::utils::{Choosable, *};
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::Signature;
-use crate::algebra::{DYTerm, Matcher, Subterms, Term, TermType};
+use crate::algebra::{DYTerm, Subterms, Term, TermType};
 use crate::fuzzer::bit_mutations::*;
 use crate::fuzzer::term_zoo::TermZoo;
-use crate::protocol::ProtocolBehavior;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
 use crate::trace::{Spawner, Trace, TraceContext};
 
@@ -40,13 +40,13 @@ impl Default for MutationConfig {
     }
 }
 
-pub type DyMutations<'harness, M, PB, S> = tuple_list_type!(
+pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
 RepeatMutator<S>,
 SkipMutator<S>,
 ReplaceReuseMutator<S>,
 ReplaceMatchMutator<S>,
 RemoveAndLiftMutator<S>,
-GenerateMutator<S, M>,
+GenerateMutator<S, PT>,
 SwapMutator<S>,
 MakeMessage<'harness, S,PB>,
 // Type of the mutations that compose the Havoc mutator (copied and pasted from above)
@@ -80,7 +80,7 @@ CrossoverReplaceMutatorDY<S>,
 SpliceMutatorDY<S>,
 );
 
-pub fn trace_mutations<'harness, S, M: Matcher, PB>(
+pub fn trace_mutations<'harness, S, PT: ProtocolTypes, PB>(
     min_trace_length: usize,
     max_trace_length: usize,
     constraints: TermConstraints,
@@ -89,7 +89,7 @@ pub fn trace_mutations<'harness, S, M: Matcher, PB>(
     with_dy: bool,
     signature: &'static Signature,
     put_registry: &'harness PutRegistry<PB>,
-) -> DyMutations<'harness, M, PB, S>
+) -> DyMutations<'harness, PT, PB, S>
 where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
     PB: ProtocolBehavior,
@@ -133,14 +133,14 @@ where
     }
 }
 
-impl<S, M: Matcher> Mutator<Trace<M>, S> for SwapMutator<S>
+impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for SwapMutator<S>
 where
     S: HasRand,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         if !self.with_dy {
@@ -151,7 +151,7 @@ where
         if let Some((term_a, trace_path_a)) = choose(trace, self.constraints, rand) {
             if let Some(trace_path_b) = choose_term_path_filtered(
                 trace,
-                |term: &Term<M>| term.get_type_shape() == term_a.get_type_shape(),
+                |term: &Term<PT>| term.get_type_shape() == term_a.get_type_shape(),
                 // TODO-bitlevel: maybe also check that both terms are .is_symbolic()
                 self.constraints,
                 rand,
@@ -209,21 +209,21 @@ where
     }
 }
 
-impl<S, M: Matcher> Mutator<Trace<M>, S> for RemoveAndLiftMutator<S>
+impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for RemoveAndLiftMutator<S>
 where
     S: HasRand,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        let filter = |term: &Term<M>| match &term.term {
+        let filter = |term: &Term<PT>| match &term.term {
             DYTerm::Variable(_) => false,
             DYTerm::Application(_, subterms) =>
             // TODO-bitlevel: maybe add: term.is_symbolic() &&
@@ -305,14 +305,14 @@ where
     }
 }
 
-impl<S, M: Matcher> Mutator<Trace<M>, S> for ReplaceMatchMutator<S>
+impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for ReplaceMatchMutator<S>
 where
     S: HasRand,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         if !self.with_dy {
@@ -395,14 +395,14 @@ where
     }
 }
 
-impl<S, M: Matcher> Mutator<Trace<M>, S> for ReplaceReuseMutator<S>
+impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for ReplaceReuseMutator<S>
 where
     S: HasRand,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         if !self.with_dy {
@@ -412,7 +412,7 @@ where
         if let Some(replacement) = choose_term(trace, self.constraints, rand).cloned() {
             if let Some(to_replace) = choose_term_filtered_mut(
                 trace,
-                |term: &Term<M>| term.get_type_shape() == replacement.get_type_shape(),
+                |term: &Term<PT>| term.get_type_shape() == replacement.get_type_shape(),
                 // TODO-bitlevel: maybe also check that both are .is_symbolic()
                 self.constraints,
                 rand,
@@ -461,14 +461,14 @@ where
         }
     }
 }
-impl<S, M: Matcher> Mutator<Trace<M>, S> for SkipMutator<S>
+impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for SkipMutator<S>
 where
     S: HasRand,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         if !self.with_dy {
@@ -520,14 +520,14 @@ where
         }
     }
 }
-impl<S, M: Matcher> Mutator<Trace<M>, S> for RepeatMutator<S>
+impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for RepeatMutator<S>
 where
     S: HasRand,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         if !self.with_dy {
@@ -558,19 +558,19 @@ where
 }
 
 /// GENERATE: Generates a previously-unseen term using a term zoo
-pub struct GenerateMutator<S, M: Matcher>
+pub struct GenerateMutator<S, PT: ProtocolTypes>
 where
     S: HasRand,
 {
     mutation_counter: u64,
     refresh_zoo_after: u64,
     constraints: TermConstraints,
-    zoo: Option<TermZoo<M>>,
+    zoo: Option<TermZoo<PT>>,
     signature: &'static Signature,
     phantom_s: std::marker::PhantomData<S>,
     with_dy: bool,
 }
-impl<S, M: Matcher> GenerateMutator<S, M>
+impl<S, PT: ProtocolTypes> GenerateMutator<S, PT>
 where
     S: HasRand,
 {
@@ -579,7 +579,7 @@ where
         mutation_counter: u64,
         refresh_zoo_after: u64,
         constraints: TermConstraints,
-        zoo: Option<TermZoo<M>>,
+        zoo: Option<TermZoo<PT>>,
         signature: &'static Signature,
         with_dy: bool,
     ) -> Self {
@@ -594,14 +594,14 @@ where
         }
     }
 }
-impl<S, M: Matcher> Mutator<Trace<M>, S> for GenerateMutator<S, M>
+impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for GenerateMutator<S, PT>
 where
     S: HasRand,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         if !self.with_dy {
@@ -631,12 +631,13 @@ where
         }
     }
 }
-impl<S, M: Matcher> Named for GenerateMutator<S, M>
+
+impl<S, PT: ProtocolTypes> Named for GenerateMutator<S, PT>
 where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<GenerateMutator<S, M>>()
+        std::any::type_name::<GenerateMutator<S, PT>>()
     }
 }
 
@@ -677,13 +678,13 @@ where
 }
 
 /// MakeMessage on the term at path `path` in `tr`.
-fn make_message_term<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
-    tr: &mut Trace<M>,
+fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
+    tr: &mut Trace<PT>,
     path: &TracePath,
     ctx: &mut TraceContext<PB>,
 ) -> Result<(), anyhow::Error>
 where
-    PB: ProtocolBehavior<Matcher = M>,
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
     // Only execute shorter trace: trace[0..step_index])
     // execute the PUT on the first step_index steps and store the resulting trace context
@@ -706,16 +707,16 @@ where
     Ok(())
 }
 
-impl<'a, S, M: Matcher, PB: ProtocolBehavior<Matcher = M>> Mutator<Trace<M>, S>
+impl<'a, S, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>> Mutator<Trace<PT>, S>
     for MakeMessage<'a, S, PB>
 where
     S: HasRand,
-    PB: ProtocolBehavior<Matcher = M>,
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<M>,
+        trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         if !self.with_bit_level {

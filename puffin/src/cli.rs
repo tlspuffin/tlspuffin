@@ -10,7 +10,7 @@ use libafl::inputs::Input;
 use libafl_bolts::prelude::Cores;
 
 use crate::agent::AgentName;
-use crate::algebra::{set_deserialize_signature, TermType};
+use crate::algebra::TermType;
 use crate::execution::{ForkedRunner, Runner, TraceRunner};
 use crate::experiment::*;
 use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
@@ -127,10 +127,6 @@ where
     setup_asan_env();
 
     // Initialize global state
-
-    if set_deserialize_signature(PB::signature()).is_err() {
-        log::error!("Failed to initialize deserialization");
-    }
 
     let mut options: Vec<(String, String)> = Vec::new();
     if put_use_clear {
@@ -301,7 +297,7 @@ where
             .unwrap_or(&44338u16)
             .to_string();
 
-        let trace = Trace::<PB::Matcher>::from_file(input).unwrap();
+        let trace = Trace::<PB::ProtocolTypes>::from_file(input).unwrap();
 
         let mut options = vec![("port", port.as_str()), ("host", host)];
 
@@ -470,7 +466,7 @@ fn plot<PB: ProtocolBehavior>(
     // Read trace file
     let mut buffer = Vec::new();
     input_file.read_to_end(&mut buffer)?;
-    let trace = postcard::from_bytes::<Trace<PB::Matcher>>(&buffer)?;
+    let trace = postcard::from_bytes::<Trace<PB::ProtocolTypes>>(&buffer)?;
 
     // All-in-one tree
     write_graphviz(
@@ -509,7 +505,7 @@ fn seed<PB: ProtocolBehavior>(
 }
 
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) {
-    let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
+    let trace = match Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
         Ok(t) => t,
         Err(_) => {
             log::error!("Invalid trace file {}", input.as_ref().display());
@@ -538,7 +534,7 @@ fn binary_attack<PB: ProtocolBehavior>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let spawner = Spawner::new(put_registry.clone()).with_default(default_put);
     let ctx = TraceContext::new(spawner);
-    let trace = Trace::<PB::Matcher>::from_file(input)?;
+    let trace = Trace::<PB::ProtocolTypes>::from_file(input)?;
 
     log::info!("Agents: {:?}", &trace.descriptors);
 

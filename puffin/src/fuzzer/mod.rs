@@ -7,6 +7,7 @@ use chrono::Utc;
 use libafl::inputs::Input;
 use libafl_bolts::HasLen;
 
+use crate::protocol::ProtocolTypes;
 use crate::trace::Trace;
 
 pub mod harness;
@@ -23,10 +24,8 @@ pub mod utils;
 
 pub use libafl_setup::{start, FuzzerConfig};
 
-use crate::algebra::Matcher;
-
 // LibAFL support
-impl<M: Matcher> Input for Trace<M> {
+impl<PT: ProtocolTypes> Input for Trace<PT> {
     fn generate_name(&self, _idx: usize) -> String {
         let now = Utc::now();
         let mut hasher = ahash::RandomState::with_seeds(0, 0, 0, 0).build_hasher();
@@ -39,7 +38,7 @@ impl<M: Matcher> Input for Trace<M> {
     }
 }
 
-impl<M: Matcher> HasLen for Trace<M> {
+impl<PT: ProtocolTypes> HasLen for Trace<PT> {
     fn len(&self) -> usize {
         self.steps.len()
     }

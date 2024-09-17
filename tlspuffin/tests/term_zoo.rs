@@ -7,17 +7,16 @@ use log::{debug, error, warn};
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
 use puffin::algebra::error::FnError;
-use puffin::algebra::{evaluate_lazy_test, DYTerm, Matcher, Term, TermType};
+use puffin::algebra::{evaluate_lazy_test, DYTerm, Term, TermType};
 use puffin::error::Error;
 use puffin::fuzzer::term_zoo::TermZoo;
 use puffin::fuzzer::utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints};
 use puffin::libafl_bolts::rands::{Rand, StdRand};
-use puffin::protocol::ProtocolBehavior;
+use puffin::protocol::{ProtocolBehavior, ProtocolTypes};
 use puffin::trace::Action::Input;
 use puffin::trace::{InputAction, Spawner, Step, Trace, TraceContext};
-use tlspuffin::protocol::TLSProtocolBehavior;
+use tlspuffin::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use tlspuffin::put_registry::tls_registry;
-use tlspuffin::query::TlsQueryMatcher;
 use tlspuffin::tls::fn_impl::*;
 use tlspuffin::tls::TLS_SIGNATURE;
 
@@ -86,7 +85,7 @@ pub fn ignore_lazy_eval() -> HashSet<String> {
 /// Tests whether all function symbols can be used when generating random terms
 fn test_term_generation() {
     let mut rand = StdRand::with_seed(101);
-    let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 1, None);
+    let zoo = TermZoo::<TLSProtocolTypes>::generate_many(&TLS_SIGNATURE, &mut rand, 1, None);
     // debug!("zoo size: {}", zoo.terms().len());
     let subgraphs = zoo
         .terms()
@@ -140,7 +139,7 @@ fn test_term_lazy_eval() {
     let tls_registry = tls_registry();
     let spawner = Spawner::new(tls_registry.clone());
     let mut rand = StdRand::with_seed(101);
-    let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
+    let zoo = TermZoo::<TLSProtocolTypes>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
     // debug!("zoo size: {}", zoo.terms().len());
     let subgraphs = zoo
         .terms()
@@ -197,7 +196,7 @@ fn test_term_eval() {
     let tls_registry = tls_registry();
     let spawner = Spawner::new(tls_registry.clone());
     let mut rand = StdRand::with_seed(101);
-    let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
+    let zoo = TermZoo::<TLSProtocolTypes>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
     let terms = zoo.terms();
     let number_terms = terms.len();
     let ctx = TraceContext::new(spawner);
@@ -314,8 +313,12 @@ fn test_term_eval() {
     assert_eq!(count_any_encode_fail, 0);
 }
 
-fn add_one_payload_randomly<M: Matcher, R: Rand, PB: ProtocolBehavior<Matcher = M>>(
-    t: &mut Term<M>,
+fn add_one_payload_randomly<
+    PT: ProtocolTypes,
+    R: Rand,
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
+>(
+    t: &mut Term<PT>,
     rand: &mut R,
     ctx: &TraceContext<PB>,
 ) -> Result<(), Error> {
@@ -386,12 +389,12 @@ fn add_one_payload_randomly<M: Matcher, R: Rand, PB: ProtocolBehavior<Matcher = 
     }
 }
 
-fn add_payloads_randomly<M: Matcher, R: Rand, PB: ProtocolBehavior<Matcher = M>>(
-    t: &mut Term<M>,
+fn add_payloads_randomly<PT: ProtocolTypes, R: Rand, PB: ProtocolBehavior<ProtocolTypes = PT>>(
+    t: &mut Term<PT>,
     rand: &mut R,
     ctx: &TraceContext<PB>,
 ) {
-    let all_subterms: Vec<&Term<M>> = t.into_iter().collect_vec();
+    let all_subterms: Vec<&Term<PT>> = t.into_iter().collect_vec();
     let nb_subterms = all_subterms.len() as i32;
     let mut i = 0;
     let nb = (1..max(4, nb_subterms / 3))
@@ -418,9 +421,13 @@ fn add_payloads_randomly<M: Matcher, R: Rand, PB: ProtocolBehavior<Matcher = M>>
 }
 
 /// Sanity check for the next test
-pub fn test_pay<M: Matcher>(term: &Term<M>) {
+pub fn test_pay<PT: ProtocolTypes>(term: &Term<PT>) {
     rec_inside(term, false, term);
-    pub fn rec_inside<M: Matcher>(term: &Term<M>, already_found: bool, whole_term: &Term<M>) {
+    pub fn rec_inside<PT: ProtocolTypes>(
+        term: &Term<PT>,
+        already_found: bool,
+        whole_term: &Term<PT>,
+    ) {
         let already_found = already_found || !term.is_symbolic();
         match &term.term {
             DYTerm::Variable(_) => {}
@@ -458,7 +465,7 @@ fn test_term_payloads_eval() {
 
     for f in all_functions_shape {
         let zoo =
-            TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 2000, Some(&f));
+            TermZoo::<TLSProtocolTypes>::generate_many(&TLS_SIGNATURE, &mut rand, 2000, Some(&f));
         let terms = zoo.terms();
         number_terms = number_terms + terms.len();
 
@@ -643,6 +650,8 @@ number_terms: 37400, eval_count: 30258, count_lazy_fail: 7142, count_any_encode_
 /// Tests whether all function symbols can be used when generating random terms and then be
 /// correctly evaluated
 fn test_term_read_encode() {
+    use tlspuffin::protocol::TLSProtocolTypes;
+
     let tls_registry = tls_registry();
     let spawner = Spawner::new(tls_registry.clone());
     let mut rand = StdRand::with_seed(101);
@@ -661,7 +670,7 @@ fn test_term_read_encode() {
 
     for f in all_functions_shape {
         let zoo =
-            TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 1000, Some(&f));
+            TermZoo::<TLSProtocolTypes>::generate_many(&TLS_SIGNATURE, &mut rand, 1000, Some(&f));
         let terms = zoo.terms();
         number_terms = number_terms + terms.len();
 

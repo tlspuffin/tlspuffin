@@ -11,10 +11,10 @@ use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::algebra::dynamic_function::TypeShape;
-use crate::algebra::{ConcreteMessage, DYTerm, Matcher, Term, TermType};
+use crate::algebra::{ConcreteMessage, DYTerm, Term, TermType};
 use crate::error::Error;
 use crate::fuzzer::utils::{find_term_by_term_path, TermPath};
-use crate::protocol::ProtocolBehavior;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
 /// Constants governing heuritics for finding payloads in term evaluations
@@ -39,9 +39,9 @@ impl Payloads {
 
 /// Payload with the context related to the term it originates from
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
-pub struct PayloadContext<'a, M: Matcher> {
+pub struct PayloadContext<'a, PT: ProtocolTypes> {
     // not used if no payload to replace
-    of_term: &'a Term<M>,   // point to the corresponding term
+    of_term: &'a Term<PT>,  // point to the corresponding term
     payloads: &'a Payloads, // point to the corresponding term.payload
     path: TermPath,         // path of the sub-term from which this payload originates
 }
@@ -109,7 +109,7 @@ impl EvalTree {
 /// Useful struct to store local state when searching for a payload (to_search) in a window
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
-pub struct StatusSearch<'a, M: Matcher> {
+pub struct StatusSearch<'a, PT: ProtocolTypes> {
     total_attempts: usize, // total attempts so far
     path_to_search: &'a [usize], /* path of the sub-term corresponding to `to_search` in
                             * `whole_term` */
@@ -127,17 +127,17 @@ pub struct StatusSearch<'a, M: Matcher> {
     #[derivative(Debug = "ignore")]
     eval_tree: &'a EvalTree,
     #[derivative(Debug = "ignore")]
-    whole_term: &'a Term<M>,
+    whole_term: &'a Term<PT>,
 }
 
-impl<'a, M: Matcher> StatusSearch<'a, M> {
+impl<'a, PT: ProtocolTypes> StatusSearch<'a, PT> {
     fn new(
         to_search: &'a [u8],
         path_to_search: &'a [usize],
         window: &'a [u8],
         path_window: &'a [usize],
         eval_tree: &'a EvalTree,
-        whole_term: &'a Term<M>,
+        whole_term: &'a Term<PT>,
     ) -> Self {
         let mut tried_depth_path = Vec::new();
         tried_depth_path.resize(path_to_search.len(), false);
@@ -162,10 +162,10 @@ impl<'a, M: Matcher> StatusSearch<'a, M> {
 
 /// Try to recover the evaluation from @eval_tree and, if this fails because we have not computed it
 /// in the past, then we evaluate the corresponding sub-term.
-pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
+pub fn eval_or_compute<'a, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
     path_to_eval: &[usize],
     eval_tree: &'a EvalTree,
-    whole_term: &Term<M>,
+    whole_term: &Term<PT>,
     ctx: &TraceContext<PB>,
 ) -> Result<Cow<'a, ConcreteMessage>, Error> {
     match eval_tree.get(path_to_eval)?.encode.as_ref() {
@@ -202,11 +202,11 @@ pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
 // thus storing in Term the pos in bytes of each sub-term --> could be more costly in terms of eval,
 // but then much less search_sub and much less try and fail below, plus those pos could be
 // serialized and stored as part of the test-case
-pub fn find_unique_match<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
+pub fn find_unique_match<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
     to_search: &[u8],
     path_to_search: &[usize],
     eval_tree: &mut EvalTree,
-    whole_term: &Term<M>,
+    whole_term: &Term<PT>,
     ctx: &TraceContext<PB>,
 ) -> Result<usize, Error> {
     let root_eval = &eval_tree.encode.as_ref().unwrap()[..];
@@ -265,13 +265,13 @@ pub fn find_unique_match<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
 /// length   of all its sibling on the right.
 /// Heuristic 3: we find a sibling whose evaluation is contiguous to `to_search` at `path_to_search`
 ///   we locate the sibling and then locate `to_search` relatively to this sibling.
-pub fn find_unique_match_rec<'a, M, PB>(
-    mut st: StatusSearch<M>,
+pub fn find_unique_match_rec<'a, PT, PB>(
+    mut st: StatusSearch<PT>,
     ctx: &TraceContext<PB>,
 ) -> Result<usize, Error>
 where
-    M: Matcher,
-    PB: ProtocolBehavior<Matcher = M>,
+    PT: ProtocolTypes,
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
     debug!("[find_unique_match_rec] START ========\n {st:?}");
     trace!(" - whole_term: {}", st.whole_term);
@@ -558,12 +558,12 @@ where
 /// ancestor. This can happen for example for append(f, fn_support_group_extension(to_search)) when
 /// relative node is f and fn_support_group_extension add some headers in front of to_search.
 /// shift_ancestor_to_search will be the length of this header.
-pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
+pub fn find_relative_node<'a, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
     to_search: &[u8],
     path_to_search: &[usize],
     shift_ancestor_to_search: usize, // initially called with 0 here
     eval_tree: &'a EvalTree,
-    whole_term: &Term<M>,
+    whole_term: &Term<PT>,
     ctx: &TraceContext<PB>,
 ) -> Result<(TermPath, Cow<'a, ConcreteMessage>, bool, usize), Error> {
     if path_to_search.is_empty() {
@@ -651,7 +651,7 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
 
 /// Return the depth of the path we should look for the next window, given the current StatusSearch
 /// and notably the current window path depth. This is following best efforts heuristics.
-pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
+pub fn refine_window_heuristic<PT: ProtocolTypes>(st: &StatusSearch<PT>) -> usize {
     let window_len = st.window.len();
     let current_depth = st.path_window.len();
     if st.path_to_search.is_empty() {
@@ -736,10 +736,10 @@ pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
 /// Operate the payloads replacements in eval_tree.encode[vec![]] and returns the modified
 /// bitstring. `@payloads` follows this order: deeper terms first, left-to-right, assuming no
 /// overlap (no two terms one being a sub-term of the other).
-pub fn replace_payloads<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
-    term: &Term<M>,
+pub fn replace_payloads<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
+    term: &Term<PT>,
     eval_tree: &mut EvalTree,
-    payloads: Vec<PayloadContext<M>>,
+    payloads: Vec<PayloadContext<PT>>,
     ctx: &TraceContext<PB>,
 ) -> Result<ConcreteMessage, Error> {
     trace!("[replace_payload] --------> START");
@@ -814,7 +814,7 @@ pub fn replace_payloads<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     Ok(to_modify)
 }
 
-impl<M: Matcher> Term<M> {
+impl<PT: ProtocolTypes> Term<PT> {
     /// Evaluate a term without replacing the payloads (returning the payloads with the
     /// corresponding paths instead, i.e., a Vec<PayloadContext> accumulator), except when
     /// reaching an opaque term with payloads as strict sub-terms. In the latter case, fully
@@ -832,9 +832,9 @@ impl<M: Matcher> Term<M> {
         is_in_list: bool,
         sibling_has_payloads: bool,
         type_term: &TypeShape,
-    ) -> Result<(Box<dyn Any>, Vec<PayloadContext<M>>), Error>
+    ) -> Result<(Box<dyn Any>, Vec<PayloadContext<PT>>), Error>
     where
-        PB: ProtocolBehavior<Matcher = M>,
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         debug!("[eval_until_opaque] [START]: Eval term:\n {self}");
         if let (true, Some(payload)) = (with_payloads, &self.payloads) {

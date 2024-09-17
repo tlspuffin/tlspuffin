@@ -19,6 +19,7 @@
 //! use puffin::trace::{
 //!     Action, InputAction, OutputAction, Query, Source, Step, Trace, TraceContext,
 //! };
+//! use tlspuffin::protocol::TLSProtocolTypes;
 //! use tlspuffin::query::TlsQueryMatcher;
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use tlspuffin::tls::rustls::msgs::enums::{
@@ -29,7 +30,7 @@
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
 //!
-//! let trace = Trace {
+//! let trace = Trace::<TLSProtocolTypes> {
 //!     prior_traces: vec![],
 //!     descriptors: vec![
 //!         AgentDescriptor::new_client(client, V1_3),
@@ -103,12 +104,12 @@
 //! ```
 //!
 //! # Example with `term!` macro
-//!
 //! ```rust
 //! use puffin::agent::AgentName;
 //! use puffin::algebra::Term;
 //! use puffin::term;
 //! use puffin::trace::Source;
+//! use tlspuffin::protocol::TLSProtocolTypes;
 //! use tlspuffin::query::TlsQueryMatcher;
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use tlspuffin::tls::rustls::msgs::enums::{
@@ -117,7 +118,7 @@
 //! use tlspuffin::tls::rustls::msgs::handshake::{ClientExtension, Random, SessionID};
 //!
 //! let client = AgentName::first();
-//! let term: Term<TlsQueryMatcher> = term! {
+//! let term: Term<TLSProtocolTypes> = term! {
 //!     fn_client_hello(
 //!         ((client, 0)/ProtocolVersion),
 //!         ((client, 0)/Random),

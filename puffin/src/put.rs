@@ -67,14 +67,7 @@ where
 
 /// Generic trait used to define the interface with a concrete library
 /// implementing the protocol.
-pub trait Put<PB: ProtocolBehavior>:
-    Stream<
-        PB::Matcher,
-        PB::ProtocolMessage,
-        PB::OpaqueProtocolMessage,
-        PB::OpaqueProtocolMessageFlight,
-    > + 'static
-{
+pub trait Put<PB: ProtocolBehavior>: Stream<PB> + 'static {
     /// Process incoming buffer, internal progress, can fill in the output buffer
     fn progress(&mut self) -> Result<(), Error>;
 

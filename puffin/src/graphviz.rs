@@ -8,7 +8,8 @@ use std::{fmt, io};
 use itertools::Itertools;
 use log::{error, warn};
 
-use crate::algebra::{remove_fn_prefix, remove_prefix, DYTerm, Matcher, Term, TermType};
+use crate::algebra::{remove_fn_prefix, remove_prefix, DYTerm, Term, TermType};
+use crate::protocol::ProtocolTypes;
 use crate::trace::{Action, Trace};
 
 // Colorful theme
@@ -60,7 +61,7 @@ pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<()
     Ok(())
 }
 
-impl<M: Matcher> Trace<M> {
+impl<PT: ProtocolTypes> Trace<PT> {
     pub fn dot_graph(&self, tree_mode: bool) -> String {
         format!(
             "strict digraph \"Trace\" \
@@ -109,7 +110,7 @@ impl<M: Matcher> Trace<M> {
     }
 }
 
-impl<M: Matcher> Term<M> {
+impl<PT: ProtocolTypes> Term<PT> {
     fn unique_id(&self, tree_mode: bool, cluster_id: usize) -> String {
         match &self.term {
             DYTerm::Variable(variable) => {
@@ -140,7 +141,7 @@ impl<M: Matcher> Term<M> {
     }
 
     fn collect_statements(
-        term: &Term<M>,
+        term: &Term<PT>,
         tree_mode: bool,
         cluster_id: usize,
         statements: &mut Vec<String>,

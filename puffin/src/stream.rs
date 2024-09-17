@@ -22,22 +22,18 @@
 
 use std::io::{self, Read, Write};
 
-use crate::algebra::{ConcreteMessage, Matcher};
+use crate::algebra::ConcreteMessage;
 use crate::codec::Codec;
 use crate::error::Error;
-use crate::protocol::{OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolMessage};
+use crate::protocol::ProtocolBehavior;
 
-pub trait Stream<
-    Mt: Matcher,
-    M: ProtocolMessage<Mt, O>,
-    O: OpaqueProtocolMessage<Mt>,
-    OF: OpaqueProtocolMessageFlight<Mt, O>,
->
-{
+pub trait Stream<PB: ProtocolBehavior> {
     fn add_to_inbound(&mut self, message: &ConcreteMessage);
 
     /// Takes a single TLS message from the outbound channel
-    fn take_message_from_outbound(&mut self) -> Result<Option<OF>, Error>;
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<PB::OpaqueProtocolMessageFlight>, Error>;
 }
 
 /// Describes in- or outbound channels of an [`crate::agent::Agent`].
@@ -71,19 +67,16 @@ impl MemoryStream {
     }
 }
 
-impl<
-        Mt: Matcher,
-        M: ProtocolMessage<Mt, O>,
-        O: OpaqueProtocolMessage<Mt>,
-        OF: OpaqueProtocolMessageFlight<Mt, O>,
-    > Stream<Mt, M, O, OF> for MemoryStream
-{
+impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         message.encode(self.inbound.get_mut());
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<OF>, Error> {
-        let flight = OF::read_bytes(self.outbound.get_ref().as_slice());
+    fn take_message_from_outbound(
+        &mut self,
+    ) -> Result<Option<PB::OpaqueProtocolMessageFlight>, Error> {
+        let flight =
+            PB::OpaqueProtocolMessageFlight::read_bytes(&mut self.outbound.get_ref().as_slice());
         self.outbound.set_position(0);
         self.outbound.get_mut().clear();
 
