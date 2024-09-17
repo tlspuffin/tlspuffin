@@ -13,20 +13,11 @@ use puffin::put_registry::{Factory, PutKind};
 use puffin::stream::{MemoryStream, Stream};
 use puffin::VERSION_STR;
 
-use crate::openssl::util::{
-    set_max_protocol_version, set_max_protocol_version, static_rsa_cert, static_rsa_cert,
-};
-use crate::protocol::{
-    OpaqueMessageFlight, OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolBehavior,
-};
+use crate::openssl::util::{set_max_protocol_version, static_rsa_cert};
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
 use crate::put::TlsPutConfig;
-use crate::put_registry::{OPENSSL111_PUT, OPENSSL_RUST_PUT};
-use crate::query::TlsQueryMatcher;
-use crate::static_certs::{
-    ALICE_CERT, ALICE_CERT, ALICE_PRIVATE_KEY, ALICE_PRIVATE_KEY, BOB_CERT, BOB_CERT,
-    BOB_PRIVATE_KEY, BOB_PRIVATE_KEY, EVE_CERT, EVE_CERT,
-};
-use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
+use crate::put_registry::OPENSSL_RUST_PUT;
+use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 
 mod bindings;
 mod deterministic;

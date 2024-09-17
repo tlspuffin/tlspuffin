@@ -11,7 +11,7 @@ use super::harness;
 use crate::fuzzer::mutations::trace_mutations;
 use crate::fuzzer::mutations::util::TermConstraints;
 use crate::fuzzer::stats_monitor::StatsMonitor;
-use crate::log::{config_fuzzing, config_fuzzing, config_fuzzing_client, config_fuzzing_client};
+use crate::log::{config_fuzzing, config_fuzzing_client};
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
 use crate::trace::Trace;

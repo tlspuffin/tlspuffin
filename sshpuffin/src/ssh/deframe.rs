@@ -7,7 +7,7 @@ use puffin::protocol::ProtocolMessageDeframer;
 
 use crate::protocol::SshProtocolTypes;
 use crate::query::SshQueryMatcher;
-use crate::ssh::message::{OnWireData, OnWireData, RawSshMessage, RawSshMessage};
+use crate::ssh::message::{OnWireData, RawSshMessage, RawSshMessage};
 
 const MAX_WIRE_SIZE: usize = 35000;
 

@@ -4,8 +4,8 @@
 use libafl_bolts::rands::Rand;
 
 use crate::algebra::atoms::Function;
-use crate::algebra::signature::{FunctionDefinition, FunctionDefinition, Signature, Signature};
-use crate::algebra::{Matcher, Term, Term};
+use crate::algebra::signature::{FunctionDefinition, Signature};
+use crate::algebra::Term;
 use crate::fuzzer::mutations::util::Choosable;
 use crate::protocol::ProtocolTypes;
 

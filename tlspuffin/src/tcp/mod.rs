@@ -18,12 +18,7 @@ use puffin::put_registry::{Factory, PutKind, TCP_PUT};
 use puffin::stream::Stream;
 use puffin::VERSION_STR;
 
-use crate::protocol::{
-    OpaqueMessageFlight, OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolBehavior,
-};
-use crate::put_registry::TCP_PUT;
-use crate::query::TlsQueryMatcher;
-use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
 
 pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct TCPFactory;

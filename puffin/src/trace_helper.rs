@@ -1,26 +1,26 @@
 use crate::agent::AgentName;
-use crate::algebra::Matcher;
+use crate::protocol::ProtocolTypes;
 use crate::trace::Trace;
 
-pub trait TraceHelper<A, M>
+pub trait TraceHelper<A, PT>
 where
-    M: Matcher,
+    PT: ProtocolTypes,
 {
-    fn build_named_trace(self) -> (&'static str, Trace<M>);
-    fn build_trace(self) -> Trace<M>;
+    fn build_named_trace(self) -> (&'static str, Trace<PT>);
+    fn build_trace(self) -> Trace<PT>;
     fn fn_name(&self) -> &'static str;
 }
 
-impl<M, F> TraceHelper<(AgentName, AgentName), M> for F
+impl<PT, F> TraceHelper<(AgentName, AgentName), PT> for F
 where
-    F: Fn(AgentName, AgentName) -> Trace<M>,
-    M: Matcher,
+    F: Fn(AgentName, AgentName) -> Trace<PT>,
+    PT: ProtocolTypes,
 {
-    fn build_named_trace(self) -> (&'static str, Trace<M>) {
+    fn build_named_trace(self) -> (&'static str, Trace<PT>) {
         (self.fn_name(), self.build_trace())
     }
 
-    fn build_trace(self) -> Trace<M> {
+    fn build_trace(self) -> Trace<PT> {
         let agent_a = AgentName::first();
         let agent_b = agent_a.next();
         (self)(agent_a, agent_b)
@@ -31,16 +31,16 @@ where
     }
 }
 
-impl<M, F> TraceHelper<AgentName, M> for F
+impl<PT, F> TraceHelper<AgentName, PT> for F
 where
-    F: Fn(AgentName) -> Trace<M>,
-    M: Matcher,
+    F: Fn(AgentName) -> Trace<PT>,
+    PT: ProtocolTypes,
 {
-    fn build_named_trace(self) -> (&'static str, Trace<M>) {
+    fn build_named_trace(self) -> (&'static str, Trace<PT>) {
         (self.fn_name(), self.build_trace())
     }
 
-    fn build_trace(self) -> Trace<M> {
+    fn build_trace(self) -> Trace<PT> {
         let agent_a = AgentName::first();
 
         (self)(agent_a)

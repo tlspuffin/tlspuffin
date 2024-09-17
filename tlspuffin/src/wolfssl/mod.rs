@@ -23,18 +23,11 @@ use crate::claims::{
     ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsClaim, TranscriptCertificate,
     TranscriptClientFinished, TranscriptServerFinished, TranscriptServerHello,
 };
-use crate::protocol::{
-    OpaqueMessageFlight, OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolBehavior,
-};
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
 use crate::put::TlsPutConfig;
-use crate::put_registry::{WOLFSSL520_PUT, WOLFSSL_RUST_PUT};
-use crate::query::TlsQueryMatcher;
-use crate::static_certs::{
-    ALICE_CERT, ALICE_CERT, ALICE_PRIVATE_KEY, ALICE_PRIVATE_KEY, BOB_CERT, BOB_CERT,
-    BOB_PRIVATE_KEY, BOB_PRIVATE_KEY, EVE_CERT, EVE_CERT,
-};
+use crate::put_registry::WOLFSSL_RUST_PUT;
+use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 use crate::tls::rustls::msgs::enums::HandshakeType;
-use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 use crate::wolfssl::transcript::extract_current_transcript;
 
 mod transcript;

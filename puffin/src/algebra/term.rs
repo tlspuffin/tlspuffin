@@ -1,7 +1,7 @@
 //! This module provides[`Term`]s as well as iterators over them.
 
 use std::any::Any;
-use std::fmt;
+use std::fmt::{self, Formatter};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -9,10 +9,9 @@ use serde::{Deserialize, Serialize};
 use super::atoms::{Function, Variable};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
-use crate::algebra::Matcher;
 use crate::error::Error;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
-use crate::trace::{Source, Source, TraceContext, TraceContext};
+use crate::trace::{Source, TraceContext};
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]

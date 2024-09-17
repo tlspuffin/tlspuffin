@@ -21,6 +21,11 @@
 //! };
 //! use tlspuffin::protocol::TLSProtocolTypes;
 //! use tlspuffin::query::TlsQueryMatcher;
+//! use tlspuffin::tls::fn_impl::fn_client_hello;
+//! use tlspuffin::tls::rustls::msgs::enums::{
+//!     CipherSuite, Compression, HandshakeType, ProtocolVersion,
+//! };
+//! use tlspuffin::tls::rustls::msgs::handshake::{ClientExtension, Random, SessionID};
 //!
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();

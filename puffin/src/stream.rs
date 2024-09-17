@@ -21,12 +21,9 @@
 
 use std::io::{self, Read, Write};
 
-use crate::algebra::Matcher;
 use crate::codec::Codec;
 use crate::error::Error;
-use crate::protocol::{
-    OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
-};
+use crate::protocol::ProtocolBehavior;
 
 pub trait Stream<PB: ProtocolBehavior> {
     fn add_to_inbound(&mut self, message_flight: &PB::OpaqueProtocolMessageFlight);

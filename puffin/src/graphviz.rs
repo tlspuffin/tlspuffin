@@ -7,11 +7,9 @@ use std::{fmt, io};
 
 use itertools::Itertools;
 
-use crate::algebra::{
-    remove_fn_prefix, remove_fn_prefix, remove_prefix, remove_prefix, Matcher, Term, Term,
-};
+use crate::algebra::{remove_fn_prefix, remove_prefix, Term};
 use crate::protocol::ProtocolTypes;
-use crate::trace::{Action, Action, Trace, Trace};
+use crate::trace::{Action, Trace};
 
 // Colorful theme
 /*const FONT: &'static str = "Latin Modern Roman";

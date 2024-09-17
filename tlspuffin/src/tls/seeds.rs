@@ -10,13 +10,8 @@ use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 use crate::protocol::{MessageFlight, TLSProtocolTypes};
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::*;
-use crate::tls::rustls::msgs::enums::{
-    CipherSuite, CipherSuite, Compression, Compression, HandshakeType, HandshakeType,
-    ProtocolVersion, ProtocolVersion,
-};
-use crate::tls::rustls::msgs::handshake::{
-    Random, Random, ServerExtension, ServerExtension, SessionID, SessionID,
-};
+use crate::tls::rustls::msgs::enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion};
+use crate::tls::rustls::msgs::handshake::{Random, ServerExtension, SessionID};
 
 pub fn seed_successful_client_auth(
     client: AgentName,
@@ -2066,10 +2061,9 @@ pub mod tests {
     }
 
     pub mod serialization {
-        use puffin::algebra::{set_deserialize_signature, set_deserialize_signature, Matcher};
+        use puffin::algebra::set_deserialize_signature;
         use puffin::protocol::ProtocolTypes;
         use puffin::trace::Trace;
-        use test_log::test;
 
         use crate::test_utils::prelude::*;
         use crate::tls::seeds::*;

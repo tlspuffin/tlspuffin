@@ -27,9 +27,7 @@ use crate::libssh::ssh::{
     SessionOption, SessionState, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest,
     SshResult, SshSession,
 };
-use crate::protocol::{
-    RawSshMessageFlight, RawSshMessageFlight, SshProtocolBehavior, SshProtocolBehavior,
-};
+use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior, SshProtocolBehavior};
 use crate::put_registry::{LIBSSH_PUT, LIBSSH_RUST_PUT};
 use crate::query::SshQueryMatcher;
 use crate::ssh::message::{RawSshMessage, SshMessage};

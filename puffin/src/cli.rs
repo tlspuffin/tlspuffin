@@ -9,21 +9,17 @@ use clap::{arg, crate_authors, crate_name, crate_version, value_parser, Command}
 use libafl::inputs::Input;
 
 use crate::agent::AgentName;
-use crate::algebra::set_deserialize_signature;
 use crate::codec::Codec;
-use crate::execution::{forked_execution, ForkedRunner, Runner, TraceRunner};
+use crate::execution::{ForkedRunner, Runner, TraceRunner};
 use crate::experiment::*;
-use crate::fuzzer::harness::{default_put_options, set_default_put_options};
-use crate::fuzzer::sanitizer::asan::{asan_info, asan_info, setup_asan_env, setup_asan_env};
-use crate::fuzzer::{start, start, FuzzerConfig, FuzzerConfig};
+use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
+use crate::fuzzer::{start, FuzzerConfig};
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
-use crate::protocol::{
-    ProtocolBehavior, ProtocolBehavior, ProtocolMessage, ProtocolMessage, ProtocolTypes,
-};
-use crate::put::{PutDescriptor, PutOptions};
-use crate::put_registry::{PutRegistry, PutRegistry, TCP_PUT};
-use crate::trace::{Action, Action, Spawner, Trace, Trace, TraceContext, TraceContext};
+use crate::protocol::{ProtocolBehavior, ProtocolMessage};
+use crate::put::PutDescriptor;
+use crate::put_registry::{PutRegistry, TCP_PUT};
+use crate::trace::{Action, Spawner, Trace, TraceContext};
 
 fn create_app<S>(title: S) -> Command
 where
@@ -450,7 +446,7 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutRegistry<PB>) {
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) {
     let trace = match Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
         Ok(t) => t,
         Err(_) => {
@@ -480,7 +476,7 @@ fn binary_attack<PB: ProtocolBehavior>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let spawner = Spawner::new(put_registry.clone()).with_default(default_put);
     let ctx = TraceContext::new(spawner);
-    let trace = Trace::<PB::Matcher>::from_file(input)?;
+    let trace = Trace::<PB::ProtocolTypes>::from_file(input)?;
 
     log::info!("Agents: {:?}", &trace.descriptors);
 

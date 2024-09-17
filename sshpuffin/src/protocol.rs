@@ -2,13 +2,13 @@ use std::fmt::Display;
 
 use log::debug;
 use puffin::algebra::signature::Signature;
-use puffin::codec::{Codec, Codec, Reader, Reader};
+use puffin::codec::{Codec, Reader, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
     ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
     ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
-use puffin::trace::{Knowledge, Knowledge, Source, Source, Trace, Trace};
+use puffin::trace::{Knowledge, Source, Source, Trace, Trace};
 
 use crate::claim::SshClaim;
 use crate::query::SshQueryMatcher;

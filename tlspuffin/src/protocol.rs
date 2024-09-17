@@ -1,16 +1,14 @@
 use std::fmt::Display;
 
-use log::debug;
 use puffin::algebra::signature::Signature;
 use puffin::algebra::Matcher;
-use puffin::codec::{Codec, Codec, Reader, Reader};
+use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
     ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
     ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
-use puffin::trace::{Knowledge, Knowledge, Source, Source, Trace, Trace};
-use puffin::variable_data::VariableData;
+use puffin::trace::{Knowledge, Source, Trace};
 
 use crate::claims::TlsClaim;
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
@@ -652,7 +650,6 @@ impl Matcher for msgs::enums::HandshakeType {
 pub struct TLSProtocolTypes;
 
 impl ProtocolTypes for TLSProtocolTypes {
-    type Claim = TlsClaim;
     type Matcher = TlsQueryMatcher;
 
     fn signature() -> &'static Signature {
@@ -670,6 +667,7 @@ impl Display for TLSProtocolTypes {
 pub struct TLSProtocolBehavior;
 
 impl ProtocolBehavior for TLSProtocolBehavior {
+    type Claim = TlsClaim;
     type OpaqueProtocolMessage = OpaqueMessage;
     type OpaqueProtocolMessageFlight = OpaqueMessageFlight;
     type ProtocolMessage = Message;

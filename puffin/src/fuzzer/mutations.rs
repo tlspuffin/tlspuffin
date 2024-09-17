@@ -4,7 +4,7 @@ use util::{Choosable, *};
 
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::Signature;
-use crate::algebra::{Matcher, Subterms, Subterms, Term, Term};
+use crate::algebra::{Subterms, Term};
 use crate::fuzzer::term_zoo::TermZoo;
 use crate::protocol::ProtocolTypes;
 use crate::trace::Trace;
@@ -783,7 +783,7 @@ mod tests {
     use crate::agent::AgentName;
     use crate::algebra::dynamic_function::DescribableFunction;
     use crate::algebra::test_signature::{TestTrace, *};
-    use crate::algebra::{AnyMatcher, Term};
+    use crate::algebra::Term;
     use crate::trace::{Action, Step};
 
     fn create_state(
@@ -801,7 +801,7 @@ mod tests {
 
         let mut mutator = RepeatMutator::new(15);
 
-        fn check_is_encrypt12(step: &Step<AnyMatcher>) -> bool {
+        fn check_is_encrypt12(step: &Step<TestProtocolTypes>) -> bool {
             if let Action::Input(input) = &step.action {
                 if input.recipe.name() == fn_encrypt12.name() {
                     return true;
