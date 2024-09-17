@@ -23,11 +23,16 @@ use crate::claims::{
     ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsClaim, TranscriptCertificate,
     TranscriptClientFinished, TranscriptServerFinished, TranscriptServerHello,
 };
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::protocol::{
+    OpaqueMessageFlight, OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolBehavior,
+};
 use crate::put::TlsPutConfig;
-use crate::put_registry::WOLFSSL_RUST_PUT;
+use crate::put_registry::{WOLFSSL520_PUT, WOLFSSL_RUST_PUT};
 use crate::query::TlsQueryMatcher;
-use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
+use crate::static_certs::{
+    ALICE_CERT, ALICE_CERT, ALICE_PRIVATE_KEY, ALICE_PRIVATE_KEY, BOB_CERT, BOB_CERT,
+    BOB_PRIVATE_KEY, BOB_PRIVATE_KEY, EVE_CERT, EVE_CERT,
+};
 use crate::tls::rustls::msgs::enums::HandshakeType;
 use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 use crate::wolfssl::transcript::extract_current_transcript;
@@ -111,18 +116,15 @@ pub struct WolfSSL {
     config: TlsPutConfig,
 }
 
-impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for WolfSSL {
+impl Stream<TLSProtocolBehavior> for WolfSSL {
     fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight) {
         let raw_stream = self.stream.get_mut();
-        <MemoryStream as Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight>>::add_to_inbound(
-            raw_stream,
-            opaque_flight,
-        )
+        <MemoryStream as Stream<TLSProtocolBehavior>>::add_to_inbound(raw_stream, opaque_flight)
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
         let raw_stream = self.stream.get_mut();
-        <MemoryStream as Stream<TlsQueryMatcher,Message, OpaqueMessage, OpaqueMessageFlight>>::take_message_from_outbound(raw_stream)
+        <MemoryStream as Stream<TLSProtocolBehavior>>::take_message_from_outbound(raw_stream)
     }
 }
 

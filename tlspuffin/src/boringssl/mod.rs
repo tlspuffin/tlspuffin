@@ -17,16 +17,23 @@ use puffin::put_registry::{Factory, PutKind};
 use puffin::stream::{MemoryStream, Stream};
 use puffin::VERSION_STR;
 
-use crate::boringssl::util::{set_max_protocol_version, static_rsa_cert};
+use crate::boringssl::util::{
+    set_max_protocol_version, set_max_protocol_version, static_rsa_cert, static_rsa_cert,
+};
 use crate::claims::{
     ClaimData, ClaimDataTranscript, TlsClaim, TranscriptCertificate, TranscriptClientFinished,
     TranscriptServerFinished, TranscriptServerHello,
 };
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::protocol::{
+    OpaqueMessageFlight, OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolBehavior,
+};
 use crate::put::TlsPutConfig;
-use crate::put_registry::BORINGSSL_RUST_PUT;
+use crate::put_registry::{BORINGSSL_PUT, BORINGSSL_RUST_PUT};
 use crate::query::TlsQueryMatcher;
-use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
+use crate::static_certs::{
+    ALICE_CERT, ALICE_CERT, ALICE_PRIVATE_KEY, ALICE_PRIVATE_KEY, BOB_CERT, BOB_CERT,
+    BOB_PRIVATE_KEY, BOB_PRIVATE_KEY, EVE_CERT, EVE_CERT,
+};
 use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
 mod transcript;
@@ -111,25 +118,15 @@ impl Drop for BoringSSL {
     }
 }
 
-impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for BoringSSL {
+impl Stream<TLSProtocolBehavior> for BoringSSL {
     fn add_to_inbound(&mut self, result: &OpaqueMessageFlight) {
-        <MemoryStream as Stream<
-            TlsQueryMatcher,
-            Message,
-            OpaqueMessage,
-            OpaqueMessageFlight,
-        >>::add_to_inbound(self.stream.get_mut(), result)
+        <MemoryStream as Stream<TLSProtocolBehavior>>::add_to_inbound(self.stream.get_mut(), result)
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
         let memory_stream = self.stream.get_mut();
 
-        <MemoryStream as Stream<
-            TlsQueryMatcher,
-            Message,
-            OpaqueMessage,
-            OpaqueMessageFlight,
-        >>::take_message_from_outbound(memory_stream)
+        <MemoryStream as Stream<TLSProtocolBehavior>>::take_message_from_outbound(memory_stream)
     }
 }
 

@@ -27,8 +27,10 @@ use crate::libssh::ssh::{
     SessionOption, SessionState, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest,
     SshResult, SshSession,
 };
-use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior};
-use crate::put_registry::LIBSSH_RUST_PUT;
+use crate::protocol::{
+    RawSshMessageFlight, RawSshMessageFlight, SshProtocolBehavior, SshProtocolBehavior,
+};
+use crate::put_registry::{LIBSSH_PUT, LIBSSH_RUST_PUT};
 use crate::query::SshQueryMatcher;
 use crate::ssh::message::{RawSshMessage, SshMessage};
 
@@ -189,7 +191,7 @@ pub struct LibSSL {
 
 impl LibSSL {}
 
-impl Stream<SshQueryMatcher, SshMessage, RawSshMessage, RawSshMessageFlight> for LibSSL {
+impl Stream<SshProtocolBehavior> for LibSSL {
     fn add_to_inbound(&mut self, result: &RawSshMessageFlight) {
         let mut buffer = Vec::new();
         Codec::encode(result, &mut buffer);

@@ -33,7 +33,7 @@ use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
 use crate::error::Error;
 use crate::protocol::{
     ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-    ProtocolMessage, ProtocolMessageFlight,
+    ProtocolMessage, ProtocolMessageFlight, ProtocolTypes,
 };
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
@@ -79,29 +79,29 @@ impl fmt::Display for Source {
 /// [Knowledge] is made of the data, the source of the output, the
 /// TLS message type and the internal type.
 #[derive(Debug)]
-pub struct Knowledge<'a, M: Matcher> {
+pub struct Knowledge<'a, PT: ProtocolTypes> {
     pub source: &'a Source,
-    pub matcher: Option<M>,
+    pub matcher: Option<PT::Matcher>,
     pub data: &'a dyn VariableData,
 }
 
 /// [RawKnowledge] stores
 #[derive(Debug)]
-pub struct RawKnowledge<M: Matcher> {
+pub struct RawKnowledge<PT: ProtocolTypes> {
     pub source: Source,
-    pub matcher: Option<M>,
-    pub data: Box<dyn ExtractKnowledge<M>>,
+    pub matcher: Option<PT::Matcher>,
+    pub data: Box<dyn ExtractKnowledge<PT>>,
 }
 
-impl<M: Matcher> fmt::Display for RawKnowledge<M> {
+impl<PT: ProtocolTypes> fmt::Display for RawKnowledge<PT> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({})/{:?}", self.source, self.matcher)
     }
 }
 
-impl<'a, M: Matcher> IntoIterator for &'a RawKnowledge<M> {
-    type IntoIter = IntoIter<Knowledge<'a, M>>;
-    type Item = Knowledge<'a, M>;
+impl<'a, PT: ProtocolTypes> IntoIterator for &'a RawKnowledge<PT> {
+    type IntoIter = IntoIter<Knowledge<'a, PT>>;
+    type Item = Knowledge<'a, PT>;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut knowledges = vec![];
@@ -112,16 +112,16 @@ impl<'a, M: Matcher> IntoIterator for &'a RawKnowledge<M> {
     }
 }
 
-impl<M: Matcher> Knowledge<'_, M> {
+impl<PT: ProtocolTypes> Knowledge<'_, PT> {
     pub fn specificity(&self) -> u32 {
         self.matcher.specificity()
     }
 }
 
-impl<M: Matcher> Knowledge<'_, M> {
+impl<PT: ProtocolTypes> Knowledge<'_, PT> {
     pub fn debug_print<PB>(&self, ctx: &TraceContext<PB>, source: &Source)
     where
-        PB: ProtocolBehavior<Matcher = M>,
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         let data_type_id = self.data.type_id();
         log::debug!(
@@ -134,25 +134,25 @@ impl<M: Matcher> Knowledge<'_, M> {
     }
 }
 
-impl<M: Matcher> fmt::Display for Knowledge<'_, M> {
+impl<PT: ProtocolTypes> fmt::Display for Knowledge<'_, PT> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({})/{:?}", self.source, self.matcher)
     }
 }
 
 #[derive(Debug, Default)]
-pub struct KnowledgeStore<PB: ProtocolBehavior> {
-    raw_knowledge: Vec<RawKnowledge<PB::Matcher>>,
+pub struct KnowledgeStore<PT: ProtocolTypes> {
+    raw_knowledge: Vec<RawKnowledge<PT>>,
 }
 
-impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
+impl<PT: ProtocolTypes> KnowledgeStore<PT> {
     pub fn new() -> Self {
         Self {
             raw_knowledge: vec![],
         }
     }
 
-    pub fn add_raw_knowledge<T: ExtractKnowledge<PB::Matcher> + 'static>(
+    pub fn add_raw_knowledge<T: ExtractKnowledge<PT> + 'static>(
         &mut self,
         data: T,
         source: Source,
@@ -170,7 +170,7 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
         &self,
         source: Source,
         type_id: TypeId,
-        tls_message_type: &Option<PB::Matcher>,
+        tls_message_type: &Option<PT::Matcher>,
     ) -> usize {
         self.raw_knowledge
             .iter()
@@ -186,7 +186,7 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
     pub fn number_matching_message(
         &self,
         type_id: TypeId,
-        tls_message_type: &Option<PB::Matcher>,
+        tls_message_type: &Option<PT::Matcher>,
     ) -> usize {
         self.raw_knowledge
             .iter()
@@ -202,11 +202,11 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
     pub fn find_variable(
         &self,
         query_type_shape: TypeShape,
-        query: &Query<PB::Matcher>,
+        query: &Query<PT::Matcher>,
     ) -> Option<&(dyn VariableData)> {
         let query_type_id: TypeId = query_type_shape.into();
 
-        let mut possibilities: Vec<Knowledge<PB::Matcher>> = self
+        let mut possibilities: Vec<Knowledge<PT>> = self
             .raw_knowledge
             .iter()
             .filter(|raw| (query.source.is_none() || query.source.as_ref().unwrap() == &raw.source))
@@ -306,7 +306,7 @@ impl<PB: ProtocolBehavior> Clone for Spawner<PB> {
 #[derive(Debug)]
 pub struct TraceContext<PB: ProtocolBehavior> {
     /// The knowledge of the attacker
-    pub knowledge_store: KnowledgeStore<PB>,
+    pub knowledge_store: KnowledgeStore<PB::ProtocolTypes>,
     agents: Vec<Agent<PB>>,
     claims: GlobalClaimList<<PB as ProtocolBehavior>::Claim>,
 
@@ -372,7 +372,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         &self,
         source: Source,
         type_id: TypeId,
-        tls_message_type: &Option<PB::Matcher>,
+        tls_message_type: &Option<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
     ) -> usize {
         self.knowledge_store
             .number_matching_message_with_source(source, type_id, tls_message_type)
@@ -382,7 +382,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn number_matching_message(
         &self,
         type_id: TypeId,
-        tls_message_type: &Option<PB::Matcher>,
+        tls_message_type: &Option<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
     ) -> usize {
         self.knowledge_store
             .number_matching_message(type_id, tls_message_type)
@@ -404,7 +404,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn find_variable(
         &self,
         query_type_shape: TypeShape,
-        query: &Query<PB::Matcher>,
+        query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
     ) -> Option<&(dyn VariableData)> {
         self.knowledge_store.find_variable(query_type_shape, query)
     }
@@ -443,11 +443,11 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 }
 
 #[derive(Clone, Deserialize, Serialize, Hash)]
-#[serde(bound = "M: Matcher")]
-pub struct Trace<M: Matcher> {
+#[serde(bound = "PT: ProtocolTypes")]
+pub struct Trace<PT: ProtocolTypes> {
     pub descriptors: Vec<AgentDescriptor>,
-    pub steps: Vec<Step<M>>,
-    pub prior_traces: Vec<Trace<M>>,
+    pub steps: Vec<Step<PT>>,
+    pub prior_traces: Vec<Trace<PT>>,
 }
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an
@@ -455,7 +455,7 @@ pub struct Trace<M: Matcher> {
 /// list of *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding
 /// server or client role and a specific TLs version. Essentially they are an [`Agent`] without a
 /// stream.
-impl<M: Matcher> Trace<M> {
+impl<PT: ProtocolTypes> Trace<PT> {
     fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             if let Some(reusable) = ctx
@@ -476,7 +476,7 @@ impl<M: Matcher> Trace<M> {
 
     pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
-        PB: ProtocolBehavior<Matcher = M>,
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         for trace in &self.prior_traces {
             trace.execute(ctx)?;
@@ -498,18 +498,18 @@ impl<M: Matcher> Trace<M> {
         postcard::to_allocvec(&self)
     }
 
-    pub fn deserialize_postcard(slice: &[u8]) -> Result<Trace<M>, postcard::Error> {
-        postcard::from_bytes::<Trace<M>>(slice)
+    pub fn deserialize_postcard(slice: &[u8]) -> Result<Trace<PT>, postcard::Error> {
+        postcard::from_bytes::<Trace<PT>>(slice)
     }
 }
 
-impl<M: Matcher> fmt::Debug for Trace<M> {
+impl<PT: ProtocolTypes> fmt::Debug for Trace<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Trace with {} steps", self.steps.len())
     }
 }
 
-impl<M: Matcher> fmt::Display for Trace<M> {
+impl<PT: ProtocolTypes> fmt::Display for Trace<PT> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Trace:")?;
         for step in &self.steps {
@@ -519,23 +519,23 @@ impl<M: Matcher> fmt::Display for Trace<M> {
     }
 }
 
-impl<M: Matcher> AsRef<Trace<M>> for Trace<M> {
-    fn as_ref(&self) -> &Trace<M> {
+impl<PT: ProtocolTypes> AsRef<Trace<PT>> for Trace<PT> {
+    fn as_ref(&self) -> &Trace<PT> {
         self
     }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-#[serde(bound = "M: Matcher")]
-pub struct Step<M: Matcher> {
+#[serde(bound = "PT: ProtocolTypes")]
+pub struct Step<PT: ProtocolTypes> {
     pub agent: AgentName,
-    pub action: Action<M>,
+    pub action: Action<PT>,
 }
 
-impl<M: Matcher> Step<M> {
+impl<PT: ProtocolTypes> Step<PT> {
     fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
-        PB: ProtocolBehavior<Matcher = M>,
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         match &self.action {
             Action::Input(input) => input.execute(self.agent, ctx).and_then(|_| {
@@ -561,13 +561,13 @@ impl<M: Matcher> Step<M> {
 /// Therefore, the difference is that one step *increases* the knowledge of the attacker,
 /// whereas the other action *uses* the available knowledge.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-#[serde(bound = "M: Matcher")]
-pub enum Action<M: Matcher> {
-    Input(InputAction<M>),
-    Output(OutputAction<M>),
+#[serde(bound = "PT: ProtocolTypes")]
+pub enum Action<PT: ProtocolTypes> {
+    Input(InputAction<PT>),
+    Output(OutputAction<PT>),
 }
 
-impl<M: Matcher> fmt::Display for Action<M> {
+impl<PT: ProtocolTypes> fmt::Display for Action<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Action::Input(input) => write!(f, "{}", input),
@@ -582,12 +582,12 @@ impl<M: Matcher> fmt::Display for Action<M> {
 /// messages produced by the underlying stream by calling  `take_message_from_outbound(...)`. An
 /// output action is automatically called after each input step.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-pub struct OutputAction<M> {
-    phantom: PhantomData<M>,
+pub struct OutputAction<PT> {
+    phantom: PhantomData<PT>,
 }
 
-impl<M: Matcher> OutputAction<M> {
-    pub fn new_step(agent: AgentName) -> Step<M> {
+impl<PT: ProtocolTypes> OutputAction<PT> {
+    pub fn new_step(agent: AgentName) -> Step<PT> {
         Step {
             agent,
             action: Action::Output(OutputAction {
@@ -598,7 +598,7 @@ impl<M: Matcher> OutputAction<M> {
 
     fn execute<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
-        PB: ProtocolBehavior<Matcher = M>,
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         let source = Source::Agent(agent_name);
         let agent = ctx.find_agent_mut(agent_name)?;
@@ -618,7 +618,7 @@ impl<M: Matcher> OutputAction<M> {
     }
 }
 
-impl<M: Matcher> fmt::Display for OutputAction<M> {
+impl<PT: ProtocolTypes> fmt::Display for OutputAction<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "OutputAction")
     }
@@ -630,15 +630,15 @@ impl<M: Matcher> fmt::Display for OutputAction<M> {
 /// into the *inbound channel* of the [`Agent`] referenced through the corresponding [`Step`]s
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
-#[serde(bound = "M: Matcher")]
-pub struct InputAction<M: Matcher> {
-    pub recipe: Term<M>,
+#[serde(bound = "PT: ProtocolTypes")]
+pub struct InputAction<PT: ProtocolTypes> {
+    pub recipe: Term<PT>,
 }
 
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
 /// or a MultiMessage.
-impl<M: Matcher> InputAction<M> {
-    pub fn new_step(agent: AgentName, recipe: Term<M>) -> Step<M> {
+impl<PT: ProtocolTypes> InputAction<PT> {
+    pub fn new_step(agent: AgentName, recipe: Term<PT>) -> Step<PT> {
         Step {
             agent,
             action: Action::Input(InputAction { recipe }),
@@ -647,7 +647,7 @@ impl<M: Matcher> InputAction<M> {
 
     fn execute<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
-        PB: ProtocolBehavior<Matcher = M>,
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         let message = as_message_flight::<PB>(self.recipe.evaluate(ctx)?)?;
         let agent = ctx.find_agent_mut(agent_name)?;
@@ -657,7 +657,7 @@ impl<M: Matcher> InputAction<M> {
     }
 }
 
-impl<M: Matcher> fmt::Display for InputAction<M> {
+impl<PT: ProtocolTypes> fmt::Display for InputAction<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "InputAction:\n{}", self.recipe)
     }

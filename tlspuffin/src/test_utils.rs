@@ -14,10 +14,12 @@ pub fn default_runner_for(put: impl Into<PutDescriptor>) -> Runner<TLSProtocolBe
 
     Runner::new(registry, spawner)
 }
+use crate::protocol::TLSProtocolTypes;
+use crate::put_registry::tls_registry;
 
 #[allow(dead_code)]
 pub fn expect_trace_crash(
-    trace: Trace<TlsQueryMatcher>,
+    trace: Trace<TLSProtocolTypes>,
     runner: Runner<TLSProtocolBehavior>,
     timeout: impl Into<Option<Duration>>,
     retry: Option<usize>,

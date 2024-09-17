@@ -10,7 +10,7 @@ use crate::trace::{Action, Spawner, Trace};
 
 pub fn harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
-    input: &Trace<PB::Matcher>,
+    input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {
     let runner = Runner::new(put_registry.clone(), Spawner::new(put_registry.clone()));
 
@@ -47,7 +47,9 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
 }
 
 #[allow(unused)]
-pub fn dummy_harness<PB: ProtocolBehavior + 'static>(_input: &Trace<PB::Matcher>) -> ExitKind {
+pub fn dummy_harness<PB: ProtocolBehavior + 'static>(
+    _input: &Trace<PB::ProtocolTypes>,
+) -> ExitKind {
     let mut rng = rand::thread_rng();
 
     let n1 = rng.gen_range(0..10);

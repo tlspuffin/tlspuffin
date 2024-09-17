@@ -7,13 +7,21 @@ use puffin::algebra::Term;
 use puffin::term;
 use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 
-use crate::protocol::MessageFlight;
+use crate::protocol::{MessageFlight, TLSProtocolTypes};
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::*;
-use crate::tls::rustls::msgs::enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion};
-use crate::tls::rustls::msgs::handshake::{Random, ServerExtension, SessionID};
+use crate::tls::rustls::msgs::enums::{
+    CipherSuite, CipherSuite, Compression, Compression, HandshakeType, HandshakeType,
+    ProtocolVersion, ProtocolVersion,
+};
+use crate::tls::rustls::msgs::handshake::{
+    Random, Random, ServerExtension, ServerExtension, SessionID, SessionID,
+};
 
-pub fn seed_successful_client_auth(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_successful_client_auth(
+    client: AgentName,
+    server: AgentName,
+) -> Trace<TLSProtocolTypes> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -159,7 +167,7 @@ pub fn seed_successful_client_auth(client: AgentName, server: AgentName) -> Trac
 }
 
 // TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
-pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -201,7 +209,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TlsQueryMa
 }
 
 /// Seed which triggers a MITM attack. It changes the cipher suite. This should fail.
-pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -256,7 +264,7 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TlsQu
 pub fn seed_successful12_with_tickets(
     client: AgentName,
     server: AgentName,
-) -> Trace<TlsQueryMatcher> {
+) -> Trace<TLSProtocolTypes> {
     let mut trace = seed_successful12(client, server);
     // NewSessionTicket, Server -> Client
     // wolfSSL 4.4.0 does not support tickets in TLS 1.2
@@ -289,7 +297,7 @@ pub fn seed_successful12_with_tickets(
     trace
 }
 
-pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -416,7 +424,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TlsQuery
 }
 
 // TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
-pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -537,7 +545,7 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
 pub fn seed_successful_with_tickets(
     client: AgentName,
     server: AgentName,
-) -> Trace<TlsQueryMatcher> {
+) -> Trace<TLSProtocolTypes> {
     let mut trace = seed_successful_with_ccs(client, server);
 
     trace.steps.push(OutputAction::new_step(server));
@@ -569,7 +577,7 @@ pub fn seed_successful_with_tickets(
 }
 
 // TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
-pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
     let curve = term! {
         fn_get_any_client_curve(
             ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
@@ -751,7 +759,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
 }
 
 // TODO: `BAD_SIGNATURE` error with BoringSSL
-pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -900,7 +908,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
     }
 }
 
-pub fn seed_client_attacker(server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -972,13 +980,13 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TlsQueryMatcher> {
     }
 }
 
-pub fn seed_client_attacker12(server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_client_attacker12(server: AgentName) -> Trace<TLSProtocolTypes> {
     _seed_client_attacker12(server).0
 }
 
 pub fn _seed_client_attacker12(
     server: AgentName,
-) -> (Trace<TlsQueryMatcher>, Term<TlsQueryMatcher>) {
+) -> (Trace<TLSProtocolTypes>, Term<TLSProtocolTypes>) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1121,7 +1129,7 @@ pub fn _seed_client_attacker12(
 pub fn seed_session_resumption_dhe(
     initial_server: AgentName,
     server: AgentName,
-) -> Trace<TlsQueryMatcher> {
+) -> Trace<TLSProtocolTypes> {
     let initial_handshake = seed_client_attacker(initial_server);
 
     let extensions = term! {
@@ -1249,7 +1257,7 @@ pub fn seed_session_resumption_dhe(
 pub fn seed_session_resumption_ke(
     initial_server: AgentName,
     server: AgentName,
-) -> Trace<TlsQueryMatcher> {
+) -> Trace<TLSProtocolTypes> {
     let initial_handshake = seed_client_attacker(initial_server);
 
     let extensions = term! {
@@ -1372,7 +1380,7 @@ pub fn seed_session_resumption_ke(
     }
 }
 
-pub fn seed_client_attacker_full(server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_client_attacker_full(server: AgentName) -> Trace<TLSProtocolTypes> {
     _seed_client_attacker_full(server).0
 }
 
@@ -1380,10 +1388,10 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<TlsQueryMatcher> {
 pub fn _seed_client_attacker_full(
     server: AgentName,
 ) -> (
-    Trace<TlsQueryMatcher>,
-    Term<TlsQueryMatcher>,
-    Term<TlsQueryMatcher>,
-    Term<TlsQueryMatcher>,
+    Trace<TLSProtocolTypes>,
+    Term<TLSProtocolTypes>,
+    Term<TLSProtocolTypes>,
+    Term<TLSProtocolTypes>,
 ) {
     let client_hello = term! {
           fn_client_hello(
@@ -1561,7 +1569,7 @@ pub fn _seed_client_attacker_full(
 pub fn seed_session_resumption_dhe_full(
     initial_server: AgentName,
     server: AgentName,
-) -> Trace<TlsQueryMatcher> {
+) -> Trace<TLSProtocolTypes> {
     let (
         initial_handshake,
         server_hello_transcript,
@@ -1771,7 +1779,7 @@ macro_rules! corpus {
     };
 }
 
-pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
+pub fn create_corpus() -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
     corpus!(
         // Full Handshakes
         seed_successful: cfg(feature = "tls13"),
@@ -2058,30 +2066,32 @@ pub mod tests {
     }
 
     pub mod serialization {
-        use puffin::algebra::{set_deserialize_signature, Matcher};
+        use puffin::algebra::{set_deserialize_signature, set_deserialize_signature, Matcher};
+        use puffin::protocol::ProtocolTypes;
         use puffin::trace::Trace;
+        use test_log::test;
 
         use crate::test_utils::prelude::*;
         use crate::tls::seeds::*;
         use crate::tls::TLS_SIGNATURE;
 
-        fn test_postcard_serialization<M: Matcher>(trace: Trace<M>) {
+        fn test_postcard_serialization<PT: ProtocolTypes>(trace: Trace<PT>) {
             let _ = set_deserialize_signature(&TLS_SIGNATURE);
 
             let serialized1 = trace.serialize_postcard().unwrap();
             let deserialized_trace =
-                Trace::<TlsQueryMatcher>::deserialize_postcard(serialized1.as_ref()).unwrap();
+                Trace::<TLSProtocolTypes>::deserialize_postcard(serialized1.as_ref()).unwrap();
             let serialized2 = deserialized_trace.serialize_postcard().unwrap();
 
             assert_eq!(serialized1, serialized2);
         }
 
-        fn test_json_serialization<M: Matcher>(trace: Trace<M>) {
+        fn test_json_serialization<PT: ProtocolTypes>(trace: Trace<PT>) {
             let _ = set_deserialize_signature(&TLS_SIGNATURE);
 
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
             let deserialized_trace =
-                serde_json::from_str::<Trace<TlsQueryMatcher>>(serialized1.as_str()).unwrap();
+                serde_json::from_str::<Trace<TLSProtocolTypes>>(serialized1.as_str()).unwrap();
             let serialized2 = serde_json::to_string_pretty(&deserialized_trace).unwrap();
 
             assert_eq!(serialized1, serialized2);

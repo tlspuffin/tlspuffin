@@ -5,8 +5,9 @@ use puffin::codec;
 use puffin::codec::Codec;
 use puffin::protocol::ProtocolMessageDeframer;
 
+use crate::protocol::SshProtocolTypes;
 use crate::query::SshQueryMatcher;
-use crate::ssh::message::{OnWireData, RawSshMessage};
+use crate::ssh::message::{OnWireData, OnWireData, RawSshMessage, RawSshMessage};
 
 const MAX_WIRE_SIZE: usize = 35000;
 
@@ -147,7 +148,7 @@ impl SshMessageDeframer {
     }
 }
 
-impl ProtocolMessageDeframer<SshQueryMatcher> for SshMessageDeframer {
+impl ProtocolMessageDeframer<SshProtocolTypes> for SshMessageDeframer {
     type OpaqueProtocolMessage = RawSshMessage;
 
     fn pop_frame(&mut self) -> Option<RawSshMessage> {

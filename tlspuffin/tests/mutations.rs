@@ -15,18 +15,23 @@ use puffin::trace::{Action, Step, Trace};
 use tlspuffin::put_registry::tls_registry;
 use tlspuffin::query::TlsQueryMatcher;
 use tlspuffin::test_utils::default_runner_for;
-use tlspuffin::tls::fn_impl::{
-    fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
-    fn_support_group_extension,
-};
 use tlspuffin::tls::seeds::_seed_client_attacker12;
 use tlspuffin::tls::TLS_SIGNATURE;
 
+use crate::protocol::TLSProtocolTypes;
+use crate::put_registry::tls_registry;
+use crate::tls::fn_impl::{
+    fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
+    fn_support_group_extension,
+};
+use crate::tls::seeds::_seed_client_attacker12;
+use crate::tls::TLS_SIGNATURE;
+
 fn create_state() -> StdState<
-    Trace<TlsQueryMatcher>,
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+    Trace<TLSProtocolTypes>,
+    InMemoryCorpus<Trace<TLSProtocolTypes>>,
     RomuDuoJrRand,
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+    InMemoryCorpus<Trace<TLSProtocolTypes>>,
 > {
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();
@@ -50,7 +55,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 let mut mutator = RepeatMutator::new(15);
 
-                fn check_is_encrypt12(step: &Step<TlsQueryMatcher>) -> bool {
+                fn check_is_encrypt12(step: &Step<TLSProtocolTypes>) -> bool {
                     if let Action::Input(input) = &step.action {
                         if input.recipe.name() == fn_encrypt12.name() {
                             return true;
