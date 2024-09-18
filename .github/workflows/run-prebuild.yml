@@ -49,26 +49,23 @@ jobs:
         id: compute-lib-shortname
         run: |
           #!/usr/bin/env bash
-          if [[ -z '${{ join(matrix.options, '-') }}' ]]; then
-            OPTIONS=""
+          if [[ "${{ contains(matrix.cargo.features, 'asan') }}" = 'true' ]]; then
+            SUFFIX="-asan"
           else
-            OPTIONS="-$(printf '%s\n' '${{ join(matrix.options, '-') }}')"
+            SUFFIX=""
           fi
 
-          printf 'shortname=%s%s\n' "${{ matrix.preset }}" "${OPTIONS}" >> "${GITHUB_OUTPUT}"
+          printf 'shortname=%s%s\n' "${{ matrix.cargo.name }}" "${SUFFIX}" >> "${GITHUB_OUTPUT}"
 
       - name: build vendor library
-        if: ${{ contains(fromJson('["openssl"]'), matrix.vendor) }}
         uses: ./.github/actions/mk_vendor
         with:
-          vendor: "${{ matrix.vendor }}"
-          preset: "${{ matrix.preset }}"
+          vendor: "${{ matrix.mk_vendor.vendor }}"
+          preset: "${{ matrix.mk_vendor.preset }}"
           name: "${{ steps.compute-lib-shortname.outputs.shortname }}"
-          patches: "${{ join(matrix.patches, ',') }}"
-          options: "${{ join(matrix.options, ',') }}"
 
       - name: build
-        run: just build tlspuffin x86_64-unknown-linux-gnu "${{ matrix.preset }},${{ join(matrix.features, ',') }}" "--timings"
+        run: just build tlspuffin x86_64-unknown-linux-gnu "${{ matrix.cargo.name }},${{ join(matrix.cargo.features, ',') }}" "--timings"
 
       - name: upload build timings
         uses: actions/upload-artifact@v4
