@@ -8,18 +8,9 @@ inputs:
   preset:
     description: 'The name of the configuration preset (e.g. "openssl111j")'
     required: true
-  options:
-    description: 'A comma-separated list of additional build options (e.g. "sancov,asan")'
-    required: false
-    default: ""
-  patches:
-    description: "A comma-separated list of patches to apply to the sources"
-    required: false
-    default: ""
   name:
-    description: "The name of the resulting PUT vendor library"
+    description: 'The output directory name of the configuration preset (e.g. "myopenssl")'
     required: false
-    default: ""
 
 runs:
   using: "composite"
@@ -29,8 +20,7 @@ runs:
       shell: bash
       run: |
         #!/usr/bin/env bash
-        SCRIPTS=${{ hashFiles(format('puts/vendor/configs/{0}.toml',inputs.vendor), format('puts/vendor/{0}/**',inputs.vendor), format('puts/harness/**')) }}
-        CONFUID=$(just mk_vendor "${{ inputs.vendor }}" "${{ inputs.preset }}" "${{ inputs.name }}" "${{ inputs.options }}" "${{ inputs.patches }}" "--quiet --dry-run")
+        SCRIPTS=${{ hashFiles(format('puffin-build/vendors/{0}/**',inputs.vendor), 'puffin-build/builder/**') }}
 
         printf 'scripts=%s\n' "${SCRIPTS}" >> "${GITHUB_OUTPUT}"
         printf 'confuid=%s\n' "${CONFUID}" >> "${GITHUB_OUTPUT}"
@@ -38,12 +28,12 @@ runs:
     - uses: actions/cache@v4
       id: library-cache
       with:
-        key: mk_vendor_cache-${{ runner.os }}-${{ steps.compute-hash.outputs.scripts }}-${{ steps.compute-hash.outputs.confuid }}
+        key: mk_vendor_cache-${{ runner.os }}-${{ steps.compute-hash.outputs.scripts }}-${{ inputs.vendor }}-${{ inputs.preset }}
         path: |
-          vendor/${{ inputs.name }}
+          vendor/${{ inputs.name || inputs.preset }}
 
     - name: run mk_vendor
       id: library-build
       shell: bash
-      run: just mk_vendor "${{ inputs.vendor }}" "${{ inputs.preset }}" "${{ inputs.name }}" "${{ inputs.options }}" "${{ inputs.patches }}"
+      run: just mk_vendor "${{ inputs.vendor }}" "${{ inputs.preset }}" "--name=${{ inputs.name || inputs.preset }}"
       if: steps.library-cache.outputs.cache-hit != 'true'

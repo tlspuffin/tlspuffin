@@ -104,9 +104,7 @@ jobs:
         with:
           vendor: "openssl"
           preset: "openssl111j"
-          name: "openssl111j-sancov"
-          patches: ""
-          options: "sancov"
+          name: "openssl111j"
       - name: build `tlspuffin`
         run: just run cargo build --bin tlspuffin --target x86_64-unknown-linux-gnu --profile=release --features=openssl111j
       - name: run `tlspuffin help`
@@ -147,7 +145,7 @@ jobs:
     uses: ./.github/workflows/run-tlspuffin-tests.yml
     with:
       name: ${{ matrix.name }}
-      vendor: ${{ matrix.vendor }}
-      preset: ${{ matrix.preset }}
-      options: ${{ toJson(matrix.options) }}
-      features: ${{ toJson(matrix.features) }}
+      vendor: ${{ matrix.mk_vendor.vendor }}
+      preset: ${{ matrix.mk_vendor.preset }}
+      cargo_name: ${{ toJson(matrix.cargo.name) }}
+      cargo_features: ${{ toJson(matrix.cargo.features) }}
