@@ -35,8 +35,12 @@ use crate::wolfssl::transcript::extract_current_transcript;
 
 mod transcript;
 
-pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
-    struct WolfSSLFactory;
+pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBehavior>> {
+    #[derive(Debug, Clone)]
+    struct WolfSSLFactory {
+        preset: String,
+    }
+
     impl Factory<TLSProtocolBehavior> for WolfSSLFactory {
         fn create(
             &self,
@@ -68,26 +72,10 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn name(&self) -> String {
-            String::from(WOLFSSL_RUST_PUT)
+            self.preset.clone()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
-            let wolfssl_shortname = if cfg!(feature = "wolfssl540") {
-                "wolfssl540"
-            } else if cfg!(feature = "wolfssl530") {
-                "wolfssl530"
-            } else if cfg!(feature = "wolfssl520") {
-                "wolfssl520"
-            } else if cfg!(feature = "wolfssl510") {
-                "wolfssl510"
-            } else if cfg!(feature = "wolfssl430") {
-                "wolfssl430"
-            } else if cfg!(feature = "wolfsslmaster") {
-                "master"
-            } else {
-                "unknown"
-            };
-
             vec![
                 (
                     "harness".to_string(),
@@ -95,7 +83,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 ),
                 (
                     "library".to_string(),
-                    format!("wolfssl ({} / {})", wolfssl_shortname, WolfSSL::version()),
+                    format!("wolfssl ({} / {})", self.preset, WolfSSL::version()),
                 ),
             ]
         }
@@ -109,11 +97,13 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
-            Box::new(WolfSSLFactory)
+            Box::new(self.clone())
         }
     }
 
-    Box::new(WolfSSLFactory)
+    Box::new(WolfSSLFactory {
+        preset: preset.into(),
+    })
 }
 
 pub struct WolfSSLErrorStack(pub ErrorStack);

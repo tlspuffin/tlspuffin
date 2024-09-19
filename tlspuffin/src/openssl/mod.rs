@@ -28,8 +28,12 @@ mod bindings;
 mod deterministic;
 mod util;
 
-pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
-    struct OpenSSLFactory;
+pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBehavior>> {
+    #[derive(Debug, Clone)]
+    struct OpenSSLFactory {
+        preset: String,
+    }
+
     impl Factory<TLSProtocolBehavior> for OpenSSLFactory {
         fn create(
             &self,
@@ -63,28 +67,10 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn name(&self) -> String {
-            String::from(OPENSSL_RUST_PUT)
+            self.preset.clone()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
-            let openssl_shortname = if cfg!(feature = "openssl101f") {
-                "openssl101f"
-            } else if cfg!(feature = "openssl102u") {
-                "openssl102u"
-            } else if cfg!(feature = "openssl111") {
-                "openssl111k"
-            } else if cfg!(feature = "openssl111j") {
-                "openssl111j"
-            } else if cfg!(feature = "openssl111u") {
-                "openssl111u"
-            } else if cfg!(feature = "openssl312") {
-                "openssl312"
-            } else if cfg!(feature = "libressl333") {
-                "libressl333"
-            } else {
-                "unknown"
-            };
-
             vec![
                 (
                     "harness".to_string(),
@@ -92,7 +78,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 ),
                 (
                     "library".to_string(),
-                    format!("openssl ({} / {})", openssl_shortname, OpenSSL::version()),
+                    format!("openssl ({} / {})", self.preset, OpenSSL::version()),
                 ),
             ]
         }
@@ -113,11 +99,13 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
-            Box::new(OpenSSLFactory)
+            Box::new(self.clone())
         }
     }
 
-    Box::new(OpenSSLFactory)
+    Box::new(OpenSSLFactory {
+        preset: preset.into(),
+    })
 }
 
 pub struct OpenSSL {
