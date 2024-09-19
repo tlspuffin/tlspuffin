@@ -76,7 +76,7 @@ autotools_builder(
 
     # ASAN
     $<$<BOOL:${asan}>:-fsanitize=address>
-    $<$<BOOL:${asan}>:-shared-libsan>
+    $<$<BOOL:${asan}>:-static-libsan>
 
     # llvm_cov
     $<$<BOOL:${llvm_cov}>:-fprofile-instr-generate>
