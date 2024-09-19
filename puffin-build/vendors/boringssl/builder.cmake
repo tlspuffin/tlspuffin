@@ -39,7 +39,7 @@ cmake_builder(
 
     # ASAN
     $<$<BOOL:${asan}>:-fsanitize=address>
-    $<$<BOOL:${asan}>:-shared-libsan>
+    $<$<BOOL:${asan}>:-static-libsan>
 
     # LLVM_COV
     $<$<BOOL:${llvm_cov}>:-fprofile-instr-generate>
@@ -64,7 +64,7 @@ cmake_builder(
 
     # ASAN
     $<$<BOOL:${asan}>:-fsanitize=address>
-    $<$<BOOL:${asan}>:-shared-libsan>
+    $<$<BOOL:${asan}>:-static-libsan>
 
     # LLVM_COV
     $<$<BOOL:${llvm_cov}>:-fprofile-instr-generate>

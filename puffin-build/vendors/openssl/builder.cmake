@@ -70,7 +70,7 @@ set(CFLAGS
   # ASAN
   $<$<BOOL:${asan}>:-DOPENSSL_NO_BUF_FREELISTS>
   $<$<BOOL:${asan}>:-fsanitize=address>
-  $<$<BOOL:${asan}>:-shared-libsan>
+  $<$<BOOL:${asan}>:-static-libsan>
 
   # LLVM_COV
   $<$<BOOL:${llvm_cov}>:-fprofile-instr-generate>
