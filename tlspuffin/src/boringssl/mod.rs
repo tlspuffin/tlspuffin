@@ -41,8 +41,12 @@ use std::ops::Deref;
 use puffin::algebra::ConcreteMessage;
 use transcript::extract_current_transcript;
 
-pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
-    struct BoringSSLFactory;
+pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBehavior>> {
+    #[derive(Debug, Clone)]
+    struct BoringSSLFactory {
+        preset: String,
+    }
+
     impl Factory<TLSProtocolBehavior> for BoringSSLFactory {
         fn create(
             &self,
@@ -80,20 +84,10 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn name(&self) -> String {
-            String::from(BORINGSSL_RUST_PUT)
+            self.preset.clone()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
-            let boringssl_shortname = if cfg!(feature = "boringssl202311") {
-                "boringssl202311"
-            } else if cfg!(feature = "boringssl202403") {
-                "boringssl202403"
-            } else if cfg!(feature = "boringsslmaster") {
-                "master"
-            } else {
-                "unknown"
-            };
-
             vec![
                 (
                     "harness".to_string(),
@@ -101,11 +95,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 ),
                 (
                     "library".to_string(),
-                    format!(
-                        "boringssl ({} / {})",
-                        boringssl_shortname,
-                        BoringSSL::version()
-                    ),
+                    format!("boringssl ({} / {})", self.preset, BoringSSL::version()),
                 ),
             ]
         }
@@ -123,11 +113,13 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
-            Box::new(BoringSSLFactory)
+            Box::new(self.clone())
         }
     }
 
-    Box::new(BoringSSLFactory)
+    Box::new(BoringSSLFactory {
+        preset: preset.into(),
+    })
 }
 
 pub struct BoringSSL {
