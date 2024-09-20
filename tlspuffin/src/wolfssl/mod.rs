@@ -1,9 +1,7 @@
 #![allow(non_snake_case)]
 
-use std::cell::RefCell;
 use std::io::ErrorKind;
 use std::ops::Deref;
-use std::rc::Rc;
 
 use foreign_types::ForeignType;
 use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
@@ -50,21 +48,7 @@ pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBeha
             claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
             options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
-            let use_clear = options
-                .get_option("use_clear")
-                .map(|value| value.parse().unwrap_or(false))
-                .unwrap_or(false);
-
-            let config = TlsPutConfig {
-                descriptor: agent_descriptor.clone(),
-                claims: claims.clone(),
-                authenticate_peer: agent_descriptor.typ == AgentType::Client
-                    && agent_descriptor.server_authentication
-                    || agent_descriptor.typ == AgentType::Server
-                        && agent_descriptor.client_authentication,
-                extract_deferred: Rc::new(RefCell::new(None)),
-                use_clear,
-            };
+            let config = TlsPutConfig::new(agent_descriptor, claims, options);
 
             Ok(Box::new(WolfSSL::new(config)?))
         }
