@@ -7,6 +7,26 @@ use puffin::claims::Claim;
 use puffin::variable_data::VariableData;
 use smallvec::SmallVec;
 
+#[cfg(not(feature = "claims"))]
+pub mod dummy_registration {
+    #[no_mangle]
+    pub extern "C" fn register_claimer(
+        _tls_like: *const ::std::os::raw::c_void,
+        _claimer: security_claims::claim_t,
+        _ctx: *mut ::std::os::raw::c_void,
+    ) {
+        // NOTE dummy implementation when the C ffi implementation is missing
+    }
+
+    #[no_mangle]
+    pub extern "C" fn deregister_claimer(
+        _tls_like: *const ::std::os::raw::c_void,
+    ) -> *mut ::std::os::raw::c_void {
+        // NOTE dummy implementation when the C ffi implementation is missing
+        ::std::ptr::null_mut()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TlsTranscript(pub [u8; 64], pub i32);
 
@@ -198,6 +218,120 @@ impl Claim for TlsClaim {
                 Transcript::ClientFinished(claim) => claim.boxed_any(),
                 Transcript::Certificate(claim) => claim.boxed_any(),
             },
+        }
+    }
+}
+
+pub mod claims_helpers {
+    use puffin::agent::TLSVersion;
+    use smallvec::SmallVec;
+
+    use crate::claims::{
+        ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsTranscript,
+        TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
+        TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
+    };
+
+    pub fn to_claim_data(
+        protocol_version: TLSVersion,
+        claim: security_claims::Claim,
+    ) -> Option<ClaimData> {
+        match claim.typ {
+            // Transcripts
+            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH => Some(ClaimData::Transcript(
+                ClaimDataTranscript::ClientHello(TranscriptClientHello(TlsTranscript(
+                    claim.transcript.data,
+                    claim.transcript.length,
+                ))),
+            )),
+            security_claims::ClaimType::CLAIM_TRANSCRIPT_PARTIAL_CH => Some(ClaimData::Transcript(
+                ClaimDataTranscript::PartialClientHello(TranscriptPartialClientHello(
+                    TlsTranscript(claim.transcript.data, claim.transcript.length),
+                )),
+            )),
+            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SH => Some(ClaimData::Transcript(
+                ClaimDataTranscript::ServerHello(TranscriptServerHello(TlsTranscript(
+                    claim.transcript.data,
+                    claim.transcript.length,
+                ))),
+            )),
+            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SERVER_FIN => {
+                Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
+                    TranscriptServerFinished(TlsTranscript(
+                        claim.transcript.data,
+                        claim.transcript.length,
+                    )),
+                )))
+            }
+            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_CLIENT_FIN => {
+                Some(ClaimData::Transcript(ClaimDataTranscript::ClientFinished(
+                    TranscriptClientFinished(TlsTranscript(
+                        claim.transcript.data,
+                        claim.transcript.length,
+                    )),
+                )))
+            }
+            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_CERT => Some(ClaimData::Transcript(
+                ClaimDataTranscript::Certificate(TranscriptCertificate(TlsTranscript(
+                    claim.transcript.data,
+                    claim.transcript.length,
+                ))),
+            )),
+            // Messages
+            // Transcripts in these messages are not up-to-date. They get updated after the Message
+            // has been processed
+            security_claims::ClaimType::CLAIM_FINISHED => {
+                Some(ClaimData::Message(ClaimDataMessage::Finished(Finished {
+                    outbound: claim.write > 0,
+                    client_random: SmallVec::from(claim.client_random.data),
+                    server_random: SmallVec::from(claim.server_random.data),
+                    session_id: SmallVec::from_slice(
+                        &claim.session_id.data[..claim.session_id.length as usize],
+                    ),
+                    authenticate_peer: false,             // FIXME
+                    peer_certificate: Default::default(), // FIXME
+                    master_secret: match protocol_version {
+                        TLSVersion::V1_3 => SmallVec::from_slice(&claim.master_secret.secret),
+                        TLSVersion::V1_2 => SmallVec::from_slice(&claim.master_secret_12.secret),
+                    },
+                    chosen_cipher: claim.chosen_cipher.data,
+                    available_ciphers: SmallVec::from_iter(
+                        claim.available_ciphers.ciphers[..claim.available_ciphers.length as usize]
+                            .iter()
+                            .map(|cipher| cipher.data),
+                    ),
+                    signature_algorithm: claim.signature_algorithm,
+                    peer_signature_algorithm: claim.peer_signature_algorithm,
+                })))
+            }
+            security_claims::ClaimType::CLAIM_CLIENT_HELLO => None,
+            security_claims::ClaimType::CLAIM_CCS => None,
+            security_claims::ClaimType::CLAIM_END_OF_EARLY_DATA => None,
+            security_claims::ClaimType::CLAIM_CERTIFICATE => None,
+            security_claims::ClaimType::CLAIM_KEY_EXCHANGE => None,
+            // FIXME it is weird that this returns the correct transcript
+            security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => {
+                if claim.write == 0 {
+                    Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
+                        TranscriptServerFinished(TlsTranscript(
+                            claim.transcript.data,
+                            claim.transcript.length,
+                        )),
+                    )))
+                } else {
+                    None
+                }
+            }
+            security_claims::ClaimType::CLAIM_KEY_UPDATE => None,
+            security_claims::ClaimType::CLAIM_HELLO_REQUEST => None,
+            security_claims::ClaimType::CLAIM_SERVER_HELLO => None,
+            security_claims::ClaimType::CLAIM_CERTIFICATE_REQUEST => None,
+            security_claims::ClaimType::CLAIM_SERVER_DONE => None,
+            security_claims::ClaimType::CLAIM_SESSION_TICKET => None,
+            security_claims::ClaimType::CLAIM_CERTIFICATE_STATUS => None,
+            security_claims::ClaimType::CLAIM_EARLY_DATA => None,
+            security_claims::ClaimType::CLAIM_ENCRYPTED_EXTENSIONS => None,
+            _ => None,
         }
     }
 }

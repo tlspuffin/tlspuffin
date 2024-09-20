@@ -282,16 +282,6 @@ impl Put<SshProtocolBehavior> for LibSSL {
         &self.agent_descriptor
     }
 
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self) {
-        panic!("Not supported")
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {
-        panic!("Not supported")
-    }
-
     fn describe_state(&self) -> &str {
         // TODO: We can use internal state
         match self.state {
