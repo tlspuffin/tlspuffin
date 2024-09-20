@@ -89,12 +89,6 @@ pub trait Put<PB: ProtocolBehavior>:
     /// Checks whether the Put is in a good state
     fn is_state_successful(&self) -> bool;
 
-    /// checks whether a agent is reusable with the descriptor
-    fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
-        let agent_descriptor = self.descriptor();
-        agent_descriptor.typ == other.typ && agent_descriptor.tls_version == other.tls_version
-    }
-
     /// Shut down the PUT by consuming it and returning a string that summarizes the execution.
     fn shutdown(&mut self) -> String;
 
