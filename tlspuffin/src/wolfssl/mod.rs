@@ -5,6 +5,7 @@ use std::io::ErrorKind;
 use std::ops::Deref;
 use std::rc::Rc;
 
+use foreign_types::ForeignType;
 use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::algebra::ConcreteMessage;
@@ -144,10 +145,7 @@ impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for Wo
 
 impl Drop for WolfSSL {
     fn drop(&mut self) {
-        #[cfg(feature = "claims")]
-        unsafe {
-            self.deregister_claimer();
-        }
+        self.deregister_claimer();
     }
 }
 
@@ -169,9 +167,7 @@ impl WolfSSL {
             config: config.clone(),
         };
 
-        #[cfg(feature = "claims")]
-        self.register_claimer();
-
+        wolfssl.register_claimer();
         Ok(wolfssl)
     }
 
@@ -218,30 +214,8 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
         result
     }
 
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self) {
-        unsafe {
-            let agent_name = self.config.descriptor.name;
-
-            security_claims::register_claimer(
-                self.stream.ssl().as_ptr().cast(),
-                move |claim: security_claims::Claim| {
-                    (*claims).borrow_mut().claim(agent_name, claim)
-                },
-            );
-        }
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {
-        unsafe {
-            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
-        }
-    }
-
     fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
         self.config.descriptor.name = new_name;
-        #[cfg(feature = "claims")]
         self.deregister_claimer();
 
         if self.config.use_clear {
@@ -250,7 +224,6 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
             self.stream = Self::new_stream(&mut self.ctx, &self.config)?;
         }
 
-        #[cfg(feature = "claims")]
         self.register_claimer();
 
         Ok(())
@@ -377,12 +350,6 @@ impl WolfSSL {
             ctx.set_verify(SslVerifyMode::NONE);
         }
 
-        // Callbacks for experiements
-        //wolf::wolfSSL_CTX_set_keylog_callback(ctx, Some(SSL_keylog));
-        //wolf::wolfSSL_CTX_set_info_callback(ctx, Some(SSL_info));
-        //wolf::wolfSSL_CTX_SetTlsFinishedCb(ctx, Some(SSL_finished));
-        //wolf::wolfSSL_set_tls13_secret_cb(ssl.as_ptr(), Some(SSL_keylog13), ptr::null_mut());
-
         // We expect two tickets like in OpenSSL
         #[cfg(not(feature = "wolfssl430"))]
         ctx.set_num_tickets(2)?;
@@ -430,6 +397,37 @@ impl WolfSSL {
                     });
                 }
             }
+        }
+    }
+
+    fn register_claimer(&mut self) {
+        unsafe {
+            use crate::claims::claims_helpers;
+
+            let agent_name = self.config.descriptor.name;
+            let claims = self.config.claims.clone();
+            let protocol_version = self.config.descriptor.tls_version;
+            let origin = self.config.descriptor.typ;
+
+            security_claims::register_claimer(
+                self.stream.ssl().as_ptr().cast(),
+                move |claim: security_claims::Claim| {
+                    if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
+                        claims.deref_borrow_mut().claim_sized(TlsClaim {
+                            agent_name,
+                            origin,
+                            protocol_version,
+                            data,
+                        });
+                    }
+                },
+            );
+        }
+    }
+
+    fn deregister_claimer(&mut self) {
+        unsafe {
+            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
         }
     }
 

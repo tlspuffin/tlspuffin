@@ -129,7 +129,6 @@ pub struct BoringSSL {
 
 impl Drop for BoringSSL {
     fn drop(&mut self) {
-        #[cfg(feature = "claims")]
         self.deregister_claimer();
     }
 }
@@ -175,25 +174,9 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
         &self.config.descriptor
     }
 
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self) {
-        self.set_msg_callback(Self::create_msg_callback(
-            self.config.descriptor.name.clone(),
-            &self.config,
-        ))
-        .expect("Failed to set msg_callback to extract transcript");
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {}
-
     fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
         self.config.descriptor.name = new_name;
-        #[cfg(feature = "claims")]
-        {
-            self.deregister_claimer();
-            self.register_claimer();
-        }
+        self.deregister_claimer();
         self.stream.ssl_mut().clear();
         self.register_claimer();
         Ok(())
@@ -244,12 +227,9 @@ impl BoringSSL {
         };
 
         let stream = SslStream::new(ssl, MemoryStream::new())?;
-
         let mut boringssl = BoringSSL { config, stream };
 
-        #[cfg(feature = "claims")]
         boringssl.register_claimer();
-
         Ok(boringssl)
     }
 
@@ -317,6 +297,15 @@ impl BoringSSL {
         Ok(ssl)
     }
 
+    fn register_claimer(&mut self) {
+        self.set_msg_callback(Self::create_msg_callback(&self.config))
+            .expect("Failed to set msg_callback to extract transcript");
+    }
+
+    fn deregister_claimer(&mut self) {
+        // TODO implement deregister_claimer for BoringSSL
+    }
+
     /// Set the msg_callback of BoringSSL
     ///
     /// Here we use a intermediate callback, `boring_msg_callback`, to call the
@@ -338,10 +327,8 @@ impl BoringSSL {
 
     /// This callback gets the actual hash transcript of the SSL handshake and
     /// add it to the claims
-    fn create_msg_callback(
-        agent_name: AgentName,
-        config: &TlsPutConfig,
-    ) -> impl Fn(&mut SslRef, i32) {
+    fn create_msg_callback(config: &TlsPutConfig) -> impl Fn(&mut SslRef, i32) {
+        let agent_name = config.descriptor.name;
         let origin = config.descriptor.typ;
         let protocol_version = config.descriptor.tls_version;
         let claims = config.claims.clone();
