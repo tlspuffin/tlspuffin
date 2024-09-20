@@ -99,16 +99,9 @@ pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBeha
             ]
         }
 
-        fn determinism_set_reseed(&self) -> () {
-            log::debug!(
-                "[Determinism] BoringSSL set (already done at compile time) and reseed RAND"
-            );
-            deterministic::reset_rand();
-        }
-
-        fn determinism_reseed(&self) -> () {
-            log::debug!("[Determinism] reseed BoringSSL");
-            deterministic::reset_rand();
+        fn rng_reseed(&self) -> () {
+            log::debug!("[RNG] reseed ({})", self.name());
+            deterministic::rng_reseed();
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
@@ -193,19 +186,6 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
     fn is_state_successful(&self) -> bool {
         self.describe_state()
             .contains("SSL negotiation finished successfully")
-    }
-
-    fn determinism_reseed(&mut self) -> Result<(), Error> {
-        #[cfg(feature = "deterministic")]
-        {
-            Ok(())
-        }
-        #[cfg(not(feature = "deterministic"))]
-        {
-            Err(Error::Agent(
-                "Unable to make BoringSSL deterministic!".to_string(),
-            ))
-        }
     }
 
     fn shutdown(&mut self) -> String {

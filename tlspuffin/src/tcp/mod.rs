@@ -84,17 +84,6 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             )]
         }
 
-        fn determinism_set_reseed(&self) {
-            log::debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
-        }
-
-        fn determinism_reseed(&self) {
-            log::debug!(
-                " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
-                self.name()
-            );
-        }
-
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
             Box::new(TCPFactory)
         }
@@ -316,12 +305,6 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         false
     }
 
-    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
-        Err(Error::Agent(
-            "[deterministic] Unable to reseed TCP PUT!".to_string(),
-        ))
-    }
-
     fn shutdown(&mut self) -> String {
         self.process.as_mut().unwrap().shutdown().unwrap()
     }
@@ -356,12 +339,6 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
 
     fn is_state_successful(&self) -> bool {
         false
-    }
-
-    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
-        Err(Error::Agent(
-            "[deterministic] Unable to reseed TCP PUT!".to_string(),
-        ))
     }
 
     fn shutdown(&mut self) -> String {

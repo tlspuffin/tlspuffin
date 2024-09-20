@@ -24,7 +24,6 @@ use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_K
 use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
 mod bindings;
-#[cfg(feature = "deterministic")]
 mod deterministic;
 mod util;
 
@@ -83,18 +82,8 @@ pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBeha
             ]
         }
 
-        fn determinism_set_reseed(&self) {
-            log::debug!("[Determinism] set and reseed");
-            #[cfg(feature = "deterministic")]
-            {
-                deterministic::rng_set();
-                deterministic::rng_reseed();
-            }
-        }
-
-        fn determinism_reseed(&self) {
-            log::debug!("[Determinism] reseed");
-            #[cfg(feature = "deterministic")]
+        fn rng_reseed(&self) {
+            log::debug!("[RNG] reseed ({})", self.name());
             deterministic::rng_reseed();
         }
 
@@ -102,6 +91,9 @@ pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBeha
             Box::new(self.clone())
         }
     }
+
+    deterministic::rng_set();
+    deterministic::rng_reseed();
 
     Box::new(OpenSSLFactory {
         preset: preset.into(),
@@ -187,20 +179,6 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     fn is_state_successful(&self) -> bool {
         self.describe_state()
             .contains("SSL negotiation finished successfully")
-    }
-
-    fn determinism_reseed(&mut self) -> Result<(), Error> {
-        #[cfg(feature = "deterministic")]
-        {
-            deterministic::rng_reseed();
-            Ok(())
-        }
-        #[cfg(not(feature = "deterministic"))]
-        {
-            Err(Error::Agent(
-                "Unable to make OpenSSL deterministic!".to_string(),
-            ))
-        }
     }
 
     fn shutdown(&mut self) -> String {

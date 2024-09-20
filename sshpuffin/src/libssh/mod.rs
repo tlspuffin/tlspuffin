@@ -163,17 +163,6 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             ]
         }
 
-        fn determinism_set_reseed(&self) {
-            log::debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
-        }
-
-        fn determinism_reseed(&self) {
-            log::debug!(
-                " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
-                self.name()
-            );
-        }
-
         fn clone_factory(&self) -> Box<dyn Factory<SshProtocolBehavior>> {
             Box::new(LibSSLFactory)
         }
@@ -305,11 +294,5 @@ impl Put<SshProtocolBehavior> for LibSSL {
 
     fn shutdown(&mut self) -> String {
         panic!("Not supported")
-    }
-
-    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
-        Err(Error::Put(
-            "libssh does not support determinism".to_string(),
-        ))
     }
 }
