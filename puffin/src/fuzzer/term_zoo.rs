@@ -17,7 +17,7 @@ pub struct TermZoo<PT: ProtocolTypes> {
 }
 
 impl<PT: ProtocolTypes> TermZoo<PT> {
-    pub fn generate<R: Rand>(signature: &Signature, rand: &mut R) -> Self {
+    pub fn generate<R: Rand>(signature: &Signature<PT>, rand: &mut R) -> Self {
         let terms = signature
             .functions
             .iter()
@@ -42,8 +42,8 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
     }
 
     fn generate_term<R: Rand>(
-        signature: &Signature,
-        (shape, dynamic_fn): &FunctionDefinition,
+        signature: &Signature<PT>,
+        (shape, dynamic_fn): &FunctionDefinition<PT>,
         depth: u16,
         rand: &mut R,
     ) -> Option<Term<PT>> {

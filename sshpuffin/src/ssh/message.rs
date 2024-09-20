@@ -1,7 +1,8 @@
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
-use puffin::protocol::{ExtractKnowledge, OpaqueProtocolMessage, ProtocolMessage};
+use puffin::protocol::{ExtractKnowledge, OpaqueProtocolMessage, ProtocolMessage, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
+use puffin::{atom_extract_knowledge, dummy_extract_knowledge};
 
 use crate::protocol::SshProtocolTypes;
 use crate::query::SshQueryMatcher;
@@ -264,6 +265,7 @@ impl TryFrom<&BinaryPacket> for SshMessage {
         SshMessage::read(&mut reader).ok_or_else(|| "Can not parse payload".to_string())
     }
 }
+
 impl ProtocolMessage<SshProtocolTypes, RawSshMessage> for SshMessage {
     fn create_opaque(&self) -> RawSshMessage {
         let mut payload = Vec::new();
@@ -299,7 +301,7 @@ impl TryFrom<RawSshMessage> for SshMessage {
     }
 }
 
-impl ExtractKnowledge<SshQueryMatcher> for SshMessage {
+impl ExtractKnowledge<SshProtocolTypes> for SshMessage {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
@@ -428,7 +430,7 @@ impl OpaqueProtocolMessage<SshProtocolTypes> for RawSshMessage {
     }
 }
 
-impl ExtractKnowledge<SshQueryMatcher> for RawSshMessage {
+impl ExtractKnowledge<SshProtocolTypes> for RawSshMessage {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
@@ -488,5 +490,63 @@ impl Codec for RawSshMessage {
         } else {
             Some(RawSshMessage::Packet(BinaryPacket::read(reader)?))
         }
+    }
+}
+
+atom_extract_knowledge!(SshProtocolTypes, String);
+atom_extract_knowledge!(SshProtocolTypes, OnWireData);
+atom_extract_knowledge!(SshProtocolTypes, u8);
+atom_extract_knowledge!(SshProtocolTypes, u64);
+atom_extract_knowledge!(SshProtocolTypes, NameList);
+atom_extract_knowledge!(SshProtocolTypes, CompressionAlgorithms);
+atom_extract_knowledge!(SshProtocolTypes, EncryptionAlgorithms);
+atom_extract_knowledge!(SshProtocolTypes, KexAlgorithms);
+atom_extract_knowledge!(SshProtocolTypes, [u8; 16]);
+atom_extract_knowledge!(SshProtocolTypes, MacAlgorithms);
+atom_extract_knowledge!(SshProtocolTypes, SignatureSchemes);
+dummy_extract_knowledge!(SshProtocolTypes, bool);
+
+impl<T: ExtractKnowledge<SshProtocolTypes> + Clone + 'static> ExtractKnowledge<SshProtocolTypes>
+    for Vec<T>
+{
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
+        matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+
+        for k in self {
+            k.extract_knowledge(knowledges, matcher, source)?;
+        }
+        Ok(())
+    }
+}
+
+impl<T: ExtractKnowledge<SshProtocolTypes> + Clone + 'static> ExtractKnowledge<SshProtocolTypes>
+    for Option<T>
+{
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
+        matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+
+        match self {
+            Some(x) => x.extract_knowledge(knowledges, matcher, source)?,
+            None => (),
+        }
+        Ok(())
     }
 }

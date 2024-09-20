@@ -18,7 +18,7 @@ use puffin::put_registry::{Factory, PutKind, TCP_PUT};
 use puffin::stream::Stream;
 use puffin::VERSION_STR;
 
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolTypes};
 
 pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct TCPFactory;
@@ -26,7 +26,10 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         fn create(
             &self,
             agent_descriptor: &AgentDescriptor,
-            _claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
+            _claims: &GlobalClaimList<
+                TLSProtocolTypes,
+                <TLSProtocolBehavior as ProtocolBehavior>::Claim,
+            >,
             options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
             if options.get_option("args").is_some() {

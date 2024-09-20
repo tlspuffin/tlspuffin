@@ -109,7 +109,7 @@ pub trait Factory<PB: ProtocolBehavior> {
     fn create(
         &self,
         agent_descriptor: &AgentDescriptor,
-        claims: &GlobalClaimList<PB::Claim>,
+        claims: &GlobalClaimList<PB::ProtocolTypes, PB::Claim>,
         options: &PutOptions,
     ) -> Result<Box<dyn Put<PB>>, Error>;
 

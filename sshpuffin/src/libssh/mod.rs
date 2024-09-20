@@ -27,10 +27,8 @@ use crate::libssh::ssh::{
     SessionOption, SessionState, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest,
     SshResult, SshSession,
 };
-use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior, SshProtocolBehavior};
-use crate::put_registry::{LIBSSH_PUT, LIBSSH_RUST_PUT};
-use crate::query::SshQueryMatcher;
-use crate::ssh::message::{RawSshMessage, SshMessage};
+use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior, SshProtocolTypes};
+use crate::put_registry::LIBSSH_RUST_PUT;
 
 pub mod ssh;
 
@@ -81,6 +79,7 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             &self,
             agent_descriptor: &AgentDescriptor,
             _claims: &GlobalClaimList<
+                SshProtocolTypes,
                 <SshProtocolBehavior as puffin::protocol::ProtocolBehavior>::Claim,
             >,
             _options: &PutOptions,

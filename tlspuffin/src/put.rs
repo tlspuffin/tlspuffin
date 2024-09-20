@@ -9,21 +9,25 @@ use puffin::put::PutOptions;
 
 use crate::claims::TlsClaim;
 use crate::protocol::TLSProtocolBehavior;
+use crate::protocol::TLSProtocolTypes;
 
 /// Static configuration for creating a new agent state for the PUT
 #[derive(Clone)]
 pub struct TlsPutConfig {
     pub descriptor: AgentDescriptor,
-    pub claims: GlobalClaimList<TlsClaim>,
+    pub claims: GlobalClaimList<TLSProtocolTypes, TlsClaim>,
     pub authenticate_peer: bool,
-    pub extract_deferred: Rc<RefCell<Option<TypeShape>>>,
+    pub extract_deferred: Rc<RefCell<Option<TypeShape<TLSProtocolTypes>>>>,
     pub use_clear: bool,
 }
 
 impl TlsPutConfig {
     pub fn new(
         agent_descriptor: &AgentDescriptor,
-        claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
+        claims: &GlobalClaimList<
+            TLSProtocolTypes,
+            <TLSProtocolBehavior as ProtocolBehavior>::Claim,
+        >,
         options: &PutOptions,
     ) -> TlsPutConfig {
         let use_clear = options

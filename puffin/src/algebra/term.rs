@@ -1,7 +1,7 @@
 //! This module provides[`Term`]s as well as iterators over them.
 
-use std::any::Any;
-use std::fmt::{self, Formatter};
+use std::fmt;
+use std::fmt::Formatter;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -10,7 +10,7 @@ use super::atoms::{Function, Variable};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
 use crate::error::Error;
-use crate::protocol::{ProtocolBehavior, ProtocolTypes};
+use crate::protocol::{ExtractKnowledge, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
@@ -19,12 +19,12 @@ use crate::trace::{Source, TraceContext};
 pub enum Term<PT: ProtocolTypes> {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
-    Variable(Variable<PT::Matcher>),
-    /// A [`Function`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`).
+    Variable(Variable<PT>),
+    /// An [`Function`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`).
     ///
     /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be
     /// considered a constant.
-    Application(Function, Vec<Term<PT>>),
+    Application(Function<PT>, Vec<Term<PT>>),
 }
 
 impl<PT: ProtocolTypes> fmt::Display for Term<PT> {
@@ -61,7 +61,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
-    pub fn get_type_shape(&self) -> &TypeShape {
+    pub fn get_type_shape(&self) -> &TypeShape<PT> {
         match self {
             Term::Variable(v) => &v.typ,
             Term::Application(function, _) => &function.shape().return_type,
@@ -102,24 +102,27 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
-    pub fn evaluate<PB>(&self, context: &TraceContext<PB>) -> Result<Box<dyn Any>, Error>
+    pub fn evaluate<PB: ProtocolBehavior>(
+        &self,
+        context: &TraceContext<PB>,
+    ) -> Result<Box<dyn ExtractKnowledge<PT>>, Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         match self {
             Term::Variable(variable) => context
-                .find_variable(variable.typ, &variable.query)
-                .map(|data| data.boxed_any())
+                .find_variable(variable.typ.clone(), &variable.query)
+                .map(|data| data.boxed_extractable())
                 .or_else(|| {
-                    if let Some(Source::Agent(agent_name)) = &variable.query.source {
-                        context.find_claim(*agent_name, variable.typ)
+                    if let Some(Source::Agent(agent_name)) = variable.query.source {
+                        context.find_claim(agent_name, variable.typ.clone())
                     } else {
                         todo!("Implement querying by label");
                     }
                 })
                 .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
             Term::Application(func, args) => {
-                let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
+                let mut dynamic_args: Vec<Box<dyn ExtractKnowledge<PT>>> = Vec::new();
                 for term in args {
                     match term.evaluate(context) {
                         Ok(data) => {
@@ -131,7 +134,8 @@ impl<PT: ProtocolTypes> Term<PT> {
                     }
                 }
                 let dynamic_fn = &func.dynamic_fn();
-                let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
+                let result: Result<Box<dyn ExtractKnowledge<PT>>, FnError> =
+                    dynamic_fn(&dynamic_args);
                 result.map_err(Error::Fn)
             }
         }

@@ -85,6 +85,12 @@ pub struct HandshakeHash {
     override_buffer: Option<Vec<u8>>,
 }
 
+impl std::fmt::Debug for HandshakeHash {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "")
+    }
+}
+
 impl HandshakeHash {
     pub fn new(alg: &'static digest::Algorithm) -> HandshakeHash {
         let ctx = digest::Context::new(alg);

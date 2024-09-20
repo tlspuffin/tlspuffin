@@ -14,7 +14,7 @@ use puffin::stream::{MemoryStream, Stream};
 use puffin::VERSION_STR;
 
 use crate::openssl::util::{set_max_protocol_version, static_rsa_cert};
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put::TlsPutConfig;
 use crate::put_registry::OPENSSL_RUST_PUT;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
@@ -33,7 +33,10 @@ pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBeha
         fn create(
             &self,
             agent_descriptor: &AgentDescriptor,
-            claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
+            claims: &GlobalClaimList<
+                TLSProtocolTypes,
+                <TLSProtocolBehavior as ProtocolBehavior>::Claim,
+            >,
             options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
             let config = TlsPutConfig::new(agent_descriptor, claims, options);

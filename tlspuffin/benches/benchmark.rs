@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use criterion::{criterion_group, criterion_main, Criterion};
 use puffin::algebra::dynamic_function::make_dynamic;
 use puffin::algebra::error::FnError;
@@ -11,6 +9,7 @@ use puffin::libafl::corpus::InMemoryCorpus;
 use puffin::libafl::mutators::Mutator;
 use puffin::libafl::state::StdState;
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
+use puffin::protocol::ExtractKnowledge;
 use puffin::term;
 use puffin::trace::{Spawner, Trace};
 use puffin::trace_helper::TraceHelper;
@@ -33,7 +32,7 @@ fn benchmark_dynamic(c: &mut Criterion) {
     group.bench_function("fn_benchmark_example dynamic", |b| {
         b.iter(|| {
             let (_, dynamic_fn) = make_dynamic(&fn_benchmark_example);
-            let args: Vec<Box<dyn Any>> = vec![Box::new(5)];
+            let args: Vec<Box<dyn ExtractKnowledge<TLSProtocolTypes>>> = vec![Box::new(5u64)];
             dynamic_fn(&args)
         })
     });

@@ -9,17 +9,27 @@ use puffin::protocol::{
     ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
 use puffin::trace::{Knowledge, Source, Trace};
+use puffin::{atom_extract_knowledge, dummy_extract_knowledge};
+use serde::{Deserialize, Serialize};
 
 use crate::claims::TlsClaim;
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::query::TlsQueryMatcher;
+use crate::tls::rustls::hash_hs::HandshakeHash;
+use crate::tls::rustls::key::Certificate;
 use crate::tls::rustls::msgs::alert::AlertMessagePayload;
 use crate::tls::rustls::msgs::base::Payload;
 use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
+use crate::tls::rustls::msgs::enums::{
+    AlertDescription, AlertLevel, CipherSuite, Compression, HandshakeType, NamedGroup,
+    ProtocolVersion, SignatureScheme,
+};
 use crate::tls::rustls::msgs::handshake::{
-    CertificatePayload, ClientHelloPayload, ECDHEServerKeyExchange, HandshakeMessagePayload,
-    HandshakePayload, NewSessionTicketPayload, ServerHelloPayload, ServerKeyExchangePayload,
+    CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayload, ClientExtension,
+    ClientHelloPayload, ECDHEServerKeyExchange, HandshakeMessagePayload, HandshakePayload,
+    HelloRetryExtension, NewSessionTicketExtension, NewSessionTicketPayload, PresharedKeyIdentity,
+    Random, ServerExtension, ServerHelloPayload, ServerKeyExchangePayload, SessionID,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
@@ -636,6 +646,76 @@ impl ExtractKnowledge<TLSProtocolTypes> for OpaqueMessage {
     }
 }
 
+atom_extract_knowledge!(TLSProtocolTypes, AlertDescription);
+atom_extract_knowledge!(TLSProtocolTypes, AlertLevel);
+atom_extract_knowledge!(TLSProtocolTypes, CertReqExtension);
+atom_extract_knowledge!(TLSProtocolTypes, Certificate);
+atom_extract_knowledge!(TLSProtocolTypes, CertificateEntry);
+atom_extract_knowledge!(TLSProtocolTypes, CertificateExtension);
+atom_extract_knowledge!(TLSProtocolTypes, CipherSuite);
+atom_extract_knowledge!(TLSProtocolTypes, ClientExtension);
+atom_extract_knowledge!(TLSProtocolTypes, Compression);
+atom_extract_knowledge!(TLSProtocolTypes, HandshakeHash);
+atom_extract_knowledge!(TLSProtocolTypes, HandshakeType);
+atom_extract_knowledge!(TLSProtocolTypes, HelloRetryExtension);
+atom_extract_knowledge!(TLSProtocolTypes, NamedGroup);
+atom_extract_knowledge!(TLSProtocolTypes, NewSessionTicketExtension);
+atom_extract_knowledge!(TLSProtocolTypes, PresharedKeyIdentity);
+atom_extract_knowledge!(TLSProtocolTypes, ProtocolVersion);
+atom_extract_knowledge!(TLSProtocolTypes, Random);
+atom_extract_knowledge!(TLSProtocolTypes, ServerExtension);
+atom_extract_knowledge!(TLSProtocolTypes, SessionID);
+atom_extract_knowledge!(TLSProtocolTypes, SignatureScheme);
+atom_extract_knowledge!(TLSProtocolTypes, u32);
+atom_extract_knowledge!(TLSProtocolTypes, u64);
+atom_extract_knowledge!(TLSProtocolTypes, u8);
+dummy_extract_knowledge!(TLSProtocolTypes, bool);
+
+impl<T: ExtractKnowledge<TLSProtocolTypes> + Clone + 'static> ExtractKnowledge<TLSProtocolTypes>
+    for Vec<T>
+{
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
+        matcher: Option<<TLSProtocolTypes as ProtocolTypes>::Matcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+
+        for k in self {
+            k.extract_knowledge(knowledges, matcher, source)?;
+        }
+        Ok(())
+    }
+}
+
+impl<T: ExtractKnowledge<TLSProtocolTypes> + Clone + 'static> ExtractKnowledge<TLSProtocolTypes>
+    for Option<T>
+{
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
+        matcher: Option<<TLSProtocolTypes as ProtocolTypes>::Matcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+
+        match self {
+            Some(x) => x.extract_knowledge(knowledges, matcher, source)?,
+            None => (),
+        }
+        Ok(())
+    }
+}
+
 impl Matcher for msgs::enums::HandshakeType {
     fn matches(&self, matcher: &Self) -> bool {
         matcher == self
@@ -646,13 +726,13 @@ impl Matcher for msgs::enums::HandshakeType {
     }
 }
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct TLSProtocolTypes;
 
 impl ProtocolTypes for TLSProtocolTypes {
     type Matcher = TlsQueryMatcher;
 
-    fn signature() -> &'static Signature {
+    fn signature() -> &'static Signature<Self> {
         &TLS_SIGNATURE
     }
 }

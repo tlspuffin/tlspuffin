@@ -15,7 +15,7 @@
 //! serialized data like strings or numerical IDs to functions implemented in Rust.
 
 use core::fmt;
-use std::any::{Any, TypeId};
+use std::any::TypeId;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -82,7 +82,7 @@ impl fmt::Display for Source {
 pub struct Knowledge<'a, PT: ProtocolTypes> {
     pub source: &'a Source,
     pub matcher: Option<PT::Matcher>,
-    pub data: &'a dyn VariableData,
+    pub data: &'a dyn VariableData<PT>,
 }
 
 /// [RawKnowledge] stores
@@ -201,15 +201,15 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
     /// If we want a variable with lower specificity, then we can just query less specific
     pub fn find_variable(
         &self,
-        query_type_shape: TypeShape,
+        query_type_shape: TypeShape<PT>,
         query: &Query<PT::Matcher>,
-    ) -> Option<&(dyn VariableData)> {
+    ) -> Option<&(dyn VariableData<PT>)> {
         let query_type_id: TypeId = query_type_shape.into();
 
         let mut possibilities: Vec<Knowledge<PT>> = self
             .raw_knowledge
             .iter()
-            .filter(|raw| (query.source.is_none() || query.source.as_ref().unwrap() == &raw.source))
+            .filter(|raw| (query.source == None || query.source.as_ref().unwrap() == &raw.source))
             .flatten()
             .filter(|knowledge| {
                 query_type_id == knowledge.data.type_id()
@@ -254,7 +254,7 @@ impl<PB: ProtocolBehavior> Spawner<PB> {
 
     pub fn spawn(
         &self,
-        claims: &GlobalClaimList<PB::Claim>,
+        claims: &GlobalClaimList<PB::ProtocolTypes, PB::Claim>,
         descriptor: &AgentDescriptor,
     ) -> Result<Agent<PB>, Error> {
         let put_descriptor = self
@@ -308,7 +308,7 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     /// The knowledge of the attacker
     pub knowledge_store: KnowledgeStore<PB::ProtocolTypes>,
     agents: Vec<Agent<PB>>,
-    claims: GlobalClaimList<<PB as ProtocolBehavior>::Claim>,
+    claims: GlobalClaimList<PB::ProtocolTypes, PB::Claim>,
 
     spawner: Spawner<PB>,
 
@@ -391,8 +391,8 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn find_claim(
         &self,
         agent_name: AgentName,
-        query_type_shape: TypeShape,
-    ) -> Option<Box<dyn Any>> {
+        query_type_shape: TypeShape<PB::ProtocolTypes>,
+    ) -> Option<Box<dyn ExtractKnowledge<PB::ProtocolTypes>>> {
         self.claims
             .deref_borrow()
             .find_last_claim(agent_name, query_type_shape)
@@ -403,9 +403,9 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     /// If we want a variable with lower specificity, then we can just query less specific
     pub fn find_variable(
         &self,
-        query_type_shape: TypeShape,
+        query_type_shape: TypeShape<PB::ProtocolTypes>,
         query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
-    ) -> Option<&(dyn VariableData)> {
+    ) -> Option<&(dyn VariableData<PB::ProtocolTypes>)> {
         self.knowledge_store.find_variable(query_type_shape, query)
     }
 
@@ -664,25 +664,32 @@ impl<PT: ProtocolTypes> fmt::Display for InputAction<PT> {
 }
 
 fn as_message_flight<PB: ProtocolBehavior>(
-    value: Box<dyn Any>,
+    value: Box<dyn ExtractKnowledge<PB::ProtocolTypes>>,
 ) -> Result<PB::OpaqueProtocolMessageFlight, Error> {
-    Err(value)
-        .or_else(|v| {
-            v.downcast::<PB::OpaqueProtocolMessageFlight>().map(|m| { m.debug("Input opaque message flight"); *m})
-        })
-        .or_else(|v| {
-            v.downcast::<PB::ProtocolMessageFlight>().map(|m| { m.debug("Input message flight"); (*m).into() })
-        })
-        .or_else(|v| {
-            v.downcast::<PB::ProtocolMessage>().map(|m| { m.debug("Input message"); Into::<PB::ProtocolMessageFlight>::into(*m).into() })
-        })
-        .or_else(|v| {
-            v.downcast::<PB::OpaqueProtocolMessage>().map(|m| { m.debug("Input opaque message"); (*m).into() })
-        })
-        .map_err(|_| {
-            FnError::Unknown(String::from(
-            "value is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`, `OpaqueMessageFlight` !",
+    let opaque: PB::OpaqueProtocolMessageFlight = if let Some(flight) =
+        value.as_any().downcast_ref::<PB::ProtocolMessageFlight>()
+    {
+        flight.debug("Input message flight");
+        flight.to_owned().into()
+    } else if let Some(flight) = value
+        .as_any()
+        .downcast_ref::<PB::OpaqueProtocolMessageFlight>()
+    {
+        flight.debug("Input opaque message flight");
+        flight.to_owned()
+    } else if let Some(msg) = value.as_any().downcast_ref::<PB::ProtocolMessage>() {
+        msg.debug("Input message");
+        let message_flight: PB::ProtocolMessageFlight = msg.clone().into();
+        message_flight.into()
+    } else if let Some(opaque_message) = value.as_any().downcast_ref::<PB::OpaqueProtocolMessage>()
+    {
+        opaque_message.debug("Input opaque message");
+        opaque_message.to_owned().into()
+    } else {
+        return Err(FnError::Unknown(String::from(
+                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`, `OpaqueMessageFlight` !",
             ))
-            .into()
-        })
+            .into());
+    };
+    Ok(opaque)
 }

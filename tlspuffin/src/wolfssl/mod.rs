@@ -23,7 +23,7 @@ use crate::claims::{
     ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsClaim, TranscriptCertificate,
     TranscriptClientFinished, TranscriptServerFinished, TranscriptServerHello,
 };
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put::TlsPutConfig;
 use crate::put_registry::WOLFSSL_RUST_PUT;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
@@ -42,7 +42,10 @@ pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBeha
         fn create(
             &self,
             agent_descriptor: &AgentDescriptor,
-            claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
+            claims: &GlobalClaimList<
+                TLSProtocolTypes,
+                <TLSProtocolBehavior as ProtocolBehavior>::Claim,
+            >,
             options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
             let config = TlsPutConfig::new(agent_descriptor, claims, options);
@@ -340,9 +343,12 @@ impl WolfSSL {
         let config = &self.config;
         if let Some(type_shape) = self.config.extract_deferred.deref().borrow_mut().take() {
             if let Some(transcript) = extract_current_transcript(self.stream.ssl()) {
-                let CERT_SHAPE: TypeShape = TypeShape::of::<TranscriptCertificate>();
-                let FINISHED_SHAPE: TypeShape = TypeShape::of::<TranscriptServerFinished>();
-                let CLIENT_SHAPE: TypeShape = TypeShape::of::<TranscriptClientFinished>();
+                let CERT_SHAPE: TypeShape<TLSProtocolTypes> =
+                    TypeShape::<TLSProtocolTypes>::of::<TranscriptCertificate>();
+                let FINISHED_SHAPE: TypeShape<TLSProtocolTypes> =
+                    TypeShape::<TLSProtocolTypes>::of::<TranscriptServerFinished>();
+                let CLIENT_SHAPE: TypeShape<TLSProtocolTypes> =
+                    TypeShape::<TLSProtocolTypes>::of::<TranscriptClientFinished>();
 
                 let data = if type_shape == CERT_SHAPE {
                     Some(ClaimData::Transcript(ClaimDataTranscript::Certificate(

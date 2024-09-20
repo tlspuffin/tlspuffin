@@ -1,14 +1,14 @@
 use std::fmt::Display;
 
-use log::debug;
 use puffin::algebra::signature::Signature;
-use puffin::codec::{Codec, Reader, Reader};
+use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
     ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
     ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
-use puffin::trace::{Knowledge, Source, Source, Trace, Trace};
+use puffin::trace::{Knowledge, Source, Trace};
+use serde::{Deserialize, Serialize};
 
 use crate::claim::SshClaim;
 use crate::query::SshQueryMatcher;
@@ -47,10 +47,10 @@ impl From<SshMessage> for SshMessageFlight {
 }
 
 impl ExtractKnowledge<SshProtocolTypes> for SshMessageFlight {
-    fn extract_knowledge(
-        &self,
-        knowledges: &mut Vec<Knowledge<SshProtocolTypes>>,
-        matcher: Option<SshQueryMatcher>,
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
+        matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
         knowledges.push(Knowledge {
@@ -85,10 +85,10 @@ impl OpaqueProtocolMessageFlight<SshProtocolTypes, RawSshMessage> for RawSshMess
 }
 
 impl ExtractKnowledge<SshProtocolTypes> for RawSshMessageFlight {
-    fn extract_knowledge(
-        &self,
-        knowledges: &mut Vec<Knowledge<SshProtocolTypes>>,
-        matcher: Option<SshQueryMatcher>,
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
+        matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
         knowledges.push(Knowledge {
@@ -159,10 +159,9 @@ impl From<RawSshMessage> for RawSshMessageFlight {
     }
 }
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct SshProtocolTypes;
 impl ProtocolTypes for SshProtocolTypes {
-    type Claim = SshClaim;
     type Matcher = SshQueryMatcher;
 
     fn signature() -> &'static Signature<Self> {
@@ -180,6 +179,7 @@ impl Display for SshProtocolTypes {
 pub struct SshProtocolBehavior {}
 
 impl ProtocolBehavior for SshProtocolBehavior {
+    type Claim = SshClaim;
     type OpaqueProtocolMessage = RawSshMessage;
     type OpaqueProtocolMessageFlight = RawSshMessageFlight;
     type ProtocolMessage = SshMessage;

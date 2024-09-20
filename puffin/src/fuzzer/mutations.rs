@@ -14,12 +14,12 @@ pub fn trace_mutations<S, PT: ProtocolTypes>(
     max_trace_length: usize,
     constraints: TermConstraints,
     fresh_zoo_after: u64,
-    signature: &'static Signature,
+    signature: &'static Signature<PT>,
 ) -> tuple_list_type!(
       RepeatMutator<S>,
       SkipMutator<S>,
       ReplaceReuseMutator<S>,
-      ReplaceMatchMutator<S>,
+      ReplaceMatchMutator<S, PT>,
       RemoveAndLiftMutator<S>,
       GenerateMutator<S, PT>,
       SwapMutator<S>
@@ -186,24 +186,24 @@ where
 }
 
 /// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
-///
-/// An example would be to replace a constant with another constant or the binary function fn_add
-/// with fn_sub. It can also replace any variable with a constant.
-pub struct ReplaceMatchMutator<S>
+/// An example would be to replace a constant with another constant or the binary function
+/// fn_add with fn_sub.
+/// It can also replace any variable with a constant.
+pub struct ReplaceMatchMutator<S, PT: ProtocolTypes>
 where
     S: HasRand,
 {
     constraints: TermConstraints,
-    signature: &'static Signature,
+    signature: &'static Signature<PT>,
     phantom_s: std::marker::PhantomData<S>,
 }
 
-impl<S> ReplaceMatchMutator<S>
+impl<S, PT: ProtocolTypes> ReplaceMatchMutator<S, PT>
 where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(constraints: TermConstraints, signature: &'static Signature) -> Self {
+    pub fn new(constraints: TermConstraints, signature: &'static Signature<PT>) -> Self {
         Self {
             constraints,
             signature,
@@ -212,7 +212,7 @@ where
     }
 }
 
-impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for ReplaceMatchMutator<S>
+impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for ReplaceMatchMutator<S, PT>
 where
     S: HasRand,
 {
@@ -261,12 +261,12 @@ where
     }
 }
 
-impl<S> Named for ReplaceMatchMutator<S>
+impl<S, PT: ProtocolTypes> Named for ReplaceMatchMutator<S, PT>
 where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<ReplaceMatchMutator<S>>()
+        std::any::type_name::<ReplaceMatchMutator<S, PT>>()
     }
 }
 
@@ -445,7 +445,7 @@ where
     refresh_zoo_after: u64,
     constraints: TermConstraints,
     zoo: Option<TermZoo<PT>>,
-    signature: &'static Signature,
+    signature: &'static Signature<PT>,
     phantom_s: std::marker::PhantomData<S>,
 }
 impl<S, PT: ProtocolTypes> GenerateMutator<S, PT>
@@ -458,7 +458,7 @@ where
         refresh_zoo_after: u64,
         constraints: TermConstraints,
         zoo: Option<TermZoo<PT>>,
-        signature: &'static Signature,
+        signature: &'static Signature<PT>,
     ) -> Self {
         Self {
             mutation_counter,
