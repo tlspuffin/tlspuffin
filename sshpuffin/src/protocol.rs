@@ -1,4 +1,4 @@
-use std::any::{Any, TypeId};
+use std::any::TypeId;
 
 use puffin::algebra::signature::Signature;
 use puffin::algebra::ConcreteMessage;
@@ -10,6 +10,7 @@ use puffin::protocol::{
     ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
 use puffin::trace::{Knowledge, Source, Trace};
+use serde::{Deserialize, Serialize};
 
 use crate::claim::SshClaim;
 use crate::query::SshQueryMatcher;
@@ -48,10 +49,10 @@ impl From<SshMessage> for SshMessageFlight {
 }
 
 impl ExtractKnowledge<SshProtocolTypes> for SshMessageFlight {
-    fn extract_knowledge(
-        &self,
-        knowledges: &mut Vec<Knowledge<SshProtocolTypes>>,
-        matcher: Option<SshQueryMatcher>,
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
+        matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
         knowledges.push(Knowledge {
@@ -86,10 +87,10 @@ impl OpaqueProtocolMessageFlight<SshProtocolTypes, RawSshMessage> for RawSshMess
 }
 
 impl ExtractKnowledge<SshProtocolTypes> for RawSshMessageFlight {
-    fn extract_knowledge(
-        &self,
-        knowledges: &mut Vec<Knowledge<SshProtocolTypes>>,
-        matcher: Option<SshQueryMatcher>,
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
+        matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
         knowledges.push(Knowledge {
@@ -160,10 +161,9 @@ impl From<RawSshMessage> for RawSshMessageFlight {
     }
 }
 
-#[derive(Clone, Debug, Hash)]
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct SshProtocolTypes;
 impl ProtocolTypes for SshProtocolTypes {
-    type Claim = SshClaim;
     type Matcher = SshQueryMatcher;
 
     fn signature() -> &'static Signature<Self> {
@@ -171,7 +171,7 @@ impl ProtocolTypes for SshProtocolTypes {
     }
 }
 
-impl Display for SshProtocolTypes {
+impl std::fmt::Display for SshProtocolTypes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "")
     }
@@ -181,6 +181,7 @@ impl Display for SshProtocolTypes {
 pub struct SshProtocolBehavior {}
 
 impl ProtocolBehavior for SshProtocolBehavior {
+    type Claim = SshClaim;
     type OpaqueProtocolMessage = RawSshMessage;
     type OpaqueProtocolMessageFlight = RawSshMessageFlight;
     type ProtocolMessage = SshMessage;
@@ -192,13 +193,17 @@ impl ProtocolBehavior for SshProtocolBehavior {
         vec![] // TODO
     }
 
-    fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, Error> {
+    fn any_get_encoding(
+        message: &dyn ExtractKnowledge<Self::ProtocolTypes>,
+    ) -> Result<ConcreteMessage, Error> {
         match message
+            .as_any()
             .downcast_ref::<SshMessage>()
             .map(|b| codec::Encode::get_encoding(&b.create_opaque()))
         {
             Some(cm) => Ok(cm),
             None => message
+                .as_any()
                 .downcast_ref::<RawSshMessage>()
                 .map(|b| codec::Encode::get_encoding(b))
                 .ok_or(Error::Term(
@@ -207,7 +212,10 @@ impl ProtocolBehavior for SshProtocolBehavior {
         }
     }
 
-    fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, Error> {
+    fn try_read_bytes(
+        bitstring: &[u8],
+        ty: TypeId,
+    ) -> Result<Box<dyn ExtractKnowledge<Self::ProtocolTypes>>, Error> {
         todo!()
     }
 }

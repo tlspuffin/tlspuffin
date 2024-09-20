@@ -1,4 +1,4 @@
-use std::any::{Any, TypeId};
+use std::any::TypeId;
 use std::borrow::Cow;
 use std::borrow::Cow::{Borrowed, Owned};
 use std::cmp::{max, min};
@@ -14,7 +14,7 @@ use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{ConcreteMessage, DYTerm, Term, TermType};
 use crate::error::Error;
 use crate::fuzzer::utils::{find_term_by_term_path, TermPath};
-use crate::protocol::{ProtocolBehavior, ProtocolTypes};
+use crate::protocol::{ExtractKnowledge, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
 /// Constants governing heuritics for finding payloads in term evaluations
@@ -187,7 +187,7 @@ pub fn eval_or_compute<'a, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes
                 false,
                 whole_term.get_type_shape(),
             )?;
-            Ok(Owned(PB::any_get_encoding(&sibling_eval_box)?))
+            Ok(Owned(PB::any_get_encoding(sibling_eval_box.as_ref())?))
         }
     }
 }
@@ -746,7 +746,7 @@ pub fn replace_payloads<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = 
     let mut shift = 0_isize; // Number of bytes we need to shift on the right to apply the
                              // splicing, taking into account previous payloads replacements). We assume the aforementioned
                              // invariant.
-    let mut to_modify: Vec<u8> = eval_tree.encode.as_mut().unwrap().clone(); //unwrap: eval_until_opaque returns an error if it cannot compute the encoding of the root
+    let mut to_modify: Vec<u8> = eval_tree.encode.as_ref().unwrap().clone(); //unwrap: eval_until_opaque returns an error if it cannot compute the encoding of the root
                                                                              // having payloads
     for payload_context in &payloads {
         trace!("[replace_payload] --------> treating {:?} at path {:?} on message of length = {}. Shift = {shift}", payload_context.payloads, payload_context.path, to_modify.len());
@@ -831,8 +831,8 @@ impl<PT: ProtocolTypes> Term<PT> {
         with_payloads: bool,
         is_in_list: bool,
         sibling_has_payloads: bool,
-        type_term: &TypeShape,
-    ) -> Result<(Box<dyn Any>, Vec<PayloadContext<PT>>), Error>
+        type_term: &TypeShape<PT>,
+    ) -> Result<(Box<dyn ExtractKnowledge<PT>>, Vec<PayloadContext<PT>>), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -842,7 +842,10 @@ impl<PT: ProtocolTypes> Term<PT> {
             // previous messages ? Plus: this supposes read_bytes is "perfect" (commute
             // with get_any_encoding), which does not seem to be the case...
             trace!("[eval_until_opaque] Trying to read payload_0 to skip further computations...........");
-            if let Ok(di) = PB::try_read_bytes(payload.payload_0.bytes(), (*type_term).into()) {
+            if let Ok(di) = PB::try_read_bytes(
+                payload.payload_0.bytes(),
+                <TypeShape<PT> as Clone>::clone(type_term).into(),
+            ) {
                 let p_c = vec![PayloadContext {
                     of_term: self,
                     payloads: payload,
@@ -857,11 +860,11 @@ impl<PT: ProtocolTypes> Term<PT> {
         match &self.term {
             DYTerm::Variable(variable) => {
                 let d = ctx
-                    .find_variable(variable.typ, &variable.query)
-                    .map(|data| data.boxed_any())
+                    .find_variable(variable.typ.clone(), &variable.query)
+                    .map(|data| data.boxed_extractable())
                     .or_else(|| {
                         if let Some(Source::Agent(agent_name)) = variable.query.source {
-                            ctx.find_claim(agent_name, variable.typ)
+                            ctx.find_claim(agent_name, variable.typ.clone())
                         } else {
                             todo!("Implement querying by label");
                         }
@@ -871,7 +874,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                     if let Some(payload) = &self.payloads {
                         trace!("        / We retrieve evaluation for eval_tree from payload.");
                         eval_tree.encode = Some(payload.payload_0.clone().into());
-                    } else if let Ok(eval) = PB::any_get_encoding(&d) {
+                    } else if let Ok(eval) = PB::any_get_encoding(d.as_ref()) {
                         trace!("        / No payload so we evaluated into: {eval:?}");
                         eval_tree.encode = Some(eval);
                     } else if path.is_empty() {
@@ -886,7 +889,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                         warn!("[eval_until_opaque] Could not any_get_encode a sub-term at path {path:?}, sub-term:\n{}", &self.term);
                     }
                     if with_payloads && self.payloads.is_some() {
-                        trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {path:?}, payload is: {:?} and eval is: {:?}", self.payloads.as_ref().unwrap(), PB::any_get_encoding(&d).ok());
+                        trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {path:?}, payload is: {:?} and eval is: {:?}", self.payloads.as_ref().unwrap(), PB::any_get_encoding(d.as_ref()).ok());
                         return Ok((
                             d,
                             vec![PayloadContext {
@@ -897,13 +900,13 @@ impl<PT: ProtocolTypes> Term<PT> {
                         ));
                     }
                 }
-                trace!("[eval_until_opaque] [Var] Did not add a payload for a leaf at path: {path:?} and eval is: {:?}", PB::any_get_encoding(&d));
+                trace!("[eval_until_opaque] [Var] Did not add a payload for a leaf at path: {path:?} and eval is: {:?}", PB::any_get_encoding(d.as_ref()));
                 Ok((d, vec![]))
             }
             DYTerm::Application(func, args) => {
                 trace!("[eval_until_opaque] [App]: Application from path={path:?}");
-                let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new(); // will contain all the arguments on which to call the function symbol
-                                                                      // implementation
+                let mut dynamic_args: Vec<Box<dyn ExtractKnowledge<PT>>> = Vec::new(); // will contain all the arguments on which to call the function symbol
+                                                                                       // implementation
                 let mut all_payloads = vec![]; // will collect all payloads contexts of arguments (except those under opaque
                                                // function symbols)
                 let mut eval_tree_args = vec![]; // will collect the eval tree of the sub-terms, if `with_payloads`
@@ -914,11 +917,11 @@ impl<PT: ProtocolTypes> Term<PT> {
                         // Fully evaluate this sub-term and consume the payloads
                         trace!("    * [eval_until_opaque] Opaque and has payloads: Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
                         let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
-                        let typei = func.shape().argument_types[i];
-                        let di = PB::try_read_bytes(&bi, typei.into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
+                        let typei = func.shape().argument_types[i].clone();
+                        let di = PB::try_read_bytes(&bi, typei.clone().into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
                             .with_context(||
                                 format!("[Eval_until_opaque] Try Read bytes failed for typeid: {}, typeid: {:?} on term (arg: {i}):\n {}",
-                                        typei, TypeId::from(typei), &self))
+                                        typei, TypeId::from(typei.clone()), &self))
                             .map_err(|e| {
                                 if !ti.is_symbolic() {
                                     warn!("[eval_until_opaque] [Argument has payload, might explain why] Warn: {}", e);
@@ -957,7 +960,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 }
                 trace!("[eval_until_opaque] Now calling the function symbol implementation and then updating payloads...");
                 let dynamic_fn = &func.dynamic_fn();
-                let result: Box<dyn Any> = dynamic_fn(&dynamic_args)?; // evaluation of the function symbol implementation
+                let result: Box<dyn ExtractKnowledge<PT>> = dynamic_fn(&dynamic_args)?; // evaluation of the function symbol implementation
 
                 if with_payloads && self.payloads.is_some() {
                     all_payloads.push(PayloadContext {
@@ -971,7 +974,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 // encoding of self, we save it for later in eval_tree
                 if with_payloads && (!all_payloads.is_empty() || sibling_has_payloads) {
                     eval_tree.args = eval_tree_args;
-                    if let Ok(eval) = PB::any_get_encoding(&result) {
+                    if let Ok(eval) = PB::any_get_encoding(result.as_ref()) {
                         debug!("        / We successfully evaluated the term into: {eval:?}");
                         eval_tree.encode = Some(eval);
                     } else if path.is_empty() {

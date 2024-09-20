@@ -2082,17 +2082,13 @@ pub mod tests {
     }
 
     pub mod serialization {
-        use puffin::algebra::set_deserialize_signature;
         use puffin::protocol::ProtocolTypes;
         use puffin::trace::Trace;
 
         use crate::test_utils::prelude::*;
         use crate::tls::seeds::*;
-        use crate::tls::TLS_SIGNATURE;
 
         fn test_postcard_serialization<PT: ProtocolTypes>(trace: Trace<PT>) {
-            let _ = set_deserialize_signature(&TLS_SIGNATURE);
-
             let serialized1 = trace.serialize_postcard().unwrap();
             let deserialized_trace =
                 Trace::<TLSProtocolTypes>::deserialize_postcard(serialized1.as_ref()).unwrap();
@@ -2102,8 +2098,6 @@ pub mod tests {
         }
 
         fn test_json_serialization<PT: ProtocolTypes>(trace: Trace<PT>) {
-            let _ = set_deserialize_signature(&TLS_SIGNATURE);
-
             let serialized1 = serde_json::to_string_pretty(&trace).unwrap();
             let deserialized_trace =
                 serde_json::from_str::<Trace<TLSProtocolTypes>>(serialized1.as_str()).unwrap();

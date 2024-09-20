@@ -17,15 +17,15 @@ pub struct TermZoo<PT: ProtocolTypes> {
 }
 
 impl<PT: ProtocolTypes> TermZoo<PT> {
-    pub fn generate<R: Rand>(signature: &Signature, rand: &mut R) -> Self {
+    pub fn generate<R: Rand>(signature: &Signature<PT>, rand: &mut R) -> Self {
         Self::generate_many(signature, rand, 1, None)
     }
 
     pub fn generate_many<R: Rand>(
-        signature: &Signature,
+        signature: &Signature<PT>,
         rand: &mut R,
         how_many: usize,
-        filter: Option<&FunctionDefinition>,
+        filter: Option<&FunctionDefinition<PT>>,
     ) -> Self {
         let mut acc = vec![];
         if let Some(def) = filter {
@@ -68,8 +68,8 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
     }
 
     fn generate_term<R: Rand>(
-        signature: &Signature,
-        (shape, dynamic_fn): &FunctionDefinition,
+        signature: &Signature<PT>,
+        (shape, dynamic_fn): &FunctionDefinition<PT>,
         depth: u16,
         rand: &mut R,
     ) -> Option<Term<PT>> {

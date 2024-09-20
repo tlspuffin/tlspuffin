@@ -44,7 +44,7 @@ pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
 RepeatMutator<S>,
 SkipMutator<S>,
 ReplaceReuseMutator<S>,
-ReplaceMatchMutator<S>,
+ReplaceMatchMutator<S, PT>,
 RemoveAndLiftMutator<S>,
 GenerateMutator<S, PT>,
 SwapMutator<S>,
@@ -87,7 +87,7 @@ pub fn trace_mutations<'harness, S, PT: ProtocolTypes, PB>(
     fresh_zoo_after: u64,
     with_bit_level: bool,
     with_dy: bool,
-    signature: &'static Signature,
+    signature: &'static Signature<PT>,
     put_registry: &'harness PutRegistry<PB>,
 ) -> DyMutations<'harness, PT, PB, S>
 where
@@ -277,25 +277,29 @@ where
 }
 
 /// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
-///
-/// An example would be to replace a constant with another constant or the binary function fn_add
-/// with fn_sub. It can also replace any variable with a constant.
-pub struct ReplaceMatchMutator<S>
+/// An example would be to replace a constant with another constant or the binary function
+/// fn_add with fn_sub.
+/// It can also replace any variable with a constant.
+pub struct ReplaceMatchMutator<S, PT: ProtocolTypes>
 where
     S: HasRand,
 {
     constraints: TermConstraints,
-    signature: &'static Signature,
+    signature: &'static Signature<PT>,
     phantom_s: std::marker::PhantomData<S>,
     with_dy: bool,
 }
 
-impl<S> ReplaceMatchMutator<S>
+impl<S, PT: ProtocolTypes> ReplaceMatchMutator<S, PT>
 where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(constraints: TermConstraints, signature: &'static Signature, with_dy: bool) -> Self {
+    pub fn new(
+        constraints: TermConstraints,
+        signature: &'static Signature<PT>,
+        with_dy: bool,
+    ) -> Self {
         Self {
             constraints,
             signature,
@@ -305,7 +309,7 @@ where
     }
 }
 
-impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for ReplaceMatchMutator<S>
+impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for ReplaceMatchMutator<S, PT>
 where
     S: HasRand,
 {
@@ -359,12 +363,12 @@ where
     }
 }
 
-impl<S> Named for ReplaceMatchMutator<S>
+impl<S, PT: ProtocolTypes> Named for ReplaceMatchMutator<S, PT>
 where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<ReplaceMatchMutator<S>>()
+        std::any::type_name::<ReplaceMatchMutator<S, PT>>()
     }
 }
 
@@ -566,7 +570,7 @@ where
     refresh_zoo_after: u64,
     constraints: TermConstraints,
     zoo: Option<TermZoo<PT>>,
-    signature: &'static Signature,
+    signature: &'static Signature<PT>,
     phantom_s: std::marker::PhantomData<S>,
     with_dy: bool,
 }
@@ -580,7 +584,7 @@ where
         refresh_zoo_after: u64,
         constraints: TermConstraints,
         zoo: Option<TermZoo<PT>>,
-        signature: &'static Signature,
+        signature: &'static Signature<PT>,
         with_dy: bool,
     ) -> Self {
         Self {

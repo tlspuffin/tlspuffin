@@ -1,12 +1,17 @@
-use std::any::Any;
 use std::fmt::Debug;
 
 use puffin::agent::{AgentName, AgentType, TLSVersion};
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::claims::Claim;
 use puffin::codec::Encode;
+use puffin::dummy_extract_knowledge;
+use puffin::error::Error;
+use puffin::protocol::{ExtractKnowledge, ProtocolTypes};
+use puffin::trace::{Knowledge, Source};
 use puffin::variable_data::VariableData;
 use smallvec::SmallVec;
+
+use crate::protocol::TLSProtocolTypes;
 
 #[cfg(not(has_instr = "claimer"))]
 pub mod dummy_registration {
@@ -53,6 +58,8 @@ impl Encode for TranscriptClientHello {
     }
 }
 
+dummy_extract_knowledge!(TLSProtocolTypes, TranscriptClientHello);
+
 #[derive(Debug, Clone)]
 pub struct TranscriptPartialClientHello(pub TlsTranscript);
 impl Transcript for TranscriptPartialClientHello {
@@ -67,6 +74,8 @@ impl Encode for TranscriptPartialClientHello {
         b.extend(self.as_slice())
     }
 }
+
+dummy_extract_knowledge!(TLSProtocolTypes, TranscriptPartialClientHello);
 
 #[derive(Debug, Clone)]
 pub struct TranscriptServerHello(pub TlsTranscript);
@@ -83,6 +92,8 @@ impl Encode for TranscriptServerHello {
     }
 }
 
+dummy_extract_knowledge!(TLSProtocolTypes, TranscriptServerHello);
+
 #[derive(Debug, Clone)]
 pub struct TranscriptServerFinished(pub TlsTranscript);
 impl Transcript for TranscriptServerFinished {
@@ -98,6 +109,8 @@ impl Encode for TranscriptServerFinished {
     }
 }
 
+dummy_extract_knowledge!(TLSProtocolTypes, TranscriptServerFinished);
+
 #[derive(Debug, Clone)]
 pub struct TranscriptClientFinished(pub TlsTranscript);
 impl Transcript for TranscriptClientFinished {
@@ -112,6 +125,9 @@ impl Encode for TranscriptClientFinished {
         b.extend(self.as_slice())
     }
 }
+
+dummy_extract_knowledge!(TLSProtocolTypes, TranscriptClientFinished);
+
 #[derive(Debug, Clone)]
 pub struct TranscriptCertificate(pub TlsTranscript);
 impl Transcript for TranscriptCertificate {
@@ -120,6 +136,7 @@ impl Transcript for TranscriptCertificate {
         &transcript.0[..transcript.1 as usize]
     }
 }
+dummy_extract_knowledge!(TLSProtocolTypes, TranscriptCertificate);
 
 impl Encode for TranscriptCertificate {
     fn encode(&self, b: &mut Vec<u8>) {
@@ -132,12 +149,16 @@ pub trait Transcript {
 
 #[derive(Debug, Clone)]
 pub struct ClientHello;
+dummy_extract_knowledge!(TLSProtocolTypes, ClientHello);
 #[derive(Debug, Clone)]
 pub struct ServerHello;
+dummy_extract_knowledge!(TLSProtocolTypes, ServerHello);
 #[derive(Debug, Clone)]
 pub struct Certificate;
+dummy_extract_knowledge!(TLSProtocolTypes, Certificate);
 #[derive(Debug, Clone)]
 pub struct CertificateVerify;
+dummy_extract_knowledge!(TLSProtocolTypes, CertificateVerify);
 #[derive(Debug, Clone)]
 pub struct Finished {
     pub outbound: bool,
@@ -184,6 +205,7 @@ pub struct Finished {
                     }
     */
 }
+dummy_extract_knowledge!(TLSProtocolTypes, Finished);
 
 #[derive(Debug, Clone)]
 pub enum ClaimDataTranscript {
@@ -218,15 +240,26 @@ pub struct TlsClaim {
     pub data: ClaimData,
 }
 
-impl Claim for TlsClaim {
+impl ExtractKnowledge<TLSProtocolTypes> for TlsClaim {
+    fn extract_knowledge(
+        &self,
+        _knowledges: &mut Vec<puffin::trace::Knowledge<TLSProtocolTypes>>,
+        _matcher: Option<<TLSProtocolTypes as puffin::protocol::ProtocolTypes>::Matcher>,
+        _source: &puffin::trace::Source,
+    ) -> Result<(), puffin::error::Error> {
+        Ok(())
+    }
+}
+
+impl Claim<TLSProtocolTypes> for TlsClaim {
     fn agent_name(&self) -> AgentName {
         self.agent_name
     }
 
-    fn id(&self) -> TypeShape {
+    fn id(&self) -> TypeShape<TLSProtocolTypes> {
         type Message = ClaimDataMessage;
         type Transcript = ClaimDataTranscript;
-        type Type = TypeShape;
+        type Type = TypeShape<TLSProtocolTypes>;
         match &self.data {
             ClaimData::Message(message) => match message {
                 Message::ClientHello(_) => Type::of::<ClientHello>(),
@@ -246,24 +279,24 @@ impl Claim for TlsClaim {
         }
     }
 
-    fn inner(&self) -> Box<dyn Any> {
+    fn inner(&self) -> Box<dyn ExtractKnowledge<TLSProtocolTypes>> {
         type Message = ClaimDataMessage;
         type Transcript = ClaimDataTranscript;
         match &self.data {
             ClaimData::Message(message) => match message {
-                Message::ClientHello(claim) => claim.boxed_any(),
-                Message::ServerHello(claim) => claim.boxed_any(),
-                Message::Certificate(claim) => claim.boxed_any(),
-                Message::CertificateVerify(claim) => claim.boxed_any(),
-                Message::Finished(claim) => claim.boxed_any(),
+                Message::ClientHello(claim) => claim.boxed_extractable(),
+                Message::ServerHello(claim) => claim.boxed_extractable(),
+                Message::Certificate(claim) => claim.boxed_extractable(),
+                Message::CertificateVerify(claim) => claim.boxed_extractable(),
+                Message::Finished(claim) => claim.boxed_extractable(),
             },
             ClaimData::Transcript(transcript) => match transcript {
-                Transcript::ClientHello(claim) => claim.boxed_any(),
-                Transcript::PartialClientHello(claim) => claim.boxed_any(),
-                Transcript::ServerHello(claim) => claim.boxed_any(),
-                Transcript::ServerFinished(claim) => claim.boxed_any(),
-                Transcript::ClientFinished(claim) => claim.boxed_any(),
-                Transcript::Certificate(claim) => claim.boxed_any(),
+                Transcript::ClientHello(claim) => claim.boxed_extractable(),
+                Transcript::PartialClientHello(claim) => claim.boxed_extractable(),
+                Transcript::ServerHello(claim) => claim.boxed_extractable(),
+                Transcript::ServerFinished(claim) => claim.boxed_extractable(),
+                Transcript::ClientFinished(claim) => claim.boxed_extractable(),
+                Transcript::Certificate(claim) => claim.boxed_extractable(),
             },
         }
     }

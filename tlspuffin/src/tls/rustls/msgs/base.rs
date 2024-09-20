@@ -1,8 +1,12 @@
 use std::fmt::Debug;
 
-use puffin::codec;
 use puffin::codec::{Codec, Reader};
+use puffin::error::Error;
+use puffin::protocol::{ExtractKnowledge, ProtocolTypes};
+use puffin::trace::{Knowledge, Source};
+use puffin::{atom_extract_knowledge, codec};
 
+use crate::protocol::TLSProtocolTypes;
 use crate::tls::rustls::key;
 /// An externally length'd payload
 #[derive(Debug, Clone, PartialEq)]
@@ -228,3 +232,7 @@ impl Codec2 for Option<Vec<u8>> {
         }
     }
 }
+
+atom_extract_knowledge!(TLSProtocolTypes, PayloadU8);
+atom_extract_knowledge!(TLSProtocolTypes, PayloadU16);
+atom_extract_knowledge!(TLSProtocolTypes, PayloadU24);

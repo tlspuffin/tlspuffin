@@ -1,4 +1,4 @@
-use std::any::{Any, TypeId};
+use std::any::TypeId;
 use std::convert::TryFrom;
 
 use log::trace;
@@ -6,13 +6,13 @@ use puffin::algebra::ConcreteMessage;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
 use puffin::error::Error::Term;
-use puffin::protocol::ProtocolMessage;
+use puffin::protocol::{ExtractKnowledge, ProtocolMessage};
 
 use crate::claims::{
     TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
     TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
 };
-use crate::protocol::{MessageFlight, OpaqueMessageFlight};
+use crate::protocol::{MessageFlight, OpaqueMessageFlight, TLSProtocolTypes};
 use crate::tls;
 use crate::tls::rustls::error::Error;
 use crate::tls::rustls::hash_hs::HandshakeHash;
@@ -466,9 +466,11 @@ impl VecCodecWoSize for CipherSuite {} // u16
 impl VecCodecWoSize for PresharedKeyIdentity {} //u16
 
 // Re-interpret any type of rustls message into bitstrings through successive downcast tries
-pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffin::error::Error> {
+pub fn any_get_encoding(
+    message: &dyn ExtractKnowledge<TLSProtocolTypes>,
+) -> Result<ConcreteMessage, puffin::error::Error> {
     try_downcast!(
-        message,
+        message.as_any(),
         // We list all the types that have the Encode trait and that can be the type of a rustls message
         // Using term_zoo.rs integration test `test_term_eval, I am able to measure how many generated terms
         // require each of the encode type below. Can be used to remove non-required ones and possibly
@@ -547,7 +549,7 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
         // ExtensionType,
     )
         .or_else(|| try_downcast_two!(
-                    message,
+                    message.as_any(),
                     // We list all the types having custom Codec2 now
                     Vec<PayloadU24>,
                     Vec<PayloadU16>,
@@ -570,7 +572,7 @@ macro_rules! try_read {
                 "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
                 & $bitstring
-            )).into()).map(|v| Box::new(v) as Box<dyn Any>)
+            )).into()).map(|v| Box::new(v) as Box<dyn ExtractKnowledge<TLSProtocolTypes>>)
     } else {
         try_read!($bitstring, $ti, $($Ts),+)
     }
@@ -584,7 +586,7 @@ macro_rules! try_read {
                 "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
                 & $bitstring
-            )).into()).map(|v| Box::new(v) as Box<dyn Any>)
+            )).into()).map(|v| Box::new(v) as Box<dyn ExtractKnowledge<TLSProtocolTypes>>)
     } else {
            try_read_two!(
                 $bitstring,
@@ -609,7 +611,7 @@ macro_rules! try_read_two {
                 "[try_read_bytes_2] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
                 & $bitstring
-            )).into()).map(|v| Box::new(v) as Box<dyn Any>)
+            )).into()).map(|v| Box::new(v) as Box<dyn ExtractKnowledge<TLSProtocolTypes>>)
     } else {
         try_read_two!($bitstring, $ti, $($Ts),+)
     }
@@ -623,7 +625,7 @@ macro_rules! try_read_two {
                 "[try_read_bytes_2] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
                 & $bitstring
-            )).into()).map(|v| Box::new(v) as Box<dyn Any>)
+            )).into()).map(|v| Box::new(v) as Box<dyn ExtractKnowledge<TLSProtocolTypes>>)
     } else {
             // error!(
             //     "[try_read_bytes] Failed to find a suitable type with typeID {:?} to read the bitstring {:?}",
@@ -640,7 +642,10 @@ macro_rules! try_read_two {
 };
 }
 
-pub fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, puffin::error::Error> {
+pub fn try_read_bytes(
+    bitstring: &[u8],
+    ty: TypeId,
+) -> Result<Box<dyn ExtractKnowledge<TLSProtocolTypes>>, puffin::error::Error> {
     let a = <Vec<PayloadU24>>::read_bytes2(bitstring);
     trace!("Trying read...");
     try_read!(

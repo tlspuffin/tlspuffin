@@ -1,6 +1,5 @@
 //! This module provides[`DYTerm`]sas well as iterators over them.
 
-use std::any::Any;
 use std::fmt;
 use std::hash::Hash;
 
@@ -15,7 +14,7 @@ use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
 use crate::error::Error;
 use crate::fuzzer::utils::TermPath;
-use crate::protocol::{ProtocolBehavior, ProtocolTypes};
+use crate::protocol::{ExtractKnowledge, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
 const SIZE_LEAF: usize = 1;
@@ -29,12 +28,12 @@ pub type ConcreteMessage = Vec<u8>;
 pub enum DYTerm<PT: ProtocolTypes> {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
-    Variable(Variable<PT::Matcher>),
-    /// A [`Function`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`).
+    Variable(Variable<PT>),
+    /// An [`Function`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`).
     ///
     /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be
     /// considered a constant.
-    Application(Function, Vec<Term<PT>>),
+    Application(Function<PT>, Vec<Term<PT>>),
 }
 
 impl<PT: ProtocolTypes> fmt::Display for DYTerm<PT> {
@@ -44,11 +43,11 @@ impl<PT: ProtocolTypes> fmt::Display for DYTerm<PT> {
 }
 
 /// Trait for data we can treat as terms (either DYTerm or Term)
-pub trait TermType<PT>: fmt::Display + fmt::Debug + Clone {
+pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn resistant_id(&self) -> u32;
     fn size(&self) -> usize;
     fn is_leaf(&self) -> bool;
-    fn get_type_shape(&self) -> &TypeShape;
+    fn get_type_shape(&self) -> &TypeShape<PT>;
     fn name(&self) -> &str;
     fn mutate(&mut self, other: Self);
     fn display_at_depth(&self, depth: usize) -> String;
@@ -412,13 +411,13 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
             debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",
                     self, &all_payloads);
             replace_payloads(self, &mut eval_tree, all_payloads, context)
-        } else if let Ok(eval) = PB::any_get_encoding(&m) {
+        } else if let Ok(eval) = PB::any_get_encoding(m.as_ref()) {
             trace!("        / We successfully evaluated the root term into: {eval:?}");
             Ok(eval)
         } else {
             error!(
                 "Error with any_get_encoding: {:?}",
-                PB::any_get_encoding(&m)
+                PB::any_get_encoding(m.as_ref())
             );
             Err(Error::Term(format!("[evaluate_config] Could not any_get_encode a term at root position. Current term: {}", &self.term)))
                     .map_err(|e| {
@@ -468,7 +467,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         }
     }
 
-    fn get_type_shape(&self) -> &TypeShape {
+    fn get_type_shape(&self) -> &TypeShape<PT> {
         match &self.term {
             DYTerm::Variable(v) => &v.typ,
             DYTerm::Application(function, _) => &function.shape().return_type,
@@ -571,25 +570,25 @@ impl<PT: ProtocolTypes> Subterms<PT, Term<PT>> for Vec<Term<PT>> {
 pub fn evaluate_lazy_test<PB, PT>(
     term: &Term<PT>,
     context: &TraceContext<PB>,
-) -> Result<Box<dyn Any>, Error>
+) -> Result<Box<dyn ExtractKnowledge<PT>>, Error>
 where
     PT: ProtocolTypes,
     PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
     match &term.term {
         DYTerm::Variable(variable) => context
-            .find_variable(variable.typ, &variable.query)
-            .map(|data| data.boxed_any())
+            .find_variable(variable.typ.clone(), &variable.query)
+            .map(|data| data.boxed_extractable())
             .or_else(|| {
                 if let Some(Source::Agent(agent_name)) = &variable.query.source {
-                    context.find_claim(*agent_name, variable.typ)
+                    context.find_claim(*agent_name, variable.typ.clone())
                 } else {
                     todo!("Implement querying by label");
                 }
             })
             .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
         DYTerm::Application(func, args) => {
-            let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
+            let mut dynamic_args: Vec<Box<dyn ExtractKnowledge<PT>>> = Vec::new();
             for term in args {
                 match evaluate_lazy_test(term, context) {
                     Ok(data) => {
@@ -601,7 +600,7 @@ where
                 }
             }
             let dynamic_fn = &func.dynamic_fn();
-            let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
+            let result: Result<Box<dyn ExtractKnowledge<PT>>, FnError> = dynamic_fn(&dynamic_args);
             result.map_err(Error::Fn)
         }
     }

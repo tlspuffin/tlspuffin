@@ -22,7 +22,7 @@ use crate::claims::{
     ClaimData, ClaimDataTranscript, TlsClaim, TranscriptCertificate, TranscriptClientFinished,
     TranscriptServerFinished, TranscriptServerHello,
 };
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put::TlsPutConfig;
 use crate::put_registry::BORINGSSL_RUST_PUT;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
@@ -45,7 +45,10 @@ pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBeha
         fn create(
             &self,
             agent_descriptor: &AgentDescriptor,
-            claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
+            claims: &GlobalClaimList<
+                TLSProtocolTypes,
+                <TLSProtocolBehavior as ProtocolBehavior>::Claim,
+            >,
             options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
             let config = TlsPutConfig::new(agent_descriptor, claims, options);

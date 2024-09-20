@@ -2,16 +2,35 @@ use core::any::{Any, TypeId};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+
 use crate::algebra::signature::Signature;
 use crate::algebra::{ConcreteMessage, Matcher};
 use crate::claims::{Claim, SecurityViolationPolicy};
 use crate::codec::Codec;
 use crate::error::Error;
 use crate::trace::{Knowledge, Source, Trace};
+
+pub trait AsAny {
+    fn as_any(&self) -> &dyn Any;
+    fn boxed_any(self) -> Box<dyn Any>;
+}
+
+impl<T: 'static> AsAny for T {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn boxed_any(self) -> Box<dyn Any> {
+        Box::new(self)
+    }
+}
+
 /// Provide a way to extract knowledge out of a Message/OpaqueMessage or any type that
 /// might be used in a precomputation
-pub trait ExtractKnowledge<PT: ProtocolTypes>: std::fmt::Debug {
-    /// Fill `knowledge` with new knowledge gathered form the type implementing ExtractKnowledge
+pub trait ExtractKnowledge<PT: ProtocolTypes>: std::fmt::Debug + AsAny {
+    /// Fill `knowledges` with new knowledge gathered form the type implementing ExtractKnowledge
     /// by recursively calling extract_knowledge on all contained element
     /// This will put source as the source of all the produced knowledge, matcher is also passed
     /// recursively but might be overwritten by a type with a more specific matcher
@@ -21,6 +40,43 @@ pub trait ExtractKnowledge<PT: ProtocolTypes>: std::fmt::Debug {
         matcher: Option<PT::Matcher>,
         source: &'a Source,
     ) -> Result<(), Error>;
+}
+
+#[macro_export]
+macro_rules! dummy_extract_knowledge {
+    ($protocol_type:ty, $extract_type:ty) => {
+        impl ExtractKnowledge<$protocol_type> for $extract_type {
+            fn extract_knowledge<'a>(
+                &'a self,
+                _knowledges: &mut Vec<Knowledge<'a, $protocol_type>>,
+                _matcher: Option<<$protocol_type as ProtocolTypes>::Matcher>,
+                _source: &'a Source,
+            ) -> Result<(), Error> {
+                Ok(())
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! atom_extract_knowledge {
+    ($protocol_type:ty, $extract_type:ty) => {
+        impl ExtractKnowledge<$protocol_type> for $extract_type {
+            fn extract_knowledge<'a>(
+                &'a self,
+                knowledges: &mut Vec<Knowledge<'a, $protocol_type>>,
+                matcher: Option<<$protocol_type as ProtocolTypes>::Matcher>,
+                source: &'a Source,
+            ) -> Result<(), Error> {
+                knowledges.push(Knowledge {
+                    source,
+                    matcher,
+                    data: self,
+                });
+                Ok(())
+            }
+        }
+    };
 }
 
 /// Store a message flight, a vec of all the messages sent by the PUT between two steps
@@ -73,11 +129,13 @@ pub trait ProtocolMessageDeframer<PT: ProtocolTypes> {
 }
 
 /// Defines the types used to manipulate and concretize Terms
-pub trait ProtocolTypes: 'static + Clone + Hash + Display + Debug {
+pub trait ProtocolTypes:
+    'static + Clone + Hash + Display + Debug + Serialize + DeserializeOwned
+{
     type Matcher: Matcher;
 
     /// Get the signature that is used in the protocol
-    fn signature() -> &'static Signature;
+    fn signature() -> &'static Signature<Self>;
 }
 
 /// Defines the protocol which is being tested.
@@ -93,9 +151,8 @@ pub trait ProtocolTypes: 'static + Clone + Hash + Display + Debug {
 /// queries for [knowledge](crate::trace::Knowledge).
 pub trait ProtocolBehavior: 'static {
     type ProtocolTypes: ProtocolTypes;
-    type Claim: Claim;
-    type SecurityViolationPolicy: SecurityViolationPolicy<Self::Claim>;
-
+    type Claim: Claim<Self::ProtocolTypes>;
+    type SecurityViolationPolicy: SecurityViolationPolicy<Self::ProtocolTypes, Self::Claim>;
     type ProtocolMessage: ProtocolMessage<Self::ProtocolTypes, Self::OpaqueProtocolMessage>;
     type OpaqueProtocolMessage: OpaqueProtocolMessage<Self::ProtocolTypes>;
     type ProtocolMessageFlight: ProtocolMessageFlight<
@@ -112,9 +169,14 @@ pub trait ProtocolBehavior: 'static {
 
     /// Downcast from Box<dyn Any> and encode as bitstring any message as per the PB's internal
     /// structure
-    fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, Error>;
+    fn any_get_encoding(
+        message: &dyn ExtractKnowledge<Self::ProtocolTypes>,
+    ) -> Result<ConcreteMessage, Error>;
 
     /// Try to read a bitstring and interpret it as the TypeShape, which is the type of a message as
     /// per the PB's internal structure This is expected to fail for many types of messages!
-    fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, Error>;
+    fn try_read_bytes(
+        bitstring: &[u8],
+        ty: TypeId,
+    ) -> Result<Box<dyn ExtractKnowledge<Self::ProtocolTypes>>, Error>;
 }

@@ -32,12 +32,10 @@
 use std::fmt;
 use std::hash::Hash;
 
-use once_cell::sync::OnceCell;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 pub use self::term::*;
-use crate::algebra::signature::Signature;
 
 pub mod atoms;
 pub mod bitstrings;
@@ -46,19 +44,6 @@ pub mod error;
 pub mod macros;
 pub mod signature;
 pub mod term;
-
-static DESERIALIZATION_SIGNATURE: OnceCell<&'static Signature> = OnceCell::new();
-
-/// Returns the current signature which is used during deserialization.
-pub fn deserialize_signature() -> &'static Signature {
-    DESERIALIZATION_SIGNATURE
-        .get()
-        .expect("current signature needs to be set")
-}
-
-pub fn set_deserialize_signature(signature: &'static Signature) -> Result<(), ()> {
-    DESERIALIZATION_SIGNATURE.set(signature).map_err(|_err| ())
-}
 
 impl<T> Matcher for Option<T>
 where
@@ -111,6 +96,8 @@ pub mod test_signature {
     use std::fmt;
     use std::io::Read;
 
+    use serde::{Deserialize, Serialize};
+
     use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
     use crate::algebra::dynamic_function::TypeShape;
     use crate::algebra::error::FnError;
@@ -126,21 +113,69 @@ pub mod test_signature {
     use crate::put_registry::{Factory, PutKind};
     use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace};
     use crate::variable_data::VariableData;
-    use crate::{define_signature, term, VERSION_STR};
+    use crate::{define_signature, dummy_extract_knowledge, term, VERSION_STR};
 
+    #[derive(Debug)]
     pub struct HmacKey;
+    #[derive(Debug)]
     pub struct HandshakeMessage;
+    #[derive(Debug)]
     pub struct Encrypted;
+    #[derive(Debug)]
     pub struct ProtocolVersion;
+    #[derive(Debug)]
     pub struct Random;
+    #[derive(Debug)]
     pub struct ClientExtension;
+    #[derive(Debug)]
     pub struct ClientExtensions;
+    #[derive(Debug)]
     pub struct Group;
+    #[derive(Debug)]
     pub struct SessionID;
+    #[derive(Debug)]
     pub struct CipherSuites;
+    #[derive(Debug)]
     pub struct CipherSuite;
+    #[derive(Debug)]
     pub struct Compression;
+    #[derive(Debug)]
     pub struct Compressions;
+
+    dummy_extract_knowledge!(TestProtocolTypes, HmacKey);
+    dummy_extract_knowledge!(TestProtocolTypes, HandshakeMessage);
+    dummy_extract_knowledge!(TestProtocolTypes, Encrypted);
+    dummy_extract_knowledge!(TestProtocolTypes, ProtocolVersion);
+    dummy_extract_knowledge!(TestProtocolTypes, Random);
+    dummy_extract_knowledge!(TestProtocolTypes, ClientExtension);
+    dummy_extract_knowledge!(TestProtocolTypes, ClientExtensions);
+    dummy_extract_knowledge!(TestProtocolTypes, Group);
+    dummy_extract_knowledge!(TestProtocolTypes, SessionID);
+    dummy_extract_knowledge!(TestProtocolTypes, CipherSuites);
+    dummy_extract_knowledge!(TestProtocolTypes, CipherSuite);
+    dummy_extract_knowledge!(TestProtocolTypes, Compression);
+    dummy_extract_knowledge!(TestProtocolTypes, Compressions);
+    dummy_extract_knowledge!(TestProtocolTypes, u8);
+    dummy_extract_knowledge!(TestProtocolTypes, u16);
+    dummy_extract_knowledge!(TestProtocolTypes, u32);
+    dummy_extract_knowledge!(TestProtocolTypes, u64);
+
+    impl<T: std::fmt::Debug + Clone + 'static> ExtractKnowledge<TestProtocolTypes> for Vec<T> {
+        fn extract_knowledge<'a>(
+            &'a self,
+            knowledges: &mut Vec<Knowledge<'a, TestProtocolTypes>>,
+            matcher: Option<<TestProtocolTypes as ProtocolTypes>::Matcher>,
+            source: &'a Source,
+        ) -> Result<(), Error> {
+            knowledges.push(Knowledge {
+                source,
+                matcher,
+                data: self,
+            });
+
+            Ok(())
+        }
+    }
 
     pub fn fn_hmac256_new_key() -> Result<HmacKey, FnError> {
         Ok(HmacKey)
@@ -323,7 +358,7 @@ pub mod test_signature {
     }
 
     define_signature!(
-        TEST_SIGNATURE,
+        TEST_SIGNATURE<TestProtocolTypes>,
         fn_hmac256_new_key
         fn_hmac256
         fn_client_hello
@@ -356,8 +391,10 @@ pub mod test_signature {
 
     pub struct TestClaim;
 
-    impl VariableData for TestClaim {
-        fn boxed(&self) -> Box<dyn VariableData> {
+    dummy_extract_knowledge!(TestProtocolTypes, TestClaim);
+
+    impl VariableData<TestProtocolTypes> for TestClaim {
+        fn boxed(&self) -> Box<dyn VariableData<TestProtocolTypes>> {
             panic!("Not implemented for test stub");
         }
 
@@ -372,6 +409,10 @@ pub mod test_signature {
         fn type_name(&self) -> &'static str {
             panic!("Not implemented for test stub");
         }
+
+        fn boxed_extractable(&self) -> Box<dyn ExtractKnowledge<TestProtocolTypes>> {
+            panic!("Not implemented for test stub");
+        }
     }
 
     impl fmt::Debug for TestClaim {
@@ -380,16 +421,16 @@ pub mod test_signature {
         }
     }
 
-    impl Claim for TestClaim {
+    impl Claim<TestProtocolTypes> for TestClaim {
         fn agent_name(&self) -> AgentName {
             panic!("Not implemented for test stub");
         }
 
-        fn id(&self) -> TypeShape {
+        fn id(&self) -> TypeShape<TestProtocolTypes> {
             panic!("Not implemented for test stub");
         }
 
-        fn inner(&self) -> Box<dyn Any> {
+        fn inner(&self) -> Box<dyn ExtractKnowledge<TestProtocolTypes>> {
             panic!("Not implemented for test stub");
         }
     }
@@ -424,16 +465,7 @@ pub mod test_signature {
         }
     }
 
-    impl ExtractKnowledge<TestProtocolTypes> for TestOpaqueMessage {
-        fn extract_knowledge(
-            &self,
-            _: &mut Vec<Knowledge<TestProtocolTypes>>,
-            _: Option<AnyMatcher>,
-            _: &Source,
-        ) -> Result<(), Error> {
-            panic!("Not implemented for test stub");
-        }
-    }
+    dummy_extract_knowledge!(TestProtocolTypes, TestOpaqueMessage);
 
     pub struct TestMessage;
 
@@ -459,16 +491,7 @@ pub mod test_signature {
         }
     }
 
-    impl ExtractKnowledge<TestProtocolTypes> for TestMessage {
-        fn extract_knowledge(
-            &self,
-            _: &mut Vec<Knowledge<TestProtocolTypes>>,
-            _: Option<AnyMatcher>,
-            _: &Source,
-        ) -> Result<(), Error> {
-            panic!("Not implemented for test stub");
-        }
-    }
+    dummy_extract_knowledge!(TestProtocolTypes, TestMessage);
 
     pub struct TestMessageDeframer;
 
@@ -485,7 +508,7 @@ pub mod test_signature {
     }
 
     pub struct TestSecurityViolationPolicy;
-    impl SecurityViolationPolicy<TestClaim> for TestSecurityViolationPolicy {
+    impl SecurityViolationPolicy<TestProtocolTypes, TestClaim> for TestSecurityViolationPolicy {
         fn check_violation(_claims: &[TestClaim]) -> Option<&'static str> {
             panic!("Not implemented for test stub");
         }
@@ -523,16 +546,7 @@ pub mod test_signature {
         }
     }
 
-    impl ExtractKnowledge<TestProtocolTypes> for TestMessageFlight {
-        fn extract_knowledge(
-            &self,
-            _: &mut Vec<Knowledge<TestProtocolTypes>>,
-            _: Option<AnyMatcher>,
-            _: &Source,
-        ) -> Result<(), Error> {
-            panic!("Not implemented for test stub");
-        }
-    }
+    dummy_extract_knowledge!(TestProtocolTypes, TestMessageFlight);
 
     impl From<TestMessage> for TestMessageFlight {
         fn from(_value: TestMessage) -> Self {
@@ -557,16 +571,7 @@ pub mod test_signature {
         }
     }
 
-    impl ExtractKnowledge<TestProtocolTypes> for TestOpaqueMessageFlight {
-        fn extract_knowledge(
-            &self,
-            _: &mut Vec<Knowledge<TestProtocolTypes>>,
-            _: Option<AnyMatcher>,
-            _: &Source,
-        ) -> Result<(), Error> {
-            panic!("Not implemented for test stub");
-        }
-    }
+    dummy_extract_knowledge!(TestProtocolTypes, TestOpaqueMessageFlight);
 
     impl From<TestOpaqueMessage> for TestOpaqueMessageFlight {
         fn from(_value: TestOpaqueMessage) -> Self {
@@ -590,13 +595,13 @@ pub mod test_signature {
         }
     }
 
-    #[derive(Clone, Debug, Hash)]
+    #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
     pub struct TestProtocolTypes;
 
     impl ProtocolTypes for TestProtocolTypes {
         type Matcher = AnyMatcher;
 
-        fn signature() -> &'static Signature {
+        fn signature() -> &'static Signature<Self> {
             panic!("Not implemented for test stub");
         }
     }
@@ -623,11 +628,16 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, Error> {
+        fn any_get_encoding(
+            message: &dyn ExtractKnowledge<Self::ProtocolTypes>,
+        ) -> Result<ConcreteMessage, Error> {
             Err(Error::Term("any_get_encoding not implemented".to_owned()))
         }
 
-        fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, Error> {
+        fn try_read_bytes(
+            bitstring: &[u8],
+            ty: TypeId,
+        ) -> Result<Box<dyn ExtractKnowledge<Self::ProtocolTypes>>, Error> {
             Err(Error::Term("try_read_bytes not implemented".to_owned()))
         }
     }
@@ -638,7 +648,10 @@ pub mod test_signature {
         fn create(
             &self,
             _agent_descriptor: &AgentDescriptor,
-            _claims: &GlobalClaimList<<TestProtocolBehavior as ProtocolBehavior>::Claim>,
+            _claims: &GlobalClaimList<
+                TestProtocolTypes,
+                <TestProtocolBehavior as ProtocolBehavior>::Claim,
+            >,
             _options: &PutOptions,
         ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {
             panic!("Not implemented for test stub");
@@ -677,23 +690,7 @@ mod tests {
     use crate::protocol::ExtractKnowledge;
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
-    use crate::trace::{Knowledge, Source, Spawner, TraceContext};
-
-    impl ExtractKnowledge<TestProtocolTypes> for Vec<u8> {
-        fn extract_knowledge<'a>(
-            &'a self,
-            knowledges: &mut Vec<Knowledge<'a, TestProtocolTypes>>,
-            matcher: Option<AnyMatcher>,
-            source: &'a Source,
-        ) -> Result<(), crate::error::Error> {
-            knowledges.push(Knowledge {
-                source,
-                matcher,
-                data: self,
-            });
-            Ok(())
-        }
-    }
+    use crate::trace::{Source, Spawner, TraceContext};
 
     #[allow(dead_code)]
     fn test_compilation() {
@@ -751,7 +748,7 @@ mod tests {
 
         //println!("TypeId of vec array {:?}", data.type_id());
 
-        let variable: Variable<AnyMatcher> = Signature::new_var(
+        let variable: Variable<TestProtocolTypes> = Signature::new_var(
             TypeShape::of::<Vec<u8>>(),
             Some(Source::Agent(AgentName::first())),
             None,
@@ -790,6 +787,7 @@ mod tests {
         let eval = evaluate_lazy_test(&generated_term, &context)
             .as_ref()
             .unwrap()
+            .as_any()
             .downcast_ref::<Vec<u8>>();
     }
 
@@ -806,6 +804,7 @@ mod tests {
         let dynamic_fn = func.dynamic_fn();
         let _string = dynamic_fn(&vec![Box::new(1u8)])
             .unwrap()
+            .as_any()
             .downcast_ref::<u16>()
             .unwrap();
         //println!("{:?}", string);

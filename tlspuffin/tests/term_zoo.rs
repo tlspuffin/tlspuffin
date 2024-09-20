@@ -260,7 +260,7 @@ fn test_term_eval() {
                                 let t1 = evaluate_lazy_test(term, &ctx);
                                 if t1.is_ok() {
                                     debug!("Evaluate_lazy success. ");
-                                    match t1.expect("NO").downcast_ref::<bool>() {
+                                    match t1.expect("NO").as_any().downcast_ref::<bool>() {
                                         Some(downcast) => {
                                             print!("Downcast succeeded: {downcast:?}. ");
                                             // let bitstring = Encode::get_encoding(downcast);
@@ -539,7 +539,7 @@ fn test_term_payloads_eval() {
                                             let t1 = evaluate_lazy_test(&term_with_payloads, &ctx);
                                             if t1.is_ok() {
                                                 debug!("Evaluate_lazy success. ");
-                                                match t1.expect("NO").downcast_ref::<bool>() {
+                                                match t1.expect("NO").as_any().downcast_ref::<bool>() {
                                                     Some(downcast) => {
                                                         print!("Downcast succeeded: {downcast:?}. ");
                                                         // let bitstring = Encode::get_encoding(downcast);
@@ -650,6 +650,7 @@ number_terms: 37400, eval_count: 30258, count_lazy_fail: 7142, count_any_encode_
 /// Tests whether all function symbols can be used when generating random terms and then be
 /// correctly evaluated
 fn test_term_read_encode() {
+    use puffin::algebra::dynamic_function::TypeShape;
     use tlspuffin::protocol::TLSProtocolTypes;
 
     let tls_registry = tls_registry();
@@ -683,12 +684,14 @@ fn test_term_read_encode() {
                 Ok(eval) => {
                     debug!("Eval success!");
                     eval_count += 1;
-                    let type_id: TypeId = (*term.get_type_shape()).into();
+                    let type_id: TypeId =
+                        <TypeShape<TLSProtocolTypes> as Clone>::clone(&(*term.get_type_shape()))
+                            .into();
                     match TLSProtocolBehavior::try_read_bytes(eval, type_id) {
                         Ok(message_back) => {
                             debug!("Read success!");
                             read_count += 1;
-                            match TLSProtocolBehavior::any_get_encoding(&message_back) {
+                            match TLSProtocolBehavior::any_get_encoding(message_back.as_ref()) {
                                 Ok(eval2) => {
                                     if eval2 == *eval {
                                         debug!("Consistent for term {term}");
@@ -744,7 +747,7 @@ fn test_term_read_encode() {
                                 let t1 = evaluate_lazy_test(&term, &ctx);
                                 if t1.is_ok() {
                                     debug!("Evaluate_lazy success. ");
-                                    match t1.expect("NO").downcast_ref::<bool>() {
+                                    match t1.expect("NO").as_any().downcast_ref::<bool>() {
                                         Some(downcast) => {
                                             print!("Downcast succeeded: {downcast:?}. ");
                                             // let bitstring = Encode::get_encoding(downcast);

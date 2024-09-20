@@ -1,6 +1,6 @@
 //! This module provides an enum for terms. A term can either be a Variable or a Function.
 //! This also implements the serializability of terms.
-use std::fmt;
+use std::fmt::{self, Formatter};
 use std::hash::{Hash, Hasher};
 
 use rand::random;
@@ -8,49 +8,51 @@ use serde::{Deserialize, Serialize};
 
 use crate::algebra::atoms::fn_container::FnContainer;
 use crate::algebra::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
-use crate::algebra::{remove_prefix, Matcher};
+use crate::algebra::remove_prefix;
+use crate::protocol::ProtocolTypes;
 use crate::trace::Query;
 
 /// A variable symbol with fixed type.
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Variable<M> {
+#[serde(bound = "PT: ProtocolTypes")]
+pub struct Variable<PT: ProtocolTypes> {
     /// Unique ID of this variable. Uniqueness is guaranteed across all
     /// [`Term`](crate::algebra::Term)s ever created. Cloning change this ID.
     pub unique_id: u32,
     /// ID of this variable. This id stays the same during cloning.
     pub resistant_id: u32,
-    pub typ: TypeShape,
+    pub typ: TypeShape<PT>,
     /// The struct which holds information about how to query this variable from knowledge
-    pub query: Query<M>,
+    pub query: Query<PT::Matcher>,
 }
 
-impl<M: Matcher> Hash for Variable<M> {
+impl<PT: ProtocolTypes> Hash for Variable<PT> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.typ.hash(state);
         self.query.hash(state);
     }
 }
 
-impl<M: Matcher> Eq for Variable<M> {}
-impl<M: Matcher> PartialEq for Variable<M> {
+impl<PT: ProtocolTypes> Eq for Variable<PT> {}
+impl<PT: ProtocolTypes> PartialEq for Variable<PT> {
     fn eq(&self, other: &Self) -> bool {
         self.typ == other.typ && self.query == other.query
     }
 }
 
-impl<M: Matcher> Clone for Variable<M> {
+impl<PT: ProtocolTypes> Clone for Variable<PT> {
     fn clone(&self) -> Self {
         Variable {
             unique_id: random(),
             resistant_id: self.resistant_id,
-            typ: self.typ,
+            typ: self.typ.clone(),
             query: self.query.clone(),
         }
     }
 }
 
-impl<M: Matcher> Variable<M> {
-    pub fn new(typ: TypeShape, query: Query<M>) -> Self {
+impl<PT: ProtocolTypes> Variable<PT> {
+    pub fn new(typ: TypeShape<PT>, query: Query<PT::Matcher>) -> Self {
         Self {
             unique_id: random(),
             resistant_id: random(),
@@ -60,37 +62,39 @@ impl<M: Matcher> Variable<M> {
     }
 }
 
-impl<M: Matcher> fmt::Display for Variable<M> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl<PT: ProtocolTypes> fmt::Display for Variable<PT> {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
         write!(f, "{}/{}", self.query, remove_prefix(self.typ.name))
     }
 }
 
 /// A function symbol with fixed arity and fixed types.
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Function {
+#[serde(bound = "PT: ProtocolTypes")]
+pub struct Function<PT: ProtocolTypes> {
     /// Unique ID of this function. Uniqueness is guaranteed across all
     /// [`Term`](crate::algebra::Term)s ever created. Cloning change this ID.
     pub unique_id: u32,
     /// ID of this function. This id stays the same during cloning.
     pub resistant_id: u32,
     // #[serde(flatten)] not working: https://github.com/jamesmunns/postcard/issues/29
-    fn_container: FnContainer,
+    fn_container: FnContainer<PT>,
 }
 
-impl Eq for Function {}
-impl Hash for Function {
+impl<PT: ProtocolTypes> Eq for Function<PT> {}
+impl<PT: ProtocolTypes> Hash for Function<PT> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.fn_container.hash(state)
     }
 }
-impl PartialEq for Function {
+
+impl<PT: ProtocolTypes> PartialEq for Function<PT> {
     fn eq(&self, other: &Self) -> bool {
         self.fn_container == other.fn_container
     }
 }
 
-impl Clone for Function {
+impl<PT: ProtocolTypes> Clone for Function<PT> {
     fn clone(&self) -> Self {
         Function {
             unique_id: random(),
@@ -100,7 +104,7 @@ impl Clone for Function {
     }
 }
 
-impl Function {
+impl<PT: ProtocolTypes> Function<PT> {
     /// Does the function symbol computes "opaque" message such as encryption, signature, MAC, AEAD,
     /// etc?
     pub fn is_opaque(&self) -> bool {
@@ -149,7 +153,7 @@ impl Function {
         self.fn_container.shape.name.contains("_append")
     }
 
-    pub fn new(shape: DynamicFunctionShape, dynamic_fn: Box<dyn DynamicFunction>) -> Self {
+    pub fn new(shape: DynamicFunctionShape<PT>, dynamic_fn: Box<dyn DynamicFunction<PT>>) -> Self {
         Self {
             unique_id: random(),
             resistant_id: random(),
@@ -169,26 +173,26 @@ impl Function {
         self.fn_container.shape.name
     }
 
-    pub fn shape(&self) -> &DynamicFunctionShape {
+    pub fn shape(&self) -> &DynamicFunctionShape<PT> {
         &self.fn_container.shape
     }
 
-    pub fn dynamic_fn(&self) -> &dyn DynamicFunction {
+    pub fn dynamic_fn(&self) -> &dyn DynamicFunction<PT> {
         &self.fn_container.dynamic_fn
     }
 
     pub fn change_function(
         &mut self,
-        shape: DynamicFunctionShape,
-        dynamic_fn: Box<dyn DynamicFunction>,
+        shape: DynamicFunctionShape<PT>,
+        dynamic_fn: Box<dyn DynamicFunction<PT>>,
     ) {
         self.fn_container.shape = shape;
         self.fn_container.dynamic_fn = dynamic_fn;
     }
 }
 
-impl fmt::Display for Function {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl<PT: ProtocolTypes> fmt::Display for Function<PT> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         self.fn_container.shape.fmt(f)
     }
 }
@@ -201,9 +205,9 @@ mod fn_container {
     use serde::ser::SerializeStruct;
     use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-    use crate::algebra::deserialize_signature;
     use crate::algebra::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
     use crate::algebra::signature::Signature;
+    use crate::protocol::ProtocolTypes;
 
     const NAME: &str = "name";
     const ARGUMENTS: &str = "arguments";
@@ -211,26 +215,26 @@ mod fn_container {
     const FIELDS: &[&str] = &[NAME, ARGUMENTS, RETURN];
 
     #[derive(Clone, Debug)]
-    pub struct FnContainer {
-        pub shape: DynamicFunctionShape,
-        pub dynamic_fn: Box<dyn DynamicFunction>,
+    pub struct FnContainer<PT: ProtocolTypes> {
+        pub shape: DynamicFunctionShape<PT>,
+        pub dynamic_fn: Box<dyn DynamicFunction<PT>>,
     }
 
-    impl Hash for FnContainer {
+    impl<PT: ProtocolTypes> Hash for FnContainer<PT> {
         fn hash<H: Hasher>(&self, state: &mut H) {
             self.shape.hash(state)
         }
     }
 
-    impl Eq for FnContainer {}
-    impl PartialEq for FnContainer {
+    impl<PT: ProtocolTypes> Eq for FnContainer<PT> {}
+    impl<PT: ProtocolTypes> PartialEq for FnContainer<PT> {
         fn eq(&self, other: &Self) -> bool {
             // shape already identifies the function container
             self.shape == other.shape
         }
     }
 
-    impl Serialize for FnContainer {
+    impl<PT: ProtocolTypes> Serialize for FnContainer<PT> {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: Serializer,
@@ -243,28 +247,28 @@ mod fn_container {
         }
     }
 
-    struct FnContainerVisitor {
-        signature: &'static Signature,
+    struct FnContainerVisitor<PT: ProtocolTypes> {
+        signature: &'static Signature<PT>,
     }
 
-    impl<'de> Visitor<'de> for FnContainerVisitor {
-        type Value = FnContainer;
+    impl<'de, PT: ProtocolTypes> Visitor<'de> for FnContainerVisitor<PT> {
+        type Value = FnContainer<PT>;
 
         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
             formatter.write_str("struct FnContainer")
         }
 
-        fn visit_seq<V>(self, mut seq: V) -> Result<FnContainer, V::Error>
+        fn visit_seq<V>(self, mut seq: V) -> Result<FnContainer<PT>, V::Error>
         where
             V: SeqAccess<'de>,
         {
             let name: &str = seq
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-            let argument_types: Vec<TypeShape> = seq
+            let argument_types: Vec<TypeShape<PT>> = seq
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-            let return_type: TypeShape = seq
+            let return_type: TypeShape<PT> = seq
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
@@ -274,7 +278,7 @@ mod fn_container {
                 })?;
 
             if name != shape.name {
-                return Err(de::Error::custom("Function name does not match!"));
+                return Err(de::Error::custom("Function<PT> name does not match!"));
             }
 
             if return_type != shape.return_type || argument_types != shape.argument_types {
@@ -289,13 +293,13 @@ mod fn_container {
             })
         }
 
-        fn visit_map<V>(self, mut map: V) -> Result<FnContainer, V::Error>
+        fn visit_map<V>(self, mut map: V) -> Result<FnContainer<PT>, V::Error>
         where
             V: MapAccess<'de>,
         {
             let mut name: Option<&'de str> = None;
-            let mut arguments: Option<Vec<TypeShape>> = None;
-            let mut ret: Option<TypeShape> = None;
+            let mut arguments: Option<Vec<TypeShape<PT>>> = None;
+            let mut ret: Option<TypeShape<PT>> = None;
             while let Some(key) = map.next_key()? {
                 match key {
                     NAME => {
@@ -335,7 +339,7 @@ mod fn_container {
             let return_type = ret.ok_or_else(|| de::Error::missing_field(RETURN))?;
 
             if name != shape.name {
-                return Err(de::Error::custom("Function name does not match!"));
+                return Err(de::Error::custom("Function<PT> name does not match!"));
             }
 
             if return_type != shape.return_type || argument_types != shape.argument_types {
@@ -351,8 +355,8 @@ mod fn_container {
         }
     }
 
-    impl<'de> Deserialize<'de> for FnContainer {
-        fn deserialize<D>(deserializer: D) -> Result<FnContainer, D::Error>
+    impl<'de, PT: ProtocolTypes> Deserialize<'de> for FnContainer<PT> {
+        fn deserialize<D>(deserializer: D) -> Result<FnContainer<PT>, D::Error>
         where
             D: Deserializer<'de>,
         {
@@ -360,7 +364,7 @@ mod fn_container {
                 "FnContainer",
                 FIELDS,
                 FnContainerVisitor {
-                    signature: deserialize_signature(),
+                    signature: PT::signature(),
                 },
             )
         }

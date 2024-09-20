@@ -1,8 +1,12 @@
 use std::{collections, fmt};
 
-use puffin::codec;
 use puffin::codec::{Codec, Reader};
+use puffin::error::Error;
+use puffin::protocol::{ExtractKnowledge, ProtocolTypes};
+use puffin::trace::{Knowledge, Source};
+use puffin::{atom_extract_knowledge, codec};
 
+use crate::protocol::TLSProtocolTypes;
 use crate::tls::fn_impl::fn_hello_retry_request_random;
 use crate::tls::rustls::msgs::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
 use crate::tls::rustls::msgs::enums::{
@@ -16,6 +20,8 @@ macro_rules! declare_u8_vec (
   ($name:ident, $itemtype:ty) => {
     #[derive(Debug, Clone)]
     pub struct $name(pub Vec<$itemtype>);
+
+    atom_extract_knowledge!(TLSProtocolTypes, $name);
 
     impl puffin::codec::Codec for $name {
       fn encode(&self, bytes: &mut Vec<u8>) {
@@ -34,6 +40,8 @@ macro_rules! declare_u16_vec (
     #[derive(Debug, Clone)]
     pub struct $name(pub Vec<$itemtype>);
 
+    atom_extract_knowledge!(TLSProtocolTypes, $name);
+
     impl puffin::codec::Codec for $name {
       fn encode(&self, bytes: &mut Vec<u8>) {
         puffin::codec::encode_vec_u16(bytes, &self.0);
@@ -50,6 +58,8 @@ macro_rules! declare_u16_vec_empty (
   ($name:ident, $itemtype:ty) => {
     #[derive(Debug, Clone)]
     pub struct $name(pub Vec<$itemtype>);
+
+    atom_extract_knowledge!(TLSProtocolTypes, $name);
 
     impl puffin::codec::Codec for $name {
       fn encode(&self, bytes: &mut Vec<u8>) {
@@ -73,6 +83,8 @@ macro_rules! declare_u24_vec_limited (
   ($name:ident, $itemtype:ty) => {
     #[derive(Debug, Clone)]
     pub struct $name(pub Vec<$itemtype>);
+
+    atom_extract_knowledge!(TLSProtocolTypes, $name);
 
     impl puffin::codec::Codec for $name {
       fn encode(&self, bytes: &mut Vec<u8>) {

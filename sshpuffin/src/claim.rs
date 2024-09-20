@@ -1,11 +1,16 @@
-use std::any::Any;
-
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::claims::Claim;
+use puffin::dummy_extract_knowledge;
+use puffin::error::Error;
+use puffin::protocol::{ExtractKnowledge, ProtocolTypes};
+use puffin::trace::{Knowledge, Source};
+
+use crate::protocol::SshProtocolTypes;
 
 #[derive(Debug, Clone)]
 pub struct SshClaimInner;
+dummy_extract_knowledge!(SshProtocolTypes, Box<SshClaimInner>);
 
 #[derive(Debug, Clone)]
 pub struct SshClaim {
@@ -13,16 +18,18 @@ pub struct SshClaim {
     inner: Box<SshClaimInner>,
 }
 
-impl Claim for SshClaim {
+impl Claim<SshProtocolTypes> for SshClaim {
     fn agent_name(&self) -> AgentName {
         self.agent_name
     }
 
-    fn id(&self) -> TypeShape {
+    fn id(&self) -> TypeShape<SshProtocolTypes> {
         TypeShape::of::<SshClaimInner>()
     }
 
-    fn inner(&self) -> Box<dyn Any> {
+    fn inner(&self) -> Box<dyn ExtractKnowledge<SshProtocolTypes>> {
         Box::new(self.inner.clone())
     }
 }
+
+dummy_extract_knowledge!(SshProtocolTypes, SshClaim);

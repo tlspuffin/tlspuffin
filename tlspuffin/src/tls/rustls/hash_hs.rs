@@ -1,5 +1,4 @@
-use std::fmt::{Debug, Formatter};
-use std::mem;
+use std::{fmt, mem};
 
 use puffin::codec;
 use puffin::codec::{Codec, Reader};
@@ -87,8 +86,8 @@ pub struct HandshakeHash {
     override_buffer: Option<Vec<u8>>,
 }
 
-impl Debug for HandshakeHash {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for HandshakeHash {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "HandshakeHash: {:?}", codec::Encode::get_encoding(self))
     }
 }

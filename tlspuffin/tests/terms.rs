@@ -243,7 +243,7 @@ fn test_evaluate_recipe_input_compare_new() {
                     log::debug!("Running custom test for inputs...");
                     {
                             let evaluated_lazy = evaluate_lazy_test(&input.recipe, &ctx).expect("a");
-                            if let Some(msg_old) = evaluated_lazy.as_ref().downcast_ref::<<TLSProtocolBehavior as ProtocolBehavior>::ProtocolMessage>() {
+                            if let Some(msg_old) = evaluated_lazy.as_any().downcast_ref::<<TLSProtocolBehavior as ProtocolBehavior>::ProtocolMessage>() {
                                 log::debug!("Term {}\n could be parsed as ProtocolMessage", input.recipe);
                                 let evaluated = input.recipe.evaluate(&ctx).expect("a");
                                 if let Some(msg) = <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage::read_bytes(&evaluated) {
@@ -255,7 +255,7 @@ fn test_evaluate_recipe_input_compare_new() {
                                 }
 
                             } else if let Some(opaque_message_old) = evaluated_lazy
-                                .as_ref()
+                                .as_any()
                                 .downcast_ref::<<TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage>()
                             {
                                 log::debug!("Term {}\n could be parsed as OpaqueProtocolMessage", input.recipe);
