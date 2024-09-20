@@ -90,14 +90,6 @@ pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBeha
             ]
         }
 
-        fn determinism_set_reseed(&self) -> () {
-            log::error!("[determinism_set_reseed] Not yet implemented.")
-        }
-
-        fn determinism_reseed(&self) -> () {
-            log::error!("[determinism_reseed] Not yet implemented.")
-        }
-
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
             Box::new(self.clone())
         }
@@ -244,12 +236,6 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
 
     fn version() -> String {
         unsafe { version().to_string() }
-    }
-
-    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
-        Err(Error::Agent(
-            "[determinism] WolfSSL does not support reseed".to_string(),
-        ))
     }
 
     fn shutdown(&mut self) -> String {
