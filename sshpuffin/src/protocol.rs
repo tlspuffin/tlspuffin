@@ -51,16 +51,16 @@ impl From<SshMessage> for SshMessageFlight {
 }
 
 impl ExtractKnowledge<SshQueryMatcher> for SshMessageFlight {
-    fn extract_knowledge(
-        &self,
-        knowledges: &mut Vec<Knowledge<SshQueryMatcher>>,
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, SshQueryMatcher>>,
         matcher: Option<SshQueryMatcher>,
-        source: &Source,
+        source: &'a Source,
     ) -> Result<(), Error> {
         knowledges.push(Knowledge {
-            source: source.clone(),
+            source,
             matcher,
-            data: Box::new(self.clone()),
+            data: self,
         });
         for msg in &self.messages {
             msg.extract_knowledge(knowledges, matcher, source)?;
@@ -89,16 +89,16 @@ impl OpaqueProtocolMessageFlight<SshQueryMatcher, RawSshMessage> for RawSshMessa
 }
 
 impl ExtractKnowledge<SshQueryMatcher> for RawSshMessageFlight {
-    fn extract_knowledge(
-        &self,
-        knowledges: &mut Vec<Knowledge<SshQueryMatcher>>,
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, SshQueryMatcher>>,
         matcher: Option<SshQueryMatcher>,
-        source: &Source,
+        source: &'a Source,
     ) -> Result<(), Error> {
         knowledges.push(Knowledge {
-            source: source.clone(),
+            source,
             matcher,
-            data: Box::new(self.clone()),
+            data: self,
         });
         for msg in &self.messages {
             msg.extract_knowledge(knowledges, matcher, source)?;

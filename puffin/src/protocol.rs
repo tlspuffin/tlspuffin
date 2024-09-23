@@ -11,15 +11,15 @@ use crate::{
 /// Provide a way to extract knowledge out of a Message/OpaqueMessage or any type that
 /// might be used in a precomputation
 pub trait ExtractKnowledge<M: Matcher>: std::fmt::Debug {
-    /// Fill `knowledges` with new knowledge gathered form the type implementing ExtractKnowledge
+    /// Fill `knowledge` with new knowledge gathered form the type implementing ExtractKnowledge
     /// by recursively calling extract_knowledge on all contained element
-    /// This will put source as the source of all the produced knowledges, matcher is also passed
-    /// recursively but might be overriten by a type with a more specific matcher
-    fn extract_knowledge(
-        &self,
-        knowledges: &mut Vec<Knowledge<M>>,
+    /// This will put source as the source of all the produced knowledge, matcher is also passed
+    /// recursively but might be overwritten by a type with a more specific matcher
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, M>>,
         matcher: Option<M>,
-        source: &Source,
+        source: &'a Source,
     ) -> Result<(), Error>;
 }
 
