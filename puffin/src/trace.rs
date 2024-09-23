@@ -60,12 +60,6 @@ impl<M: Matcher> fmt::Display for Query<M> {
     }
 }
 
-impl<M: Matcher> Knowledge<'_, M> {
-    pub fn specificity(&self) -> u32 {
-        self.matcher.specificity()
-    }
-}
-
 /// [Source] stores the origin of a knowledge, whether the agent name or
 /// the label of the precomputation that produced it
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Deserialize, Serialize)]
@@ -122,6 +116,12 @@ impl<'a, M: Matcher> IntoIterator for &'a RawKnowledge<M> {
 }
 
 impl<M: Matcher> Knowledge<'_, M> {
+    pub fn specificity(&self) -> u32 {
+        self.matcher.specificity()
+    }
+}
+
+impl<M: Matcher> Knowledge<'_, M> {
     pub fn debug_print<PB>(&self, ctx: &TraceContext<PB>, source: &Source)
     where
         PB: ProtocolBehavior<Matcher = M>,
@@ -154,10 +154,6 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
             raw_knowledge: vec![],
         }
     }
-
-    // pub fn add_knowledge(&mut self, knowledge: Knowledge<PB::Matcher>) {
-    //     self.knowledge.push(knowledge);
-    // }
 
     pub fn add_raw_knowledge<T: ExtractKnowledge<PB::Matcher> + 'static>(
         &mut self,

@@ -200,7 +200,7 @@ pub fn fn_new_session_ticket(lifetime_hint: &u32, ticket: &Vec<u8>) -> Result<Me
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::NewSessionTicket,
             payload: HandshakePayload::NewSessionTicket(NewSessionTicketPayload {
-                lifetime_hint: *lifetime_hint as u32,
+                lifetime_hint: *lifetime_hint,
                 ticket: PayloadU16::new(ticket.clone()),
             }),
         }),
