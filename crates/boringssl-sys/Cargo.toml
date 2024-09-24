@@ -18,7 +18,7 @@ boringssl202403 = []
 
 sancov = []
 asan = []
-deterministic = []
-
 gcov = []
 llvm_cov = []
+
+no-rand = []

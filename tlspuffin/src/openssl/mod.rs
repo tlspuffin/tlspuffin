@@ -69,7 +69,7 @@ pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBeha
 
         fn rng_reseed(&self) {
             log::debug!("[RNG] reseed ({})", self.name());
-            deterministic::rng_reseed();
+            crate::rand::rng_reseed();
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
@@ -77,8 +77,8 @@ pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBeha
         }
     }
 
-    deterministic::rng_set();
-    deterministic::rng_reseed();
+    crate::rand::rng_init();
+    crate::rand::rng_reseed();
 
     Box::new(OpenSSLFactory {
         preset: preset.into(),

@@ -270,7 +270,7 @@ tls13-session-resumption = []
 # PUT supports session resumption through RFC5077
 tls12-session-resumption = []
 # PUT is determinisitic
-deterministic = ["boringssl-sys?/deterministic"]
+deterministic = ["boringssl-sys?/no-rand"]
 # Require the PUT to implement the claim-interface.h
 claims = ["puffin/claims"]
 # Whether transcript extraction is supported. This is needed for simplified traces.

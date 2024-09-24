@@ -29,8 +29,6 @@ use crate::query::TlsQueryMatcher;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
-#[cfg(feature = "deterministic")]
-mod deterministic;
 mod transcript;
 mod util;
 
@@ -87,13 +85,16 @@ pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBeha
 
         fn rng_reseed(&self) -> () {
             log::debug!("[RNG] reseed ({})", self.name());
-            deterministic::rng_reseed();
+            crate::rand::rng_reseed();
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
             Box::new(self.clone())
         }
     }
+
+    crate::rand::rng_init();
+    crate::rand::rng_reseed();
 
     Box::new(BoringSSLFactory {
         preset: preset.into(),

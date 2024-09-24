@@ -83,3 +83,21 @@ pub fn init() {
         )
     });
 }
+
+#[no_mangle]
+pub extern "C" fn put_rng_init() {
+    // nothing to do
+}
+
+#[no_mangle]
+pub extern "C" fn put_rng_reseed(buffer: *const u8, length: libc::size_t) {
+    #[cfg(feature = "no-rand")]
+    unsafe {
+        crate::RAND_reset_for_fuzzing()
+    };
+
+    #[cfg(not(feature = "no-rand"))]
+    unsafe {
+        crate::RAND_seed(buffer as *const libc::c_void, length.try_into().unwrap())
+    };
+}

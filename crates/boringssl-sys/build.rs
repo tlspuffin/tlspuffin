@@ -59,7 +59,7 @@ fn main() {
         .clang_arg("-I")
         .clang_arg(boringssl.inc_dir().display().to_string());
 
-    if cfg!(feature = "deterministic") {
+    if cfg!(feature = "no-rand") {
         // Exposes RAND_reset_for_fuzzing
         builder = builder.clang_arg("-DBORINGSSL_UNSAFE_DETERMINISTIC_MODE=1");
     }
