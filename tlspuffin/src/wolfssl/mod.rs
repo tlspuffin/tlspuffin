@@ -73,10 +73,18 @@ pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBeha
             ]
         }
 
+        fn rng_reseed(&self) {
+            log::debug!("[RNG] reseed ({})", self.name());
+            crate::rand::rng_reseed();
+        }
+
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
             Box::new(self.clone())
         }
     }
+
+    crate::rand::rng_init();
+    crate::rand::rng_reseed();
 
     Box::new(WolfSSLFactory {
         preset: preset.into(),

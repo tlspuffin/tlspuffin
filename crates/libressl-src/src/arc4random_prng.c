@@ -19,8 +19,8 @@
 
 static thread_local uint64_t seed = DEFAULT_RNG_SEED;
 
-void deterministic_rng_set();
-void deterministic_rng_reseed(const uint8_t *buffer, size_t length);
+void put_rng_init();
+void put_rng_reseed(const uint8_t *buffer, size_t length);
 
 static int rand_bytes(uint8_t *buf, size_t num)
 {
@@ -40,12 +40,12 @@ static uint32_t rand_int()
     return result;
 }
 
-void deterministic_rng_set()
+void put_rng_init()
 {
     // nothing to do: PRNG is set at compile time
 }
 
-void deterministic_rng_reseed(const uint8_t *buffer, size_t length)
+void put_rng_reseed(const uint8_t *buffer, size_t length)
 {
     if (buffer == NULL || length < sizeof(uint64_t))
     {

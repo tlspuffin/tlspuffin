@@ -116,10 +116,20 @@
 
 #[cfg(feature = "boringssl-binding")]
 pub mod boringssl;
-pub mod claims;
-pub mod debug;
 #[cfg(feature = "openssl-binding")]
 pub mod openssl;
+#[cfg(feature = "wolfssl-binding")]
+pub mod wolfssl;
+
+#[cfg(any(
+    feature = "openssl-binding",
+    feature = "wolfssl-binding",
+    feature = "boringssl-binding"
+))]
+pub mod rand;
+
+pub mod claims;
+pub mod debug;
 pub mod protocol;
 pub mod put;
 pub mod put_registry;
@@ -127,8 +137,6 @@ pub mod query;
 pub mod static_certs;
 pub mod tcp;
 pub mod tls;
-#[cfg(feature = "wolfssl-binding")]
-pub mod wolfssl;
 
 #[cfg(feature = "test-utils")]
 pub mod test_utils;
