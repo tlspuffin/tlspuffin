@@ -5,9 +5,11 @@
 set shell := ["bash", "-c"]
 set positional-arguments := true
 
-export DEFAULT_TOOLCHAIN := env_var_or_default("RUSTUP_TOOLCHAIN", "1.68.2")
+export MINRUST_TOOLCHAIN := "1.70"
+export NIGHTLY_TOOLCHAIN := "nightly-2024-09-05"
+
+export DEFAULT_TOOLCHAIN := env_var_or_default("RUSTUP_TOOLCHAIN", NIGHTLY_TOOLCHAIN)
 export CARGO_TARGET_DIR := env_var_or_default("CARGO_TARGET_DIR", justfile_directory() / "target")
-export NIGHTLY_TOOLCHAIN := "nightly-2023-04-18"
 export RUSTUP_TOOLCHAIN := DEFAULT_TOOLCHAIN
 export CARGO_TERM_COLOR := "always"
 export RUST_BACKTRACE := "1"
@@ -28,18 +30,20 @@ install-rust-toolchain TOOLCHAIN *FLAGS:
     case "${flag}" in -q|--quiet) exec 1>/dev/null;; esac
   done
 
-  # install toolchain
-  rustup install --no-self-update '{{ TOOLCHAIN }}'
+  if ! rustup show | grep -q -e '^{{ TOOLCHAIN }}'; then
+    # install toolchain
+    rustup install --no-self-update '{{ TOOLCHAIN }}'
 
-  # install toolchain components
-  rustup component add --toolchain '{{ TOOLCHAIN }}' \
-    cargo        \
-    clippy       \
-    rust-docs    \
-    rust-std     \
-    rustc        \
-    rustfmt      \
-    rust-src
+    # install toolchain components
+    rustup component add --toolchain '{{ TOOLCHAIN }}' \
+      cargo        \
+      clippy       \
+      rust-docs    \
+      rust-std     \
+      rustc        \
+      rustfmt      \
+      rust-src
+  fi
 
 # install rust tooling dependencies
 install-rust-tooling TOOLCHAIN *FLAGS: (install-rust-toolchain TOOLCHAIN FLAGS)
@@ -49,7 +53,7 @@ install-rust-tooling TOOLCHAIN *FLAGS: (install-rust-toolchain TOOLCHAIN FLAGS)
     case "${flag}" in -q|--quiet) exec 1>/dev/null;; esac
   done
 
-  RUSTUP_TOOLCHAIN='{{ TOOLCHAIN }}' cargo install toml-cli --locked --version "0.2.3" # mk_vendor
+  RUSTUP_TOOLCHAIN=stable cargo install toml-cli --locked --version "0.2.3" # mk_vendor
 
 install-rust-toolchain-default *FLAGS: (install-rust-toolchain DEFAULT_TOOLCHAIN FLAGS)
 install-rust-toolchain-nightly *FLAGS: (install-rust-toolchain NIGHTLY_TOOLCHAIN FLAGS)

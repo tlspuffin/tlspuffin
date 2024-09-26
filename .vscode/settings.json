@@ -1,27 +1,14 @@
 {
+    "rust-analyzer.check.command": "check",
+    "rust-analyzer.diagnostics.experimental.enable": true,
+    "rust-analyzer.diagnostics.styleLints.enable": true,
     "rust-analyzer.cargo.buildScripts.enable": true,
     "rust-analyzer.procMacro.enable": true,
-    "rust-analyzer.check.overrideCommand": [
-        "cargo",
-        "clippy",
-        "--quiet",
-        "--workspace",
-        "--message-format=json",
-        "--all-targets"
-    ],
-    "rust-analyzer.cargo.buildScripts.overrideCommand": [
-        "cargo",
-        "check",
-        "--quiet",
-        "--workspace",
-        "--message-format=json",
-        "--all-targets"
-
-    ],
-    "rust-analyzer.cargo.features": [
-        "openssl312"
-    ],
+    "rust-analyzer.cargo.features": [],
     "[json]": {
         "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[rust]": {
+        "editor.defaultFormatter": "rust-lang.rust-analyzer"
     }
 }

@@ -19,21 +19,52 @@ exclude = [
     "crates/libssh-sys",
     "crates/boringssl-src",
     "crates/boringssl-sys",
-    "crates/boring"
+    "crates/boring",
 ]
 
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["Maximilian Ammann <max@maxammann.org>", "Lucca Hirschi <lucca.hirschi@inria.fr>", "Michael Mera <dev@michaelmera.com>", "Tom Gouville <tom@tomgouville.fr>"]
+rust-version = "1.70"
+authors = [
+    "Maximilian Ammann <max@maxammann.org>",
+    "Lucca Hirschi <lucca.hirschi@inria.fr>",
+    "Michael Mera <dev@michaelmera.com>",
+    "Tom Gouville <tom@tomgouville.fr>",
+]
 repository = "https://github.com/tlspuffin/tlspuffin"
 homepage = "https://github.com/tlspuffin/tlspuffin"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-keywords = ["security",  "fuzzing", "testing"]
+keywords = ["security", "fuzzing", "testing"]
 categories = ["development-tools::testing", "network-programming", "simulation"]
 description = "A Dolev-Yao-model-guided fuzzer for TLS"
+
+[workspace.dependencies]
+log = "0.4"
+log4rs = "1.2.0"
+test-log = "0.2"
+env_logger = "0.10"
+tempfile = "3.3.0"
+chrono = "0.4.19"
+criterion = "0.5"
+itertools = "0.13"
+hex = "0.4.3"
+cfg-if = "1.0.0"
+once_cell = "1.12.0"
+dyn-clone = "1.0.17"
+smallvec = "1.8.1"
+bindgen = "0.69.1"
+nix = "0.25.0"
+serde = "1.0.137"
+serde_json = "1.0.81"
+cc = "1.0"
+cmake = "0.1.48"
+libc = "0.2.126"
+foreign-types = "0.5.0"
+rand = "0.8"
+clap = "4.2.4"
 
 [patch.crates-io]
 wolfssl-sys = { path = "crates/wolfssl-sys" }

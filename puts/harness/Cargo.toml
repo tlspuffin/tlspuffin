@@ -2,6 +2,7 @@
 name = "tlspuffin-harness-sys"
 description = "Harness code for interfacing a PUT with tlspuffin"
 version.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,11 +16,11 @@ categories.workspace = true
 tls = []
 
 [dependencies]
-libc = { version = "0.2.126" }
 puffin = { path = "../../puffin" }
-log = "0.4.17"
+log = { workspace = true }
+libc = { workspace = true }
 
 [build-dependencies]
-cmake = "0.1"
-cc = "1.0"
-bindgen = "0.69.1"
+cmake = { workspace = true }
+cc = { workspace = true }
+bindgen = { workspace = true }

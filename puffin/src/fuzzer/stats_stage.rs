@@ -98,7 +98,10 @@ impl Fire for Counter {
     ) -> Result<(), Error> {
         consume(
             self.name.to_string(),
-            UserStats::Number(self.counter.load(Ordering::SeqCst) as u64),
+            UserStats::new(
+                UserStatsValue::Number(self.counter.load(Ordering::SeqCst) as u64),
+                AggregatorOps::Sum,
+            ),
         )
     }
 }
@@ -163,19 +166,28 @@ impl Fire for MinMaxMean {
         if self.min_set.load(Ordering::SeqCst) {
             consume(
                 self.name.to_string() + "-min",
-                UserStats::Number(self.min.load(Ordering::SeqCst) as u64),
+                UserStats::new(
+                    UserStatsValue::Number(self.min.load(Ordering::SeqCst) as u64),
+                    AggregatorOps::Min,
+                ),
             )?;
         }
         if self.max_set.load(Ordering::SeqCst) {
             consume(
                 self.name.to_string() + "-max",
-                UserStats::Number(self.max.load(Ordering::SeqCst) as u64),
+                UserStats::new(
+                    UserStatsValue::Number(self.max.load(Ordering::SeqCst) as u64),
+                    AggregatorOps::Max,
+                ),
             )?;
         }
         if self.mean_set.load(Ordering::SeqCst) {
             consume(
                 self.name.to_string() + "-mean",
-                UserStats::Number(self.mean.load(Ordering::SeqCst) as u64),
+                UserStats::new(
+                    UserStatsValue::Number(self.mean.load(Ordering::SeqCst) as u64),
+                    AggregatorOps::Avg,
+                ),
             )?;
         }
         Ok(())

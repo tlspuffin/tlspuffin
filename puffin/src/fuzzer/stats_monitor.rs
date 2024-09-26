@@ -14,6 +14,7 @@ use libafl::{
     monitors::tui::{ui::TuiUI, TuiMonitor},
     prelude::*,
 };
+use libafl_bolts::prelude::*;
 use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
@@ -116,10 +117,13 @@ impl StatsMonitor {
         let corpus_size = client.corpus_size;
         let objective_size = client.objective_size;
 
-        let coverage = match client.user_monitor.get(MAP_FEEDBACK_NAME) {
-            Some(UserStats::Ratio(a, b)) => Some(CoverageStatistics { hit: *a, max: *b }),
-            _ => None,
-        };
+        let coverage = client
+            .user_monitor
+            .get(MAP_FEEDBACK_NAME)
+            .and_then(|s| match s.value() {
+                UserStatsValue::Ratio(a, b) => Some(CoverageStatistics { hit: *a, max: *b }),
+                _ => None,
+            });
 
         Statistics::Client(ClientStatistics {
             id: id.0,
@@ -164,8 +168,12 @@ impl Monitor for StatsMonitor {
         self.monitor.client_stats()
     }
 
-    fn start_time(&mut self) -> Duration {
+    fn start_time(&self) -> Duration {
         self.monitor.start_time()
+    }
+
+    fn set_start_time(&mut self, time: Duration) {
+        self.monitor.set_start_time(time)
     }
 
     fn display(&mut self, event_msg: String, sender_id: ClientId) {
@@ -406,11 +414,14 @@ impl ErrorStatistics {
 }
 
 fn get_number(user_stats: &ClientStats, name: &str) -> u64 {
-    if let Some(UserStats::Number(n)) = user_stats.user_monitor.get(name) {
-        *n
-    } else {
-        0u64
-    }
+    user_stats
+        .user_monitor
+        .get(name)
+        .and_then(|s| match s.value() {
+            UserStatsValue::Number(n) => Some(*n),
+            _ => None,
+        })
+        .unwrap_or(0u64)
 }
 
 impl TraceStatistics {
