@@ -5,7 +5,7 @@ use puffin::algebra::Matcher;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
-    ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+    EvaluatedTerm, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
     ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
 use puffin::trace::{Knowledge, Source, Trace};
@@ -154,7 +154,7 @@ impl ProtocolMessage<TLSProtocolTypes, OpaqueMessage> for Message {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for MessageFlight {
+impl EvaluatedTerm<TLSProtocolTypes> for MessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -174,7 +174,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for MessageFlight {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for OpaqueMessageFlight {
+impl EvaluatedTerm<TLSProtocolTypes> for OpaqueMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -193,7 +193,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for OpaqueMessageFlight {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for Message {
+impl EvaluatedTerm<TLSProtocolTypes> for Message {
     /// Extracts knowledge from a [`crate::tls::rustls::msgs::message::Message`].
     /// Only plaintext messages yield more knowledge than their binary payload.
     /// If a message is an ApplicationData (TLS 1.3) or an encrypted Heartbeet
@@ -226,7 +226,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for Message {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for MessagePayload {
+impl EvaluatedTerm<TLSProtocolTypes> for MessagePayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -256,7 +256,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for MessagePayload {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for ChangeCipherSpecPayload {
+impl EvaluatedTerm<TLSProtocolTypes> for ChangeCipherSpecPayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -273,7 +273,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for ChangeCipherSpecPayload {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for HeartbeatPayload {
+impl EvaluatedTerm<TLSProtocolTypes> for HeartbeatPayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -294,7 +294,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for HeartbeatPayload {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for AlertMessagePayload {
+impl EvaluatedTerm<TLSProtocolTypes> for AlertMessagePayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -320,7 +320,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for AlertMessagePayload {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for HandshakeMessagePayload {
+impl EvaluatedTerm<TLSProtocolTypes> for HandshakeMessagePayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -343,7 +343,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for HandshakeMessagePayload {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for HandshakePayload {
+impl EvaluatedTerm<TLSProtocolTypes> for HandshakePayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -385,7 +385,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for HandshakePayload {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for CertificatePayload {
+impl EvaluatedTerm<TLSProtocolTypes> for CertificatePayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -406,7 +406,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for CertificatePayload {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for ServerKeyExchangePayload {
+impl EvaluatedTerm<TLSProtocolTypes> for ServerKeyExchangePayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -432,7 +432,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for ServerKeyExchangePayload {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for ECDHEServerKeyExchange {
+impl EvaluatedTerm<TLSProtocolTypes> for ECDHEServerKeyExchange {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -448,7 +448,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for ECDHEServerKeyExchange {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for Payload {
+impl EvaluatedTerm<TLSProtocolTypes> for Payload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -469,7 +469,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for Payload {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for ClientHelloPayload {
+impl EvaluatedTerm<TLSProtocolTypes> for ClientHelloPayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -535,7 +535,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for ClientHelloPayload {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for NewSessionTicketPayload {
+impl EvaluatedTerm<TLSProtocolTypes> for NewSessionTicketPayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -561,7 +561,7 @@ impl ExtractKnowledge<TLSProtocolTypes> for NewSessionTicketPayload {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for ServerHelloPayload {
+impl EvaluatedTerm<TLSProtocolTypes> for ServerHelloPayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -630,7 +630,7 @@ impl OpaqueProtocolMessage<TLSProtocolTypes> for OpaqueMessage {
     }
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for OpaqueMessage {
+impl EvaluatedTerm<TLSProtocolTypes> for OpaqueMessage {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -671,7 +671,7 @@ atom_extract_knowledge!(TLSProtocolTypes, u64);
 atom_extract_knowledge!(TLSProtocolTypes, u8);
 dummy_extract_knowledge!(TLSProtocolTypes, bool);
 
-impl<T: ExtractKnowledge<TLSProtocolTypes> + Clone + 'static> ExtractKnowledge<TLSProtocolTypes>
+impl<T: EvaluatedTerm<TLSProtocolTypes> + Clone + 'static> EvaluatedTerm<TLSProtocolTypes>
     for Vec<T>
 {
     fn extract_knowledge<'a>(
@@ -693,7 +693,7 @@ impl<T: ExtractKnowledge<TLSProtocolTypes> + Clone + 'static> ExtractKnowledge<T
     }
 }
 
-impl<T: ExtractKnowledge<TLSProtocolTypes> + Clone + 'static> ExtractKnowledge<TLSProtocolTypes>
+impl<T: EvaluatedTerm<TLSProtocolTypes> + Clone + 'static> EvaluatedTerm<TLSProtocolTypes>
     for Option<T>
 {
     fn extract_knowledge<'a>(

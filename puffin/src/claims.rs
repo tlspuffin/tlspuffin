@@ -9,13 +9,13 @@ use itertools::Itertools;
 
 use crate::agent::AgentName;
 use crate::algebra::dynamic_function::TypeShape;
-use crate::protocol::{ExtractKnowledge, ProtocolTypes};
+use crate::protocol::{EvaluatedTerm, ProtocolTypes};
 use crate::variable_data::VariableData;
 
-pub trait Claim<PT: ProtocolTypes>: ExtractKnowledge<PT> + VariableData<PT> + Debug {
+pub trait Claim<PT: ProtocolTypes>: EvaluatedTerm<PT> + VariableData<PT> + Debug {
     fn agent_name(&self) -> AgentName;
     fn id(&self) -> TypeShape<PT>;
-    fn inner(&self) -> Box<dyn ExtractKnowledge<PT>>;
+    fn inner(&self) -> Box<dyn EvaluatedTerm<PT>>;
 }
 
 pub trait SecurityViolationPolicy<PT: ProtocolTypes, C: Claim<PT>> {

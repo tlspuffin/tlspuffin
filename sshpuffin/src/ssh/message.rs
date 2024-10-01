@@ -1,6 +1,6 @@
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
-use puffin::protocol::{ExtractKnowledge, OpaqueProtocolMessage, ProtocolMessage, ProtocolTypes};
+use puffin::protocol::{EvaluatedTerm, OpaqueProtocolMessage, ProtocolMessage, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
 use puffin::{atom_extract_knowledge, dummy_extract_knowledge};
 
@@ -301,7 +301,7 @@ impl TryFrom<RawSshMessage> for SshMessage {
     }
 }
 
-impl ExtractKnowledge<SshProtocolTypes> for SshMessage {
+impl EvaluatedTerm<SshProtocolTypes> for SshMessage {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
@@ -430,7 +430,7 @@ impl OpaqueProtocolMessage<SshProtocolTypes> for RawSshMessage {
     }
 }
 
-impl ExtractKnowledge<SshProtocolTypes> for RawSshMessage {
+impl EvaluatedTerm<SshProtocolTypes> for RawSshMessage {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
@@ -506,7 +506,7 @@ atom_extract_knowledge!(SshProtocolTypes, MacAlgorithms);
 atom_extract_knowledge!(SshProtocolTypes, SignatureSchemes);
 dummy_extract_knowledge!(SshProtocolTypes, bool);
 
-impl<T: ExtractKnowledge<SshProtocolTypes> + Clone + 'static> ExtractKnowledge<SshProtocolTypes>
+impl<T: EvaluatedTerm<SshProtocolTypes> + Clone + 'static> EvaluatedTerm<SshProtocolTypes>
     for Vec<T>
 {
     fn extract_knowledge<'a>(
@@ -528,7 +528,7 @@ impl<T: ExtractKnowledge<SshProtocolTypes> + Clone + 'static> ExtractKnowledge<S
     }
 }
 
-impl<T: ExtractKnowledge<SshProtocolTypes> + Clone + 'static> ExtractKnowledge<SshProtocolTypes>
+impl<T: EvaluatedTerm<SshProtocolTypes> + Clone + 'static> EvaluatedTerm<SshProtocolTypes>
     for Option<T>
 {
     fn extract_knowledge<'a>(

@@ -3,7 +3,7 @@ use puffin::algebra::dynamic_function::TypeShape;
 use puffin::claims::Claim;
 use puffin::dummy_extract_knowledge;
 use puffin::error::Error;
-use puffin::protocol::{ExtractKnowledge, ProtocolTypes};
+use puffin::protocol::{EvaluatedTerm, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
 
 use crate::protocol::SshProtocolTypes;
@@ -27,7 +27,7 @@ impl Claim<SshProtocolTypes> for SshClaim {
         TypeShape::of::<SshClaimInner>()
     }
 
-    fn inner(&self) -> Box<dyn ExtractKnowledge<SshProtocolTypes>> {
+    fn inner(&self) -> Box<dyn EvaluatedTerm<SshProtocolTypes>> {
         Box::new(self.inner.clone())
     }
 }

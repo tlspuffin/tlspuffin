@@ -24,8 +24,8 @@ impl<T: 'static> AsAny for T {
 
 /// Provide a way to extract knowledge out of a Message/OpaqueMessage or any type that
 /// might be used in a precomputation
-pub trait ExtractKnowledge<PT: ProtocolTypes>: std::fmt::Debug + AsAny {
-    /// Fill `knowledges` with new knowledge gathered form the type implementing ExtractKnowledge
+pub trait EvaluatedTerm<PT: ProtocolTypes>: std::fmt::Debug + AsAny {
+    /// Fill `knowledges` with new knowledge gathered form the type implementing EvaluatedTerm
     /// by recursively calling extract_knowledge on all contained element
     /// This will put source as the source of all the produced knowledge, matcher is also passed
     /// recursively but might be overwritten by a type with a more specific matcher
@@ -40,7 +40,7 @@ pub trait ExtractKnowledge<PT: ProtocolTypes>: std::fmt::Debug + AsAny {
 #[macro_export]
 macro_rules! dummy_extract_knowledge {
     ($protocol_type:ty, $extract_type:ty) => {
-        impl ExtractKnowledge<$protocol_type> for $extract_type {
+        impl EvaluatedTerm<$protocol_type> for $extract_type {
             fn extract_knowledge<'a>(
                 &'a self,
                 _knowledges: &mut Vec<Knowledge<'a, $protocol_type>>,
@@ -56,7 +56,7 @@ macro_rules! dummy_extract_knowledge {
 #[macro_export]
 macro_rules! atom_extract_knowledge {
     ($protocol_type:ty, $extract_type:ty) => {
-        impl ExtractKnowledge<$protocol_type> for $extract_type {
+        impl EvaluatedTerm<$protocol_type> for $extract_type {
             fn extract_knowledge<'a>(
                 &'a self,
                 knowledges: &mut Vec<Knowledge<'a, $protocol_type>>,
@@ -80,7 +80,7 @@ pub trait ProtocolMessageFlight<
     M: ProtocolMessage<PT, O>,
     O: OpaqueProtocolMessage<PT>,
     OF: OpaqueProtocolMessageFlight<PT, O>,
->: Clone + Debug + From<M> + TryFrom<OF> + Into<OF> + ExtractKnowledge<PT>
+>: Clone + Debug + From<M> + TryFrom<OF> + Into<OF> + EvaluatedTerm<PT>
 {
     fn new() -> Self;
     fn push(&mut self, msg: M);
@@ -89,7 +89,7 @@ pub trait ProtocolMessageFlight<
 
 /// Store a flight of opaque messages, a vec of all the messages sent by the PUT between two steps
 pub trait OpaqueProtocolMessageFlight<PT: ProtocolTypes, O: OpaqueProtocolMessage<PT>>:
-    Clone + Debug + Codec + From<O> + ExtractKnowledge<PT>
+    Clone + Debug + Codec + From<O> + EvaluatedTerm<PT>
 {
     fn new() -> Self;
     fn debug(&self, info: &str);
@@ -99,7 +99,7 @@ pub trait OpaqueProtocolMessageFlight<PT: ProtocolTypes, O: OpaqueProtocolMessag
 /// A structured message. This type defines how all possible messages of a protocol.
 /// Usually this is implemented using an `enum`.
 pub trait ProtocolMessage<PT: ProtocolTypes, O: OpaqueProtocolMessage<PT>>:
-    Clone + Debug + ExtractKnowledge<PT>
+    Clone + Debug + EvaluatedTerm<PT>
 {
     fn create_opaque(&self) -> O;
     fn debug(&self, info: &str);
@@ -108,7 +108,7 @@ pub trait ProtocolMessage<PT: ProtocolTypes, O: OpaqueProtocolMessage<PT>>:
 /// A non-structured version of [`ProtocolMessage`]. This can be used for example for encrypted
 /// messages which do not have a structure.
 pub trait OpaqueProtocolMessage<PT: ProtocolTypes>:
-    Clone + Debug + Codec + ExtractKnowledge<PT>
+    Clone + Debug + Codec + EvaluatedTerm<PT>
 {
     fn debug(&self, info: &str);
 }

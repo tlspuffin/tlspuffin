@@ -10,7 +10,7 @@ use super::atoms::{Function, Variable};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
 use crate::error::Error;
-use crate::protocol::{ExtractKnowledge, ProtocolBehavior, ProtocolTypes};
+use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
@@ -105,7 +105,7 @@ impl<PT: ProtocolTypes> Term<PT> {
     pub fn evaluate<PB: ProtocolBehavior>(
         &self,
         context: &TraceContext<PB>,
-    ) -> Result<Box<dyn ExtractKnowledge<PT>>, Error>
+    ) -> Result<Box<dyn EvaluatedTerm<PT>>, Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -122,7 +122,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 })
                 .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
             Term::Application(func, args) => {
-                let mut dynamic_args: Vec<Box<dyn ExtractKnowledge<PT>>> = Vec::new();
+                let mut dynamic_args: Vec<Box<dyn EvaluatedTerm<PT>>> = Vec::new();
                 for term in args {
                     match term.evaluate(context) {
                         Ok(data) => {
@@ -134,8 +134,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                     }
                 }
                 let dynamic_fn = &func.dynamic_fn();
-                let result: Result<Box<dyn ExtractKnowledge<PT>>, FnError> =
-                    dynamic_fn(&dynamic_args);
+                let result: Result<Box<dyn EvaluatedTerm<PT>>, FnError> = dynamic_fn(&dynamic_args);
                 result.map_err(Error::Fn)
             }
         }

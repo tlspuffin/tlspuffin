@@ -32,7 +32,7 @@ use crate::algebra::{remove_prefix, Matcher, Term};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
 use crate::error::Error;
 use crate::protocol::{
-    ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+    EvaluatedTerm, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
     ProtocolMessage, ProtocolMessageFlight, ProtocolTypes,
 };
 use crate::put::PutDescriptor;
@@ -75,7 +75,7 @@ impl fmt::Display for Source {
 }
 
 /// [Knowledge] describes an atomic piece of knowledge inferred by the
-/// [`crate::protocol::ExtractKnowledge::extract_knowledge`] function
+/// [`crate::protocol::EvaluatedTerm::extract_knowledge`] function
 /// [Knowledge] is made of the data, the source of the output, the
 /// TLS message type and the internal type.
 #[derive(Debug)]
@@ -90,7 +90,7 @@ pub struct Knowledge<'a, PT: ProtocolTypes> {
 pub struct RawKnowledge<PT: ProtocolTypes> {
     pub source: Source,
     pub matcher: Option<PT::Matcher>,
-    pub data: Box<dyn ExtractKnowledge<PT>>,
+    pub data: Box<dyn EvaluatedTerm<PT>>,
 }
 
 impl<PT: ProtocolTypes> fmt::Display for RawKnowledge<PT> {
@@ -152,11 +152,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         }
     }
 
-    pub fn add_raw_knowledge<T: ExtractKnowledge<PT> + 'static>(
-        &mut self,
-        data: T,
-        source: Source,
-    ) {
+    pub fn add_raw_knowledge<T: EvaluatedTerm<PT> + 'static>(&mut self, data: T, source: Source) {
         log::trace!("Adding raw knowledge for {:?}", &data);
 
         self.raw_knowledge.push(RawKnowledge {
@@ -392,7 +388,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         &self,
         agent_name: AgentName,
         query_type_shape: TypeShape<PB::ProtocolTypes>,
-    ) -> Option<Box<dyn ExtractKnowledge<PB::ProtocolTypes>>> {
+    ) -> Option<Box<dyn EvaluatedTerm<PB::ProtocolTypes>>> {
         self.claims
             .deref_borrow()
             .find_last_claim(agent_name, query_type_shape)
@@ -664,7 +660,7 @@ impl<PT: ProtocolTypes> fmt::Display for InputAction<PT> {
 }
 
 fn as_message_flight<PB: ProtocolBehavior>(
-    value: Box<dyn ExtractKnowledge<PB::ProtocolTypes>>,
+    value: Box<dyn EvaluatedTerm<PB::ProtocolTypes>>,
 ) -> Result<PB::OpaqueProtocolMessageFlight, Error> {
     let opaque: PB::OpaqueProtocolMessageFlight = if let Some(flight) =
         value.as_any().downcast_ref::<PB::ProtocolMessageFlight>()

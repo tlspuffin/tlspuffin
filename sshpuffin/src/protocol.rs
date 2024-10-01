@@ -4,7 +4,7 @@ use puffin::algebra::signature::Signature;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
-    ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
+    EvaluatedTerm, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
     ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
 use puffin::trace::{Knowledge, Source, Trace};
@@ -46,7 +46,7 @@ impl From<SshMessage> for SshMessageFlight {
     }
 }
 
-impl ExtractKnowledge<SshProtocolTypes> for SshMessageFlight {
+impl EvaluatedTerm<SshProtocolTypes> for SshMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
@@ -84,7 +84,7 @@ impl OpaqueProtocolMessageFlight<SshProtocolTypes, RawSshMessage> for RawSshMess
     }
 }
 
-impl ExtractKnowledge<SshProtocolTypes> for RawSshMessageFlight {
+impl EvaluatedTerm<SshProtocolTypes> for RawSshMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,

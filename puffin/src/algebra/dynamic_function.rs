@@ -1,7 +1,7 @@
 //! This module provides traits for calling rust functions dynamically.
 //!
 //! All functions which implement the DynamicFunction trait can be called by passing an array of
-//! [`ExtractKnowledge`]s to it. The return value is again of type [`ExtractKnowledge`].
+//! [`EvaluatedTerm`]s to it. The return value is again of type [`EvaluatedTerm`].
 //!
 //! Rust is a statically typed language. That means the compiler would be able to statically verify
 //! that a term evaluates without any type errors.
@@ -28,18 +28,18 @@
 //! use std::any::Any;
 //!
 //! use puffin::algebra::error::FnError;
-//! use puffin::protocol::{ExtractKnowledge, ProtocolTypes};
+//! use puffin::protocol::{EvaluatedTerm, ProtocolTypes};
 //!
 //! pub trait DynamicFunction<PT: ProtocolTypes>:
-//!     Fn(&Vec<Box<dyn ExtractKnowledge<PT>>>) -> Result<Box<dyn ExtractKnowledge<PT>>, FnError>
+//!     Fn(&Vec<Box<dyn EvaluatedTerm<PT>>>) -> Result<Box<dyn EvaluatedTerm<PT>>, FnError>
 //! {
 //! }
 //! ```
 //!
 //! Note, that both functions return a `Result` and therefore can gracefully fail.
 //!
-//! `DynamicFunctions` can be called with an array of any type implementing the ExtractKnowledge
-//! trait. The result must also implement ExtractKnowledge. Rust offers a unique ID for each type.
+//! `DynamicFunctions` can be called with an array of any type implementing the EvaluatedTerm
+//! trait. The result must also implement EvaluatedTerm. Rust offers a unique ID for each type.
 //! Using this type we can check during runtime whether types are available. The types of each
 //! variable, constant and function are preserved and stored alongside the `DynamicFunction`.
 //!
@@ -66,7 +66,7 @@ use serde::de::Visitor;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use super::error::FnError;
-use crate::protocol::{ExtractKnowledge, ProtocolTypes};
+use crate::protocol::{EvaluatedTerm, ProtocolTypes};
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -122,7 +122,7 @@ fn hash_type_id(type_id: &TypeId) -> u64 {
     hasher.finish()
 }
 
-fn format_args<PT: ProtocolTypes, P: AsRef<dyn ExtractKnowledge<PT>>>(anys: &[P]) -> String {
+fn format_args<PT: ProtocolTypes, P: AsRef<dyn EvaluatedTerm<PT>>>(anys: &[P]) -> String {
     format!(
         "({})",
         anys.iter()
@@ -143,9 +143,7 @@ fn format_args<PT: ProtocolTypes, P: AsRef<dyn ExtractKnowledge<PT>>>(anys: &[P]
 /// We want to use Any here and not VariableData (which implements Clone). Else all returned types
 /// in functions op_impl.rs would need to return a cloneable struct. Message for example is not.
 pub trait DynamicFunction<PT: ProtocolTypes>:
-    Fn(&Vec<Box<dyn ExtractKnowledge<PT>>>) -> Result<Box<dyn ExtractKnowledge<PT>>, FnError>
-    + Send
-    + Sync
+    Fn(&Vec<Box<dyn EvaluatedTerm<PT>>>) -> Result<Box<dyn EvaluatedTerm<PT>>, FnError> + Send + Sync
 {
     fn clone_box(&self) -> Box<dyn DynamicFunction<PT>>;
 }
@@ -153,7 +151,7 @@ pub trait DynamicFunction<PT: ProtocolTypes>:
 impl<F, PT: ProtocolTypes> DynamicFunction<PT> for F
 where
     F: 'static
-        + Fn(&Vec<Box<dyn ExtractKnowledge<PT>>>) -> Result<Box<dyn ExtractKnowledge<PT>>, FnError>
+        + Fn(&Vec<Box<dyn EvaluatedTerm<PT>>>) -> Result<Box<dyn EvaluatedTerm<PT>>, FnError>
         + Clone
         + Send
         + Sync,
@@ -199,7 +197,7 @@ macro_rules! dynamic_fn {
     where
         F: (Fn($(&$arg),*)  -> Result<$res, FnError>) + Send + Sync,
         $res: Send + Sync,
-        R: ExtractKnowledge<PT>,
+        R: EvaluatedTerm<PT>,
         $($arg: Send + Sync),*
     {
         fn shape() -> DynamicFunctionShape<PT> {
@@ -216,7 +214,7 @@ macro_rules! dynamic_fn {
 
         fn make_dynamic(&'static self) -> Box<dyn DynamicFunction<PT>> {
             #[allow(unused_variables)]
-            Box::new(move |args: &Vec<Box<dyn ExtractKnowledge<PT>>>| {
+            Box::new(move |args: &Vec<Box<dyn EvaluatedTerm<PT>>>| {
                 #[allow(unused_mut)]
                 let mut index = 0;
 
@@ -245,7 +243,7 @@ macro_rules! dynamic_fn {
                        }
                 ),*);
 
-                result.map(|result| Box::new(result) as Box<dyn ExtractKnowledge<PT>>)
+                result.map(|result| Box::new(result) as Box<dyn EvaluatedTerm<PT>>)
             })
         }
     }

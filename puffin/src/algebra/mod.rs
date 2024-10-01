@@ -106,7 +106,7 @@ pub mod test_signature {
     use crate::codec::{Codec, Reader};
     use crate::error::Error;
     use crate::protocol::{
-        ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+        EvaluatedTerm, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
         ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
     };
     use crate::put::{Put, PutOptions};
@@ -160,7 +160,7 @@ pub mod test_signature {
     dummy_extract_knowledge!(TestProtocolTypes, u32);
     dummy_extract_knowledge!(TestProtocolTypes, u64);
 
-    impl<T: std::fmt::Debug + Clone + 'static> ExtractKnowledge<TestProtocolTypes> for Vec<T> {
+    impl<T: std::fmt::Debug + Clone + 'static> EvaluatedTerm<TestProtocolTypes> for Vec<T> {
         fn extract_knowledge<'a>(
             &'a self,
             knowledges: &mut Vec<Knowledge<'a, TestProtocolTypes>>,
@@ -410,7 +410,7 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn boxed_extractable(&self) -> Box<dyn ExtractKnowledge<TestProtocolTypes>> {
+        fn boxed_extractable(&self) -> Box<dyn EvaluatedTerm<TestProtocolTypes>> {
             panic!("Not implemented for test stub");
         }
     }
@@ -430,7 +430,7 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn inner(&self) -> Box<dyn ExtractKnowledge<TestProtocolTypes>> {
+        fn inner(&self) -> Box<dyn EvaluatedTerm<TestProtocolTypes>> {
             panic!("Not implemented for test stub");
         }
     }
