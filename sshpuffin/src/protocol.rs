@@ -6,7 +6,7 @@ use puffin::codec;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
-    ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
+    EvaluatedTerm, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
     ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
 use puffin::trace::{Knowledge, Source, Trace};
@@ -48,7 +48,7 @@ impl From<SshMessage> for SshMessageFlight {
     }
 }
 
-impl ExtractKnowledge<SshProtocolTypes> for SshMessageFlight {
+impl EvaluatedTerm<SshProtocolTypes> for SshMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
@@ -86,7 +86,7 @@ impl OpaqueProtocolMessageFlight<SshProtocolTypes, RawSshMessage> for RawSshMess
     }
 }
 
-impl ExtractKnowledge<SshProtocolTypes> for RawSshMessageFlight {
+impl EvaluatedTerm<SshProtocolTypes> for RawSshMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
@@ -194,7 +194,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
     }
 
     fn any_get_encoding(
-        message: &dyn ExtractKnowledge<Self::ProtocolTypes>,
+        message: &dyn EvaluatedTerm<Self::ProtocolTypes>,
     ) -> Result<ConcreteMessage, Error> {
         match message
             .as_any()
@@ -215,7 +215,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
     fn try_read_bytes(
         bitstring: &[u8],
         ty: TypeId,
-    ) -> Result<Box<dyn ExtractKnowledge<Self::ProtocolTypes>>, Error> {
+    ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
         todo!()
     }
 }

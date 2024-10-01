@@ -6,7 +6,7 @@ use puffin::claims::Claim;
 use puffin::codec::Encode;
 use puffin::dummy_extract_knowledge;
 use puffin::error::Error;
-use puffin::protocol::{ExtractKnowledge, ProtocolTypes};
+use puffin::protocol::{EvaluatedTerm, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
 use puffin::variable_data::VariableData;
 use smallvec::SmallVec;
@@ -240,17 +240,6 @@ pub struct TlsClaim {
     pub data: ClaimData,
 }
 
-impl ExtractKnowledge<TLSProtocolTypes> for TlsClaim {
-    fn extract_knowledge(
-        &self,
-        _knowledges: &mut Vec<puffin::trace::Knowledge<TLSProtocolTypes>>,
-        _matcher: Option<<TLSProtocolTypes as puffin::protocol::ProtocolTypes>::Matcher>,
-        _source: &puffin::trace::Source,
-    ) -> Result<(), puffin::error::Error> {
-        Ok(())
-    }
-}
-
 impl Claim<TLSProtocolTypes> for TlsClaim {
     fn agent_name(&self) -> AgentName {
         self.agent_name
@@ -279,7 +268,7 @@ impl Claim<TLSProtocolTypes> for TlsClaim {
         }
     }
 
-    fn inner(&self) -> Box<dyn ExtractKnowledge<TLSProtocolTypes>> {
+    fn inner(&self) -> Box<dyn EvaluatedTerm<TLSProtocolTypes>> {
         type Message = ClaimDataMessage;
         type Transcript = ClaimDataTranscript;
         match &self.data {
@@ -299,6 +288,17 @@ impl Claim<TLSProtocolTypes> for TlsClaim {
                 Transcript::Certificate(claim) => claim.boxed_extractable(),
             },
         }
+    }
+}
+
+impl EvaluatedTerm<TLSProtocolTypes> for TlsClaim {
+    fn extract_knowledge(
+        &self,
+        _knowledges: &mut Vec<puffin::trace::Knowledge<TLSProtocolTypes>>,
+        _matcher: Option<<TLSProtocolTypes as puffin::protocol::ProtocolTypes>::Matcher>,
+        _source: &puffin::trace::Source,
+    ) -> Result<(), puffin::error::Error> {
+        Ok(())
     }
 }
 

@@ -14,7 +14,7 @@ use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{ConcreteMessage, DYTerm, Term, TermType};
 use crate::error::Error;
 use crate::fuzzer::utils::{find_term_by_term_path, TermPath};
-use crate::protocol::{ExtractKnowledge, ProtocolBehavior, ProtocolTypes};
+use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
 /// Constants governing heuritics for finding payloads in term evaluations
@@ -832,7 +832,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         is_in_list: bool,
         sibling_has_payloads: bool,
         type_term: &TypeShape<PT>,
-    ) -> Result<(Box<dyn ExtractKnowledge<PT>>, Vec<PayloadContext<PT>>), Error>
+    ) -> Result<(Box<dyn EvaluatedTerm<PT>>, Vec<PayloadContext<PT>>), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -905,8 +905,8 @@ impl<PT: ProtocolTypes> Term<PT> {
             }
             DYTerm::Application(func, args) => {
                 trace!("[eval_until_opaque] [App]: Application from path={path:?}");
-                let mut dynamic_args: Vec<Box<dyn ExtractKnowledge<PT>>> = Vec::new(); // will contain all the arguments on which to call the function symbol
-                                                                                       // implementation
+                let mut dynamic_args: Vec<Box<dyn EvaluatedTerm<PT>>> = Vec::new(); // will contain all the arguments on which to call the function symbol
+                                                                                    // implementation
                 let mut all_payloads = vec![]; // will collect all payloads contexts of arguments (except those under opaque
                                                // function symbols)
                 let mut eval_tree_args = vec![]; // will collect the eval tree of the sub-terms, if `with_payloads`
@@ -960,7 +960,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 }
                 trace!("[eval_until_opaque] Now calling the function symbol implementation and then updating payloads...");
                 let dynamic_fn = &func.dynamic_fn();
-                let result: Box<dyn ExtractKnowledge<PT>> = dynamic_fn(&dynamic_args)?; // evaluation of the function symbol implementation
+                let result: Box<dyn EvaluatedTerm<PT>> = dynamic_fn(&dynamic_args)?; // evaluation of the function symbol implementation
 
                 if with_payloads && self.payloads.is_some() {
                     all_payloads.push(PayloadContext {

@@ -106,7 +106,7 @@ pub mod test_signature {
     use crate::codec::{Codec, Reader};
     use crate::error::Error;
     use crate::protocol::{
-        ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+        EvaluatedTerm, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
         ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
     };
     use crate::put::{Put, PutOptions};
@@ -160,7 +160,7 @@ pub mod test_signature {
     dummy_extract_knowledge!(TestProtocolTypes, u32);
     dummy_extract_knowledge!(TestProtocolTypes, u64);
 
-    impl<T: std::fmt::Debug + Clone + 'static> ExtractKnowledge<TestProtocolTypes> for Vec<T> {
+    impl<T: std::fmt::Debug + Clone + 'static> EvaluatedTerm<TestProtocolTypes> for Vec<T> {
         fn extract_knowledge<'a>(
             &'a self,
             knowledges: &mut Vec<Knowledge<'a, TestProtocolTypes>>,
@@ -410,7 +410,7 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn boxed_extractable(&self) -> Box<dyn ExtractKnowledge<TestProtocolTypes>> {
+        fn boxed_extractable(&self) -> Box<dyn EvaluatedTerm<TestProtocolTypes>> {
             panic!("Not implemented for test stub");
         }
     }
@@ -430,7 +430,7 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn inner(&self) -> Box<dyn ExtractKnowledge<TestProtocolTypes>> {
+        fn inner(&self) -> Box<dyn EvaluatedTerm<TestProtocolTypes>> {
             panic!("Not implemented for test stub");
         }
     }
@@ -629,7 +629,7 @@ pub mod test_signature {
         }
 
         fn any_get_encoding(
-            message: &dyn ExtractKnowledge<Self::ProtocolTypes>,
+            message: &dyn EvaluatedTerm<Self::ProtocolTypes>,
         ) -> Result<ConcreteMessage, Error> {
             Err(Error::Term("any_get_encoding not implemented".to_owned()))
         }
@@ -637,7 +637,7 @@ pub mod test_signature {
         fn try_read_bytes(
             bitstring: &[u8],
             ty: TypeId,
-        ) -> Result<Box<dyn ExtractKnowledge<Self::ProtocolTypes>>, Error> {
+        ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
             Err(Error::Term("try_read_bytes not implemented".to_owned()))
         }
     }
@@ -687,7 +687,7 @@ mod tests {
     use crate::algebra::dynamic_function::TypeShape;
     use crate::algebra::signature::Signature;
     use crate::algebra::{evaluate_lazy_test, AnyMatcher, DYTerm, Term};
-    use crate::protocol::ExtractKnowledge;
+    use crate::protocol::EvaluatedTerm;
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
     use crate::trace::{Source, Spawner, TraceContext};

@@ -14,7 +14,7 @@ use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
 use crate::error::Error;
 use crate::fuzzer::utils::TermPath;
-use crate::protocol::{ExtractKnowledge, ProtocolBehavior, ProtocolTypes};
+use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
 const SIZE_LEAF: usize = 1;
@@ -570,7 +570,7 @@ impl<PT: ProtocolTypes> Subterms<PT, Term<PT>> for Vec<Term<PT>> {
 pub fn evaluate_lazy_test<PB, PT>(
     term: &Term<PT>,
     context: &TraceContext<PB>,
-) -> Result<Box<dyn ExtractKnowledge<PT>>, Error>
+) -> Result<Box<dyn EvaluatedTerm<PT>>, Error>
 where
     PT: ProtocolTypes,
     PB: ProtocolBehavior<ProtocolTypes = PT>,
@@ -588,7 +588,7 @@ where
             })
             .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
         DYTerm::Application(func, args) => {
-            let mut dynamic_args: Vec<Box<dyn ExtractKnowledge<PT>>> = Vec::new();
+            let mut dynamic_args: Vec<Box<dyn EvaluatedTerm<PT>>> = Vec::new();
             for term in args {
                 match evaluate_lazy_test(term, context) {
                     Ok(data) => {
@@ -600,7 +600,7 @@ where
                 }
             }
             let dynamic_fn = &func.dynamic_fn();
-            let result: Result<Box<dyn ExtractKnowledge<PT>>, FnError> = dynamic_fn(&dynamic_args);
+            let result: Result<Box<dyn EvaluatedTerm<PT>>, FnError> = dynamic_fn(&dynamic_args);
             result.map_err(Error::Fn)
         }
     }
