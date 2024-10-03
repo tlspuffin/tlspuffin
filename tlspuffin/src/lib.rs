@@ -120,7 +120,7 @@ pub mod claims;
 pub mod debug;
 #[cfg(feature = "openssl-binding")]
 pub mod openssl;
-mod protocol;
+pub mod protocol;
 pub mod put;
 pub mod put_registry;
 pub mod query;
@@ -130,7 +130,5 @@ pub mod tls;
 #[cfg(feature = "wolfssl-binding")]
 pub mod wolfssl;
 
-#[cfg(test)]
-mod integration_tests;
-#[cfg(test)]
-mod test_utils;
+#[cfg(feature = "test-utils")]
+pub mod test_utils;

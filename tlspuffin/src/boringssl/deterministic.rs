@@ -9,11 +9,8 @@ pub fn reset_rand() {
 
 #[cfg(test)]
 mod tests {
-    use puffin::trace::TraceContext;
-
-    use crate::put_registry::tls_registry;
+    use crate::test_utils::prelude::*;
     use crate::tls::seeds::seed_client_attacker_full;
-    use crate::tls::trace_helper::TraceHelper;
 
     #[test_log::test]
     fn test_boringssl_no_randomness_full() {

@@ -280,6 +280,9 @@ client-authentication-transcript-extraction = []
 
 introspection = ["puffin/introspection"]
 
+# utility functions for testing tlspuffin
+test-utils = ["tempfile"]
+
 [dependencies]
 
 puffin = { path = "../puffin" }
@@ -316,6 +319,8 @@ tls-harness = { path = "../puts/harness", package = "tlspuffin-harness-sys", fea
     "tls",
 ], optional = true }
 foreign-types = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
+
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
 openssl-src = { version = "*", features = [], optional = true }
@@ -324,8 +329,10 @@ openssl-src = { version = "*", features = [], optional = true }
 test-log = { workspace = true }
 env_logger = { workspace = true }
 serde_json = { workspace = true }
-tempfile = { workspace = true }
 criterion = { workspace = true }
+
+# NOTE force `test-utils` feature in tests/benchmarks/examples
+tlspuffin = { path = ".", default-features = false, features = ["test-utils"] }
 
 [[bench]]
 name = "benchmark"
