@@ -35,10 +35,9 @@ use crate::protocol::{
     ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
     ProtocolMessage, ProtocolMessageFlight,
 };
-use crate::put::{PutDescriptor, PutOptions};
+use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
-#[allow(unused)] // used in docs
-use crate::stream::Channel;
+use crate::stream::Stream;
 use crate::variable_data::VariableData;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
@@ -157,15 +156,14 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
         &mut self,
         data: T,
         source: Source,
-    ) -> Result<usize, Error> {
-        log::trace!("Adding raw knowledge : {:?}", &data);
+    ) {
+        log::trace!("Adding raw knowledge for {:?}", &data);
+
         self.raw_knowledge.push(RawKnowledge {
             source,
             matcher: None,
             data: Box::new(data),
         });
-
-        Ok(self.raw_knowledge.len())
     }
 
     pub fn number_matching_message_with_source(
@@ -227,6 +225,77 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
     }
 }
 
+#[derive(Debug)]
+pub struct Spawner<PB: ProtocolBehavior> {
+    registry: PutRegistry<PB>,
+    descriptors: HashMap<AgentName, PutDescriptor>,
+    default: PutDescriptor,
+}
+
+impl<PB: ProtocolBehavior> Spawner<PB> {
+    pub fn new(registry: impl Into<PutRegistry<PB>>) -> Self {
+        let registry = registry.into();
+        Self {
+            default: registry.default().name().into(),
+            registry,
+            descriptors: Default::default(),
+        }
+    }
+
+    pub fn with_mapping(mut self, descriptors: &[(AgentName, PutDescriptor)]) -> Self {
+        self.descriptors.extend(descriptors.iter().cloned());
+        self
+    }
+
+    pub fn with_default(mut self, put: impl Into<PutDescriptor>) -> Self {
+        self.default = put.into();
+        self
+    }
+
+    pub fn spawn(
+        &self,
+        claims: &GlobalClaimList<PB::Claim>,
+        descriptor: &AgentDescriptor,
+    ) -> Result<Agent<PB>, Error> {
+        let put_descriptor = self
+            .descriptors
+            .get(&descriptor.name)
+            .cloned()
+            .unwrap_or_else(|| self.default.clone());
+
+        let factory = self
+            .registry
+            .find_by_id(&put_descriptor.factory)
+            .ok_or_else(|| {
+                Error::Agent(format!(
+                    "unable to find PUT {} factory in binary",
+                    &put_descriptor.factory
+                ))
+            })?;
+
+        let put = factory.create(descriptor, claims, &put_descriptor.options)?;
+        Ok(Agent::new(descriptor.clone(), put))
+    }
+}
+
+impl<PB: ProtocolBehavior + PartialEq> PartialEq for Spawner<PB> {
+    fn eq(&self, other: &Self) -> bool {
+        self.registry == other.registry
+            && self.descriptors == other.descriptors
+            && self.default == other.default
+    }
+}
+
+impl<PB: ProtocolBehavior> Clone for Spawner<PB> {
+    fn clone(&self) -> Self {
+        Self {
+            registry: self.registry.clone(),
+            descriptors: self.descriptors.clone(),
+            default: self.default.clone(),
+        }
+    }
+}
+
 /// The [`TraceContext`] represents the state of an execution.
 ///
 /// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
@@ -241,10 +310,7 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     agents: Vec<Agent<PB>>,
     claims: GlobalClaimList<<PB as ProtocolBehavior>::Claim>,
 
-    put_registry: PutRegistry<PB>,
-    deterministic_put: bool,
-    default_put_options: PutOptions,
-    non_default_put_descriptors: HashMap<AgentName, PutDescriptor>,
+    spawner: Spawner<PB>,
 
     phantom: PhantomData<PB>,
 }
@@ -266,10 +332,7 @@ impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
 impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
     fn eq(&self, other: &Self) -> bool {
         self.agents == other.agents
-            && self.put_registry == other.put_registry
-            && self.deterministic_put == other.deterministic_put
-            && self.default_put_options == other.default_put_options
-            && self.non_default_put_descriptors == other.non_default_put_descriptors
+            && self.spawner == other.spawner
             && format!("{:?}", self.knowledge_store.raw_knowledge)
                 == format!("{:?}", other.knowledge_store.raw_knowledge)
             && format!("{:?}", self.claims) == format!("{:?}", other.claims)
@@ -277,7 +340,7 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
 }
 
 impl<PB: ProtocolBehavior> TraceContext<PB> {
-    pub fn new(put_registry: &PutRegistry<PB>, default_put_options: PutOptions) -> Self {
+    pub fn new(spawner: Spawner<PB>) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
         let claims = GlobalClaimList::new();
@@ -286,24 +349,14 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             knowledge_store: KnowledgeStore::new(),
             agents: vec![],
             claims,
-            non_default_put_descriptors: Default::default(),
-            put_registry: put_registry.clone(),
-            deterministic_put: false,
+            spawner,
             phantom: Default::default(),
-            default_put_options,
         }
-    }
-
-    pub fn put_registry(&self) -> &PutRegistry<PB> {
-        &self.put_registry
-    }
-
-    pub fn claims(&self) -> &GlobalClaimList<PB::Claim> {
-        &self.claims
     }
 
     pub fn verify_security_violations(&self) -> Result<(), Error> {
         let claims = self.claims.deref_borrow();
+        claims.log();
         if let Some(msg) = PB::SecurityViolationPolicy::check_violation(claims.slice()) {
             // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a
             // blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
@@ -356,40 +409,11 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         self.knowledge_store.find_variable(query_type_shape, query)
     }
 
-    /// Adds data to the inbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
-    pub fn add_to_inbound(
-        &mut self,
-        agent_name: AgentName,
-        message_flight: &PB::OpaqueProtocolMessageFlight,
-    ) -> Result<(), Error> {
-        self.find_agent_mut(agent_name)
-            .map(|agent| agent.put_mut().add_to_inbound(message_flight))
-    }
-
-    pub fn next_state(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        let agent = self.find_agent_mut(agent_name)?;
-        agent.put_mut().progress(&agent_name)
-    }
-
-    /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter
-    /// "agent". See [`crate::stream::Stream::take_message_from_outbound`]
-    pub fn take_message_from_outbound(
-        &mut self,
-        agent_name: AgentName,
-    ) -> Result<Option<PB::OpaqueProtocolMessageFlight>, Error> {
-        let agent = self.find_agent_mut(agent_name)?;
-        agent.put_mut().take_message_from_outbound()
-    }
-
-    fn add_agent(&mut self, agent: Agent<PB>) -> AgentName {
-        let name = agent.name();
+    pub fn spawn(&mut self, descriptor: &AgentDescriptor) -> Result<(), Error> {
+        let agent = self.spawner.spawn(&self.claims, descriptor)?;
         self.agents.push(agent);
-        name
-    }
 
-    pub fn new_agent(&mut self, descriptor: &AgentDescriptor) -> Result<AgentName, Error> {
-        let agent_name = self.add_agent(Agent::new(self, descriptor)?);
-        Ok(agent_name)
+        Ok(())
     }
 
     pub fn find_agent_mut(&mut self, name: AgentName) -> Result<&mut Agent<PB>, Error> {
@@ -413,48 +437,8 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         })
     }
 
-    /// Gets the PUT descriptor which should be used for all agents
-    pub fn put_descriptor(&self, agent_descriptor: &AgentDescriptor) -> PutDescriptor {
-        self.non_default_put_descriptors
-            .get(&agent_descriptor.name)
-            .cloned()
-            .unwrap_or_else(|| self.default_put_descriptor())
-    }
-
-    fn default_put_descriptor(&self) -> PutDescriptor {
-        let factory = self.put_registry.default();
-        PutDescriptor {
-            name: factory.name(),
-            options: self.default_put_options.clone(),
-        }
-    }
-
-    /// Makes agents use the non-default PUT
-    pub fn set_non_default_put(&mut self, agent_name: AgentName, put_descriptor: PutDescriptor) {
-        self.non_default_put_descriptors
-            .insert(agent_name, put_descriptor);
-    }
-
-    pub fn set_non_default_puts(&mut self, descriptors: &[(AgentName, PutDescriptor)]) {
-        self.non_default_put_descriptors
-            .extend(descriptors.iter().cloned());
-    }
-
-    pub fn reset_agents(&mut self) -> Result<(), Error> {
-        for agent in &mut self.agents {
-            agent.reset(agent.name())?;
-        }
-        Ok(())
-    }
-
     pub fn agents_successful(&self) -> bool {
-        self.agents
-            .iter()
-            .all(|agent| agent.put().is_state_successful())
-    }
-
-    pub fn set_deterministic(&mut self, deterministic: bool) {
-        self.deterministic_put = deterministic;
+        self.agents.iter().all(|agent| agent.is_state_successful())
     }
 }
 
@@ -474,26 +458,17 @@ pub struct Trace<M: Matcher> {
 impl<M: Matcher> Trace<M> {
     fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
         for descriptor in &self.descriptors {
-            let name = if let Some(reusable) = ctx
+            if let Some(reusable) = ctx
                 .agents
                 .iter_mut()
-                .find(|existing| existing.put().is_reusable_with(descriptor))
+                .find(|existing| existing.is_reusable_with(descriptor))
             {
                 // rename if it already exists and we want to reuse
-                reusable.rename(descriptor.name)?;
-                descriptor.name
+                reusable.reset(descriptor.name)?;
             } else {
                 // only spawn completely new if not yet existing
-                ctx.new_agent(descriptor)?
+                ctx.spawn(descriptor)?;
             };
-
-            if ctx.deterministic_put {
-                if let Ok(agent) = ctx.find_agent_mut(name) {
-                    if let Err(err) = agent.put_mut().determinism_reseed() {
-                        log::warn!("Unable to make agent {} deterministic: {}", name, err)
-                    }
-                }
-            }
         }
 
         Ok(())
@@ -503,67 +478,20 @@ impl<M: Matcher> Trace<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        // We reseed all PUTs before executing a trace!
-        ctx.put_registry.determinism_reseed_all_factories();
-
         for trace in &self.prior_traces {
-            trace.spawn_agents(ctx)?;
             trace.execute(ctx)?;
-            ctx.reset_agents()?;
         }
+
         self.spawn_agents(ctx)?;
         let steps = &self.steps;
         for (i, step) in steps.iter().enumerate() {
             log::debug!("Executing step #{}", i);
-
-            step.action.execute(step, ctx)?;
-
-            // Output after each InputAction step
-            match step.action {
-                Action::Input(_) => {
-                    let output_step = &OutputAction::<M>::new_step(step.agent);
-
-                    output_step.action.execute(output_step, ctx)?;
-                }
-                Action::Output(_) => {}
-            }
-
-            ctx.claims.deref_borrow().log();
+            step.execute(ctx)?;
 
             ctx.verify_security_violations()?;
         }
 
         Ok(())
-    }
-
-    pub fn execute_deterministic<PB>(
-        &self,
-        put_registry: &PutRegistry<PB>,
-        default_put_options: PutOptions,
-    ) -> Result<TraceContext<PB>, Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        let mut ctx = TraceContext::new(put_registry, default_put_options);
-        ctx.set_deterministic(true);
-        self.execute(&mut ctx)?;
-        Ok(ctx)
-    }
-
-    pub fn execute_with_non_default_puts<PB>(
-        &self,
-        put_registry: &PutRegistry<PB>,
-        descriptors: &[(AgentName, PutDescriptor)],
-    ) -> Result<TraceContext<PB>, Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        let mut ctx = TraceContext::new(put_registry, PutOptions::default());
-
-        ctx.set_non_default_puts(descriptors);
-
-        self.execute(&mut ctx)?;
-        Ok(ctx)
     }
 
     pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {
@@ -591,6 +519,12 @@ impl<M: Matcher> fmt::Display for Trace<M> {
     }
 }
 
+impl<M: Matcher> AsRef<Trace<M>> for Trace<M> {
+    fn as_ref(&self) -> &Trace<M> {
+        self
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
 pub struct Step<M: Matcher> {
@@ -598,34 +532,39 @@ pub struct Step<M: Matcher> {
     pub action: Action<M>,
 }
 
-/// The actions performed on an [`Agent`].
+impl<M: Matcher> Step<M> {
+    fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<Matcher = M>,
+    {
+        match &self.action {
+            Action::Input(input) => input.execute(self.agent, ctx).and_then(|_| {
+                // NOTE force output after each InputAction step
+                (OutputAction {
+                    phantom: Default::default(),
+                })
+                .execute(self.agent, ctx)
+            }),
+            Action::Output(output) => output.execute(self.agent, ctx),
+        }
+    }
+}
+
+/// There are two action types [`OutputAction`] and [`InputAction`].
 ///
-/// There are two action types [`OutputAction`] and [`InputAction`] differ. Both actions drive the
-/// internal state machine of an [`Agent`] forward by calling `next_state()`. The [`OutputAction`]
-/// first forwards the state machine and then extracts knowledge from the TLS messages produced by
-/// the underlying stream by calling  `take_message_from_outbound(...)`. The [`InputAction`]
-/// evaluates the recipe term and injects the newly produced message into the *inbound channel* of
-/// the [`Agent`] referenced through the corresponding [`Step`]s by calling `add_to_inbound(...)`
-/// and then drives the state machine forward. Therefore, the difference is that one step
-/// *increases* the knowledge of the attacker, whereas the other action *uses* the available
-/// knowledge.
+/// Both actions drive the internal state machine of an [`Agent`] forward by calling `progress()`.
+/// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
+/// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
+/// The [`InputAction`] evaluates the recipe term and injects the newly produced message
+/// into the *inbound channel* of the [`Agent`] referenced through the corresponding [`Step`]s
+/// by calling `add_to_inbound(...)` and then drives the state machine forward.
+/// Therefore, the difference is that one step *increases* the knowledge of the attacker,
+/// whereas the other action *uses* the available knowledge.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
 pub enum Action<M: Matcher> {
     Input(InputAction<M>),
     Output(OutputAction<M>),
-}
-
-impl<M: Matcher> Action<M> {
-    fn execute<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
-    where
-        PB: ProtocolBehavior<Matcher = M>,
-    {
-        match self {
-            Action::Input(input) => input.input(step, ctx),
-            Action::Output(output) => output.output(step, ctx),
-        }
-    }
 }
 
 impl<M: Matcher> fmt::Display for Action<M> {
@@ -657,30 +596,21 @@ impl<M: Matcher> OutputAction<M> {
         }
     }
 
-    fn output<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    fn execute<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        ctx.next_state(step.agent)?;
+        let source = Source::Agent(agent_name);
+        let agent = ctx.find_agent_mut(agent_name)?;
 
-        let source = Source::Agent(step.agent);
+        agent.progress()?;
 
-        let opaque_flight_result = ctx.take_message_from_outbound(step.agent)?;
+        if let Some(opaque_flight) = agent.take_message_from_outbound()? {
+            ctx.knowledge_store
+                .add_raw_knowledge(opaque_flight.clone(), source.clone());
 
-        if let Some(opaque_flight) = opaque_flight_result {
-            let flight = TryInto::<PB::ProtocolMessageFlight>::try_into(opaque_flight.clone());
-
-            if let Ok(num) = ctx
-                .knowledge_store
-                .add_raw_knowledge(opaque_flight, source.clone())
-            {
-                log::debug!("Raw Knowledge increased by {}", num);
-            }
-
-            if let Ok(f) = flight {
-                if let Ok(num) = ctx.knowledge_store.add_raw_knowledge(f, source.clone()) {
-                    log::debug!("Raw Knowledge increased by {}", num);
-                }
+            if let Ok(flight) = TryInto::<PB::ProtocolMessageFlight>::try_into(opaque_flight) {
+                ctx.knowledge_store.add_raw_knowledge(flight, source);
             }
         }
 
@@ -715,46 +645,15 @@ impl<M: Matcher> InputAction<M> {
         }
     }
 
-    fn input<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    fn execute<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        // message controlled by the attacker
-        let evaluated = self.recipe.evaluate(ctx)?;
+        let message = as_message_flight::<PB>(self.recipe.evaluate(ctx)?)?;
+        let agent = ctx.find_agent_mut(agent_name)?;
 
-        if let Some(flight) = evaluated
-            .as_ref()
-            .downcast_ref::<PB::ProtocolMessageFlight>()
-        {
-            flight.debug("Input message flight");
-
-            ctx.add_to_inbound(step.agent, &flight.clone().into())?;
-        } else if let Some(flight) = evaluated
-            .as_ref()
-            .downcast_ref::<PB::OpaqueProtocolMessageFlight>()
-        {
-            flight.debug("Input opaque message flight");
-
-            ctx.add_to_inbound(step.agent, flight)?;
-        } else if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
-            msg.debug("Input message");
-
-            let message_flight: PB::ProtocolMessageFlight = msg.clone().into();
-            ctx.add_to_inbound(step.agent, &message_flight.into())?;
-        } else if let Some(opaque_message) = evaluated
-            .as_ref()
-            .downcast_ref::<PB::OpaqueProtocolMessage>()
-        {
-            opaque_message.debug("Input opaque message");
-            ctx.add_to_inbound(step.agent, &opaque_message.clone().into())?;
-        } else {
-            return Err(FnError::Unknown(String::from(
-                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`, `OpaqueMessageFlight` !",
-            ))
-            .into());
-        }
-
-        ctx.next_state(step.agent)
+        agent.add_to_inbound(&message);
+        agent.progress()
     }
 }
 
@@ -762,4 +661,28 @@ impl<M: Matcher> fmt::Display for InputAction<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "InputAction:\n{}", self.recipe)
     }
+}
+
+fn as_message_flight<PB: ProtocolBehavior>(
+    value: Box<dyn Any>,
+) -> Result<PB::OpaqueProtocolMessageFlight, Error> {
+    Err(value)
+        .or_else(|v| {
+            v.downcast::<PB::OpaqueProtocolMessageFlight>().map(|m| { m.debug("Input opaque message flight"); *m})
+        })
+        .or_else(|v| {
+            v.downcast::<PB::ProtocolMessageFlight>().map(|m| { m.debug("Input message flight"); (*m).into() })
+        })
+        .or_else(|v| {
+            v.downcast::<PB::ProtocolMessage>().map(|m| { m.debug("Input message"); Into::<PB::ProtocolMessageFlight>::into(*m).into() })
+        })
+        .or_else(|v| {
+            v.downcast::<PB::OpaqueProtocolMessage>().map(|m| { m.debug("Input opaque message"); (*m).into() })
+        })
+        .map_err(|_| {
+            FnError::Unknown(String::from(
+            "value is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`, `OpaqueMessageFlight` !",
+            ))
+            .into()
+        })
 }

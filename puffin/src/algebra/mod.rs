@@ -114,16 +114,16 @@ pub mod test_signature {
     use crate::algebra::dynamic_function::TypeShape;
     use crate::algebra::error::FnError;
     use crate::algebra::{AnyMatcher, Term};
-    use crate::claims::{Claim, SecurityViolationPolicy};
+    use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
     use crate::codec::{Codec, Reader};
     use crate::error::Error;
     use crate::protocol::{
         ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
         ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
     };
-    use crate::put::{Put, PutName};
+    use crate::put::{Put, PutOptions};
     use crate::put_registry::{Factory, PutKind};
-    use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace, TraceContext};
+    use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace};
     use crate::variable_data::VariableData;
     use crate::{define_signature, term, VERSION_STR};
 
@@ -610,8 +610,9 @@ pub mod test_signature {
     impl Factory<TestProtocolBehavior> for TestFactory {
         fn create(
             &self,
-            _context: &TraceContext<TestProtocolBehavior>,
             _agent_descriptor: &AgentDescriptor,
+            _claims: &GlobalClaimList<<TestProtocolBehavior as ProtocolBehavior>::Claim>,
+            _options: &PutOptions,
         ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {
             panic!("Not implemented for test stub");
         }
@@ -620,8 +621,8 @@ pub mod test_signature {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            PutName(['T', 'E', 'S', 'T', 'S', 'T', 'U', 'B', '_', '_'])
+        fn name(&self) -> String {
+            String::from("TESTSTUB_RUST_PUT")
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -654,10 +655,9 @@ mod tests {
     use crate::algebra::signature::Signature;
     use crate::algebra::{AnyMatcher, Term};
     use crate::protocol::ExtractKnowledge;
-    use crate::put::PutOptions;
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
-    use crate::trace::{Knowledge, Source, TraceContext};
+    use crate::trace::{Knowledge, Source, Spawner, TraceContext};
 
     impl ExtractKnowledge<AnyMatcher> for Vec<u8> {
         fn extract_knowledge<'a>(
@@ -752,11 +752,12 @@ mod tests {
             Box::new(TestFactory)
         }
 
-        let put_registry =
+        let registry =
             PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
-        let mut context = TraceContext::new(&put_registry, PutOptions::default());
 
-        let _ = context
+        let spawner = Spawner::new(registry.clone());
+        let mut context = TraceContext::new(spawner);
+        context
             .knowledge_store
             .add_raw_knowledge(data, Source::Agent(AgentName::first()));
 

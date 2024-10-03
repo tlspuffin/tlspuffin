@@ -1,7 +1,7 @@
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
 use puffin::algebra::Term;
-use puffin::execution::{forked_execution, AssertExecution};
+use puffin::execution::{run_in_subprocess, TraceRunner};
 use puffin::fuzzer::mutations::util::TermConstraints;
 use puffin::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
@@ -10,17 +10,17 @@ use puffin::libafl::corpus::InMemoryCorpus;
 use puffin::libafl::mutators::{MutationResult, Mutator};
 use puffin::libafl::state::StdState;
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
-use puffin::put::PutOptions;
-use puffin::trace::{Action, Step, Trace, TraceContext};
-
-use crate::put_registry::tls_registry;
-use crate::query::TlsQueryMatcher;
-use crate::tls::fn_impl::{
+use puffin::test_utils::AssertExecution;
+use puffin::trace::{Action, Step, Trace};
+use tlspuffin::put_registry::tls_registry;
+use tlspuffin::query::TlsQueryMatcher;
+use tlspuffin::test_utils::default_runner_for;
+use tlspuffin::tls::fn_impl::{
     fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
     fn_support_group_extension,
 };
-use crate::tls::seeds::_seed_client_attacker12;
-use crate::tls::TLS_SIGNATURE;
+use tlspuffin::tls::seeds::_seed_client_attacker12;
+use tlspuffin::tls::TLS_SIGNATURE;
 
 fn create_state() -> StdState<
     Trace<TlsQueryMatcher>,
@@ -36,10 +36,10 @@ fn create_state() -> StdState<
 #[test_log::test]
 #[ignore]
 fn test_mutate_seed_cve_2021_3449() {
+    let runner = default_runner_for(tls_registry().default().name());
     let mut state = create_state();
-    let _server = AgentName::first();
 
-    forked_execution(
+    run_in_subprocess(
         move || {
             for _i in 0..5 {
                 let mut attempts = 0;
@@ -212,13 +212,11 @@ fn test_mutate_seed_cve_2021_3449() {
                 }
                 println!("attempts 5: {}", attempts);
 
-                let put_registry = tls_registry();
-                let mut context = TraceContext::new(&put_registry, PutOptions::default());
-                let _ = trace.execute(&mut context);
+                let _ = runner.execute(trace);
                 println!("try");
             }
         },
-        Some(std::time::Duration::from_secs(30)),
+        std::time::Duration::from_secs(30),
     )
     .expect_crash();
 }

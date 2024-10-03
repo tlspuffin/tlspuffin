@@ -4,6 +4,7 @@ use criterion::{criterion_group, criterion_main, Criterion};
 use puffin::algebra::dynamic_function::make_dynamic;
 use puffin::algebra::error::FnError;
 use puffin::algebra::Term;
+use puffin::execution::{Runner, TraceRunner};
 use puffin::fuzzer::mutations::util::TermConstraints;
 use puffin::fuzzer::mutations::ReplaceReuseMutator;
 use puffin::libafl::corpus::InMemoryCorpus;
@@ -11,11 +12,12 @@ use puffin::libafl::mutators::Mutator;
 use puffin::libafl::state::StdState;
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 use puffin::term;
-use puffin::trace::Trace;
+use puffin::trace::{Spawner, Trace};
+use puffin::trace_helper::TraceHelper;
+use tlspuffin::put_registry::tls_registry;
 use tlspuffin::query::TlsQueryMatcher;
 use tlspuffin::tls::fn_impl::*;
 use tlspuffin::tls::seeds::*;
-use tlspuffin::tls::trace_helper::{TraceExecutor, TraceHelper};
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
     Ok(*a * *a)
@@ -113,46 +115,42 @@ fn benchmark_trace(c: &mut Criterion) {
 fn benchmark_seeds(c: &mut Criterion) {
     let mut group = c.benchmark_group("seeds");
 
+    let registry = tls_registry();
+    let runner = Runner::new(registry.clone(), Spawner::new(registry));
+
     group.bench_function("seed_successful", |b| {
-        b.iter(|| {
-            seed_successful.execute_trace();
-        })
+        let trace = seed_successful.build_trace();
+        b.iter(|| runner.execute(&trace))
     });
 
     group.bench_function("seed_successful12_with_tickets", |b| {
-        b.iter(|| {
-            seed_successful12_with_tickets.execute_trace();
-        })
+        let trace = seed_successful12_with_tickets.build_trace();
+        b.iter(|| runner.execute(&trace))
     });
 
     group.bench_function("seed_client_attacker", |b| {
-        b.iter(|| {
-            seed_client_attacker.execute_trace();
-        })
+        let trace = seed_client_attacker.build_trace();
+        b.iter(|| runner.execute(&trace))
     });
 
     group.bench_function("seed_client_attacker12", |b| {
-        b.iter(|| {
-            seed_client_attacker12.execute_trace();
-        })
+        let trace = seed_client_attacker12.build_trace();
+        b.iter(|| runner.execute(&trace))
     });
 
     group.bench_function("seed_session_resumption_dhe", |b| {
-        b.iter(|| {
-            seed_session_resumption_dhe.execute_trace();
-        })
+        let trace = seed_session_resumption_dhe.build_trace();
+        b.iter(|| runner.execute(&trace))
     });
 
     group.bench_function("seed_session_resumption_ke", |b| {
-        b.iter(|| {
-            seed_session_resumption_ke.execute_trace();
-        })
+        let trace = seed_session_resumption_ke.build_trace();
+        b.iter(|| runner.execute(&trace))
     });
 
     group.bench_function("seed_session_resumption_dhe_full", |b| {
-        b.iter(|| {
-            seed_session_resumption_dhe_full.execute_trace();
-        })
+        let trace = seed_session_resumption_dhe_full.build_trace();
+        b.iter(|| runner.execute(&trace))
     });
 
     group.finish()

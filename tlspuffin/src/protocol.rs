@@ -343,7 +343,7 @@ impl ExtractKnowledge<TlsQueryMatcher> for HandshakePayload {
             data: self,
         });
         match &self {
-            HandshakePayload::HelloRequest => {}
+            HandshakePayload::HelloRequest | HandshakePayload::HelloRetryRequest(_) => {}
             HandshakePayload::ClientHello(ch) => {
                 ch.extract_knowledge(knowledges, matcher, source)?;
             }
@@ -363,7 +363,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for HandshakePayload {
             HandshakePayload::NewSessionTicket(ticket) => {
                 ticket.extract_knowledge(knowledges, matcher, source)?;
             }
-            _ => return Err(Error::Extraction()),
+            _ => {
+                log::error!("failed extraction: {self:?}");
+                return Err(Error::Extraction());
+            }
         }
         Ok(())
     }

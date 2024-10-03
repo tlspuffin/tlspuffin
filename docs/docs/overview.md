@@ -94,23 +94,20 @@ pub trait Put<PB: ProtocolBehavior>:
     Stream<PB::ProtocolMessage, PB::OpaqueProtocolMessage> + 'static
 {
     /// Process incoming buffer, internal progress, can fill in the output buffer
-    fn progress(&mut self, agent_name: &AgentName) -> Result<(), Error>;
+    fn progress(&mut self) -> Result<(), Error>;
 
     /// In-place reset of the state
-    fn reset(&mut self, agent_name: AgentName) -> Result<(), Error>;
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error>;
 
     fn descriptor(&self) -> &AgentDescriptor;
 
     /// Register a new claim for agent_name
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, agent_name: AgentName);
+    fn register_claimer(&mut self);
 
     /// Remove all claims in self
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self);
-
-    /// Propagate agent changes to the PUT
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error>;
 
     /// Returns a textual representation of the state in which self is
     fn describe_state(&self) -> &str;

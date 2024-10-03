@@ -7,17 +7,18 @@ use openssl::ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslStream, SslVeri
 use openssl::x509::store::X509StoreBuilder;
 use openssl::x509::X509;
 use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::claims::GlobalClaimList;
 use puffin::error::Error;
-use puffin::put::{Put, PutName};
+use puffin::protocol::ProtocolBehavior;
+use puffin::put::{Put, PutOptions};
 use puffin::put_registry::{Factory, PutKind};
 use puffin::stream::{MemoryStream, Stream};
-use puffin::trace::TraceContext;
 use puffin::VERSION_STR;
 
 use crate::openssl::util::{set_max_protocol_version, static_rsa_cert};
 use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
 use crate::put::TlsPutConfig;
-use crate::put_registry::OPENSSL111_PUT;
+use crate::put_registry::OPENSSL_RUST_PUT;
 use crate::query::TlsQueryMatcher;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
@@ -32,13 +33,10 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     impl Factory<TLSProtocolBehavior> for OpenSSLFactory {
         fn create(
             &self,
-            context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
+            claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
+            options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
-            let put_descriptor = context.put_descriptor(agent_descriptor);
-
-            let options = &put_descriptor.options;
-
             let use_clear = options
                 .get_option("use_clear")
                 .map(|value| value.parse().unwrap_or(false))
@@ -46,7 +44,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
             let config = TlsPutConfig {
                 descriptor: agent_descriptor.clone(),
-                claims: context.claims().clone(),
+                claims: claims.clone(),
                 authenticate_peer: agent_descriptor.typ == AgentType::Client
                     && agent_descriptor.server_authentication
                     || agent_descriptor.typ == AgentType::Server
@@ -54,6 +52,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 extract_deferred: Rc::new(RefCell::new(None)),
                 use_clear,
             };
+
             Ok(Box::new(OpenSSL::new(config).map_err(|err| {
                 Error::Put(format!("Failed to create client/server: {}", err))
             })?))
@@ -63,8 +62,8 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            OPENSSL111_PUT
+        fn name(&self) -> String {
+            String::from(OPENSSL_RUST_PUT)
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -89,7 +88,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", OPENSSL111_PUT, VERSION_STR),
+                    format!("{} ({})", OPENSSL_RUST_PUT, VERSION_STR),
                 ),
                 (
                     "library".to_string(),
@@ -153,7 +152,7 @@ impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for Op
 }
 
 impl Put<TLSProtocolBehavior> for OpenSSL {
-    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
+    fn progress(&mut self) -> Result<(), Error> {
         let result = if self.is_state_successful() {
             // Trigger another read
             let mut vec: Vec<u8> = Vec::from([1; 128]);
@@ -167,24 +166,29 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
         result
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.config.descriptor.name = new_name;
+
+        #[cfg(feature = "claims")]
+        self.deregister_claimer();
+
         if self.config.use_clear {
             bindings::clear(self.stream.ssl());
         } else {
             self.stream = Self::new_stream(&self.ctx, &self.config).map_err(|err| {
                 Error::Put(format!("OpenSSL error during stream creation: {}", err))
             })?;
-
-            // FIXME don't force-register a new claimer on reset
-            //
-            //    Because OpenSSL vendor libraries crash when no claimer is
-            //    registered (#253), we are forced to register a new one on
-            //    reset. This should be removed once this bug is fixed.
-            //
-            //    See the WolfSSL module for comparison.
-            #[cfg(feature = "claims")]
-            self.register_claimer(self.config.descriptor.name);
         }
+
+        // FIXME don't force-register a new claimer on reset
+        //
+        //    Because OpenSSL vendor libraries crash when no claimer is
+        //    registered (#253), we are forced to register a new one on
+        //    reset. This should be removed once this bug is fixed.
+        //
+        //    See the WolfSSL module for comparison.
+        #[cfg(feature = "claims")]
+        self.register_claimer();
 
         Ok(())
     }
@@ -194,10 +198,11 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     }
 
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, agent_name: AgentName) {
+    fn register_claimer(&mut self) {
         unsafe {
             use foreign_types_openssl::ForeignTypeRef;
 
+            let agent_name = self.config.descriptor.name;
             let claims = self.config.claims.clone();
             let protocol_version = self.config.descriptor.tls_version;
             let origin = self.config.descriptor.typ;
@@ -226,16 +231,6 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
             use foreign_types_openssl::ForeignTypeRef;
             security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
         }
-    }
-
-    #[allow(unused_variables)]
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
-        #[cfg(feature = "claims")]
-        {
-            self.deregister_claimer();
-            self.register_claimer(agent_name);
-        }
-        Ok(())
     }
 
     fn describe_state(&self) -> &str {
@@ -286,9 +281,6 @@ impl OpenSSL {
 
         let stream = Self::new_stream(&ctx, &config)?;
 
-        #[cfg(feature = "claims")]
-        let agent_name = agent_descriptor.name;
-
         #[allow(unused_mut)]
         let mut openssl = OpenSSL {
             config,
@@ -297,7 +289,7 @@ impl OpenSSL {
         };
 
         #[cfg(feature = "claims")]
-        openssl.register_claimer(agent_name);
+        openssl.register_claimer();
 
         Ok(openssl)
     }

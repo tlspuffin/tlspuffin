@@ -8,19 +8,19 @@ use clap::parser::ValuesRef;
 use clap::{arg, crate_authors, crate_name, crate_version, value_parser, Command};
 use libafl::inputs::Input;
 
+use crate::agent::AgentName;
 use crate::algebra::set_deserialize_signature;
 use crate::codec::Codec;
-use crate::execution::forked_execution;
+use crate::execution::{ForkedRunner, Runner, TraceRunner};
 use crate::experiment::*;
-use crate::fuzzer::harness::{default_put_options, set_default_put_options};
 use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
 use crate::fuzzer::{start, FuzzerConfig};
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
 use crate::protocol::{ProtocolBehavior, ProtocolMessage};
-use crate::put::PutOptions;
-use crate::put_registry::PutRegistry;
-use crate::trace::{Action, Trace, TraceContext};
+use crate::put::PutDescriptor;
+use crate::put_registry::{PutRegistry, TCP_PUT};
+use crate::trace::{Action, Spawner, Trace, TraceContext};
 
 fn create_app<S>(title: S) -> Command
 where
@@ -128,9 +128,8 @@ where
     if put_use_clear {
         options.push(("use_clear".to_string(), put_use_clear.to_string()))
     }
-    if set_default_put_options(PutOptions::new(options)).is_err() {
-        log::error!("Failed to initialize default put options");
-    }
+
+    let default_put = PutDescriptor::new(put_registry.default().name(), options);
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         if let Err(err) = seed(&put_registry) {
@@ -203,9 +202,14 @@ where
             lookup_paths.len()
         );
 
+        let runner = Runner::new(
+            put_registry.clone(),
+            Spawner::new(put_registry).with_default(default_put),
+        );
+
         for path in lookup_paths {
             log::info!("Executing: {}", path.display());
-            execute(path, &put_registry);
+            execute(&runner, path);
         }
 
         if !lookup_paths.is_empty() {
@@ -256,9 +260,14 @@ where
 
         log::info!("execute: found {} inputs", paths.len());
 
+        let runner = Runner::new(
+            put_registry.clone(),
+            Spawner::new(put_registry).with_default(default_put),
+        );
+
         for path in paths {
             log::info!("Executing: {}", path.display());
-            execute(path, &put_registry);
+            execute(&runner, path);
         }
 
         return ExitCode::SUCCESS;
@@ -266,7 +275,7 @@ where
         let input: &String = matches.get_one("input").unwrap();
         let output: &String = matches.get_one("output").unwrap();
 
-        if let Err(err) = binary_attack(input, output, &put_registry) {
+        if let Err(err) = binary_attack(input, output, &put_registry, default_put) {
             log::error!("Failed to create trace output: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -298,18 +307,16 @@ where
             options.push(("cwd", cwd))
         }
 
-        let put = PutDescriptor {
-            name: PutName(['T', 'C', 'P', '_', '_', '_', '_', '_', '_', '_']),
-            options: PutOptions::from_slice_vec(options),
-        };
-
         let server = trace.descriptors[0].name;
-        let mut context = trace
-            .execute_with_non_default_puts(&put_registry, &[(server, put)])
-            .unwrap();
+        let put = PutDescriptor::new(TCP_PUT, options);
+        let runner = Runner::new(
+            put_registry.clone(),
+            Spawner::new(put_registry).with_mapping(&[(server, put)]),
+        );
+        let mut context = runner.execute(trace).unwrap();
 
         let server = AgentName::first();
-        let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
+        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         log::info!("{}", shutdown);
 
         return ExitCode::SUCCESS;
@@ -444,10 +451,7 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-use crate::agent::AgentName;
-use crate::put::{PutDescriptor, PutName};
-
-fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutRegistry<PB>) {
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) {
     let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
         Ok(t) => t,
         Err(_) => {
@@ -461,20 +465,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutReg
     // When generating coverage a crash means that no coverage is stored
     // By executing in a fork, even when that process crashes, the other executed code will still
     // yield coverage
-    let status = forked_execution(
-        move || {
-            let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
-            if let Err(err) = trace.execute(&mut ctx) {
-                log::error!(
-                    "Failed to execute trace {}: {:?}",
-                    input.as_ref().display(),
-                    err
-                );
-                std::process::exit(1);
-            }
-        },
-        None,
-    );
+    let status = ForkedRunner::new(runner).execute(trace);
 
     match status {
         Ok(s) => log::info!("execution finished with status {s:?}"),
@@ -486,9 +477,11 @@ fn binary_attack<PB: ProtocolBehavior>(
     input: &str,
     output: &str,
     put_registry: &PutRegistry<PB>,
+    default_put: impl Into<PutDescriptor>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    let spawner = Spawner::new(put_registry.clone()).with_default(default_put);
+    let ctx = TraceContext::new(spawner);
     let trace = Trace::<PB::Matcher>::from_file(input)?;
-    let ctx = TraceContext::new(put_registry, default_put_options().clone());
 
     log::info!("Agents: {:?}", &trace.descriptors);
 

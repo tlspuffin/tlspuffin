@@ -2,12 +2,18 @@ use std::collections::HashMap;
 use std::fmt;
 
 use crate::agent::AgentDescriptor;
+use crate::claims::GlobalClaimList;
 use crate::error::Error;
 use crate::protocol::ProtocolBehavior;
-use crate::put::{Put, PutName};
-use crate::trace::TraceContext;
+use crate::put::{Put, PutOptions};
 
-pub const DUMMY_PUT: PutName = PutName(['D', 'U', 'M', 'Y', 'Y', 'D', 'U', 'M', 'M', 'Y']);
+// FIXME TCP_PUT should be defined in the tlspuffin package
+//
+//     The TCP PUT is specific to TLS and is therefore defined in the `tlspuffin` package. However,
+//     we expose it here in `puffin` so that the generic CLI is able to provide the `tcp` command.
+//
+//     Once we factor out the `tcp` command, we can move this definition into `tlspuffin`.
+pub const TCP_PUT: &str = "tcp";
 
 /// Registry for [Factories](Factory). An instance of this is usually defined statically and then
 /// used throughout the fuzzer.
@@ -110,12 +116,13 @@ pub enum PutKind {
 pub trait Factory<PB: ProtocolBehavior> {
     fn create(
         &self,
-        context: &TraceContext<PB>,
         agent_descriptor: &AgentDescriptor,
+        claims: &GlobalClaimList<PB::Claim>,
+        options: &PutOptions,
     ) -> Result<Box<dyn Put<PB>>, Error>;
 
     fn kind(&self) -> PutKind;
-    fn name(&self) -> PutName;
+    fn name(&self) -> String;
     fn versions(&self) -> Vec<(String, String)>;
 
     fn determinism_set_reseed(&self);

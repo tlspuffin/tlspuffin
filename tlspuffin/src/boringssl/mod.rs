@@ -11,11 +11,12 @@ use boring::x509::X509;
 use boringssl_sys::ssl_st;
 use foreign_types::ForeignTypeRef;
 use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::claims::GlobalClaimList;
 use puffin::error::Error;
-use puffin::put::{Put, PutName};
+use puffin::protocol::ProtocolBehavior;
+use puffin::put::{Put, PutOptions};
 use puffin::put_registry::{Factory, PutKind};
 use puffin::stream::{MemoryStream, Stream};
-use puffin::trace::TraceContext;
 use puffin::VERSION_STR;
 
 use crate::boringssl::util::{set_max_protocol_version, static_rsa_cert};
@@ -25,7 +26,7 @@ use crate::claims::{
 };
 use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
 use crate::put::TlsPutConfig;
-use crate::put_registry::BORINGSSL_PUT;
+use crate::put_registry::BORINGSSL_RUST_PUT;
 use crate::query::TlsQueryMatcher;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
@@ -44,13 +45,10 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     impl Factory<TLSProtocolBehavior> for BoringSSLFactory {
         fn create(
             &self,
-            context: &TraceContext<TLSProtocolBehavior>,
             agent_descriptor: &AgentDescriptor,
+            claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
+            options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
-            let put_descriptor = context.put_descriptor(agent_descriptor);
-
-            let options = &put_descriptor.options;
-
             let use_clear = options
                 .get_option("use_clear")
                 .map(|value| value.parse().unwrap_or(false))
@@ -63,7 +61,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
             let config = TlsPutConfig {
                 descriptor: agent_descriptor.clone(),
-                claims: context.claims().clone(),
+                claims: claims.clone(),
                 authenticate_peer: agent_descriptor.typ == AgentType::Client
                     && agent_descriptor.server_authentication
                     || agent_descriptor.typ == AgentType::Server
@@ -80,8 +78,8 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             PutKind::Rust
         }
 
-        fn name(&self) -> PutName {
-            BORINGSSL_PUT
+        fn name(&self) -> String {
+            String::from(BORINGSSL_RUST_PUT)
         }
 
         fn versions(&self) -> Vec<(String, String)> {
@@ -98,7 +96,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", BORINGSSL_PUT, VERSION_STR),
+                    format!("{} ({})", BORINGSSL_RUST_PUT, VERSION_STR),
                 ),
                 (
                     "library".to_string(),
@@ -166,7 +164,7 @@ impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for Bo
 }
 
 impl Put<TLSProtocolBehavior> for BoringSSL {
-    fn progress(&mut self, _agent_name: &AgentName) -> Result<(), Error> {
+    fn progress(&mut self) -> Result<(), Error> {
         let result = if self.is_state_successful() {
             // Trigger another read
             let mut vec: Vec<u8> = Vec::from([1; 128]);
@@ -180,32 +178,31 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
         result
     }
 
-    fn reset(&mut self, _agent_name: AgentName) -> Result<(), Error> {
-        self.stream.ssl_mut().clear();
-        Ok(())
-    }
-
     fn descriptor(&self) -> &AgentDescriptor {
         &self.config.descriptor
     }
 
     #[cfg(feature = "claims")]
-    fn register_claimer(&mut self, agent_name: AgentName) {
-        self.set_msg_callback(Self::create_msg_callback(agent_name.clone(), &self.config))
-            .expect("Failed to set msg_callback to extract transcript");
+    fn register_claimer(&mut self) {
+        self.set_msg_callback(Self::create_msg_callback(
+            self.config.descriptor.name.clone(),
+            &self.config,
+        ))
+        .expect("Failed to set msg_callback to extract transcript");
     }
 
     #[cfg(feature = "claims")]
     fn deregister_claimer(&mut self) {}
 
-    #[allow(unused_variables)]
-    fn rename_agent(&mut self, agent_name: AgentName) -> Result<(), Error> {
+    fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
+        self.config.descriptor.name = new_name;
         #[cfg(feature = "claims")]
         {
             self.deregister_claimer();
-            self.register_claimer(agent_name);
+            self.register_claimer();
         }
-        self.register_claimer(agent_name);
+        self.stream.ssl_mut().clear();
+        self.register_claimer();
         Ok(())
     }
 
@@ -255,12 +252,10 @@ impl BoringSSL {
 
         let stream = SslStream::new(ssl, MemoryStream::new())?;
 
-        let agent_name = agent_descriptor.name;
-
         let mut boringssl = BoringSSL { config, stream };
 
         #[cfg(feature = "claims")]
-        boringssl.register_claimer(agent_name);
+        boringssl.register_claimer();
 
         Ok(boringssl)
     }

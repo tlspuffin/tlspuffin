@@ -1,34 +1,18 @@
 use libafl::executors::ExitKind;
-use once_cell::sync::OnceCell;
 use rand::Rng;
 
 use crate::error::Error;
+use crate::execution::{Runner, TraceRunner};
 use crate::fuzzer::stats_stage::*;
 use crate::protocol::ProtocolBehavior;
-use crate::put::PutOptions;
 use crate::put_registry::PutRegistry;
-use crate::trace::{Action, Trace, TraceContext};
-
-static DEFAULT_PUT_OPTIONS: OnceCell<PutOptions> = OnceCell::new();
-
-/// Returns the current default put options which are used
-pub fn default_put_options() -> &'static PutOptions {
-    DEFAULT_PUT_OPTIONS
-        .get()
-        .expect("current default put options needs to be set")
-}
-
-pub fn set_default_put_options(default_put_options: PutOptions) -> Result<(), ()> {
-    DEFAULT_PUT_OPTIONS
-        .set(default_put_options)
-        .map_err(|_err| ())
-}
+use crate::trace::{Action, Spawner, Trace};
 
 pub fn harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
     input: &Trace<PB::Matcher>,
 ) -> ExitKind {
-    let mut ctx = TraceContext::new(put_registry, default_put_options().clone());
+    let runner = Runner::new(put_registry.clone(), Spawner::new(put_registry.clone()));
 
     TRACE_LENGTH.update(input.steps.len());
 
@@ -41,7 +25,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         }
     }
 
-    if let Err(err) = input.execute(&mut ctx) {
+    if let Err(err) = runner.execute(input) {
         match &err {
             Error::Fn(_) => FN_ERROR.increment(),
             Error::Term(_e) => TERM.increment(),

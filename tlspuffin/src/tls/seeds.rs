@@ -1754,7 +1754,7 @@ macro_rules! corpus {
     ( $( $func:ident : cfg($( $meta:meta),* ) ),* ) => {
         {
             #[cfg(any( $( $( $meta ),* ),* ))]
-            use crate::tls::trace_helper::TraceHelper;
+            use puffin::trace_helper::TraceHelper;
             #[cfg(any( $( $( $meta ),* ),* ))]
             let mut corpus = vec![];
 
@@ -1794,12 +1794,9 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
 
 #[cfg(test)]
 pub mod tests {
-    use puffin::agent::AgentName;
-    use puffin::trace::Action;
-
     use super::*;
-    use crate::put_registry::tls_registry;
-    use crate::tls::trace_helper::TraceHelper;
+    #[allow(unused_imports)]
+    use crate::{test_utils::prelude::*, tls::seeds::*};
 
     #[test_log::test]
     fn test_version() {
@@ -1814,9 +1811,11 @@ pub mod tests {
     #[test_log::test]
     #[cfg(feature = "tls12")]
     fn test_seed_client_attacker12() {
-        use crate::tls::trace_helper::TraceExecutor;
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_client_attacker12.build_trace();
 
-        let ctx = seed_client_attacker12.execute_trace();
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1824,9 +1823,11 @@ pub mod tests {
     #[cfg(feature = "transcript-extraction")] // this depends on extracted transcripts -> claims are required
     #[test_log::test]
     fn test_seed_client_attacker() {
-        use crate::tls::trace_helper::TraceExecutor;
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_client_attacker.build_trace();
 
-        let ctx = seed_client_attacker.execute_trace();
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1835,18 +1836,22 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_client_attacker_auth() {
-        use crate::tls::trace_helper::TraceExecutor;
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_client_attacker_auth.build_trace();
 
-        let ctx = seed_client_attacker_auth.execute_trace();
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test_log::test]
     fn test_seed_client_attacker_full() {
-        use crate::tls::trace_helper::TraceExecutor;
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_client_attacker_full.build_trace();
 
-        let ctx = seed_client_attacker_full.execute_trace();
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1854,9 +1859,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_server_attacker_full() {
-        use crate::tls::trace_helper::TraceExecutor;
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_server_attacker_full.build_trace();
 
-        let ctx = seed_server_attacker_full.execute_trace();
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1865,9 +1872,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_session_resumption_dhe() {
-        use crate::tls::trace_helper::TraceExecutor;
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_session_resumption_dhe.build_trace();
 
-        let ctx = seed_session_resumption_dhe.execute_trace();
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1876,9 +1885,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_session_resumption_dhe_full() {
-        use crate::tls::trace_helper::TraceExecutor;
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_session_resumption_dhe_full.build_trace();
 
-        let ctx = seed_session_resumption_dhe_full.execute_trace();
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1887,9 +1898,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_session_resumption_ke() {
-        use crate::tls::trace_helper::TraceExecutor;
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_session_resumption_ke.build_trace();
 
-        let ctx = seed_session_resumption_ke.execute_trace();
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1897,9 +1910,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_successful() {
-        use crate::tls::trace_helper::TraceExecutor;
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_successful.build_trace();
 
-        let ctx = seed_successful.execute_trace();
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1907,9 +1922,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_successful_client_auth() {
-        use crate::tls::trace_helper::TraceExecutor;
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_successful_client_auth.build_trace();
 
-        let ctx = seed_successful_client_auth.execute_trace();
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1921,9 +1938,11 @@ pub mod tests {
     // mac"  // in case MITM attack did fail
     #[should_panic]
     fn test_seed_successful_mitm() {
-        use crate::tls::trace_helper::TraceExecutor;
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_successful_mitm.build_trace();
 
-        let ctx = seed_successful_mitm.execute_trace();
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1931,9 +1950,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_successful_with_ccs() {
-        use crate::tls::trace_helper::TraceExecutor;
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_successful_with_ccs.build_trace();
 
-        let ctx = seed_successful_with_ccs.execute_trace();
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1943,9 +1964,11 @@ pub mod tests {
     #[cfg(not(feature = "boringssl-binding"))]
     #[test_log::test]
     fn test_seed_successful_with_tickets() {
-        use crate::tls::trace_helper::TraceExecutor;
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_successful_with_tickets.build_trace();
 
-        let ctx = seed_successful_with_tickets.execute_trace();
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
@@ -1953,18 +1976,22 @@ pub mod tests {
     #[cfg(feature = "tls12")]
     #[cfg(not(feature = "boringssl-binding"))]
     fn test_seed_successful12() {
-        use crate::tls::trace_helper::TraceExecutor;
-
+        let runner = default_runner_for(tls_registry().default().name());
         #[cfg(feature = "tls12-session-resumption")]
-        let ctx = seed_successful12_with_tickets.execute_trace();
+        let trace = seed_successful12_with_tickets.build_trace();
         #[cfg(not(feature = "tls12-session-resumption"))]
-        let ctx = seed_successful12.execute_trace();
+        let trace = seed_successful12.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
         assert!(ctx.agents_successful());
     }
 
     #[test_log::test]
     fn test_corpus_file_sizes() {
-        let client = AgentName::first();
+        use puffin::trace::Action;
+
+        let client = puffin::agent::AgentName::first();
         let _server = client.next();
 
         for (trace, name) in create_corpus() {
@@ -1989,7 +2016,9 @@ pub mod tests {
 
     #[test_log::test]
     fn test_term_sizes() {
-        let client = AgentName::first();
+        use puffin::trace::Action;
+
+        let client = puffin::agent::AgentName::first();
         let _server = client.next();
 
         for (name, trace) in [
@@ -2032,8 +2061,8 @@ pub mod tests {
         use puffin::algebra::{set_deserialize_signature, Matcher};
         use puffin::trace::Trace;
 
+        use crate::test_utils::prelude::*;
         use crate::tls::seeds::*;
-        use crate::tls::trace_helper::TraceHelper;
         use crate::tls::TLS_SIGNATURE;
 
         fn test_postcard_serialization<M: Matcher>(trace: Trace<M>) {

@@ -14,7 +14,6 @@ mod key_schedule;
 
 pub mod rustls;
 pub mod seeds;
-pub mod trace_helper;
 pub mod violation;
 pub mod vulnerabilities;
 
