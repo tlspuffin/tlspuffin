@@ -1,43 +1,37 @@
-use std::{error, error::Error as StdError, fmt, io};
+use std::error::Error as StdError;
+use std::{error, fmt, io};
 
 use libc::c_int;
 
-use crate::{error::ErrorStack, ffi, ssl::MidHandshakeSslStream};
+use crate::error::ErrorStack;
+use crate::ffi;
+use crate::ssl::MidHandshakeSslStream;
 
 /// An error code returned from SSL functions.
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct ErrorCode(c_int);
 
 impl ErrorCode {
-    /// The SSL session has been closed.
-    pub const ZERO_RETURN: ErrorCode = ErrorCode(ffi::SSL_ERROR_ZERO_RETURN);
-
+    pub const PENDING_CERTIFICATE: ErrorCode = ErrorCode(ffi::SSL_ERROR_PENDING_CERTIFICATE);
+    pub const PENDING_SESSION: ErrorCode = ErrorCode(ffi::SSL_ERROR_PENDING_SESSION);
+    pub const PENDING_TICKET: ErrorCode = ErrorCode(ffi::SSL_ERROR_PENDING_TICKET);
+    /// An error occurred in the SSL library.
+    pub const SSL: ErrorCode = ErrorCode(ffi::SSL_ERROR_SSL);
+    /// A non-recoverable IO error occurred.
+    pub const SYSCALL: ErrorCode = ErrorCode(ffi::SSL_ERROR_SYSCALL);
+    pub const WANT_PRIVATE_KEY_OPERATION: ErrorCode =
+        ErrorCode(ffi::SSL_ERROR_WANT_PRIVATE_KEY_OPERATION);
     /// An attempt to read data from the underlying socket returned `WouldBlock`.
     ///
     /// Wait for read readiness and retry the operation.
     pub const WANT_READ: ErrorCode = ErrorCode(ffi::SSL_ERROR_WANT_READ);
-
     /// An attempt to write data to the underlying socket returned `WouldBlock`.
     ///
     /// Wait for write readiness and retry the operation.
     pub const WANT_WRITE: ErrorCode = ErrorCode(ffi::SSL_ERROR_WANT_WRITE);
-
     pub const WANT_X509_LOOKUP: ErrorCode = ErrorCode(ffi::SSL_ERROR_WANT_X509_LOOKUP);
-
-    pub const PENDING_SESSION: ErrorCode = ErrorCode(ffi::SSL_ERROR_PENDING_SESSION);
-
-    pub const PENDING_CERTIFICATE: ErrorCode = ErrorCode(ffi::SSL_ERROR_PENDING_CERTIFICATE);
-
-    pub const WANT_PRIVATE_KEY_OPERATION: ErrorCode =
-        ErrorCode(ffi::SSL_ERROR_WANT_PRIVATE_KEY_OPERATION);
-
-    pub const PENDING_TICKET: ErrorCode = ErrorCode(ffi::SSL_ERROR_PENDING_TICKET);
-
-    /// A non-recoverable IO error occurred.
-    pub const SYSCALL: ErrorCode = ErrorCode(ffi::SSL_ERROR_SYSCALL);
-
-    /// An error occurred in the SSL library.
-    pub const SSL: ErrorCode = ErrorCode(ffi::SSL_ERROR_SSL);
+    /// The SSL session has been closed.
+    pub const ZERO_RETURN: ErrorCode = ErrorCode(ffi::SSL_ERROR_ZERO_RETURN);
 
     pub fn from_raw(raw: c_int) -> ErrorCode {
         ErrorCode(raw)

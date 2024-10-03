@@ -1,17 +1,17 @@
-#[test]
+#[test_log::test]
 #[cfg(all(
     feature = "deterministic",
     feature = "boringssl-binding",
     feature = "tls13",
 ))]
 fn test_attacker_full_det_recreate() {
-    // Fail without global rand reset and reseed, BEFORE tracecontext are created (at least for OpenSSL)!
-    use puffin::{put::PutOptions, trace::TraceContext};
+    // Fail without global rand reset and reseed, BEFORE tracecontext are created (at least for
+    // OpenSSL)!
+    use puffin::trace::TraceContext;
 
-    use crate::{
-        put_registry::tls_registry,
-        tls::{seeds::seed_client_attacker_full, trace_helper::TraceHelper},
-    };
+    use crate::put_registry::tls_registry;
+    use crate::tls::seeds::seed_client_attacker_full;
+    use crate::tls::trace_helper::TraceHelper;
 
     let put_registry = tls_registry();
 
@@ -19,12 +19,12 @@ fn test_attacker_full_det_recreate() {
 
     let trace = seed_client_attacker_full.build_trace();
 
-    let mut ctx_1 = TraceContext::new(&put_registry, PutOptions::default());
+    let mut ctx_1 = TraceContext::new(&put_registry, Default::default());
     trace.execute(&mut ctx_1);
 
     for i in 0..200 {
         println!("Attempt #{i}...");
-        let mut ctx_2 = TraceContext::new(&put_registry, PutOptions::default());
+        let mut ctx_2 = TraceContext::new(&put_registry, Default::default());
         trace.execute(&mut ctx_2);
         assert_eq!(ctx_1, ctx_2);
     }
@@ -46,9 +46,9 @@ fn test_attacker_full_det_recreate() {
     //             data_1
     //         );
     //         let e_2 = app_data.evaluate(&ctx_2).unwrap();
-    //         if let Some(msg_2) = e_2.as_ref().downcast_ref::<<TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage>() {
-    //             let data_2 = msg_2.clone().encode();
-    //             assert_eq!(data_1, data_2);
+    //         if let Some(msg_2) = e_2.as_ref().downcast_ref::<<TLSProtocolBehavior as
+    // ProtocolBehavior>::OpaqueProtocolMessage>() {             let data_2 =
+    // msg_2.clone().encode();             assert_eq!(data_1, data_2);
     //         } else {
     //             panic!("Failed to encode enc{i} OpaqueMessage in ctx_2");
     //         }

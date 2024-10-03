@@ -22,7 +22,8 @@ use crate::ffi::{
 ///
 /// `MNNFFPPS: major minor fix patch status`
 ///
-/// The status nibble has one of the values 0 for development, 1 to e for betas 1 to 14, and f for release.
+/// The status nibble has one of the values 0 for development, 1 to e for betas 1 to 14, and f for
+/// release.
 ///
 /// for example
 ///
@@ -30,7 +31,8 @@ use crate::ffi::{
 /// `0x000906023 == 0.9.6b beta 3`
 /// `0x00090605f == 0.9.6e release`
 ///
-/// Versions prior to 0.9.3 have identifiers < 0x0930. Versions between 0.9.3 and 0.9.5 had a version identifier with this interpretation:
+/// Versions prior to 0.9.3 have identifiers < 0x0930. Versions between 0.9.3 and 0.9.5 had a
+/// version identifier with this interpretation:
 ///
 /// `MMNNFFRBB major minor fix final beta/patch`
 ///
@@ -39,14 +41,17 @@ use crate::ffi::{
 /// `0x000904100 == 0.9.4 release`
 /// `0x000905000 == 0.9.5 dev`
 ///
-/// Version 0.9.5a had an interim interpretation that is like the current one, except the patch level got the highest bit set, to keep continuity. The number was therefore 0x0090581f
+/// Version 0.9.5a had an interim interpretation that is like the current one, except the patch
+/// level got the highest bit set, to keep continuity. The number was therefore 0x0090581f
 ///
-/// The return value of this function can be compared to the macro to make sure that the correct version of the library has been loaded, especially when using DLLs on Windows systems.
+/// The return value of this function can be compared to the macro to make sure that the correct
+/// version of the library has been loaded, especially when using DLLs on Windows systems.
 pub fn number() -> i64 {
     unsafe { OpenSSL_version_num() as i64 }
 }
 
-/// The text variant of the version number and the release date. For example, "OpenSSL 0.9.5a 1 Apr 2000".
+/// The text variant of the version number and the release date. For example, "OpenSSL 0.9.5a 1 Apr
+/// 2000".
 pub fn version() -> &'static str {
     unsafe {
         CStr::from_ptr(OpenSSL_version(OPENSSL_VERSION))
@@ -65,7 +70,8 @@ pub fn c_flags() -> &'static str {
     }
 }
 
-/// The date of the build process in the form "built on: ..." if available or "built on: date not available" otherwise.
+/// The date of the build process in the form "built on: ..." if available or "built on: date not
+/// available" otherwise.
 pub fn built_on() -> &'static str {
     unsafe {
         CStr::from_ptr(OpenSSL_version(OPENSSL_BUILT_ON))
@@ -74,7 +80,8 @@ pub fn built_on() -> &'static str {
     }
 }
 
-/// The "Configure" target of the library build in the form "platform: ..." if available or "platform: information not available" otherwise.
+/// The "Configure" target of the library build in the form "platform: ..." if available or
+/// "platform: information not available" otherwise.
 pub fn platform() -> &'static str {
     unsafe {
         CStr::from_ptr(OpenSSL_version(OPENSSL_PLATFORM))
@@ -83,7 +90,8 @@ pub fn platform() -> &'static str {
     }
 }
 
-/// The "OPENSSLDIR" setting of the library build in the form "OPENSSLDIR: "..."" if available or "OPENSSLDIR: N/A" otherwise.
+/// The "OPENSSLDIR" setting of the library build in the form "OPENSSLDIR: "..."" if available or
+/// "OPENSSLDIR: N/A" otherwise.
 pub fn dir() -> &'static str {
     unsafe {
         CStr::from_ptr(OpenSSL_version(OPENSSL_DIR))
@@ -92,20 +100,25 @@ pub fn dir() -> &'static str {
     }
 }
 
-/// This test ensures that we do not segfault when calling the functions of this module
-/// and that the strings respect a reasonable format.
-#[test]
-fn test_versions() {
-    println!("Number: '{}'", number());
-    println!("Version: '{}'", version());
-    println!("C flags: '{}'", c_flags());
-    println!("Built on: '{}'", built_on());
-    println!("Platform: '{}'", platform());
-    println!("Dir: '{}'", dir());
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-    assert!(number() > 0);
-    assert!(version().starts_with("BoringSSL"));
-    assert!(c_flags().starts_with("compiler:"));
-    assert!(built_on().starts_with("built on:"));
-    assert!(dir().starts_with("OPENSSLDIR:"));
+    /// This test ensures that we do not segfault when calling the functions of this module
+    /// and that the strings respect a reasonable format.
+    #[test_log::test]
+    fn test_versions() {
+        println!("Number: '{}'", number());
+        println!("Version: '{}'", version());
+        println!("C flags: '{}'", c_flags());
+        println!("Built on: '{}'", built_on());
+        println!("Platform: '{}'", platform());
+        println!("Dir: '{}'", dir());
+
+        assert!(number() > 0);
+        assert!(version().starts_with("BoringSSL"));
+        assert!(c_flags().starts_with("compiler:"));
+        assert!(built_on().starts_with("built on:"));
+        assert!(dir().starts_with("OPENSSLDIR:"));
+    }
 }

@@ -1,8 +1,9 @@
-use std::{cell::RefCell, rc::Rc};
+use std::cell::RefCell;
+use std::rc::Rc;
 
-use puffin::{
-    agent::AgentDescriptor, algebra::dynamic_function::TypeShape, claims::GlobalClaimList,
-};
+use puffin::agent::AgentDescriptor;
+use puffin::algebra::dynamic_function::TypeShape;
+use puffin::claims::GlobalClaimList;
 
 use crate::claims::TlsClaim;
 

@@ -1,25 +1,23 @@
+#![allow(clippy::ptr_arg)]
+
 use std::sync::Arc;
 
 use puffin::algebra::error::FnError;
 use ring::signature::{RsaKeyPair, ECDSA_P256_SHA256_ASN1_SIGNING};
 
-use crate::{
-    static_certs::{
-        ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, RANDOM_EC_CERT,
-    },
-    tls::rustls::{
-        hash_hs::HandshakeHash,
-        key::{Certificate, PrivateKey},
-        msgs::{
-            enums::SignatureScheme,
-            handshake::{CertificateEntry, CertificateExtensions, HandshakePayload},
-            message::{Message, MessagePayload},
-        },
-        sign::{EcdsaSigningKey, RsaSigner, SigningKey},
-        verify::{
-            construct_tls13_client_verify_message_raw, construct_tls13_server_verify_message_raw,
-        },
-    },
+use crate::static_certs::{
+    ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, RANDOM_EC_CERT,
+};
+use crate::tls::rustls::hash_hs::HandshakeHash;
+use crate::tls::rustls::key::{Certificate, PrivateKey};
+use crate::tls::rustls::msgs::enums::SignatureScheme;
+use crate::tls::rustls::msgs::handshake::{
+    CertificateEntry, CertificateExtensions, HandshakePayload,
+};
+use crate::tls::rustls::msgs::message::{Message, MessagePayload};
+use crate::tls::rustls::sign::{EcdsaSigningKey, RsaSigner, SigningKey};
+use crate::tls::rustls::verify::{
+    construct_tls13_client_verify_message_raw, construct_tls13_server_verify_message_raw,
 };
 
 pub fn fn_bob_cert() -> Result<Vec<u8>, FnError> {

@@ -1,10 +1,8 @@
 //! Definition of the VariableData trait. A VariableData can contain any data which has a `'static`
 //! type.
 
-use std::{
-    any::{Any, TypeId},
-    fmt::Debug,
-};
+use std::any::{Any, TypeId};
+use std::fmt::Debug;
 
 pub trait VariableData: Debug {
     fn boxed(&self) -> Box<dyn VariableData>;

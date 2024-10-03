@@ -1,20 +1,18 @@
-//! [`Agent`]s represent communication participants like Alice, Bob or Eve. Attackers are usually
-//! not represented by these [`Agent`]s.
-//! Attackers are represented through a recipe term (see [`crate::trace::InputAction`]).
+//! [`Agent`]s represent communication participants like Alice, Bob or Eve.
+//!
+//! Note that attackers are usually not represented by these [`Agent`]s but instead through a recipe
+//! term (see [`crate::trace::InputAction`]).
 //!
 //! Each [`Agent`] has an *inbound* and an *outbound* channel (see [`crate::stream`])
 
 use core::fmt;
-use std::fmt::{Debug, Formatter};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    error::Error,
-    protocol::ProtocolBehavior,
-    put::{Put, PutDescriptor},
-    trace::TraceContext,
-};
+use crate::error::Error;
+use crate::protocol::ProtocolBehavior;
+use crate::put::{Put, PutDescriptor};
+use crate::trace::TraceContext;
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
@@ -152,8 +150,8 @@ pub struct Agent<PB: ProtocolBehavior> {
     put_descriptor: PutDescriptor,
 }
 
-impl<PB: ProtocolBehavior> Debug for Agent<PB> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl<PB: ProtocolBehavior> fmt::Debug for Agent<PB> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Agent")
             .field("name", &self.name)
             .field("put", &self.put.describe_state())

@@ -2,13 +2,10 @@ use std::{mem, ptr};
 
 use foreign_types::{ForeignType, ForeignTypeRef};
 
-use crate::{
-    bn::BigNum,
-    cvt, cvt_p,
-    error::ErrorStack,
-    ffi,
-    pkey::{HasParams, Params},
-};
+use crate::bn::BigNum;
+use crate::error::ErrorStack;
+use crate::pkey::{HasParams, Params};
+use crate::{cvt, cvt_p, ffi};
 
 generic_foreign_type_and_impl_send_sync! {
     type CType = ffi::DH;
@@ -47,15 +44,6 @@ where
 }
 
 impl Dh<Params> {
-    pub fn from_params(p: BigNum, g: BigNum, q: BigNum) -> Result<Dh<Params>, ErrorStack> {
-        unsafe {
-            let dh = Dh::from_ptr(cvt_p(ffi::DH_new())?);
-            cvt(DH_set0_pqg(dh.0, p.as_ptr(), q.as_ptr(), g.as_ptr()))?;
-            mem::forget((p, g, q));
-            Ok(dh)
-        }
-    }
-
     from_pem! {
         /// Deserializes a PEM-encoded PKCS#3 DHpararameters structure.
         ///
@@ -80,19 +68,26 @@ impl Dh<Params> {
         ffi::d2i_DHparams,
         ::libc::c_long
     }
+
+    pub fn from_params(p: BigNum, g: BigNum, q: BigNum) -> Result<Dh<Params>, ErrorStack> {
+        unsafe {
+            let dh = Dh::from_ptr(cvt_p(ffi::DH_new())?);
+            cvt(DH_set0_pqg(dh.0, p.as_ptr(), q.as_ptr(), g.as_ptr()))?;
+            mem::forget((p, g, q));
+            Ok(dh)
+        }
+    }
 }
 
 use crate::ffi::DH_set0_pqg;
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        bn::BigNum,
-        dh::Dh,
-        ssl::{SslContext, SslMethod},
-    };
+    use crate::bn::BigNum;
+    use crate::dh::Dh;
+    use crate::ssl::{SslContext, SslMethod};
 
-    #[test]
+    #[test_log::test]
     fn test_dh() {
         let mut ctx = SslContext::builder(SslMethod::tls()).unwrap();
         let p = BigNum::from_hex_str(
@@ -119,7 +114,7 @@ mod tests {
         ctx.set_tmp_dh(&dh).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_dh_from_pem() {
         let mut ctx = SslContext::builder(SslMethod::tls()).unwrap();
         let params = include_bytes!("../test/dhparams.pem");
@@ -127,7 +122,7 @@ mod tests {
         ctx.set_tmp_dh(&dh).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn test_dh_from_der() {
         let params = include_bytes!("../test/dhparams.pem");
         let dh = Dh::params_from_pem(params).unwrap();

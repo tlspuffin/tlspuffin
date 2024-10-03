@@ -1,25 +1,18 @@
-use log::debug;
-use puffin::{
-    algebra::signature::Signature,
-    codec::{Codec, Reader},
-    error::Error,
-    protocol::{
-        ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
-        ProtocolMessageDeframer, ProtocolMessageFlight,
-    },
-    trace::{Knowledge, Source, Trace},
+use puffin::algebra::signature::Signature;
+use puffin::codec::{Codec, Reader};
+use puffin::error::Error;
+use puffin::protocol::{
+    ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
+    ProtocolMessageDeframer, ProtocolMessageFlight,
 };
+use puffin::trace::{Knowledge, Source, Trace};
 
-use crate::{
-    claim::SshClaim,
-    query::SshQueryMatcher,
-    ssh::{
-        deframe::SshMessageDeframer,
-        message::{RawSshMessage, SshMessage},
-        SSH_SIGNATURE,
-    },
-    violation::SshSecurityViolationPolicy,
-};
+use crate::claim::SshClaim;
+use crate::query::SshQueryMatcher;
+use crate::ssh::deframe::SshMessageDeframer;
+use crate::ssh::message::{RawSshMessage, SshMessage};
+use crate::ssh::SSH_SIGNATURE;
+use crate::violation::SshSecurityViolationPolicy;
 
 #[derive(Debug, Clone)]
 pub struct SshMessageFlight {
@@ -38,7 +31,7 @@ impl ProtocolMessageFlight<SshQueryMatcher, SshMessage, RawSshMessage, RawSshMes
     }
 
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
+        log::debug!("{}: {:?}", info, self);
     }
 }
 
@@ -84,7 +77,7 @@ impl OpaqueProtocolMessageFlight<SshQueryMatcher, RawSshMessage> for RawSshMessa
     }
 
     fn debug(&self, info: &str) {
-        debug!("{}: {:?}", info, self);
+        log::debug!("{}: {:?}", info, self);
     }
 }
 
@@ -119,7 +112,7 @@ impl TryFrom<RawSshMessageFlight> for SshMessageFlight {
                 .collect(),
         };
 
-        if flight.messages.len() == 0 {
+        if flight.messages.is_empty() {
             Err(())
         } else {
             Ok(flight)
@@ -168,12 +161,12 @@ pub struct SshProtocolBehavior {}
 
 impl ProtocolBehavior for SshProtocolBehavior {
     type Claim = SshClaim;
-    type SecurityViolationPolicy = SshSecurityViolationPolicy;
-    type ProtocolMessage = SshMessage;
-    type OpaqueProtocolMessage = RawSshMessage;
     type Matcher = SshQueryMatcher;
-    type ProtocolMessageFlight = SshMessageFlight;
+    type OpaqueProtocolMessage = RawSshMessage;
     type OpaqueProtocolMessageFlight = RawSshMessageFlight;
+    type ProtocolMessage = SshMessage;
+    type ProtocolMessageFlight = SshMessageFlight;
+    type SecurityViolationPolicy = SshSecurityViolationPolicy;
 
     fn signature() -> &'static Signature {
         &SSH_SIGNATURE

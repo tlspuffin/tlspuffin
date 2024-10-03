@@ -1,23 +1,21 @@
 use std::fmt;
 
-use ring::{aead, digest::Digest};
+use ring::aead;
+use ring::digest::Digest;
 
-use crate::tls::rustls::{
-    cipher::{MessageDecrypter, MessageEncrypter},
-    conn::ConnectionRandoms,
-    kx,
-    msgs::{
-        enums::{CipherSuite, SignatureScheme},
-        handshake::KeyExchangeAlgorithm,
-    },
-    suites::{BulkAlgorithm, CipherSuiteCommon, SupportedCipherSuite},
-};
+use crate::tls::rustls::cipher::{MessageDecrypter, MessageEncrypter};
+use crate::tls::rustls::conn::ConnectionRandoms;
+use crate::tls::rustls::kx;
+use crate::tls::rustls::msgs::enums::{CipherSuite, SignatureScheme};
+use crate::tls::rustls::msgs::handshake::KeyExchangeAlgorithm;
+use crate::tls::rustls::suites::{BulkAlgorithm, CipherSuiteCommon, SupportedCipherSuite};
 
 mod cipher;
 pub use cipher::{AesGcm, ChaCha20Poly1305, Tls12AeadAlgorithm};
 use puffin::codec::Codec;
 
-use crate::tls::rustls::{conn::Side, error::Error};
+use crate::tls::rustls::conn::Side;
+use crate::tls::rustls::error::Error;
 
 pub mod prf;
 
@@ -264,7 +262,8 @@ impl ConnectionSecrets {
         ) -> (aead::LessSafeKey, &'a [u8]) {
             // Might panic if the key block is too small.
             let (key, rest) = key_block.split_at(alg.key_len());
-            // Won't panic because its only prerequisite is that `key` is `alg.key_len()` bytes long.
+            // Won't panic because its only prerequisite is that `key` is `alg.key_len()` bytes
+            // long.
             let key = aead::UnboundKey::new(alg, key).unwrap();
             (aead::LessSafeKey::new(key), rest)
         }
@@ -309,8 +308,7 @@ impl ConnectionSecrets {
         let len =
             (common.aead_algorithm.key_len() + suite.fixed_iv_len) * 2 + suite.explicit_nonce_len;
 
-        let mut out = Vec::new();
-        out.resize(len, 0u8);
+        let mut out = vec![0; len];
 
         // NOTE: opposite order to above for no good reason.
         // Don't design security protocols on drugs, kids.
@@ -337,8 +335,7 @@ impl ConnectionSecrets {
     }
 
     fn make_verify_data(&self, handshake_hash: &Digest, label: &[u8]) -> Vec<u8> {
-        let mut out = Vec::new();
-        out.resize(12, 0u8);
+        let mut out = vec![0; 12];
 
         prf::prf(
             &mut out,
@@ -419,7 +416,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn server_ecdhe_remaining_bytes() {
         let key = kx::KeyExchange::start(&kx::X25519).unwrap();
         let server_params = ServerECDHParams::new(key.group(), key.pubkey.as_ref());
@@ -429,7 +426,7 @@ mod tests {
         assert!(decode_ecdh_params_::<ServerECDHParams>(&server_buf).is_none());
     }
 
-    #[test]
+    #[test_log::test]
     fn client_ecdhe_invalid() {
         assert!(decode_ecdh_params_::<ClientECDHParams>(&[34]).is_none());
     }

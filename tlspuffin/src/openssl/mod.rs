@@ -1,30 +1,26 @@
-use std::{cell::RefCell, io::ErrorKind, rc::Rc};
+use std::cell::RefCell;
+use std::io::ErrorKind;
+use std::rc::Rc;
 
-use log::debug;
-use openssl::{
-    error::ErrorStack,
-    ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslStream, SslVerifyMode},
-    x509::{store::X509StoreBuilder, X509},
-};
-use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType},
-    error::Error,
-    put::{Put, PutName},
-    put_registry::{Factory, PutKind},
-    stream::{MemoryStream, Stream},
-    trace::TraceContext,
-    VERSION_STR,
-};
+use openssl::error::ErrorStack;
+use openssl::ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslStream, SslVerifyMode};
+use openssl::x509::store::X509StoreBuilder;
+use openssl::x509::X509;
+use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::error::Error;
+use puffin::put::{Put, PutName};
+use puffin::put_registry::{Factory, PutKind};
+use puffin::stream::{MemoryStream, Stream};
+use puffin::trace::TraceContext;
+use puffin::VERSION_STR;
 
-use crate::{
-    openssl::util::{set_max_protocol_version, static_rsa_cert},
-    protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
-    put::TlsPutConfig,
-    put_registry::OPENSSL111_PUT,
-    query::TlsQueryMatcher,
-    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
-    tls::rustls::msgs::message::{Message, OpaqueMessage},
-};
+use crate::openssl::util::{set_max_protocol_version, static_rsa_cert};
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::put::TlsPutConfig;
+use crate::put_registry::OPENSSL111_PUT;
+use crate::query::TlsQueryMatcher;
+use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
+use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
 mod bindings;
 #[cfg(feature = "deterministic")]
@@ -103,7 +99,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn determinism_set_reseed(&self) {
-            debug!("[Determinism] set and reseed");
+            log::debug!("[Determinism] set and reseed");
             #[cfg(feature = "deterministic")]
             {
                 deterministic::rng_set();
@@ -112,7 +108,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn determinism_reseed(&self) {
-            debug!("[Determinism] reseed");
+            log::debug!("[Determinism] reseed");
             #[cfg(feature = "deterministic")]
             deterministic::rng_reseed();
         }
@@ -424,8 +420,8 @@ impl<T> From<Result<T, openssl::ssl::Error>> for MaybeError {
             if let Some(io_error) = ssl_error.io_error() {
                 match io_error.kind() {
                     ErrorKind::WouldBlock => {
-                        // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
-                        // debug!("Would have blocked but the underlying stream is non-blocking!");
+                        // Not actually an error, we just reached the end of the stream, thrown in
+                        // MemoryStream
                         MaybeError::Ok
                     }
                     _ => MaybeError::Err(Error::IO(format!("Unexpected IO Error: {}", io_error))),
@@ -509,8 +505,8 @@ mod claims_helpers {
                 ))),
             )),
             // Messages
-            // Transcripts in these messages are not up-to-date. They get updated after the Message has
-            // been processed
+            // Transcripts in these messages are not up-to-date. They get updated after the Message
+            // has been processed
             security_claims::ClaimType::CLAIM_FINISHED => {
                 Some(ClaimData::Message(ClaimDataMessage::Finished(Finished {
                     outbound: claim.write > 0,

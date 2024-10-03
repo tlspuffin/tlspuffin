@@ -1,17 +1,15 @@
 mod tests {
     use std::collections::HashSet;
 
-    use puffin::{
-        algebra::dynamic_function::DescribableFunction, fuzzer::term_zoo::TermZoo,
-        libafl_bolts::rands::StdRand,
-    };
+    use puffin::algebra::dynamic_function::DescribableFunction;
+    use puffin::fuzzer::term_zoo::TermZoo;
+    use puffin::libafl_bolts::rands::StdRand;
 
-    use crate::{
-        query::TlsQueryMatcher,
-        tls::{fn_impl::*, TLS_SIGNATURE},
-    };
+    use crate::query::TlsQueryMatcher;
+    use crate::tls::fn_impl::*;
+    use crate::tls::TLS_SIGNATURE;
 
-    #[test]
+    #[test_log::test]
     /// Tests whether all function symbols can be used when generating random terms
     fn test_term_generation() {
         let mut rand = StdRand::with_seed(101);
@@ -42,7 +40,9 @@ mod tests {
 
         let ignored_functions = [
             fn_decrypt_application.name(), // FIXME: why ignore this?
-            fn_rsa_sign_client.name(), // FIXME: We are currently excluding this, because an attacker does not have access to the private key of alice, eve or bob.
+            fn_rsa_sign_client.name(),     /* FIXME: We are currently excluding this, because an
+                                            * attacker does not have access to the private key
+                                            * of alice, eve or bob. */
             fn_rsa_sign_server.name(),
             // transcript functions -> ClaimList is usually available as Variable
             fn_server_finished_transcript.name(),

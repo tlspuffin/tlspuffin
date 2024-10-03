@@ -1,4 +1,5 @@
-use puffin::{put::PutName, put_registry::PutRegistry};
+use puffin::put::PutName;
+use puffin::put_registry::PutRegistry;
 #[cfg(feature = "cputs")]
 use tls_harness::C_PUT_TYPE;
 

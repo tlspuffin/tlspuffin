@@ -1,8 +1,7 @@
 //! Helpers for asan
 
-use std::{env, ffi::CStr};
-
-use log::info;
+use std::env;
+use std::ffi::CStr;
 
 #[cfg(target_os = "linux")]
 unsafe extern "C" fn iter_libs(
@@ -25,7 +24,7 @@ extern "C" {
 /// Setups the environment variable for ASAN, because `__asan_default_options` is unreliable.
 /// <https://www.mail-archive.com/ubuntu-bugs@lists.ubuntu.com/msg6005262.html>
 pub fn setup_asan_env() {
-    info!("Appending default options to env options..");
+    log::info!("Appending default options to env options..");
     let defaults = unsafe { CStr::from_ptr(__asan_default_options()).to_str().unwrap() };
 
     env::set_var(
@@ -45,18 +44,18 @@ pub fn asan_info() {}
 pub fn asan_info() {
     let defaults = unsafe {
         if libc::dl_iterate_phdr(Some(iter_libs), std::ptr::null_mut()) > 0 {
-            info!("Running with shared ASAN support.",)
+            log::info!("Running with shared ASAN support.",)
         } else {
-            info!("Running WITHOUT shared ASAN support.")
+            log::info!("Running WITHOUT shared ASAN support.")
         }
 
         CStr::from_ptr(__asan_default_options()).to_str().unwrap()
     };
 
-    info!(
+    log::info!(
         "ASAN env options: {}",
         env::var("ASAN_OPTIONS").unwrap_or_default(),
     );
 
-    info!("ASAN default options: {}", defaults);
+    log::info!("ASAN default options: {}", defaults);
 }

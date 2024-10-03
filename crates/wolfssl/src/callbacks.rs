@@ -1,10 +1,8 @@
-use std::{
-    any::{Any, TypeId},
-    cell::{Ref, RefCell, RefMut},
-    collections::HashMap,
-    ffi::c_void,
-    ops::Deref,
-};
+use std::any::{Any, TypeId};
+use std::cell::{Ref, RefCell, RefMut};
+use std::collections::HashMap;
+use std::ffi::c_void;
+use std::ops::Deref;
 
 use foreign_types::ForeignTypeRef;
 use libc::{c_int, c_ulong};

@@ -1,16 +1,14 @@
 #![allow(dead_code)]
 
-use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    term,
-    trace::{Action, InputAction, OutputAction, Step, Trace},
-};
+use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
+use puffin::term;
+use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 
-use crate::{
-    protocol::MessageFlight,
-    query::TlsQueryMatcher,
-    tls::{fn_impl::*, rustls::msgs::enums::HandshakeType, seeds::*},
-};
+use crate::protocol::MessageFlight;
+use crate::query::TlsQueryMatcher;
+use crate::tls::fn_impl::*;
+use crate::tls::rustls::msgs::enums::HandshakeType;
+use crate::tls::seeds::*;
 
 /// <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638>
 pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
@@ -814,9 +812,10 @@ pub fn seed_cve_2022_39173(initial_server: AgentName, server: AgentName) -> Trac
         prior_traces: vec![initial_handshake],
         descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
         steps: vec![
-            // Step 2: sends a Client Hello (CH2) with a missing support_group_extension that will make the server
-            // enters the state `SERVER_HELLO_RETRY_REQUEST_COMPLETE` and with PSK resuming previous session.
-            // CH2 includes a list of repeated ciphers that will be stored in ssl->suites->suites.
+            // Step 2: sends a Client Hello (CH2) with a missing support_group_extension that will
+            // make the server enters the state `SERVER_HELLO_RETRY_REQUEST_COMPLETE`
+            // and with PSK resuming previous session. CH2 includes a list of repeated
+            // ciphers that will be stored in ssl->suites->suites.
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
@@ -825,12 +824,14 @@ pub fn seed_cve_2022_39173(initial_server: AgentName, server: AgentName) -> Trac
                     },
                 }),
             },
-            // Step 3: sends a Client Hello (CH3) with a missing support_group_extension that will keep the server
-            // in the state `SERVER_HELLO_RETRY_REQUEST_COMPLETE` and with PSK resuming previous session.
-            // CH3 includes a list of repeated ciphers that will be matched against ssl->suites->suites.
-            // Since ssl->suites->suites already contain repeated ciphers, the function refineSuites in tls13.c
-            // will wrongly consider all pairs leading to an explosion of sizeSz and the buffer overflow.
-            // Note: CH3 could also include support_group_extension.
+            // Step 3: sends a Client Hello (CH3) with a missing support_group_extension that will
+            // keep the server in the state `SERVER_HELLO_RETRY_REQUEST_COMPLETE` and
+            // with PSK resuming previous session. CH3 includes a list of repeated
+            // ciphers that will be matched against ssl->suites->suites.
+            // Since ssl->suites->suites already contain repeated ciphers, the function
+            // refineSuites in tls13.c will wrongly consider all pairs leading to an
+            // explosion of sizeSz and the buffer overflow. Note: CH3 could also
+            // include support_group_extension.
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
@@ -1072,12 +1073,10 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher
 
 #[cfg(test)]
 pub mod tests {
+    use crate::tls::trace_helper::TraceHelper;
+    use crate::tls::vulnerabilities::*;
 
-    use test_log::test;
-
-    use crate::tls::{trace_helper::TraceHelper, vulnerabilities::*};
-
-    #[test]
+    #[test_log::test]
     fn test_term_sizes() {
         let client = AgentName::first();
         let _server = client.next();
@@ -1097,7 +1096,8 @@ pub mod tests {
             for step in &trace.steps {
                 match &step.action {
                     Action::Input(input) => {
-                        // should be below a certain threshold, else we should increase max_term_size in fuzzer setup
+                        // should be below a certain threshold, else we should increase
+                        // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
                             terms < 300,
@@ -1115,16 +1115,14 @@ pub mod tests {
     // Vulnerable up until OpenSSL 1.0.1j
     #[cfg(all(feature = "openssl101-binding", feature = "asan"))]
     #[cfg(feature = "tls12")]
-    #[test]
+    #[test_log::test]
     #[ignore] // We cannot check for this vulnerability right now
     fn test_seed_freak() {
-        use puffin::put::PutOptions;
-
         use crate::test_utils::expect_trace_crash;
 
         expect_trace_crash(
             seed_freak.build_trace(),
-            PutOptions::default(),
+            Default::default(),
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
@@ -1132,37 +1130,33 @@ pub mod tests {
 
     #[cfg(all(feature = "openssl101-binding", feature = "asan"))]
     #[cfg(feature = "tls12")]
-    #[test]
+    #[test_log::test]
     fn test_seed_heartbleed() {
-        use puffin::put::PutOptions;
-
         use crate::test_utils::expect_trace_crash;
 
         expect_trace_crash(
             seed_heartbleed.build_trace(),
-            PutOptions::default(),
+            Default::default(),
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
     }
 
-    #[test]
+    #[test_log::test]
     #[cfg(feature = "openssl111j")]
     #[cfg(feature = "tls12")]
     fn test_seed_cve_2021_3449() {
-        use puffin::put::PutOptions;
-
         use crate::test_utils::expect_trace_crash;
 
         expect_trace_crash(
             seed_cve_2021_3449.build_trace(),
-            PutOptions::default(),
+            Default::default(),
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
     }
 
-    #[test]
+    #[test_log::test]
     #[cfg(feature = "wolfssl510")]
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "client-authentication-transcript-extraction")]
@@ -1175,7 +1169,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[test]
+    #[test_log::test]
     #[cfg(feature = "wolfssl510")]
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "client-authentication-transcript-extraction")]
@@ -1188,7 +1182,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[test]
+    #[test_log::test]
     #[cfg(feature = "wolfssl510")]
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[cfg(feature = "client-authentication-transcript-extraction")]
@@ -1201,7 +1195,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[test]
+    #[test_log::test]
     #[cfg(feature = "tls12")]
     #[cfg(feature = "wolfssl540")]
     #[cfg(feature = "wolfssl-disable-postauth")]
@@ -1218,14 +1212,13 @@ pub mod tests {
         );
     }
 
-    #[test]
+    #[test_log::test]
     #[cfg(feature = "tls12")]
     #[cfg(feature = "tls12-session-resumption")]
     #[cfg(feature = "wolfssl530")]
     fn test_seed_cve_2022_38153() {
-        use puffin::put::PutOptions;
-
-        use crate::{test_utils::expect_trace_crash, tls::trace_helper::TraceExecutor};
+        use crate::test_utils::expect_trace_crash;
+        use crate::tls::trace_helper::TraceExecutor;
 
         for _ in 0..50 {
             crate::tls::seeds::seed_successful12_with_tickets.execute_trace();
@@ -1233,7 +1226,7 @@ pub mod tests {
 
         expect_trace_crash(
             seed_cve_2022_38153.build_trace(),
-            PutOptions::default(),
+            Default::default(),
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
@@ -1245,15 +1238,13 @@ pub mod tests {
         feature = "asan"
     ))]
     #[cfg(not(feature = "fix-CVE-2022-39173"))]
-    #[test]
+    #[test_log::test]
     fn test_seed_cve_2022_39173() {
-        use puffin::put::PutOptions;
-
         use crate::test_utils::expect_trace_crash;
 
         expect_trace_crash(
             seed_cve_2022_39173.build_trace(),
-            PutOptions::default(),
+            Default::default(),
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
@@ -1265,15 +1256,13 @@ pub mod tests {
         feature = "asan"
     ))]
     #[cfg(not(feature = "fix-CVE-2022-39173"))]
-    #[test]
+    #[test_log::test]
     fn test_seed_cve_2022_39173_full() {
-        use puffin::put::PutOptions;
-
         use crate::test_utils::expect_trace_crash;
 
         expect_trace_crash(
             seed_cve_2022_39173_full.build_trace(),
-            PutOptions::default(),
+            Default::default(),
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
@@ -1285,35 +1274,28 @@ pub mod tests {
         feature = "asan"
     ))]
     #[cfg(not(feature = "fix-CVE-2022-39173"))]
-    #[test]
+    #[test_log::test]
     fn test_seed_cve_2022_39173_minimized() {
-        use puffin::put::PutOptions;
-
         use crate::test_utils::expect_trace_crash;
 
         expect_trace_crash(
             seed_cve_2022_39173_minimized.build_trace(),
-            PutOptions::default(),
+            Default::default(),
             Some(std::time::Duration::from_secs(20)),
             Some(20),
         );
     }
 
     mod tcp {
-        use log::info;
-        use puffin::{
-            agent::{AgentName, TLSVersion},
-            put::PutDescriptor,
-        };
-        use test_log::test;
+        use puffin::agent::{AgentName, TLSVersion};
+        use puffin::put::PutDescriptor;
 
-        use crate::{
-            put_registry::{tls_registry, TCP_PUT},
-            tcp::tcp_puts::{openssl_server, wolfssl_client, wolfssl_server},
-            tls::{trace_helper::TraceHelper, vulnerabilities::*},
-        };
+        use crate::put_registry::{tls_registry, TCP_PUT};
+        use crate::tcp::tcp_puts::{openssl_server, wolfssl_client, wolfssl_server};
+        use crate::tls::trace_helper::TraceHelper;
+        use crate::tls::vulnerabilities::*;
 
-        #[test]
+        #[test_log::test]
         #[ignore] // wolfssl example server and client are not available in CI
         fn test_wolfssl_openssl_test_seed_cve_2022_38153() {
             let port = 44336;
@@ -1346,11 +1328,11 @@ pub mod tests {
 
             let client = AgentName::first();
             let shutdown = context.find_agent_mut(client).unwrap().put_mut().shutdown();
-            info!("{}", shutdown);
+            log::info!("{}", shutdown);
             assert!(shutdown.contains("free(): invalid pointer"));
         }
 
-        #[test]
+        #[test_log::test]
         #[ignore] // wolfssl example server and client are not available in CI
         fn test_wolfssl_cve_2022_39173() {
             let port = 44338;
@@ -1373,7 +1355,7 @@ pub mod tests {
 
             let server = AgentName::first().next();
             let shutdown = context.find_agent_mut(server).unwrap().put_mut().shutdown();
-            info!("{}", shutdown);
+            log::info!("{}", shutdown);
         }
     }
 }

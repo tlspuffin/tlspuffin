@@ -1,4 +1,6 @@
-use std::{cmp, collections::VecDeque, io, io::Read};
+use std::collections::VecDeque;
+use std::io::Read;
+use std::{cmp, io};
 
 /// This is a byte buffer that is built from a vector
 /// of byte vectors.  This avoids extra copies when
@@ -123,10 +125,10 @@ impl ChunkVecBuffer {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::ChunkVecBuffer;
 
-    #[test]
+    #[test_log::test]
     fn short_append_copy_with_limit() {
         let mut cvb = ChunkVecBuffer::new(Some(12));
         assert_eq!(cvb.append_limited_copy(b"hello"), 5);

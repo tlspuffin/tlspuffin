@@ -1,15 +1,12 @@
-use std::convert::TryInto;
-
 use puffin::algebra::error::FnError;
 use ring::test::rand::FixedByteRandom;
 
-use crate::tls::rustls::{
-    conn::ConnectionRandoms,
-    kx::{KeyExchange, SupportedKxGroup, ALL_KX_GROUPS},
-    msgs::{enums::NamedGroup, handshake::Random},
-    tls12,
-    tls12::ConnectionSecrets,
-};
+use crate::tls::rustls::conn::ConnectionRandoms;
+use crate::tls::rustls::kx::{KeyExchange, SupportedKxGroup, ALL_KX_GROUPS};
+use crate::tls::rustls::msgs::enums::NamedGroup;
+use crate::tls::rustls::msgs::handshake::Random;
+use crate::tls::rustls::tls12;
+use crate::tls::rustls::tls12::ConnectionSecrets;
 
 fn deterministic_key_exchange(skxg: &'static SupportedKxGroup) -> Result<KeyExchange, FnError> {
     let random = FixedByteRandom { byte: 42 };
@@ -89,11 +86,10 @@ pub fn tls12_new_secrets(
 
 #[cfg(test)]
 mod tests {
-    use test_log::test;
+    use crate::tls::key_exchange::deterministic_key_exchange;
+    use crate::tls::rustls::kx::SECP384R1;
 
-    use crate::tls::{key_exchange::deterministic_key_exchange, rustls::kx::SECP384R1};
-
-    #[test]
+    #[test_log::test]
     fn test_deterministic_key() {
         let a = deterministic_key_exchange(&SECP384R1).unwrap();
         let b = deterministic_key_exchange(&SECP384R1).unwrap();

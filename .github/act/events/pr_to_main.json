@@ -1,10 +1,10 @@
 {
-    "pull_request": {
-        "head": {
-            "ref": "build-vendor"
-        },
-        "base": {
-            "ref": "main"
-        }
+  "pull_request": {
+    "head": {
+      "ref": "build-vendor"
+    },
+    "base": {
+      "ref": "main"
     }
+  }
 }

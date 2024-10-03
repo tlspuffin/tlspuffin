@@ -9,23 +9,22 @@ pub fn reset_rand() {
 
 #[cfg(test)]
 mod tests {
-    use puffin::{put::PutOptions, trace::TraceContext};
+    use puffin::trace::TraceContext;
 
-    use crate::{
-        put_registry::tls_registry,
-        tls::{seeds::seed_client_attacker_full, trace_helper::TraceHelper},
-    };
+    use crate::put_registry::tls_registry;
+    use crate::tls::seeds::seed_client_attacker_full;
+    use crate::tls::trace_helper::TraceHelper;
 
     // TODO: This test only works in a single threaded cargo test execution
-    #[test]
+    #[test_log::test]
     fn test_boringssl_no_randomness_full() {
         let put_registry = tls_registry();
 
         let trace = seed_client_attacker_full.build_trace();
-        let mut ctx1 = TraceContext::new(&put_registry, PutOptions::default());
+        let mut ctx1 = TraceContext::new(&put_registry, Default::default());
         ctx1.set_deterministic(true);
         let _ = trace.execute(&mut ctx1);
-        let mut ctx2 = TraceContext::new(&put_registry, PutOptions::default());
+        let mut ctx2 = TraceContext::new(&put_registry, Default::default());
         ctx2.set_deterministic(true);
         let _ = trace.execute(&mut ctx2);
 

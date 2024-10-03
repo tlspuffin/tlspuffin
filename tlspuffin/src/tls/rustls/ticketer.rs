@@ -1,12 +1,11 @@
-use std::{
-    mem,
-    sync::{Arc, Mutex, MutexGuard},
-    time,
-};
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::{mem, time};
 
 use ring::aead;
 
-use crate::tls::rustls::{error::Error, rand, server::server_conn::ProducesTickets};
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::rand;
+use crate::tls::rustls::server::server_conn::ProducesTickets;
 
 /// The timebase for expiring and rolling tickets and ticketing
 /// keys.  This is UNIX wall time in seconds.
@@ -60,6 +59,7 @@ impl ProducesTickets for AeadTicketer {
     fn enabled(&self) -> bool {
         true
     }
+
     fn lifetime(&self) -> u32 {
         self.lifetime
     }
@@ -159,9 +159,8 @@ impl TicketSwitcher {
         // in the common case that the generator never fails. To achieve this
         // we run the following steps:
         //  1. If no switch is necessary, just return the mutexguard
-        //  2. Shift over all of the ticketers (so current becomes previous,
-        //     and next becomes current). After this, other threads can
-        //     start using the new current ticketer.
+        //  2. Shift over all of the ticketers (so current becomes previous, and next becomes
+        //     current). After this, other threads can start using the new current ticketer.
         //  3. unlock mutex and generate new ticketer.
         //  4. Place new ticketer in next and return current
         //
@@ -271,64 +270,68 @@ impl Ticketer {
     }
 }
 
-#[test]
-fn basic_pairwise_test() {
-    let t = Ticketer::new().unwrap();
-    assert!(t.enabled());
-    let cipher = t.encrypt(b"hello world").unwrap();
-    let plain = t.decrypt(&cipher).unwrap();
-    assert_eq!(plain, b"hello world");
-}
-
-#[test]
-fn ticketswitcher_switching_test() {
-    let t = Arc::new(TicketSwitcher::new(1, generate_inner).unwrap());
-    let now = TimeBase::now().unwrap();
-    let cipher1 = t.encrypt(b"ticket 1").unwrap();
-    assert_eq!(t.decrypt(&cipher1).unwrap(), b"ticket 1");
-    {
-        // Trigger new ticketer
-        t.maybe_roll(TimeBase(now.0 + std::time::Duration::from_secs(10)));
-    }
-    let cipher2 = t.encrypt(b"ticket 2").unwrap();
-    assert_eq!(t.decrypt(&cipher1).unwrap(), b"ticket 1");
-    assert_eq!(t.decrypt(&cipher2).unwrap(), b"ticket 2");
-    {
-        // Trigger new ticketer
-        t.maybe_roll(TimeBase(now.0 + std::time::Duration::from_secs(20)));
-    }
-    let cipher3 = t.encrypt(b"ticket 3").unwrap();
-    assert!(t.decrypt(&cipher1).is_none());
-    assert_eq!(t.decrypt(&cipher2).unwrap(), b"ticket 2");
-    assert_eq!(t.decrypt(&cipher3).unwrap(), b"ticket 3");
-}
-
 #[cfg(test)]
-fn fail_generator() -> Result<Box<dyn ProducesTickets>, rand::GetRandomFailed> {
-    Err(rand::GetRandomFailed)
-}
+mod tests {
+    use super::*;
 
-#[test]
-fn ticketswitcher_recover_test() {
-    let mut t = TicketSwitcher::new(1, generate_inner).unwrap();
-    let now = TimeBase::now().unwrap();
-    let cipher1 = t.encrypt(b"ticket 1").unwrap();
-    assert_eq!(t.decrypt(&cipher1).unwrap(), b"ticket 1");
-    t.generator = fail_generator;
-    {
-        // Failed new ticketer
-        t.maybe_roll(TimeBase(now.0 + std::time::Duration::from_secs(10)));
+    #[test_log::test]
+    fn basic_pairwise_test() {
+        let t = Ticketer::new().unwrap();
+        assert!(t.enabled());
+        let cipher = t.encrypt(b"hello world").unwrap();
+        let plain = t.decrypt(&cipher).unwrap();
+        assert_eq!(plain, b"hello world");
     }
-    t.generator = generate_inner;
-    let cipher2 = t.encrypt(b"ticket 2").unwrap();
-    assert_eq!(t.decrypt(&cipher1).unwrap(), b"ticket 1");
-    assert_eq!(t.decrypt(&cipher2).unwrap(), b"ticket 2");
-    {
-        // recover
-        t.maybe_roll(TimeBase(now.0 + std::time::Duration::from_secs(20)));
+
+    #[test_log::test]
+    fn ticketswitcher_switching_test() {
+        let t = Arc::new(TicketSwitcher::new(1, generate_inner).unwrap());
+        let now = TimeBase::now().unwrap();
+        let cipher1 = t.encrypt(b"ticket 1").unwrap();
+        assert_eq!(t.decrypt(&cipher1).unwrap(), b"ticket 1");
+        {
+            // Trigger new ticketer
+            t.maybe_roll(TimeBase(now.0 + std::time::Duration::from_secs(10)));
+        }
+        let cipher2 = t.encrypt(b"ticket 2").unwrap();
+        assert_eq!(t.decrypt(&cipher1).unwrap(), b"ticket 1");
+        assert_eq!(t.decrypt(&cipher2).unwrap(), b"ticket 2");
+        {
+            // Trigger new ticketer
+            t.maybe_roll(TimeBase(now.0 + std::time::Duration::from_secs(20)));
+        }
+        let cipher3 = t.encrypt(b"ticket 3").unwrap();
+        assert!(t.decrypt(&cipher1).is_none());
+        assert_eq!(t.decrypt(&cipher2).unwrap(), b"ticket 2");
+        assert_eq!(t.decrypt(&cipher3).unwrap(), b"ticket 3");
     }
-    let cipher3 = t.encrypt(b"ticket 3").unwrap();
-    assert!(t.decrypt(&cipher1).is_none());
-    assert_eq!(t.decrypt(&cipher2).unwrap(), b"ticket 2");
-    assert_eq!(t.decrypt(&cipher3).unwrap(), b"ticket 3");
+
+    fn fail_generator() -> Result<Box<dyn ProducesTickets>, rand::GetRandomFailed> {
+        Err(rand::GetRandomFailed)
+    }
+
+    #[test_log::test]
+    fn ticketswitcher_recover_test() {
+        let mut t = TicketSwitcher::new(1, generate_inner).unwrap();
+        let now = TimeBase::now().unwrap();
+        let cipher1 = t.encrypt(b"ticket 1").unwrap();
+        assert_eq!(t.decrypt(&cipher1).unwrap(), b"ticket 1");
+        t.generator = fail_generator;
+        {
+            // Failed new ticketer
+            t.maybe_roll(TimeBase(now.0 + std::time::Duration::from_secs(10)));
+        }
+        t.generator = generate_inner;
+        let cipher2 = t.encrypt(b"ticket 2").unwrap();
+        assert_eq!(t.decrypt(&cipher1).unwrap(), b"ticket 1");
+        assert_eq!(t.decrypt(&cipher2).unwrap(), b"ticket 2");
+        {
+            // recover
+            t.maybe_roll(TimeBase(now.0 + std::time::Duration::from_secs(20)));
+        }
+        let cipher3 = t.encrypt(b"ticket 3").unwrap();
+        assert!(t.decrypt(&cipher1).is_none());
+        assert_eq!(t.decrypt(&cipher2).unwrap(), b"ticket 2");
+        assert_eq!(t.decrypt(&cipher3).unwrap(), b"ticket 3");
+    }
 }

@@ -1,8 +1,6 @@
-use crate::tls::rustls::{
-    cipher::{MessageDecrypter, MessageEncrypter},
-    error::Error,
-    msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage},
-};
+use crate::tls::rustls::cipher::{MessageDecrypter, MessageEncrypter};
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage};
 
 static SEQ_SOFT_LIMIT: u64 = 0xffff_ffff_ffff_0000u64;
 static SEQ_HARD_LIMIT: u64 = 0xffff_ffff_ffff_fffeu64;

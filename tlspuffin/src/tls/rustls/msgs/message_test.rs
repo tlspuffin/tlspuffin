@@ -1,25 +1,21 @@
-use std::convert::TryFrom;
-
 use puffin::codec::Reader;
 
-use super::{
-    enums::{AlertDescription, AlertLevel, HandshakeType},
-    message::{Message, OpaqueMessage},
-};
+use super::enums::{AlertDescription, AlertLevel, HandshakeType};
+use super::message::{Message, OpaqueMessage};
 
-#[test]
+#[test_log::test]
 fn alert_is_not_handshake() {
     let m = Message::build_alert(AlertLevel::Fatal, AlertDescription::DecodeError);
     assert!(!m.is_handshake_type(HandshakeType::ClientHello));
 }
 
-#[test]
+#[test_log::test]
 fn alert_is_not_opaque() {
     let m = Message::build_alert(AlertLevel::Fatal, AlertDescription::DecodeError);
     assert!(Message::try_from(m).is_ok());
 }
 
-#[test]
+#[test_log::test]
 fn construct_all_types() {
     let samples = [
         &b"\x14\x03\x04\x00\x01\x01"[..],

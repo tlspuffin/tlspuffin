@@ -1,4 +1,4 @@
-use std::{fmt, fmt::Formatter, io};
+use std::{fmt, io};
 
 use crate::algebra::error::FnError;
 
@@ -9,9 +9,11 @@ pub enum Error {
     Term(String),
     /// PUT reported an error
     Put(String),
-    /// There was an unexpected IO error. Should never happen because we are not fuzzing on a network which can fail.
+    /// There was an unexpected IO error. Should never happen because we are not fuzzing on a
+    /// network which can fail.
     IO(String),
-    /// Some error which was caused because of agents or their names. Like an agent which was not found.
+    /// Some error which was caused because of agents or their names. Like an agent which was not
+    /// found.
     Agent(String),
     /// Error while operating on a [`Stream`](crate::stream::Stream)
     Stream(String),
@@ -22,7 +24,7 @@ pub enum Error {
 impl std::error::Error for Error {}
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::Fn(err) => write!(f, "error executing a function symbol: {}", err),
             Error::Term(err) => write!(f, "error evaluating a term: {}", err),

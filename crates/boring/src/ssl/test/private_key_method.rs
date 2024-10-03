@@ -1,26 +1,18 @@
-use std::{
-    io::Write,
-    sync::{
-        atomic::{AtomicBool, AtomicUsize, Ordering},
-        Arc,
-    },
-};
+use std::io::Write;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use once_cell::sync::OnceCell;
 
-use super::{
-    server::{Builder, Server},
-    KEY,
-};
-use crate::{
-    hash::MessageDigest,
-    pkey::PKey,
-    rsa::Padding,
-    sign::{RsaPssSaltlen, Signer},
-    ssl::{
-        ErrorCode, HandshakeError, PrivateKeyMethod, PrivateKeyMethodError, SslRef,
-        SslSignatureAlgorithm,
-    },
+use super::server::{Builder, Server};
+use super::KEY;
+use crate::hash::MessageDigest;
+use crate::pkey::PKey;
+use crate::rsa::Padding;
+use crate::sign::{RsaPssSaltlen, Signer};
+use crate::ssl::{
+    ErrorCode, HandshakeError, PrivateKeyMethod, PrivateKeyMethodError, SslRef,
+    SslSignatureAlgorithm,
 };
 
 #[allow(clippy::type_complexity)]
@@ -139,7 +131,7 @@ fn builder_with_private_key_method(method: Method) -> Builder {
     builder
 }
 
-#[test]
+#[test_log::test]
 fn test_sign_failure() {
     let called_sign = Arc::new(AtomicBool::new(false));
     let called_sign_clone = called_sign.clone();
@@ -166,7 +158,7 @@ fn test_sign_failure() {
     assert!(called_sign.load(Ordering::SeqCst));
 }
 
-#[test]
+#[test_log::test]
 fn test_sign_retry_complete_failure() {
     let called_complete = Arc::new(AtomicUsize::new(0));
     let called_complete_clone = called_complete.clone();
@@ -221,7 +213,7 @@ fn test_sign_retry_complete_failure() {
     assert_eq!(called_complete.load(Ordering::SeqCst), 2);
 }
 
-#[test]
+#[test_log::test]
 fn test_sign_ok() {
     let server = builder_with_private_key_method(Method::new().sign(
         |_, input, signature_algorithm, output| {
@@ -240,7 +232,7 @@ fn test_sign_ok() {
     client.connect();
 }
 
-#[test]
+#[test_log::test]
 fn test_sign_retry_complete_ok() {
     let input_cell = Arc::new(OnceCell::new());
     let input_cell_clone = input_cell.clone();

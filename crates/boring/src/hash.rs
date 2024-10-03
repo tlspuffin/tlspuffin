@@ -1,18 +1,11 @@
-use std::{
-    convert::TryInto,
-    fmt, io,
-    io::prelude::*,
-    ops::{Deref, DerefMut},
-    ptr,
-};
+use std::io::prelude::*;
+use std::ops::{Deref, DerefMut};
+use std::{fmt, io, ptr};
 
-use crate::{
-    cvt, cvt_p,
-    error::ErrorStack,
-    ffi,
-    ffi::{EVP_MD_CTX_free, EVP_MD_CTX_new},
-    nid::Nid,
-};
+use crate::error::ErrorStack;
+use crate::ffi::{EVP_MD_CTX_free, EVP_MD_CTX_new};
+use crate::nid::Nid;
+use crate::{cvt, cvt_p, ffi};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub struct MessageDigest(*const ffi::EVP_MD);
@@ -375,14 +368,14 @@ mod tests {
         ),
     ];
 
-    #[test]
+    #[test_log::test]
     fn test_md5() {
         for test in MD5_TESTS.iter() {
             hash_test(MessageDigest::md5(), test);
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_md5_recycle() {
         let mut h = Hasher::new(MessageDigest::md5()).unwrap();
         for test in MD5_TESTS.iter() {
@@ -390,7 +383,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_finish_twice() {
         let mut h = Hasher::new(MessageDigest::md5()).unwrap();
         h.write_all(&Vec::from_hex(MD5_TESTS[6].0).unwrap())
@@ -401,7 +394,7 @@ mod tests {
         assert_eq!(&*res, &*null);
     }
 
-    #[test]
+    #[test_log::test]
     #[allow(clippy::redundant_clone)]
     fn test_clone() {
         let i = 7;
@@ -432,7 +425,7 @@ mod tests {
         assert_eq!(hex::encode(res), MD5_TESTS[i + 1].1);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_sha1() {
         let tests = [("616263", "a9993e364706816aba3e25717850c26c9cd0d89d")];
 
@@ -441,7 +434,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_sha224() {
         let tests = [(
             "616263",
@@ -453,7 +446,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_sha256() {
         let tests = [(
             "616263",
@@ -465,7 +458,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_sha512() {
         let tests = [(
             "616263",
@@ -478,7 +471,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_sha512_256() {
         let tests = [(
             "616263",
@@ -490,7 +483,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn from_nid() {
         assert_eq!(
             MessageDigest::from_nid(Nid::SHA256).unwrap().as_ptr(),

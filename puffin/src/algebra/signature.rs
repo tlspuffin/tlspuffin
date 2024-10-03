@@ -1,22 +1,16 @@
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Formatter},
-};
+use std::collections::HashMap;
+use std::fmt;
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 
 use super::atoms::Function;
-use crate::{
-    algebra::{
-        atoms::Variable,
-        dynamic_function::{
-            make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
-        },
-        Matcher,
-    },
-    trace::{Query, Source},
+use crate::algebra::atoms::Variable;
+use crate::algebra::dynamic_function::{
+    make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
 };
+use crate::algebra::Matcher;
+use crate::trace::{Query, Source};
 
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 
@@ -30,8 +24,8 @@ pub struct Signature {
     pub types_by_name: HashMap<&'static str, TypeShape>,
 }
 
-impl Debug for Signature {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for Signature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "functions; {:?}", self.functions)
     }
 }
@@ -76,9 +70,9 @@ impl Signature {
     }
 
     /// Create a new [`Function`] distinct from all existing [`Function`]s.
-    pub fn new_function<F: 'static, Types>(f: &'static F) -> Function
+    pub fn new_function<F, Types>(f: &'static F) -> Function
     where
-        F: DescribableFunction<Types>,
+        F: 'static + DescribableFunction<Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
 

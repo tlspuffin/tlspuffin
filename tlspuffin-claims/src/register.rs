@@ -1,9 +1,8 @@
-use std::{ffi::c_void, mem};
+use std::ffi::c_void;
+use std::mem;
 
-use crate::{
-    ffi,
-    ffi::{Claim, TLSLike},
-};
+use crate::ffi;
+use crate::ffi::{Claim, TLSLike};
 
 extern "C" fn handle_claim_c(x: Claim, ctx: *mut c_void) {
     let closure: &mut Box<Claimer> =

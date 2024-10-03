@@ -1,18 +1,14 @@
-use std::{convert::TryFrom, sync::Arc, time::SystemTime};
+use std::sync::Arc;
+use std::time::SystemTime;
 
-use log::{debug, trace, warn};
 use ring::digest::Digest;
 
-use crate::tls::rustls::{
-    anchors::{OwnedTrustAnchor, RootCertStore},
-    client::client_conn::ServerName,
-    error::Error,
-    key::Certificate,
-    msgs::{
-        enums::SignatureScheme,
-        handshake::{DigitallySignedStruct, DistinguishedNames},
-    },
-};
+use crate::tls::rustls::anchors::{OwnedTrustAnchor, RootCertStore};
+use crate::tls::rustls::client::client_conn::ServerName;
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::key::Certificate;
+use crate::tls::rustls::msgs::enums::SignatureScheme;
+use crate::tls::rustls::msgs::handshake::{DigitallySignedStruct, DistinguishedNames};
 
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 
@@ -320,7 +316,7 @@ impl ServerCertVerifier for WebPkiVerifier {
         }
 
         if !ocsp_response.is_empty() {
-            trace!("Unvalidated OCSP response: {:?}", ocsp_response.to_vec());
+            log::trace!("Unvalidated OCSP response: {:?}", ocsp_response.to_vec());
         }
 
         cert.verify_is_valid_for_dns_name(dns_name.0.as_ref())
@@ -401,7 +397,7 @@ impl CertificateTransparencyPolicy {
         if self.logs.is_empty() {
             return Ok(());
         } else if self.validation_deadline.duration_since(now).is_err() {
-            warn!("certificate transparency logs have expired, validation disabled");
+            log::warn!("certificate transparency logs have expired, validation disabled");
             return Ok(());
         }
 
@@ -410,9 +406,10 @@ impl CertificateTransparencyPolicy {
         for sct in scts {
             match sct::verify_sct(&cert.0, sct, now, self.logs) {
                 Ok(index) => {
-                    debug!(
+                    log::debug!(
                         "Valid SCT signed by {} on {}",
-                        self.logs[index].operated_by, self.logs[index].description
+                        self.logs[index].operated_by,
+                        self.logs[index].description
                     );
                     return Ok(());
                 }
@@ -420,7 +417,7 @@ impl CertificateTransparencyPolicy {
                     if e.should_be_fatal() {
                         return Err(Error::InvalidSct(e));
                     }
-                    debug!("SCT ignored because {:?}", e);
+                    log::debug!("SCT ignored because {:?}", e);
                     last_sct_error = Some(e);
                 }
             }
@@ -429,7 +426,7 @@ impl CertificateTransparencyPolicy {
         /* If we were supplied with some logs, and some SCTs,
          * but couldn't verify any of them, fail the handshake. */
         if let Some(last_sct_error) = last_sct_error {
-            warn!("No valid SCTs provided");
+            log::warn!("No valid SCTs provided");
             return Err(Error::InvalidSct(last_sct_error));
         }
 
@@ -738,7 +735,7 @@ fn unix_time_millis(now: SystemTime) -> Result<u64, Error> {
 mod tests {
     use super::*;
 
-    #[test]
+    #[test_log::test]
     fn assertions_are_debug() {
         assert_eq!(
             format!("{:?}", ClientCertVerified::assertion()),

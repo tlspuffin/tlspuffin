@@ -20,14 +20,11 @@ use std::{fmt, ptr};
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::c_int;
 
-use crate::{
-    bn::{BigNumContextRef, BigNumRef},
-    cvt, cvt_n, cvt_p,
-    error::ErrorStack,
-    ffi, init,
-    nid::Nid,
-    pkey::{HasParams, HasPrivate, HasPublic, Params, Private, Public},
-};
+use crate::bn::{BigNumContextRef, BigNumRef};
+use crate::error::ErrorStack;
+use crate::nid::Nid;
+use crate::pkey::{HasParams, HasPrivate, HasPublic, Params, Private, Public};
+use crate::{cvt, cvt_n, cvt_p, ffi, init};
 
 /// Compressed or Uncompressed conversion
 ///
@@ -45,14 +42,12 @@ impl PointConversionForm {
     /// Compressed conversion from point value.
     pub const COMPRESSED: PointConversionForm =
         PointConversionForm(ffi::point_conversion_form_t::POINT_CONVERSION_COMPRESSED);
-
-    /// Uncompressed conversion from point value.
-    pub const UNCOMPRESSED: PointConversionForm =
-        PointConversionForm(ffi::point_conversion_form_t::POINT_CONVERSION_UNCOMPRESSED);
-
     /// Performs both compressed and uncompressed conversions.
     pub const HYBRID: PointConversionForm =
         PointConversionForm(ffi::point_conversion_form_t::POINT_CONVERSION_HYBRID);
+    /// Uncompressed conversion from point value.
+    pub const UNCOMPRESSED: PointConversionForm =
+        PointConversionForm(ffi::point_conversion_form_t::POINT_CONVERSION_UNCOMPRESSED);
 }
 
 /// Named Curve or Explicit
@@ -76,7 +71,6 @@ impl Asn1Flag {
     ///
     /// [`EC_GROUP`]: https://www.openssl.org/docs/man1.1.0/crypto/EC_GROUP_get_seed_len.html
     pub const EXPLICIT_CURVE: Asn1Flag = Asn1Flag(0);
-
     /// Standard Curves
     ///
     /// Curves that make up the typical encryption use cases.  The collection of curves
@@ -571,18 +565,6 @@ impl<T> EcKeyRef<T>
 where
     T: HasPublic,
 {
-    /// Returns the public key.
-    ///
-    /// OpenSSL documentation at [`EC_KEY_get0_public_key`]
-    ///
-    /// [`EC_KEY_get0_public_key`]: https://www.openssl.org/docs/man1.1.0/crypto/EC_KEY_get0_public_key.html
-    pub fn public_key(&self) -> &EcPointRef {
-        unsafe {
-            let ptr = ffi::EC_KEY_get0_public_key(self.as_ptr());
-            EcPointRef::from_ptr(ptr as *mut _)
-        }
-    }
-
     to_pem! {
         /// Serialies the public key into a PEM-encoded SubjectPublicKeyInfo structure.
         ///
@@ -603,6 +585,18 @@ where
         /// [`i2d_EC_PUBKEY`]: https://www.openssl.org/docs/man1.1.0/crypto/i2d_EC_PUBKEY.html
         public_key_to_der,
         ffi::i2d_EC_PUBKEY
+    }
+
+    /// Returns the public key.
+    ///
+    /// OpenSSL documentation at [`EC_KEY_get0_public_key`]
+    ///
+    /// [`EC_KEY_get0_public_key`]: https://www.openssl.org/docs/man1.1.0/crypto/EC_KEY_get0_public_key.html
+    pub fn public_key(&self) -> &EcPointRef {
+        unsafe {
+            let ptr = ffi::EC_KEY_get0_public_key(self.as_ptr());
+            EcPointRef::from_ptr(ptr as *mut _)
+        }
     }
 }
 
@@ -677,6 +671,31 @@ impl EcKey<Params> {
 }
 
 impl EcKey<Public> {
+    from_pem! {
+        /// Decodes a PEM-encoded SubjectPublicKeyInfo structure containing a EC key.
+        ///
+        /// The input should have a header of `-----BEGIN PUBLIC KEY-----`.
+        ///
+        /// This corresponds to [`PEM_read_bio_EC_PUBKEY`].
+        ///
+        /// [`PEM_read_bio_EC_PUBKEY`]: https://www.openssl.org/docs/man1.1.0/crypto/PEM_read_bio_EC_PUBKEY.html
+        public_key_from_pem,
+        EcKey<Public>,
+        ffi::PEM_read_bio_EC_PUBKEY
+    }
+
+    from_der! {
+        /// Decodes a DER-encoded SubjectPublicKeyInfo structure containing a EC key.
+        ///
+        /// This corresponds to [`d2i_EC_PUBKEY`].
+        ///
+        /// [`d2i_EC_PUBKEY`]: https://www.openssl.org/docs/man1.1.0/crypto/d2i_EC_PUBKEY.html
+        public_key_from_der,
+        EcKey<Public>,
+        ffi::d2i_EC_PUBKEY,
+        ::libc::c_long
+    }
+
     /// Constructs an `EcKey` from the specified group with the associated `EcPoint`, public_key.
     ///
     /// This will only have the associated public_key.
@@ -740,34 +759,48 @@ impl EcKey<Public> {
                 })
         }
     }
-
-    from_pem! {
-        /// Decodes a PEM-encoded SubjectPublicKeyInfo structure containing a EC key.
-        ///
-        /// The input should have a header of `-----BEGIN PUBLIC KEY-----`.
-        ///
-        /// This corresponds to [`PEM_read_bio_EC_PUBKEY`].
-        ///
-        /// [`PEM_read_bio_EC_PUBKEY`]: https://www.openssl.org/docs/man1.1.0/crypto/PEM_read_bio_EC_PUBKEY.html
-        public_key_from_pem,
-        EcKey<Public>,
-        ffi::PEM_read_bio_EC_PUBKEY
-    }
-
-    from_der! {
-        /// Decodes a DER-encoded SubjectPublicKeyInfo structure containing a EC key.
-        ///
-        /// This corresponds to [`d2i_EC_PUBKEY`].
-        ///
-        /// [`d2i_EC_PUBKEY`]: https://www.openssl.org/docs/man1.1.0/crypto/d2i_EC_PUBKEY.html
-        public_key_from_der,
-        EcKey<Public>,
-        ffi::d2i_EC_PUBKEY,
-        ::libc::c_long
-    }
 }
 
 impl EcKey<Private> {
+    private_key_from_pem! {
+        /// Deserializes a private key from a PEM-encoded ECPrivateKey structure.
+        ///
+        /// The input should have a header of `-----BEGIN EC PRIVATE KEY-----`.
+        ///
+        /// This corresponds to `PEM_read_bio_ECPrivateKey`.
+        private_key_from_pem,
+
+        /// Deserializes a private key from a PEM-encoded encrypted ECPrivateKey structure.
+        ///
+        /// The input should have a header of `-----BEGIN EC PRIVATE KEY-----`.
+        ///
+        /// This corresponds to `PEM_read_bio_ECPrivateKey`.
+        private_key_from_pem_passphrase,
+
+        /// Deserializes a private key from a PEM-encoded encrypted ECPrivateKey structure.
+        ///
+        /// The callback should fill the password into the provided buffer and return its length.
+        ///
+        /// The input should have a header of `-----BEGIN EC PRIVATE KEY-----`.
+        ///
+        /// This corresponds to `PEM_read_bio_ECPrivateKey`.
+        private_key_from_pem_callback,
+        EcKey<Private>,
+        ffi::PEM_read_bio_ECPrivateKey
+    }
+
+    from_der! {
+        /// Decodes a DER-encoded elliptic curve private key structure.
+        ///
+        /// This corresponds to [`d2i_ECPrivateKey`].
+        ///
+        /// [`d2i_ECPrivateKey`]: https://www.openssl.org/docs/man1.0.2/crypto/d2i_ECPrivate_key.html
+        private_key_from_der,
+        EcKey<Private>,
+        ffi::d2i_ECPrivateKey,
+        ::libc::c_long
+    }
+
     /// Generates a new public/private key pair on the specified curve.
     pub fn generate(group: &EcGroupRef) -> Result<EcKey<Private>, ErrorStack> {
         unsafe {
@@ -808,45 +841,6 @@ impl EcKey<Private> {
                 })
         }
     }
-
-    private_key_from_pem! {
-        /// Deserializes a private key from a PEM-encoded ECPrivateKey structure.
-        ///
-        /// The input should have a header of `-----BEGIN EC PRIVATE KEY-----`.
-        ///
-        /// This corresponds to `PEM_read_bio_ECPrivateKey`.
-        private_key_from_pem,
-
-        /// Deserializes a private key from a PEM-encoded encrypted ECPrivateKey structure.
-        ///
-        /// The input should have a header of `-----BEGIN EC PRIVATE KEY-----`.
-        ///
-        /// This corresponds to `PEM_read_bio_ECPrivateKey`.
-        private_key_from_pem_passphrase,
-
-        /// Deserializes a private key from a PEM-encoded encrypted ECPrivateKey structure.
-        ///
-        /// The callback should fill the password into the provided buffer and return its length.
-        ///
-        /// The input should have a header of `-----BEGIN EC PRIVATE KEY-----`.
-        ///
-        /// This corresponds to `PEM_read_bio_ECPrivateKey`.
-        private_key_from_pem_callback,
-        EcKey<Private>,
-        ffi::PEM_read_bio_ECPrivateKey
-    }
-
-    from_der! {
-        /// Decodes a DER-encoded elliptic curve private key structure.
-        ///
-        /// This corresponds to [`d2i_ECPrivateKey`].
-        ///
-        /// [`d2i_ECPrivateKey`]: https://www.openssl.org/docs/man1.0.2/crypto/d2i_ECPrivate_key.html
-        private_key_from_der,
-        EcKey<Private>,
-        ffi::d2i_ECPrivateKey,
-        ::libc::c_long
-    }
 }
 
 impl<T> Clone for EcKey<T> {
@@ -862,27 +856,25 @@ impl<T> fmt::Debug for EcKey<T> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use hex::FromHex;
 
     use super::*;
-    use crate::{
-        bn::{BigNum, BigNumContext},
-        nid::Nid,
-    };
+    use crate::bn::{BigNum, BigNumContext};
+    use crate::nid::Nid;
 
-    #[test]
+    #[test_log::test]
     fn key_new_by_curve_name() {
         EcKey::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn generate() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         EcKey::generate(&group).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn cofactor() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let mut ctx = BigNumContext::new().unwrap();
@@ -892,7 +884,7 @@ mod test {
         assert_eq!(cofactor, one);
     }
 
-    #[test]
+    #[test_log::test]
     #[allow(clippy::redundant_clone)]
     fn dup() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
@@ -900,13 +892,13 @@ mod test {
         drop(key.clone());
     }
 
-    #[test]
+    #[test_log::test]
     fn point_new() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         EcPoint::new(&group).unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn point_bytes() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let key = EcKey::generate(&group).unwrap();
@@ -919,7 +911,7 @@ mod test {
         assert!(point.eq(&group, &point2, &mut ctx).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn point_owned() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let key = EcKey::generate(&group).unwrap();
@@ -929,7 +921,7 @@ mod test {
         assert!(owned.eq(&group, point, &mut ctx).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn mul_generator() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let key = EcKey::generate(&group).unwrap();
@@ -941,7 +933,7 @@ mod test {
         assert!(public_key.eq(&group, key.public_key(), &mut ctx).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn generator() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let gen = group.generator();
@@ -952,7 +944,7 @@ mod test {
         assert!(ecp.eq(&group, gen, &mut ctx).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn key_from_public_key() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let key = EcKey::generate(&group).unwrap();
@@ -968,7 +960,7 @@ mod test {
         assert!(ec_key.check_key().is_ok());
     }
 
-    #[test]
+    #[test_log::test]
     fn key_from_private_components() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let key = EcKey::generate(&group).unwrap();
@@ -980,7 +972,7 @@ mod test {
         assert!(key.private_key() == dup_key.private_key());
     }
 
-    #[test]
+    #[test_log::test]
     fn key_from_affine_coordinates() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let x = Vec::from_hex("30a0424cd21c2944838a2d75c92b37e76ea20d9f00893a3b4eee8a3c0aafec3e")
@@ -995,7 +987,7 @@ mod test {
         assert!(ec_key.check_key().is_ok());
     }
 
-    #[test]
+    #[test_log::test]
     fn get_affine_coordinates() {
         let group = EcGroup::from_curve_name(Nid::X9_62_PRIME256V1).unwrap();
         let x = Vec::from_hex("30a0424cd21c2944838a2d75c92b37e76ea20d9f00893a3b4eee8a3c0aafec3e")

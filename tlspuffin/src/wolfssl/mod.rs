@@ -1,43 +1,36 @@
 #![allow(non_snake_case)]
 
-use std::{cell::RefCell, io::ErrorKind, ops::Deref, rc::Rc};
+use std::cell::RefCell;
+use std::io::ErrorKind;
+use std::ops::Deref;
+use std::rc::Rc;
 
-use log::error;
-use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    algebra::dynamic_function::TypeShape,
-    error::Error,
-    put::{Put, PutName},
-    put_registry::{Factory, PutKind},
-    stream::{MemoryStream, Stream},
-    trace::TraceContext,
-    VERSION_STR,
-};
+use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
+use puffin::algebra::dynamic_function::TypeShape;
+use puffin::error::Error;
+use puffin::put::{Put, PutName};
+use puffin::put_registry::{Factory, PutKind};
+use puffin::stream::{MemoryStream, Stream};
+use puffin::trace::TraceContext;
+use puffin::VERSION_STR;
 use smallvec::SmallVec;
-use wolfssl::{
-    error::{ErrorStack, SslError},
-    ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode},
-    version::version,
-    x509::X509,
-};
+use wolfssl::error::{ErrorStack, SslError};
+use wolfssl::ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode};
+use wolfssl::version::version;
+use wolfssl::x509::X509;
 
-use crate::{
-    claims::{
-        ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsClaim,
-        TranscriptCertificate, TranscriptClientFinished, TranscriptServerFinished,
-        TranscriptServerHello,
-    },
-    protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
-    put::TlsPutConfig,
-    put_registry::WOLFSSL520_PUT,
-    query::TlsQueryMatcher,
-    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
-    tls::rustls::msgs::{
-        enums::HandshakeType,
-        message::{Message, OpaqueMessage},
-    },
-    wolfssl::transcript::extract_current_transcript,
+use crate::claims::{
+    ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsClaim, TranscriptCertificate,
+    TranscriptClientFinished, TranscriptServerFinished, TranscriptServerHello,
 };
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::put::TlsPutConfig;
+use crate::put_registry::WOLFSSL520_PUT;
+use crate::query::TlsQueryMatcher;
+use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
+use crate::tls::rustls::msgs::enums::HandshakeType;
+use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
+use crate::wolfssl::transcript::extract_current_transcript;
 
 mod transcript;
 
@@ -110,11 +103,11 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn determinism_set_reseed(&self) -> () {
-            error!("[determinism_set_reseed] Not yet implemented.")
+            log::error!("[determinism_set_reseed] Not yet implemented.")
         }
 
         fn determinism_reseed(&self) -> () {
-            error!("[determinism_reseed] Not yet implemented.")
+            log::error!("[determinism_reseed] Not yet implemented.")
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
@@ -376,7 +369,8 @@ impl WolfSSL {
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_server_12())?,
         };
 
-        // Mitigates "2. Misuse of sessions of different TLS versions (1.2, 1.3) from the session cache"
+        // Mitigates "2. Misuse of sessions of different TLS versions (1.2, 1.3) from the session
+        // cache"
         ctx.disable_session_cache()?;
 
         // Disallow EXPORT in server
@@ -527,7 +521,8 @@ impl WolfSSL {
             if let Some(transcript) = extract_current_transcript(context) {
                 let claim = match context.server_state() {
                     wolfssl_sys::states_SERVER_HELLO_COMPLETE => {
-                        // Extract ClientHello..ServerFinished transcript at the end of the message flight
+                        // Extract ClientHello..ServerFinished transcript at the end of the message
+                        // flight
                         *extract_transcript.deref().borrow_mut() =
                             Some(TypeShape::of::<TranscriptServerFinished>());
 
@@ -563,8 +558,8 @@ impl<T> From<Result<T, SslError>> for MaybeError {
             if let Some(io_error) = ssl_error.io_error() {
                 match io_error.kind() {
                     ErrorKind::WouldBlock => {
-                        // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
-                        // debug!("Would have blocked but the underlying stream is non-blocking!");
+                        // Not actually an error, we just reached the end of the stream, thrown in
+                        // MemoryStream
                         MaybeError::Ok
                     }
                     _ => MaybeError::Err(Error::IO(format!("Unexpected IO Error: {}", io_error))),

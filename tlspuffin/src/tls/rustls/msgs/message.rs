@@ -1,18 +1,14 @@
-use std::convert::TryFrom;
-
 use puffin::codec::{Codec, Reader};
 
-use crate::tls::rustls::{
-    error::Error,
-    msgs::{
-        alert::AlertMessagePayload,
-        base::Payload,
-        ccs::ChangeCipherSpecPayload,
-        enums::{AlertDescription, AlertLevel, ContentType, HandshakeType, ProtocolVersion},
-        handshake::HandshakeMessagePayload,
-        heartbeat::HeartbeatPayload,
-    },
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::msgs::alert::AlertMessagePayload;
+use crate::tls::rustls::msgs::base::Payload;
+use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
+use crate::tls::rustls::msgs::enums::{
+    AlertDescription, AlertLevel, ContentType, HandshakeType, ProtocolVersion,
 };
+use crate::tls::rustls::msgs::handshake::HandshakeMessagePayload;
+use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 
 #[derive(Debug, Clone)]
 pub enum MessagePayload {
@@ -136,6 +132,15 @@ impl Codec for OpaqueMessage {
 }
 
 impl OpaqueMessage {
+    /// Content type, version and size.
+    const HEADER_SIZE: u16 = 1 + 2 + 2;
+    /// This is the maximum on-the-wire size of a TLSCiphertext.
+    /// That's 2^14 payload bytes, a header, and a 2KB allowance
+    /// for ciphertext overheads.
+    const MAX_PAYLOAD: u16 = 16384 + 2048;
+    /// Maximum on-wire message size.
+    pub const MAX_WIRE_SIZE: usize = (Self::MAX_PAYLOAD + Self::HEADER_SIZE) as usize;
+
     /// `MessageError` allows callers to distinguish between valid prefixes (might
     /// become valid if we read more data) and invalid data.
     pub fn read(r: &mut Reader) -> Result<Self, MessageError> {
@@ -198,17 +203,6 @@ impl OpaqueMessage {
             payload: self.payload,
         }
     }
-
-    /// This is the maximum on-the-wire size of a TLSCiphertext.
-    /// That's 2^14 payload bytes, a header, and a 2KB allowance
-    /// for ciphertext overheads.
-    const MAX_PAYLOAD: u16 = 16384 + 2048;
-
-    /// Content type, version and size.
-    const HEADER_SIZE: u16 = 1 + 2 + 2;
-
-    /// Maximum on-wire message size.
-    pub const MAX_WIRE_SIZE: usize = (Self::MAX_PAYLOAD + Self::HEADER_SIZE) as usize;
 }
 
 impl From<Message> for PlainMessage {

@@ -1,38 +1,34 @@
 use core::ffi::c_void;
-use std::{cell::RefCell, io::ErrorKind, rc::Rc};
+use std::cell::RefCell;
+use std::io::ErrorKind;
+use std::rc::Rc;
 
-use boring::{
-    error::ErrorStack,
-    ex_data::Index,
-    ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode},
-    x509::{store::X509StoreBuilder, X509},
-};
+use boring::error::ErrorStack;
+use boring::ex_data::Index;
+use boring::ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode};
+use boring::x509::store::X509StoreBuilder;
+use boring::x509::X509;
 use boringssl_sys::ssl_st;
 use foreign_types::ForeignTypeRef;
-use log::{debug, info, trace};
-use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType},
-    error::Error,
-    put::{Put, PutName},
-    put_registry::{Factory, PutKind},
-    stream::{MemoryStream, Stream},
-    trace::TraceContext,
-    VERSION_STR,
-};
+use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::error::Error;
+use puffin::put::{Put, PutName};
+use puffin::put_registry::{Factory, PutKind};
+use puffin::stream::{MemoryStream, Stream};
+use puffin::trace::TraceContext;
+use puffin::VERSION_STR;
 
-use crate::{
-    boringssl::util::{set_max_protocol_version, static_rsa_cert},
-    claims::{
-        ClaimData, ClaimDataTranscript, TlsClaim, TranscriptCertificate, TranscriptClientFinished,
-        TranscriptServerFinished, TranscriptServerHello,
-    },
-    protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
-    put::TlsPutConfig,
-    put_registry::BORINGSSL_PUT,
-    query::TlsQueryMatcher,
-    static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
-    tls::rustls::msgs::message::{Message, OpaqueMessage},
+use crate::boringssl::util::{set_max_protocol_version, static_rsa_cert};
+use crate::claims::{
+    ClaimData, ClaimDataTranscript, TlsClaim, TranscriptCertificate, TranscriptClientFinished,
+    TranscriptServerFinished, TranscriptServerHello,
 };
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::put::TlsPutConfig;
+use crate::put_registry::BORINGSSL_PUT;
+use crate::query::TlsQueryMatcher;
+use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
+use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
 #[cfg(feature = "deterministic")]
 mod deterministic;
@@ -62,7 +58,7 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 
             // FIXME: Add non-clear method like in wolfssl
             if !use_clear {
-                info!("OpenSSL put does not support clearing mode")
+                log::info!("OpenSSL put does not support clearing mode")
             }
 
             let config = TlsPutConfig {
@@ -116,12 +112,14 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn determinism_set_reseed(&self) -> () {
-            debug!("[Determinism] BoringSSL set (already done at compile time) and reseed RAND");
+            log::debug!(
+                "[Determinism] BoringSSL set (already done at compile time) and reseed RAND"
+            );
             deterministic::reset_rand();
         }
 
         fn determinism_reseed(&self) -> () {
-            debug!("[Determinism] reseed BoringSSL");
+            log::debug!("[Determinism] reseed BoringSSL");
             deterministic::reset_rand();
         }
 
@@ -361,7 +359,7 @@ impl BoringSSL {
         let claims = config.claims.clone();
 
         move |ssl: &mut SslRef, info_type: i32| {
-            trace!(
+            log::trace!(
                 "BORING MSG CALLBACK : {} -- {}",
                 ssl.state_string_long(),
                 info_type
@@ -448,8 +446,8 @@ impl<T> From<Result<T, boring::ssl::Error>> for MaybeError {
             if let Some(io_error) = ssl_error.io_error() {
                 match io_error.kind() {
                     ErrorKind::WouldBlock => {
-                        // Not actually an error, we just reached the end of the stream, thrown in MemoryStream
-                        // debug!("Would have blocked but the underlying stream is non-blocking!");
+                        // Not actually an error, we just reached the end of the stream, thrown in
+                        // MemoryStream
                         MaybeError::Ok
                     }
                     _ => MaybeError::Err(Error::IO(format!("Unexpected IO Error: {}", io_error))),

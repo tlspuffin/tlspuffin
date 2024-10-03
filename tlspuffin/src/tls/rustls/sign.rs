@@ -1,17 +1,15 @@
-use std::{convert::TryFrom, error::Error as StdError, fmt, sync::Arc};
+use std::error::Error as StdError;
+use std::fmt;
+use std::sync::Arc;
 
-use ring::{
-    io::der,
-    rand::SecureRandom,
-    signature::{self, EcdsaKeyPair, Ed25519KeyPair, RsaKeyPair},
-};
+use ring::io::der;
+use ring::rand::SecureRandom;
+use ring::signature::{self, EcdsaKeyPair, Ed25519KeyPair, RsaKeyPair};
 
-use crate::tls::rustls::{
-    error::Error,
-    key,
-    msgs::enums::{SignatureAlgorithm, SignatureScheme},
-    x509::{wrap_in_asn1_len, wrap_in_sequence},
-};
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::key;
+use crate::tls::rustls::msgs::enums::{SignatureAlgorithm, SignatureScheme};
+use crate::tls::rustls::x509::{wrap_in_asn1_len, wrap_in_sequence};
 
 /// An abstract signing key.
 pub trait SigningKey: Send + Sync {
@@ -74,14 +72,13 @@ impl CertifiedKey {
 
     /// The end-entity certificate.
     pub fn end_entity_cert(&self) -> Result<&key::Certificate, SignError> {
-        self.cert.get(0).ok_or(SignError(()))
+        self.cert.first().ok_or(SignError(()))
     }
 
     /// Check the certificate chain for validity:
     /// - it should be non-empty list
     /// - the first certificate should be parsable as a x509v3,
-    /// - the first certificate should quote the given server name
-    ///   (if provided)
+    /// - the first certificate should quote the given server name (if provided)
     ///
     /// These checks are not security-sensitive.  They are the
     /// *server* attempting to detect accidental misconfiguration.
@@ -484,58 +481,63 @@ impl fmt::Display for SignError {
 
 impl StdError for SignError {}
 
-#[test]
-fn can_load_ecdsa_nistp256_pkcs8() {
-    let key = key::PrivateKey(include_bytes!("testdata/nistp256key.pkcs8.der").to_vec());
-    assert!(any_supported_type(&key).is_ok());
-    assert!(any_ecdsa_type(&key).is_ok());
-    assert!(any_eddsa_type(&key).is_err());
-}
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-#[test]
-fn can_load_ecdsa_nistp256_sec1() {
-    let key = key::PrivateKey(include_bytes!("testdata/nistp256key.der").to_vec());
-    assert!(any_supported_type(&key).is_ok());
-    assert!(any_ecdsa_type(&key).is_ok());
-    assert!(any_eddsa_type(&key).is_err());
-}
+    #[test_log::test]
+    fn can_load_ecdsa_nistp256_pkcs8() {
+        let key = key::PrivateKey(include_bytes!("testdata/nistp256key.pkcs8.der").to_vec());
+        assert!(any_supported_type(&key).is_ok());
+        assert!(any_ecdsa_type(&key).is_ok());
+        assert!(any_eddsa_type(&key).is_err());
+    }
 
-#[test]
-fn can_load_ecdsa_nistp384_pkcs8() {
-    let key = key::PrivateKey(include_bytes!("testdata/nistp384key.pkcs8.der").to_vec());
-    assert!(any_supported_type(&key).is_ok());
-    assert!(any_ecdsa_type(&key).is_ok());
-    assert!(any_eddsa_type(&key).is_err());
-}
+    #[test_log::test]
+    fn can_load_ecdsa_nistp256_sec1() {
+        let key = key::PrivateKey(include_bytes!("testdata/nistp256key.der").to_vec());
+        assert!(any_supported_type(&key).is_ok());
+        assert!(any_ecdsa_type(&key).is_ok());
+        assert!(any_eddsa_type(&key).is_err());
+    }
 
-#[test]
-fn can_load_ecdsa_nistp384_sec1() {
-    let key = key::PrivateKey(include_bytes!("testdata/nistp384key.der").to_vec());
-    assert!(any_supported_type(&key).is_ok());
-    assert!(any_ecdsa_type(&key).is_ok());
-    assert!(any_eddsa_type(&key).is_err());
-}
+    #[test_log::test]
+    fn can_load_ecdsa_nistp384_pkcs8() {
+        let key = key::PrivateKey(include_bytes!("testdata/nistp384key.pkcs8.der").to_vec());
+        assert!(any_supported_type(&key).is_ok());
+        assert!(any_ecdsa_type(&key).is_ok());
+        assert!(any_eddsa_type(&key).is_err());
+    }
 
-#[test]
-fn can_load_eddsa_pkcs8() {
-    let key = key::PrivateKey(include_bytes!("testdata/eddsakey.der").to_vec());
-    assert!(any_supported_type(&key).is_ok());
-    assert!(any_eddsa_type(&key).is_ok());
-    assert!(any_ecdsa_type(&key).is_err());
-}
+    #[test_log::test]
+    fn can_load_ecdsa_nistp384_sec1() {
+        let key = key::PrivateKey(include_bytes!("testdata/nistp384key.der").to_vec());
+        assert!(any_supported_type(&key).is_ok());
+        assert!(any_ecdsa_type(&key).is_ok());
+        assert!(any_eddsa_type(&key).is_err());
+    }
 
-#[test]
-fn can_load_rsa2048_pkcs8() {
-    let key = key::PrivateKey(include_bytes!("testdata/rsa2048key.pkcs8.der").to_vec());
-    assert!(any_supported_type(&key).is_ok());
-    assert!(any_eddsa_type(&key).is_err());
-    assert!(any_ecdsa_type(&key).is_err());
-}
+    #[test_log::test]
+    fn can_load_eddsa_pkcs8() {
+        let key = key::PrivateKey(include_bytes!("testdata/eddsakey.der").to_vec());
+        assert!(any_supported_type(&key).is_ok());
+        assert!(any_eddsa_type(&key).is_ok());
+        assert!(any_ecdsa_type(&key).is_err());
+    }
 
-#[test]
-fn can_load_rsa2048_pkcs1() {
-    let key = key::PrivateKey(include_bytes!("testdata/rsa2048key.pkcs1.der").to_vec());
-    assert!(any_supported_type(&key).is_ok());
-    assert!(any_eddsa_type(&key).is_err());
-    assert!(any_ecdsa_type(&key).is_err());
+    #[test_log::test]
+    fn can_load_rsa2048_pkcs8() {
+        let key = key::PrivateKey(include_bytes!("testdata/rsa2048key.pkcs8.der").to_vec());
+        assert!(any_supported_type(&key).is_ok());
+        assert!(any_eddsa_type(&key).is_err());
+        assert!(any_ecdsa_type(&key).is_err());
+    }
+
+    #[test_log::test]
+    fn can_load_rsa2048_pkcs1() {
+        let key = key::PrivateKey(include_bytes!("testdata/rsa2048key.pkcs1.der").to_vec());
+        assert!(any_supported_type(&key).is_ok());
+        assert!(any_eddsa_type(&key).is_err());
+        assert!(any_ecdsa_type(&key).is_err());
+    }
 }

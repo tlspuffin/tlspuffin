@@ -8,12 +8,10 @@ use ring::{
     hmac,
 };
 
-use crate::tls::rustls::{
-    cipher::{Iv, IvLen},
-    error::Error,
-    key_log::KeyLog,
-    msgs::base::PayloadU8,
-};
+use crate::tls::rustls::cipher::{Iv, IvLen};
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::key_log::KeyLog;
+use crate::tls::rustls::msgs::base::PayloadU8;
 
 /// The kinds of secret we can extract from `KeySchedule`.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -113,7 +111,8 @@ impl KeyScheduleEarly {
 /// Pre-handshake key schedule
 ///
 /// The inner `KeySchedule` is either constructed without any secrets based on ths HKDF algorithm
-/// or is extracted from a `KeyScheduleEarly`. This can then be used to derive the `KeyScheduleHandshakeStart`.
+/// or is extracted from a `KeyScheduleEarly`. This can then be used to derive the
+/// `KeyScheduleHandshakeStart`.
 pub struct KeySchedulePreHandshake {
     ks: KeySchedule,
 }
@@ -231,9 +230,10 @@ impl KeyScheduleHandshake {
     }
 }
 
-/// KeySchedule during traffic stage, retaining the ability to calculate the client's
-/// finished verify_data. The traffic stage key schedule can be extracted from it
-/// through signing the client finished hash.
+/// KeySchedule during traffic stage.
+///
+/// Note: Retains the ability to calculate the client's finished verify_data. The traffic stage key
+/// schedule can be extracted from it through signing the client finished hash.
 pub struct KeyScheduleTrafficWithClientFinishedPending {
     handshake_client_traffic_secret: hkdf::Prk,
     traffic: KeyScheduleTraffic,
@@ -563,13 +563,13 @@ pub fn derive_traffic_iv(secret: &hkdf::Prk) -> Iv {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use ring::{aead, hkdf};
 
     use super::{derive_traffic_iv, derive_traffic_key, KeySchedule, SecretKind};
     use crate::tls::rustls::key_log::KeyLog;
 
-    #[test]
+    #[test_log::test]
     fn test_vectors() {
         /* These test vectors generated with OpenSSL. */
         let hs_start_hash = [

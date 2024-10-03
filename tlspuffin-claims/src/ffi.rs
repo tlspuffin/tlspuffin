@@ -3,7 +3,8 @@
 #![allow(non_upper_case_globals)]
 #![allow(clippy::all)]
 
-use std::{ffi::c_void, fmt, fmt::Formatter};
+use std::ffi::c_void;
+use std::fmt;
 
 pub type TLSLike = *const c_void;
 
@@ -13,7 +14,7 @@ pub const CLAIM_INTERFACE_H: &str =
 include!(concat!(env!("OUT_DIR"), "/claim-interface.rs"));
 
 impl fmt::Display for Claim {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "\
@@ -85,37 +86,37 @@ impl fmt::Display for Claim {
 }
 
 impl fmt::Display for ClaimVersion {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self.data)
     }
 }
 
 impl fmt::Display for ClaimTranscript {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.data))
     }
 }
 
 impl fmt::Display for ClaimCipher {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.data.to_be_bytes()))
     }
 }
 
 impl fmt::Display for ClaimSessionId {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(&self.data[0..self.length as usize]),)
     }
 }
 
 impl fmt::Display for ClaimRandom {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", hex::encode(self.data))
     }
 }
 
 impl fmt::Display for ClaimCertData {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{:?}({}b)",
@@ -130,7 +131,7 @@ impl fmt::Display for ClaimCertData {
 }
 
 impl fmt::Display for ClaimCiphers {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "{}",
@@ -144,19 +145,19 @@ impl fmt::Display for ClaimCiphers {
 }
 
 impl fmt::Display for ClaimType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
 impl fmt::Display for ClaimKeyType {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:?}", self)
     }
 }
 
 impl fmt::Display for ClaimSecret {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let secret = self.secret;
         // print if any byte is set
         if secret.iter().any(|v| *v != 0) {

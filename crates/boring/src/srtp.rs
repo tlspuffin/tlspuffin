@@ -1,9 +1,11 @@
-use std::{ffi::CStr, str};
+use std::ffi::CStr;
+use std::str;
 
 use foreign_types::ForeignTypeRef;
 use libc::c_ulong;
 
-use crate::{ffi, stack::Stackable};
+use crate::ffi;
+use crate::stack::Stackable;
 
 /// fake free method, since SRTP_PROTECTION_PROFILE is static
 unsafe fn free(_profile: *mut ffi::SRTP_PROTECTION_PROFILE) {}
@@ -23,6 +25,7 @@ impl SrtpProtectionProfileRef {
     pub fn id(&self) -> SrtpProfileId {
         SrtpProfileId::from_raw(unsafe { (*self.as_ptr()).id })
     }
+
     pub fn name(&self) -> &'static str {
         unsafe { CStr::from_ptr((*self.as_ptr()).name as *const _) }
             .to_str()
@@ -35,16 +38,16 @@ impl SrtpProtectionProfileRef {
 pub struct SrtpProfileId(c_ulong);
 
 impl SrtpProfileId {
-    pub const SRTP_AES128_CM_SHA1_80: SrtpProfileId =
-        SrtpProfileId(ffi::SRTP_AES128_CM_SHA1_80 as _);
     pub const SRTP_AES128_CM_SHA1_32: SrtpProfileId =
         SrtpProfileId(ffi::SRTP_AES128_CM_SHA1_32 as _);
-    pub const SRTP_AES128_F8_SHA1_80: SrtpProfileId =
-        SrtpProfileId(ffi::SRTP_AES128_F8_SHA1_80 as _);
+    pub const SRTP_AES128_CM_SHA1_80: SrtpProfileId =
+        SrtpProfileId(ffi::SRTP_AES128_CM_SHA1_80 as _);
     pub const SRTP_AES128_F8_SHA1_32: SrtpProfileId =
         SrtpProfileId(ffi::SRTP_AES128_F8_SHA1_32 as _);
-    pub const SRTP_NULL_SHA1_80: SrtpProfileId = SrtpProfileId(ffi::SRTP_NULL_SHA1_80 as _);
+    pub const SRTP_AES128_F8_SHA1_80: SrtpProfileId =
+        SrtpProfileId(ffi::SRTP_AES128_F8_SHA1_80 as _);
     pub const SRTP_NULL_SHA1_32: SrtpProfileId = SrtpProfileId(ffi::SRTP_NULL_SHA1_32 as _);
+    pub const SRTP_NULL_SHA1_80: SrtpProfileId = SrtpProfileId(ffi::SRTP_NULL_SHA1_80 as _);
 
     /// Creates a `SrtpProfileId` from an integer representation.
     pub fn from_raw(value: c_ulong) -> SrtpProfileId {

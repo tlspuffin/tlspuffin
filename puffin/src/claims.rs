@@ -1,16 +1,15 @@
-use std::{
-    any::Any,
-    cell::{Ref, RefCell, RefMut},
-    fmt::Debug,
-    ops::Deref,
-    rc::Rc,
-    slice::Iter,
-};
+use std::any::Any;
+use std::cell::{Ref, RefCell, RefMut};
+use std::fmt::Debug;
+use std::ops::Deref;
+use std::rc::Rc;
+use std::slice::Iter;
 
 use itertools::Itertools;
-use log::{debug, trace};
 
-use crate::{agent::AgentName, algebra::dynamic_function::TypeShape, variable_data::VariableData};
+use crate::agent::AgentName;
+use crate::algebra::dynamic_function::TypeShape;
+use crate::variable_data::VariableData;
 
 pub trait Claim: VariableData + Debug {
     fn agent_name(&self) -> AgentName;
@@ -52,7 +51,7 @@ impl<C: Claim> ClaimList<C> {
 impl<C: Claim> ClaimList<C> {
     pub fn log(&self) {
         // TODO: skip logging completely during fuzzing -> more performance
-        debug!(
+        log::debug!(
             "New Claims: {}",
             &self
                 .claims
@@ -61,7 +60,7 @@ impl<C: Claim> ClaimList<C> {
                 .join(", ")
         );
         for claim in &self.claims {
-            trace!("{:?}", claim);
+            log::trace!("{:?}", claim);
         }
     }
 }

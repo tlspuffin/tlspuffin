@@ -5,28 +5,19 @@
 //! <https://www.iana.org/assignments/tls-extensiontype-values/tls-extensiontype-values.xhtml>
 //!
 //! In the source code all IDs are available, but implementations are missing.
-//!
 
 use puffin::algebra::error::FnError;
 use webpki::DnsNameRef;
 
-use crate::{
-    nyi_fn,
-    tls::{
-        fn_impl::fn_get_ticket_age_add,
-        fn_utils::fn_get_ticket,
-        key_exchange::deterministic_key_share,
-        rustls::{
-            msgs::{
-                base::{Payload, PayloadU16, PayloadU24, PayloadU8},
-                enums::*,
-                handshake::*,
-                message::Message,
-            },
-            x509,
-        },
-    },
-};
+use crate::nyi_fn;
+use crate::tls::fn_impl::fn_get_ticket_age_add;
+use crate::tls::fn_utils::fn_get_ticket;
+use crate::tls::key_exchange::deterministic_key_share;
+use crate::tls::rustls::msgs::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
+use crate::tls::rustls::msgs::enums::*;
+use crate::tls::rustls::msgs::handshake::*;
+use crate::tls::rustls::msgs::message::Message;
+use crate::tls::rustls::x509;
 
 pub fn fn_client_extensions_new() -> Result<Vec<ClientExtension>, FnError> {
     Ok(vec![])

@@ -3,13 +3,12 @@
 
 use puffin::algebra::error::FnError;
 
-use crate::{
-    claims::{
-        Transcript, TranscriptCertificate, TranscriptClientFinished, TranscriptServerFinished,
-        TranscriptServerHello,
-    },
-    tls::rustls::{hash_hs::HandshakeHash, tls13},
+use crate::claims::{
+    Transcript, TranscriptCertificate, TranscriptClientFinished, TranscriptServerFinished,
+    TranscriptServerHello,
 };
+use crate::tls::rustls::hash_hs::HandshakeHash;
+use crate::tls::rustls::tls13;
 
 pub fn fn_server_hello_transcript(claim: &TranscriptServerHello) -> Result<HandshakeHash, FnError> {
     _fn_transcript::<TranscriptServerHello>(claim)

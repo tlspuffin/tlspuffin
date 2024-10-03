@@ -1,9 +1,13 @@
 //! The *tls* module provides concrete implementations for the functions used in the term.
-//! The module offers a variety of [`DynamicFunction`](puffin::algebra::dynamic_function::DynamicFunction)s
-//! which can be used in the fuzzing.
+//!
+//! The module offers a variety of
+//! [`DynamicFunction`](puffin::algebra::dynamic_function::DynamicFunction)s which can be used in
+//! the fuzzing.
 
 use fn_impl::*;
-use puffin::{algebra::error::FnError, define_signature, error::Error};
+use puffin::algebra::error::FnError;
+use puffin::define_signature;
+use puffin::error::Error;
 
 mod key_exchange;
 mod key_schedule;
@@ -41,7 +45,6 @@ impl From<rustls::error::Error> for Error {
 }
 
 /// Function symbol which can be used for debugging
-///
 #[allow(dead_code)]
 fn fn_debug(
     message: &crate::tls::rustls::msgs::message::Message,

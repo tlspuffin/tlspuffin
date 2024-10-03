@@ -24,21 +24,20 @@
 //! use boring::asn1::Asn1Time;
 //! let tomorrow = Asn1Time::days_from_now(1);
 //! ```
-use std::{cmp::Ordering, ffi::CString, fmt, ptr, slice, str};
+use std::cmp::Ordering;
+use std::ffi::CString;
+use std::{fmt, ptr, slice, str};
 
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::{c_char, c_int, c_long, time_t};
 
-use crate::{
-    bio::MemBio,
-    bn::{BigNum, BigNumRef},
-    cvt, cvt_p,
-    error::ErrorStack,
-    ffi,
-    nid::Nid,
-    stack::Stackable,
-    string::OpensslString,
-};
+use crate::bio::MemBio;
+use crate::bn::{BigNum, BigNumRef};
+use crate::error::ErrorStack;
+use crate::nid::Nid;
+use crate::stack::Stackable;
+use crate::string::OpensslString;
+use crate::{cvt, cvt_p, ffi};
 
 foreign_type_and_impl_send_sync! {
     type CType = ffi::ASN1_GENERALIZEDTIME;
@@ -83,61 +82,34 @@ pub struct Asn1Type(c_int);
 
 #[allow(missing_docs)] // no need to document the constants
 impl Asn1Type {
-    pub const EOC: Asn1Type = Asn1Type(ffi::V_ASN1_EOC);
-
-    pub const BOOLEAN: Asn1Type = Asn1Type(ffi::V_ASN1_BOOLEAN);
-
-    pub const INTEGER: Asn1Type = Asn1Type(ffi::V_ASN1_INTEGER);
-
     pub const BIT_STRING: Asn1Type = Asn1Type(ffi::V_ASN1_BIT_STRING);
-
-    pub const OCTET_STRING: Asn1Type = Asn1Type(ffi::V_ASN1_OCTET_STRING);
-
-    pub const NULL: Asn1Type = Asn1Type(ffi::V_ASN1_NULL);
-
-    pub const OBJECT: Asn1Type = Asn1Type(ffi::V_ASN1_OBJECT);
-
-    pub const OBJECT_DESCRIPTOR: Asn1Type = Asn1Type(ffi::V_ASN1_OBJECT_DESCRIPTOR);
-
-    pub const EXTERNAL: Asn1Type = Asn1Type(ffi::V_ASN1_EXTERNAL);
-
-    pub const REAL: Asn1Type = Asn1Type(ffi::V_ASN1_REAL);
-
-    pub const ENUMERATED: Asn1Type = Asn1Type(ffi::V_ASN1_ENUMERATED);
-
-    pub const UTF8STRING: Asn1Type = Asn1Type(ffi::V_ASN1_UTF8STRING);
-
-    pub const SEQUENCE: Asn1Type = Asn1Type(ffi::V_ASN1_SEQUENCE);
-
-    pub const SET: Asn1Type = Asn1Type(ffi::V_ASN1_SET);
-
-    pub const NUMERICSTRING: Asn1Type = Asn1Type(ffi::V_ASN1_NUMERICSTRING);
-
-    pub const PRINTABLESTRING: Asn1Type = Asn1Type(ffi::V_ASN1_PRINTABLESTRING);
-
-    pub const T61STRING: Asn1Type = Asn1Type(ffi::V_ASN1_T61STRING);
-
-    pub const TELETEXSTRING: Asn1Type = Asn1Type(ffi::V_ASN1_TELETEXSTRING);
-
-    pub const VIDEOTEXSTRING: Asn1Type = Asn1Type(ffi::V_ASN1_VIDEOTEXSTRING);
-
-    pub const IA5STRING: Asn1Type = Asn1Type(ffi::V_ASN1_IA5STRING);
-
-    pub const UTCTIME: Asn1Type = Asn1Type(ffi::V_ASN1_UTCTIME);
-
-    pub const GENERALIZEDTIME: Asn1Type = Asn1Type(ffi::V_ASN1_GENERALIZEDTIME);
-
-    pub const GRAPHICSTRING: Asn1Type = Asn1Type(ffi::V_ASN1_GRAPHICSTRING);
-
-    pub const ISO64STRING: Asn1Type = Asn1Type(ffi::V_ASN1_ISO64STRING);
-
-    pub const VISIBLESTRING: Asn1Type = Asn1Type(ffi::V_ASN1_VISIBLESTRING);
-
-    pub const GENERALSTRING: Asn1Type = Asn1Type(ffi::V_ASN1_GENERALSTRING);
-
-    pub const UNIVERSALSTRING: Asn1Type = Asn1Type(ffi::V_ASN1_UNIVERSALSTRING);
-
     pub const BMPSTRING: Asn1Type = Asn1Type(ffi::V_ASN1_BMPSTRING);
+    pub const BOOLEAN: Asn1Type = Asn1Type(ffi::V_ASN1_BOOLEAN);
+    pub const ENUMERATED: Asn1Type = Asn1Type(ffi::V_ASN1_ENUMERATED);
+    pub const EOC: Asn1Type = Asn1Type(ffi::V_ASN1_EOC);
+    pub const EXTERNAL: Asn1Type = Asn1Type(ffi::V_ASN1_EXTERNAL);
+    pub const GENERALIZEDTIME: Asn1Type = Asn1Type(ffi::V_ASN1_GENERALIZEDTIME);
+    pub const GENERALSTRING: Asn1Type = Asn1Type(ffi::V_ASN1_GENERALSTRING);
+    pub const GRAPHICSTRING: Asn1Type = Asn1Type(ffi::V_ASN1_GRAPHICSTRING);
+    pub const IA5STRING: Asn1Type = Asn1Type(ffi::V_ASN1_IA5STRING);
+    pub const INTEGER: Asn1Type = Asn1Type(ffi::V_ASN1_INTEGER);
+    pub const ISO64STRING: Asn1Type = Asn1Type(ffi::V_ASN1_ISO64STRING);
+    pub const NULL: Asn1Type = Asn1Type(ffi::V_ASN1_NULL);
+    pub const NUMERICSTRING: Asn1Type = Asn1Type(ffi::V_ASN1_NUMERICSTRING);
+    pub const OBJECT: Asn1Type = Asn1Type(ffi::V_ASN1_OBJECT);
+    pub const OBJECT_DESCRIPTOR: Asn1Type = Asn1Type(ffi::V_ASN1_OBJECT_DESCRIPTOR);
+    pub const OCTET_STRING: Asn1Type = Asn1Type(ffi::V_ASN1_OCTET_STRING);
+    pub const PRINTABLESTRING: Asn1Type = Asn1Type(ffi::V_ASN1_PRINTABLESTRING);
+    pub const REAL: Asn1Type = Asn1Type(ffi::V_ASN1_REAL);
+    pub const SEQUENCE: Asn1Type = Asn1Type(ffi::V_ASN1_SEQUENCE);
+    pub const SET: Asn1Type = Asn1Type(ffi::V_ASN1_SET);
+    pub const T61STRING: Asn1Type = Asn1Type(ffi::V_ASN1_T61STRING);
+    pub const TELETEXSTRING: Asn1Type = Asn1Type(ffi::V_ASN1_TELETEXSTRING);
+    pub const UNIVERSALSTRING: Asn1Type = Asn1Type(ffi::V_ASN1_UNIVERSALSTRING);
+    pub const UTCTIME: Asn1Type = Asn1Type(ffi::V_ASN1_UTCTIME);
+    pub const UTF8STRING: Asn1Type = Asn1Type(ffi::V_ASN1_UTF8STRING);
+    pub const VIDEOTEXSTRING: Asn1Type = Asn1Type(ffi::V_ASN1_VIDEOTEXSTRING);
+    pub const VISIBLESTRING: Asn1Type = Asn1Type(ffi::V_ASN1_VISIBLESTRING);
 
     /// Constructs an `Asn1Type` from a raw OpenSSL value.
     pub fn from_raw(value: c_int) -> Self {
@@ -612,10 +584,11 @@ use crate::ffi::ASN1_STRING_get0_data;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{bn::BigNum, nid::Nid};
+    use crate::bn::BigNum;
+    use crate::nid::Nid;
 
     /// Tests conversion between BigNum and Asn1Integer.
-    #[test]
+    #[test_log::test]
     fn bn_cvt() {
         fn roundtrip(bn: BigNum) {
             let large = Asn1Integer::from_bn(&bn).unwrap();
@@ -628,18 +601,18 @@ mod tests {
         roundtrip(-BigNum::from_u32(1234).unwrap());
     }
 
-    #[test]
+    #[test_log::test]
     fn time_from_str() {
         Asn1Time::from_str("99991231235959Z").unwrap();
     }
 
-    #[test]
+    #[test_log::test]
     fn time_from_unix() {
         let t = Asn1Time::from_unix(0).unwrap();
         assert_eq!("Jan  1 00:00:00 1970 GMT", t.to_string());
     }
 
-    #[test]
+    #[test_log::test]
     fn time_eq() {
         let a = Asn1Time::from_str("99991231235959Z").unwrap();
         let b = Asn1Time::from_str("99991231235959Z").unwrap();
@@ -657,7 +630,7 @@ mod tests {
         assert!(a_ref != c_ref);
     }
 
-    #[test]
+    #[test_log::test]
     fn time_ord() {
         let a = Asn1Time::from_str("99991231235959Z").unwrap();
         let b = Asn1Time::from_str("99991231235959Z").unwrap();
@@ -686,13 +659,13 @@ mod tests {
         assert!(c_ref < a_ref);
     }
 
-    #[test]
+    #[test_log::test]
     fn object_from_str() {
         let object = Asn1Object::from_str("2.16.840.1.101.3.4.2.1").unwrap();
         assert_eq!(object.nid(), Nid::SHA256);
     }
 
-    #[test]
+    #[test_log::test]
     fn object_from_str_with_invalid_input() {
         Asn1Object::from_str("NOT AN OID")
             .map(|object| object.to_string())

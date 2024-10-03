@@ -1,4 +1,5 @@
-use std::{env, path::PathBuf};
+use std::env;
+use std::path::PathBuf;
 
 use boringssl_src::{build, BoringSSLOptions, GitRef};
 

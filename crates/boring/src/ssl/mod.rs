@@ -8,9 +8,10 @@
 //! To connect as a client to a remote server:
 //!
 //! ```no_run
-//! use boring::ssl::{SslMethod, SslConnector};
 //! use std::io::{Read, Write};
 //! use std::net::TcpStream;
+//!
+//! use boring::ssl::{SslConnector, SslMethod};
 //!
 //! let connector = SslConnector::builder(SslMethod::tls()).unwrap().build();
 //!
@@ -26,14 +27,16 @@
 //! To accept connections as a server from remote clients:
 //!
 //! ```no_run
-//! use boring::ssl::{SslMethod, SslAcceptor, SslStream, SslFiletype};
 //! use std::net::{TcpListener, TcpStream};
 //! use std::sync::Arc;
 //! use std::thread;
 //!
+//! use boring::ssl::{SslAcceptor, SslFiletype, SslMethod, SslStream};
 //!
 //! let mut acceptor = SslAcceptor::mozilla_intermediate(SslMethod::tls()).unwrap();
-//! acceptor.set_private_key_file("key.pem", SslFiletype::PEM).unwrap();
+//! acceptor
+//!     .set_private_key_file("key.pem", SslFiletype::PEM)
+//!     .unwrap();
 //! acceptor.set_certificate_chain_file("certs.pem").unwrap();
 //! acceptor.check_private_key().unwrap();
 //! let acceptor = Arc::new(acceptor.build());
@@ -57,52 +60,44 @@
 //!     }
 //! }
 //! ```
-use std::{
-    any::TypeId,
-    cmp,
-    collections::HashMap,
-    convert::TryInto,
-    ffi::{CStr, CString},
-    fmt, io,
-    io::prelude::*,
-    marker::PhantomData,
-    mem::{self, ManuallyDrop},
-    ops::{Deref, DerefMut},
-    panic::resume_unwind,
-    path::Path,
-    ptr::{self, NonNull},
-    slice, str,
-    sync::{Arc, Mutex},
-};
+use std::any::TypeId;
+use std::collections::HashMap;
+use std::ffi::{CStr, CString};
+use std::io::prelude::*;
+use std::marker::PhantomData;
+use std::mem::{self, ManuallyDrop};
+use std::ops::{Deref, DerefMut};
+use std::panic::resume_unwind;
+use std::path::Path;
+use std::ptr::{self, NonNull};
+use std::sync::{Arc, Mutex};
+use std::{cmp, fmt, io, slice, str};
 
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
 use libc::{c_char, c_int, c_long, c_uchar, c_uint, c_void};
 use once_cell::sync::Lazy;
 
-pub use crate::ssl::{
-    connector::{
-        ConnectConfiguration, SslAcceptor, SslAcceptorBuilder, SslConnector, SslConnectorBuilder,
-    },
-    error::{Error, ErrorCode, HandshakeError},
+use crate::dh::DhRef;
+use crate::ec::EcKeyRef;
+use crate::error::ErrorStack;
+use crate::ex_data::Index;
+use crate::nid::Nid;
+use crate::pkey::{HasPrivate, PKeyRef, Params, Private};
+use crate::srtp::{SrtpProtectionProfile, SrtpProtectionProfileRef};
+use crate::ssl::bio::BioMethod;
+use crate::ssl::callbacks::*;
+pub use crate::ssl::connector::{
+    ConnectConfiguration, SslAcceptor, SslAcceptorBuilder, SslConnector, SslConnectorBuilder,
 };
-use crate::{
-    cvt, cvt_0i, cvt_n, cvt_p,
-    dh::DhRef,
-    ec::EcKeyRef,
-    error::ErrorStack,
-    ex_data::Index,
-    ffi, init,
-    nid::Nid,
-    pkey::{HasPrivate, PKeyRef, Params, Private},
-    srtp::{SrtpProtectionProfile, SrtpProtectionProfileRef},
-    ssl::{bio::BioMethod, callbacks::*, error::InnerError},
-    stack::{Stack, StackRef},
-    x509::{
-        store::{X509Store, X509StoreBuilderRef, X509StoreRef},
-        verify::X509VerifyParamRef,
-        X509Name, X509Ref, X509StoreContextRef, X509VerifyError, X509VerifyResult, X509,
-    },
+use crate::ssl::error::InnerError;
+pub use crate::ssl::error::{Error, ErrorCode, HandshakeError};
+use crate::stack::{Stack, StackRef};
+use crate::x509::store::{X509Store, X509StoreBuilderRef, X509StoreRef};
+use crate::x509::verify::X509VerifyParamRef;
+use crate::x509::{
+    X509Name, X509Ref, X509StoreContextRef, X509VerifyError, X509VerifyResult, X509,
 };
+use crate::{cvt, cvt_0i, cvt_n, cvt_p, ffi, init};
 
 mod bio;
 mod callbacks;
@@ -360,15 +355,14 @@ bitflags! {
 pub struct SslFiletype(c_int);
 
 impl SslFiletype {
-    /// The PEM format.
-    ///
-    /// This corresponds to `SSL_FILETYPE_PEM`.
-    pub const PEM: SslFiletype = SslFiletype(ffi::SSL_FILETYPE_PEM);
-
     /// The ASN1 format.
     ///
     /// This corresponds to `SSL_FILETYPE_ASN1`.
     pub const ASN1: SslFiletype = SslFiletype(ffi::SSL_FILETYPE_ASN1);
+    /// The PEM format.
+    ///
+    /// This corresponds to `SSL_FILETYPE_PEM`.
+    pub const PEM: SslFiletype = SslFiletype(ffi::SSL_FILETYPE_PEM);
 
     /// Constructs an `SslFiletype` from a raw OpenSSL value.
     pub fn from_raw(raw: c_int) -> SslFiletype {
@@ -449,10 +443,8 @@ pub struct SniError(c_int);
 impl SniError {
     /// Abort the handshake with a fatal alert.
     pub const ALERT_FATAL: SniError = SniError(ffi::SSL_TLSEXT_ERR_ALERT_FATAL);
-
     /// Send a warning alert to the client and continue the handshake.
     pub const ALERT_WARNING: SniError = SniError(ffi::SSL_TLSEXT_ERR_ALERT_WARNING);
-
     pub const NOACK: SniError = SniError(ffi::SSL_TLSEXT_ERR_NOACK);
 }
 
@@ -461,10 +453,10 @@ impl SniError {
 pub struct SslAlert(c_int);
 
 impl SslAlert {
+    pub const DECODE_ERROR: SslAlert = SslAlert(ffi::SSL_AD_DECODE_ERROR);
+    pub const ILLEGAL_PARAMETER: SslAlert = SslAlert(ffi::SSL_AD_ILLEGAL_PARAMETER);
     /// Alert 112 - `unrecognized_name`.
     pub const UNRECOGNIZED_NAME: SslAlert = SslAlert(ffi::SSL_AD_UNRECOGNIZED_NAME);
-    pub const ILLEGAL_PARAMETER: SslAlert = SslAlert(ffi::SSL_AD_ILLEGAL_PARAMETER);
-    pub const DECODE_ERROR: SslAlert = SslAlert(ffi::SSL_AD_DECODE_ERROR);
 }
 
 /// An error returned from an ALPN selection callback.
@@ -474,7 +466,6 @@ pub struct AlpnError(c_int);
 impl AlpnError {
     /// Terminate the handshake with a fatal alert.
     pub const ALERT_FATAL: AlpnError = AlpnError(ffi::SSL_TLSEXT_ERR_ALERT_FATAL);
-
     /// Do not select a protocol, but continue the handshake.
     pub const NOACK: AlpnError = AlpnError(ffi::SSL_TLSEXT_ERR_NOACK);
 }
@@ -486,7 +477,6 @@ pub struct SelectCertError(ffi::ssl_select_cert_result_t);
 impl SelectCertError {
     /// A fatal error occured and the handshake should be terminated.
     pub const ERROR: Self = Self(ffi::ssl_select_cert_result_t::ssl_select_cert_error);
-
     /// The operation could not be completed and should be retried later.
     pub const RETRY: Self = Self(ffi::ssl_select_cert_result_t::ssl_select_cert_retry);
 }
@@ -496,38 +486,38 @@ impl SelectCertError {
 pub struct ExtensionType(u16);
 
 impl ExtensionType {
-    pub const SERVER_NAME: Self = Self(ffi::TLSEXT_TYPE_server_name as u16);
-    pub const STATUS_REQUEST: Self = Self(ffi::TLSEXT_TYPE_status_request as u16);
-    pub const EC_POINT_FORMATS: Self = Self(ffi::TLSEXT_TYPE_ec_point_formats as u16);
-    pub const SIGNATURE_ALGORITHMS: Self = Self(ffi::TLSEXT_TYPE_signature_algorithms as u16);
-    pub const SRTP: Self = Self(ffi::TLSEXT_TYPE_srtp as u16);
     pub const APPLICATION_LAYER_PROTOCOL_NEGOTIATION: Self =
         Self(ffi::TLSEXT_TYPE_application_layer_protocol_negotiation as u16);
-    pub const PADDING: Self = Self(ffi::TLSEXT_TYPE_padding as u16);
+    pub const APPLICATION_SETTINGS: Self = Self(ffi::TLSEXT_TYPE_application_settings as u16);
+    pub const CERTIFICATE_AUTHORITIES: Self = Self(ffi::TLSEXT_TYPE_certificate_authorities as u16);
+    pub const CERTIFICATE_TIMESTAMP: Self = Self(ffi::TLSEXT_TYPE_certificate_timestamp as u16);
+    pub const CERT_COMPRESSION: Self = Self(ffi::TLSEXT_TYPE_cert_compression as u16);
+    pub const CHANNEL_ID: Self = Self(ffi::TLSEXT_TYPE_channel_id as u16);
+    pub const COOKIE: Self = Self(ffi::TLSEXT_TYPE_cookie as u16);
+    pub const DELEGATED_CREDENTIAL: Self = Self(ffi::TLSEXT_TYPE_delegated_credential as u16);
+    pub const EARLY_DATA: Self = Self(ffi::TLSEXT_TYPE_early_data as u16);
+    pub const EC_POINT_FORMATS: Self = Self(ffi::TLSEXT_TYPE_ec_point_formats as u16);
+    pub const ENCRYPTED_CLIENT_HELLO: Self = Self(ffi::TLSEXT_TYPE_encrypted_client_hello as u16);
     pub const EXTENDED_MASTER_SECRET: Self = Self(ffi::TLSEXT_TYPE_extended_master_secret as u16);
+    pub const KEY_SHARE: Self = Self(ffi::TLSEXT_TYPE_key_share as u16);
+    pub const NEXT_PROTO_NEG: Self = Self(ffi::TLSEXT_TYPE_next_proto_neg as u16);
+    pub const PADDING: Self = Self(ffi::TLSEXT_TYPE_padding as u16);
+    pub const PRE_SHARED_KEY: Self = Self(ffi::TLSEXT_TYPE_pre_shared_key as u16);
+    pub const PSK_KEY_EXCHANGE_MODES: Self = Self(ffi::TLSEXT_TYPE_psk_key_exchange_modes as u16);
     pub const QUIC_TRANSPORT_PARAMETERS_LEGACY: Self =
         Self(ffi::TLSEXT_TYPE_quic_transport_parameters_legacy as u16);
     pub const QUIC_TRANSPORT_PARAMETERS_STANDARD: Self =
         Self(ffi::TLSEXT_TYPE_quic_transport_parameters_standard as u16);
-    pub const CERT_COMPRESSION: Self = Self(ffi::TLSEXT_TYPE_cert_compression as u16);
+    pub const RENEGOTIATE: Self = Self(ffi::TLSEXT_TYPE_renegotiate as u16);
+    pub const SERVER_NAME: Self = Self(ffi::TLSEXT_TYPE_server_name as u16);
     pub const SESSION_TICKET: Self = Self(ffi::TLSEXT_TYPE_session_ticket as u16);
-    pub const SUPPORTED_GROUPS: Self = Self(ffi::TLSEXT_TYPE_supported_groups as u16);
-    pub const PRE_SHARED_KEY: Self = Self(ffi::TLSEXT_TYPE_pre_shared_key as u16);
-    pub const EARLY_DATA: Self = Self(ffi::TLSEXT_TYPE_early_data as u16);
-    pub const SUPPORTED_VERSIONS: Self = Self(ffi::TLSEXT_TYPE_supported_versions as u16);
-    pub const COOKIE: Self = Self(ffi::TLSEXT_TYPE_cookie as u16);
-    pub const PSK_KEY_EXCHANGE_MODES: Self = Self(ffi::TLSEXT_TYPE_psk_key_exchange_modes as u16);
-    pub const CERTIFICATE_AUTHORITIES: Self = Self(ffi::TLSEXT_TYPE_certificate_authorities as u16);
+    pub const SIGNATURE_ALGORITHMS: Self = Self(ffi::TLSEXT_TYPE_signature_algorithms as u16);
     pub const SIGNATURE_ALGORITHMS_CERT: Self =
         Self(ffi::TLSEXT_TYPE_signature_algorithms_cert as u16);
-    pub const KEY_SHARE: Self = Self(ffi::TLSEXT_TYPE_key_share as u16);
-    pub const RENEGOTIATE: Self = Self(ffi::TLSEXT_TYPE_renegotiate as u16);
-    pub const DELEGATED_CREDENTIAL: Self = Self(ffi::TLSEXT_TYPE_delegated_credential as u16);
-    pub const APPLICATION_SETTINGS: Self = Self(ffi::TLSEXT_TYPE_application_settings as u16);
-    pub const ENCRYPTED_CLIENT_HELLO: Self = Self(ffi::TLSEXT_TYPE_encrypted_client_hello as u16);
-    pub const CERTIFICATE_TIMESTAMP: Self = Self(ffi::TLSEXT_TYPE_certificate_timestamp as u16);
-    pub const NEXT_PROTO_NEG: Self = Self(ffi::TLSEXT_TYPE_next_proto_neg as u16);
-    pub const CHANNEL_ID: Self = Self(ffi::TLSEXT_TYPE_channel_id as u16);
+    pub const SRTP: Self = Self(ffi::TLSEXT_TYPE_srtp as u16);
+    pub const STATUS_REQUEST: Self = Self(ffi::TLSEXT_TYPE_status_request as u16);
+    pub const SUPPORTED_GROUPS: Self = Self(ffi::TLSEXT_TYPE_supported_groups as u16);
+    pub const SUPPORTED_VERSIONS: Self = Self(ffi::TLSEXT_TYPE_supported_versions as u16);
 }
 
 impl From<u16> for ExtensionType {
@@ -543,16 +533,12 @@ pub struct SslVersion(u16);
 impl SslVersion {
     /// SSLv3
     pub const SSL3: SslVersion = SslVersion(ffi::SSL3_VERSION as _);
-
     /// TLSv1.0
     pub const TLS1: SslVersion = SslVersion(ffi::TLS1_VERSION as _);
-
     /// TLSv1.1
     pub const TLS1_1: SslVersion = SslVersion(ffi::TLS1_1_VERSION as _);
-
     /// TLSv1.2
     pub const TLS1_2: SslVersion = SslVersion(ffi::TLS1_2_VERSION as _);
-
     /// TLSv1.3
     pub const TLS1_3: SslVersion = SslVersion(ffi::TLS1_3_VERSION as _);
 }
@@ -589,43 +575,31 @@ impl fmt::Display for SslVersion {
 pub struct SslSignatureAlgorithm(u16);
 
 impl SslSignatureAlgorithm {
-    pub const RSA_PKCS1_SHA1: SslSignatureAlgorithm =
-        SslSignatureAlgorithm(ffi::SSL_SIGN_RSA_PKCS1_SHA1 as _);
-
-    pub const RSA_PKCS1_SHA256: SslSignatureAlgorithm =
-        SslSignatureAlgorithm(ffi::SSL_SIGN_RSA_PKCS1_SHA256 as _);
-
-    pub const RSA_PKCS1_SHA384: SslSignatureAlgorithm =
-        SslSignatureAlgorithm(ffi::SSL_SIGN_RSA_PKCS1_SHA384 as _);
-
-    pub const RSA_PKCS1_SHA512: SslSignatureAlgorithm =
-        SslSignatureAlgorithm(ffi::SSL_SIGN_RSA_PKCS1_SHA512 as _);
-
-    pub const RSA_PKCS1_MD5_SHA1: SslSignatureAlgorithm =
-        SslSignatureAlgorithm(ffi::SSL_SIGN_RSA_PKCS1_MD5_SHA1 as _);
-
-    pub const ECDSA_SHA1: SslSignatureAlgorithm =
-        SslSignatureAlgorithm(ffi::SSL_SIGN_ECDSA_SHA1 as _);
-
     pub const ECDSA_SECP256R1_SHA256: SslSignatureAlgorithm =
         SslSignatureAlgorithm(ffi::SSL_SIGN_ECDSA_SECP256R1_SHA256 as _);
-
     pub const ECDSA_SECP384R1_SHA384: SslSignatureAlgorithm =
         SslSignatureAlgorithm(ffi::SSL_SIGN_ECDSA_SECP384R1_SHA384 as _);
-
     pub const ECDSA_SECP521R1_SHA512: SslSignatureAlgorithm =
         SslSignatureAlgorithm(ffi::SSL_SIGN_ECDSA_SECP521R1_SHA512 as _);
-
+    pub const ECDSA_SHA1: SslSignatureAlgorithm =
+        SslSignatureAlgorithm(ffi::SSL_SIGN_ECDSA_SHA1 as _);
+    pub const ED25519: SslSignatureAlgorithm = SslSignatureAlgorithm(ffi::SSL_SIGN_ED25519 as _);
+    pub const RSA_PKCS1_MD5_SHA1: SslSignatureAlgorithm =
+        SslSignatureAlgorithm(ffi::SSL_SIGN_RSA_PKCS1_MD5_SHA1 as _);
+    pub const RSA_PKCS1_SHA1: SslSignatureAlgorithm =
+        SslSignatureAlgorithm(ffi::SSL_SIGN_RSA_PKCS1_SHA1 as _);
+    pub const RSA_PKCS1_SHA256: SslSignatureAlgorithm =
+        SslSignatureAlgorithm(ffi::SSL_SIGN_RSA_PKCS1_SHA256 as _);
+    pub const RSA_PKCS1_SHA384: SslSignatureAlgorithm =
+        SslSignatureAlgorithm(ffi::SSL_SIGN_RSA_PKCS1_SHA384 as _);
+    pub const RSA_PKCS1_SHA512: SslSignatureAlgorithm =
+        SslSignatureAlgorithm(ffi::SSL_SIGN_RSA_PKCS1_SHA512 as _);
     pub const RSA_PSS_RSAE_SHA256: SslSignatureAlgorithm =
         SslSignatureAlgorithm(ffi::SSL_SIGN_RSA_PSS_RSAE_SHA256 as _);
-
     pub const RSA_PSS_RSAE_SHA384: SslSignatureAlgorithm =
         SslSignatureAlgorithm(ffi::SSL_SIGN_RSA_PSS_RSAE_SHA384 as _);
-
     pub const RSA_PSS_RSAE_SHA512: SslSignatureAlgorithm =
         SslSignatureAlgorithm(ffi::SSL_SIGN_RSA_PSS_RSAE_SHA512 as _);
-
-    pub const ED25519: SslSignatureAlgorithm = SslSignatureAlgorithm(ffi::SSL_SIGN_ED25519 as _);
 }
 
 /// A TLS Curve.
@@ -636,27 +610,19 @@ pub struct SslCurve(c_int);
 
 #[cfg(not(feature = "kx-safe-default"))]
 impl SslCurve {
-    pub const SECP224R1: SslCurve = SslCurve(ffi::NID_secp224r1);
-
-    pub const SECP256R1: SslCurve = SslCurve(ffi::NID_X9_62_prime256v1);
-
-    pub const SECP384R1: SslCurve = SslCurve(ffi::NID_secp384r1);
-
-    pub const SECP521R1: SslCurve = SslCurve(ffi::NID_secp521r1);
-
-    pub const X25519: SslCurve = SslCurve(ffi::NID_X25519);
-
-    #[cfg(not(any(feature = "fips", feature = "fips-link-precompiled")))]
-    pub const X25519_KYBER768_DRAFT00: SslCurve = SslCurve(ffi::NID_X25519Kyber768Draft00);
-
-    #[cfg(feature = "pq-experimental")]
-    pub const X25519_KYBER768_DRAFT00_OLD: SslCurve = SslCurve(ffi::NID_X25519Kyber768Draft00Old);
-
-    #[cfg(feature = "pq-experimental")]
-    pub const X25519_KYBER512_DRAFT00: SslCurve = SslCurve(ffi::NID_X25519Kyber512Draft00);
-
     #[cfg(feature = "pq-experimental")]
     pub const P256_KYBER768_DRAFT00: SslCurve = SslCurve(ffi::NID_P256Kyber768Draft00);
+    pub const SECP224R1: SslCurve = SslCurve(ffi::NID_secp224r1);
+    pub const SECP256R1: SslCurve = SslCurve(ffi::NID_X9_62_prime256v1);
+    pub const SECP384R1: SslCurve = SslCurve(ffi::NID_secp384r1);
+    pub const SECP521R1: SslCurve = SslCurve(ffi::NID_secp521r1);
+    pub const X25519: SslCurve = SslCurve(ffi::NID_X25519);
+    #[cfg(feature = "pq-experimental")]
+    pub const X25519_KYBER512_DRAFT00: SslCurve = SslCurve(ffi::NID_X25519Kyber512Draft00);
+    #[cfg(not(any(feature = "fips", feature = "fips-link-precompiled")))]
+    pub const X25519_KYBER768_DRAFT00: SslCurve = SslCurve(ffi::NID_X25519Kyber768Draft00);
+    #[cfg(feature = "pq-experimental")]
+    pub const X25519_KYBER768_DRAFT00_OLD: SslCurve = SslCurve(ffi::NID_X25519Kyber768Draft00Old);
 }
 
 /// A standard implementation of protocol selection for Application Layer Protocol Negotiation
@@ -1381,9 +1347,9 @@ impl SslContextBuilder {
         }
     }
 
-    /// Sets a callback that is called before most ClientHello processing and before the decision whether
-    /// to resume a session is made. The callback may inspect the ClientHello and configure the
-    /// connection.
+    /// Sets a callback that is called before most ClientHello processing and before the decision
+    /// whether to resume a session is made. The callback may inspect the ClientHello and
+    /// configure the connection.
     ///
     /// This corresponds to [`SSL_CTX_set_select_certificate_cb`].
     ///
@@ -1920,14 +1886,15 @@ impl SslContextRef {
 
     /// Adds a session to the context's cache.
     ///
-    /// Returns `true` if the session was successfully added to the cache, and `false` if it was already present.
+    /// Returns `true` if the session was successfully added to the cache, and `false` if it was
+    /// already present.
     ///
     /// This corresponds to [`SSL_CTX_add_session`].
     ///
     /// # Safety
     ///
-    /// The caller of this method is responsible for ensuring that the session has never been used with another
-    /// `SslContext` than this one.
+    /// The caller of this method is responsible for ensuring that the session has never been used
+    /// with another `SslContext` than this one.
     ///
     /// [`SSL_CTX_add_session`]: https://www.openssl.org/docs/man1.1.1/man3/SSL_CTX_remove_session.html
     pub unsafe fn add_session(&self, session: &SslSessionRef) -> bool {
@@ -1942,8 +1909,8 @@ impl SslContextRef {
     ///
     /// # Safety
     ///
-    /// The caller of this method is responsible for ensuring that the session has never been used with another
-    /// `SslContext` than this one.
+    /// The caller of this method is responsible for ensuring that the session has never been used
+    /// with another `SslContext` than this one.
     ///
     /// [`SSL_CTX_remove_session`]: https://www.openssl.org/docs/man1.1.1/man3/SSL_CTX_remove_session.html
     pub unsafe fn remove_session(&self, session: &SslSessionRef) -> bool {
@@ -2222,6 +2189,16 @@ impl ToOwned for SslSessionRef {
 }
 
 impl SslSessionRef {
+    to_der! {
+        /// Serializes the session into a DER-encoded structure.
+        ///
+        /// This corresponds to [`i2d_SSL_SESSION`].
+        ///
+        /// [`i2d_SSL_SESSION`]: https://www.openssl.org/docs/man1.0.2/ssl/i2d_SSL_SESSION.html
+        to_der,
+        ffi::i2d_SSL_SESSION
+    }
+
     /// Returns the SSL session ID.
     ///
     /// This corresponds to [`SSL_SESSION_get_id`].
@@ -2287,16 +2264,6 @@ impl SslSessionRef {
             let version = ffi::SSL_SESSION_get_protocol_version(self.as_ptr());
             SslVersion(version)
         }
-    }
-
-    to_der! {
-        /// Serializes the session into a DER-encoded structure.
-        ///
-        /// This corresponds to [`i2d_SSL_SESSION`].
-        ///
-        /// [`i2d_SSL_SESSION`]: https://www.openssl.org/docs/man1.0.2/ssl/i2d_SSL_SESSION.html
-        to_der,
-        ffi::i2d_SSL_SESSION
     }
 }
 
@@ -3938,7 +3905,6 @@ pub struct PrivateKeyMethodError(ffi::ssl_private_key_result_t);
 impl PrivateKeyMethodError {
     /// A fatal error occured and the handshake should be terminated.
     pub const FAILURE: Self = Self(ffi::ssl_private_key_result_t::ssl_private_key_failure);
-
     /// The operation could not be completed and should be retried later.
     pub const RETRY: Self = Self(ffi::ssl_private_key_result_t::ssl_private_key_retry);
 }

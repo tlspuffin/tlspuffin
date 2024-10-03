@@ -2,11 +2,11 @@ use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 use util::{Choosable, *};
 
-use crate::{
-    algebra::{atoms::Function, signature::Signature, Matcher, Subterms, Term},
-    fuzzer::term_zoo::TermZoo,
-    trace::Trace,
-};
+use crate::algebra::atoms::Function;
+use crate::algebra::signature::Signature;
+use crate::algebra::{Matcher, Subterms, Term};
+use crate::fuzzer::term_zoo::TermZoo;
+use crate::trace::Trace;
 
 pub fn trace_mutations<S, M: Matcher>(
     min_trace_length: usize,
@@ -32,7 +32,9 @@ where
         ReplaceReuseMutator::new(constraints),
         ReplaceMatchMutator::new(constraints, signature),
         RemoveAndLiftMutator::new(constraints),
-        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), // Refresh zoo after 100000M mutations
+        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature), /* Refresh zoo
+                                                                                 * after 100000M
+                                                                                 * mutations */
         SwapMutator::new(constraints)
     )
 }
@@ -183,12 +185,9 @@ where
 }
 
 /// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
-
-/// An example would be to replace a constant with another constant or the binary function
-
-/// fn_add with fn_sub.
-
-/// It can also replace any variable with a constant.
+///
+/// An example would be to replace a constant with another constant or the binary function fn_add
+/// with fn_sub. It can also replace any variable with a constant.
 pub struct ReplaceMatchMutator<S>
 where
     S: HasRand,
@@ -272,7 +271,8 @@ where
 
 /// REPLACE-REUSE: Replaces a sub-term with a different sub-term which is part of the trace
 
-/// (such that types match). The new sub-term could come from another step which has a different recipe term.
+/// (such that types match). The new sub-term could come from another step which has a different
+/// recipe term.
 pub struct ReplaceReuseMutator<S>
 where
     S: HasRand,
@@ -514,10 +514,8 @@ where
 pub mod util {
     use libafl_bolts::rands::Rand;
 
-    use crate::{
-        algebra::{Matcher, Term},
-        trace::{Action, Step, Trace},
-    };
+    use crate::algebra::{Matcher, Term};
+    use crate::trace::{Action, Step, Trace};
 
     #[derive(Copy, Clone, Debug)]
     pub struct TermConstraints {
@@ -764,23 +762,17 @@ pub mod util {
 mod tests {
     use std::collections::{HashMap, HashSet};
 
-    use libafl::{
-        corpus::InMemoryCorpus,
-        mutators::{MutationResult, Mutator},
-        state::StdState,
-    };
+    use libafl::corpus::InMemoryCorpus;
+    use libafl::mutators::{MutationResult, Mutator};
+    use libafl::state::StdState;
     use libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 
     use super::*;
-    use crate::{
-        agent::AgentName,
-        algebra::{
-            dynamic_function::DescribableFunction,
-            test_signature::{TestTrace, *},
-            AnyMatcher, Term,
-        },
-        trace::{Action, Step},
-    };
+    use crate::agent::AgentName;
+    use crate::algebra::dynamic_function::DescribableFunction;
+    use crate::algebra::test_signature::{TestTrace, *};
+    use crate::algebra::{AnyMatcher, Term};
+    use crate::trace::{Action, Step};
 
     fn create_state(
     ) -> StdState<TestTrace, InMemoryCorpus<TestTrace>, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
@@ -791,7 +783,7 @@ mod tests {
     }
 
     /// Checks whether repeat can repeat the last step
-    #[test]
+    #[test_log::test]
     fn test_repeat_mutator() {
         let mut state = create_state();
 
@@ -823,7 +815,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_replace_match_mutator() {
         let _server = AgentName::first();
         let mut state = create_state();
@@ -851,7 +843,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_remove_lift_mutator() {
         // Should remove an extension
         let mut state = create_state();
@@ -878,7 +870,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_replace_reuse_mutator() {
         let mut state = create_state();
         let _server = AgentName::first();
@@ -907,7 +899,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_skip_mutator() {
         let mut state = create_state();
         let _server = AgentName::first();
@@ -924,7 +916,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_swap_mutator() {
         let mut state = create_state();
         let mut mutator = SwapMutator::new(TermConstraints::default());
@@ -963,7 +955,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_find_term() {
         let mut rand = StdRand::with_seed(45);
         let mut trace = setup_simple_trace();
@@ -980,7 +972,7 @@ mod tests {
         assert_eq!(term_size, stats.len());
     }
 
-    #[test]
+    #[test_log::test]
     fn test_reservoir_sample_randomness() {
         /// https://rust-lang-nursery.github.io/rust-cookbook/science/mathematics/statistics.html#standard-deviation
         fn std_deviation(data: &[u32]) -> Option<f32> {

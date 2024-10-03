@@ -1,19 +1,15 @@
-use std::{
-    io::{Read, Write},
-    net::IpAddr,
-    ops::{Deref, DerefMut},
-};
+use std::io::{Read, Write};
+use std::net::IpAddr;
+use std::ops::{Deref, DerefMut};
 
 use super::MidHandshakeSslStream;
-use crate::{
-    dh::Dh,
-    error::ErrorStack,
-    ssl::{
-        HandshakeError, Ssl, SslContext, SslContextBuilder, SslContextRef, SslMethod, SslMode,
-        SslOptions, SslRef, SslStream, SslVerifyMode,
-    },
-    version,
+use crate::dh::Dh;
+use crate::error::ErrorStack;
+use crate::ssl::{
+    HandshakeError, Ssl, SslContext, SslContextBuilder, SslContextRef, SslMethod, SslMode,
+    SslOptions, SslRef, SslStream, SslVerifyMode,
 };
+use crate::version;
 
 const FFDHE_2048: &str = "
 -----BEGIN DH PARAMETERS-----
@@ -117,7 +113,8 @@ impl SslConnector {
 
     /// Attempts a client-side TLS session on a stream.
     ///
-    /// The domain is used for SNI (if it is not an IP address) and hostname verification if enabled.
+    /// The domain is used for SNI (if it is not an IP address) and hostname verification if
+    /// enabled.
     ///
     /// This is a convenience method which combines [`Self::setup_connect`] and
     /// [`MidHandshakeSslStream::handshake`].
@@ -216,7 +213,8 @@ impl ConnectConfiguration {
 
     /// Returns an [`Ssl`] configured to connect to the provided domain.
     ///
-    /// The domain is used for SNI (if it is not an IP address) and hostname verification if enabled.
+    /// The domain is used for SNI (if it is not an IP address) and hostname verification if
+    /// enabled.
     pub fn into_ssl(mut self, domain: &str) -> Result<Ssl, ErrorStack> {
         if self.sni && domain.parse::<IpAddr>().is_err() {
             self.ssl.set_hostname(domain)?;
@@ -237,7 +235,8 @@ impl ConnectConfiguration {
 
     /// Initiates a client-side TLS session on a stream.
     ///
-    /// The domain is used for SNI (if it is not an IP address) and hostname verification if enabled.
+    /// The domain is used for SNI (if it is not an IP address) and hostname verification if
+    /// enabled.
     ///
     /// This is a convenience method which combines [`Self::into_ssl`] and
     /// [`Ssl::setup_connect`].
@@ -254,7 +253,8 @@ impl ConnectConfiguration {
 
     /// Attempts a client-side TLS session on a stream.
     ///
-    /// The domain is used for SNI (if it is not an IP address) and hostname verification if enabled.
+    /// The domain is used for SNI (if it is not an IP address) and hostname verification if
+    /// enabled.
     ///
     /// This is a convenience method which combines [`Self::setup_connect`] and
     /// [`MidHandshakeSslStream::handshake`].
@@ -354,8 +354,8 @@ impl SslAcceptor {
 
     /// Creates a new builder configured to connect to modern clients.
     ///
-    /// This corresponds to the modern configuration of version 4 of Mozilla's server side TLS recommendations.
-    /// See its [documentation][docs] for more details on specifics.
+    /// This corresponds to the modern configuration of version 4 of Mozilla's server side TLS
+    /// recommendations. See its [documentation][docs] for more details on specifics.
     ///
     /// [docs]: https://wiki.mozilla.org/Security/Server_Side_TLS
     // FIXME remove in next major version

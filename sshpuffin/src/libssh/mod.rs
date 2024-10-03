@@ -9,37 +9,28 @@
 //     should reactivate the dead_code lint, as it provides valuable insights.
 #![allow(dead_code)]
 
-use std::{
-    fs,
-    io::{Read, Write},
-    os::unix::{
-        io::{IntoRawFd, RawFd},
-        net::{UnixListener, UnixStream},
-    },
-};
+use std::fs;
+use std::io::{Read, Write};
+use std::os::unix::io::{IntoRawFd, RawFd};
+use std::os::unix::net::{UnixListener, UnixStream};
 
-use log::debug;
-use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType},
-    codec::Codec,
-    error::Error,
-    put::{Put, PutName},
-    put_registry::{Factory, PutKind},
-    stream::Stream,
-    trace::TraceContext,
-    VERSION_STR,
-};
+use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::codec::Codec;
+use puffin::error::Error;
+use puffin::put::{Put, PutName};
+use puffin::put_registry::{Factory, PutKind};
+use puffin::stream::Stream;
+use puffin::trace::TraceContext;
+use puffin::VERSION_STR;
 
-use crate::{
-    libssh::ssh::{
-        SessionOption, SessionState, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest,
-        SshResult, SshSession,
-    },
-    protocol::{RawSshMessageFlight, SshProtocolBehavior},
-    put_registry::LIBSSH_PUT,
-    query::SshQueryMatcher,
-    ssh::message::{RawSshMessage, SshMessage},
+use crate::libssh::ssh::{
+    SessionOption, SessionState, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest,
+    SshResult, SshSession,
 };
+use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior};
+use crate::put_registry::LIBSSH_PUT;
+use crate::query::SshQueryMatcher;
+use crate::ssh::message::{RawSshMessage, SshMessage};
 
 pub mod ssh;
 
@@ -170,11 +161,11 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
         }
 
         fn determinism_set_reseed(&self) {
-            debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
+            log::debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
         }
 
         fn determinism_reseed(&self) {
-            debug!(
+            log::debug!(
                 " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
                 self.name()
             );
@@ -218,7 +209,7 @@ impl Stream<SshQueryMatcher, SshMessage, RawSshMessage, RawSshMessageFlight> for
         let mut buf = vec![];
         let _ = self.fuzz_stream.read_to_end(&mut buf);
 
-        Ok(RawSshMessageFlight::read_bytes(&mut buf))
+        Ok(RawSshMessageFlight::read_bytes(&buf))
     }
 }
 
@@ -326,6 +317,7 @@ impl Put<SshProtocolBehavior> for LibSSL {
     fn shutdown(&mut self) -> String {
         panic!("Not supported")
     }
+
     fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
         Err(Error::Put(
             "libssh does not support determinism".to_string(),

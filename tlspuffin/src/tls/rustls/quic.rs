@@ -2,12 +2,11 @@ use ring::{aead, hkdf};
 
 /// This module contains optional APIs for implementing QUIC TLS.
 use crate::tls::rustls::cipher::{Iv, IvLen};
-use crate::tls::rustls::{
-    error::Error,
-    msgs::enums::AlertDescription,
-    suites::BulkAlgorithm,
-    tls13::{key_schedule::hkdf_expand, Tls13CipherSuite, TLS13_AES_128_GCM_SHA256_INTERNAL},
-};
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::msgs::enums::AlertDescription;
+use crate::tls::rustls::suites::BulkAlgorithm;
+use crate::tls::rustls::tls13::key_schedule::hkdf_expand;
+use crate::tls::rustls::tls13::{Tls13CipherSuite, TLS13_AES_128_GCM_SHA256_INTERNAL};
 
 /// Secrets used to encrypt/decrypt traffic
 #[derive(Clone, Debug)]
@@ -74,7 +73,8 @@ pub trait QuicExt {
 
     /// Consume unencrypted TLS handshake data.
     ///
-    /// Handshake data obtained from separate encryption levels should be supplied in separate calls.
+    /// Handshake data obtained from separate encryption levels should be supplied in separate
+    /// calls.
     fn read_hs(&mut self, plaintext: &[u8]) -> Result<(), Error>;
 
     /// Emit unencrypted TLS handshake data.
@@ -460,10 +460,10 @@ impl Version {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
-    #[test]
+    #[test_log::test]
     fn short_packet_header_protection() {
         // https://www.rfc-editor.org/rfc/rfc9001.html#name-chacha20-poly1305-short-hea
 
@@ -511,7 +511,7 @@ mod test {
         assert_eq!(plain, &PLAIN[4..]);
     }
 
-    #[test]
+    #[test_log::test]
     fn key_update_test_vector() {
         fn equal_prk(x: &hkdf::Prk, y: &hkdf::Prk) -> bool {
             let mut x_data = [0; 16];

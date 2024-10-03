@@ -11,15 +11,15 @@ inputs:
   options:
     description: 'A comma-separated list of additional build options (e.g. "sancov,asan")'
     required: false
-    default: ''
+    default: ""
   patches:
-    description: 'A comma-separated list of patches to apply to the sources'
+    description: "A comma-separated list of patches to apply to the sources"
     required: false
-    default: ''
+    default: ""
   name:
-    description: 'The name of the resulting PUT vendor library'
+    description: "The name of the resulting PUT vendor library"
     required: false
-    default: ''
+    default: ""
 
 runs:
   using: "composite"

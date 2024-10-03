@@ -1,10 +1,8 @@
-use std::{
-    collections::HashSet,
-    fs, io,
-    io::ErrorKind,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::collections::HashSet;
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::{fs, io};
 
 use cmake::Config;
 

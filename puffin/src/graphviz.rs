@@ -1,18 +1,14 @@
 //! This module adds plotting capabilities to[`Term`]sand Traces. The output of the functions in
 //! this module can be passed to the command line utility `dot` which is part of graphviz.
 
-use std::{
-    fmt, io,
-    io::{ErrorKind, Write},
-    process::{Command, Stdio},
-};
+use std::io::{ErrorKind, Write};
+use std::process::{Command, Stdio};
+use std::{fmt, io};
 
 use itertools::Itertools;
 
-use crate::{
-    algebra::{remove_fn_prefix, remove_prefix, Matcher, Term},
-    trace::{Action, Trace},
-};
+use crate::algebra::{remove_fn_prefix, remove_prefix, Matcher, Term};
+use crate::trace::{Action, Trace};
 
 // Colorful theme
 /*const FONT: &'static str = "Latin Modern Roman";
@@ -209,7 +205,7 @@ impl<M: Matcher> Term<M> {
 mod tests {
     use crate::algebra::test_signature::setup_simple_trace;
 
-    #[test]
+    #[test_log::test]
     fn test_dot_graph() {
         let trace = setup_simple_trace();
         let _string = trace.dot_graph(true);

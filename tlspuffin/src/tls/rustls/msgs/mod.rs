@@ -26,12 +26,10 @@ mod enums_test;
 mod message_test;
 
 #[cfg(test)]
-mod test {
-    use std::convert::TryFrom;
-
+mod tests {
     use puffin::codec::Reader;
 
-    #[test]
+    #[test_log::test]
     fn smoketest() {
         use super::message::{Message, OpaqueMessage};
         let bytes = include_bytes!("handshake-test.1.bin");

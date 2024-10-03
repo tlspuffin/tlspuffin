@@ -1,16 +1,12 @@
 use puffin::codec;
 use ring::aead;
 
-use crate::tls::rustls::{
-    cipher::{make_nonce, Iv, MessageDecrypter, MessageEncrypter},
-    error::Error,
-    msgs::{
-        base::Payload,
-        enums::{ContentType, ProtocolVersion},
-        fragmenter::MAX_FRAGMENT_LEN,
-        message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage},
-    },
-};
+use crate::tls::rustls::cipher::{make_nonce, Iv, MessageDecrypter, MessageEncrypter};
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::msgs::base::Payload;
+use crate::tls::rustls::msgs::enums::{ContentType, ProtocolVersion};
+use crate::tls::rustls::msgs::fragmenter::MAX_FRAGMENT_LEN;
+use crate::tls::rustls::msgs::message::{BorrowedPlainMessage, OpaqueMessage, PlainMessage};
 
 const TLS12_AAD_SIZE: usize = 8 + 1 + 2 + 2;
 

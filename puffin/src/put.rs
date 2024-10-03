@@ -1,17 +1,13 @@
-use std::{
-    fmt::{Debug, Display, Formatter},
-    hash::Hash,
-};
+use std::fmt;
+use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    agent::{AgentDescriptor, AgentName},
-    error::Error,
-    protocol::ProtocolBehavior,
-    put_registry::DUMMY_PUT,
-    stream::Stream,
-};
+use crate::agent::{AgentDescriptor, AgentName};
+use crate::error::Error;
+use crate::protocol::ProtocolBehavior;
+use crate::put_registry::DUMMY_PUT;
+use crate::stream::Stream;
 
 #[derive(Debug, Copy, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 pub struct PutName(pub [char; 10]);
@@ -22,8 +18,8 @@ impl Default for PutName {
     }
 }
 
-impl Display for PutName {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+impl fmt::Display for PutName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", String::from_iter(self.0))
     }
 }

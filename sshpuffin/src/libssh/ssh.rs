@@ -1,11 +1,9 @@
-use std::{
-    ffi::{c_char, c_void, CStr, CString},
-    mem,
-    os::{raw::c_int, unix::io::RawFd},
-    ptr,
-    ptr::null,
-    time::Duration,
-};
+use std::ffi::{c_char, c_void, CStr, CString};
+use std::os::raw::c_int;
+use std::os::unix::io::RawFd;
+use std::ptr::null;
+use std::time::Duration;
+use std::{mem, ptr};
 
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
 use libssh_sys::{self, ssh_options_e};
@@ -63,6 +61,7 @@ impl SshSessionRef {
     pub fn session_state(&self) -> SessionState {
         unsafe { (*self.as_ptr()).session_state }
     }
+
     pub fn auth_state(&self) -> AuthState {
         unsafe { (*self.as_ptr()).auth.state }
     }
@@ -134,11 +133,7 @@ impl SshSessionRef {
                 Some(username) => username.as_ptr(),
             };
             cvt_auth(
-                libssh_sys::ssh_userauth_password(
-                    self.as_ptr(),
-                    username,
-                    password.as_ptr() as *const i8,
-                ),
+                libssh_sys::ssh_userauth_password(self.as_ptr(), username, password.as_ptr()),
                 self,
             )
         }
@@ -343,6 +338,7 @@ impl SshMessageRef {
             ))
         }
     }
+
     /// `ssh_message_auth_user`
     pub fn auth_user(&self) -> Option<&str> {
         unsafe {
@@ -489,13 +485,9 @@ fn cvt_auth<F: Fallible>(r: c_int, fallible: &F) -> Result<SshAuthResult, F::Err
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs,
-        os::unix::{
-            io::IntoRawFd,
-            net::{UnixListener, UnixStream},
-        },
-    };
+    use std::fs;
+    use std::os::unix::io::IntoRawFd;
+    use std::os::unix::net::{UnixListener, UnixStream};
 
     use crate::libssh::ssh::{
         set_log_level, SessionOption, SshBind, SshBindOption, SshKey, SshSession,
@@ -540,7 +532,7 @@ FVCIVIuCGO0unWSrPlL7FFPldcYMTy7S33HmlzIuywlUdqD8qCMbA1IP2a9+oD9SAhzk4f
 -----END OPENSSH PRIVATE KEY-----
 ";
 
-    #[test]
+    #[test_log::test]
     fn test() {
         set_log_level(100);
 

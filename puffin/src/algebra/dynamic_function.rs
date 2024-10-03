@@ -1,4 +1,5 @@
 //! This module provides traits for calling rust functions dynamically.
+//!
 //! All functions which implement the DynamicFunction trait can be called by passing an array of
 //! [`Any`]s to it. The return value is again of type [`Any`].
 //!
@@ -24,11 +25,11 @@
 //! typed function we can generate dynamically types ones which implement the following trait:
 //!
 //! ```rust
-//! use puffin::algebra::error::FnError;
 //! use std::any::Any;
 //!
-//! pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> {
-//! }
+//! use puffin::algebra::error::FnError;
+//!
+//! pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> {}
 //! ```
 //!
 //! Note, that both functions return a `Result` and therefore can gracefully fail.
@@ -49,18 +50,17 @@
 //! ```
 //!
 //! It returns one possibility for the cipher suites which could be sent during a `ClientHello`.
-use std::{
-    any::{type_name, Any, TypeId},
-    collections::hash_map::DefaultHasher,
-    fmt,
-    fmt::Formatter,
-    hash::{Hash, Hasher},
-};
+use std::any::{type_name, Any, TypeId};
+use std::collections::hash_map::DefaultHasher;
+use std::fmt;
+use std::hash::{Hash, Hasher};
 
 use itertools::Itertools;
-use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::Visitor;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::algebra::{deserialize_signature, error::FnError};
+use crate::algebra::deserialize_signature;
+use crate::algebra::error::FnError;
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -151,7 +151,7 @@ where
 }
 
 impl fmt::Debug for Box<dyn DynamicFunction> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "DynamicFunction")
     }
 }
@@ -249,11 +249,9 @@ dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 => R);
 
-pub fn make_dynamic<F: 'static, Types>(
-    f: &'static F,
-) -> (DynamicFunctionShape, Box<dyn DynamicFunction>)
+pub fn make_dynamic<F, Types>(f: &'static F) -> (DynamicFunctionShape, Box<dyn DynamicFunction>)
 where
-    F: DescribableFunction<Types>,
+    F: 'static + DescribableFunction<Types>,
 {
     (F::shape(), f.make_dynamic())
 }
@@ -293,7 +291,7 @@ impl Hash for TypeShape {
 }
 
 impl fmt::Display for TypeShape {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
 }

@@ -1,9 +1,7 @@
-use openssl::{
-    error::ErrorStack,
-    pkey::{PKey, Private},
-    ssl::SslContextBuilder,
-    x509::X509,
-};
+use openssl::error::ErrorStack;
+use openssl::pkey::{PKey, Private};
+use openssl::ssl::SslContextBuilder;
+use openssl::x509::X509;
 use puffin::agent::TLSVersion;
 
 pub fn static_rsa_cert(key: &[u8], cert: &[u8]) -> Result<(X509, PKey<Private>), ErrorStack> {

@@ -1,8 +1,6 @@
-use std::{
-    any::Any,
-    panic::{self, AssertUnwindSafe},
-    slice,
-};
+use std::any::Any;
+use std::panic::{self, AssertUnwindSafe};
+use std::slice;
 
 use libc::{c_char, c_int, c_void};
 

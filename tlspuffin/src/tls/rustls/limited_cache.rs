@@ -1,8 +1,7 @@
-use std::{
-    borrow::Borrow,
-    collections::{hash_map::Entry, HashMap, VecDeque},
-    hash::Hash,
-};
+use std::borrow::Borrow;
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, VecDeque};
+use std::hash::Hash;
 
 /// A HashMap-alike, which never gets larger than a specified
 /// capacity, and evicts the oldest insertion to maintain this.
@@ -54,18 +53,18 @@ where
         }
     }
 
-    pub fn get<Q: ?Sized>(&self, k: &Q) -> Option<&V>
+    pub fn get<Q>(&self, k: &Q) -> Option<&V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: ?Sized + Hash + Eq,
     {
         self.map.get(k)
     }
 
-    pub fn remove<Q: ?Sized>(&mut self, k: &Q) -> Option<V>
+    pub fn remove<Q>(&mut self, k: &Q) -> Option<V>
     where
         K: Borrow<Q>,
-        Q: Hash + Eq,
+        Q: ?Sized + Hash + Eq,
     {
         if let Some(value) = self.map.remove(k) {
             // O(N) search, followed by O(N) removal
@@ -80,10 +79,10 @@ where
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     type Test = super::LimitedCache<String, usize>;
 
-    #[test]
+    #[test_log::test]
     fn test_updates_existing_item() {
         let mut t = Test::new(3);
         t.insert("abc".into(), 1);
@@ -91,7 +90,7 @@ mod test {
         assert_eq!(t.get("abc"), Some(&2));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_evicts_oldest_item() {
         let mut t = Test::new(3);
         t.insert("abc".into(), 1);
@@ -103,7 +102,7 @@ mod test {
         assert_eq!(t.get("ghi"), Some(&3));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_evicts_second_oldest_item_if_first_removed() {
         let mut t = Test::new(3);
         t.insert("abc".into(), 1);
@@ -120,7 +119,7 @@ mod test {
         assert_eq!(t.get("jkl"), Some(&4));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_evicts_after_second_oldest_item_removed() {
         let mut t = Test::new(3);
         t.insert("abc".into(), 1);
@@ -138,7 +137,7 @@ mod test {
         assert_eq!(t.get("jkl"), Some(&4));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_removes_all_items() {
         let mut t = Test::new(3);
         t.insert("abc".into(), 1);
@@ -158,7 +157,7 @@ mod test {
         assert_eq!(t.get("mno"), Some(&5));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_inserts_many_items() {
         let mut t = Test::new(3);
 

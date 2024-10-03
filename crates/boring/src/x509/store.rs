@@ -6,19 +6,20 @@
 //! # Example
 //!
 //! ```rust
-//! use boring::x509::store::{X509StoreBuilder, X509Store};
-//! use boring::x509::{X509, X509Name};
 //! use boring::asn1::Asn1Time;
-//! use boring::pkey::PKey;
 //! use boring::hash::MessageDigest;
-//! use boring::rsa::Rsa;
 //! use boring::nid::Nid;
+//! use boring::pkey::PKey;
+//! use boring::rsa::Rsa;
+//! use boring::x509::store::{X509Store, X509StoreBuilder};
+//! use boring::x509::{X509Name, X509};
 //!
 //! let rsa = Rsa::generate(2048).unwrap();
 //! let pkey = PKey::from_rsa(rsa).unwrap();
 //! let mut name = X509Name::builder().unwrap();
 //!
-//! name.append_entry_by_nid(Nid::COMMONNAME, "foobar.com").unwrap();
+//! name.append_entry_by_nid(Nid::COMMONNAME, "foobar.com")
+//!     .unwrap();
 //!
 //! let name = name.build();
 //! let mut builder = X509::builder().unwrap();
@@ -44,13 +45,10 @@ use std::mem;
 
 use foreign_types::{ForeignType, ForeignTypeRef};
 
-use crate::{
-    cvt, cvt_p,
-    error::ErrorStack,
-    ffi,
-    stack::StackRef,
-    x509::{X509Object, X509},
-};
+use crate::error::ErrorStack;
+use crate::stack::StackRef;
+use crate::x509::{X509Object, X509};
+use crate::{cvt, cvt_p, ffi};
 
 foreign_type_and_impl_send_sync! {
     type CType = ffi::X509_STORE;

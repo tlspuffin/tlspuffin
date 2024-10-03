@@ -12,7 +12,8 @@
 //! ```
 use libc::c_int;
 
-use crate::{cvt, error::ErrorStack, ffi};
+use crate::error::ErrorStack;
+use crate::{cvt, ffi};
 
 /// Fill buffer with cryptographically strong pseudo-random bytes.
 ///
@@ -42,7 +43,7 @@ pub fn rand_bytes(buf: &mut [u8]) -> Result<(), ErrorStack> {
 mod tests {
     use super::rand_bytes;
 
-    #[test]
+    #[test_log::test]
     fn test_rand_bytes() {
         let mut buf = [0; 32];
         rand_bytes(&mut buf).unwrap();

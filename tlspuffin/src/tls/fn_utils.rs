@@ -1,37 +1,25 @@
 #![allow(clippy::ptr_arg)]
 #![allow(dead_code)]
 
-use std::convert::TryFrom;
+use puffin::algebra::error::FnError;
+use puffin::codec::{Codec, Reader};
+use puffin::protocol::{OpaqueProtocolMessageFlight, ProtocolMessageFlight};
 
-use puffin::{
-    algebra::error::FnError,
-    codec::{Codec, Reader},
-    protocol::{OpaqueProtocolMessageFlight, ProtocolMessageFlight},
+use crate::protocol::{MessageFlight, OpaqueMessageFlight};
+use crate::tls::key_exchange::{tls12_key_exchange, tls12_new_secrets};
+use crate::tls::key_schedule::*;
+use crate::tls::rustls::conn::Side;
+use crate::tls::rustls::hash_hs::HandshakeHash;
+use crate::tls::rustls::key::Certificate;
+use crate::tls::rustls::msgs::base::PayloadU8;
+use crate::tls::rustls::msgs::enums::{HandshakeType, NamedGroup};
+use crate::tls::rustls::msgs::handshake::{
+    CertificateEntry, CertificateExtension, CertificateExtensions, HandshakeMessagePayload,
+    HandshakePayload, Random, ServerECDHParams,
 };
-
-use crate::{
-    protocol::{MessageFlight, OpaqueMessageFlight},
-    tls::{
-        key_exchange::{tls12_key_exchange, tls12_new_secrets},
-        key_schedule::*,
-        rustls::{
-            conn::Side,
-            hash_hs::HandshakeHash,
-            key::Certificate,
-            msgs::{
-                base::PayloadU8,
-                enums::{HandshakeType, NamedGroup},
-                handshake::{
-                    CertificateEntry, CertificateExtension, CertificateExtensions,
-                    HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
-                },
-                message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
-            },
-            tls12,
-            tls13::key_schedule::KeyScheduleEarly,
-        },
-    },
-};
+use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
+use crate::tls::rustls::tls12;
+use crate::tls::rustls::tls13::key_schedule::KeyScheduleEarly;
 
 // ----
 // seed_client_attacker()
@@ -93,7 +81,7 @@ pub fn fn_decrypt_handshake_flight(
     for msg in &flight.messages {
         if let MessagePayload::ApplicationData(_) = &msg.payload {
             let decrypted_msg = fn_decrypt_multiple_handshake_messages(
-                &msg,
+                msg,
                 server_hello_transcript,
                 server_key_share,
                 psk,
@@ -245,7 +233,7 @@ pub fn fn_decrypt_application_flight(
     for msg in &flight.messages {
         if let MessagePayload::ApplicationData(_) = &msg.payload {
             let decrypted_msg = fn_decrypt_application(
-                &msg,
+                msg,
                 server_hello_transcript,
                 server_finished_transcript,
                 server_key_share,

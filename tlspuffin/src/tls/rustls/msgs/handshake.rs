@@ -1,23 +1,15 @@
 use std::{collections, fmt};
 
-use puffin::{
-    codec,
-    codec::{Codec, Reader},
-};
+use puffin::codec;
+use puffin::codec::{Codec, Reader};
 
-use crate::tls::rustls::{
-    key,
-    msgs::{
-        base::{Payload, PayloadU16, PayloadU24, PayloadU8},
-        enums::{
-            CertificateStatusType, CipherSuite, ClientCertificateType, Compression, ECCurveType,
-            ECPointFormat, ExtensionType, HandshakeType, HashAlgorithm, KeyUpdateRequest,
-            NamedGroup, PSKKeyExchangeMode, ProtocolVersion, ServerNameType, SignatureAlgorithm,
-            SignatureScheme,
-        },
-    },
-    rand,
+use crate::tls::rustls::msgs::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
+use crate::tls::rustls::msgs::enums::{
+    CertificateStatusType, CipherSuite, ClientCertificateType, Compression, ECCurveType,
+    ECPointFormat, ExtensionType, HandshakeType, HashAlgorithm, KeyUpdateRequest, NamedGroup,
+    PSKKeyExchangeMode, ProtocolVersion, ServerNameType, SignatureAlgorithm, SignatureScheme,
 };
+use crate::tls::rustls::{key, rand};
 
 macro_rules! declare_u8_vec (
   ($name:ident, $itemtype:ty) => {
@@ -229,10 +221,8 @@ impl DecomposedSignatureScheme for SignatureScheme {
     }
 
     fn make(alg: SignatureAlgorithm, hash: HashAlgorithm) -> SignatureScheme {
-        use crate::tls::rustls::msgs::enums::{
-            HashAlgorithm::{SHA1, SHA256, SHA384, SHA512},
-            SignatureAlgorithm::{ECDSA, RSA},
-        };
+        use crate::tls::rustls::msgs::enums::HashAlgorithm::{SHA1, SHA256, SHA384, SHA512};
+        use crate::tls::rustls::msgs::enums::SignatureAlgorithm::{ECDSA, RSA};
 
         match (alg, hash) {
             (RSA, SHA1) => Self::RSA_PKCS1_SHA1,

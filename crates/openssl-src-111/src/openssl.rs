@@ -1,11 +1,9 @@
 extern crate cc;
 
-use std::{
-    env,
-    fs::canonicalize,
-    path::{Path, PathBuf},
-    process::{Command, Output},
-};
+use std::env;
+use std::fs::canonicalize;
+use std::path::{Path, PathBuf};
+use std::process::{Command, Output};
 
 const MK_VENDOR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tools/mk_vendor");
 

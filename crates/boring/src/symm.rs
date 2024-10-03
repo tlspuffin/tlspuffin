@@ -11,16 +11,13 @@
 //! let data = b"Some Crypto Text";
 //! let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
 //! let iv = b"\x00\x01\x02\x03\x04\x05\x06\x07\x00\x01\x02\x03\x04\x05\x06\x07";
-//! let ciphertext = encrypt(
-//!     cipher,
-//!     key,
-//!     Some(iv),
-//!     data).unwrap();
+//! let ciphertext = encrypt(cipher, key, Some(iv), data).unwrap();
 //!
 //! assert_eq!(
 //!     b"\xB4\xB9\xE7\x30\xD6\xD6\xF7\xDE\x77\x3F\x1C\xFF\xB3\x3E\x44\x5A\x91\xD7\x27\x62\x87\x4D\
 //!       \xFB\x3C\x5E\xC4\x59\x72\x4A\xF4\x7C\xA1",
-//!     &ciphertext[..]);
+//!     &ciphertext[..]
+//! );
 //! ```
 //!
 //! Encrypting an asymmetric key with a symmetric cipher
@@ -33,7 +30,9 @@
 //! let keypair = Rsa::generate(2048).unwrap();
 //! let cipher = Cipher::aes_256_cbc();
 //! let pubkey_pem = keypair.public_key_to_pem_pkcs1().unwrap();
-//! let privkey_pem = keypair.private_key_to_pem_passphrase(cipher, b"Rust").unwrap();
+//! let privkey_pem = keypair
+//!     .private_key_to_pem_passphrase(cipher, b"Rust")
+//!     .unwrap();
 //! // pubkey_pem and privkey_pem could be written to file here.
 //!
 //! // Load private and public key from string:
@@ -44,9 +43,13 @@
 //! let msg = b"Foo bar";
 //! let mut encrypted = vec![0; pubkey.size() as usize];
 //! let mut decrypted = vec![0; privkey.size() as usize];
-//! let len = pubkey.public_encrypt(msg, &mut encrypted, Padding::PKCS1).unwrap();
+//! let len = pubkey
+//!     .public_encrypt(msg, &mut encrypted, Padding::PKCS1)
+//!     .unwrap();
 //! assert!(len > msg.len());
-//! let len = privkey.private_decrypt(&encrypted, &mut decrypted, Padding::PKCS1).unwrap();
+//! let len = privkey
+//!     .private_decrypt(&encrypted, &mut decrypted, Padding::PKCS1)
+//!     .unwrap();
 //! let output_string = String::from_utf8(decrypted[..len].to_vec()).unwrap();
 //! assert_eq!("Foo bar", output_string);
 //! println!("Decrypted: '{}'", output_string);
@@ -56,7 +59,9 @@ use std::{cmp, ptr};
 
 use libc::{c_int, c_uint};
 
-use crate::{cvt, cvt_p, error::ErrorStack, ffi, nid::Nid};
+use crate::error::ErrorStack;
+use crate::nid::Nid;
+use crate::{cvt, cvt_p, ffi};
 
 #[derive(Copy, Clone)]
 pub enum Mode {
@@ -225,7 +230,7 @@ unsafe impl Send for Cipher {}
 /// CBC mode.
 ///
 /// ```
-/// use boring::symm::{Cipher, Mode, Crypter};
+/// use boring::symm::{Cipher, Crypter, Mode};
 ///
 /// let plaintexts: [&[u8]; 2] = [b"Some Stream of", b" Crypto Text"];
 /// let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
@@ -233,18 +238,16 @@ unsafe impl Send for Cipher {}
 /// let data_len = plaintexts.iter().fold(0, |sum, x| sum + x.len());
 ///
 /// // Create a cipher context for encryption.
-/// let mut encrypter = Crypter::new(
-///     Cipher::aes_128_cbc(),
-///     Mode::Encrypt,
-///     key,
-///     Some(iv)).unwrap();
+/// let mut encrypter = Crypter::new(Cipher::aes_128_cbc(), Mode::Encrypt, key, Some(iv)).unwrap();
 ///
 /// let block_size = Cipher::aes_128_cbc().block_size();
 /// let mut ciphertext = vec![0; data_len + block_size];
 ///
 /// // Encrypt 2 chunks of plaintexts successively.
 /// let mut count = encrypter.update(plaintexts[0], &mut ciphertext).unwrap();
-/// count += encrypter.update(plaintexts[1], &mut ciphertext[count..]).unwrap();
+/// count += encrypter
+///     .update(plaintexts[1], &mut ciphertext[count..])
+///     .unwrap();
 /// count += encrypter.finalize(&mut ciphertext[count..]).unwrap();
 /// ciphertext.truncate(count);
 ///
@@ -254,22 +257,19 @@ unsafe impl Send for Cipher {}
 ///     &ciphertext[..]
 /// );
 ///
-///
 /// // Let's pretend we don't know the plaintext, and now decrypt the ciphertext.
 /// let data_len = ciphertext.len();
 /// let ciphertexts = [&ciphertext[..9], &ciphertext[9..]];
 ///
 /// // Create a cipher context for decryption.
-/// let mut decrypter = Crypter::new(
-///     Cipher::aes_128_cbc(),
-///     Mode::Decrypt,
-///     key,
-///     Some(iv)).unwrap();
+/// let mut decrypter = Crypter::new(Cipher::aes_128_cbc(), Mode::Decrypt, key, Some(iv)).unwrap();
 /// let mut plaintext = vec![0; data_len + block_size];
 ///
 /// // Decrypt 2 chunks of ciphertexts successively.
 /// let mut count = decrypter.update(ciphertexts[0], &mut plaintext).unwrap();
-/// count += decrypter.update(ciphertexts[1], &mut plaintext[count..]).unwrap();
+/// count += decrypter
+///     .update(ciphertexts[1], &mut plaintext[count..])
+///     .unwrap();
 /// count += decrypter.finalize(&mut plaintext[count..]).unwrap();
 /// plaintext.truncate(count);
 ///
@@ -555,16 +555,13 @@ impl Drop for Crypter {
 /// let data = b"Some Crypto Text";
 /// let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
 /// let iv = b"\x00\x01\x02\x03\x04\x05\x06\x07\x00\x01\x02\x03\x04\x05\x06\x07";
-/// let ciphertext = encrypt(
-///     cipher,
-///     key,
-///     Some(iv),
-///     data).unwrap();
+/// let ciphertext = encrypt(cipher, key, Some(iv), data).unwrap();
 ///
 /// assert_eq!(
 ///     b"\xB4\xB9\xE7\x30\xD6\xD6\xF7\xDE\x77\x3F\x1C\xFF\xB3\x3E\x44\x5A\x91\xD7\x27\x62\x87\x4D\
 ///       \xFB\x3C\x5E\xC4\x59\x72\x4A\xF4\x7C\xA1",
-///     &ciphertext[..]);
+///     &ciphertext[..]
+/// );
 /// ```
 pub fn encrypt(
     t: Cipher,
@@ -595,15 +592,9 @@ pub fn encrypt(
 ///              \x87\x4D\xFB\x3C\x5E\xC4\x59\x72\x4A\xF4\x7C\xA1";
 /// let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
 /// let iv = b"\x00\x01\x02\x03\x04\x05\x06\x07\x00\x01\x02\x03\x04\x05\x06\x07";
-/// let ciphertext = decrypt(
-///     cipher,
-///     key,
-///     Some(iv),
-///     data).unwrap();
+/// let ciphertext = decrypt(cipher, key, Some(iv), data).unwrap();
 ///
-/// assert_eq!(
-///     b"Some Crypto Text",
-///     &ciphertext[..]);
+/// assert_eq!(b"Some Crypto Text", &ciphertext[..]);
 /// ```
 pub fn decrypt(
     t: Cipher,
@@ -689,7 +680,7 @@ mod tests {
 
     use super::*;
 
-    #[test]
+    #[test_log::test]
     fn test_stream_cipher_output() {
         let key = [0u8; 16];
         let iv = [0u8; 16];
@@ -708,7 +699,7 @@ mod tests {
 
     // Test vectors from FIPS-197:
     // http://csrc.nist.gov/publications/fips/fips197/fips-197.pdf
-    #[test]
+    #[test_log::test]
     fn test_aes_256_ecb() {
         let k0 = [
             0x00u8, 0x01u8, 0x02u8, 0x03u8, 0x04u8, 0x05u8, 0x06u8, 0x07u8, 0x08u8, 0x09u8, 0x0au8,
@@ -752,7 +743,7 @@ mod tests {
         assert_eq!(hex::encode(p1), hex::encode(p0));
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes_256_cbc_decrypt() {
         let iv = [
             4_u8, 223_u8, 153_u8, 219_u8, 28_u8, 142_u8, 234_u8, 68_u8, 227_u8, 69_u8, 98_u8,
@@ -808,7 +799,7 @@ mod tests {
         }
     }
 
-    #[test]
+    #[test_log::test]
     fn test_rc4() {
         let pt = "0000000000000000000000000000000000000000000000000000000000000000000000000000";
         let ct = "A68686B04D686AA107BD8D4CAB191A3EEC0A6294BC78B60F65C25CB47BD7BB3A48EFC4D26BE4";
@@ -818,7 +809,7 @@ mod tests {
         cipher_test(super::Cipher::rc4(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes128_ctr() {
         let pt = "6BC1BEE22E409F96E93D7E117393172AAE2D8A571E03AC9C9EB76FAC45AF8E5130C81C46A35CE411\
                   E5FBC1191A0A52EFF69F2445DF4F9B17AD2B417BE66C3710";
@@ -830,7 +821,7 @@ mod tests {
         cipher_test(super::Cipher::aes_128_ctr(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes128_ofb() {
         // Lifted from http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
 
@@ -842,7 +833,7 @@ mod tests {
         cipher_test(super::Cipher::aes_128_ofb(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes192_ctr() {
         // Lifted from http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
 
@@ -854,7 +845,7 @@ mod tests {
         cipher_test(super::Cipher::aes_192_ctr(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes192_ofb() {
         // Lifted from http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
 
@@ -866,7 +857,7 @@ mod tests {
         cipher_test(super::Cipher::aes_192_ofb(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes256_ofb() {
         // Lifted from http://csrc.nist.gov/publications/nistpubs/800-38a/sp800-38a.pdf
 
@@ -878,7 +869,7 @@ mod tests {
         cipher_test(super::Cipher::aes_256_ofb(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_des_cbc() {
         let pt = "54686973206973206120746573742e";
         let ct = "6f2867cfefda048a4046ef7e556c7132";
@@ -888,7 +879,7 @@ mod tests {
         cipher_test(super::Cipher::des_cbc(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_des_ecb() {
         let pt = "54686973206973206120746573742e";
         let ct = "0050ab8aecec758843fe157b4dde938c";
@@ -898,7 +889,7 @@ mod tests {
         cipher_test(super::Cipher::des_ecb(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_des_ede3() {
         let pt = "9994f4c69d40ae4f34ff403b5cf39d4c8207ea5d3e19a5fd";
         let ct = "9e5c4297d60582f81071ac8ab7d0698d4c79de8b94c519858207ea5d3e19a5fd";
@@ -908,7 +899,7 @@ mod tests {
         cipher_test(super::Cipher::des_ede3(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_des_ede3_cbc() {
         let pt = "54686973206973206120746573742e";
         let ct = "6f2867cfefda048a4046ef7e556c7132";
@@ -918,7 +909,7 @@ mod tests {
         cipher_test(super::Cipher::des_ede3_cbc(), pt, ct, key, iv);
     }
 
-    #[test]
+    #[test_log::test]
     fn test_aes128_gcm() {
         let key = "0e00c76561d2bd9b40c3c15427e2b08f";
         let iv = "492cadaccd3ca3fbc9cf9f06eb3325c4e159850b0dbe98199b89b7af528806610b6f63998e1eae80c348e7\

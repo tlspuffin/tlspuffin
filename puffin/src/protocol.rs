@@ -1,12 +1,11 @@
 use std::fmt::Debug;
 
-use crate::{
-    algebra::{signature::Signature, Matcher},
-    claims::{Claim, SecurityViolationPolicy},
-    codec::Codec,
-    error::Error,
-    trace::{Knowledge, Source, Trace},
-};
+use crate::algebra::signature::Signature;
+use crate::algebra::Matcher;
+use crate::claims::{Claim, SecurityViolationPolicy};
+use crate::codec::Codec;
+use crate::error::Error;
+use crate::trace::{Knowledge, Source, Trace};
 
 /// Provide a way to extract knowledge out of a Message/OpaqueMessage or any type that
 /// might be used in a precomputation
@@ -54,8 +53,8 @@ pub trait ProtocolMessage<Mt: Matcher, O: OpaqueProtocolMessage<Mt>>:
     fn debug(&self, info: &str);
 }
 
-/// A non-structured version of [`ProtocolMessage`]. This can be used for example for encrypted messages
-/// which do not have a structure.
+/// A non-structured version of [`ProtocolMessage`]. This can be used for example for encrypted
+/// messages which do not have a structure.
 pub trait OpaqueProtocolMessage<Mt: Matcher>: Clone + Debug + Codec + ExtractKnowledge<Mt> {
     fn debug(&self, info: &str);
 }
@@ -71,9 +70,11 @@ pub trait ProtocolMessageDeframer<Mt: Matcher> {
 }
 
 /// Defines the protocol which is being tested.
+///
 /// The fuzzer is generally abstract over the used protocol. We assume that protocols have
-/// [opaque messages](ProtocolBehavior::OpaqueProtocolMessage), [structured messages](ProtocolBehavior::ProtocolMessage),
-/// and a way to [deframe](ProtocolMessageDeframer) an arbitrary stream of bytes into messages.
+/// [opaque messages](ProtocolBehavior::OpaqueProtocolMessage), [structured
+/// messages](ProtocolBehavior::ProtocolMessage), and a way to [deframe](ProtocolMessageDeframer) an
+/// arbitrary stream of bytes into messages.
 ///
 /// Also the library allows the definition of a type for [claims](Claim) and a
 /// (security policy)[SecurityViolationPolicy] over

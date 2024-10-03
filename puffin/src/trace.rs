@@ -1,8 +1,10 @@
-//! This module contains [`Trace`]s consisting of several [`Step`]s, of which each has either an
-//! [`OutputAction`] or [`InputAction`]. This is a declarative way of modeling communication between
-//! [`Agent`]s. The [`TraceContext`] holds data, also known as [`VariableData`], which is created by
-//! [`Agent`]s during the concrete execution of the Trace. It also holds the [`Agent`]s with
-//! the references to concrete PUT.
+//! This module define the execution [`Trace`]s.
+//!
+//! Each [`Trace`]s consist of several [`Step`]s, of which each has either an [`OutputAction`] or
+//! [`InputAction`]. This is a declarative way of modeling communication between [`Agent`]s. The
+//! [`TraceContext`] holds data, also known as [`VariableData`], which is created by [`Agent`]s
+//! during the concrete execution of the Trace. It also holds the [`Agent`]s with the references to
+//! concrete PUT.
 //!
 //! ### Serializability of Traces
 //!
@@ -11,37 +13,33 @@
 //! store it on disk and replay it when investigating the case.
 //! As traces depend on concrete implementations as discussed in the next section we need to link
 //! serialized data like strings or numerical IDs to functions implemented in Rust.
-//!
 
 use core::fmt;
-use std::{
-    any::{Any, TypeId},
-    collections::HashMap,
-    fmt::Debug,
-    hash::Hash,
-    marker::PhantomData,
-    vec::IntoIter,
-};
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::marker::PhantomData;
+use std::vec::IntoIter;
 
 use clap::error::Result;
-use log::{debug, trace, warn};
 use serde::{Deserialize, Serialize};
 
+use crate::agent::{Agent, AgentDescriptor, AgentName};
+use crate::algebra::dynamic_function::TypeShape;
+use crate::algebra::error::FnError;
+use crate::algebra::{remove_prefix, Matcher, Term};
+use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
+use crate::error::Error;
+use crate::protocol::{
+    ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+    ProtocolMessage, ProtocolMessageFlight,
+};
+use crate::put::{PutDescriptor, PutOptions};
+use crate::put_registry::PutRegistry;
 #[allow(unused)] // used in docs
 use crate::stream::Channel;
-use crate::{
-    agent::{Agent, AgentDescriptor, AgentName},
-    algebra::{dynamic_function::TypeShape, error::FnError, remove_prefix, Matcher, Term},
-    claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
-    error::Error,
-    protocol::{
-        ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-        ProtocolMessage, ProtocolMessageFlight,
-    },
-    put::{PutDescriptor, PutOptions},
-    put_registry::PutRegistry,
-    variable_data::VariableData,
-};
+use crate::variable_data::VariableData;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct Query<M> {
@@ -103,8 +101,8 @@ impl<M: Matcher> fmt::Display for RawKnowledge<M> {
 }
 
 impl<'a, M: Matcher> IntoIterator for &'a RawKnowledge<M> {
-    type Item = Knowledge<'a, M>;
     type IntoIter = IntoIter<Knowledge<'a, M>>;
+    type Item = Knowledge<'a, M>;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut knowledges = vec![];
@@ -127,13 +125,13 @@ impl<M: Matcher> Knowledge<'_, M> {
         PB: ProtocolBehavior<Matcher = M>,
     {
         let data_type_id = self.data.type_id();
-        debug!(
+        log::debug!(
             "New knowledge {}: {}  (counter: {})",
             &self,
             remove_prefix(self.data.type_name()),
             ctx.number_matching_message_with_source(source.clone(), data_type_id, &self.matcher)
         );
-        trace!("Knowledge data: {:?}", self.data);
+        log::trace!("Knowledge data: {:?}", self.data);
     }
 }
 
@@ -143,7 +141,7 @@ impl<M: Matcher> fmt::Display for Knowledge<'_, M> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct KnowledgeStore<PB: ProtocolBehavior> {
     raw_knowledge: Vec<RawKnowledge<PB::Matcher>>,
 }
@@ -213,10 +211,9 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
         let mut possibilities: Vec<Knowledge<PB::Matcher>> = self
             .raw_knowledge
             .iter()
-            .filter(|raw| (query.source == None || query.source.as_ref().unwrap() == &raw.source))
+            .filter(|raw| (query.source.is_none() || query.source.as_ref().unwrap() == &raw.source))
             .flatten()
             .filter(|knowledge| {
-                // let data: &dyn VariableData = knowledge.data;
                 query_type_id == knowledge.data.type_id()
                     && knowledge.matcher.matches(&query.matcher)
             })
@@ -230,6 +227,8 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
     }
 }
 
+/// The [`TraceContext`] represents the state of an execution.
+///
 /// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
 /// of the attacker. [`VariableData`] can contain data of various types like for example
 /// client and server extensions, cipher suits or session ID It also holds the concrete
@@ -306,8 +305,10 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn verify_security_violations(&self) -> Result<(), Error> {
         let claims = self.claims.deref_borrow();
         if let Some(msg) = PB::SecurityViolationPolicy::check_violation(claims.slice()) {
-            // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
-            // Max: We only check for Finished claims right now, so its fine to check only at the end
+            // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a
+            // blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
+            // Max: We only check for Finished claims right now, so its fine to check only at the
+            // end
             return Err(Error::SecurityClaim(msg));
         }
         Ok(())
@@ -370,8 +371,8 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         agent.put_mut().progress(&agent_name)
     }
 
-    /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
-    /// See [`crate::stream::Stream::take_message_from_outbound`]
+    /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter
+    /// "agent". See [`crate::stream::Stream::take_message_from_outbound`]
     pub fn take_message_from_outbound(
         &mut self,
         agent_name: AgentName,
@@ -465,10 +466,11 @@ pub struct Trace<M: Matcher> {
     pub prior_traces: Vec<Trace<M>>,
 }
 
-/// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
-/// Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a list of
-/// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
-/// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
+/// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an
+/// [`InputAction`]. Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a
+/// list of *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding
+/// server or client role and a specific TLs version. Essentially they are an [`Agent`] without a
+/// stream.
 impl<M: Matcher> Trace<M> {
     fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
         for descriptor in &self.descriptors {
@@ -488,7 +490,7 @@ impl<M: Matcher> Trace<M> {
             if ctx.deterministic_put {
                 if let Ok(agent) = ctx.find_agent_mut(name) {
                     if let Err(err) = agent.put_mut().determinism_reseed() {
-                        warn!("Unable to make agent {} deterministic: {}", name, err)
+                        log::warn!("Unable to make agent {} deterministic: {}", name, err)
                     }
                 }
             }
@@ -512,7 +514,7 @@ impl<M: Matcher> Trace<M> {
         self.spawn_agents(ctx)?;
         let steps = &self.steps;
         for (i, step) in steps.iter().enumerate() {
-            debug!("Executing step #{}", i);
+            log::debug!("Executing step #{}", i);
 
             step.action.execute(step, ctx)?;
 
@@ -596,15 +598,17 @@ pub struct Step<M: Matcher> {
     pub action: Action<M>,
 }
 
-/// There are two action types [`OutputAction`] and [`InputAction`] differ.
-/// Both actions drive the internal state machine of an [`Agent`] forward by calling `next_state()`.
-/// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
-/// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
-/// The [`InputAction`] evaluates the recipe term and injects the newly produced message
-/// into the *inbound channel* of the [`Agent`] referenced through the corresponding [`Step`]s
-/// by calling `add_to_inbound(...)` and then drives the state machine forward.
-/// Therefore, the difference is that one step *increases* the knowledge of the attacker,
-/// whereas the other action *uses* the available knowledge.
+/// The actions performed on an [`Agent`].
+///
+/// There are two action types [`OutputAction`] and [`InputAction`] differ. Both actions drive the
+/// internal state machine of an [`Agent`] forward by calling `next_state()`. The [`OutputAction`]
+/// first forwards the state machine and then extracts knowledge from the TLS messages produced by
+/// the underlying stream by calling  `take_message_from_outbound(...)`. The [`InputAction`]
+/// evaluates the recipe term and injects the newly produced message into the *inbound channel* of
+/// the [`Agent`] referenced through the corresponding [`Step`]s by calling `add_to_inbound(...)`
+/// and then drives the state machine forward. Therefore, the difference is that one step
+/// *increases* the knowledge of the attacker, whereas the other action *uses* the available
+/// knowledge.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
 pub enum Action<M: Matcher> {
@@ -633,9 +637,11 @@ impl<M: Matcher> fmt::Display for Action<M> {
     }
 }
 
-/// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
-/// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.
-/// An output action is automatically called after each input step.
+/// Advance the [`Agent`]'s state and process the produced output.
+///
+/// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the TLS
+/// messages produced by the underlying stream by calling  `take_message_from_outbound(...)`. An
+/// output action is automatically called after each input step.
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 pub struct OutputAction<M> {
     phantom: PhantomData<M>,
@@ -668,23 +674,15 @@ impl<M: Matcher> OutputAction<M> {
                 .knowledge_store
                 .add_raw_knowledge(opaque_flight, source.clone())
             {
-                debug!("Raw Knowledge increased to {}", num);
+                log::debug!("Raw Knowledge increased by {}", num);
             }
 
             if let Ok(f) = flight {
                 if let Ok(num) = ctx.knowledge_store.add_raw_knowledge(f, source.clone()) {
-                    debug!("Raw Knowledge increased to {}", num);
+                    log::debug!("Raw Knowledge increased by {}", num);
                 }
             }
         }
-
-        // let flight_knowledge = Knowledge::<M> {
-        //     agent_name: step.agent,
-        //     matcher: None,
-        //     data: Box::new(flight),
-        // };
-        // flight_knowledge.debug_print(ctx, &step.agent);
-        // ctx.add_knowledge(flight_knowledge);
 
         Ok(())
     }
@@ -696,6 +694,8 @@ impl<M: Matcher> fmt::Display for OutputAction<M> {
     }
 }
 
+/// Provide inputs to the [`Agent`].
+///
 /// The [`InputAction`] evaluates the recipe term and injects the newly produced message
 /// into the *inbound channel* of the [`Agent`] referenced through the corresponding [`Step`]s
 /// by calling `add_to_inbound(...)` and then drives the state machine forward.
@@ -715,11 +715,7 @@ impl<M: Matcher> InputAction<M> {
         }
     }
 
-    fn input<PB: ProtocolBehavior>(
-        &self,
-        step: &Step<M>,
-        ctx: &mut TraceContext<PB>,
-    ) -> Result<(), Error>
+    fn input<PB>(&self, step: &Step<M>, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
@@ -739,7 +735,7 @@ impl<M: Matcher> InputAction<M> {
         {
             flight.debug("Input opaque message flight");
 
-            ctx.add_to_inbound(step.agent, &flight)?;
+            ctx.add_to_inbound(step.agent, flight)?;
         } else if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
             msg.debug("Input message");
 
