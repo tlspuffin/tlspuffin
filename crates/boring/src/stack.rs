@@ -1,25 +1,19 @@
-use std::{
-    borrow::Borrow,
-    convert::AsRef,
-    fmt, iter,
-    marker::PhantomData,
-    mem,
-    ops::{Deref, DerefMut, Index, IndexMut, Range},
-};
+use std::borrow::Borrow;
+use std::convert::AsRef;
+use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
+use std::{fmt, iter, mem};
 
 use foreign_types::{ForeignType, ForeignTypeRef, Opaque};
 use libc::size_t;
 
-use crate::{
-    cvt_0, cvt_p,
-    error::ErrorStack,
-    ffi,
-    ffi::{
-        sk_free as OPENSSL_sk_free, sk_new_null as OPENSSL_sk_new_null, sk_num as OPENSSL_sk_num,
-        sk_pop as OPENSSL_sk_pop, sk_push as OPENSSL_sk_push, sk_value as OPENSSL_sk_value,
-        _STACK as OPENSSL_STACK,
-    },
+use crate::error::ErrorStack;
+use crate::ffi::{
+    sk_free as OPENSSL_sk_free, sk_new_null as OPENSSL_sk_new_null, sk_num as OPENSSL_sk_num,
+    sk_pop as OPENSSL_sk_pop, sk_push as OPENSSL_sk_push, sk_value as OPENSSL_sk_value,
+    _STACK as OPENSSL_STACK,
 };
+use crate::{cvt_0, cvt_p, ffi};
 
 /// Trait implemented by types which can be placed in a stack.
 ///
@@ -271,8 +265,8 @@ impl<T: Stackable> IndexMut<usize> for StackRef<T> {
 }
 
 impl<'a, T: Stackable> iter::IntoIterator for &'a StackRef<T> {
-    type Item = &'a T::Ref;
     type IntoIter = Iter<'a, T>;
+    type Item = &'a T::Ref;
 
     fn into_iter(self) -> Iter<'a, T> {
         self.iter()
@@ -280,8 +274,8 @@ impl<'a, T: Stackable> iter::IntoIterator for &'a StackRef<T> {
 }
 
 impl<'a, T: Stackable> iter::IntoIterator for &'a mut StackRef<T> {
-    type Item = &'a mut T::Ref;
     type IntoIter = IterMut<'a, T>;
+    type Item = &'a mut T::Ref;
 
     fn into_iter(self) -> IterMut<'a, T> {
         self.iter_mut()
@@ -289,8 +283,8 @@ impl<'a, T: Stackable> iter::IntoIterator for &'a mut StackRef<T> {
 }
 
 impl<'a, T: Stackable> iter::IntoIterator for &'a Stack<T> {
-    type Item = &'a T::Ref;
     type IntoIter = Iter<'a, T>;
+    type Item = &'a T::Ref;
 
     fn into_iter(self) -> Iter<'a, T> {
         self.iter()
@@ -298,8 +292,8 @@ impl<'a, T: Stackable> iter::IntoIterator for &'a Stack<T> {
 }
 
 impl<'a, T: Stackable> iter::IntoIterator for &'a mut Stack<T> {
-    type Item = &'a mut T::Ref;
     type IntoIter = IterMut<'a, T>;
+    type Item = &'a mut T::Ref;
 
     fn into_iter(self) -> IterMut<'a, T> {
         self.iter_mut()

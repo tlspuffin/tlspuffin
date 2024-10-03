@@ -10,13 +10,10 @@ use std::{fmt, mem, ptr};
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::c_uint;
 
-use crate::{
-    bn::{BigNum, BigNumRef},
-    cvt, cvt_p,
-    error::ErrorStack,
-    ffi,
-    pkey::{HasParams, HasPrivate, HasPublic, Private, Public},
-};
+use crate::bn::{BigNum, BigNumRef};
+use crate::error::ErrorStack;
+use crate::pkey::{HasParams, HasPrivate, HasPublic, Private, Public};
+use crate::{cvt, cvt_p, ffi};
 
 generic_foreign_type_and_impl_send_sync! {
     type CType = ffi::DSA;

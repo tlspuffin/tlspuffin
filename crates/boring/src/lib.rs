@@ -21,23 +21,26 @@
 //! ## Environment variables
 //!
 //! This crate uses various environment variables to tweak how boring is built. The variables
-//! are all prefixed by `BORING_BSSL_` for non-FIPS builds, and by `BORING_BSSL_FIPS_` for FIPS builds.
+//! are all prefixed by `BORING_BSSL_` for non-FIPS builds, and by `BORING_BSSL_FIPS_` for FIPS
+//! builds.
 //!
 //! ## Support for pre-built binaries or custom source
 //!
-//! While this crate can build BoringSSL on its own, you may want to provide pre-built binaries instead.
-//! To do so, specify the environment variable `BORING_BSSL{,_FIPS}_PATH` with the path to the binaries.
+//! While this crate can build BoringSSL on its own, you may want to provide pre-built binaries
+//! instead. To do so, specify the environment variable `BORING_BSSL{,_FIPS}_PATH` with the path to
+//! the binaries.
 //!
 //! You can also provide specific headers by setting `BORING_BSSL{,_FIPS}_INCLUDE_PATH`.
 //!
 //! _Notes_: The crate will look for headers in the`$BORING_BSSL{,_FIPS}_INCLUDE_PATH/openssl/`
 //! folder, make sure to place your headers there.
 //!
-//! In alternative a different path for the BoringSSL source code directory can be specified by setting
-//! `BORING_BSSL{,_FIPS}_SOURCE_PATH` which will automatically be compiled during the build process.
+//! In alternative a different path for the BoringSSL source code directory can be specified by
+//! setting `BORING_BSSL{,_FIPS}_SOURCE_PATH` which will automatically be compiled during the build
+//! process.
 //!
-//! _Warning_: When providing a different version of BoringSSL make sure to use a compatible one, the
-//! crate relies on the presence of certain functions.
+//! _Warning_: When providing a different version of BoringSSL make sure to use a compatible one,
+//! the crate relies on the presence of certain functions.
 //!
 //! ## Building with a FIPS-validated module
 //!
@@ -45,7 +48,8 @@
 //! [FIPS 140-2 certificate 4407](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4407)
 //! is supported by this crate. Support is enabled by this crate's `fips` feature.
 //!
-//! `boring-sys` comes with a test that FIPS is enabled/disabled depending on the feature flag. You can run it as follows:
+//! `boring-sys` comes with a test that FIPS is enabled/disabled depending on the feature flag. You
+//! can run it as follows:
 //!
 //! ```bash
 //! $ cargo test --features fips fips::is_enabled
@@ -55,11 +59,11 @@
 //!
 //! It's possible to link latest supported version of BoringSSL with FIPS-validated crypto module
 //! (`bcm.o`). To enable this compilation option one should enable `fips-link-precompiled`
-//! compilation feature and provide a `BORING_BSSL_FIPS_PRECOMPILED_BCM_O` env variable with a path to the
-//! precompiled FIPS-validated `bcm.o` module.
+//! compilation feature and provide a `BORING_BSSL_FIPS_PRECOMPILED_BCM_O` env variable with a path
+//! to the precompiled FIPS-validated `bcm.o` module.
 //!
-//! Note that `BORING_BSSL_PRECOMPILED_BCM_O` is never used, as linking BoringSSL with precompiled non-FIPS
-//! module is not supported.
+//! Note that `BORING_BSSL_PRECOMPILED_BCM_O` is never used, as linking BoringSSL with precompiled
+//! non-FIPS module is not supported.
 //!
 //! # Optional patches
 //!
@@ -77,7 +81,8 @@
 //! users should stick to that one. Enabling this feature, adds a few other post-quantum key
 //! agreements:
 //!
-//! - `X25519Kyber768Draft00Old` is the same as `X25519Kyber768Draft00`, but under its old codepoint.
+//! - `X25519Kyber768Draft00Old` is the same as `X25519Kyber768Draft00`, but under its old
+//!   codepoint.
 //! -`X25519Kyber512Draft00`. Similar to `X25519Kyber768Draft00`, but uses level 1 parameter set for
 //! Kyber. Not recommended. It's useful to test whether the shorter ClientHello upsets fewer middle
 //! boxes.

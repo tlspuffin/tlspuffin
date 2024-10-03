@@ -3,11 +3,9 @@ use std::mem;
 use foreign_types::{foreign_type, ForeignType};
 use wolfssl_sys as wolf;
 
-use crate::{
-    error::ErrorStack,
-    rsa::Rsa,
-    util::{cvt, cvt_p},
-};
+use crate::error::ErrorStack;
+use crate::rsa::Rsa;
+use crate::util::{cvt, cvt_p};
 
 /// A tag type indicating that a key only has public components.
 pub enum Public {}

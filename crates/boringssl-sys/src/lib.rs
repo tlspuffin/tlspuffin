@@ -16,10 +16,8 @@
 /// And is dual licensed under the terms of both the Apache License, Version 2.0 and
 /// the MIT license without any additional terms or conditions.
 use std::convert::TryInto;
-use std::{
-    ffi::c_void,
-    os::raw::{c_char, c_int, c_uint, c_ulong},
-};
+use std::ffi::c_void;
+use std::os::raw::{c_char, c_int, c_uint, c_ulong};
 
 #[allow(clippy::useless_transmute, clippy::derive_partial_eq_without_eq)]
 mod generated {
@@ -71,7 +69,8 @@ const_fn! {
 }
 
 pub fn init() {
-    use std::{ptr, sync::Once};
+    use std::ptr;
+    use std::sync::Once;
 
     // explicitly initialize to work around https://github.com/openssl/openssl/issues/3505
     static INIT: Once = Once::new();

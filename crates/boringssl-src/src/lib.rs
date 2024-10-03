@@ -1,10 +1,8 @@
-use std::{
-    collections::HashSet,
-    env, fs, io,
-    io::ErrorKind,
-    path::{Path, PathBuf},
-    process::Command,
-};
+use std::collections::HashSet;
+use std::io::ErrorKind;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::{env, fs, io};
 
 use cmake::Config;
 
@@ -106,7 +104,8 @@ fn build_boringssl<P: AsRef<Path>>(dest: &P, options: &BoringSSLOptions) -> Path
         .define("OPENSSL_NO_BUF_FREELISTS", "1");
 
     if env::var("TARGET") == Ok("aarch64-apple-darwin".into()) {
-        // We rely on llvm installed with homebrew on Mac OS X since Xcode does not ship llvm with libfuzzer!
+        // We rely on llvm installed with homebrew on Mac OS X since Xcode does not ship llvm with
+        // libfuzzer!
         boring_conf
             .define("CMAKE_C_COMPILER", "/opt/homebrew/opt/llvm/bin/clang")
             .define("CMAKE_CXX_COMPILER", "/opt/homebrew/opt/llvm/bin/clang++");

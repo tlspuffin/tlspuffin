@@ -11,16 +11,13 @@
 //! let data = b"Some Crypto Text";
 //! let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
 //! let iv = b"\x00\x01\x02\x03\x04\x05\x06\x07\x00\x01\x02\x03\x04\x05\x06\x07";
-//! let ciphertext = encrypt(
-//!     cipher,
-//!     key,
-//!     Some(iv),
-//!     data).unwrap();
+//! let ciphertext = encrypt(cipher, key, Some(iv), data).unwrap();
 //!
 //! assert_eq!(
 //!     b"\xB4\xB9\xE7\x30\xD6\xD6\xF7\xDE\x77\x3F\x1C\xFF\xB3\x3E\x44\x5A\x91\xD7\x27\x62\x87\x4D\
 //!       \xFB\x3C\x5E\xC4\x59\x72\x4A\xF4\x7C\xA1",
-//!     &ciphertext[..]);
+//!     &ciphertext[..]
+//! );
 //! ```
 //!
 //! Encrypting an asymmetric key with a symmetric cipher
@@ -33,7 +30,9 @@
 //! let keypair = Rsa::generate(2048).unwrap();
 //! let cipher = Cipher::aes_256_cbc();
 //! let pubkey_pem = keypair.public_key_to_pem_pkcs1().unwrap();
-//! let privkey_pem = keypair.private_key_to_pem_passphrase(cipher, b"Rust").unwrap();
+//! let privkey_pem = keypair
+//!     .private_key_to_pem_passphrase(cipher, b"Rust")
+//!     .unwrap();
 //! // pubkey_pem and privkey_pem could be written to file here.
 //!
 //! // Load private and public key from string:
@@ -44,9 +43,13 @@
 //! let msg = b"Foo bar";
 //! let mut encrypted = vec![0; pubkey.size() as usize];
 //! let mut decrypted = vec![0; privkey.size() as usize];
-//! let len = pubkey.public_encrypt(msg, &mut encrypted, Padding::PKCS1).unwrap();
+//! let len = pubkey
+//!     .public_encrypt(msg, &mut encrypted, Padding::PKCS1)
+//!     .unwrap();
 //! assert!(len > msg.len());
-//! let len = privkey.private_decrypt(&encrypted, &mut decrypted, Padding::PKCS1).unwrap();
+//! let len = privkey
+//!     .private_decrypt(&encrypted, &mut decrypted, Padding::PKCS1)
+//!     .unwrap();
 //! let output_string = String::from_utf8(decrypted[..len].to_vec()).unwrap();
 //! assert_eq!("Foo bar", output_string);
 //! println!("Decrypted: '{}'", output_string);
@@ -56,7 +59,9 @@ use std::{cmp, ptr};
 
 use libc::{c_int, c_uint};
 
-use crate::{cvt, cvt_p, error::ErrorStack, ffi, nid::Nid};
+use crate::error::ErrorStack;
+use crate::nid::Nid;
+use crate::{cvt, cvt_p, ffi};
 
 #[derive(Copy, Clone)]
 pub enum Mode {
@@ -225,7 +230,7 @@ unsafe impl Send for Cipher {}
 /// CBC mode.
 ///
 /// ```
-/// use boring::symm::{Cipher, Mode, Crypter};
+/// use boring::symm::{Cipher, Crypter, Mode};
 ///
 /// let plaintexts: [&[u8]; 2] = [b"Some Stream of", b" Crypto Text"];
 /// let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
@@ -233,18 +238,16 @@ unsafe impl Send for Cipher {}
 /// let data_len = plaintexts.iter().fold(0, |sum, x| sum + x.len());
 ///
 /// // Create a cipher context for encryption.
-/// let mut encrypter = Crypter::new(
-///     Cipher::aes_128_cbc(),
-///     Mode::Encrypt,
-///     key,
-///     Some(iv)).unwrap();
+/// let mut encrypter = Crypter::new(Cipher::aes_128_cbc(), Mode::Encrypt, key, Some(iv)).unwrap();
 ///
 /// let block_size = Cipher::aes_128_cbc().block_size();
 /// let mut ciphertext = vec![0; data_len + block_size];
 ///
 /// // Encrypt 2 chunks of plaintexts successively.
 /// let mut count = encrypter.update(plaintexts[0], &mut ciphertext).unwrap();
-/// count += encrypter.update(plaintexts[1], &mut ciphertext[count..]).unwrap();
+/// count += encrypter
+///     .update(plaintexts[1], &mut ciphertext[count..])
+///     .unwrap();
 /// count += encrypter.finalize(&mut ciphertext[count..]).unwrap();
 /// ciphertext.truncate(count);
 ///
@@ -254,22 +257,19 @@ unsafe impl Send for Cipher {}
 ///     &ciphertext[..]
 /// );
 ///
-///
 /// // Let's pretend we don't know the plaintext, and now decrypt the ciphertext.
 /// let data_len = ciphertext.len();
 /// let ciphertexts = [&ciphertext[..9], &ciphertext[9..]];
 ///
 /// // Create a cipher context for decryption.
-/// let mut decrypter = Crypter::new(
-///     Cipher::aes_128_cbc(),
-///     Mode::Decrypt,
-///     key,
-///     Some(iv)).unwrap();
+/// let mut decrypter = Crypter::new(Cipher::aes_128_cbc(), Mode::Decrypt, key, Some(iv)).unwrap();
 /// let mut plaintext = vec![0; data_len + block_size];
 ///
 /// // Decrypt 2 chunks of ciphertexts successively.
 /// let mut count = decrypter.update(ciphertexts[0], &mut plaintext).unwrap();
-/// count += decrypter.update(ciphertexts[1], &mut plaintext[count..]).unwrap();
+/// count += decrypter
+///     .update(ciphertexts[1], &mut plaintext[count..])
+///     .unwrap();
 /// count += decrypter.finalize(&mut plaintext[count..]).unwrap();
 /// plaintext.truncate(count);
 ///
@@ -555,16 +555,13 @@ impl Drop for Crypter {
 /// let data = b"Some Crypto Text";
 /// let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
 /// let iv = b"\x00\x01\x02\x03\x04\x05\x06\x07\x00\x01\x02\x03\x04\x05\x06\x07";
-/// let ciphertext = encrypt(
-///     cipher,
-///     key,
-///     Some(iv),
-///     data).unwrap();
+/// let ciphertext = encrypt(cipher, key, Some(iv), data).unwrap();
 ///
 /// assert_eq!(
 ///     b"\xB4\xB9\xE7\x30\xD6\xD6\xF7\xDE\x77\x3F\x1C\xFF\xB3\x3E\x44\x5A\x91\xD7\x27\x62\x87\x4D\
 ///       \xFB\x3C\x5E\xC4\x59\x72\x4A\xF4\x7C\xA1",
-///     &ciphertext[..]);
+///     &ciphertext[..]
+/// );
 /// ```
 pub fn encrypt(
     t: Cipher,
@@ -595,15 +592,9 @@ pub fn encrypt(
 ///              \x87\x4D\xFB\x3C\x5E\xC4\x59\x72\x4A\xF4\x7C\xA1";
 /// let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
 /// let iv = b"\x00\x01\x02\x03\x04\x05\x06\x07\x00\x01\x02\x03\x04\x05\x06\x07";
-/// let ciphertext = decrypt(
-///     cipher,
-///     key,
-///     Some(iv),
-///     data).unwrap();
+/// let ciphertext = decrypt(cipher, key, Some(iv), data).unwrap();
 ///
-/// assert_eq!(
-///     b"Some Crypto Text",
-///     &ciphertext[..]);
+/// assert_eq!(b"Some Crypto Text", &ciphertext[..]);
 /// ```
 pub fn decrypt(
     t: Cipher,

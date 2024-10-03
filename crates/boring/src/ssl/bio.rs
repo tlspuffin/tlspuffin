@@ -1,20 +1,15 @@
-use std::{
-    any::Any,
-    io,
-    io::prelude::*,
-    panic::{catch_unwind, AssertUnwindSafe},
-    ptr, slice,
-};
+use std::any::Any;
+use std::io::prelude::*;
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::{io, ptr, slice};
 
 use libc::{c_char, c_int, c_long, c_void, strlen};
 
-use crate::{
-    cvt_p,
-    error::ErrorStack,
-    ffi::{
-        self, BIO_clear_retry_flags, BIO_new, BIO_set_retry_read, BIO_set_retry_write, BIO,
-        BIO_CTRL_DGRAM_QUERY_MTU, BIO_CTRL_FLUSH,
-    },
+use crate::cvt_p;
+use crate::error::ErrorStack;
+use crate::ffi::{
+    self, BIO_clear_retry_flags, BIO_new, BIO_set_retry_read, BIO_set_retry_write, BIO,
+    BIO_CTRL_DGRAM_QUERY_MTU, BIO_CTRL_FLUSH,
 };
 
 pub struct StreamState<S> {

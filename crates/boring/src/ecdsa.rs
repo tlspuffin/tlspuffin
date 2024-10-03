@@ -5,14 +5,11 @@ use std::{mem, ptr};
 use foreign_types::{ForeignType, ForeignTypeRef};
 use libc::{c_int, size_t};
 
-use crate::{
-    bn::{BigNum, BigNumRef},
-    cvt_n, cvt_p,
-    ec::EcKeyRef,
-    error::ErrorStack,
-    ffi,
-    pkey::{HasPrivate, HasPublic},
-};
+use crate::bn::{BigNum, BigNumRef};
+use crate::ec::EcKeyRef;
+use crate::error::ErrorStack;
+use crate::pkey::{HasPrivate, HasPublic};
+use crate::{cvt_n, cvt_p, ffi};
 
 foreign_type_and_impl_send_sync! {
     type CType = ffi::ECDSA_SIG;
@@ -27,6 +24,18 @@ foreign_type_and_impl_send_sync! {
 }
 
 impl EcdsaSig {
+    from_der! {
+        /// Decodes a DER-encoded ECDSA signature.
+        ///
+        /// This corresponds to [`d2i_ECDSA_SIG`].
+        ///
+        /// [`d2i_ECDSA_SIG`]: https://www.openssl.org/docs/man1.1.0/crypto/d2i_ECDSA_SIG.html
+        from_der,
+        EcdsaSig,
+        ffi::d2i_ECDSA_SIG,
+        ::libc::c_long
+    }
+
     /// Computes a digital signature of the hash value `data` using the private EC key eckey.
     ///
     /// OpenSSL documentation at [`ECDSA_do_sign`]
@@ -60,18 +69,6 @@ impl EcdsaSig {
             mem::forget((r, s));
             Ok(EcdsaSig::from_ptr(sig as *mut _))
         }
-    }
-
-    from_der! {
-        /// Decodes a DER-encoded ECDSA signature.
-        ///
-        /// This corresponds to [`d2i_ECDSA_SIG`].
-        ///
-        /// [`d2i_ECDSA_SIG`]: https://www.openssl.org/docs/man1.1.0/crypto/d2i_ECDSA_SIG.html
-        from_der,
-        EcdsaSig,
-        ffi::d2i_ECDSA_SIG,
-        ::libc::c_long
     }
 }
 

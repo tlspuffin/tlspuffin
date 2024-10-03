@@ -22,7 +22,7 @@
 //!
 //! ## Key wrapping
 //! ```rust
-//! use boring::aes::{AesKey, unwrap_key, wrap_key};
+//! use boring::aes::{unwrap_key, wrap_key, AesKey};
 //!
 //! let kek = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
 //! let key_to_wrap = b"\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xAA\xBB\xCC\xDD\xEE\xFF";
@@ -36,8 +36,8 @@
 //!
 //! assert_eq!(&orig_key[..], &key_to_wrap[..]);
 //! ```
-//!
-use std::{mem::MaybeUninit, ptr};
+use std::mem::MaybeUninit;
+use std::ptr;
 
 use libc::{c_int, c_uint, size_t};
 
@@ -124,7 +124,8 @@ pub fn wrap_key(
         assert!(out.len() >= in_.len() + 8); // Ciphertext is 64 bits longer (see 2.2.1)
 
         let written = ffi::AES_wrap_key(
-            &key.0 as *const _ as *mut _, // this is safe, the implementation only uses the key as a const pointer.
+            &key.0 as *const _ as *mut _, /* this is safe, the implementation only uses the key
+                                           * as a const pointer. */
             iv.as_ref()
                 .map_or(ptr::null(), |iv| iv.as_ptr() as *const _),
             out.as_ptr() as *mut _,
@@ -162,7 +163,8 @@ pub fn unwrap_key(
         assert!(out.len() + 8 <= in_.len());
 
         let written = ffi::AES_unwrap_key(
-            &key.0 as *const _ as *mut _, // this is safe, the implementation only uses the key as a const pointer.
+            &key.0 as *const _ as *mut _, /* this is safe, the implementation only uses the key
+                                           * as a const pointer. */
             iv.as_ref()
                 .map_or(ptr::null(), |iv| iv.as_ptr() as *const _),
             out.as_ptr() as *mut _,

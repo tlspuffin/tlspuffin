@@ -10,10 +10,10 @@
 //! Sign and verify data given an RSA keypair:
 //!
 //! ```rust
-//! use boring::sign::{Signer, Verifier};
-//! use boring::rsa::Rsa;
-//! use boring::pkey::PKey;
 //! use boring::hash::MessageDigest;
+//! use boring::pkey::PKey;
+//! use boring::rsa::Rsa;
+//! use boring::sign::{Signer, Verifier};
 //!
 //! // Generate a keypair
 //! let keypair = Rsa::generate(2048).unwrap();
@@ -34,29 +34,31 @@
 //! verifier.update(data2).unwrap();
 //! assert!(verifier.verify(&signature).unwrap());
 //! ```
-use std::{
-    io::{self, Write},
-    marker::PhantomData,
-    ptr,
-};
+use std::io::{self, Write};
+use std::marker::PhantomData;
+use std::ptr;
 
 use foreign_types::ForeignTypeRef;
 use libc::c_int;
 
-use crate::{
-    cvt, cvt_p,
-    error::ErrorStack,
-    ffi,
-    ffi::{EVP_MD_CTX_free, EVP_MD_CTX_new},
-    hash::MessageDigest,
-    pkey::{HasPrivate, HasPublic, PKeyRef},
-    rsa::Padding,
-};
+use crate::error::ErrorStack;
+use crate::ffi::{EVP_MD_CTX_free, EVP_MD_CTX_new};
+use crate::hash::MessageDigest;
+use crate::pkey::{HasPrivate, HasPublic, PKeyRef};
+use crate::rsa::Padding;
+use crate::{cvt, cvt_p, ffi};
 
 /// Salt lengths that must be used with `set_rsa_pss_saltlen`.
 pub struct RsaPssSaltlen(c_int);
 
 impl RsaPssSaltlen {
+    /// The salt length is set to the digest length.
+    /// Corresponds to the special value `-1`.
+    pub const DIGEST_LENGTH: RsaPssSaltlen = RsaPssSaltlen(-1);
+    /// The salt length is set to the maximum permissible value.
+    /// Corresponds to the special value `-2`.
+    pub const MAXIMUM_LENGTH: RsaPssSaltlen = RsaPssSaltlen(-2);
+
     /// Returns the integer representation of `RsaPssSaltlen`.
     fn as_raw(&self) -> c_int {
         self.0
@@ -66,13 +68,6 @@ impl RsaPssSaltlen {
     pub fn custom(val: c_int) -> RsaPssSaltlen {
         RsaPssSaltlen(val)
     }
-
-    /// The salt length is set to the digest length.
-    /// Corresponds to the special value `-1`.
-    pub const DIGEST_LENGTH: RsaPssSaltlen = RsaPssSaltlen(-1);
-    /// The salt length is set to the maximum permissible value.
-    /// Corresponds to the special value `-2`.
-    pub const MAXIMUM_LENGTH: RsaPssSaltlen = RsaPssSaltlen(-2);
 }
 
 /// A type which computes cryptographic signatures of data.
@@ -582,14 +577,12 @@ mod test {
     use hex::{self, FromHex};
 
     use super::RsaPssSaltlen;
-    use crate::{
-        ec::{EcGroup, EcKey},
-        hash::MessageDigest,
-        nid::Nid,
-        pkey::PKey,
-        rsa::{Padding, Rsa},
-        sign::{Signer, Verifier},
-    };
+    use crate::ec::{EcGroup, EcKey};
+    use crate::hash::MessageDigest;
+    use crate::nid::Nid;
+    use crate::pkey::PKey;
+    use crate::rsa::{Padding, Rsa};
+    use crate::sign::{Signer, Verifier};
 
     const INPUT: &str =
         "65794a68624763694f694a53557a49314e694a392e65794a7063334d694f694a71623255694c41304b49434a6c\

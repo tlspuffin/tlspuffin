@@ -1,7 +1,9 @@
 use foreign_types::foreign_type;
 use wolfssl_sys as wolf;
 
-use crate::{bio::MemBioSlice, error::ErrorStack, util::cvt_p};
+use crate::bio::MemBioSlice;
+use crate::error::ErrorStack;
+use crate::util::cvt_p;
 
 foreign_type! {
     pub unsafe type X509: Sync + Send {

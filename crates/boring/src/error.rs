@@ -6,16 +6,18 @@
 //! # Examples
 //!
 //! ```
-//! use boring::error::ErrorStack;
 //! use boring::bn::BigNum;
+//! use boring::error::ErrorStack;
 //!
 //! let an_error = BigNum::from_dec_str("Cannot parse letters");
 //! match an_error {
-//!     Ok(_)  => (),
+//!     Ok(_) => (),
 //!     Err(e) => println!("Parsing Error: {:?}", e),
 //! }
 //! ```
-use std::{borrow::Cow, error, ffi::CStr, fmt, io, ptr, str};
+use std::borrow::Cow;
+use std::ffi::CStr;
+use std::{error, fmt, io, ptr, str};
 
 use libc::{c_char, c_uint};
 

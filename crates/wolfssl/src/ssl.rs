@@ -1,16 +1,12 @@
 #![allow(non_snake_case)]
 
-use std::{
-    cell::{Ref, RefMut},
-    cmp,
-    ffi::{CStr, CString},
-    io,
-    io::{Read, Write},
-    marker::PhantomData,
-    mem::ManuallyDrop,
-    panic, ptr,
-    sync::Once,
-};
+use std::cell::{Ref, RefMut};
+use std::ffi::{CStr, CString};
+use std::io::{Read, Write};
+use std::marker::PhantomData;
+use std::mem::ManuallyDrop;
+use std::sync::Once;
+use std::{cmp, io, panic, ptr};
 
 use bitflags::bitflags;
 use foreign_types::{foreign_type, ForeignType, ForeignTypeRef};
@@ -18,14 +14,11 @@ use libc::{c_int, c_uchar, c_void};
 use log::LevelFilter;
 use wolfssl_sys as wolf;
 
-use crate::{
-    bio,
-    callbacks::{ssl_msg_callback, ExtraUserDataRegistry},
-    error::{ErrorCode, ErrorStack, InnerError, SslError},
-    util::{cvt, cvt_p},
-    x509::X509Ref,
-    TLSVersion,
-};
+use crate::callbacks::{ssl_msg_callback, ExtraUserDataRegistry};
+use crate::error::{ErrorCode, ErrorStack, InnerError, SslError};
+use crate::util::{cvt, cvt_p};
+use crate::x509::X509Ref;
+use crate::{bio, TLSVersion};
 
 const EXTRA_USER_DATA_REGISTRY_INDEX: i32 = 0;
 
@@ -129,7 +122,12 @@ impl SslContextRef {
         }
     }
 
-    /// This function loads a certificate to use for verifying a peer when performing a TLS/SSL handshake. The peer certificate sent during the handshake is compared by using the SKID when available and the signature. If these two things do not match then any loaded CAs are used. Is the same functionality as wolfSSL_CTX_trust_peer_cert except is from a buffer instead of a file. Feature is enabled by defining the macro WOLFSSL_TRUST_PEER_CERT Please see the examples for proper usage.
+    /// This function loads a certificate to use for verifying a peer when performing a TLS/SSL
+    /// handshake. The peer certificate sent during the handshake is compared by using the SKID when
+    /// available and the signature. If these two things do not match then any loaded CAs are used.
+    /// Is the same functionality as wolfSSL_CTX_trust_peer_cert except is from a buffer instead of
+    /// a file. Feature is enabled by defining the macro WOLFSSL_TRUST_PEER_CERT Please see the
+    /// examples for proper usage.
     ///
     /// This corresponds to [`wolfSSL_CTX_load_verify_buffer`].
     /// [`wolfSSL_CTX_load_verify_buffer`]: https://www.wolfssl.com/documentation/manuals/wolfssl/group__CertsKeys.html#function-wolfssl_ctx_load_verify_buffer
@@ -441,7 +439,8 @@ impl SslRef {
     pub fn server_state_str(&self) -> &'static str {
         let state = unsafe { (*self.as_ptr()).options.serverState };
 
-        // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
+        // WARNING: The following names have been taken from wolfssl/internal.h. They can become out
+        // of date.
         match state as u32 {
             wolf::states_NULL_STATE => "NULL_STATE",
             wolf::states_SERVER_HELLOVERIFYREQUEST_COMPLETE => "SERVER_HELLOVERIFYREQUEST_COMPLETE",
@@ -503,7 +502,8 @@ impl SslRef {
     pub fn accept_state_str(&self, tls_version: TLSVersion) -> &'static str {
         let state = unsafe { (*self.as_ptr()).options.acceptState };
 
-        // WARNING: The following names have been taken from wolfssl/internal.h. They can become out of date.
+        // WARNING: The following names have been taken from wolfssl/internal.h. They can become out
+        // of date.
         match tls_version {
             TLSVersion::V1_3 => match state as u32 {
                 wolf::AcceptStateTls13_TLS13_ACCEPT_BEGIN => "TLS13_ACCEPT_BEGIN",
@@ -602,6 +602,7 @@ impl<S: Read + Write> SslStream<S> {
             _p: PhantomData,
         })
     }
+
     /// Returns a mutable reference to the underlying stream.
     ///
     /// # Warning

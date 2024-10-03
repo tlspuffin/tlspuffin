@@ -2,7 +2,10 @@ use std::ptr;
 
 use libc::{c_int, c_uint};
 
-use crate::{cvt, error::ErrorStack, ffi, hash::MessageDigest, symm::Cipher};
+use crate::error::ErrorStack;
+use crate::hash::MessageDigest;
+use crate::symm::Cipher;
+use crate::{cvt, ffi};
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct KeyIvPair {
@@ -136,7 +139,8 @@ pub fn scrypt(
 
 #[cfg(test)]
 mod tests {
-    use crate::{hash::MessageDigest, symm::Cipher};
+    use crate::hash::MessageDigest;
+    use crate::symm::Cipher;
 
     // Test vectors from
     // https://git.lysator.liu.se/nettle/nettle/blob/nettle_3.1.1_release_20150424/testsuite/pbkdf2-test.c
