@@ -1,10 +1,5 @@
 use_languages(C CXX)
 
-option(asan "Build with address-sanitizer" OFF)
-option(sancov "Build with sancov" OFF)
-option(gcov "Build with instrumentation for gcov coverage" OFF)
-option(llvm_cov "Build with instrumentation for llvm coverage" OFF)
-
 patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/no_asan.patch)
 patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/extract_transcript.patch)
 patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/reset_drbg.patch)
