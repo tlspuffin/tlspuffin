@@ -2195,6 +2195,7 @@ dependencies = [
  "smallvec",
  "tempfile",
  "test-log",
+ "tlspuffin",
  "tlspuffin-harness-sys",
  "webpki",
  "wolfssl",

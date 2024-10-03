@@ -20,19 +20,18 @@ use puffin::put_registry::PutRegistry;
 use puffin::test_utils::AssertExecution;
 use puffin::trace::{Action, Spawner, Step, Trace, TraceContext};
 use puffin::trace_helper::TraceHelper;
-
-use crate::protocol::TLSProtocolBehavior;
-use crate::put_registry::tls_registry;
-use crate::query::TlsQueryMatcher;
-use crate::test_utils::default_runner_for;
-use crate::tls::fn_impl::{
+use tlspuffin::protocol::TLSProtocolBehavior;
+use tlspuffin::put_registry::tls_registry;
+use tlspuffin::query::TlsQueryMatcher;
+use tlspuffin::test_utils::default_runner_for;
+use tlspuffin::tls::fn_impl::{
     fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
     fn_support_group_extension,
 };
-use crate::tls::seeds::{
+use tlspuffin::tls::seeds::{
     _seed_client_attacker12, create_corpus, seed_client_attacker_full, seed_successful,
 };
-use crate::tls::TLS_SIGNATURE;
+use tlspuffin::tls::TLS_SIGNATURE;
 
 pub type TLSState = StdState<
     Trace<TlsQueryMatcher>,
