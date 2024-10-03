@@ -1,33 +1,13 @@
-extern crate autotools;
-
-use std::fs::{canonicalize, File};
-use std::io::Write;
+use std::env;
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::{env, fs};
 
-const REF: &str = if cfg!(feature = "libressl333") {
-    "fuzz-v3.3.3"
-} else if cfg!(feature = "libresslmaster") {
-    "master"
+use puffin_build::vendor;
+
+const PRESET: &str = if cfg!(feature = "libressl333") {
+    "libressl333"
 } else {
-    panic!("Unknown version of LibreSSL requested!")
+    panic!("Missing LibreSSL version. Use --features=[libresslxxxx] to set the version.");
 };
-
-fn clone(dest: &Path) -> std::io::Result<()> {
-    std::fs::remove_dir_all(dest)?;
-    Command::new("git")
-        .arg("clone")
-        .arg("--depth")
-        .arg("1")
-        .arg("--branch")
-        .arg(REF)
-        .arg("https://github.com/tlspuffin/libressl.git")
-        .arg(dest)
-        .status()?;
-
-    Ok(())
-}
 
 pub fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -69,157 +49,43 @@ impl Build {
         self
     }
 
-    pub fn insert_claim_interface(additional_headers: &Path) -> std::io::Result<()> {
-        let interface = security_claims::CLAIM_INTERFACE_H;
-
-        let path = additional_headers.join("claim-interface.h");
-
-        let mut file = File::create(path)?;
-        file.write_all(interface.as_bytes())?;
-
-        Ok(())
-    }
-
-    pub fn use_custom_prng(sources: &Path) {
-        // NOTE patch the build system to use our custom PRNG
-        let substitution = "s@USE_BUILTIN_ARC4RANDOM=no@USE_BUILTIN_ARC4RANDOM=yes@g";
-        Self::patch_file(sources.join("configure"), substitution);
-        Self::patch_file(sources.join("m4").join("check-os-options.m4"), substitution);
-
-        // NOTE replace LibreSSL's built-in arc4random with our PRNG
-        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let prng_source = root.join("src").join("arc4random_prng.c");
-        let prng_header = root.join("src").join("arc4random_prng.h");
-
-        println!("cargo:rerun-if-changed={}", prng_source.display());
-        println!("cargo:rerun-if-changed={}", prng_header.display());
-
-        fs::copy(
-            prng_source,
-            sources.join("crypto").join("compat").join("arc4random.c"),
-        )
-        .expect("failed to inject custom PRNG source file into LibreSSL sources");
-
-        fs::copy(
-            prng_header,
-            sources.join("crypto").join("compat").join("arc4random.h"),
-        )
-        .expect("failed to inject custom PRNG header file into LibreSSL sources");
-    }
-
-    pub fn patch_file(path: PathBuf, substitution: &str) {
-        let mut patch = Command::new("perl");
-
-        patch.args(vec!["-pi.bak", "-e", substitution, path.to_str().unwrap()]);
-
-        Self::run_command(patch, "patching LibreSSL's RNG");
-    }
-
     pub fn build(&mut self) -> Artifacts {
-        if cfg!(feature = "asan") {
-            panic!("ASAN not yet supported");
-        }
+        let suffix = if cfg!(feature = "asan") { "-asan" } else { "" };
+        let name = format!("{PRESET}{suffix}");
 
-        let target = &self.target.as_ref().expect("TARGET dir not set")[..];
-        let out_dir = self.out_dir.as_ref().expect("OUT_DIR not set");
-        let build_dir = out_dir.join("build");
-        let install_dir = out_dir.clone(); // out_dir.join("install");
+        let mut config = vendor::Config::preset("libressl", PRESET)
+            .unwrap_or_else(|| panic!("missing preset libressl:{PRESET}"));
 
-        if build_dir.exists() {
-            fs::remove_dir_all(&build_dir).unwrap();
-        }
-        if install_dir.exists() {
-            fs::remove_dir_all(&install_dir).unwrap();
-        }
+        config.option("sancov", cfg!(feature = "sancov"));
+        config.option("asan", cfg!(feature = "asan"));
+        config.option("gcov", cfg!(feature = "gcov"));
+        config.option("llvm_cov", cfg!(feature = "llvm_cov"));
 
-        let additional_headers = out_dir.join("additional_headers");
+        let prefix = vendor::dir()
+            .lock(&name)
+            .and_then(|config_dir| {
+                if let Some(old_config) = config_dir.config()? {
+                    if old_config == config {
+                        return Ok(config_dir.path().to_path_buf());
+                    }
 
-        fs::create_dir_all(&additional_headers).unwrap();
-        Self::insert_claim_interface(&additional_headers).unwrap();
+                    eprintln!("found incompatible config '{name}' in VENDOR_DIR, rebuilding...");
+                }
 
-        let inner_dir = build_dir.join("src");
-        let _ = fs::remove_dir_all(&inner_dir);
-        fs::create_dir_all(&inner_dir).unwrap();
-        clone(&inner_dir).unwrap();
+                config_dir.make(config)
+            })
+            .unwrap();
 
-        #[cfg(feature = "no-rand")]
-        Self::use_custom_prng(&inner_dir);
-
-        // see https://stackoverflow.com/a/33279062/272427
-        let mut touch = Command::new("touch");
-        touch.current_dir(&inner_dir);
-        touch.args(vec![
-            "aclocal.m4",
-            "configure",
-            "Makefile.am",
-            "Makefile.in",
-        ]);
-        Self::run_command(touch, "touching ./configure etc for LibreSSL");
-
-        use autotools::Config;
-        let mut cfg = Config::new(&inner_dir);
-        cfg.disable_shared();
-
-        let mut cc = "clang".to_owned();
-
-        // Make additional headers available
-        cc.push_str(
-            format!(
-                " -I{}",
-                canonicalize(&additional_headers).unwrap().to_str().unwrap()
-            )
-            .as_str(),
-        );
-
-        if cfg!(feature = "sancov") {
-            cc.push_str(" -fsanitize-coverage=trace-pc-guard");
-        }
-
-        cfg.env("CC", cc);
-
-        cfg.out_dir(&install_dir);
-        if target.starts_with("i686-unknown-linux") {
-            cfg.config_option("host", Some(target));
-        }
-        cfg.cflag("-v"); // JIMP
-        let dst = cfg.build();
-        assert_eq!(dst, install_dir);
-
-        let libs = if target.contains("msvc") {
-            vec![
-                "libtls".to_string(),
-                "libssl".to_string(),
-                "libcrypto".to_string(),
-            ]
-        } else {
-            vec!["tls".to_string(), "ssl".to_string(), "crypto".to_string()]
+        let libressl = Artifacts {
+            lib_dir: prefix.join("lib"),
+            include_dir: prefix.join("include"),
+            libs: vec!["tls".to_string(), "ssl".to_string(), "crypto".to_string()],
         };
 
-        Artifacts {
-            lib_dir: install_dir.join("lib"),
-            include_dir: install_dir.join("include"),
-            libs,
-        }
-    }
+        println!("cargo:rerun-if-changed={}", libressl.lib_dir.display());
+        println!("cargo:rerun-if-changed={}", libressl.include_dir.display());
 
-    #[allow(dead_code)]
-    fn run_command(mut command: Command, desc: &str) {
-        println!("running {:?}", command);
-        let status = command.status().unwrap();
-        if !status.success() {
-            panic!(
-                "
-
-
-Error {}:
-    Command: {:?}
-    Exit status: {}
-
-
-    ",
-                desc, command, status
-            );
-        }
+        libressl
     }
 }
 
@@ -249,5 +115,8 @@ impl Artifacts {
         }
         println!("cargo:include={}", self.include_dir.display());
         println!("cargo:lib={}", self.lib_dir.display());
+
+        println!("cargo:rerun-if-changed={}", self.lib_dir.display());
+        println!("cargo:rerun-if-changed={}", self.include_dir.display());
     }
 }

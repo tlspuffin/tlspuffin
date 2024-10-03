@@ -9,11 +9,9 @@ libssh0104 = []
 libsshmaster = []
 sancov = []
 asan = []
-
-[dependencies]
-
-[dev-dependencies]
+gcov = []
+llvm_cov = []
 
 [build-dependencies]
-cmake = "0.1.48"
 bindgen = "0.69.1"
+puffin-build = { path = "../../puffin-build" }

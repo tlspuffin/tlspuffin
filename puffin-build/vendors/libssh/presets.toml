@@ -1,0 +1,10 @@
+[libssh0104-asan]
+sources = { repo = "https://git.libssh.org/projects/libssh.git", branch = "libssh-0.10.4", version = "0.10.4" }
+builder = { type = "builtin", name = "libssh" }
+asan = true
+sancov = true
+
+[libssh0104]
+sources = { repo = "https://git.libssh.org/projects/libssh.git", branch = "libssh-0.10.4", version = "0.10.4" }
+builder = { type = "builtin", name = "libssh" }
+sancov = true

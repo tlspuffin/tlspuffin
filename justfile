@@ -53,8 +53,6 @@ install-rust-tooling TOOLCHAIN *FLAGS: (install-rust-toolchain TOOLCHAIN FLAGS)
     case "${flag}" in -q|--quiet) exec 1>/dev/null;; esac
   done
 
-  RUSTUP_TOOLCHAIN=stable cargo install toml-cli --locked --version "0.2.3" # mk_vendor
-
 install-rust-toolchain-default *FLAGS: (install-rust-toolchain DEFAULT_TOOLCHAIN FLAGS)
 install-rust-toolchain-nightly *FLAGS: (install-rust-toolchain NIGHTLY_TOOLCHAIN FLAGS)
 
@@ -91,13 +89,9 @@ run COMMAND *ARGS:
 
 # build a vendor library (examples: `just mk_vendor openssl openssl111k`)
 [no-exit-message]
-mk_vendor VENDOR PRESET NAME="" OPTIONS="" PATCHES="" EXTRA_FLAGS="": (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
+mk_vendor VENDOR PRESET EXTRA_FLAGS="": (install-rust-toolchain DEFAULT_TOOLCHAIN "--quiet")
   #!/usr/bin/env bash
   args=( make "{{VENDOR}}:{{PRESET}}" )
-
-  [[ -n "{{OPTIONS}}" ]] && args+=( --options="{{OPTIONS}}" )
-  [[ -n "{{PATCHES}}" ]] && args+=( --patches="{{PATCHES}}" )
-  [[ -n "{{NAME}}" ]] && args+=( --name="{{NAME}}" )
 
   {{ justfile_directory() / "tools" / "mk_vendor" }} "${args[@]}" {{EXTRA_FLAGS}}
 

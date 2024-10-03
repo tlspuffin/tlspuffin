@@ -1,0 +1,65 @@
+[openssl312-asan]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_3_1_2", version = "3.1.2" }
+builder = { type = "builtin", name = "openssl" }
+asan = true
+sancov = true
+
+[openssl312]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_3_1_2", version = "3.1.2" }
+builder = { type = "builtin", name = "openssl" }
+sancov = true
+
+[openssl111u-asan]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_1_1_1u", version = "1.1.1u" }
+builder = { type = "builtin", name = "openssl" }
+asan = true
+sancov = true
+
+[openssl111u]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_1_1_1u", version = "1.1.1u" }
+builder = { type = "builtin", name = "openssl" }
+sancov = true
+
+[openssl111k-asan]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_1_1_1k", version = "1.1.1k" }
+builder = { type = "builtin", name = "openssl" }
+asan = true
+sancov = true
+
+[openssl111k]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_1_1_1k", version = "1.1.1k" }
+builder = { type = "builtin", name = "openssl" }
+sancov = true
+
+[openssl111j-asan]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_1_1_1j", version = "1.1.1j" }
+builder = { type = "builtin", name = "openssl" }
+asan = true
+sancov = true
+
+[openssl111j]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_1_1_1j", version = "1.1.1j" }
+builder = { type = "builtin", name = "openssl" }
+sancov = true
+
+[openssl102u-asan]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "OpenSSL_1_0_2u", version = "1.0.2u" }
+builder = { type = "builtin", name = "openssl" }
+asan = true
+sancov = true
+
+[openssl102u]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "OpenSSL_1_0_2u", version = "1.0.2u" }
+builder = { type = "builtin", name = "openssl" }
+sancov = true
+
+[openssl101f-asan]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "OpenSSL_1_0_1f", version = "1.0.1f" }
+builder = { type = "builtin", name = "openssl" }
+asan = true
+sancov = true
+
+[openssl101f]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "OpenSSL_1_0_1f", version = "1.0.1f" }
+builder = { type = "builtin", name = "openssl" }
+sancov = true

@@ -1,5 +1,5 @@
 #[cfg(not(any(
-    feature = "libressl",
+    feature = "libressl333",
     feature = "openssl101f",
     feature = "openssl102u",
     feature = "openssl111k",
@@ -9,7 +9,7 @@
 )))]
 compile_error!(concat!(
     "You need to select one feature in [",
-    "'libressl', ",
+    "'libressl333', ",
     "'openssl101f', ",
     "'openssl102u', ",
     "'openssl111k', ",
@@ -20,12 +20,12 @@ compile_error!(concat!(
 ));
 
 #[cfg(any(
-    all(feature = "libressl", feature = "openssl101f"),
-    all(feature = "libressl", feature = "openssl102u"),
-    all(feature = "libressl", feature = "openssl111k"),
-    all(feature = "libressl", feature = "openssl111j"),
-    all(feature = "libressl", feature = "openssl111u"),
-    all(feature = "libressl", feature = "openssl312"),
+    all(feature = "libressl333", feature = "openssl101f"),
+    all(feature = "libressl333", feature = "openssl102u"),
+    all(feature = "libressl333", feature = "openssl111k"),
+    all(feature = "libressl333", feature = "openssl111j"),
+    all(feature = "libressl333", feature = "openssl111u"),
+    all(feature = "libressl333", feature = "openssl312"),
     all(feature = "openssl101f", feature = "openssl102u"),
     all(feature = "openssl101f", feature = "openssl111k"),
     all(feature = "openssl101f", feature = "openssl111j"),
@@ -44,7 +44,7 @@ compile_error!(concat!(
 ))]
 compile_error!(concat!(
     "Incompatible features requested. Only one of [",
-    "'libressl', ",
+    "'libressl333', ",
     "'openssl101f', ",
     "'openssl102u', ",
     "'openssl111k', ",
@@ -54,7 +54,7 @@ compile_error!(concat!(
     "] can be enabled at the same time."
 ));
 
-#[cfg_attr(feature = "libressl", path = "libressl.rs")]
+#[cfg_attr(feature = "libressl333", path = "libressl.rs")]
 mod openssl;
 
 pub use openssl::*;

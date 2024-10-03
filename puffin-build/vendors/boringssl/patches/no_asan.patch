@@ -1,0 +1,25 @@
+From c1d43d464d33140729f2524afad1d1bcf63267f7 Mon Sep 17 00:00:00 2001
+From: Tom Gouville <tom.gouville@protonmail.com>
+Date: Tue, 9 Jan 2024 17:55:47 +0100
+Subject: [PATCH] disable asan flags when building in FUZZ mode
+
+---
+ CMakeLists.txt | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 4c7926d00..3f8275a41 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -247,8 +247,6 @@ if(FUZZ)
+     set(RUNNER_ARGS ${RUNNER_ARGS} "-fuzzer" "-shim-config" "fuzzer_mode.json")
+   endif()
+ 
+-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address,fuzzer-no-link -fsanitize-coverage=edge,indirect-calls")
+-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address,fuzzer-no-link -fsanitize-coverage=edge,indirect-calls")
+ endif()
+ 
+ add_definitions(-DBORINGSSL_IMPLEMENTATION)
+-- 
+2.43.0
+

@@ -1,0 +1,104 @@
+[wolfsslmaster-asan]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "master", version = "master" }
+builder = { type = "builtin", name = "wolfssl" }
+asan = true
+sancov = true
+
+[wolfsslmaster]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "master", version = "master" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+
+[wolfssl540-sdos2]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+postauth = false
+fix = ["CVE-2022-39173"]
+
+[wolfssl540-asan-perf]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
+builder = { type = "builtin", name = "wolfssl" }
+asan = true
+sancov = true
+fix = ["CVE-2022-39173", "CVE-2022-42905"]
+
+[wolfssl540-perf]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+fix = ["CVE-2022-39173", "CVE-2022-42905"]
+
+[wolfssl540-heap]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
+builder = { type = "builtin", name = "wolfssl" }
+asan = true
+sancov = true
+fix = ["CVE-2022-39173"]
+
+[wolfssl540-buf]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+fix = ["CVE-2022-42905"]
+
+[wolfssl540-asan]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
+builder = { type = "builtin", name = "wolfssl" }
+asan = true
+sancov = true
+
+[wolfssl540]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+
+[wolfssl530-cdos]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.3.0-stable", version = "5.3.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+fix = ["CVE-2022-39173"]
+
+[wolfssl530-asan]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.3.0-stable", version = "5.3.0" }
+builder = { type = "builtin", name = "wolfssl" }
+asan = true
+sancov = true
+
+[wolfssl530]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.3.0-stable", version = "5.3.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+
+[wolfssl520-asan]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.2.0-stable", version = "5.2.0" }
+builder = { type = "builtin", name = "wolfssl" }
+asan = true
+sancov = true
+
+[wolfssl520]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.2.0-stable", version = "5.2.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+
+[wolfssl510-skip]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.1.0-stable", version = "5.1.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+fix = ["CVE-2022-25638", "CVE-2022-39173"]
+
+[wolfssl510-sig]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.1.0-stable", version = "5.1.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+fix = ["CVE-2022-25640", "CVE-2022-39173"]
+
+[wolfssl510]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.1.0-stable", version = "5.1.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+
+[wolfssl430]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v4.3.0-stable", version = "4.3.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
