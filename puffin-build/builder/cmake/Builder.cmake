@@ -201,3 +201,34 @@ macro(cmake_builder)
   unset(_ARG_LDFLAGS)
   unset(_ARG_TARGETS)
 endmacro()
+
+
+function(generate_vendorinfo_script _var)
+    configure_file(
+      ${CMAKE_CURRENT_FUNCTION_LIST_DIR}/vendorinfo.sh.in
+      ${CMAKE_CURRENT_BINARY_DIR}/vendorinfo.sh.in @ONLY
+    )
+
+    file(GENERATE
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vendorinfo.sh
+        INPUT ${CMAKE_CURRENT_BINARY_DIR}/vendorinfo.sh.in
+    )
+
+    set("${_var}" ${CMAKE_CURRENT_BINARY_DIR}/vendorinfo.sh PARENT_SCOPE)
+endfunction()
+
+
+function(declare_vulnerability cve_name)
+  cmake_parse_arguments(PARSE_ARGV 1 "_ARG" "" "PATCH" "")
+
+  set(HAS_${cve_name} yes PARENT_SCOPE)
+  if(KNOWN_VULNERABILITIES)
+    set(KNOWN_VULNERABILITIES "${KNOWN_VULNERABILITIES}" "${cve_name}" PARENT_SCOPE)
+  else()
+    set(KNOWN_VULNERABILITIES "${cve_name}" PARENT_SCOPE)
+  endif()
+
+  if(_ARG_PATCH)
+    set(PATCH_${cve_name} "${_ARG_PATCH}" PARENT_SCOPE)
+  endif()
+endfunction()

@@ -1,10 +1,5 @@
 use_languages(C)
 
-option(asan "Build with address-sanitizer" OFF)
-option(sancov "Build with sancov" OFF)
-option(gcov "Build with instrumentation for gcov coverage" OFF)
-option(llvm_cov "Build with instrumentation for llvm coverage" OFF)
-
 # NOTE we patch the vendor build system to use CC instead of `makedepend`
 #
 # The OpenSSL build system prior to version 1.0.2 uses `makedepend` when the
