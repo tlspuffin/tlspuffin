@@ -36,6 +36,7 @@ foreach(library_path IN LISTS LIBRARIES)
     target_compile_definitions(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE PUT_ID=${PUT_ID} REGISTER=register_${HARNESS}_${PUT_ID})
     target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "include")
     target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "${library_path}/include")
+    target_include_directories(put-${PROTOCOL}-${HARNESS}-${PUT_ID} PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../../tlspuffin-claims")
 
     add_custom_command(
         COMMAND clang -flto -nostdlib -Wl,-no-pie -Wl,-r $<TARGET_OBJECTS:put-${PROTOCOL}-${HARNESS}-${PUT_ID}> "-L${library_path}/lib" -lssl -lcrypto -o ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o OUTPUT ${CMAKE_BINARY_DIR}/put-${PROTOCOL}-${HARNESS}-${PUT_ID}.o DEPENDS put-${PROTOCOL}-${HARNESS}-${PUT_ID}
