@@ -272,7 +272,7 @@ tls12-session-resumption = []
 # PUT is determinisitic
 deterministic = ["boringssl-sys?/no-rand"]
 # Require the PUT to implement the claim-interface.h
-claims = ["puffin/claims"]
+claims = []
 # Whether transcript extraction is supported. This is needed for simplified traces.
 transcript-extraction = []
 # PUT exposes the required transcripts which are required for client authentication
@@ -328,6 +328,7 @@ tempfile = { workspace = true, optional = true }
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
 openssl-src = { version = "*", features = [], optional = true }
+puffin-build = { path = "../puffin-build" }
 
 [dev-dependencies]
 test-log = { workspace = true }

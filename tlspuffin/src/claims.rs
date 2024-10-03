@@ -8,7 +8,7 @@ use puffin::codec::Encode;
 use puffin::variable_data::VariableData;
 use smallvec::SmallVec;
 
-#[cfg(not(feature = "claims"))]
+#[cfg(not(has_instr = "claimer"))]
 pub mod dummy_registration {
     #[no_mangle]
     pub extern "C" fn register_claimer(
