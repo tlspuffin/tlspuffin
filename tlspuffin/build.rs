@@ -1,5 +1,7 @@
 use std::process::Command;
 
+use puffin_build::vendor;
+
 #[cfg(any(
     all(feature = "openssl-binding", feature = "wolfssl-binding"),
     all(feature = "openssl-binding", feature = "boringssl-binding"),
@@ -8,7 +10,42 @@ use std::process::Command;
 compile_error!("Selecting multiple vendored PUT is currently not supported: openssl/libressl, wolfssl and boringssl feature flags are mutually exclusive.");
 
 fn main() {
-    if cfg!(feature = "asan") {
+    println!("cargo:rustc-check-cfg=cfg(has_instr, values(\"sancov\", \"asan\", \"gcov\", \"llvm_cov\", \"claimer\"))");
+
+    if let Ok(boringssl_root) = std::env::var("DEP_BORING_ROOT") {
+        configure_rust_put(boringssl_root);
+    }
+
+    if let Ok(openssl_root) = std::env::var("DEP_OPENSSL_ROOT") {
+        configure_rust_put(openssl_root);
+    }
+
+    if let Ok(wolfssl_root) = std::env::var("DEP_WOLFSSL_ROOT") {
+        configure_rust_put(wolfssl_root);
+    }
+}
+
+fn configure_rust_put(vendor_root: impl AsRef<std::path::Path>) {
+    let vendor_name = vendor_root
+        .as_ref()
+        .file_name()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_owned();
+
+    let library = vendor::dir()
+        .lock(vendor_name)
+        .expect("failed to get vendor directory")
+        .library()
+        .expect("failed to get vendor library")
+        .unwrap();
+
+    for instrumentation_type in library.instrumentation.iter() {
+        println!("cargo:rustc-cfg=has_instr=\"{instrumentation_type}\"");
+    }
+
+    if library.instrumentation.iter().any(|i| i == "asan") {
         // NOTE adding compiler-rt to rpath for libasan is not straightforward
         //
         //     Unfortunately, passing `-frtlib-add-rpath` to clang doesn't add
@@ -19,12 +56,12 @@ fn main() {
         println!("cargo:rustc-link-arg=-shared-libasan");
     }
 
-    if cfg!(feature = "gcov") {
+    if library.instrumentation.iter().any(|i| i == "gcov") {
         println!("cargo:rustc-link-arg=-ftest-coverage");
         println!("cargo:rustc-link-arg=-fprofile-arcs");
     }
 
-    if cfg!(feature = "llvm_cov") {
+    if library.instrumentation.iter().any(|i| i == "llvm_cov") {
         println!("cargo:rustc-link-arg=-fprofile-instr-generate");
         println!("cargo:rustc-link-arg=-fcoverage-mapping");
     }

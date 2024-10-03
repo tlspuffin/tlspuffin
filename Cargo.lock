@@ -2184,6 +2184,7 @@ dependencies = [
  "openssl-src",
  "openssl-sys",
  "puffin",
+ "puffin-build",
  "ring",
  "sct",
  "security-claims",

@@ -20,8 +20,6 @@ sancov = ["libafl_targets/sancov_pcguard_hitcounts"]
 
 introspection = ["libafl/introspection"]
 
-claims = []
-
 [dependencies]
 
 # LibAFL

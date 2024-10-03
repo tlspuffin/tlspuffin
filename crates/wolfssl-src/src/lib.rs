@@ -15,6 +15,7 @@ pub struct WolfSSLOptions {
 }
 
 pub struct Artifacts {
+    root_dir: PathBuf,
     src_dir: PathBuf,
     inc_dir: PathBuf,
     lib_dir: PathBuf,
@@ -22,6 +23,10 @@ pub struct Artifacts {
 }
 
 impl Artifacts {
+    pub fn root_dir(&self) -> &Path {
+        &self.root_dir
+    }
+
     pub fn src_dir(&self) -> &Path {
         &self.src_dir
     }
@@ -45,6 +50,7 @@ impl Artifacts {
         }
         println!("cargo:include={}", self.inc_dir.display());
         println!("cargo:lib={}", self.lib_dir.display());
+        println!("cargo:root={}", self.root_dir.display());
 
         println!("cargo:rerun-if-changed={}", self.lib_dir.display());
         println!("cargo:rerun-if-changed={}", self.inc_dir.display());
@@ -81,6 +87,7 @@ pub fn build(options: &WolfSSLOptions) -> Artifacts {
         .unwrap();
 
     Artifacts {
+        root_dir: prefix.clone(),
         src_dir: prefix.join("src").join("vendor"),
         lib_dir: prefix.join("lib"),
         inc_dir: prefix.join("include"),
