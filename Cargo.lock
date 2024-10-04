@@ -2184,6 +2184,7 @@ dependencies = [
  "openssl-src",
  "openssl-sys",
  "puffin",
+ "puffin-build",
  "ring",
  "sct",
  "security-claims",
@@ -2689,6 +2690,8 @@ name = "wolfssl-sys"
 version = "0.1.7"
 dependencies = [
  "bindgen 0.69.1",
+ "libc",
+ "log",
  "wolfssl-src",
 ]
 

@@ -1,10 +1,5 @@
 use_languages(C)
 
-option(asan "Build with address-sanitizer" OFF)
-option(sancov "Build with sancov" OFF)
-option(gcov "Build with instrumentation for gcov coverage" OFF)
-option(llvm_cov "Build with instrumentation for llvm coverage" OFF)
-
 cmake_builder(
   TARGETS
     install

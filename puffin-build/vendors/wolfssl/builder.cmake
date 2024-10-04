@@ -1,35 +1,35 @@
 use_languages(C)
 
-option(asan "Build with address-sanitizer" OFF)
-option(sancov "Build with sancov" OFF)
-option(gcov "Build with instrumentation for gcov coverage" OFF)
-option(llvm_cov "Build with instrumentation for llvm coverage" OFF)
 option(postauth "Build with post-auth" ON)
-set(fix "" CACHE STRING "List of CVEs to fix")
 
-string(REPLACE "," ";" fix "${fix}")
+if(VENDOR_VERSION VERSION_LESS "5.2.0")
+  declare_vulnerability("CVE-2022-25638" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-25638.patch)
+  declare_vulnerability("CVE-2022-25640" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-25640.patch)
+endif()
+
+if(VENDOR_VERSION VERSION_LESS "5.5.0" AND NOT postauth)
+  declare_vulnerability("CVE-2022-38152")
+endif()
+
+if(VENDOR_VERSION VERSION_LESS "5.5.1")
+  declare_vulnerability("CVE-2022-39173" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-39173.patch)
+endif()
+
+if(VENDOR_VERSION VERSION_LESS "5.5.2")
+  declare_vulnerability("CVE-2022-42905" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-42905.patch)
+endif()
+
 foreach(CVE IN LISTS fix)
-  if(CVE STREQUAL "CVE-2022-25638")
-    patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-25638.patch)
-    continue()
+  if(NOT HAS_${CVE})
+    message(FATAL_ERROR "Requested fix for unknown CVE '${CVE}'")
   endif()
 
-  if(CVE STREQUAL "CVE-2022-25640")
-    patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-25640.patch)
-    continue()
+  if(NOT PATCH_${CVE})
+    message(FATAL_ERROR "Requested fix for CVE '${CVE}' but no patch is known")
   endif()
 
-  if(CVE STREQUAL "CVE-2022-39173")
-    patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-39173.patch)
-    continue()
-  endif()
-
-  if(CVE STREQUAL "CVE-2022-42905")
-    patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-42905.patch)
-    continue()
-  endif()
-
-  message(FATAL_ERROR "Requested fix for unknown CVE '${CVE}'")
+  patch(FILE ${PATCH_${CVE}})
+  list(APPEND FIXED_VULNERABILITIES ${CVE})
 endforeach()
 
 autotools_builder(

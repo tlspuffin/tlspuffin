@@ -8,6 +8,11 @@ pub const OPENSSL_RUST_PUT: &str = "rust-put-openssl";
 pub const WOLFSSL_RUST_PUT: &str = "rust-put-wolfssl";
 pub const BORINGSSL_RUST_PUT: &str = "rust-put-boringssl";
 
+#[cfg(feature = "rust-put")]
+pub mod rust_put {
+    include!(env!("RUST_PUT_BINDINGS"));
+}
+
 pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     #[cfg(feature = "cputs")]
     extern "C" fn callback(put: *const C_PUT_TYPE) {
@@ -21,44 +26,16 @@ pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     #[cfg(feature = "cputs")]
     tls_harness::register(callback);
 
-    let default = {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "openssl-binding")] {
-                OPENSSL_RUST_PUT
-            } else if #[cfg(feature = "wolfssl-binding")] {
-                WOLFSSL_RUST_PUT
-            } else if #[cfg(feature = "boringssl-binding")] {
-                BORINGSSL_RUST_PUT
-            } else {
-                puffin::put_registry::TCP_PUT
-            }
-        }
-    };
+    let puts = [
+        #[cfg(feature = "rust-put")]
+        rust_put::new_factory(),
+        crate::tcp::new_tcp_factory(),
+    ]
+    .map(|f| (f.name(), f));
 
-    PutRegistry::new(
-        [
-            #[cfg(feature = "openssl-binding")]
-            {
-                let put = crate::openssl::new_openssl_factory();
-                (put.name(), put)
-            },
-            #[cfg(feature = "wolfssl-binding")]
-            {
-                let put = crate::wolfssl::new_wolfssl_factory();
-                (put.name(), put)
-            },
-            #[cfg(feature = "boringssl-binding")]
-            {
-                let put = crate::boringssl::new_boringssl_factory();
-                (put.name(), put)
-            },
-            {
-                let put = crate::tcp::new_tcp_factory();
-                (put.name(), put)
-            },
-        ],
-        default,
-    )
+    let default = puts.first().unwrap().0.clone();
+
+    PutRegistry::new(puts, default)
 }
 
 #[cfg(test)]

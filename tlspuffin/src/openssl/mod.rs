@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use std::io::ErrorKind;
-use std::rc::Rc;
 
 use openssl::error::ErrorStack;
 use openssl::ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslStream, SslVerifyMode};
@@ -24,12 +22,15 @@ use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_K
 use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
 mod bindings;
-#[cfg(feature = "deterministic")]
 mod deterministic;
 mod util;
 
-pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
-    struct OpenSSLFactory;
+pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBehavior>> {
+    #[derive(Debug, Clone)]
+    struct OpenSSLFactory {
+        preset: String,
+    }
+
     impl Factory<TLSProtocolBehavior> for OpenSSLFactory {
         fn create(
             &self,
@@ -37,21 +38,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
             options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
-            let use_clear = options
-                .get_option("use_clear")
-                .map(|value| value.parse().unwrap_or(false))
-                .unwrap_or(false);
-
-            let config = TlsPutConfig {
-                descriptor: agent_descriptor.clone(),
-                claims: claims.clone(),
-                authenticate_peer: agent_descriptor.typ == AgentType::Client
-                    && agent_descriptor.server_authentication
-                    || agent_descriptor.typ == AgentType::Server
-                        && agent_descriptor.client_authentication,
-                extract_deferred: Rc::new(RefCell::new(None)),
-                use_clear,
-            };
+            let config = TlsPutConfig::new(agent_descriptor, claims, options);
 
             Ok(Box::new(OpenSSL::new(config).map_err(|err| {
                 Error::Put(format!("Failed to create client/server: {}", err))
@@ -63,28 +50,10 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn name(&self) -> String {
-            String::from(OPENSSL_RUST_PUT)
+            self.preset.clone()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
-            let openssl_shortname = if cfg!(feature = "openssl101f") {
-                "openssl101f"
-            } else if cfg!(feature = "openssl102u") {
-                "openssl102u"
-            } else if cfg!(feature = "openssl111") {
-                "openssl111k"
-            } else if cfg!(feature = "openssl111j") {
-                "openssl111j"
-            } else if cfg!(feature = "openssl111u") {
-                "openssl111u"
-            } else if cfg!(feature = "openssl312") {
-                "openssl312"
-            } else if cfg!(feature = "libressl333") {
-                "libressl333"
-            } else {
-                "unknown"
-            };
-
             vec![
                 (
                     "harness".to_string(),
@@ -92,32 +61,27 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 ),
                 (
                     "library".to_string(),
-                    format!("openssl ({} / {})", openssl_shortname, OpenSSL::version()),
+                    format!("openssl ({} / {})", self.preset, OpenSSL::version()),
                 ),
             ]
         }
 
-        fn determinism_set_reseed(&self) {
-            log::debug!("[Determinism] set and reseed");
-            #[cfg(feature = "deterministic")]
-            {
-                deterministic::rng_set();
-                deterministic::rng_reseed();
-            }
-        }
-
-        fn determinism_reseed(&self) {
-            log::debug!("[Determinism] reseed");
-            #[cfg(feature = "deterministic")]
-            deterministic::rng_reseed();
+        fn rng_reseed(&self) {
+            log::debug!("[RNG] reseed ({})", self.name());
+            crate::rand::rng_reseed();
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
-            Box::new(OpenSSLFactory)
+            Box::new(self.clone())
         }
     }
 
-    Box::new(OpenSSLFactory)
+    crate::rand::rng_init();
+    crate::rand::rng_reseed();
+
+    Box::new(OpenSSLFactory {
+        preset: preset.into(),
+    })
 }
 
 pub struct OpenSSL {
@@ -128,7 +92,6 @@ pub struct OpenSSL {
 
 impl Drop for OpenSSL {
     fn drop(&mut self) {
-        #[cfg(feature = "claims")]
         self.deregister_claimer();
     }
 }
@@ -169,7 +132,6 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
         self.config.descriptor.name = new_name;
 
-        #[cfg(feature = "claims")]
         self.deregister_claimer();
 
         if self.config.use_clear {
@@ -180,14 +142,6 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
             })?;
         }
 
-        // FIXME don't force-register a new claimer on reset
-        //
-        //    Because OpenSSL vendor libraries crash when no claimer is
-        //    registered (#253), we are forced to register a new one on
-        //    reset. This should be removed once this bug is fixed.
-        //
-        //    See the WolfSSL module for comparison.
-        #[cfg(feature = "claims")]
         self.register_claimer();
 
         Ok(())
@@ -195,42 +149,6 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
 
     fn descriptor(&self) -> &AgentDescriptor {
         &self.config.descriptor
-    }
-
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self) {
-        unsafe {
-            use foreign_types_openssl::ForeignTypeRef;
-
-            let agent_name = self.config.descriptor.name;
-            let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.tls_version;
-            let origin = self.config.descriptor.typ;
-
-            security_claims::register_claimer(
-                self.stream.ssl().as_ptr().cast(),
-                move |claim: security_claims::Claim| {
-                    if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
-                        claims
-                            .deref_borrow_mut()
-                            .claim_sized(crate::claims::TlsClaim {
-                                agent_name,
-                                origin,
-                                protocol_version,
-                                data,
-                            })
-                    }
-                },
-            );
-        }
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {
-        unsafe {
-            use foreign_types_openssl::ForeignTypeRef;
-            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
-        }
     }
 
     fn describe_state(&self) -> &str {
@@ -245,20 +163,6 @@ impl Put<TLSProtocolBehavior> for OpenSSL {
     fn is_state_successful(&self) -> bool {
         self.describe_state()
             .contains("SSL negotiation finished successfully")
-    }
-
-    fn determinism_reseed(&mut self) -> Result<(), Error> {
-        #[cfg(feature = "deterministic")]
-        {
-            deterministic::rng_reseed();
-            Ok(())
-        }
-        #[cfg(not(feature = "deterministic"))]
-        {
-            Err(Error::Agent(
-                "Unable to make OpenSSL deterministic!".to_string(),
-            ))
-        }
     }
 
     fn shutdown(&mut self) -> String {
@@ -288,7 +192,6 @@ impl OpenSSL {
             stream,
         };
 
-        #[cfg(feature = "claims")]
         openssl.register_claimer();
 
         Ok(openssl)
@@ -399,6 +302,42 @@ impl OpenSSL {
 
         Ok(ssl)
     }
+
+    fn register_claimer(&mut self) {
+        unsafe {
+            use foreign_types_openssl::ForeignTypeRef;
+
+            use crate::claims::claims_helpers;
+
+            let agent_name = self.config.descriptor.name;
+            let claims = self.config.claims.clone();
+            let protocol_version = self.config.descriptor.tls_version;
+            let origin = self.config.descriptor.typ;
+
+            security_claims::register_claimer(
+                self.stream.ssl().as_ptr().cast(),
+                move |claim: security_claims::Claim| {
+                    if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
+                        claims
+                            .deref_borrow_mut()
+                            .claim_sized(crate::claims::TlsClaim {
+                                agent_name,
+                                origin,
+                                protocol_version,
+                                data,
+                            })
+                    }
+                },
+            );
+        }
+    }
+
+    fn deregister_claimer(&mut self) {
+        unsafe {
+            use foreign_types_openssl::ForeignTypeRef;
+            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
+        }
+    }
 }
 
 pub enum MaybeError {
@@ -436,121 +375,6 @@ impl Into<Result<(), Error>> for MaybeError {
         match self {
             MaybeError::Ok => Ok(()),
             MaybeError::Err(err) => Err(err),
-        }
-    }
-}
-
-#[cfg(feature = "claims")]
-mod claims_helpers {
-    use puffin::agent::TLSVersion;
-    use smallvec::SmallVec;
-
-    use crate::claims::{
-        ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsTranscript,
-        TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
-        TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
-    };
-
-    pub fn to_claim_data(
-        protocol_version: TLSVersion,
-        claim: security_claims::Claim,
-    ) -> Option<ClaimData> {
-        match claim.typ {
-            // Transcripts
-            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH => Some(ClaimData::Transcript(
-                ClaimDataTranscript::ClientHello(TranscriptClientHello(TlsTranscript(
-                    claim.transcript.data,
-                    claim.transcript.length,
-                ))),
-            )),
-            security_claims::ClaimType::CLAIM_TRANSCRIPT_PARTIAL_CH => Some(ClaimData::Transcript(
-                ClaimDataTranscript::PartialClientHello(TranscriptPartialClientHello(
-                    TlsTranscript(claim.transcript.data, claim.transcript.length),
-                )),
-            )),
-            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SH => Some(ClaimData::Transcript(
-                ClaimDataTranscript::ServerHello(TranscriptServerHello(TlsTranscript(
-                    claim.transcript.data,
-                    claim.transcript.length,
-                ))),
-            )),
-            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_SERVER_FIN => {
-                Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
-                    TranscriptServerFinished(TlsTranscript(
-                        claim.transcript.data,
-                        claim.transcript.length,
-                    )),
-                )))
-            }
-            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_CLIENT_FIN => {
-                Some(ClaimData::Transcript(ClaimDataTranscript::ClientFinished(
-                    TranscriptClientFinished(TlsTranscript(
-                        claim.transcript.data,
-                        claim.transcript.length,
-                    )),
-                )))
-            }
-            security_claims::ClaimType::CLAIM_TRANSCRIPT_CH_CERT => Some(ClaimData::Transcript(
-                ClaimDataTranscript::Certificate(TranscriptCertificate(TlsTranscript(
-                    claim.transcript.data,
-                    claim.transcript.length,
-                ))),
-            )),
-            // Messages
-            // Transcripts in these messages are not up-to-date. They get updated after the Message
-            // has been processed
-            security_claims::ClaimType::CLAIM_FINISHED => {
-                Some(ClaimData::Message(ClaimDataMessage::Finished(Finished {
-                    outbound: claim.write > 0,
-                    client_random: SmallVec::from(claim.client_random.data),
-                    server_random: SmallVec::from(claim.server_random.data),
-                    session_id: SmallVec::from_slice(
-                        &claim.session_id.data[..claim.session_id.length as usize],
-                    ),
-                    authenticate_peer: false,             // FIXME
-                    peer_certificate: Default::default(), // FIXME
-                    master_secret: match protocol_version {
-                        TLSVersion::V1_3 => SmallVec::from_slice(&claim.master_secret.secret),
-                        TLSVersion::V1_2 => SmallVec::from_slice(&claim.master_secret_12.secret),
-                    },
-                    chosen_cipher: claim.chosen_cipher.data,
-                    available_ciphers: SmallVec::from_iter(
-                        claim.available_ciphers.ciphers[..claim.available_ciphers.length as usize]
-                            .iter()
-                            .map(|cipher| cipher.data),
-                    ),
-                    signature_algorithm: claim.signature_algorithm,
-                    peer_signature_algorithm: claim.peer_signature_algorithm,
-                })))
-            }
-            security_claims::ClaimType::CLAIM_CLIENT_HELLO => None,
-            security_claims::ClaimType::CLAIM_CCS => None,
-            security_claims::ClaimType::CLAIM_END_OF_EARLY_DATA => None,
-            security_claims::ClaimType::CLAIM_CERTIFICATE => None,
-            security_claims::ClaimType::CLAIM_KEY_EXCHANGE => None,
-            // FIXME it is weird that this returns the correct transcript
-            security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => {
-                if claim.write == 0 {
-                    Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
-                        TranscriptServerFinished(TlsTranscript(
-                            claim.transcript.data,
-                            claim.transcript.length,
-                        )),
-                    )))
-                } else {
-                    None
-                }
-            }
-            security_claims::ClaimType::CLAIM_KEY_UPDATE => None,
-            security_claims::ClaimType::CLAIM_HELLO_REQUEST => None,
-            security_claims::ClaimType::CLAIM_SERVER_HELLO => None,
-            security_claims::ClaimType::CLAIM_CERTIFICATE_REQUEST => None,
-            security_claims::ClaimType::CLAIM_SERVER_DONE => None,
-            security_claims::ClaimType::CLAIM_SESSION_TICKET => None,
-            security_claims::ClaimType::CLAIM_CERTIFICATE_STATUS => None,
-            security_claims::ClaimType::CLAIM_EARLY_DATA => None,
-            security_claims::ClaimType::CLAIM_ENCRYPTED_EXTENSIONS => None,
-            _ => None,
         }
     }
 }

@@ -84,17 +84,6 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             )]
         }
 
-        fn determinism_set_reseed(&self) {
-            log::debug!(" [Determinism] Factory {} has no support for determinism. We cannot set and reseed.", self.name());
-        }
-
-        fn determinism_reseed(&self) {
-            log::debug!(
-                " [Determinism] Factory {} has no support for determinism. We cannot reseed.",
-                self.name()
-            );
-        }
-
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
             Box::new(TCPFactory)
         }
@@ -308,28 +297,12 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         &self.agent_descriptor
     }
 
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self) {
-        panic!("Claims are not supported with TcpPut")
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {
-        panic!("Claims are not supported with TcpPut")
-    }
-
     fn describe_state(&self) -> &str {
         panic!("Not supported")
     }
 
     fn is_state_successful(&self) -> bool {
         false
-    }
-
-    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
-        Err(Error::Agent(
-            "[deterministic] Unable to reseed TCP PUT!".to_string(),
-        ))
     }
 
     fn shutdown(&mut self) -> String {
@@ -360,28 +333,12 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         &self.agent_descriptor
     }
 
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self) {
-        panic!("Claims are not supported with TcpPut")
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {
-        panic!("Claims are not supported with TcpPut")
-    }
-
     fn describe_state(&self) -> &str {
         panic!("Not supported")
     }
 
     fn is_state_successful(&self) -> bool {
         false
-    }
-
-    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
-        Err(Error::Agent(
-            "[deterministic] Unable to reseed TCP PUT!".to_string(),
-        ))
     }
 
     fn shutdown(&mut self) -> String {

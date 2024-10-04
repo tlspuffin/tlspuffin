@@ -1,7 +1,5 @@
 use core::ffi::c_void;
-use std::cell::RefCell;
 use std::io::ErrorKind;
-use std::rc::Rc;
 
 use boring::error::ErrorStack;
 use boring::ex_data::Index;
@@ -31,8 +29,6 @@ use crate::query::TlsQueryMatcher;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
-#[cfg(feature = "deterministic")]
-mod deterministic;
 mod transcript;
 mod util;
 
@@ -40,8 +36,12 @@ use std::ops::Deref;
 
 use transcript::extract_current_transcript;
 
-pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
-    struct BoringSSLFactory;
+pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBehavior>> {
+    #[derive(Debug, Clone)]
+    struct BoringSSLFactory {
+        preset: String,
+    }
+
     impl Factory<TLSProtocolBehavior> for BoringSSLFactory {
         fn create(
             &self,
@@ -49,26 +49,13 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
             options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
-            let use_clear = options
-                .get_option("use_clear")
-                .map(|value| value.parse().unwrap_or(false))
-                .unwrap_or(false);
+            let config = TlsPutConfig::new(agent_descriptor, claims, options);
 
             // FIXME: Add non-clear method like in wolfssl
-            if !use_clear {
+            if !config.use_clear {
                 log::info!("OpenSSL put does not support clearing mode")
             }
 
-            let config = TlsPutConfig {
-                descriptor: agent_descriptor.clone(),
-                claims: claims.clone(),
-                authenticate_peer: agent_descriptor.typ == AgentType::Client
-                    && agent_descriptor.server_authentication
-                    || agent_descriptor.typ == AgentType::Server
-                        && agent_descriptor.client_authentication,
-                extract_deferred: Rc::new(RefCell::new(None)),
-                use_clear,
-            };
             Ok(Box::new(BoringSSL::new(config).map_err(|err| {
                 Error::Put(format!("Failed to create client/server: {}", err))
             })?))
@@ -79,20 +66,10 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn name(&self) -> String {
-            String::from(BORINGSSL_RUST_PUT)
+            self.preset.clone()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
-            let boringssl_shortname = if cfg!(feature = "boringssl202311") {
-                "boringssl202311"
-            } else if cfg!(feature = "boringssl202403") {
-                "boringssl202403"
-            } else if cfg!(feature = "boringsslmaster") {
-                "master"
-            } else {
-                "unknown"
-            };
-
             vec![
                 (
                     "harness".to_string(),
@@ -100,33 +77,27 @@ pub fn new_boringssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 ),
                 (
                     "library".to_string(),
-                    format!(
-                        "boringssl ({} / {})",
-                        boringssl_shortname,
-                        BoringSSL::version()
-                    ),
+                    format!("boringssl ({} / {})", self.preset, BoringSSL::version()),
                 ),
             ]
         }
 
-        fn determinism_set_reseed(&self) -> () {
-            log::debug!(
-                "[Determinism] BoringSSL set (already done at compile time) and reseed RAND"
-            );
-            deterministic::reset_rand();
-        }
-
-        fn determinism_reseed(&self) -> () {
-            log::debug!("[Determinism] reseed BoringSSL");
-            deterministic::reset_rand();
+        fn rng_reseed(&self) -> () {
+            log::debug!("[RNG] reseed ({})", self.name());
+            crate::rand::rng_reseed();
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
-            Box::new(BoringSSLFactory)
+            Box::new(self.clone())
         }
     }
 
-    Box::new(BoringSSLFactory)
+    crate::rand::rng_init();
+    crate::rand::rng_reseed();
+
+    Box::new(BoringSSLFactory {
+        preset: preset.into(),
+    })
 }
 
 pub struct BoringSSL {
@@ -136,7 +107,6 @@ pub struct BoringSSL {
 
 impl Drop for BoringSSL {
     fn drop(&mut self) {
-        #[cfg(feature = "claims")]
         self.deregister_claimer();
     }
 }
@@ -182,25 +152,9 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
         &self.config.descriptor
     }
 
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self) {
-        self.set_msg_callback(Self::create_msg_callback(
-            self.config.descriptor.name.clone(),
-            &self.config,
-        ))
-        .expect("Failed to set msg_callback to extract transcript");
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {}
-
     fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
         self.config.descriptor.name = new_name;
-        #[cfg(feature = "claims")]
-        {
-            self.deregister_claimer();
-            self.register_claimer();
-        }
+        self.deregister_claimer();
         self.stream.ssl_mut().clear();
         self.register_claimer();
         Ok(())
@@ -218,19 +172,6 @@ impl Put<TLSProtocolBehavior> for BoringSSL {
     fn is_state_successful(&self) -> bool {
         self.describe_state()
             .contains("SSL negotiation finished successfully")
-    }
-
-    fn determinism_reseed(&mut self) -> Result<(), Error> {
-        #[cfg(feature = "deterministic")]
-        {
-            Ok(())
-        }
-        #[cfg(not(feature = "deterministic"))]
-        {
-            Err(Error::Agent(
-                "Unable to make BoringSSL deterministic!".to_string(),
-            ))
-        }
     }
 
     fn shutdown(&mut self) -> String {
@@ -251,12 +192,9 @@ impl BoringSSL {
         };
 
         let stream = SslStream::new(ssl, MemoryStream::new())?;
-
         let mut boringssl = BoringSSL { config, stream };
 
-        #[cfg(feature = "claims")]
         boringssl.register_claimer();
-
         Ok(boringssl)
     }
 
@@ -324,6 +262,15 @@ impl BoringSSL {
         Ok(ssl)
     }
 
+    fn register_claimer(&mut self) {
+        self.set_msg_callback(Self::create_msg_callback(&self.config))
+            .expect("Failed to set msg_callback to extract transcript");
+    }
+
+    fn deregister_claimer(&mut self) {
+        // TODO implement deregister_claimer for BoringSSL
+    }
+
     /// Set the msg_callback of BoringSSL
     ///
     /// Here we use a intermediate callback, `boring_msg_callback`, to call the
@@ -345,10 +292,8 @@ impl BoringSSL {
 
     /// This callback gets the actual hash transcript of the SSL handshake and
     /// add it to the claims
-    fn create_msg_callback(
-        agent_name: AgentName,
-        config: &TlsPutConfig,
-    ) -> impl Fn(&mut SslRef, i32) {
+    fn create_msg_callback(config: &TlsPutConfig) -> impl Fn(&mut SslRef, i32) {
+        let agent_name = config.descriptor.name;
         let origin = config.descriptor.typ;
         let protocol_version = config.descriptor.tls_version;
         let claims = config.claims.clone();

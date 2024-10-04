@@ -35,6 +35,20 @@ endif()
 
 include(Builder)
 
+set(VENDOR_LIBNAME "${BUILDER}")
+set(KNOWN_VULNERABILITIES "")
+set(FIXED_VULNERABILITIES "")
+
+option(asan "Build with address-sanitizer" OFF)
+option(sancov "Build with sancov" OFF)
+option(gcov "Build with instrumentation for gcov coverage" OFF)
+option(llvm_cov "Build with instrumentation for llvm coverage" OFF)
+set(fix "" CACHE STRING "List of CVEs to fix")
+string(REPLACE "," ";" fix "${fix}")
+
+set(KNOWN_VULNERABILITIES "")
+set(FIXED_VULNERABILITIES "")
+
 set(UPDATE_COMMANDS "")
 set(PATCH_COMMANDS "")
 set(CONFIGURE_COMMANDS "")
@@ -45,6 +59,9 @@ if(EXISTS "${BUILDER}" AND NOT IS_DIRECTORY "${BUILDER}")
   include("${BUILDER}")
 elseif(EXISTS "${CMAKE_CURRENT_LIST_DIR}/../vendors/${BUILDER}/builder.cmake")
   include("${CMAKE_CURRENT_LIST_DIR}/../vendors/${BUILDER}/builder.cmake")
+  string(REPLACE ";" " " FIXED_VULNERABILITIES "${FIXED_VULNERABILITIES}")
+  string(REPLACE ";" " " KNOWN_VULNERABILITIES "${KNOWN_VULNERABILITIES}")
+  generate_vendorinfo_script(vendorinfo_script)
 else()
   message(FATAL_ERROR "Builder '${BUILDER}' not found")
 endif()
@@ -79,5 +96,17 @@ externalproject_add(
   INSTALL_COMMAND ":"
   COMMAND ${CMAKE_COMMAND} -E echo "[${BUILDER}] INSTALL step: starting"
   ${INSTALL_COMMANDS}
+  COMMAND chmod +x ${vendorinfo_script}
+  COMMAND ${CMAKE_COMMAND} -E env
+      "INSTALL_DIR=<INSTALL_DIR>"
+      "SOURCE_DIR=<SOURCE_DIR>"
+      "CXX=${CMAKE_CXX_COMPILER}"
+      "CPP=${CMAKE_C_COMPILER} -E"
+      "CC=${CMAKE_C_COMPILER}"
+      "AR=${CMAKE_AR}"
+      "RANLIB=${CMAKE_RANLIB}"
+      "NM=${CMAKE_NM}"
+      "STRIP=${CMAKE_STRIP}"
+    ${vendorinfo_script} > <INSTALL_DIR>/.vendor
   COMMAND ${CMAKE_COMMAND} -E echo "[${BUILDER}] INSTALL step: completed"
 )

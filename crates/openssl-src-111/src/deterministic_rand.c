@@ -3,8 +3,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-void deterministic_rng_set();
-void deterministic_rng_reseed(const uint8_t *buffer, size_t length);
+void put_rng_init();
+void put_rng_reseed(const uint8_t *buffer, size_t length);
 
 #ifndef thread_local
 // since C11 the standard include _Thread_local
@@ -22,12 +22,12 @@ void deterministic_rng_reseed(const uint8_t *buffer, size_t length);
 
 #ifndef USE_CUSTOM_PRNG // use OpenSSL's default PRNG
 
-void deterministic_rng_set()
+void put_rng_init()
 {
     // nothing to do: use the default PRNG
 }
 
-void deterministic_rng_reseed(const uint8_t *buffer, size_t length)
+void put_rng_reseed(const uint8_t *buffer, size_t length)
 {
     RAND_seed(buffer, length);
 }
@@ -42,7 +42,7 @@ static thread_local uint64_t seed = DEFAULT_RNG_SEED;
 
 static int stdlib_rand_seed(const void *buf, int num)
 {
-    deterministic_rng_reseed(buf, num);
+    put_rng_reseed(buf, num);
     return 1;
 }
 
@@ -82,12 +82,12 @@ RAND_METHOD stdlib_rand_meth = {
     stdlib_rand_status,
 };
 
-void deterministic_rng_set()
+void put_rng_init()
 {
     RAND_set_rand_method(&stdlib_rand_meth);
 }
 
-void deterministic_rng_reseed(const uint8_t *buffer, size_t length)
+void put_rng_reseed(const uint8_t *buffer, size_t length)
 {
     if (buffer == NULL || length < sizeof(uint64_t))
     {

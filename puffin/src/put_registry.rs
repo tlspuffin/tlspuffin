@@ -79,18 +79,10 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
             .map(|f| f.to_owned().as_ref())
     }
 
-    /// To be called at the beginning of all fuzzing campaigns!
-    pub fn determinism_set_reseed_all_factories(&self) {
-        log::debug!("== Set and reseed all ({}):", self.factories.len());
-        for (_, factory) in self.factories.iter() {
-            factory.determinism_set_reseed();
-        }
-    }
-
     pub fn determinism_reseed_all_factories(&self) {
-        log::debug!("== Reseed all ({}):", self.factories.len());
+        log::debug!("[RNG] reseed all PUT factories");
         for (_, factory) in self.factories.iter() {
-            factory.determinism_reseed();
+            factory.rng_reseed();
         }
     }
 }
@@ -125,8 +117,9 @@ pub trait Factory<PB: ProtocolBehavior> {
     fn name(&self) -> String;
     fn versions(&self) -> Vec<(String, String)>;
 
-    fn determinism_set_reseed(&self);
-    fn determinism_reseed(&self);
-
     fn clone_factory(&self) -> Box<dyn Factory<PB>>;
+
+    fn rng_reseed(&self) {
+        log::debug!("[RNG] reseed failed ({}): not supported", self.name());
+    }
 }

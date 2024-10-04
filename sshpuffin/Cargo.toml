@@ -14,7 +14,7 @@ categories.workspace = true
 
 [features]
 # Current put supports claims
-claims = ['puffin/claims']
+claims = []
 
 [dependencies]
 libssh-sys = { path = "../crates/libssh-sys", features = ["libssh0104"] }

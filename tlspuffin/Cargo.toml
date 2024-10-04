@@ -16,6 +16,7 @@ categories.workspace = true
 default = ["sancov", "introspection"]
 
 cputs = ["tls-harness"]
+rust-put = []
 
 openssl111 = ["openssl111k"]
 
@@ -103,7 +104,7 @@ libressl333 = [
     "openssl-src",
     "openssl-src/libressl333",
     "openssl-src/no-rand",
-    "openssl-binding",
+    "libressl-binding",
     "tls12",
     "tls13",
     "tls12-session-resumption",
@@ -249,9 +250,16 @@ llvm_cov = [
 ]
 
 # WolfSSL bindings are used
-wolfssl-binding = ["wolfssl", "wolfssl-sys", "foreign-types"]
+wolfssl-binding = ["rust-put", "wolfssl", "wolfssl-sys", "foreign-types"]
+# LibreSSL bindings are used
+libressl-binding = ["openssl-binding"]
 # OpenSSL bindings are used
-openssl-binding = ["openssl", "openssl-sys", "foreign-types-openssl"]
+openssl-binding = [
+    "rust-put",
+    "openssl",
+    "openssl-sys",
+    "foreign-types-openssl",
+]
 # Openssl 1.0.1 bindings
 openssl101-binding = ["openssl-binding"]
 # Openssl 1.0.2 bindings
@@ -259,7 +267,8 @@ openssl102-binding = ["openssl-binding"]
 # Openssl 1.1.1 bindings
 openssl111-binding = ["openssl-binding"]
 
-boringssl-binding = ["boring", "boringssl-sys", "foreign-types"]
+# BoringSSL bindings are used
+boringssl-binding = ["rust-put", "boring", "boringssl-sys", "foreign-types"]
 
 # PUT supports TLS 1.3
 tls13 = []
@@ -270,9 +279,9 @@ tls13-session-resumption = []
 # PUT supports session resumption through RFC5077
 tls12-session-resumption = []
 # PUT is determinisitic
-deterministic = ["boringssl-sys?/deterministic"]
+deterministic = ["boringssl-sys?/no-rand"]
 # Require the PUT to implement the claim-interface.h
-claims = ["puffin/claims"]
+claims = []
 # Whether transcript extraction is supported. This is needed for simplified traces.
 transcript-extraction = []
 # PUT exposes the required transcripts which are required for client authentication
@@ -324,6 +333,7 @@ tempfile = { workspace = true, optional = true }
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
 openssl-src = { version = "*", features = [], optional = true }
+puffin-build = { path = "../puffin-build" }
 
 [dev-dependencies]
 test-log = { workspace = true }

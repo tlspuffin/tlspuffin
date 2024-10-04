@@ -101,29 +101,11 @@ pub trait Put<PB: ProtocolBehavior>:
 
     fn descriptor(&self) -> &AgentDescriptor;
 
-    /// Register a new claim for agent_name
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self);
-
-    /// Remove all claims in self
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self);
-
     /// Returns a textual representation of the state in which self is
     fn describe_state(&self) -> &str;
 
     /// Checks whether the Put is in a good state
     fn is_state_successful(&self) -> bool;
-
-    /// Make the PUT used by self deterministic in the future by making its PRNG "deterministic"
-    /// Now subsumed by Factory-level functions to reseed globally: `determinism_reseed`
-    fn determinism_reseed(&mut self) -> Result<(), Error>;
-
-    /// checks whether a agent is reusable with the descriptor
-    fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
-        let agent_descriptor = self.descriptor();
-        agent_descriptor.typ == other.typ && agent_descriptor.tls_version == other.tls_version
-    }
 
     /// Shut down the PUT by consuming it and returning a string that summarizes the execution.
     fn shutdown(&mut self) -> String;

@@ -5,9 +5,13 @@ edition = "2021"
 authors = []
 links = "wolfssl"
 
+[dependencies]
+log = "0.4"
+libc = "0.2"
+
 [build-dependencies]
-bindgen = "0.69.1"
 wolfssl-src = { path = "../wolfssl-src" }
+bindgen = "0.69.1"
 
 [features]
 

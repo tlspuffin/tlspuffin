@@ -70,6 +70,18 @@ impl ConfigDir {
         self.path.as_path()
     }
 
+    pub fn library(&self) -> io::Result<Option<Library>> {
+        if self.is_empty()? {
+            return Ok(None);
+        }
+
+        let toml_str = fs::read_to_string(self.path.join(".vendor"))?;
+
+        toml::from_str::<Library>(&toml_str)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))
+            .map(Some)
+    }
+
     pub fn config(&self) -> io::Result<Option<Config>> {
         if self.is_empty()? {
             return Ok(None);
@@ -106,6 +118,15 @@ impl ConfigDir {
             self.path().to_path_buf()
         })
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Library {
+    pub libname: String,
+    pub version: String,
+    pub instrumentation: Vec<String>,
+    pub known_vulnerabilities: Vec<String>,
+    pub fixed_vulnerabilities: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

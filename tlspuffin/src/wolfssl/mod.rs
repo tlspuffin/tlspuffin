@@ -1,10 +1,9 @@
 #![allow(non_snake_case)]
 
-use std::cell::RefCell;
 use std::io::ErrorKind;
 use std::ops::Deref;
-use std::rc::Rc;
 
+use foreign_types::ForeignType;
 use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::claims::GlobalClaimList;
@@ -35,8 +34,12 @@ use crate::wolfssl::transcript::extract_current_transcript;
 
 mod transcript;
 
-pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
-    struct WolfSSLFactory;
+pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBehavior>> {
+    #[derive(Debug, Clone)]
+    struct WolfSSLFactory {
+        preset: String,
+    }
+
     impl Factory<TLSProtocolBehavior> for WolfSSLFactory {
         fn create(
             &self,
@@ -44,21 +47,7 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
             options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
-            let use_clear = options
-                .get_option("use_clear")
-                .map(|value| value.parse().unwrap_or(false))
-                .unwrap_or(false);
-
-            let config = TlsPutConfig {
-                descriptor: agent_descriptor.clone(),
-                claims: claims.clone(),
-                authenticate_peer: agent_descriptor.typ == AgentType::Client
-                    && agent_descriptor.server_authentication
-                    || agent_descriptor.typ == AgentType::Server
-                        && agent_descriptor.client_authentication,
-                extract_deferred: Rc::new(RefCell::new(None)),
-                use_clear,
-            };
+            let config = TlsPutConfig::new(agent_descriptor, claims, options);
 
             Ok(Box::new(WolfSSL::new(config)?))
         }
@@ -68,26 +57,10 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         }
 
         fn name(&self) -> String {
-            String::from(WOLFSSL_RUST_PUT)
+            self.preset.clone()
         }
 
         fn versions(&self) -> Vec<(String, String)> {
-            let wolfssl_shortname = if cfg!(feature = "wolfssl540") {
-                "wolfssl540"
-            } else if cfg!(feature = "wolfssl530") {
-                "wolfssl530"
-            } else if cfg!(feature = "wolfssl520") {
-                "wolfssl520"
-            } else if cfg!(feature = "wolfssl510") {
-                "wolfssl510"
-            } else if cfg!(feature = "wolfssl430") {
-                "wolfssl430"
-            } else if cfg!(feature = "wolfsslmaster") {
-                "master"
-            } else {
-                "unknown"
-            };
-
             vec![
                 (
                     "harness".to_string(),
@@ -95,25 +68,27 @@ pub fn new_wolfssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 ),
                 (
                     "library".to_string(),
-                    format!("wolfssl ({} / {})", wolfssl_shortname, WolfSSL::version()),
+                    format!("wolfssl ({} / {})", self.preset, WolfSSL::version()),
                 ),
             ]
         }
 
-        fn determinism_set_reseed(&self) -> () {
-            log::error!("[determinism_set_reseed] Not yet implemented.")
-        }
-
-        fn determinism_reseed(&self) -> () {
-            log::error!("[determinism_reseed] Not yet implemented.")
+        fn rng_reseed(&self) {
+            log::debug!("[RNG] reseed ({})", self.name());
+            crate::rand::rng_reseed();
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
-            Box::new(WolfSSLFactory)
+            Box::new(self.clone())
         }
     }
 
-    Box::new(WolfSSLFactory)
+    crate::rand::rng_init();
+    crate::rand::rng_reseed();
+
+    Box::new(WolfSSLFactory {
+        preset: preset.into(),
+    })
 }
 
 pub struct WolfSSLErrorStack(pub ErrorStack);
@@ -153,10 +128,7 @@ impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for Wo
 
 impl Drop for WolfSSL {
     fn drop(&mut self) {
-        #[cfg(feature = "claims")]
-        unsafe {
-            self.deregister_claimer();
-        }
+        self.deregister_claimer();
     }
 }
 
@@ -178,9 +150,7 @@ impl WolfSSL {
             config: config.clone(),
         };
 
-        #[cfg(feature = "claims")]
-        self.register_claimer();
-
+        wolfssl.register_claimer();
         Ok(wolfssl)
     }
 
@@ -227,30 +197,8 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
         result
     }
 
-    #[cfg(feature = "claims")]
-    fn register_claimer(&mut self) {
-        unsafe {
-            let agent_name = self.config.descriptor.name;
-
-            security_claims::register_claimer(
-                self.stream.ssl().as_ptr().cast(),
-                move |claim: security_claims::Claim| {
-                    (*claims).borrow_mut().claim(agent_name, claim)
-                },
-            );
-        }
-    }
-
-    #[cfg(feature = "claims")]
-    fn deregister_claimer(&mut self) {
-        unsafe {
-            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
-        }
-    }
-
     fn reset(&mut self, new_name: AgentName) -> Result<(), Error> {
         self.config.descriptor.name = new_name;
-        #[cfg(feature = "claims")]
         self.deregister_claimer();
 
         if self.config.use_clear {
@@ -259,7 +207,6 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
             self.stream = Self::new_stream(&mut self.ctx, &self.config)?;
         }
 
-        #[cfg(feature = "claims")]
         self.register_claimer();
 
         Ok(())
@@ -280,12 +227,6 @@ impl Put<TLSProtocolBehavior> for WolfSSL {
 
     fn version() -> String {
         unsafe { version().to_string() }
-    }
-
-    fn determinism_reseed(&mut self) -> Result<(), puffin::error::Error> {
-        Err(Error::Agent(
-            "[determinism] WolfSSL does not support reseed".to_string(),
-        ))
     }
 
     fn shutdown(&mut self) -> String {
@@ -386,12 +327,6 @@ impl WolfSSL {
             ctx.set_verify(SslVerifyMode::NONE);
         }
 
-        // Callbacks for experiements
-        //wolf::wolfSSL_CTX_set_keylog_callback(ctx, Some(SSL_keylog));
-        //wolf::wolfSSL_CTX_set_info_callback(ctx, Some(SSL_info));
-        //wolf::wolfSSL_CTX_SetTlsFinishedCb(ctx, Some(SSL_finished));
-        //wolf::wolfSSL_set_tls13_secret_cb(ssl.as_ptr(), Some(SSL_keylog13), ptr::null_mut());
-
         // We expect two tickets like in OpenSSL
         #[cfg(not(feature = "wolfssl430"))]
         ctx.set_num_tickets(2)?;
@@ -439,6 +374,37 @@ impl WolfSSL {
                     });
                 }
             }
+        }
+    }
+
+    fn register_claimer(&mut self) {
+        unsafe {
+            use crate::claims::claims_helpers;
+
+            let agent_name = self.config.descriptor.name;
+            let claims = self.config.claims.clone();
+            let protocol_version = self.config.descriptor.tls_version;
+            let origin = self.config.descriptor.typ;
+
+            security_claims::register_claimer(
+                self.stream.ssl().as_ptr().cast(),
+                move |claim: security_claims::Claim| {
+                    if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
+                        claims.deref_borrow_mut().claim_sized(TlsClaim {
+                            agent_name,
+                            origin,
+                            protocol_version,
+                            data,
+                        });
+                    }
+                },
+            );
+        }
+    }
+
+    fn deregister_claimer(&mut self) {
+        unsafe {
+            security_claims::deregister_claimer(self.stream.ssl().as_ptr().cast());
         }
     }
 
