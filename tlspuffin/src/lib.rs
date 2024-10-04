@@ -116,16 +116,14 @@
 
 #[cfg(feature = "boringssl-binding")]
 pub mod boringssl;
+#[cfg(feature = "libressl-binding")]
+pub mod libressl;
 #[cfg(feature = "openssl-binding")]
 pub mod openssl;
 #[cfg(feature = "wolfssl-binding")]
 pub mod wolfssl;
 
-#[cfg(any(
-    feature = "openssl-binding",
-    feature = "wolfssl-binding",
-    feature = "boringssl-binding"
-))]
+#[cfg(feature = "rust-put")]
 pub mod rand;
 
 pub mod claims;
