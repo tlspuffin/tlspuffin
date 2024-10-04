@@ -8,6 +8,11 @@ pub const OPENSSL_RUST_PUT: &str = "rust-put-openssl";
 pub const WOLFSSL_RUST_PUT: &str = "rust-put-wolfssl";
 pub const BORINGSSL_RUST_PUT: &str = "rust-put-boringssl";
 
+#[cfg(feature = "rust-put")]
+pub mod rust_put {
+    include!(env!("RUST_PUT_BINDINGS"));
+}
+
 pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     #[cfg(feature = "cputs")]
     extern "C" fn callback(put: *const C_PUT_TYPE) {
@@ -21,82 +26,16 @@ pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     #[cfg(feature = "cputs")]
     tls_harness::register(callback);
 
-    let name = {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "openssl-binding")] {
-                if cfg!(feature = "openssl101f") {
-                    "openssl101f"
-                } else if cfg!(feature = "openssl102u") {
-                    "openssl102u"
-                } else if cfg!(feature = "openssl111k") {
-                    "openssl111k"
-                } else if cfg!(feature = "openssl111j") {
-                    "openssl111j"
-                } else if cfg!(feature = "openssl111u") {
-                    "openssl111u"
-                } else if cfg!(feature = "openssl312") {
-                    "openssl312"
-                } else if cfg!(feature = "libressl333") {
-                    "libressl333"
-                } else {
-                    "openssl-unknown"
-                }
-            } else if #[cfg(feature = "wolfssl-binding")] {
-                if cfg!(feature = "wolfssl540") {
-                    "wolfssl540"
-                } else if cfg!(feature = "wolfssl530") {
-                    "wolfssl530"
-                } else if cfg!(feature = "wolfssl520") {
-                    "wolfssl520"
-                } else if cfg!(feature = "wolfssl510") {
-                    "wolfssl510"
-                } else if cfg!(feature = "wolfssl430") {
-                    "wolfssl430"
-                } else if cfg!(feature = "wolfsslmaster") {
-                    "wolfssl-master"
-                } else {
-                    "wolfssl-unknown"
-                }
-            } else if #[cfg(feature = "boringssl-binding")] {
-                if cfg!(feature = "boringssl202311") {
-                    "boringssl202311"
-                } else if cfg!(feature = "boringssl202403") {
-                    "boringssl202403"
-                } else if cfg!(feature = "boringsslmaster") {
-                    "master"
-                } else {
-                    "unknown"
-                }
-            } else {
-                puffin::put_registry::TCP_PUT
-            }
-        }
-    };
+    let puts = [
+        #[cfg(feature = "rust-put")]
+        rust_put::new_factory(),
+        crate::tcp::new_tcp_factory(),
+    ]
+    .map(|f| (f.name(), f));
 
-    PutRegistry::new(
-        [
-            #[cfg(feature = "openssl-binding")]
-            {
-                let put = crate::openssl::new_factory(name);
-                (put.name(), put)
-            },
-            #[cfg(feature = "wolfssl-binding")]
-            {
-                let put = crate::wolfssl::new_factory(name);
-                (put.name(), put)
-            },
-            #[cfg(feature = "boringssl-binding")]
-            {
-                let put = crate::boringssl::new_factory(name);
-                (put.name(), put)
-            },
-            {
-                let put = crate::tcp::new_tcp_factory();
-                (put.name(), put)
-            },
-        ],
-        name,
-    )
+    let default = puts.first().unwrap().0.clone();
+
+    PutRegistry::new(puts, default)
 }
 
 #[cfg(test)]
