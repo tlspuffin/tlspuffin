@@ -14,6 +14,7 @@ jobs:
       matrix:
         name:
           - openssl111
+          - openssl101f_asan
           - openssl102u
           - libressl
           - wolfssl510
@@ -30,9 +31,14 @@ jobs:
             crate: tlspuffin
             features: openssl111
             clean-crates: openssl-sys
-          - name: openssl111j_asan
+          - name: openssl111j
             crate: tlspuffin
-            features: openssl111j,asan
+            features: openssl111j
+            clean-crates: openssl-sys
+          - name: openssl101f_asan
+            crate: tlspuffin
+            features: openssl101f,asan
+            apt-dependencies: xutils-dev
             clean-crates: openssl-sys
           - name: openssl102u
             crate: tlspuffin
@@ -67,16 +73,16 @@ jobs:
             features: wolfssl540
           - name: wolfssl540-sdos2
             crate: tlspuffin
-            features: wolfssl540,asan,wolfssl-disable-postauth,fix-CVE-2022-39173
+            features: wolfssl540,wolfssl-disable-postauth,fix-CVE-2022-39173
           - name: wolfssl530-cdos
             crate: tlspuffin
-            features: wolfssl530,asan,fix-CVE-2022-39173
+            features: wolfssl530,fix-CVE-2022-39173
           - name: wolfssl540_asan
             crate: tlspuffin
             features: wolfssl540,asan
           - name: wolfssl540-buf
             crate: tlspuffin
-            features: wolfssl540,asan,fix-CVE-2022-42905
+            features: wolfssl540,fix-CVE-2022-42905
           - name: wolfssl540-heap
             crate: tlspuffin
             features: wolfssl540,asan,fix-CVE-2022-39173

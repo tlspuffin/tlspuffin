@@ -248,7 +248,7 @@ path = "src/main.rs"
 [[bin]]
 name = "tlspuffin-BUF"
 path = "src/main.rs"
-required-features = ["wolfssl540","asan","fix-CVE-2022-42905"]
+required-features = ["wolfssl540","fix-CVE-2022-42905"]
 #test = false            # Is tested by default.
 #doctest = false         # Documentation examples are tested by default.
 #bench = false           # Is benchmarked by default.
@@ -261,7 +261,7 @@ required-features = ["wolfssl540","asan","fix-CVE-2022-42905"]
 [[bin]]
 name = "tlspuffin-CDOS"
 path = "src/main.rs"
-required-features = ["wolfssl530","asan","fix-CVE-2022-39173"]
+required-features = ["wolfssl530","fix-CVE-2022-39173"]
 
 [[bin]]
 name = "tlspuffin-SKIP"
@@ -276,12 +276,12 @@ required-features = ["wolfssl540","asan","fix-CVE-2022-39173"]
 [[bin]]
 name = "tlspuffin-SDOS2"
 path = "src/main.rs"
-required-features = ["wolfssl540","asan","wolfssl-disable-postauth","fix-CVE-2022-39173"]
+required-features = ["wolfssl540","wolfssl-disable-postauth","fix-CVE-2022-39173"]
 
 [[bin]]
 name = "tlspuffin-SDOS1"
 path = "src/main.rs"
-required-features = ["openssl111j","asan"]
+required-features = ["openssl111j"]
 
 [[bin]]
 name = "tlspuffin-SIG"
