@@ -80,8 +80,8 @@ if [ "$DRY" = true ] ; then
   tmux attach-session -t "$session"
   exit 0
 fi
-start_experiment "SDOS1" '"openssl111j"
-start_experiment "HEAP"  '"wolfssl540","fix-CVE-2022-39173"'
+start_experiment "SDOS1" '"openssl111j"'
+start_experiment "HEAP"  '"wolfssl540","asan","fix-CVE-2022-39173"'
 start_experiment "CDOS"  '"wolfssl530","fix-CVE-2022-39173"'
 start_experiment "BUF"   '"wolfssl540","asan","fix-CVE-2022-42905"'
 start_experiment "SIG"   '"wolfssl510","fix-CVE-2022-25640","fix-CVE-2022-39173"'
