@@ -101,7 +101,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
-    pub fn evaluate<PB: ProtocolBehavior>(
+    pub fn evaluate<PB>(
         &self,
         context: &TraceContext<PB>,
     ) -> Result<Box<dyn EvaluatedTerm<PT>>, Error>

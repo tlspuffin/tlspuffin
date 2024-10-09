@@ -260,11 +260,11 @@ dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 => R);
 
-pub fn make_dynamic<F: 'static, PT: ProtocolTypes, Types>(
+pub fn make_dynamic<F, PT: ProtocolTypes, Types>(
     f: &'static F,
 ) -> (DynamicFunctionShape<PT>, Box<dyn DynamicFunction<PT>>)
 where
-    F: DescribableFunction<PT, Types>,
+    F: DescribableFunction<PT, Types> + 'static,
 {
     (F::shape(), f.make_dynamic())
 }

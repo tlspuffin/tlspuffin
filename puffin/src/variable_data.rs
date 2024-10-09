@@ -16,9 +16,9 @@ pub trait VariableData<PT: ProtocolTypes>: Debug + EvaluatedTerm<PT> {
 
 /// A VariableData is cloneable and has a `'static` type. This data type is used throughout
 /// tlspuffin to handle data of dynamic size.
-impl<T: 'static, PT: ProtocolTypes> VariableData<PT> for T
+impl<T, PT: ProtocolTypes> VariableData<PT> for T
 where
-    T: Clone + Debug + EvaluatedTerm<PT>,
+    T: Clone + Debug + EvaluatedTerm<PT> + 'static,
 {
     fn boxed(&self) -> Box<dyn VariableData<PT>> {
         Box::new(self.clone())
