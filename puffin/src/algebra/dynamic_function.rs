@@ -57,7 +57,6 @@
 use std::any::{type_name, TypeId};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
-use std::fmt::Formatter;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 
@@ -162,7 +161,7 @@ where
 }
 
 impl<PT: ProtocolTypes> fmt::Debug for Box<dyn DynamicFunction<PT>> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "DynamicFunction")
     }
 }
@@ -307,7 +306,7 @@ impl<PT: ProtocolTypes> Hash for TypeShape<PT> {
 }
 
 impl<PT: ProtocolTypes> fmt::Display for TypeShape<PT> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
 }

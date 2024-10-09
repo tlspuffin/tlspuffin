@@ -1,6 +1,6 @@
 //! This module provides an enum for terms. A term can either be a Variable or a Function.
 //! This also implements the serializability of terms.
-use std::fmt::{self, Formatter};
+use std::fmt::{self};
 use std::hash::{Hash, Hasher};
 
 use rand::random;
@@ -63,7 +63,7 @@ impl<PT: ProtocolTypes> Variable<PT> {
 }
 
 impl<PT: ProtocolTypes> fmt::Display for Variable<PT> {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}/{}", self.query, remove_prefix(self.typ.name))
     }
 }
@@ -192,7 +192,7 @@ impl<PT: ProtocolTypes> Function<PT> {
 }
 
 impl<PT: ProtocolTypes> fmt::Display for Function<PT> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.fn_container.shape.fmt(f)
     }
 }
