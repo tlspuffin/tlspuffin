@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::fmt::Formatter;
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
@@ -26,7 +25,7 @@ pub struct Signature<PT: ProtocolTypes> {
 }
 
 impl<PT: ProtocolTypes> std::fmt::Debug for Signature<PT> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "functions; {:?}", self.functions)
     }
 }

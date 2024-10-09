@@ -1,7 +1,6 @@
 //! This module provides[`Term`]s as well as iterators over them.
 
 use std::fmt;
-use std::fmt::Formatter;
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -28,7 +27,7 @@ pub enum Term<PT: ProtocolTypes> {
 }
 
 impl<PT: ProtocolTypes> fmt::Display for Term<PT> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.display_at_depth(0))
     }
 }
