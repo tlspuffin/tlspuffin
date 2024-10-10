@@ -4,8 +4,8 @@
 
 use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
 use puffin::algebra::Term;
-use puffin::term;
 use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
+use puffin::{input_action, term};
 
 use crate::protocol::{MessageFlight, TLSProtocolTypes};
 use crate::query::TlsQueryMatcher;
@@ -40,8 +40,7 @@ pub fn seed_successful_client_auth(
             // Client Hello Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_client_hello(
                             ((client, 0)),
                             ((client, 0)),
@@ -50,14 +49,13 @@ pub fn seed_successful_client_auth(
                             ((client, 0)),
                             ((client, 0))
                         )
-                    },
+                    }
                 }),
             },
             // Server Hello Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_server_hello(
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Random),
@@ -66,95 +64,87 @@ pub fn seed_successful_client_auth(
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Vec<ServerExtension>)
                         )
-                    },
+                    }
                 }),
             },
             // Encrypted Extensions Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_application_data(
                             ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Certificate Request Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! {term! {
                         fn_application_data(
                             ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Certificate Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! {term! {
                         fn_application_data(
                             ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Certificate Verify Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! {term! {
                         fn_application_data(
                             ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Finish Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_application_data(
                             ((server, 4)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Certificate Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_application_data(
                             ((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // CertificateVerify Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_application_data(
                             ((client, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Finished Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_application_data(
                             ((client, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
         ],
@@ -174,29 +164,26 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TLSProtoco
             // Client Hello Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         (client, 0)/MessageFlight
-                    },
+                    }
                 }),
             },
             // ServerHello/EncryptedExtensions/Certificate/CertificateVerify/ServerFinished ->
             // Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         (server, 0)/MessageFlight
-                    },
+                    }
                 }),
             },
             // Client Finished -> server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         (client, 1)/MessageFlight
-                    },
+                    }
                 }),
             },
         ],
@@ -216,8 +203,7 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TLSPr
             // Client Hello Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_client_hello(
                             ((client, 0)),
                             ((client, 0)),
@@ -229,26 +215,24 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TLSPr
                             ((client, 0)),
                             ((client, 0))
                         )
-                    },
+                    }
                 }),
             },
             // ServerHello/EncryptedExtensions/Certificate/CertificateVerify/ServerFinished ->
             // Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         (server, 0)/MessageFlight
-                    },
+                    }
                 }),
             },
             // Client Finished -> server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         (client, 1)/MessageFlight
-                    },
+                    }
                 }),
             },
         ],
@@ -267,25 +251,23 @@ pub fn seed_successful12_with_tickets(
         9,
         Step {
             agent: client,
-            action: Action::Input(InputAction {
-                recipe: term! {
+            action: Action::Input(input_action! { term! {
                     fn_new_session_ticket(
                         ((server, 0)/u32),
                         ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>)
                     )
-                },
+                }
             }),
         },
     );
 
     trace.steps[11] = Step {
         agent: client,
-        action: Action::Input(InputAction {
-            recipe: term! {
+        action: Action::Input(input_action! { term! {
                 fn_opaque_message(
                     ((server, 6)[None])
                 )
-            },
+            }
         }),
     };
 
@@ -332,52 +314,47 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProto
             // Server Certificate, Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_certificate(
                             ((server, 0))
                         )
-                    },
+                    }
                 }),
             },
             // Server Key Exchange, Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_server_key_exchange(
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Server Hello Done, Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_server_hello_done
-                    },
+                    }
                 }),
             },
             // Client Key Exchange, Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_client_key_exchange(
                             ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Client Change Cipher Spec, Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_change_cipher_spec
-                    },
+                    }
                 }),
             },
             // Client Handshake Finished, Client -> Server
@@ -386,32 +363,29 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProto
             // could be a HelloRequest if the encrypted data starts with a 0.
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_opaque_message(
                             ((client, 3)[None])
                         )
-                    },
+                    }
                 }),
             },
             // Server Change Cipher Spec, Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_change_cipher_spec
-                    },
+                    }
                 }),
             },
             // Server Handshake Finished, Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_opaque_message(
                             ((server, 5)[None])
                         )
-                    },
+                    }
                 }),
             },
         ],
@@ -431,8 +405,7 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
             // Client Hello Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_client_hello(
                             ((client, 0)),
                             ((client, 0)),
@@ -441,14 +414,13 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
                             ((client, 0)),
                             ((client, 0))
                         )
-                    },
+                    }
                 }),
             },
             // Server Hello Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_server_hello(
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Random),
@@ -457,79 +429,72 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Vec<ServerExtension>)
                         )
-                    },
+                    }
                 }),
             },
             // CCS Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_change_cipher_spec
-                    },
+                    }
                 }),
             },
             // Encrypted Extensions Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_application_data(
                             ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Certificate Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_application_data(
                             ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Certificate Verify Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_application_data(
                             ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Finish Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_application_data(
                             ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_change_cipher_spec
-                    },
+                    }
                 }),
             },
             // Finished Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_application_data(
                             ((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
         ],
@@ -547,24 +512,22 @@ pub fn seed_successful_with_tickets(
     // Ticket
     trace.steps.push(Step {
         agent: client,
-        action: Action::Input(InputAction {
-            recipe: term! {
+        action: Action::Input(input_action! { term! {
                 fn_application_data(
                     ((server, 4)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                 )
-            },
+            }
         }),
     });
     // Ticket (wolfSSL 4.4.0 only sends a single ticket)
     #[cfg(not(feature = "wolfssl430"))]
     trace.steps.push(Step {
         agent: client,
-        action: Action::Input(InputAction {
-            recipe: term! {
+        action: Action::Input(input_action! { term! {
                 fn_application_data(
                     ((server, 5)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                 )
-            },
+            }
         }),
     });
 
@@ -681,14 +644,12 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
             OutputAction::new_step(client),
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: server_hello,
+                action: Action::Input(input_action! { server_hello
                 }),
             },
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@encrypted_extensions),
                             (@server_hello_transcript),
@@ -698,13 +659,12 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_false,
                             fn_seq_0  // sequence 0
                         )
-                    },
+                    }
                 }),
             },
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@certificate),
                             (@server_hello_transcript),
@@ -714,13 +674,12 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_false,
                             fn_seq_1  // sequence 1
                         )
-                    },
+                    }
                 }),
             },
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@certificate_verify),
                             (@server_hello_transcript),
@@ -730,13 +689,12 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_false,
                             fn_seq_2  // sequence 2
                         )
-                    },
+                    }
                 }),
             },
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@server_finished),
                             (@server_hello_transcript),
@@ -746,7 +704,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_false,
                             fn_seq_3  // sequence 3
                         )
-                    },
+                    }
                 }),
             },
         ],
@@ -845,16 +803,14 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
         steps: vec![
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @client_hello
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@certificate),
                             (fn_server_hello_transcript(((server, 0)))),
@@ -864,13 +820,12 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_true,
                             fn_seq_0  // sequence 0
                         )
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                          fn_encrypt_handshake(
                             (@certificate_verify),
                             (fn_server_hello_transcript(((server, 0)))),
@@ -880,13 +835,12 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_true,
                             fn_seq_1  // sequence 1
                         )
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@client_finished),
                             (fn_server_hello_transcript(((server, 0)))),
@@ -896,7 +850,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_true,
                             fn_seq_2  // sequence 2
                         )
-                    },
+                    }
                 }),
             },
         ],
@@ -948,16 +902,14 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
         steps: vec![
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @client_hello
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@client_finished),
                             (fn_server_hello_transcript(((server, 0)))),
@@ -967,7 +919,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_true,
                             fn_seq_0  // sequence 0
                         )
-                    },
+                    }
                 }),
             },
             OutputAction::new_step(server),
@@ -1080,26 +1032,22 @@ pub fn _seed_client_attacker12(
         steps: vec![
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: client_hello,
+                action: Action::Input(input_action! { client_hello
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: client_key_exchange,
+                action: Action::Input(input_action! { client_key_exchange
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! { fn_change_cipher_spec },
+                action: Action::Input(input_action! { term! { fn_change_cipher_spec }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt12(
                             (fn_finished((@client_verify_data))),
                             ((server, 0)),
@@ -1110,7 +1058,7 @@ pub fn _seed_client_attacker12(
                             fn_true,
                             fn_seq_0
                         )
-                    },
+                    }
                 }),
             },
         ],
@@ -1221,16 +1169,14 @@ pub fn seed_session_resumption_dhe(
         steps: vec![
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @full_client_hello
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@resumption_client_finished),
                             (fn_server_hello_transcript(((server, 0)))),
@@ -1240,7 +1186,7 @@ pub fn seed_session_resumption_dhe(
                             fn_true,
                             fn_seq_0  // sequence 0
                         )
-                    },
+                    }
                 }),
             },
         ],
@@ -1349,16 +1295,14 @@ pub fn seed_session_resumption_ke(
         steps: vec![
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @full_client_hello
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@resumption_client_finished),
                             (fn_server_hello_transcript(((server, 0)))),
@@ -1368,7 +1312,7 @@ pub fn seed_session_resumption_ke(
                             fn_true,
                             fn_seq_0  // sequence 0
                         )
-                    },
+                    }
                 }),
             },
         ],
@@ -1507,17 +1451,15 @@ pub fn _seed_client_attacker_full(
         steps: vec![
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @client_hello
-                    },
+                    }
                 }),
             },
             OutputAction::new_step(server),
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@client_finished),
                             (@server_hello_transcript),
@@ -1527,7 +1469,7 @@ pub fn _seed_client_attacker_full(
                             fn_true,
                             fn_seq_0  // sequence 0
                         )
-                    },
+                    }
                 }),
             },
             OutputAction::new_step(server),
@@ -1544,7 +1486,7 @@ pub fn _seed_client_attacker_full(
             //                 fn_named_group_secp384r1,
             //                 fn_seq_0  // sequence 0
             //             )
-            //         },
+            //         }
             //     }),
             // },
             // OutputAction::new_step(server),
@@ -1708,16 +1650,14 @@ pub fn seed_session_resumption_dhe_full(
         steps: vec![
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @full_client_hello
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@resumption_client_finished),
                             (@resumption_server_hello_transcript),
@@ -1727,13 +1667,12 @@ pub fn seed_session_resumption_dhe_full(
                             fn_true,
                             fn_seq_0  // sequence 0
                         )
-                    },
+                    }
                 }),
             },
             /*Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                          fn_encrypt_application(
                             fn_alert_close_notify,
                             (@resumption_server_hello_transcript),
@@ -1742,7 +1681,7 @@ pub fn seed_session_resumption_dhe_full(
                             (fn_psk((@psk))),
                             fn_seq_0  // sequence 0
                         )
-                    },
+                    }
                 }),
             },*/
         ],
