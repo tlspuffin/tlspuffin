@@ -8,8 +8,7 @@ use puffin::protocol::ProtocolBehavior;
 use puffin::put::PutOptions;
 
 use crate::claims::TlsClaim;
-use crate::protocol::TLSProtocolBehavior;
-use crate::protocol::TLSProtocolTypes;
+use crate::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 
 /// Static configuration for creating a new agent state for the PUT
 #[derive(Clone)]

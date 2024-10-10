@@ -51,7 +51,6 @@ impl<PT: ProtocolTypes> Signature<PT> {
                 let used_types: Vec<TypeShape<PT>> = shape // vector of the argument shapes + return type
                     .argument_types
                     .iter()
-                    //.copied()
                     .cloned()
                     .chain(vec![shape.return_type])
                     .collect::<Vec<TypeShape<PT>>>();
