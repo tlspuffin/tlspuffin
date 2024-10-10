@@ -4,14 +4,14 @@ use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
 use puffin::term;
 use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 
-use crate::protocol::MessageFlight;
+use crate::protocol::{MessageFlight, TLSProtocolTypes};
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::*;
 use crate::tls::rustls::msgs::enums::HandshakeType;
 use crate::tls::seeds::*;
 
 /// <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638>
-pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -168,7 +168,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TlsQueryMatcher> {
 }
 
 /// <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25640>
-pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -291,7 +291,7 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TlsQueryMatcher> {
 }
 
 /// <https://nvd.nist.gov/vuln/detail/cve-2021-3449>
-pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
     let (mut trace, client_verify_data) = _seed_client_attacker12(server);
 
     let renegotiation_client_hello = term! {
@@ -365,7 +365,7 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TlsQueryMatcher> {
     trace
 }
 
-pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -416,7 +416,7 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TlsQueryMa
     }
 }
 
-pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -513,7 +513,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher
 }
 
 /// A simplified version of [`seed_cve_2022_25640`]
-pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -590,7 +590,7 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TlsQueryMatcher> {
     }
 }
 
-pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -708,7 +708,10 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TlsQue
     }
 }
 
-pub fn seed_cve_2022_39173(initial_server: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_cve_2022_39173(
+    initial_server: AgentName,
+    server: AgentName,
+) -> Trace<TLSProtocolTypes> {
     let initial_handshake = seed_client_attacker(initial_server);
 
     let new_ticket_message = term! {
@@ -847,7 +850,7 @@ pub fn seed_cve_2022_39173(initial_server: AgentName, server: AgentName) -> Trac
 pub fn seed_cve_2022_39173_full(
     initial_server: AgentName,
     server: AgentName,
-) -> Trace<TlsQueryMatcher> {
+) -> Trace<TLSProtocolTypes> {
     let (
         initial_handshake,
         server_hello_transcript,
@@ -967,7 +970,7 @@ pub fn seed_cve_2022_39173_full(
     }
 }
 
-pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TlsQueryMatcher> {
+pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolTypes> {
     // WAS REQUIRED: let initial_handshake = seed_client_attacker(initial_server);
 
     let new_ticket_message = term! {

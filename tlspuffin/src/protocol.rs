@@ -1,23 +1,35 @@
+use std::fmt::Display;
+
 use puffin::algebra::signature::Signature;
 use puffin::algebra::Matcher;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
-    ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-    ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
+    EvaluatedTerm, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+    ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
 use puffin::trace::{Knowledge, Source, Trace};
+use puffin::{atom_extract_knowledge, dummy_extract_knowledge};
+use serde::{Deserialize, Serialize};
 
 use crate::claims::TlsClaim;
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::query::TlsQueryMatcher;
+use crate::tls::rustls::hash_hs::HandshakeHash;
+use crate::tls::rustls::key::Certificate;
 use crate::tls::rustls::msgs::alert::AlertMessagePayload;
 use crate::tls::rustls::msgs::base::Payload;
 use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
+use crate::tls::rustls::msgs::enums::{
+    AlertDescription, AlertLevel, CipherSuite, Compression, HandshakeType, NamedGroup,
+    ProtocolVersion, SignatureScheme,
+};
 use crate::tls::rustls::msgs::handshake::{
-    CertificatePayload, ClientHelloPayload, ECDHEServerKeyExchange, HandshakeMessagePayload,
-    HandshakePayload, NewSessionTicketPayload, ServerHelloPayload, ServerKeyExchangePayload,
+    CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayload, ClientExtension,
+    ClientHelloPayload, ECDHEServerKeyExchange, HandshakeMessagePayload, HandshakePayload,
+    HelloRetryExtension, NewSessionTicketExtension, NewSessionTicketPayload, PresharedKeyIdentity,
+    Random, ServerExtension, ServerHelloPayload, ServerKeyExchangePayload, SessionID,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
@@ -31,7 +43,7 @@ pub struct MessageFlight {
     pub messages: Vec<Message>,
 }
 
-impl ProtocolMessageFlight<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight>
+impl ProtocolMessageFlight<TLSProtocolTypes, Message, OpaqueMessage, OpaqueMessageFlight>
     for MessageFlight
 {
     fn new() -> Self {
@@ -60,7 +72,7 @@ pub struct OpaqueMessageFlight {
     pub messages: Vec<OpaqueMessage>,
 }
 
-impl OpaqueProtocolMessageFlight<TlsQueryMatcher, OpaqueMessage> for OpaqueMessageFlight {
+impl OpaqueProtocolMessageFlight<TLSProtocolTypes, OpaqueMessage> for OpaqueMessageFlight {
     fn new() -> Self {
         Self { messages: vec![] }
     }
@@ -132,7 +144,7 @@ impl From<OpaqueMessage> for OpaqueMessageFlight {
     }
 }
 
-impl ProtocolMessage<TlsQueryMatcher, OpaqueMessage> for Message {
+impl ProtocolMessage<TLSProtocolTypes, OpaqueMessage> for Message {
     fn create_opaque(&self) -> OpaqueMessage {
         msgs::message::PlainMessage::from(self.clone()).into_unencrypted_opaque()
     }
@@ -142,10 +154,10 @@ impl ProtocolMessage<TlsQueryMatcher, OpaqueMessage> for Message {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for MessageFlight {
+impl EvaluatedTerm<TLSProtocolTypes> for MessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -162,10 +174,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for MessageFlight {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for OpaqueMessageFlight {
+impl EvaluatedTerm<TLSProtocolTypes> for OpaqueMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -181,7 +193,7 @@ impl ExtractKnowledge<TlsQueryMatcher> for OpaqueMessageFlight {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for Message {
+impl EvaluatedTerm<TLSProtocolTypes> for Message {
     /// Extracts knowledge from a [`crate::tls::rustls::msgs::message::Message`].
     /// Only plaintext messages yield more knowledge than their binary payload.
     /// If a message is an ApplicationData (TLS 1.3) or an encrypted Heartbeet
@@ -189,7 +201,7 @@ impl ExtractKnowledge<TlsQueryMatcher> for Message {
     /// binary payload is returned.
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         _: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -214,10 +226,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for Message {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for MessagePayload {
+impl EvaluatedTerm<TLSProtocolTypes> for MessagePayload {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -244,10 +256,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for MessagePayload {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for ChangeCipherSpecPayload {
+impl EvaluatedTerm<TLSProtocolTypes> for ChangeCipherSpecPayload {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -260,10 +272,11 @@ impl ExtractKnowledge<TlsQueryMatcher> for ChangeCipherSpecPayload {
         Ok(())
     }
 }
-impl ExtractKnowledge<TlsQueryMatcher> for HeartbeatPayload {
+
+impl EvaluatedTerm<TLSProtocolTypes> for HeartbeatPayload {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -281,10 +294,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for HeartbeatPayload {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for AlertMessagePayload {
+impl EvaluatedTerm<TLSProtocolTypes> for AlertMessagePayload {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -307,10 +320,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for AlertMessagePayload {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for HandshakeMessagePayload {
+impl EvaluatedTerm<TLSProtocolTypes> for HandshakeMessagePayload {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -330,10 +343,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for HandshakeMessagePayload {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for HandshakePayload {
+impl EvaluatedTerm<TLSProtocolTypes> for HandshakePayload {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -372,10 +385,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for HandshakePayload {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for CertificatePayload {
+impl EvaluatedTerm<TLSProtocolTypes> for CertificatePayload {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -393,10 +406,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for CertificatePayload {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for ServerKeyExchangePayload {
+impl EvaluatedTerm<TLSProtocolTypes> for ServerKeyExchangePayload {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -419,10 +432,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for ServerKeyExchangePayload {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for ECDHEServerKeyExchange {
+impl EvaluatedTerm<TLSProtocolTypes> for ECDHEServerKeyExchange {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -435,10 +448,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for ECDHEServerKeyExchange {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for Payload {
+impl EvaluatedTerm<TLSProtocolTypes> for Payload {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -456,10 +469,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for Payload {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for ClientHelloPayload {
+impl EvaluatedTerm<TLSProtocolTypes> for ClientHelloPayload {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -522,10 +535,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for ClientHelloPayload {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for NewSessionTicketPayload {
+impl EvaluatedTerm<TLSProtocolTypes> for NewSessionTicketPayload {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -548,10 +561,10 @@ impl ExtractKnowledge<TlsQueryMatcher> for NewSessionTicketPayload {
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for ServerHelloPayload {
+impl EvaluatedTerm<TLSProtocolTypes> for ServerHelloPayload {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -599,7 +612,7 @@ impl ExtractKnowledge<TlsQueryMatcher> for ServerHelloPayload {
     }
 }
 
-impl ProtocolMessageDeframer<TlsQueryMatcher> for MessageDeframer {
+impl ProtocolMessageDeframer<TLSProtocolTypes> for MessageDeframer {
     type OpaqueProtocolMessage = OpaqueMessage;
 
     fn pop_frame(&mut self) -> Option<OpaqueMessage> {
@@ -611,16 +624,16 @@ impl ProtocolMessageDeframer<TlsQueryMatcher> for MessageDeframer {
     }
 }
 
-impl OpaqueProtocolMessage<TlsQueryMatcher> for OpaqueMessage {
+impl OpaqueProtocolMessage<TLSProtocolTypes> for OpaqueMessage {
     fn debug(&self, info: &str) {
         debug_opaque_message_with_info(info, self);
     }
 }
 
-impl ExtractKnowledge<TlsQueryMatcher> for OpaqueMessage {
+impl EvaluatedTerm<TLSProtocolTypes> for OpaqueMessage {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TlsQueryMatcher>>,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
         matcher: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
@@ -629,6 +642,76 @@ impl ExtractKnowledge<TlsQueryMatcher> for OpaqueMessage {
             matcher,
             data: self,
         });
+        Ok(())
+    }
+}
+
+atom_extract_knowledge!(TLSProtocolTypes, AlertDescription);
+atom_extract_knowledge!(TLSProtocolTypes, AlertLevel);
+atom_extract_knowledge!(TLSProtocolTypes, CertReqExtension);
+atom_extract_knowledge!(TLSProtocolTypes, Certificate);
+atom_extract_knowledge!(TLSProtocolTypes, CertificateEntry);
+atom_extract_knowledge!(TLSProtocolTypes, CertificateExtension);
+atom_extract_knowledge!(TLSProtocolTypes, CipherSuite);
+atom_extract_knowledge!(TLSProtocolTypes, ClientExtension);
+atom_extract_knowledge!(TLSProtocolTypes, Compression);
+atom_extract_knowledge!(TLSProtocolTypes, HandshakeHash);
+atom_extract_knowledge!(TLSProtocolTypes, HandshakeType);
+atom_extract_knowledge!(TLSProtocolTypes, HelloRetryExtension);
+atom_extract_knowledge!(TLSProtocolTypes, NamedGroup);
+atom_extract_knowledge!(TLSProtocolTypes, NewSessionTicketExtension);
+atom_extract_knowledge!(TLSProtocolTypes, PresharedKeyIdentity);
+atom_extract_knowledge!(TLSProtocolTypes, ProtocolVersion);
+atom_extract_knowledge!(TLSProtocolTypes, Random);
+atom_extract_knowledge!(TLSProtocolTypes, ServerExtension);
+atom_extract_knowledge!(TLSProtocolTypes, SessionID);
+atom_extract_knowledge!(TLSProtocolTypes, SignatureScheme);
+atom_extract_knowledge!(TLSProtocolTypes, u32);
+atom_extract_knowledge!(TLSProtocolTypes, u64);
+atom_extract_knowledge!(TLSProtocolTypes, u8);
+dummy_extract_knowledge!(TLSProtocolTypes, bool);
+
+impl<T: EvaluatedTerm<TLSProtocolTypes> + Clone + 'static> EvaluatedTerm<TLSProtocolTypes>
+    for Vec<T>
+{
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
+        matcher: Option<<TLSProtocolTypes as ProtocolTypes>::Matcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+
+        for k in self {
+            k.extract_knowledge(knowledges, matcher, source)?;
+        }
+        Ok(())
+    }
+}
+
+impl<T: EvaluatedTerm<TLSProtocolTypes> + Clone + 'static> EvaluatedTerm<TLSProtocolTypes>
+    for Option<T>
+{
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
+        matcher: Option<<TLSProtocolTypes as ProtocolTypes>::Matcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+
+        match self {
+            Some(x) => x.extract_knowledge(knowledges, matcher, source)?,
+            None => (),
+        }
         Ok(())
     }
 }
@@ -643,23 +726,36 @@ impl Matcher for msgs::enums::HandshakeType {
     }
 }
 
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+pub struct TLSProtocolTypes;
+
+impl ProtocolTypes for TLSProtocolTypes {
+    type Matcher = TlsQueryMatcher;
+
+    fn signature() -> &'static Signature<Self> {
+        &TLS_SIGNATURE
+    }
+}
+
+impl Display for TLSProtocolTypes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "")
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct TLSProtocolBehavior;
 
 impl ProtocolBehavior for TLSProtocolBehavior {
     type Claim = TlsClaim;
-    type Matcher = TlsQueryMatcher;
     type OpaqueProtocolMessage = OpaqueMessage;
     type OpaqueProtocolMessageFlight = OpaqueMessageFlight;
     type ProtocolMessage = Message;
     type ProtocolMessageFlight = MessageFlight;
+    type ProtocolTypes = TLSProtocolTypes;
     type SecurityViolationPolicy = TlsSecurityViolationPolicy;
 
-    fn signature() -> &'static Signature {
-        &TLS_SIGNATURE
-    }
-
-    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+    fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
         create_corpus()
     }
 }

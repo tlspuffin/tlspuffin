@@ -9,6 +9,8 @@ use puffin::algebra::error::FnError;
 use puffin::define_signature;
 use puffin::error::Error;
 
+use crate::protocol::TLSProtocolTypes;
+
 mod key_exchange;
 mod key_schedule;
 
@@ -58,7 +60,7 @@ macro_rules! nyi_fn {
 }
 
 define_signature!(
-    TLS_SIGNATURE,
+    TLS_SIGNATURE<TLSProtocolTypes>,
     // constants
     fn_true
     fn_false

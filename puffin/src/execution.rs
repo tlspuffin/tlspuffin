@@ -19,7 +19,7 @@ pub trait TraceRunner {
 
     fn execute<T>(self, trace: T) -> Result<Self::R, Self::E>
     where
-        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::Matcher>>;
+        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>;
 }
 
 #[derive(Debug, Clone)]
@@ -44,7 +44,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
 
     fn execute<T>(self, trace: T) -> Result<Self::R, Self::E>
     where
-        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::Matcher>>,
+        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
     {
         // We reseed all PUTs before executing a trace!
         self.registry.determinism_reseed_all_factories();
@@ -91,7 +91,7 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
 
     fn execute<Tr>(self, trace: Tr) -> Result<Self::R, Self::E>
     where
-        Tr: AsRef<Trace<<Self::PB as ProtocolBehavior>::Matcher>>,
+        Tr: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
     {
         let runner = self.runner.clone();
 

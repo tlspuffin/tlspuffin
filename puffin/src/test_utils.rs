@@ -1,9 +1,10 @@
-use crate::algebra::{Matcher, Term};
+use crate::algebra::Term;
 use crate::execution::{ExecutionStatus, ForkError};
 use crate::graphviz::write_graphviz;
+use crate::protocol::ProtocolTypes;
 use crate::trace::{Action, Trace};
 
-impl<M: Matcher> Trace<M> {
+impl<PT: ProtocolTypes> Trace<PT> {
     pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
         self.steps
             .iter()
@@ -35,7 +36,7 @@ impl<M: Matcher> Trace<M> {
     }
 }
 
-impl<M: Matcher> Term<M> {
+impl<PT: ProtocolTypes> Term<PT> {
     pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
         let mut found = 0;
         for term in self.into_iter() {

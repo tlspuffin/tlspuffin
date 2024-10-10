@@ -9,7 +9,6 @@ use clap::{arg, crate_authors, crate_name, crate_version, value_parser, Command}
 use libafl::inputs::Input;
 
 use crate::agent::AgentName;
-use crate::algebra::set_deserialize_signature;
 use crate::codec::Codec;
 use crate::execution::{ForkedRunner, Runner, TraceRunner};
 use crate::experiment::*;
@@ -119,10 +118,6 @@ where
     setup_asan_env();
 
     // Initialize global state
-
-    if set_deserialize_signature(PB::signature()).is_err() {
-        log::error!("Failed to initialize deserialization");
-    }
 
     let mut options: Vec<(String, String)> = Vec::new();
     if put_use_clear {
@@ -291,7 +286,7 @@ where
             .unwrap_or(&44338u16)
             .to_string();
 
-        let trace = Trace::<PB::Matcher>::from_file(input).unwrap();
+        let trace = Trace::<PB::ProtocolTypes>::from_file(input).unwrap();
 
         let mut options = vec![("port", port.as_str()), ("host", host)];
 
@@ -413,7 +408,7 @@ fn plot<PB: ProtocolBehavior>(
     // Read trace file
     let mut buffer = Vec::new();
     input_file.read_to_end(&mut buffer)?;
-    let trace = postcard::from_bytes::<Trace<PB::Matcher>>(&buffer)?;
+    let trace = postcard::from_bytes::<Trace<PB::ProtocolTypes>>(&buffer)?;
 
     // All-in-one tree
     write_graphviz(
@@ -452,7 +447,7 @@ fn seed<PB: ProtocolBehavior>(
 }
 
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) {
-    let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
+    let trace = match Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
         Ok(t) => t,
         Err(_) => {
             log::error!("Invalid trace file {}", input.as_ref().display());
@@ -481,7 +476,7 @@ fn binary_attack<PB: ProtocolBehavior>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let spawner = Spawner::new(put_registry.clone()).with_default(default_put);
     let ctx = TraceContext::new(spawner);
-    let trace = Trace::<PB::Matcher>::from_file(input)?;
+    let trace = Trace::<PB::ProtocolTypes>::from_file(input)?;
 
     log::info!("Agents: {:?}", &trace.descriptors);
 
@@ -491,12 +486,12 @@ fn binary_attack<PB: ProtocolBehavior>(
         match step.action {
             Action::Input(input) => {
                 if let Ok(evaluated) = input.recipe.evaluate(&ctx) {
-                    if let Some(msg) = evaluated.as_ref().downcast_ref::<PB::ProtocolMessage>() {
+                    if let Some(msg) = evaluated.as_any().downcast_ref::<PB::ProtocolMessage>() {
                         let mut data: Vec<u8> = Vec::new();
                         msg.create_opaque().encode(&mut data);
                         f.write_all(&data).expect("Unable to write data");
                     } else if let Some(opaque_message) = evaluated
-                        .as_ref()
+                        .as_any()
                         .downcast_ref::<PB::OpaqueProtocolMessage>()
                     {
                         let mut data: Vec<u8> = Vec::new();

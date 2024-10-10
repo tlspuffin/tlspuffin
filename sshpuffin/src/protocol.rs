@@ -1,11 +1,14 @@
+use std::fmt::Display;
+
 use puffin::algebra::signature::Signature;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
-    ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
-    ProtocolMessageDeframer, ProtocolMessageFlight,
+    EvaluatedTerm, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
+    ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
 use puffin::trace::{Knowledge, Source, Trace};
+use serde::{Deserialize, Serialize};
 
 use crate::claim::SshClaim;
 use crate::query::SshQueryMatcher;
@@ -19,7 +22,7 @@ pub struct SshMessageFlight {
     pub messages: Vec<SshMessage>,
 }
 
-impl ProtocolMessageFlight<SshQueryMatcher, SshMessage, RawSshMessage, RawSshMessageFlight>
+impl ProtocolMessageFlight<SshProtocolTypes, SshMessage, RawSshMessage, RawSshMessageFlight>
     for SshMessageFlight
 {
     fn new() -> Self {
@@ -43,11 +46,11 @@ impl From<SshMessage> for SshMessageFlight {
     }
 }
 
-impl ExtractKnowledge<SshQueryMatcher> for SshMessageFlight {
+impl EvaluatedTerm<SshProtocolTypes> for SshMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, SshQueryMatcher>>,
-        matcher: Option<SshQueryMatcher>,
+        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
+        matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
         knowledges.push(Knowledge {
@@ -67,7 +70,7 @@ pub struct RawSshMessageFlight {
     pub messages: Vec<RawSshMessage>,
 }
 
-impl OpaqueProtocolMessageFlight<SshQueryMatcher, RawSshMessage> for RawSshMessageFlight {
+impl OpaqueProtocolMessageFlight<SshProtocolTypes, RawSshMessage> for RawSshMessageFlight {
     fn new() -> Self {
         Self { messages: vec![] }
     }
@@ -81,11 +84,11 @@ impl OpaqueProtocolMessageFlight<SshQueryMatcher, RawSshMessage> for RawSshMessa
     }
 }
 
-impl ExtractKnowledge<SshQueryMatcher> for RawSshMessageFlight {
+impl EvaluatedTerm<SshProtocolTypes> for RawSshMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
-        knowledges: &mut Vec<Knowledge<'a, SshQueryMatcher>>,
-        matcher: Option<SshQueryMatcher>,
+        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
+        matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
         knowledges.push(Knowledge {
@@ -156,23 +159,35 @@ impl From<RawSshMessage> for RawSshMessageFlight {
     }
 }
 
+#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+pub struct SshProtocolTypes;
+impl ProtocolTypes for SshProtocolTypes {
+    type Matcher = SshQueryMatcher;
+
+    fn signature() -> &'static Signature<Self> {
+        &SSH_SIGNATURE
+    }
+}
+
+impl Display for SshProtocolTypes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "")
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct SshProtocolBehavior {}
 
 impl ProtocolBehavior for SshProtocolBehavior {
     type Claim = SshClaim;
-    type Matcher = SshQueryMatcher;
     type OpaqueProtocolMessage = RawSshMessage;
     type OpaqueProtocolMessageFlight = RawSshMessageFlight;
     type ProtocolMessage = SshMessage;
     type ProtocolMessageFlight = SshMessageFlight;
+    type ProtocolTypes = SshProtocolTypes;
     type SecurityViolationPolicy = SshSecurityViolationPolicy;
 
-    fn signature() -> &'static Signature {
-        &SSH_SIGNATURE
-    }
-
-    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+    fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
         vec![] // TODO
     }
 }

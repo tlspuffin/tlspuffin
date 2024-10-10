@@ -27,10 +27,8 @@ use crate::libssh::ssh::{
     SessionOption, SessionState, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest,
     SshResult, SshSession,
 };
-use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior};
+use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior, SshProtocolTypes};
 use crate::put_registry::LIBSSH_RUST_PUT;
-use crate::query::SshQueryMatcher;
-use crate::ssh::message::{RawSshMessage, SshMessage};
 
 pub mod ssh;
 
@@ -81,6 +79,7 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             &self,
             agent_descriptor: &AgentDescriptor,
             _claims: &GlobalClaimList<
+                SshProtocolTypes,
                 <SshProtocolBehavior as puffin::protocol::ProtocolBehavior>::Claim,
             >,
             _options: &PutOptions,
@@ -189,7 +188,7 @@ pub struct LibSSL {
 
 impl LibSSL {}
 
-impl Stream<SshQueryMatcher, SshMessage, RawSshMessage, RawSshMessageFlight> for LibSSL {
+impl Stream<SshProtocolBehavior> for LibSSL {
     fn add_to_inbound(&mut self, result: &RawSshMessageFlight) {
         let mut buffer = Vec::new();
         Codec::encode(result, &mut buffer);

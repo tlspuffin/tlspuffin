@@ -12,7 +12,6 @@
 pub mod deframe;
 pub mod message;
 mod seeds;
-
 #[path = "."]
 pub mod fn_impl {
     pub mod fn_constants;
@@ -25,8 +24,10 @@ pub mod fn_impl {
 use fn_impl::*;
 use puffin::define_signature;
 
+use crate::protocol::SshProtocolTypes;
+
 define_signature!(
-    SSH_SIGNATURE,
+    SSH_SIGNATURE<SshProtocolTypes>,
     fn_true
     fn_false
     fn_seq_0

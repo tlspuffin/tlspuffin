@@ -1,6 +1,5 @@
 //! This module provides[`Term`]s as well as iterators over them.
 
-use std::any::Any;
 use std::fmt;
 
 use itertools::Itertools;
@@ -9,32 +8,31 @@ use serde::{Deserialize, Serialize};
 use super::atoms::{Function, Variable};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
-use crate::algebra::Matcher;
 use crate::error::Error;
-use crate::protocol::ProtocolBehavior;
+use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
-#[serde(bound = "M: Matcher")]
-pub enum Term<M: Matcher> {
+#[serde(bound = "PT: ProtocolTypes")]
+pub enum Term<PT: ProtocolTypes> {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
-    Variable(Variable<M>),
+    Variable(Variable<PT>),
     /// An [`Function`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`).
     ///
     /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be
     /// considered a constant.
-    Application(Function, Vec<Term<M>>),
+    Application(Function<PT>, Vec<Term<PT>>),
 }
 
-impl<M: Matcher> fmt::Display for Term<M> {
+impl<PT: ProtocolTypes> fmt::Display for Term<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.display_at_depth(0))
     }
 }
 
-impl<M: Matcher> Term<M> {
+impl<PT: ProtocolTypes> Term<PT> {
     pub fn resistant_id(&self) -> u32 {
         match self {
             Term::Variable(v) => v.resistant_id,
@@ -62,7 +60,7 @@ impl<M: Matcher> Term<M> {
         }
     }
 
-    pub fn get_type_shape(&self) -> &TypeShape {
+    pub fn get_type_shape(&self) -> &TypeShape<PT> {
         match self {
             Term::Variable(v) => &v.typ,
             Term::Application(function, _) => &function.shape().return_type,
@@ -76,7 +74,7 @@ impl<M: Matcher> Term<M> {
         }
     }
 
-    pub fn mutate(&mut self, other: Term<M>) {
+    pub fn mutate(&mut self, other: Term<PT>) {
         *self = other;
     }
 
@@ -103,24 +101,27 @@ impl<M: Matcher> Term<M> {
         }
     }
 
-    pub fn evaluate<PB>(&self, context: &TraceContext<PB>) -> Result<Box<dyn Any>, Error>
+    pub fn evaluate<PB>(
+        &self,
+        context: &TraceContext<PB>,
+    ) -> Result<Box<dyn EvaluatedTerm<PT>>, Error>
     where
-        PB: ProtocolBehavior<Matcher = M>,
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         match self {
             Term::Variable(variable) => context
-                .find_variable(variable.typ, &variable.query)
-                .map(|data| data.boxed_any())
+                .find_variable(variable.typ.clone(), &variable.query)
+                .map(|data| data.boxed_term())
                 .or_else(|| {
-                    if let Some(Source::Agent(agent_name)) = &variable.query.source {
-                        context.find_claim(*agent_name, variable.typ)
+                    if let Some(Source::Agent(agent_name)) = variable.query.source {
+                        context.find_claim(agent_name, variable.typ.clone())
                     } else {
                         todo!("Implement querying by label");
                     }
                 })
                 .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
             Term::Application(func, args) => {
-                let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
+                let mut dynamic_args: Vec<Box<dyn EvaluatedTerm<PT>>> = Vec::new();
                 for term in args {
                     match term.evaluate(context) {
                         Ok(data) => {
@@ -132,14 +133,14 @@ impl<M: Matcher> Term<M> {
                     }
                 }
                 let dynamic_fn = &func.dynamic_fn();
-                let result: Result<Box<dyn Any>, FnError> = dynamic_fn(&dynamic_args);
+                let result: Result<Box<dyn EvaluatedTerm<PT>>, FnError> = dynamic_fn(&dynamic_args);
                 result.map_err(Error::Fn)
             }
         }
     }
 }
 
-fn append<'a, M: Matcher>(term: &'a Term<M>, v: &mut Vec<&'a Term<M>>) {
+fn append<'a, PT: ProtocolTypes>(term: &'a Term<PT>, v: &mut Vec<&'a Term<PT>>) {
     match *term {
         Term::Variable(_) => {}
         Term::Application(_, ref subterms) => {
@@ -155,36 +156,36 @@ fn append<'a, M: Matcher>(term: &'a Term<M>, v: &mut Vec<&'a Term<M>>) {
 /// Having the same mutator for &'a mut Term is not possible in Rust:
 /// * <https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node>
 /// * <https://sachanganesh.com/programming/graph-tree-traversals-in-rust/>
-impl<'a, M: Matcher> IntoIterator for &'a Term<M> {
-    type IntoIter = std::vec::IntoIter<&'a Term<M>>;
-    type Item = &'a Term<M>;
+impl<'a, PT: ProtocolTypes> IntoIterator for &'a Term<PT> {
+    type IntoIter = std::vec::IntoIter<&'a Term<PT>>;
+    type Item = &'a Term<PT>;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut result = vec![];
-        append::<M>(self, &mut result);
+        append::<PT>(self, &mut result);
         result.into_iter()
     }
 }
 
-pub trait Subterms<M: Matcher> {
-    fn find_subterm_same_shape(&self, term: &Term<M>) -> Option<&Term<M>>;
+pub trait Subterms<PT: ProtocolTypes> {
+    fn find_subterm_same_shape(&self, term: &Term<PT>) -> Option<&Term<PT>>;
 
-    fn find_subterm<P: Fn(&&Term<M>) -> bool + Copy>(&self, filter: P) -> Option<&Term<M>>;
+    fn find_subterm<P: Fn(&&Term<PT>) -> bool + Copy>(&self, filter: P) -> Option<&Term<PT>>;
 
-    fn filter_grand_subterms<P: Fn(&Term<M>, &Term<M>) -> bool + Copy>(
+    fn filter_grand_subterms<P: Fn(&Term<PT>, &Term<PT>) -> bool + Copy>(
         &self,
         predicate: P,
-    ) -> Vec<((usize, &Term<M>), &Term<M>)>;
+    ) -> Vec<((usize, &Term<PT>), &Term<PT>)>;
 }
 
-impl<M: Matcher> Subterms<M> for Vec<Term<M>> {
+impl<PT: ProtocolTypes> Subterms<PT> for Vec<Term<PT>> {
     /// Finds a subterm with the same type as `term`
-    fn find_subterm_same_shape(&self, term: &Term<M>) -> Option<&Term<M>> {
+    fn find_subterm_same_shape(&self, term: &Term<PT>) -> Option<&Term<PT>> {
         self.find_subterm(|subterm| term.get_type_shape() == subterm.get_type_shape())
     }
 
     /// Finds a subterm in this vector
-    fn find_subterm<P: Fn(&&Term<M>) -> bool + Copy>(&self, predicate: P) -> Option<&Term<M>> {
+    fn find_subterm<P: Fn(&&Term<PT>) -> bool + Copy>(&self, predicate: P) -> Option<&Term<PT>> {
         self.iter().find(predicate)
     }
 
@@ -194,10 +195,10 @@ impl<M: Matcher> Subterms<M> for Vec<Term<M>> {
     ///
     /// Each grand subterm is returned together with its parent and the index of the parent in
     /// `self`.
-    fn filter_grand_subterms<P: Fn(&Term<M>, &Term<M>) -> bool + Copy>(
+    fn filter_grand_subterms<P: Fn(&Term<PT>, &Term<PT>) -> bool + Copy>(
         &self,
         predicate: P,
-    ) -> Vec<((usize, &Term<M>), &Term<M>)> {
+    ) -> Vec<((usize, &Term<PT>), &Term<PT>)> {
         let mut found_grand_subterms = vec![];
 
         for (i, subterm) in self.iter().enumerate() {

@@ -1,5 +1,3 @@
-use std::any::Any;
-
 use criterion::{criterion_group, criterion_main, Criterion};
 use puffin::algebra::dynamic_function::make_dynamic;
 use puffin::algebra::error::FnError;
@@ -11,11 +9,12 @@ use puffin::libafl::corpus::InMemoryCorpus;
 use puffin::libafl::mutators::Mutator;
 use puffin::libafl::state::StdState;
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
+use puffin::protocol::EvaluatedTerm;
 use puffin::term;
 use puffin::trace::{Spawner, Trace};
 use puffin::trace_helper::TraceHelper;
+use tlspuffin::protocol::TLSProtocolTypes;
 use tlspuffin::put_registry::tls_registry;
-use tlspuffin::query::TlsQueryMatcher;
 use tlspuffin::tls::fn_impl::*;
 use tlspuffin::tls::seeds::*;
 
@@ -33,7 +32,7 @@ fn benchmark_dynamic(c: &mut Criterion) {
     group.bench_function("fn_benchmark_example dynamic", |b| {
         b.iter(|| {
             let (_, dynamic_fn) = make_dynamic(&fn_benchmark_example);
-            let args: Vec<Box<dyn Any>> = vec![Box::new(5)];
+            let args: Vec<Box<dyn EvaluatedTerm<TLSProtocolTypes>>> = vec![Box::new(5u64)];
             dynamic_fn(&args)
         })
     });
@@ -42,10 +41,10 @@ fn benchmark_dynamic(c: &mut Criterion) {
 }
 
 fn create_state() -> StdState<
-    Trace<TlsQueryMatcher>,
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+    Trace<TLSProtocolTypes>,
+    InMemoryCorpus<Trace<TLSProtocolTypes>>,
     RomuDuoJrRand,
-    InMemoryCorpus<Trace<TlsQueryMatcher>>,
+    InMemoryCorpus<Trace<TLSProtocolTypes>>,
 > {
     let rand = StdRand::with_seed(1235);
     let corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();
@@ -73,7 +72,7 @@ fn benchmark_trace(c: &mut Criterion) {
     let mut group = c.benchmark_group("trace");
 
     group.bench_function("term clone", |b| {
-        let client_hello: Term<TlsQueryMatcher> = term! {
+        let client_hello: Term<TLSProtocolTypes> = term! {
               fn_client_hello(
                 fn_protocol_version12,
                 fn_new_random,
