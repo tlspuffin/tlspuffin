@@ -578,7 +578,7 @@ where
     match &term.term {
         DYTerm::Variable(variable) => context
             .find_variable(variable.typ.clone(), &variable.query)
-            .map(|data| data.boxed_extractable())
+            .map(|data| data.boxed_term())
             .or_else(|| {
                 if let Some(Source::Agent(agent_name)) = &variable.query.source {
                     context.find_claim(*agent_name, variable.typ.clone())
