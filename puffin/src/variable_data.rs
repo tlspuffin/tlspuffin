@@ -9,7 +9,7 @@ use crate::protocol::{EvaluatedTerm, ProtocolTypes};
 pub trait VariableData<PT: ProtocolTypes>: Debug + EvaluatedTerm<PT> {
     fn boxed(&self) -> Box<dyn VariableData<PT>>;
     fn boxed_any(&self) -> Box<dyn Any>;
-    fn boxed_extractable(&self) -> Box<dyn EvaluatedTerm<PT>>;
+    fn boxed_term(&self) -> Box<dyn EvaluatedTerm<PT>>;
     fn type_id(&self) -> TypeId;
     fn type_name(&self) -> &'static str;
 }
@@ -28,7 +28,7 @@ where
         Box::new(self.clone())
     }
 
-    fn boxed_extractable(&self) -> Box<dyn EvaluatedTerm<PT>> {
+    fn boxed_term(&self) -> Box<dyn EvaluatedTerm<PT>> {
         Box::new(self.clone())
     }
 

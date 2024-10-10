@@ -225,19 +225,19 @@ impl Claim<TLSProtocolTypes> for TlsClaim {
         type Transcript = ClaimDataTranscript;
         match &self.data {
             ClaimData::Message(message) => match message {
-                Message::ClientHello(claim) => claim.boxed_extractable(),
-                Message::ServerHello(claim) => claim.boxed_extractable(),
-                Message::Certificate(claim) => claim.boxed_extractable(),
-                Message::CertificateVerify(claim) => claim.boxed_extractable(),
-                Message::Finished(claim) => claim.boxed_extractable(),
+                Message::ClientHello(claim) => claim.boxed_term(),
+                Message::ServerHello(claim) => claim.boxed_term(),
+                Message::Certificate(claim) => claim.boxed_term(),
+                Message::CertificateVerify(claim) => claim.boxed_term(),
+                Message::Finished(claim) => claim.boxed_term(),
             },
             ClaimData::Transcript(transcript) => match transcript {
-                Transcript::ClientHello(claim) => claim.boxed_extractable(),
-                Transcript::PartialClientHello(claim) => claim.boxed_extractable(),
-                Transcript::ServerHello(claim) => claim.boxed_extractable(),
-                Transcript::ServerFinished(claim) => claim.boxed_extractable(),
-                Transcript::ClientFinished(claim) => claim.boxed_extractable(),
-                Transcript::Certificate(claim) => claim.boxed_extractable(),
+                Transcript::ClientHello(claim) => claim.boxed_term(),
+                Transcript::PartialClientHello(claim) => claim.boxed_term(),
+                Transcript::ServerHello(claim) => claim.boxed_term(),
+                Transcript::ServerFinished(claim) => claim.boxed_term(),
+                Transcript::ClientFinished(claim) => claim.boxed_term(),
+                Transcript::Certificate(claim) => claim.boxed_term(),
             },
         }
     }

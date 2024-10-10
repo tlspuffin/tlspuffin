@@ -410,7 +410,7 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn boxed_extractable(&self) -> Box<dyn EvaluatedTerm<TestProtocolTypes>> {
+        fn boxed_term(&self) -> Box<dyn EvaluatedTerm<TestProtocolTypes>> {
             panic!("Not implemented for test stub");
         }
     }
