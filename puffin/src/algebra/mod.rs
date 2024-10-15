@@ -32,12 +32,10 @@
 use std::fmt;
 use std::hash::Hash;
 
-use once_cell::sync::OnceCell;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
 pub use self::term::*;
-use crate::algebra::signature::Signature;
 
 pub mod atoms;
 pub mod dynamic_function;
@@ -45,19 +43,6 @@ pub mod error;
 pub mod macros;
 pub mod signature;
 pub mod term;
-
-static DESERIALIZATION_SIGNATURE: OnceCell<&'static Signature> = OnceCell::new();
-
-/// Returns the current signature which is used during deserialization.
-pub fn deserialize_signature() -> &'static Signature {
-    DESERIALIZATION_SIGNATURE
-        .get()
-        .expect("current signature needs to be set")
-}
-
-pub fn set_deserialize_signature(signature: &'static Signature) -> Result<(), ()> {
-    DESERIALIZATION_SIGNATURE.set(signature).map_err(|_err| ())
-}
 
 impl<T> Matcher for Option<T>
 where
@@ -108,7 +93,10 @@ impl Matcher for AnyMatcher {
 pub mod test_signature {
     use std::any::{Any, TypeId};
     use std::fmt;
+    use std::fmt::{Debug, Display};
     use std::io::Read;
+
+    use serde::{Deserialize, Serialize};
 
     use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
     use crate::algebra::dynamic_function::TypeShape;
@@ -118,28 +106,76 @@ pub mod test_signature {
     use crate::codec::{Codec, Reader};
     use crate::error::Error;
     use crate::protocol::{
-        ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-        ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
+        EvaluatedTerm, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+        ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
     };
     use crate::put::{Put, PutOptions};
     use crate::put_registry::{Factory, PutKind};
     use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace};
     use crate::variable_data::VariableData;
-    use crate::{define_signature, term, VERSION_STR};
+    use crate::{define_signature, dummy_extract_knowledge, term, VERSION_STR};
 
+    #[derive(Debug)]
     pub struct HmacKey;
+    #[derive(Debug)]
     pub struct HandshakeMessage;
+    #[derive(Debug)]
     pub struct Encrypted;
+    #[derive(Debug)]
     pub struct ProtocolVersion;
+    #[derive(Debug)]
     pub struct Random;
+    #[derive(Debug)]
     pub struct ClientExtension;
+    #[derive(Debug)]
     pub struct ClientExtensions;
+    #[derive(Debug)]
     pub struct Group;
+    #[derive(Debug)]
     pub struct SessionID;
+    #[derive(Debug)]
     pub struct CipherSuites;
+    #[derive(Debug)]
     pub struct CipherSuite;
+    #[derive(Debug)]
     pub struct Compression;
+    #[derive(Debug)]
     pub struct Compressions;
+
+    dummy_extract_knowledge!(TestProtocolTypes, HmacKey);
+    dummy_extract_knowledge!(TestProtocolTypes, HandshakeMessage);
+    dummy_extract_knowledge!(TestProtocolTypes, Encrypted);
+    dummy_extract_knowledge!(TestProtocolTypes, ProtocolVersion);
+    dummy_extract_knowledge!(TestProtocolTypes, Random);
+    dummy_extract_knowledge!(TestProtocolTypes, ClientExtension);
+    dummy_extract_knowledge!(TestProtocolTypes, ClientExtensions);
+    dummy_extract_knowledge!(TestProtocolTypes, Group);
+    dummy_extract_knowledge!(TestProtocolTypes, SessionID);
+    dummy_extract_knowledge!(TestProtocolTypes, CipherSuites);
+    dummy_extract_knowledge!(TestProtocolTypes, CipherSuite);
+    dummy_extract_knowledge!(TestProtocolTypes, Compression);
+    dummy_extract_knowledge!(TestProtocolTypes, Compressions);
+    dummy_extract_knowledge!(TestProtocolTypes, u8);
+    dummy_extract_knowledge!(TestProtocolTypes, u16);
+    dummy_extract_knowledge!(TestProtocolTypes, u32);
+    dummy_extract_knowledge!(TestProtocolTypes, u64);
+
+    impl<T: std::fmt::Debug + Clone + 'static> EvaluatedTerm<TestProtocolTypes> for Vec<T> {
+        fn extract_knowledge<'a>(
+            &'a self,
+            knowledges: &mut Vec<Knowledge<'a, TestProtocolTypes>>,
+            matcher: Option<<TestProtocolTypes as ProtocolTypes>::Matcher>,
+            source: &'a Source,
+        ) -> Result<(), Error> {
+            knowledges.push(Knowledge {
+                source,
+                matcher,
+                data: self,
+            });
+
+            Ok(())
+        }
+    }
 
     pub fn fn_hmac256_new_key() -> Result<HmacKey, FnError> {
         Ok(HmacKey)
@@ -322,7 +358,7 @@ pub mod test_signature {
     }
 
     define_signature!(
-        TEST_SIGNATURE,
+        TEST_SIGNATURE<TestProtocolTypes>,
         fn_hmac256_new_key
         fn_hmac256
         fn_client_hello
@@ -350,13 +386,15 @@ pub mod test_signature {
         fn_seq_1
     );
 
-    pub type TestTrace = Trace<AnyMatcher>;
-    pub type TestTerm = Term<AnyMatcher>;
+    pub type TestTrace = Trace<TestProtocolTypes>;
+    pub type TestTerm = Term<TestProtocolTypes>;
 
     pub struct TestClaim;
 
-    impl VariableData for TestClaim {
-        fn boxed(&self) -> Box<dyn VariableData> {
+    dummy_extract_knowledge!(TestProtocolTypes, TestClaim);
+
+    impl VariableData<TestProtocolTypes> for TestClaim {
+        fn boxed(&self) -> Box<dyn VariableData<TestProtocolTypes>> {
             panic!("Not implemented for test stub");
         }
 
@@ -371,6 +409,10 @@ pub mod test_signature {
         fn type_name(&self) -> &'static str {
             panic!("Not implemented for test stub");
         }
+
+        fn boxed_term(&self) -> Box<dyn EvaluatedTerm<TestProtocolTypes>> {
+            panic!("Not implemented for test stub");
+        }
     }
 
     impl fmt::Debug for TestClaim {
@@ -379,16 +421,16 @@ pub mod test_signature {
         }
     }
 
-    impl Claim for TestClaim {
+    impl Claim<TestProtocolTypes> for TestClaim {
         fn agent_name(&self) -> AgentName {
             panic!("Not implemented for test stub");
         }
 
-        fn id(&self) -> TypeShape {
+        fn id(&self) -> TypeShape<TestProtocolTypes> {
             panic!("Not implemented for test stub");
         }
 
-        fn inner(&self) -> Box<dyn Any> {
+        fn inner(&self) -> Box<dyn EvaluatedTerm<TestProtocolTypes>> {
             panic!("Not implemented for test stub");
         }
     }
@@ -417,22 +459,13 @@ pub mod test_signature {
         }
     }
 
-    impl OpaqueProtocolMessage<AnyMatcher> for TestOpaqueMessage {
+    impl OpaqueProtocolMessage<TestProtocolTypes> for TestOpaqueMessage {
         fn debug(&self, _info: &str) {
             panic!("Not implemented for test stub");
         }
     }
 
-    impl ExtractKnowledge<AnyMatcher> for TestOpaqueMessage {
-        fn extract_knowledge(
-            &self,
-            _: &mut Vec<Knowledge<AnyMatcher>>,
-            _: Option<AnyMatcher>,
-            _: &Source,
-        ) -> Result<(), Error> {
-            panic!("Not implemented for test stub");
-        }
-    }
+    dummy_extract_knowledge!(TestProtocolTypes, TestOpaqueMessage);
 
     pub struct TestMessage;
 
@@ -448,7 +481,7 @@ pub mod test_signature {
         }
     }
 
-    impl ProtocolMessage<AnyMatcher, TestOpaqueMessage> for TestMessage {
+    impl ProtocolMessage<TestProtocolTypes, TestOpaqueMessage> for TestMessage {
         fn create_opaque(&self) -> TestOpaqueMessage {
             panic!("Not implemented for test stub");
         }
@@ -458,20 +491,11 @@ pub mod test_signature {
         }
     }
 
-    impl ExtractKnowledge<AnyMatcher> for TestMessage {
-        fn extract_knowledge(
-            &self,
-            _: &mut Vec<Knowledge<AnyMatcher>>,
-            _: Option<AnyMatcher>,
-            _: &Source,
-        ) -> Result<(), Error> {
-            panic!("Not implemented for test stub");
-        }
-    }
+    dummy_extract_knowledge!(TestProtocolTypes, TestMessage);
 
     pub struct TestMessageDeframer;
 
-    impl ProtocolMessageDeframer<AnyMatcher> for TestMessageDeframer {
+    impl ProtocolMessageDeframer<TestProtocolTypes> for TestMessageDeframer {
         type OpaqueProtocolMessage = TestOpaqueMessage;
 
         fn pop_frame(&mut self) -> Option<TestOpaqueMessage> {
@@ -484,7 +508,7 @@ pub mod test_signature {
     }
 
     pub struct TestSecurityViolationPolicy;
-    impl SecurityViolationPolicy<TestClaim> for TestSecurityViolationPolicy {
+    impl SecurityViolationPolicy<TestProtocolTypes, TestClaim> for TestSecurityViolationPolicy {
         fn check_violation(_claims: &[TestClaim]) -> Option<&'static str> {
             panic!("Not implemented for test stub");
         }
@@ -493,8 +517,13 @@ pub mod test_signature {
     #[derive(Debug, Clone)]
     pub struct TestMessageFlight;
 
-    impl ProtocolMessageFlight<AnyMatcher, TestMessage, TestOpaqueMessage, TestOpaqueMessageFlight>
-        for TestMessageFlight
+    impl
+        ProtocolMessageFlight<
+            TestProtocolTypes,
+            TestMessage,
+            TestOpaqueMessage,
+            TestOpaqueMessageFlight,
+        > for TestMessageFlight
     {
         fn new() -> Self {
             Self {}
@@ -517,16 +546,7 @@ pub mod test_signature {
         }
     }
 
-    impl ExtractKnowledge<AnyMatcher> for TestMessageFlight {
-        fn extract_knowledge(
-            &self,
-            _: &mut Vec<Knowledge<AnyMatcher>>,
-            _: Option<AnyMatcher>,
-            _: &Source,
-        ) -> Result<(), Error> {
-            panic!("Not implemented for test stub");
-        }
-    }
+    dummy_extract_knowledge!(TestProtocolTypes, TestMessageFlight);
 
     impl From<TestMessage> for TestMessageFlight {
         fn from(_value: TestMessage) -> Self {
@@ -537,7 +557,7 @@ pub mod test_signature {
     #[derive(Debug, Clone)]
     pub struct TestOpaqueMessageFlight;
 
-    impl OpaqueProtocolMessageFlight<AnyMatcher, TestOpaqueMessage> for TestOpaqueMessageFlight {
+    impl OpaqueProtocolMessageFlight<TestProtocolTypes, TestOpaqueMessage> for TestOpaqueMessageFlight {
         fn new() -> Self {
             Self {}
         }
@@ -551,16 +571,7 @@ pub mod test_signature {
         }
     }
 
-    impl ExtractKnowledge<AnyMatcher> for TestOpaqueMessageFlight {
-        fn extract_knowledge(
-            &self,
-            _: &mut Vec<Knowledge<AnyMatcher>>,
-            _: Option<AnyMatcher>,
-            _: &Source,
-        ) -> Result<(), Error> {
-            panic!("Not implemented for test stub");
-        }
-    }
+    dummy_extract_knowledge!(TestProtocolTypes, TestOpaqueMessageFlight);
 
     impl From<TestOpaqueMessage> for TestOpaqueMessageFlight {
         fn from(_value: TestOpaqueMessage) -> Self {
@@ -584,23 +595,36 @@ pub mod test_signature {
         }
     }
 
+    #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+    pub struct TestProtocolTypes;
+
+    impl ProtocolTypes for TestProtocolTypes {
+        type Matcher = AnyMatcher;
+
+        fn signature() -> &'static Signature<Self> {
+            panic!("Not implemented for test stub");
+        }
+    }
+
+    impl Display for TestProtocolTypes {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "")
+        }
+    }
+
     #[derive(Debug, PartialEq)]
     pub struct TestProtocolBehavior;
 
     impl ProtocolBehavior for TestProtocolBehavior {
         type Claim = TestClaim;
-        type Matcher = AnyMatcher;
         type OpaqueProtocolMessage = TestOpaqueMessage;
         type OpaqueProtocolMessageFlight = TestOpaqueMessageFlight;
         type ProtocolMessage = TestMessage;
         type ProtocolMessageFlight = TestMessageFlight;
+        type ProtocolTypes = TestProtocolTypes;
         type SecurityViolationPolicy = TestSecurityViolationPolicy;
 
-        fn signature() -> &'static Signature {
-            panic!("Not implemented for test stub");
-        }
-
-        fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)> {
+        fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
             panic!("Not implemented for test stub");
         }
     }
@@ -611,7 +635,10 @@ pub mod test_signature {
         fn create(
             &self,
             _agent_descriptor: &AgentDescriptor,
-            _claims: &GlobalClaimList<<TestProtocolBehavior as ProtocolBehavior>::Claim>,
+            _claims: &GlobalClaimList<
+                TestProtocolTypes,
+                <TestProtocolBehavior as ProtocolBehavior>::Claim,
+            >,
             _options: &PutOptions,
         ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {
             panic!("Not implemented for test stub");
@@ -646,26 +673,9 @@ mod tests {
     use crate::algebra::dynamic_function::TypeShape;
     use crate::algebra::signature::Signature;
     use crate::algebra::{AnyMatcher, Term};
-    use crate::protocol::ExtractKnowledge;
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
-    use crate::trace::{Knowledge, Source, Spawner, TraceContext};
-
-    impl ExtractKnowledge<AnyMatcher> for Vec<u8> {
-        fn extract_knowledge<'a>(
-            &'a self,
-            knowledges: &mut Vec<Knowledge<'a, AnyMatcher>>,
-            matcher: Option<AnyMatcher>,
-            source: &'a Source,
-        ) -> Result<(), crate::error::Error> {
-            knowledges.push(Knowledge {
-                source,
-                matcher,
-                data: self,
-            });
-            Ok(())
-        }
-    }
+    use crate::trace::{Source, Spawner, TraceContext};
 
     #[allow(dead_code)]
     fn test_compilation() {
@@ -723,7 +733,7 @@ mod tests {
 
         //println!("TypeId of vec array {:?}", data.type_id());
 
-        let variable: Variable<AnyMatcher> = Signature::new_var(
+        let variable: Variable<TestProtocolTypes> = Signature::new_var(
             TypeShape::of::<Vec<u8>>(),
             Some(Source::Agent(AgentName::first())),
             None,
@@ -753,10 +763,13 @@ mod tests {
             .knowledge_store
             .add_raw_knowledge(data, Source::Agent(AgentName::first()));
 
+        println!("{:?}", context.knowledge_store);
+
         let _string = generated_term
             .evaluate(&context)
             .as_ref()
             .unwrap()
+            .as_any()
             .downcast_ref::<Vec<u8>>();
         //println!("{:?}", string);
     }
@@ -774,13 +787,14 @@ mod tests {
         let dynamic_fn = func.dynamic_fn();
         let _string = dynamic_fn(&vec![Box::new(1u8)])
             .unwrap()
+            .as_any()
             .downcast_ref::<u16>()
             .unwrap();
         //println!("{:?}", string);
         let _string = Signature::new_function(&example_op_c).shape();
         //println!("{}", string);
 
-        let constructed_term = Term::Application(
+        let constructed_term = Term::<TestProtocolTypes>::Application(
             Signature::new_function(&example_op_c),
             vec![
                 Term::Application(

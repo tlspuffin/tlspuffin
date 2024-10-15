@@ -2,11 +2,11 @@ use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
 use puffin::term;
 use puffin::trace::{InputAction, OutputAction, Trace};
 
-use crate::query::SshQueryMatcher;
+use crate::protocol::SshProtocolTypes;
 use crate::ssh::fn_impl::*;
 use crate::ssh::message::*;
 
-pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshQueryMatcher> {
+pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![

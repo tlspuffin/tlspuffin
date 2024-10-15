@@ -14,12 +14,10 @@ use puffin::stream::{MemoryStream, Stream};
 use puffin::VERSION_STR;
 
 use crate::openssl::util::{set_max_protocol_version, static_rsa_cert};
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put::TlsPutConfig;
 use crate::put_registry::OPENSSL_RUST_PUT;
-use crate::query::TlsQueryMatcher;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
-use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
 mod bindings;
 mod deterministic;
@@ -35,7 +33,10 @@ pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBeha
         fn create(
             &self,
             agent_descriptor: &AgentDescriptor,
-            claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
+            claims: &GlobalClaimList<
+                TLSProtocolTypes,
+                <TLSProtocolBehavior as ProtocolBehavior>::Claim,
+            >,
             options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
             let config = TlsPutConfig::new(agent_descriptor, claims, options);
@@ -96,21 +97,16 @@ impl Drop for OpenSSL {
     }
 }
 
-impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for OpenSSL {
+impl Stream<TLSProtocolBehavior> for OpenSSL {
     fn add_to_inbound(&mut self, result: &OpaqueMessageFlight) {
-        <MemoryStream as Stream<
-            TlsQueryMatcher,
-            Message,
-            OpaqueMessage,
-            OpaqueMessageFlight,
-        >>::add_to_inbound(self.stream.get_mut(), result)
+        <MemoryStream as Stream<TLSProtocolBehavior>>::add_to_inbound(self.stream.get_mut(), result)
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
         let memory_stream = self.stream.get_mut();
         //memory_stream.take_message_from_outbound()
 
-        <MemoryStream as Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight>>::take_message_from_outbound(memory_stream)
+        <MemoryStream as Stream<TLSProtocolBehavior>>::take_message_from_outbound(memory_stream)
     }
 }
 

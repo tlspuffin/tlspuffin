@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use puffin::algebra::dynamic_function::DescribableFunction;
 use puffin::fuzzer::term_zoo::TermZoo;
 use puffin::libafl_bolts::rands::StdRand;
-use tlspuffin::query::TlsQueryMatcher;
+use tlspuffin::protocol::TLSProtocolTypes;
 use tlspuffin::tls::fn_impl::*;
 use tlspuffin::tls::TLS_SIGNATURE;
 
@@ -11,7 +11,7 @@ use tlspuffin::tls::TLS_SIGNATURE;
 /// Tests whether all function symbols can be used when generating random terms
 fn test_term_generation() {
     let mut rand = StdRand::with_seed(101);
-    let zoo = TermZoo::<TlsQueryMatcher>::generate(&TLS_SIGNATURE, &mut rand);
+    let zoo = TermZoo::<TLSProtocolTypes>::generate(&TLS_SIGNATURE, &mut rand);
 
     let subgraphs = zoo
         .terms()

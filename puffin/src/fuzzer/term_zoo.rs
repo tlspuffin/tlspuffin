@@ -5,18 +5,19 @@ use libafl_bolts::rands::Rand;
 
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::{FunctionDefinition, Signature};
-use crate::algebra::{Matcher, Term};
+use crate::algebra::Term;
 use crate::fuzzer::mutations::util::Choosable;
+use crate::protocol::ProtocolTypes;
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
 const MAX_TRIES: u16 = 100; // How often we want to try to generate before stopping
 
-pub struct TermZoo<M: Matcher> {
-    terms: Vec<Term<M>>,
+pub struct TermZoo<PT: ProtocolTypes> {
+    terms: Vec<Term<PT>>,
 }
 
-impl<M: Matcher> TermZoo<M> {
-    pub fn generate<R: Rand>(signature: &Signature, rand: &mut R) -> Self {
+impl<PT: ProtocolTypes> TermZoo<PT> {
+    pub fn generate<R: Rand>(signature: &Signature<PT>, rand: &mut R) -> Self {
         let terms = signature
             .functions
             .iter()
@@ -41,11 +42,11 @@ impl<M: Matcher> TermZoo<M> {
     }
 
     fn generate_term<R: Rand>(
-        signature: &Signature,
-        (shape, dynamic_fn): &FunctionDefinition,
+        signature: &Signature<PT>,
+        (shape, dynamic_fn): &FunctionDefinition<PT>,
         depth: u16,
         rand: &mut R,
-    ) -> Option<Term<M>> {
+    ) -> Option<Term<PT>> {
         if depth == 0 {
             // Reached max depth
             return None;
@@ -82,14 +83,14 @@ impl<M: Matcher> TermZoo<M> {
         ))
     }
 
-    pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&Term<M>>
+    pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&Term<PT>>
     where
-        P: FnMut(&&Term<M>) -> bool,
+        P: FnMut(&&Term<PT>) -> bool,
     {
         self.terms.choose_filtered(filter, rand)
     }
 
-    pub fn terms(&self) -> &[Term<M>] {
+    pub fn terms(&self) -> &[Term<PT>] {
         &self.terms
     }
 }

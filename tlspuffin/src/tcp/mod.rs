@@ -18,9 +18,7 @@ use puffin::put_registry::{Factory, PutKind, TCP_PUT};
 use puffin::stream::Stream;
 use puffin::VERSION_STR;
 
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
-use crate::query::TlsQueryMatcher;
-use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolTypes};
 
 pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct TCPFactory;
@@ -28,7 +26,10 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         fn create(
             &self,
             agent_descriptor: &AgentDescriptor,
-            _claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
+            _claims: &GlobalClaimList<
+                TLSProtocolTypes,
+                <TLSProtocolBehavior as ProtocolBehavior>::Claim,
+            >,
             options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
             if options.get_option("args").is_some() {
@@ -239,7 +240,7 @@ impl TcpPut for TcpServerPut {
     }
 }
 
-impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for TcpServerPut {
+impl Stream<TLSProtocolBehavior> for TcpServerPut {
     fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight) {
         self.write_to_stream(&opaque_flight.clone().get_encoding())
             .unwrap();
@@ -250,7 +251,7 @@ impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for Tc
     }
 }
 
-impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for TcpClientPut {
+impl Stream<TLSProtocolBehavior> for TcpClientPut {
     fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight) {
         self.write_to_stream(&opaque_flight.clone().get_encoding())
             .unwrap();

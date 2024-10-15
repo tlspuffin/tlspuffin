@@ -1,7 +1,7 @@
 //! This module provides traits for calling rust functions dynamically.
 //!
 //! All functions which implement the DynamicFunction trait can be called by passing an array of
-//! [`Any`]s to it. The return value is again of type [`Any`].
+//! [`EvaluatedTerm`]s to it. The return value is again of type [`EvaluatedTerm`].
 //!
 //! Rust is a statically typed language. That means the compiler would be able to statically verify
 //! that a term evaluates without any type errors.
@@ -28,16 +28,20 @@
 //! use std::any::Any;
 //!
 //! use puffin::algebra::error::FnError;
+//! use puffin::protocol::{EvaluatedTerm, ProtocolTypes};
 //!
-//! pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> {}
+//! pub trait DynamicFunction<PT: ProtocolTypes>:
+//!     Fn(&Vec<Box<dyn EvaluatedTerm<PT>>>) -> Result<Box<dyn EvaluatedTerm<PT>>, FnError>
+//! {
+//! }
 //! ```
 //!
 //! Note, that both functions return a `Result` and therefore can gracefully fail.
 //!
-//! `DynamicFunctions` can be called with an array of any type. The result type is also arbitrary.
-//! Rust offers a unique ID for each type. Using this type we can check during runtime whether
-//! types are available. The types of each variable, constant and function are preserved and
-//! stored alongside the `DynamicFunction`.
+//! `DynamicFunctions` can be called with an array of any type implementing the EvaluatedTerm
+//! trait. The result must also implement EvaluatedTerm. Rust offers a unique ID for each type.
+//! Using this type we can check during runtime whether types are available. The types of each
+//! variable, constant and function are preserved and stored alongside the `DynamicFunction`.
 //!
 //! The following function is a simple example for a constant:
 //!
@@ -50,40 +54,42 @@
 //! ```
 //!
 //! It returns one possibility for the cipher suites which could be sent during a `ClientHello`.
-use std::any::{type_name, Any, TypeId};
+use std::any::{type_name, TypeId};
 use std::collections::hash_map::DefaultHasher;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::marker::PhantomData;
 
 use itertools::Itertools;
 use serde::de::Visitor;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::algebra::deserialize_signature;
-use crate::algebra::error::FnError;
+use super::error::FnError;
+use crate::protocol::{EvaluatedTerm, ProtocolTypes};
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DynamicFunctionShape {
+#[serde(bound = "PT: ProtocolTypes")]
+pub struct DynamicFunctionShape<PT: ProtocolTypes> {
     pub name: &'static str,
-    pub argument_types: Vec<TypeShape>,
-    pub return_type: TypeShape,
+    pub argument_types: Vec<TypeShape<PT>>,
+    pub return_type: TypeShape<PT>,
 }
 
-impl Eq for DynamicFunctionShape {}
-impl PartialEq for DynamicFunctionShape {
+impl<PT: ProtocolTypes> Eq for DynamicFunctionShape<PT> {}
+impl<PT: ProtocolTypes> PartialEq for DynamicFunctionShape<PT> {
     fn eq(&self, other: &Self) -> bool {
         self.name.eq(other.name) // name is unique
     }
 }
 
-impl Hash for DynamicFunctionShape {
+impl<PT: ProtocolTypes> Hash for DynamicFunctionShape<PT> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name.hash(state)
     }
 }
 
-impl DynamicFunctionShape {
+impl<PT: ProtocolTypes> DynamicFunctionShape<PT> {
     pub fn arity(&self) -> u16 {
         self.argument_types.len() as u16
     }
@@ -93,7 +99,7 @@ impl DynamicFunctionShape {
     }
 }
 
-impl fmt::Display for DynamicFunctionShape {
+impl<PT: ProtocolTypes> fmt::Display for DynamicFunctionShape<PT> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -115,12 +121,12 @@ fn hash_type_id(type_id: &TypeId) -> u64 {
     hasher.finish()
 }
 
-fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
+fn format_args<PT: ProtocolTypes, P: AsRef<dyn EvaluatedTerm<PT>>>(anys: &[P]) -> String {
     format!(
         "({})",
         anys.iter()
             .map(|any| {
-                let id = &any.as_ref().type_id();
+                let id = &any.as_ref().as_any().type_id();
                 format!("{:x}", hash_type_id(id))
             })
             .join(",")
@@ -135,34 +141,38 @@ fn format_args<P: AsRef<dyn Any>>(anys: &[P]) -> String {
 ///
 /// We want to use Any here and not VariableData (which implements Clone). Else all returned types
 /// in functions op_impl.rs would need to return a cloneable struct. Message for example is not.
-pub trait DynamicFunction:
-    Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> + Send + Sync
+pub trait DynamicFunction<PT: ProtocolTypes>:
+    Fn(&Vec<Box<dyn EvaluatedTerm<PT>>>) -> Result<Box<dyn EvaluatedTerm<PT>>, FnError> + Send + Sync
 {
-    fn clone_box(&self) -> Box<dyn DynamicFunction>;
+    fn clone_box(&self) -> Box<dyn DynamicFunction<PT>>;
 }
 
-impl<F> DynamicFunction for F
+impl<F, PT: ProtocolTypes> DynamicFunction<PT> for F
 where
-    F: 'static + Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> + Clone + Send + Sync,
+    F: 'static
+        + Fn(&Vec<Box<dyn EvaluatedTerm<PT>>>) -> Result<Box<dyn EvaluatedTerm<PT>>, FnError>
+        + Clone
+        + Send
+        + Sync,
 {
-    fn clone_box(&self) -> Box<dyn DynamicFunction> {
+    fn clone_box(&self) -> Box<dyn DynamicFunction<PT>> {
         Box::new(self.clone())
     }
 }
 
-impl fmt::Debug for Box<dyn DynamicFunction> {
+impl<PT: ProtocolTypes> fmt::Debug for Box<dyn DynamicFunction<PT>> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "DynamicFunction")
     }
 }
 
-impl fmt::Display for Box<dyn DynamicFunction> {
+impl<PT: ProtocolTypes> fmt::Display for Box<dyn DynamicFunction<PT>> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "DynamicFunction")
     }
 }
 
-impl Clone for Box<dyn DynamicFunction> {
+impl<PT: ProtocolTypes> Clone for Box<dyn DynamicFunction<PT>> {
     fn clone(&self) -> Self {
         (**self).clone_box()
     }
@@ -173,26 +183,27 @@ impl Clone for Box<dyn DynamicFunction> {
 /// * wrap them into a [`DynamicFunction`] which is callable with arbitrary data
 ///
 /// Adapted from <https://jsdw.me/posts/rust-fn-traits/> but using type ids
-pub trait DescribableFunction<Types> {
+pub trait DescribableFunction<PT: ProtocolTypes, Types> {
     fn name(&'static self) -> &'static str;
-    fn shape() -> DynamicFunctionShape;
-    fn make_dynamic(&'static self) -> Box<dyn DynamicFunction>;
+    fn shape() -> DynamicFunctionShape<PT>;
+    fn make_dynamic(&'static self) -> Box<dyn DynamicFunction<PT>>;
 }
 
 macro_rules! dynamic_fn {
     ($($arg:ident)* => $res:ident) => (
-    impl<F, $res: 'static, $($arg: 'static),*>
-        DescribableFunction<($res, $($arg),*)> for F
+    impl<F,PT : ProtocolTypes, $res: 'static, $($arg: 'static),*>
+        DescribableFunction<PT, ($res, $($arg),*)> for F
     where
         F: (Fn($(&$arg),*)  -> Result<$res, FnError>) + Send + Sync,
         $res: Send + Sync,
+        R: EvaluatedTerm<PT>,
         $($arg: Send + Sync),*
     {
-        fn shape() -> DynamicFunctionShape {
-            DynamicFunctionShape {
+        fn shape() -> DynamicFunctionShape<PT> {
+            DynamicFunctionShape::<PT> {
                 name: std::any::type_name::<F>(),
-                argument_types: vec![$(TypeShape::of::<$arg>()),*],
-                return_type: TypeShape::of::<$res>(),
+                argument_types: vec![$(TypeShape::<PT>::of::<$arg>()),*],
+                return_type: TypeShape::<PT>::of::<$res>(),
             }
         }
 
@@ -200,9 +211,9 @@ macro_rules! dynamic_fn {
             std::any::type_name::<F>()
         }
 
-        fn make_dynamic(&'static self) -> Box<dyn DynamicFunction> {
+        fn make_dynamic(&'static self) -> Box<dyn DynamicFunction<PT>> {
             #[allow(unused_variables)]
-            Box::new(move |args: &Vec<Box<dyn Any>>| {
+            Box::new(move |args: &Vec<Box<dyn EvaluatedTerm<PT>>>| {
                 #[allow(unused_mut)]
                 let mut index = 0;
 
@@ -215,7 +226,7 @@ macro_rules! dynamic_fn {
                                         let shape = Self::shape();
                                         FnError::Unknown(format!("Missing argument #{} while calling {}.", index + 1, shape.name))
                                     })?
-                                    .as_ref().downcast_ref::<$arg>() {
+                                    .as_any().downcast_ref::<$arg>() {
                                index += 1;
                                arg_
                            } else {
@@ -231,7 +242,7 @@ macro_rules! dynamic_fn {
                        }
                 ),*);
 
-                result.map(|result| Box::new(result) as Box<dyn std::any::Any>)
+                result.map(|result| Box::new(result) as Box<dyn EvaluatedTerm<PT>>)
             })
         }
     }
@@ -249,54 +260,58 @@ dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 => R);
 
-pub fn make_dynamic<F, Types>(f: &'static F) -> (DynamicFunctionShape, Box<dyn DynamicFunction>)
+pub fn make_dynamic<F, PT: ProtocolTypes, Types>(
+    f: &'static F,
+) -> (DynamicFunctionShape<PT>, Box<dyn DynamicFunction<PT>>)
 where
-    F: 'static + DescribableFunction<Types>,
+    F: DescribableFunction<PT, Types> + 'static,
 {
     (F::shape(), f.make_dynamic())
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct TypeShape {
+pub struct TypeShape<PT: ProtocolTypes> {
     inner_type_id: TypeId,
     pub name: &'static str,
+    phantom: PhantomData<PT>,
 }
 
-impl TypeShape {
-    pub fn of<T: 'static>() -> TypeShape {
+impl<PT: ProtocolTypes> TypeShape<PT> {
+    pub fn of<T: 'static>() -> Self {
         Self {
             inner_type_id: TypeId::of::<T>(),
             name: type_name::<T>(),
+            phantom: PhantomData,
         }
     }
 }
 
-impl From<TypeShape> for TypeId {
-    fn from(shape: TypeShape) -> Self {
+impl<PT: ProtocolTypes> From<TypeShape<PT>> for TypeId {
+    fn from(shape: TypeShape<PT>) -> Self {
         shape.inner_type_id
     }
 }
 
-impl Eq for TypeShape {}
-impl PartialEq for TypeShape {
+impl<PT: ProtocolTypes> Eq for TypeShape<PT> {}
+impl<PT: ProtocolTypes> PartialEq for TypeShape<PT> {
     fn eq(&self, other: &Self) -> bool {
         self.inner_type_id == other.inner_type_id
     }
 }
 
-impl Hash for TypeShape {
+impl<PT: ProtocolTypes> Hash for TypeShape<PT> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.inner_type_id.hash(state);
     }
 }
 
-impl fmt::Display for TypeShape {
+impl<PT: ProtocolTypes> fmt::Display for TypeShape<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)
     }
 }
 
-impl Serialize for TypeShape {
+impl<PT: ProtocolTypes> Serialize for TypeShape<PT> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
@@ -305,15 +320,15 @@ impl Serialize for TypeShape {
     }
 }
 
-impl<'de> Deserialize<'de> for TypeShape {
-    fn deserialize<D>(deserializer: D) -> Result<TypeShape, D::Error>
+impl<'de, PT: ProtocolTypes> Deserialize<'de> for TypeShape<PT> {
+    fn deserialize<D>(deserializer: D) -> Result<TypeShape<PT>, D::Error>
     where
         D: Deserializer<'de>,
     {
-        struct TypeShapeVisitor;
+        struct TypeShapeVisitor<PT: ProtocolTypes>(PhantomData<PT>);
 
-        impl<'de> Visitor<'de> for TypeShapeVisitor {
-            type Value = TypeShape;
+        impl<'de, PT: ProtocolTypes> Visitor<'de> for TypeShapeVisitor<PT> {
+            type Value = TypeShape<PT>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
                 formatter.write_str("a TypeShape")
@@ -323,14 +338,14 @@ impl<'de> Deserialize<'de> for TypeShape {
             where
                 E: de::Error,
             {
-                let typ = deserialize_signature()
+                let typ = PT::signature()
                     .types_by_name
                     .get(v)
                     .ok_or_else(|| de::Error::missing_field("could not find type"))?;
-                Ok(*typ)
+                Ok(typ.clone())
             }
         }
 
-        deserializer.deserialize_str(TypeShapeVisitor)
+        deserializer.deserialize_str(TypeShapeVisitor(PhantomData))
     }
 }
