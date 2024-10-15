@@ -334,23 +334,22 @@ pub mod test_signature {
                 Step {
                     agent: server,
                     action: Action::Input(InputAction {
+                        precomputations: vec![],
                         recipe: client_hello,
                     }),
                 },
                 Step {
                     agent: server,
                     action: Action::Input(InputAction {
-                        recipe: term! {
-                            fn_client_key_exchange
-                        },
+                        precomputations: vec![],
+                        recipe: term! {fn_client_key_exchange},
                     }),
                 },
                 Step {
                     agent: server,
                     action: Action::Input(InputAction {
-                        recipe: term! {
-                            fn_encrypt12(fn_finished, fn_seq_0)
-                        },
+                        precomputations: vec![],
+                        recipe: term! {fn_encrypt12(fn_finished,fn_seq_0)},
                     }),
                 },
             ],

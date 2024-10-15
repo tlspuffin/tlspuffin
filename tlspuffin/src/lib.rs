@@ -16,6 +16,7 @@
 //! use puffin::agent::{AgentDescriptor, AgentName};
 //! use puffin::algebra::signature::Signature;
 //! use puffin::algebra::Term;
+//! use puffin::input_action;
 //! use puffin::trace::{
 //!     Action, InputAction, OutputAction, Query, Source, Step, Trace, TraceContext,
 //! };
@@ -41,8 +42,8 @@
 //!         // Client: Hello Client -> Server
 //!         Step {
 //!             agent: server,
-//!             action: Action::Input(InputAction {
-//!                 recipe: Term::Application(
+//!             action: Action::Input(input_action! {
+//!                 Term::Application(
 //!                     Signature::new_function(&fn_client_hello),
 //!                     vec![
 //!                         Term::Variable(Signature::new_var_with_type::<ProtocolVersion, _>(
@@ -80,7 +81,7 @@
 //!                             ),
 //!                         ),
 //!                     ],
-//!                 ),
+//!                 )
 //!             }),
 //!         },
 //!         // further steps here
