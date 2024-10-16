@@ -1,4 +1,4 @@
-//! This module adds plotting capabilities to[`Term`]sand Traces. The output of the functions in
+//! This module adds plotting capabilities to[`DYTerm`]sand Traces. The output of the functions in
 //! this module can be passed to the command line utility `dot` which is part of graphviz.
 
 use std::{
@@ -11,7 +11,7 @@ use itertools::Itertools;
 use log::{debug, error, warn};
 
 use crate::{
-    algebra::{remove_fn_prefix, remove_prefix, Matcher, Term, TermEval, TermType},
+    algebra::{remove_fn_prefix, remove_prefix, Matcher, DYTerm, Term, TermType},
     trace::{Action, Trace},
 };
 
@@ -113,17 +113,17 @@ impl<M: Matcher> Trace<M> {
     }
 }
 
-impl<M: Matcher> TermEval<M> {
+impl<M: Matcher> Term<M> {
     fn unique_id(&self, tree_mode: bool, cluster_id: usize) -> String {
         match &self.term {
-            Term::Variable(variable) => {
+            DYTerm::Variable(variable) => {
                 if tree_mode {
                     format!("v_{}_{}", cluster_id, variable.unique_id)
                 } else {
                     format!("v_{}", variable.resistant_id)
                 }
             }
-            Term::Application(func, _) => {
+            DYTerm::Application(func, _) => {
                 if tree_mode {
                     format!("f_{}_{}", cluster_id, func.unique_id)
                 } else {
@@ -144,7 +144,7 @@ impl<M: Matcher> TermEval<M> {
     }
 
     fn collect_statements(
-        term: &TermEval<M>,
+        term: &Term<M>,
         tree_mode: bool,
         cluster_id: usize,
         statements: &mut Vec<String>,
@@ -153,7 +153,7 @@ impl<M: Matcher> TermEval<M> {
             error!("WITH PAYLOADS: {:?} on term {}", term.all_payloads(), term);
         }
         match &term.term {
-            Term::Variable(variable) => {
+            DYTerm::Variable(variable) => {
                 let color = if term.is_symbolic() {
                     COLOR_LEAVES
                 } else {
@@ -171,7 +171,7 @@ impl<M: Matcher> TermEval<M> {
                     FONT
                 ));
             }
-            Term::Application(func, subterms) => {
+            DYTerm::Application(func, subterms) => {
                 let color = if term.is_symbolic() {
                     if func.arity() == 0 {
                         COLOR_LEAVES

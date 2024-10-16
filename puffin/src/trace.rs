@@ -32,7 +32,7 @@ use crate::{
     agent::{Agent, AgentDescriptor, AgentName},
     algebra::{
         bitstrings::Payloads, dynamic_function::TypeShape, error::FnError, remove_prefix,
-        ConcreteMessage, Matcher, Term, TermEval, TermType,
+        ConcreteMessage, Matcher, DYTerm, Term, TermType,
     },
     claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
     codec::Codec,
@@ -640,13 +640,13 @@ impl<M: Matcher> fmt::Display for OutputAction<M> {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "M: Matcher")]
 pub struct InputAction<M: Matcher> {
-    pub recipe: TermEval<M>,
+    pub recipe: Term<M>,
 }
 
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
 /// or a MultiMessage.
 impl<M: Matcher> InputAction<M> {
-    pub fn new_step(agent: AgentName, recipe: TermEval<M>) -> Step<M> {
+    pub fn new_step(agent: AgentName, recipe: Term<M>) -> Step<M> {
         Step {
             agent,
             action: Action::Input(InputAction { recipe }),

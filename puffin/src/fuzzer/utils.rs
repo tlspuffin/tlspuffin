@@ -4,7 +4,7 @@ use libafl::bolts::rands::Rand;
 use log::{debug, error, trace};
 
 use crate::{
-    algebra::{Matcher, Term, TermEval, TermType},
+    algebra::{Matcher, DYTerm, Term, TermType},
     protocol::ProtocolBehavior,
     trace::{Action, InputAction, Step, Trace},
 };
@@ -104,12 +104,12 @@ pub type TracePath = (StepIndex, TermPath);
 // RULE: never choose a term for a DY or bit-level mutation which is a sub-term of a not is_symbolic() term
 // Indeed, this latter term is considered atomic/leaf and is treated as a bitstring.
 /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
-fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>(
+fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
     trace: &'a Trace<M>,
     filter: P,
     constraints: TermConstraints,
     rand: &mut R,
-) -> Option<(&'a TermEval<M>, TracePath)> {
+) -> Option<(&'a Term<M>, TracePath)> {
     // trace!("[reservoir_sample] Start");
     // If if_wighted is set to true, we run a Reservoir Sampling algorithm per depth (of chosen sub-terms
     // in the overall recipe. See the two vectors: depth_counts and depth_reservoir, indices are depths.
@@ -118,7 +118,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
     let if_weighted = constraints.weighted_depth;
     let mut max_depth = 1;
     let mut depth_counts: Vec<u64> = vec![0];
-    let mut depth_reservoir: Vec<Option<(&'a TermEval<M>, TracePath)>> = vec![None];
+    let mut depth_reservoir: Vec<Option<(&'a Term<M>, TracePath)>> = vec![None];
     // if if_weighted=false, we will only access the first cell of those two vec
     // independently of the depth
 
@@ -149,7 +149,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                     // but it is OK to enter the term and look for suitable sub-terms
                 }
 
-                let mut stack: Vec<(&TermEval<M>, TracePath, bool, usize)> =
+                let mut stack: Vec<(&Term<M>, TracePath, bool, usize)> =
                     vec![(term, (step_index, TermPath::new()), false, 0)]; // bool is true for terms inside a list (e.g., fn_append)
                                                                            // usize is for depth
 
@@ -161,10 +161,10 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
                     if term.is_symbolic() && !constraints.must_be_root {
                         // if not, we reached a leaf (real leaf or a term with payloads)
                         match &term.term {
-                            Term::Variable(_) => {
+                            DYTerm::Variable(_) => {
                                 // reached leaf
                             }
-                            Term::Application(fd, subterms) => {
+                            DYTerm::Application(fd, subterms) => {
                                 // inner node, recursively continue
                                 for (path_index, subterm) in subterms.iter().enumerate() {
                                     let mut new_path = path.clone();
@@ -248,17 +248,17 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>
 }
 
 pub fn find_term_by_term_path_mut<'a, M: Matcher>(
-    term: &'a mut TermEval<M>,
+    term: &'a mut Term<M>,
     term_path: &[usize],
-) -> Option<&'a mut TermEval<M>> {
+) -> Option<&'a mut Term<M>> {
     if term_path.is_empty() {
         return Some(term);
     }
     let subterm_index = term_path[0];
 
     match &mut term.term {
-        Term::Variable(_) => None,
-        Term::Application(_, subterms) => {
+        DYTerm::Variable(_) => None,
+        DYTerm::Application(_, subterms) => {
             if let Some(subterm) = subterms.get_mut(subterm_index) {
                 find_term_by_term_path_mut(subterm, &term_path[1..])
             } else {
@@ -269,9 +269,9 @@ pub fn find_term_by_term_path_mut<'a, M: Matcher>(
 }
 
 pub fn find_term_by_term_path<'a, M: Matcher>(
-    term: &'a TermEval<M>,
+    term: &'a Term<M>,
     term_path: &[usize],
-) -> Option<&'a TermEval<M>> {
+) -> Option<&'a Term<M>> {
     if term_path.is_empty() {
         return Some(term);
     }
@@ -279,8 +279,8 @@ pub fn find_term_by_term_path<'a, M: Matcher>(
     let subterm_index = term_path[0];
 
     match &term.term {
-        Term::Variable(_) => None,
-        Term::Application(_, subterms) => {
+        DYTerm::Variable(_) => None,
+        DYTerm::Application(_, subterms) => {
             if let Some(subterm) = subterms.get(subterm_index) {
                 find_term_by_term_path(subterm, &term_path[1..])
             } else {
@@ -293,7 +293,7 @@ pub fn find_term_by_term_path<'a, M: Matcher>(
 pub fn find_term_mut<'a, M: Matcher>(
     trace: &'a mut Trace<M>,
     trace_path: &TracePath,
-) -> Option<&'a mut TermEval<M>> {
+) -> Option<&'a mut Term<M>> {
     let (step_index, term_path) = trace_path;
 
     let step: Option<&mut Step<M>> = trace.steps.get_mut(*step_index);
@@ -312,7 +312,7 @@ pub fn find_term_mut<'a, M: Matcher>(
 pub fn find_term<'a, M: Matcher>(
     trace: &'a Trace<M>,
     trace_path: &TracePath,
-) -> Option<&'a TermEval<M>> {
+) -> Option<&'a Term<M>> {
     let (step_index, term_path) = trace_path;
 
     let step: Option<&Step<M>> = trace.steps.get(*step_index);
@@ -330,7 +330,7 @@ pub fn choose<'a, R: Rand, M: Matcher>(
     trace: &'a Trace<M>,
     constraints: TermConstraints,
     rand: &mut R,
-) -> Option<(&'a TermEval<M>, (usize, TermPath))> {
+) -> Option<(&'a Term<M>, (usize, TermPath))> {
     reservoir_sample(trace, |_| true, constraints, rand)
 }
 
@@ -338,7 +338,7 @@ pub fn choose_mut<'a, R: Rand, M: Matcher>(
     trace: &'a mut Trace<M>,
     constraints: TermConstraints,
     rand: &mut R,
-) -> Option<(&'a mut TermEval<M>, (usize, TermPath))> {
+) -> Option<(&'a mut Term<M>, (usize, TermPath))> {
     if let Some((_, (u, path))) = reservoir_sample(trace, |_| true, constraints, rand) {
         let t = find_term_mut(trace, &(u, path.clone()));
         t.map(|t| (t, (u, path)))
@@ -351,7 +351,7 @@ pub fn choose_term<'a, R: Rand, M: Matcher>(
     trace: &'a Trace<M>,
     constraints: TermConstraints,
     rand: &mut R,
-) -> Option<&'a TermEval<M>> {
+) -> Option<&'a Term<M>> {
     reservoir_sample(trace, |_| true, constraints, rand).map(|ret| ret.0)
 }
 
@@ -359,7 +359,7 @@ pub fn choose_term_mut<'a, R: Rand, M: Matcher>(
     trace: &'a mut Trace<M>,
     constraints: TermConstraints,
     rand: &mut R,
-) -> Option<&'a mut TermEval<M>> {
+) -> Option<&'a mut Term<M>> {
     if let Some(trace_path) = choose_term_path_filtered(trace, |_| true, constraints, rand) {
         find_term_mut(trace, &trace_path)
     } else {
@@ -367,12 +367,12 @@ pub fn choose_term_mut<'a, R: Rand, M: Matcher>(
     }
 }
 
-pub fn choose_term_filtered_mut<'a, R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>(
+pub fn choose_term_filtered_mut<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
     trace: &'a mut Trace<M>,
     filter: P,
     constraints: TermConstraints,
     rand: &mut R,
-) -> Option<&'a mut TermEval<M>> {
+) -> Option<&'a mut Term<M>> {
     if let Some(trace_path) = choose_term_path_filtered(trace, filter, constraints, rand) {
         find_term_mut(trace, &trace_path)
     } else {
@@ -388,7 +388,7 @@ pub fn choose_term_path<R: Rand, M: Matcher>(
     choose_term_path_filtered(trace, |_| true, constraints, rand)
 }
 
-pub fn choose_term_path_filtered<R: Rand, M: Matcher, P: Fn(&TermEval<M>) -> bool + Copy>(
+pub fn choose_term_path_filtered<R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
     trace: &Trace<M>,
     filter: P,
     constraints: TermConstraints,
@@ -415,7 +415,7 @@ mod tests {
         algebra::{
             dynamic_function::DescribableFunction,
             test_signature::{TestProtocolBehavior, TestTrace, *},
-            AnyMatcher, Term,
+            AnyMatcher, DYTerm,
         },
         trace,
         trace::{Action, Step},

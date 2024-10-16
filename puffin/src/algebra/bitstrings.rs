@@ -16,7 +16,7 @@ use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    algebra::{dynamic_function::TypeShape, ConcreteMessage, Matcher, Term, TermEval, TermType},
+    algebra::{dynamic_function::TypeShape, ConcreteMessage, Matcher, DYTerm, Term, TermType},
     error::Error,
     fuzzer::utils::{find_term_by_term_path, TermPath},
     protocol::ProtocolBehavior,
@@ -30,7 +30,7 @@ const ATT_BEFORE_FALLBACK: usize = 10;
 const ATT_BEFORE_FAIL: usize = 30;
 const ATT_TOTAL_BEFORE_FAIL: usize = 40;
 
-/// `TermEval`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
+/// `Term`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
 /// symbolic terms.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Payloads {
@@ -47,7 +47,7 @@ impl Payloads {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PayloadContext<'a, M: Matcher> {
     // not used if no payload to replace
-    of_term: &'a TermEval<M>, // point to the corresponding term
+    of_term: &'a Term<M>, // point to the corresponding term
     payloads: &'a Payloads,   // point to the corresponding term.payload
     path: TermPath,           // path of the sub-term from which this payload originates
 }
@@ -128,7 +128,7 @@ pub struct StatusSearch<'a, M: Matcher> {
     #[derivative(Debug = "ignore")]
     eval_tree: &'a EvalTree,
     #[derivative(Debug = "ignore")]
-    whole_term: &'a TermEval<M>,
+    whole_term: &'a Term<M>,
 }
 
 impl<'a, M: Matcher> StatusSearch<'a, M> {
@@ -138,7 +138,7 @@ impl<'a, M: Matcher> StatusSearch<'a, M> {
         window: &'a [u8],
         path_window: &'a [usize],
         eval_tree: &'a EvalTree,
-        whole_term: &'a TermEval<M>,
+        whole_term: &'a Term<M>,
     ) -> Self {
         let mut tried_depth_path = Vec::new();
         tried_depth_path.resize(path_to_search.len(), false);
@@ -166,7 +166,7 @@ impl<'a, M: Matcher> StatusSearch<'a, M> {
 pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     path_to_eval: &[usize],
     eval_tree: &'a EvalTree,
-    whole_term: &TermEval<M>,
+    whole_term: &Term<M>,
     ctx: &TraceContext<PB>,
 ) -> Result<Cow<'a, ConcreteMessage>, Error> {
     match eval_tree.get(&path_to_eval)?.encode.as_ref() {
@@ -198,14 +198,14 @@ pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
 /// in between vec![] (root) and `path_to_search`. Return the position of the match in `root_eval`.
 /// ctx is only used in rare occasions, where some evaluations were not computed in eval_tree (when searching for siblings).
 // TODO: Investigate this other idea:
-// another option would be to always encode messages having payloads or siblinbgs with payloads and thus storing in TermEval the pos in bytes of each sub-term
+// another option would be to always encode messages having payloads or siblinbgs with payloads and thus storing in Term the pos in bytes of each sub-term
 // --> could be more costly in terms of eval, but then much less search_sub and much less try and fail below, plus those pos could be serialized and stored as
 // part of the test-case
 pub fn find_unique_match<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     to_search: &[u8],
     path_to_search: &[usize],
     eval_tree: &mut EvalTree,
-    whole_term: &TermEval<M>,
+    whole_term: &Term<M>,
     ctx: &TraceContext<PB>,
 ) -> Result<usize, Error> {
     let root_eval = &eval_tree.encode.as_ref().unwrap()[..];
@@ -355,7 +355,7 @@ where
                 st.whole_term,
                 &st.path_to_search[0..st.path_to_search.len() - 1],
             ) {
-                if let Term::Application(_, args) = &t_parent.term {
+                if let DYTerm::Application(_, args) = &t_parent.term {
                     let arg_num = st.path_to_search[st.path_to_search.len() - 1];
                     let mut acc = 0;
                     let mut p = st.path_to_search.to_vec();
@@ -552,7 +552,7 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     path_to_search: &[usize],
     shift_ancestor_to_search: usize, // initially called with 0 here
     eval_tree: &'a EvalTree,
-    whole_term: &TermEval<M>,
+    whole_term: &Term<M>,
     ctx: &TraceContext<PB>,
 ) -> Result<(TermPath, Cow<'a, ConcreteMessage>, bool, usize), Error> {
     if path_to_search.is_empty() {
@@ -718,7 +718,7 @@ pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
 /// `@payloads` follows this order: deeper terms first, left-to-right, assuming no overlap (no two terms
 /// one being a sub-term of the other).
 pub fn replace_payloads<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
-    term: &TermEval<M>,
+    term: &Term<M>,
     eval_tree: &'a mut EvalTree,
     payloads: Vec<PayloadContext<M>>,
     ctx: &TraceContext<PB>,
@@ -792,7 +792,7 @@ pub fn replace_payloads<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     Ok(to_modify)
 }
 
-impl<M: Matcher> TermEval<M> {
+impl<M: Matcher> Term<M> {
     /// Evaluate a term without replacing the payloads (returning the payloads with the corresponding paths instead,
     /// i.e., a Vec<PayloadContext> accumulator), except when reaching an opaque term with payloads as strict sub-terms.
     /// In the latter case, fully evaluate each of the arguments (and performing the payload replacements) before
@@ -830,7 +830,7 @@ impl<M: Matcher> TermEval<M> {
         }
 
         match &self.term {
-            Term::Variable(variable) => {
+            DYTerm::Variable(variable) => {
                 let d = ctx
                     .find_variable(variable.typ, &variable.query)
                     .map(|data| data.boxed_any())
@@ -872,7 +872,7 @@ impl<M: Matcher> TermEval<M> {
                 trace!("[eval_until_opaque] [Var] Did not add a payload for a leaf at path: {path:?} and eval is: {:?}", PB::any_get_encoding(&d));
                 Ok((d, vec![]))
             }
-            Term::Application(func, args) => {
+            DYTerm::Application(func, args) => {
                 trace!("[eval_until_opaque] [App]: Application from path={path:?}");
                 let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new(); // will contain all the arguments on which to call the function symbol implementation
                 let mut all_payloads = vec![]; // will collect all payloads contexts of arguments (except those under opaque function symbols)

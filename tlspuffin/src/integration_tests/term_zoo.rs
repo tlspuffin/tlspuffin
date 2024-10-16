@@ -18,7 +18,7 @@ mod tests {
         agent::AgentName,
         algebra::{
             dynamic_function::DescribableFunction, error::FnError, evaluate_lazy_test,
-            signature::FunctionDefinition, ConcreteMessage, Matcher, Term, TermEval, TermType,
+            signature::FunctionDefinition, ConcreteMessage, Matcher, DYTerm, Term, TermType,
         },
         codec,
         codec::{Codec, Encode},
@@ -325,7 +325,7 @@ mod tests {
     }
 
     fn add_one_payload_randomly<M: Matcher, R: Rand, PB: ProtocolBehavior<Matcher = M>>(
-        t: &mut TermEval<M>,
+        t: &mut Term<M>,
         rand: &mut R,
         ctx: &TraceContext<PB>,
     ) -> Result<(), Error> {
@@ -395,11 +395,11 @@ mod tests {
     }
 
     fn add_payloads_randomly<M: Matcher, R: Rand, PB: ProtocolBehavior<Matcher = M>>(
-        t: &mut TermEval<M>,
+        t: &mut Term<M>,
         rand: &mut R,
         ctx: &TraceContext<PB>,
     ) {
-        let all_subterms: Vec<&TermEval<M>> = t.into_iter().collect_vec();
+        let all_subterms: Vec<&Term<M>> = t.into_iter().collect_vec();
         let nb_subterms = all_subterms.len() as i32;
         let mut i = 0;
         let nb = (1..max(4, nb_subterms / 3))
@@ -426,17 +426,17 @@ mod tests {
     }
 
     /// Sanity check for the next test
-    pub fn test_pay<M: Matcher>(term: &TermEval<M>) {
+    pub fn test_pay<M: Matcher>(term: &Term<M>) {
         rec_inside(term, false, term);
         pub fn rec_inside<M: Matcher>(
-            term: &TermEval<M>,
+            term: &Term<M>,
             already_found: bool,
-            whole_term: &TermEval<M>,
+            whole_term: &Term<M>,
         ) {
             let already_found = already_found || !term.is_symbolic();
             match &term.term {
-                Term::Variable(_) => {}
-                Term::Application(_, sub) => {
+                DYTerm::Variable(_) => {}
+                DYTerm::Application(_, sub) => {
                     for ti in sub {
                         if already_found && !ti.is_symbolic() {
                             panic!("Eheh, found one! Sub: {ti},\n whole_term: {whole_term}")

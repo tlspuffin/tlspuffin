@@ -7,7 +7,7 @@ use crate::{
     algebra::{
         atoms::Function,
         signature::{FunctionDefinition, Signature},
-        Matcher, Term, TermEval,
+        Matcher, DYTerm, Term,
     },
     fuzzer::utils::Choosable,
 };
@@ -16,7 +16,7 @@ const MAX_DEPTH: u16 = 8; // how deep terms we allow max
 const MAX_TRIES: u16 = 100; // How often we want to try to generate before stopping
 
 pub struct TermZoo<M: Matcher> {
-    terms: Vec<TermEval<M>>,
+    terms: Vec<Term<M>>,
 }
 
 impl<M: Matcher> TermZoo<M> {
@@ -75,7 +75,7 @@ impl<M: Matcher> TermZoo<M> {
         (shape, dynamic_fn): &FunctionDefinition,
         depth: u16,
         rand: &mut R,
-    ) -> Option<TermEval<M>> {
+    ) -> Option<Term<M>> {
         if depth == 0 {
             // Reached max depth
             return None;
@@ -106,20 +106,20 @@ impl<M: Matcher> TermZoo<M> {
             }
         }
 
-        Some(TermEval::from(Term::Application(
+        Some(Term::from(DYTerm::Application(
             Function::new(shape.clone(), dynamic_fn.clone()),
             subterms,
         )))
     }
 
-    pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&TermEval<M>>
+    pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&Term<M>>
     where
-        P: FnMut(&&TermEval<M>) -> bool,
+        P: FnMut(&&Term<M>) -> bool,
     {
         self.terms.choose_filtered(filter, rand)
     }
 
-    pub fn terms(&self) -> &[TermEval<M>] {
+    pub fn terms(&self) -> &[Term<M>] {
         &self.terms
     }
 }

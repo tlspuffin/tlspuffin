@@ -14,7 +14,7 @@ mod tests {
             error::FnError,
             evaluate_lazy_test,
             signature::FunctionDefinition,
-            ConcreteMessage, Matcher, TermEval, TermType,
+            ConcreteMessage, Matcher, Term, TermType,
         },
         codec,
         codec::Codec,

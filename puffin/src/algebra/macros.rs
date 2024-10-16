@@ -9,19 +9,19 @@ macro_rules! term {
     //
     (($agent:expr, $counter:expr) / $typ:ty $(>$req_type:expr)?) => {{
         use $crate::algebra::dynamic_function::TypeShape;
-        use $crate::algebra::{Term,TermEval};
+        use $crate::algebra::{DYTerm,Term};
 
 
         // ignore $req_type as we are overriding it with $type
-        TermEval::from(term!(($agent, $counter) > TypeShape::of::<$typ>()))
+        Term::from(term!(($agent, $counter) > TypeShape::of::<$typ>()))
     }};
     (($agent:expr, $counter:expr) $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
-        use $crate::algebra::{Term,TermEval};
+        use $crate::algebra::{DYTerm,Term};
 
 
         let var = Signature::new_var($($req_type)?, $agent, None, $counter); // TODO: verify hat using here None is fine. Before a refactor it was: Some(TlsMessageType::Handshake(None))
-        TermEval::from(Term::Variable(var))
+        Term::from(DYTerm::Variable(var))
     }};
 
     //
@@ -31,16 +31,16 @@ macro_rules! term {
         use $crate::algebra::dynamic_function::TypeShape;
 
         // ignore $req_type as we are overriding it with $type
-        TermEval::from(term!(($agent, $counter) [$message_type] > TypeShape::of::<$typ>()))
+        Term::from(term!(($agent, $counter) [$message_type] > TypeShape::of::<$typ>()))
     }};
     // Extended with custom $type
     (($agent:expr, $counter:expr) [$message_type:expr] $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
-        use $crate::algebra::{Term,TermEval};
+        use $crate::algebra::{DYTerm,Term};
 
 
         let var = Signature::new_var($($req_type)?, $agent, $message_type, $counter);
-        TermEval::from(Term::Variable(var))
+        Term::from(DYTerm::Variable(var))
     }};
 
     //
@@ -48,7 +48,7 @@ macro_rules! term {
     //
     ($func:ident ($($args:tt),*) $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
-        use $crate::algebra::{Term,TermEval};
+        use $crate::algebra::{DYTerm,Term};
 
 
         let func = Signature::new_function(&$func);
@@ -61,32 +61,32 @@ macro_rules! term {
             #[allow(unused)]
             if let Some(argument) = func.shape().argument_types.get(i) {
                 i += 1;
-                TermEval::from($crate::term_arg!($args > argument.clone()))
+                Term::from($crate::term_arg!($args > argument.clone()))
             } else {
                 panic!("too many arguments specified for function {}", func)
             }
         }),*];
 
-        TermEval::from(Term::Application(func, arguments))
+        Term::from(DYTerm::Application(func, arguments))
     }};
     // Shorthand for constants
     ($func:ident $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
-        use $crate::algebra::{Term,TermEval};
+        use $crate::algebra::{DYTerm,Term};
 
 
         let func = Signature::new_function(&$func);
-        TermEval::from(Term::Application(func, vec![]))
+        Term::from(DYTerm::Application(func, vec![]))
     }};
 
     //
     // Allows to use variables which already contain a term by starting with a `@`
     //
     (@$e:ident $(>$req_type:expr)?) => {{
-        use $crate::algebra::{Term,TermEval};
+        use $crate::algebra::{DYTerm,Term};
 
-        let subterm: &TermEval<_> = &$e;
-        TermEval::from(subterm.clone())
+        let subterm: &Term<_> = &$e;
+        Term::from(subterm.clone())
     }};
 }
 
@@ -94,13 +94,13 @@ macro_rules! term {
 macro_rules! term_arg {
     // Somehow the following rules is very important
     ( ( $($e:tt)* ) $(>$req_type:expr)?) => {{
-        use $crate::algebra::{Term,TermEval};
+        use $crate::algebra::{DYTerm,Term};
 
-        TermEval::from(term!($($e)* $(>$req_type)?))
+        Term::from(term!($($e)* $(>$req_type)?))
     }};
     // not sure why I should need this
     // ( ( $e:tt ) ) => (ast!($e));
     ($e:tt $(>$req_type:expr)?) => {{
-        TermEval::from(term!($e $(>$req_type)?))
+        Term::from(term!($e $(>$req_type)?))
     }};
 }

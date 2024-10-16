@@ -1,7 +1,7 @@
-//! The *term* module defines typed[`Term`]sof the form `fn_add(x: u8, fn_square(y: u16)) → u16`.
+//! The *term* module defines typed[`DYTerm`]sof the form `fn_add(x: u8, fn_square(y: u16)) → u16`.
 //! Each function like `fn_add` or `fn_square` has a shape. The variables `x` and `y` each have a
 //! type. These types allow type checks during the runtime of the fuzzer.
-//! These checks restrict how[`Term`]scan be mutated in the *fuzzer* module.
+//! These checks restrict how[`DYTerm`]scan be mutated in the *fuzzer* module.
 
 // Code in this directory is derived from https://github.com/joshrule/term-rewriting-rs/
 // and is licensed under:
@@ -123,8 +123,8 @@ pub mod test_signature {
     use crate::{
         agent::{AgentDescriptor, AgentName, TLSVersion},
         algebra::{
-            dynamic_function::TypeShape, error::FnError, AnyMatcher, ConcreteMessage, Term,
-            TermEval,
+            dynamic_function::TypeShape, error::FnError, AnyMatcher, ConcreteMessage, DYTerm,
+            Term,
         },
         claims::{Claim, SecurityViolationPolicy},
         codec::{Codec, Reader},
@@ -365,7 +365,7 @@ pub mod test_signature {
     );
 
     pub type TestTrace = Trace<AnyMatcher>;
-    pub type TestTerm = TermEval<AnyMatcher>;
+    pub type TestTerm = Term<AnyMatcher>;
 
     pub struct TestClaim;
 
@@ -565,7 +565,7 @@ mod tests {
         agent::AgentName,
         algebra::{
             atoms::Variable, dynamic_function::TypeShape, evaluate_lazy_test, signature::Signature,
-            AnyMatcher, Term, TermEval,
+            AnyMatcher, DYTerm, Term,
         },
         put::PutOptions,
         put_registry::{Factory, PutRegistry},
@@ -632,11 +632,11 @@ mod tests {
         let variable: Variable<AnyMatcher> =
             Signature::new_var(TypeShape::of::<Vec<u8>>(), AgentName::first(), None, 0);
 
-        let generated_term = TermEval::from(Term::Application(
+        let generated_term = Term::from(DYTerm::Application(
             hmac256,
             vec![
-                TermEval::from(Term::Application(hmac256_new_key, vec![])),
-                TermEval::from(Term::Variable(variable)),
+                Term::from(DYTerm::Application(hmac256_new_key, vec![])),
+                Term::from(DYTerm::Variable(variable)),
             ],
         ));
 
@@ -686,20 +686,20 @@ mod tests {
         let _string = Signature::new_function(&example_op_c).shape();
         //println!("{}", string);
 
-        let constructed_term = TermEval::from(Term::Application(
+        let constructed_term = Term::from(DYTerm::Application(
             Signature::new_function(&example_op_c),
             vec![
-                TermEval::from(Term::Application(
+                Term::from(DYTerm::Application(
                     Signature::new_function(&example_op_c),
                     vec![
-                        TermEval::from(Term::Application(
+                        Term::from(DYTerm::Application(
                             Signature::new_function(&example_op_c),
                             vec![
-                                TermEval::from(Term::Application(
+                                Term::from(DYTerm::Application(
                                     Signature::new_function(&example_op_c),
                                     vec![],
                                 )),
-                                TermEval::from(Term::Variable(Signature::new_var_with_type::<
+                                Term::from(DYTerm::Variable(Signature::new_var_with_type::<
                                     SessionID,
                                     AnyMatcher,
                                 >(
@@ -707,7 +707,7 @@ mod tests {
                                 ))),
                             ],
                         )),
-                        TermEval::from(Term::Variable(Signature::new_var_with_type::<
+                        Term::from(DYTerm::Variable(Signature::new_var_with_type::<
                             SessionID,
                             AnyMatcher,
                         >(
@@ -715,25 +715,25 @@ mod tests {
                         ))),
                     ],
                 )),
-                TermEval::from(Term::Application(
+                Term::from(DYTerm::Application(
                     Signature::new_function(&example_op_c),
                     vec![
-                        TermEval::from(Term::Application(
+                        Term::from(DYTerm::Application(
                             Signature::new_function(&example_op_c),
                             vec![
-                                TermEval::from(Term::Variable(Signature::new_var_with_type::<
+                                Term::from(DYTerm::Variable(Signature::new_var_with_type::<
                                     SessionID,
                                     _,
                                 >(
                                     AgentName::first(), None, 0
                                 ))),
-                                TermEval::from(Term::Application(
+                                Term::from(DYTerm::Application(
                                     Signature::new_function(&example_op_c),
                                     vec![],
                                 )),
                             ],
                         )),
-                        TermEval::from(Term::Variable(
+                        Term::from(DYTerm::Variable(
                             Signature::new_var_with_type::<SessionID, _>(
                                 AgentName::first(),
                                 None,

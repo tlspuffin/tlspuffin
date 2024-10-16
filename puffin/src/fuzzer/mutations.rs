@@ -10,7 +10,7 @@ use crate::{
         atoms::Function,
         bitstrings::{search_sub_vec, Payloads},
         signature::Signature,
-        Matcher, Subterms, Term, TermEval, TermType,
+        Matcher, Subterms, DYTerm, Term, TermType,
     },
     codec::Codec,
     fuzzer::{bit_mutations::*, harness::default_put_options, term_zoo::TermZoo},
@@ -163,7 +163,7 @@ where
         if let Some((term_a, trace_path_a)) = choose(trace, self.constraints, rand) {
             if let Some(trace_path_b) = choose_term_path_filtered(
                 trace,
-                |term: &TermEval<M>| term.get_type_shape() == term_a.get_type_shape(),
+                |term: &Term<M>| term.get_type_shape() == term_a.get_type_shape(),
                 // TODO-bitlevel: maybe also check that both terms are .is_symbolic()
                 self.constraints,
                 rand,
@@ -235,15 +235,15 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        let filter = |term: &TermEval<M>| match &term.term {
-            Term::Variable(_) => false,
-            Term::Application(_, subterms) =>
+        let filter = |term: &Term<M>| match &term.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(_, subterms) =>
             // TODO-bitlevel: maybe add: term.is_symbolic() &&
             {
                 subterms
                     .find_subterm(|subterm| match &subterm.term {
-                        Term::Variable(_) => false,
-                        Term::Application(_, grand_subterms) => {
+                        DYTerm::Variable(_) => false,
+                        DYTerm::Application(_, grand_subterms) => {
                             grand_subterms.find_subterm_same_shape(subterm).is_some()
                         }
                     })
@@ -258,8 +258,8 @@ where
             );
             match &mut to_mutate.term {
                 // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
-                Term::Variable(_) => Ok(MutationResult::Skipped),
-                Term::Application(_, ref mut subterms) => {
+                DYTerm::Variable(_) => Ok(MutationResult::Skipped),
+                DYTerm::Application(_, ref mut subterms) => {
                     if let Some(((subterm_index, _), grand_subterm)) = choose_iter(
                         subterms.filter_grand_subterms(|subterm, grand_subterm| {
                             subterm.get_type_shape() == grand_subterm.get_type_shape()
@@ -339,12 +339,12 @@ where
             debug!("[Mutation] ReplaceMatchMutator on term\n{}", to_mutate);
             match &mut to_mutate.term {
                 // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
-                Term::Variable(variable) => {
+                DYTerm::Variable(variable) => {
                     if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
                         |(shape, _)| variable.typ == shape.return_type && shape.is_constant(),
                         rand,
                     ) {
-                        to_mutate.mutate(TermEval::from(Term::Application(
+                        to_mutate.mutate(Term::from(DYTerm::Application(
                             Function::new(shape.clone(), dynamic_fn.clone()),
                             Vec::new(),
                         )));
@@ -353,7 +353,7 @@ where
                         Ok(MutationResult::Skipped)
                     }
                 }
-                Term::Application(func_mut, _) => {
+                DYTerm::Application(func_mut, _) => {
                     if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
                         |(shape, _)| {
                             func_mut.shape() != shape
@@ -427,7 +427,7 @@ where
         if let Some(replacement) = choose_term(trace, self.constraints, rand).cloned() {
             if let Some(to_replace) = choose_term_filtered_mut(
                 trace,
-                |term: &TermEval<M>| term.get_type_shape() == replacement.get_type_shape(),
+                |term: &Term<M>| term.get_type_shape() == replacement.get_type_shape(),
                 // TODO-bitlevel: maybe also check that both are .is_symbolic()
                 self.constraints,
                 rand,
@@ -807,7 +807,7 @@ mod tests {
         algebra::{
             dynamic_function::DescribableFunction,
             test_signature::{TestProtocolBehavior, TestTrace, *},
-            AnyMatcher, Term,
+            AnyMatcher, DYTerm,
         },
         trace,
         trace::{Action, Step},
@@ -868,8 +868,8 @@ mod tests {
             if let Some(last) = trace.steps.iter().last() {
                 match &last.action {
                     Action::Input(input) => match &input.recipe.term {
-                        Term::Variable(_) => {}
-                        Term::Application(_, subterms) => {
+                        DYTerm::Variable(_) => {}
+                        DYTerm::Application(_, subterms) => {
                             if let Some(last_subterm) = subterms.iter().last() {
                                 if last_subterm.name() == fn_seq_1.name() {
                                     break;

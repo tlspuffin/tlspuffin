@@ -1,4 +1,4 @@
-//! This module provides[`Term`]sas well as iterators over them.
+//! This module provides[`DYTerm`]sas well as iterators over them.
 
 use std::{
     any::{Any, TypeId},
@@ -47,7 +47,7 @@ pub type ConcreteMessage = Vec<u8>;
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 #[serde(bound = "M: Matcher")]
-pub enum Term<M: Matcher> {
+pub enum DYTerm<M: Matcher> {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
     ///
@@ -56,16 +56,16 @@ pub enum Term<M: Matcher> {
     ///
     /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be considered a constant.
     ///
-    Application(Function, Vec<TermEval<M>>),
+    Application(Function, Vec<Term<M>>),
 }
 
-impl<M: Matcher> fmt::Display for Term<M> {
+impl<M: Matcher> fmt::Display for DYTerm<M> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", display_term_at_depth(self, 0, false))
     }
 }
 
-/// Trait for data we can treat as terms (either Term or TermEval)
+/// Trait for data we can treat as terms (either DYTerm or Term)
 pub trait TermType<M>: Display + Debug + Clone {
     fn resistant_id(&self) -> u32;
     fn size(&self) -> usize;
@@ -109,10 +109,10 @@ pub trait TermType<M>: Display + Debug + Clone {
     }
 }
 
-fn append<'a, M: Matcher>(term: &'a Term<M>, v: &mut Vec<&'a Term<M>>) {
+fn append<'a, M: Matcher>(term: &'a DYTerm<M>, v: &mut Vec<&'a DYTerm<M>>) {
     match *term {
-        Term::Variable(_) => {}
-        Term::Application(_, ref subterms) => {
+        DYTerm::Variable(_) => {}
+        DYTerm::Application(_, ref subterms) => {
             for subterm in subterms {
                 append(&subterm.term, v);
             }
@@ -122,12 +122,12 @@ fn append<'a, M: Matcher>(term: &'a Term<M>, v: &mut Vec<&'a Term<M>>) {
     v.push(term);
 }
 
-/// Having the same mutator for &'a mut Term is not possible in Rust:
+/// Having the same mutator for &'a mut DYTerm is not possible in Rust:
 /// * https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node
 /// * https://sachanganesh.com/programming/graph-tree-traversals-in-rust/
-impl<'a, M: Matcher> IntoIterator for &'a Term<M> {
-    type Item = &'a Term<M>;
-    type IntoIter = std::vec::IntoIter<&'a Term<M>>;
+impl<'a, M: Matcher> IntoIterator for &'a DYTerm<M> {
+    type Item = &'a DYTerm<M>;
+    type IntoIter = std::vec::IntoIter<&'a DYTerm<M>>;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut result = vec![];
@@ -174,20 +174,20 @@ pub(crate) fn remove_fn_prefix(str: &str) -> String {
     str.replace("fn_", "")
 }
 
-/// `TermEval`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
+/// `Term`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
 /// symbolic terms.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 #[serde(bound = "M: Matcher")]
-pub struct TermEval<M: Matcher> {
-    pub term: Term<M>,              // initial DY term
+pub struct Term<M: Matcher> {
+    pub term: DYTerm<M>,              // initial DY term
     pub payloads: Option<Payloads>, // None until make_message mutation is used and fill this with term.evaluate()
 }
 
-impl<M: Matcher> TermEval<M> {
+impl<M: Matcher> Term<M> {
     /// Height of term, considering non-symbolic terms as atoms
     pub fn height(&self) -> usize {
         match &self.term {
-            Term::Application(_, subterms) => {
+            DYTerm::Application(_, subterms) => {
                 if subterms.is_empty() || !self.is_symbolic() {
                     return 1;
                 } else {
@@ -201,16 +201,16 @@ impl<M: Matcher> TermEval<M> {
     /// When the term starts with a list function symbol
     pub fn is_list(&self) -> bool {
         match &self.term {
-            Term::Variable(_) => false,
-            Term::Application(fd, _) => fd.is_list(),
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(fd, _) => fd.is_list(),
         }
     }
 
     /// When the term starts with an opaque function symbol (like encryption)
     pub fn is_opaque(&self) -> bool {
         match &self.term {
-            Term::Variable(_) => false,
-            Term::Application(fd, _) => fd.is_opaque(),
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(fd, _) => fd.is_opaque(),
         }
     }
 
@@ -220,8 +220,8 @@ impl<M: Matcher> TermEval<M> {
             self.payloads = None;
         }
         match &mut self.term {
-            Term::Variable(_) => {}
-            Term::Application(_, args) => {
+            DYTerm::Variable(_) => {}
+            DYTerm::Application(_, args) => {
                 // Not true anymore: if opaque, we keep payloads in strict sub-terms
                 for t in args {
                     t.erase_payloads_subterms(true);
@@ -264,15 +264,15 @@ impl<M: Matcher> TermEval<M> {
     /// Note that we keep the invariant that a non-symbolic term cannot have payloads in struct-subterms,
     /// see `add_payload/make_payload`.
     pub fn all_payloads_mut(&mut self) -> Vec<&mut Payloads> {
-        // unable to implement as_iter_map for TermEval due to its tree structure so:
+        // unable to implement as_iter_map for Term due to its tree structure so:
         // do it manually instead!
-        fn rec<'a, M: Matcher>(term: &'a mut TermEval<M>, acc: &mut Vec<&'a mut Payloads>) {
+        fn rec<'a, M: Matcher>(term: &'a mut Term<M>, acc: &mut Vec<&'a mut Payloads>) {
             if let Some(p) = &mut term.payloads {
                 acc.push(p);
             }
             match &mut term.term {
-                Term::Variable(_) => {}
-                Term::Application(_, sts) => {
+                DYTerm::Variable(_) => {}
+                DYTerm::Application(_, sts) => {
                     for st in sts {
                         rec(st, acc);
                     }
@@ -287,10 +287,10 @@ impl<M: Matcher> TermEval<M> {
     /// Return all payloads contained in a term, except those under opaque terms.
     /// The deeper the first in the returned vector.
     pub fn payloads_to_replace(&self) -> Vec<&Payloads> {
-        pub fn rec<'a, M: Matcher>(term: &'a TermEval<M>, acc: &mut Vec<&'a Payloads>) {
+        pub fn rec<'a, M: Matcher>(term: &'a Term<M>, acc: &mut Vec<&'a Payloads>) {
             match &term.term {
-                Term::Variable(_) => {}
-                Term::Application(_, args) => {
+                DYTerm::Variable(_) => {}
+                DYTerm::Application(_, args) => {
                     if !term.is_opaque() {
                         for t in args {
                             rec(t, acc)
@@ -319,15 +319,15 @@ impl<M: Matcher> TermEval<M> {
 }
 
 pub fn has_payload_to_replace_rec<'a, M: Matcher>(
-    term: &'a TermEval<M>,
+    term: &'a Term<M>,
     include_root: bool,
 ) -> bool {
     if let (Some(_), true) = (&term.payloads, include_root) {
         return true;
     } else {
         match &term.term {
-            Term::Variable(_) => {}
-            Term::Application(_, args) => {
+            DYTerm::Variable(_) => {}
+            DYTerm::Application(_, args) => {
                 if !term.is_opaque() {
                     for t in args {
                         if has_payload_to_replace_rec(t, true) {
@@ -341,34 +341,34 @@ pub fn has_payload_to_replace_rec<'a, M: Matcher>(
     return false;
 }
 
-impl<M: Matcher> Display for TermEval<M> {
+impl<M: Matcher> Display for Term<M> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.display_at_depth(0))
     }
 }
-impl<M: Matcher> From<Term<M>> for TermEval<M> {
-    fn from(term: Term<M>) -> Self {
-        TermEval {
+impl<M: Matcher> From<DYTerm<M>> for Term<M> {
+    fn from(term: DYTerm<M>) -> Self {
+        Term {
             term,
             payloads: None,
         }
     }
 }
 
-impl<M: Matcher> From<TermEval<M>> for Term<M> {
-    fn from(term: TermEval<M>) -> Self {
+impl<M: Matcher> From<Term<M>> for DYTerm<M> {
+    fn from(term: Term<M>) -> Self {
         term.term
     }
 }
 
-fn display_term_at_depth<M: Matcher>(term: &Term<M>, depth: usize, is_bitstring: bool) -> String {
+fn display_term_at_depth<M: Matcher>(term: &DYTerm<M>, depth: usize, is_bitstring: bool) -> String {
     let tabs = "\t".repeat(depth);
     match term {
-        Term::Variable(ref v) => {
+        DYTerm::Variable(ref v) => {
             let is_bitstring = if is_bitstring { "BS//" } else { "" };
             format!("{}{}{}", tabs, is_bitstring, v)
         }
-        Term::Application(ref func, ref args) => {
+        DYTerm::Application(ref func, ref args) => {
             let op_str = remove_prefix(func.name());
             let return_type = remove_prefix(func.shape().return_type.name);
             let is_bitstring = if is_bitstring { "BS//" } else { "" };
@@ -388,10 +388,10 @@ fn display_term_at_depth<M: Matcher>(term: &Term<M>, depth: usize, is_bitstring:
     }
 }
 
-fn append_eval<'a, M: Matcher>(term_eval: &'a TermEval<M>, v: &mut Vec<&'a TermEval<M>>) {
+fn append_eval<'a, M: Matcher>(term_eval: &'a Term<M>, v: &mut Vec<&'a Term<M>>) {
     match term_eval.term {
-        Term::Variable(_) => {}
-        Term::Application(_, ref subterms) => {
+        DYTerm::Variable(_) => {}
+        DYTerm::Application(_, ref subterms) => {
             for subterm in subterms {
                 append_eval(subterm, v);
             }
@@ -401,7 +401,7 @@ fn append_eval<'a, M: Matcher>(term_eval: &'a TermEval<M>, v: &mut Vec<&'a TermE
     v.push(term_eval);
 }
 
-impl<M: Matcher> TermType<M> for TermEval<M> {
+impl<M: Matcher> TermType<M> for Term<M> {
     /// Evaluate terms into bitstrings (considering Payloads)
     fn evaluate_config<PB: ProtocolBehavior>(
         &self,
@@ -453,8 +453,8 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
 
     fn resistant_id(&self) -> u32 {
         match &self.term {
-            Term::Variable(v) => v.resistant_id,
-            Term::Application(f, _) => f.resistant_id,
+            DYTerm::Variable(v) => v.resistant_id,
+            DYTerm::Application(f, _) => f.resistant_id,
         }
     }
 
@@ -464,8 +464,8 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
             SIZE_LEAF
         } else {
             match &self.term {
-                Term::Variable(_) => SIZE_LEAF,
-                Term::Application(_, ref subterms) => {
+                DYTerm::Variable(_) => SIZE_LEAF,
+                DYTerm::Application(_, ref subterms) => {
                     if !self.is_symbolic() {
                         SIZE_LEAF
                     } else {
@@ -479,10 +479,10 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
     fn is_leaf(&self) -> bool {
         if self.is_symbolic() {
             match &self.term {
-                Term::Variable(_) => {
+                DYTerm::Variable(_) => {
                     true // variable
                 }
-                Term::Application(_, ref subterms) => {
+                DYTerm::Application(_, ref subterms) => {
                     subterms.is_empty() // constant
                 }
             }
@@ -493,8 +493,8 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
 
     fn get_type_shape(&self) -> &TypeShape {
         match &self.term {
-            Term::Variable(v) => &v.typ,
-            Term::Application(function, _) => &function.shape().return_type,
+            DYTerm::Variable(v) => &v.typ,
+            DYTerm::Application(function, _) => &function.shape().return_type,
         }
     }
 
@@ -502,8 +502,8 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         if self.is_symbolic() {
             // we do not display this information for now
             match &self.term {
-                Term::Variable(v) => v.typ.name,
-                Term::Application(function, _) => function.name(),
+                DYTerm::Variable(v) => v.typ.name,
+                DYTerm::Application(function, _) => function.name(),
             }
         } else {
             // let str =
@@ -516,7 +516,7 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
         }
     }
 
-    fn mutate(&mut self, other: TermEval<M>) {
+    fn mutate(&mut self, other: Term<M>) {
         *self = other;
     }
 
@@ -536,12 +536,12 @@ impl<M: Matcher> TermType<M> for TermEval<M> {
     }
 }
 
-/// Having the same mutator for &'a mut Term is not possible in Rust:
+/// Having the same mutator for &'a mut DYTerm is not possible in Rust:
 /// * https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node
 /// * https://sachanganesh.com/programming/graph-tree-traversals-in-rust/
-impl<'a, M: Matcher> IntoIterator for &'a TermEval<M> {
-    type Item = &'a TermEval<M>;
-    type IntoIter = std::vec::IntoIter<&'a TermEval<M>>;
+impl<'a, M: Matcher> IntoIterator for &'a Term<M> {
+    type Item = &'a Term<M>;
+    type IntoIter = std::vec::IntoIter<&'a Term<M>>;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut result = vec![];
@@ -550,17 +550,17 @@ impl<'a, M: Matcher> IntoIterator for &'a TermEval<M> {
     }
 }
 
-impl<M: Matcher> Subterms<M, TermEval<M>> for Vec<TermEval<M>> {
+impl<M: Matcher> Subterms<M, Term<M>> for Vec<Term<M>> {
     /// Finds a subterm with the same type as `term`
-    fn find_subterm_same_shape(&self, term: &TermEval<M>) -> Option<&TermEval<M>> {
+    fn find_subterm_same_shape(&self, term: &Term<M>) -> Option<&Term<M>> {
         self.find_subterm(|subterm| term.get_type_shape() == subterm.get_type_shape())
     }
 
     /// Finds a subterm in this vector
-    fn find_subterm<P: Fn(&&TermEval<M>) -> bool + Copy>(
+    fn find_subterm<P: Fn(&&Term<M>) -> bool + Copy>(
         &self,
         predicate: P,
-    ) -> Option<&TermEval<M>> {
+    ) -> Option<&Term<M>> {
         self.iter().find(predicate)
     }
 
@@ -569,16 +569,16 @@ impl<M: Matcher> Subterms<M, TermEval<M>> for Vec<TermEval<M>> {
     /// A grand subterm is defined as a subterm of a term in `self`.
     ///
     /// Each grand subterm is returned together with its parent and the index of the parent in `self`.
-    fn filter_grand_subterms<P: Fn(&TermEval<M>, &TermEval<M>) -> bool + Copy>(
+    fn filter_grand_subterms<P: Fn(&Term<M>, &Term<M>) -> bool + Copy>(
         &self,
         predicate: P,
-    ) -> Vec<((usize, &TermEval<M>), &TermEval<M>)> {
+    ) -> Vec<((usize, &Term<M>), &Term<M>)> {
         let mut found_grand_subterms = vec![];
 
         for (i, subterm) in self.iter().enumerate() {
             match &subterm.term {
-                Term::Variable(_) => {}
-                Term::Application(_, grand_subterms) => {
+                DYTerm::Variable(_) => {}
+                DYTerm::Application(_, grand_subterms) => {
                     if subterm.is_symbolic() {
                         found_grand_subterms.extend(
                             grand_subterms
@@ -597,7 +597,7 @@ impl<M: Matcher> Subterms<M, TermEval<M>> for Vec<TermEval<M>> {
 
 // FOR TESTING ONLY
 pub fn evaluate_lazy_test<PB, M>(
-    term: &TermEval<M>,
+    term: &Term<M>,
     context: &TraceContext<PB>,
 ) -> Result<Box<dyn Any>, Error>
 where
@@ -605,12 +605,12 @@ where
     PB: ProtocolBehavior<Matcher = M>,
 {
     match &term.term {
-        Term::Variable(variable) => context
+        DYTerm::Variable(variable) => context
             .find_variable(variable.typ, &variable.query)
             .map(|data| data.boxed_any())
             .or_else(|| context.find_claim(variable.query.agent_name, variable.typ))
             .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
-        Term::Application(func, args) => {
+        DYTerm::Application(func, args) => {
             let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
             for term in args {
                 match evaluate_lazy_test(term, context) {

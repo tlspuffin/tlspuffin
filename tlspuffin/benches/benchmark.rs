@@ -2,7 +2,7 @@ use std::any::Any;
 
 use criterion::{criterion_group, criterion_main, Criterion};
 use puffin::{
-    algebra::{dynamic_function::make_dynamic, error::FnError, Term, TermEval},
+    algebra::{dynamic_function::make_dynamic, error::FnError, DYTerm, Term},
     fuzzer::{mutations::ReplaceReuseMutator, utils::TermConstraints},
     libafl::{
         bolts::rands::{RomuDuoJrRand, StdRand},
@@ -83,7 +83,7 @@ fn benchmark_trace(c: &mut Criterion) {
     let mut group = c.benchmark_group("trace");
 
     group.bench_function("term clone", |b| {
-        let client_hello: TermEval<TlsQueryMatcher> = term! {
+        let client_hello: Term<TlsQueryMatcher> = term! {
               fn_client_hello(
                 fn_protocol_version12,
                 fn_new_random,

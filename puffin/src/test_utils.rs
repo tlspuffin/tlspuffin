@@ -1,5 +1,5 @@
 use crate::{
-    algebra::{Matcher, Term, TermEval, TermType},
+    algebra::{Matcher, DYTerm, Term, TermType},
     graphviz::write_graphviz,
     trace::{Action, Trace},
 };
@@ -36,11 +36,11 @@ impl<M: Matcher> Trace<M> {
     }
 }
 
-impl<M: Matcher> TermEval<M> {
+impl<M: Matcher> Term<M> {
     pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
         let mut found = 0;
         for term in self.into_iter() {
-            if let Term::Application(func, _) = &term.term {
+            if let DYTerm::Application(func, _) = &term.term {
                 if func.name() == find_name {
                     found += 1;
                 }

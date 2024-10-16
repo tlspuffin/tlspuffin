@@ -4,7 +4,7 @@
 
 use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    algebra::{dynamic_function::TypeShape, Term, TermEval},
+    algebra::{dynamic_function::TypeShape, DYTerm, Term},
     term,
     trace::{Action, InputAction, OutputAction, Step, Trace},
 };
@@ -1173,7 +1173,7 @@ pub fn seed_client_attacker12(server: AgentName) -> Trace<TlsQueryMatcher> {
 
 pub fn _seed_client_attacker12(
     server: AgentName,
-) -> (Trace<TlsQueryMatcher>, TermEval<TlsQueryMatcher>) {
+) -> (Trace<TlsQueryMatcher>, Term<TlsQueryMatcher>) {
     let client_hello = term! {
           fn_client_hello(
             fn_protocol_version12,
@@ -1580,9 +1580,9 @@ pub fn _seed_client_attacker_full(
     server: AgentName,
 ) -> (
     Trace<TlsQueryMatcher>,
-    TermEval<TlsQueryMatcher>,
-    TermEval<TlsQueryMatcher>,
-    TermEval<TlsQueryMatcher>,
+    Term<TlsQueryMatcher>,
+    Term<TlsQueryMatcher>,
+    Term<TlsQueryMatcher>,
 ) {
     let client_hello = term! {
           fn_client_hello(
@@ -1786,9 +1786,9 @@ pub fn _seed_client_attacker_full_boring(
     server: AgentName,
 ) -> (
     Trace<TlsQueryMatcher>,
-    Term<TlsQueryMatcher>,
-    Term<TlsQueryMatcher>,
-    Term<TlsQueryMatcher>,
+    DYTerm<TlsQueryMatcher>,
+    DYTerm<TlsQueryMatcher>,
+    DYTerm<TlsQueryMatcher>,
 ) {
     let client_hello = term! {
           fn_client_hello(

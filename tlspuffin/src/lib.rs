@@ -12,7 +12,7 @@
 //! ```rust
 //! use puffin::agent::{AgentName, AgentDescriptor, TLSVersion::*};
 //! use puffin::trace::{Step, TraceContext, Trace, Action, InputAction, OutputAction, Query};
-//! use puffin::algebra::{TermEval, Term, signature::Signature};
+//! use puffin::algebra::{Term, DYTerm, signature::Signature};
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use tlspuffin::tls::rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use tlspuffin::tls::rustls::msgs::enums::{ProtocolVersion, CipherSuite, Compression, HandshakeType};
@@ -34,35 +34,35 @@
 //!             Step {
 //!                 agent: server,
 //!                 action: Action::Input(InputAction {
-//!                     recipe: TermEval::from(Term::Application(
+//!                     recipe: Term::from(DYTerm::Application(
 //!                         Signature::new_function(&fn_client_hello),
 //!                         vec![
-//!                             TermEval::from(Term::Variable(Signature::new_var_with_type::<ProtocolVersion, _>(
+//!                             Term::from(DYTerm::Variable(Signature::new_var_with_type::<ProtocolVersion, _>(
 //!                                     client,  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             ))),
-//!                             TermEval::from(Term::Variable(Signature::new_var_with_type::<Random, _>(
+//!                             Term::from(DYTerm::Variable(Signature::new_var_with_type::<Random, _>(
 //!                                     client,  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             ))),
-//!                             TermEval::from(Term::Variable(Signature::new_var_with_type::<SessionID, _>(
+//!                             Term::from(DYTerm::Variable(Signature::new_var_with_type::<SessionID, _>(
 //!                                     client,  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             ))),
-//!                             TermEval::from(Term::Variable(Signature::new_var_with_type::<Vec<CipherSuite>, _>(
+//!                             Term::from(DYTerm::Variable(Signature::new_var_with_type::<Vec<CipherSuite>, _>(
 //!                                     client,  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             ))),
-//!                             TermEval::from(Term::Variable(Signature::new_var_with_type::<Vec<Compression>, _>(
+//!                             Term::from(DYTerm::Variable(Signature::new_var_with_type::<Vec<Compression>, _>(
 //!                                     client,  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
 //!                             ))),
-//!                             TermEval::from(Term::Variable(Signature::new_var_with_type::<Vec<ClientExtension>, _>(
+//!                             Term::from(DYTerm::Variable(Signature::new_var_with_type::<Vec<ClientExtension>, _>(
 //!                                     client,  
 //!                                     Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!                                     0
@@ -84,11 +84,11 @@
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use tlspuffin::tls::rustls::msgs::handshake::{SessionID, Random, ClientExtension};
 //! use tlspuffin::tls::rustls::msgs::enums::{Compression, HandshakeType, ProtocolVersion, CipherSuite};
-//! use puffin::algebra::TermEval;
+//! use puffin::algebra::Term;
 //! use tlspuffin::query::TlsQueryMatcher;
 //!
 //! let client = AgentName::first();
-//! let term: TermEval<TlsQueryMatcher> = term! {
+//! let term: Term<TlsQueryMatcher> = term! {
 //!     fn_client_hello(
 //!         ((client, 0)/ProtocolVersion),
 //!         ((client, 0)/Random),

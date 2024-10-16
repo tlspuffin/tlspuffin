@@ -4,7 +4,7 @@ use std::thread::{panicking, park_timeout_ms};
 use log::{debug, error, warn};
 use puffin::{
     agent::AgentName,
-    algebra::{dynamic_function::DescribableFunction, Term, TermType},
+    algebra::{dynamic_function::DescribableFunction, DYTerm, TermType},
     execution::{forked_execution, AssertExecution},
     fuzzer::{
         bit_mutations::*,
@@ -324,7 +324,7 @@ fn test_byte_remove_payloads() {
         if let Some(first) = trace.steps.get(0) {
             match &first.action {
                 Action::Input(input) => {
-                    if let Term::Application(fd, args) = &input.recipe.term {
+                    if let DYTerm::Application(fd, args) = &input.recipe.term {
                         if args.len() > 5
                             && input.recipe.is_symbolic()
                             && !args[5].payloads_to_replace().is_empty()
@@ -355,7 +355,7 @@ fn test_byte_remove_payloads() {
         if let Some(first) = trace.steps.get(0) {
             match &first.action {
                 Action::Input(input) => {
-                    if let Term::Application(fd, args) = &input.recipe.term {
+                    if let DYTerm::Application(fd, args) = &input.recipe.term {
                         if args.len() > 5 && !input.recipe.is_symbolic() {
                             if args[5].payloads_to_replace().is_empty()
                                 && input.recipe.payloads_to_replace().len() == 1
@@ -632,8 +632,8 @@ fn test_mutate_seed_cve_2021_3449() {
                     if let Some(last) = mutate.steps.iter().last() {
                         match &last.action {
                             Action::Input(input) => match &input.recipe.term {
-                                Term::Variable(_) => {}
-                                Term::Application(_, subterms) => {
+                                DYTerm::Variable(_) => {}
+                                DYTerm::Application(_, subterms) => {
                                     if let Some(first_subterm) = subterms.iter().next() {
                                         if first_subterm.name() == fn_client_hello.name() {
                                             trace = mutate;
@@ -661,8 +661,8 @@ fn test_mutate_seed_cve_2021_3449() {
                     if let Some(last) = mutate.steps.iter().last() {
                         match &last.action {
                             Action::Input(input) => match &input.recipe.term {
-                                Term::Variable(_) => {}
-                                Term::Application(_, subterms) => {
+                                DYTerm::Variable(_) => {}
+                                DYTerm::Application(_, subterms) => {
                                     if let Some(last_subterm) = subterms.iter().last() {
                                         if last_subterm.name() == fn_seq_1.name() {
                                             trace = mutate;
@@ -691,8 +691,8 @@ fn test_mutate_seed_cve_2021_3449() {
                         if let Some(last) = mutate.steps.iter().last() {
                             match &last.action {
                                 Action::Input(input) => match &input.recipe.term {
-                                    Term::Variable(_) => {}
-                                    Term::Application(_, subterms) => {
+                                    DYTerm::Variable(_) => {}
+                                    DYTerm::Application(_, subterms) => {
                                         if let Some(first_subterm) = subterms.iter().next() {
                                             let sig_alg_extensions = first_subterm
                                                 .count_functions_by_name(
@@ -731,8 +731,8 @@ fn test_mutate_seed_cve_2021_3449() {
                     if let Some(last) = mutate.steps.iter().last() {
                         match &last.action {
                             Action::Input(input) => match &input.recipe.term {
-                                Term::Variable(_) => {}
-                                Term::Application(_, subterms) => {
+                                DYTerm::Variable(_) => {}
+                                DYTerm::Application(_, subterms) => {
                                     if let Some(first_subterm) = subterms.iter().next() {
                                         let signatures = first_subterm
                                             .count_functions_by_name(fn_sign_transcript.name());
