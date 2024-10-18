@@ -807,12 +807,13 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
     let certificate = term! {
         fn_certificate13(
             (fn_payload_u8((fn_get_context((@certificate_request_message))))),
+            (fn_certificate_entries_make(
             (fn_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_bob_cert
                 )),
               fn_empty_certificate_chain
-            ))
+            ))))
         )
     };
 
