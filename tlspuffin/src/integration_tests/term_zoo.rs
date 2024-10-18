@@ -594,15 +594,15 @@ mod tests {
         successfully_built_functions.extend(ignored_functions.clone());
 
         let difference = all_functions.difference(&successfully_built_functions);
-        error!("Diff: {:?}\n", &difference);
         let difference_inverse = successfully_built_functions_0.intersection(&ignored_functions);
-        error!("Intersec with ignored: {:?}\n", &difference_inverse);
         error!(
             "Successfully built: #{:?}",
             &successfully_built_functions.len()
         );
         error!("All functions: #{:?}", &all_functions.len());
         error!("number_shapes: {}, number_terms: {}, eval_count: {}, count_payload_fail: {count_payload_fail}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_shapes, number_terms, eval_count);
+        error!("Diff: {:?}\n", &difference);
+        error!("Intersec with ignored: {:?}\n", &difference_inverse);
         assert_eq!(difference.count(), 0);
         assert_eq!(difference_inverse.count(), 0);
         assert_eq!(count_any_encode_fail, 0);
@@ -776,9 +776,7 @@ mod tests {
         successfully_built_functions.extend(ignored_functions.clone());
 
         let difference = all_functions.difference(&successfully_built_functions);
-        debug!("Diff: {:?}\n", &difference);
         let difference_inverse = successfully_built_functions_0.intersection(&ignored_functions);
-        debug!("Intersec with ignored: {:?}\n", &difference_inverse);
 
         debug!(
             "Successfully built: #{:?}",
@@ -787,6 +785,9 @@ mod tests {
         debug!("All functions: #{:?}", &all_functions.len());
         error!("number_shapes: {}, number_terms: {}, eval_count: {}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_shapes, number_terms, eval_count);
         error!("Read stats: read_count: {read_count}, read_success: {read_success}, read_fail: {read_fail}, read_wrong: {read_wrong}");
+
+        debug!("Diff: {:?}\n", &difference);
+        debug!("Intersec with ignored: {:?}\n", &difference_inverse);
         assert_eq!(difference.count(), 0);
         assert_eq!(difference_inverse.count(), 0);
         assert_eq!(count_any_encode_fail, 0);

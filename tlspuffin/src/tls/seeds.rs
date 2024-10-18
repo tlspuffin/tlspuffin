@@ -1394,12 +1394,6 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<TlsQueryMatcher> {
     _seed_client_attacker_full(server).0
 }
 
-pub fn seed_client_attacker_full_wo_time(server: AgentName) -> Trace<TlsQueryMatcher> {
-    let mut tr = _seed_client_attacker_full(server).0;
-    tr.steps.pop(); // remove last server's output containing timing information in session tickets
-    return (tr);
-}
-
 /// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
 pub fn _seed_client_attacker_full(
     server: AgentName,
@@ -1904,15 +1898,6 @@ pub mod tests {
         use crate::tls::trace_helper::TraceExecutor;
 
         let ctx = seed_server_attacker_full.execute_trace();
-        assert!(ctx.agents_successful());
-    }
-
-    #[cfg(all(feature = "tls13", feature = "boringssl-binding"))] // require version which supports TLS 1.3
-    #[test]
-    fn test_seed_client_attacker_boring() {
-        use crate::tls::trace_helper::TraceExecutor;
-
-        let ctx = seed_client_attacker_full_boring.execute_trace();
         assert!(ctx.agents_successful());
     }
 

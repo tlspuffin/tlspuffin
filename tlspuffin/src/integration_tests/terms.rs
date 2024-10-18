@@ -54,7 +54,7 @@ mod tests {
                     message::{Message, MessagePayload, OpaqueMessage},
                 },
             },
-            seeds::create_corpus,
+            seeds::{create_corpus, seed_client_attacker_full},
             trace_helper::TraceHelper,
             TLS_SIGNATURE,
         },
@@ -112,7 +112,7 @@ mod tests {
     fn test_replace_bitstring_multiple() {
         let tls_registry = tls_registry();
         let mut ctx = TraceContext::new(&tls_registry, PutOptions::default());
-        let mut trace = seed_client_attacker_full_boring.build_trace();
+        let mut trace = seed_client_attacker_full.build_trace();
         ctx.set_deterministic(true);
         trace.execute(&mut ctx);
         let step0_before = vec![

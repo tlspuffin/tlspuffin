@@ -81,7 +81,9 @@ impl MessageFragmenter {
 #[cfg(test)]
 mod tests {
     use std::collections::VecDeque;
+
     use puffin::codec::Codec;
+
     use super::{MessageFragmenter, PACKET_OVERHEAD};
     use crate::tls::rustls::msgs::{
         base::Payload,
