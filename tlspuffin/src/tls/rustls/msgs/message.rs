@@ -17,6 +17,7 @@ use crate::{
         TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
         TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
     },
+    protocol::{MessageFlight, OpaqueMessageFlight},
     tls,
     tls::{
         fn_impl::*,
@@ -311,6 +312,19 @@ pub struct Message {
     pub payload: MessagePayload,
 }
 
+impl Codec for Message {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        Codec::encode(&self.create_opaque(), bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        <OpaqueMessage>::read(reader)
+            .ok()
+            .map(|op| Message::try_from(op).ok())
+            .flatten()
+    }
+}
+
 impl Message {
     pub fn is_handshake_type(&self, hstyp: HandshakeType) -> bool {
         // Bit of a layering violation, but OK.
@@ -466,22 +480,16 @@ impl VecCodecWoSize for PresharedKeyIdentity {} //u16
 
 // Re-interpret any type of rustls message into bitstrings through successive downcast tries
 pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffin::error::Error> {
-    message // We first try to downcast to Message, then OpaqueMessage
-        .downcast_ref::<Message>()
-        .map(|b| codec::Encode::get_encoding(&b.create_opaque()))
-        .or_else(|| {
-            trace!("Failed to downcast from Message");
-            message
-                .downcast_ref::<OpaqueMessage>()
-                .map(|b| codec::Encode::get_encoding(b))
-                .or_else(|| {
-                    trace!("Failed to downcast from OpaqueMessage");
-                    try_downcast!(
+try_downcast!(
         message,
         // We list all the types that have the Encode trait and that can be the type of a rustls message
         // Using term_zoo.rs integration test `test_term_eval, I am able to measure how many generated terms
         // require each of the encode type below. Can be used to remove non-required ones and possibly
         // to refine the order of them (heuristics to speed up the encoding).
+        Message,
+        OpaqueMessage,
+        MessageFlight,
+        OpaqueMessageFlight,
         Vec<Certificate>,
         Certificate,
         CertificateEntries,
@@ -550,8 +558,6 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
         // MessagePayload,
         // ExtensionType,
     )
-                })
-        })
         .or_else(|| try_downcast_two!(
                     message,
                     // We list all the types having custom Codec2 now
@@ -650,21 +656,14 @@ macro_rules! try_read_two {
 pub fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, puffin::error::Error> {
     let a = <Vec<PayloadU24>>::read_bytes2(bitstring);
     trace!("Trying read...");
-    if ty == TypeId::of::<Message>() {
-        trace!("Type match TypeId Message. Trying to read a message as OpaqueMessage and then try_from...");
-        let op = <OpaqueMessage>::read_bytes(bitstring)
-            .ok_or(Term(format!(
-                "[try_read_bytes] Failed to read to type OpaqueMessage (ty was Message though) the bitstring {:?}",
-                & bitstring
-            )))?;
-        let m = Message::try_from(op)?;
-        Ok(Box::new(m) as Box<dyn Any>)
-    } else {
         try_read!(
             bitstring,
             ty,
             // We list all the types that have the Codec trait and that can be the type of a rustls message
+            Message,
             OpaqueMessage,
+            MessageFlight,
+            OpaqueMessageFlight,
             Vec<Certificate>,
             Certificate,
             CertificateEntries,
@@ -726,5 +725,4 @@ pub fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, puff
             // ExtensionType,
             NamedGroup
         )
-    }
 }

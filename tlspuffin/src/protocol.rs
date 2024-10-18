@@ -67,6 +67,23 @@ impl From<Message> for MessageFlight {
     }
 }
 
+impl Codec for MessageFlight {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        for msg in &self.messages {
+            msg.encode(bytes);
+        }
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let mut flight = Self::new();
+
+        while let Some(msg) = Message::read(reader) {
+            flight.push(msg);
+        }
+        Some(flight)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct OpaqueMessageFlight {
     pub messages: Vec<OpaqueMessage>,
