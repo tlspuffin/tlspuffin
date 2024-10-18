@@ -10,6 +10,7 @@ use puffin::{
 };
 
 use crate::{
+    protocol::MessageFlight,
     query::TlsQueryMatcher,
     tls::{
         fn_impl::*,
@@ -166,6 +167,7 @@ pub fn seed_successful_client_auth(client: AgentName, server: AgentName) -> Trac
     }
 }
 
+// TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
         prior_traces: vec![],
@@ -180,85 +182,25 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TlsQueryMa
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_client_hello(
-                            ((client, 0)),
-                            ((client, 0)),
-                            ((client, 0)),
-                            ((client, 0)),
-                            ((client, 0)),
-                            ((client, 0))
-                        )
+                        (client, 0)/MessageFlight
                     },
                 }),
             },
-            // Server Hello Server -> Client
+            // ServerHello/EncryptedExtensions/Certificate/CertificateVerify/ServerFinished -> Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_server_hello(
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Random),
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ServerExtensions)
-                        )
+                        (server, 0)/MessageFlight
                     },
                 }),
             },
-            // Encrypted Extensions Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Certificate Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Certificate Verify Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Finish Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Finished Client -> Server
+            // Client Finished -> server
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_application_data(
-                            ((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
+                        (client, 1)/MessageFlight
                     },
                 }),
             },
@@ -297,74 +239,21 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TlsQu
                     },
                 }),
             },
-            // Server Hello Server -> Client
+            // ServerHello/EncryptedExtensions/Certificate/CertificateVerify/ServerFinished -> Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_server_hello(
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0)),
-                            ((server, 0))
-                        )
+                        (server, 0)/MessageFlight
                     },
                 }),
             },
-            // Encrypted Extensions Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Certificate Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Certificate Verify Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Finish Server -> Client
-            Step {
-                agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_application_data(
-                            ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
-                    },
-                }),
-            },
-            // Finished Client -> Server
+            // Client Finished -> server
             Step {
                 agent: server,
                 action: Action::Input(InputAction {
                     recipe: term! {
-                        fn_application_data(
-                            ((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
-                        )
+                        (client, 1)/MessageFlight
                     },
                 }),
             },
@@ -372,6 +261,7 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TlsQu
     }
 }
 
+// TODO: `[RENEGOTIATION_MISMATCH] [ERROR_PARSING_EXTENSION] [PARSE_TLSEXT]` error with BoringSSL
 pub fn seed_successful12_with_tickets(
     client: AgentName,
     server: AgentName,
@@ -528,37 +418,125 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TlsQuery
     }
 }
 
+// TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
 pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
-    let mut trace = seed_successful(client, server);
-
-    // CCS Server -> Client
-    trace.steps.insert(
-        3,
-        Step {
-            agent: client,
-            action: Action::Input(InputAction {
-                recipe: term! {
-                    fn_change_cipher_spec
-                },
-            }),
-        },
-    );
-
-    trace.steps.insert(
-        8,
-        Step {
-            agent: server,
-            action: Action::Input(InputAction {
-                recipe: term! {
-                    fn_change_cipher_spec
-                },
-            }),
-        },
-    );
-
-    trace
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::new_client(client, TLSVersion::V1_3),
+            AgentDescriptor::new_server(server, TLSVersion::V1_3),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            // Client Hello Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_client_hello(
+                            ((client, 0)),
+                            ((client, 0)),
+                            ((client, 0)),
+                            ((client, 0)),
+                            ((client, 0)),
+                            ((client, 0))
+                        )
+                    },
+                }),
+            },
+            // Server Hello Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_server_hello(
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Random),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ServerExtensions)
+                        )
+                    },
+                }),
+            },
+            // CCS Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_change_cipher_spec
+                    },
+                }),
+            },
+            // Encrypted Extensions Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Certificate Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Certificate Verify Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            // Finish Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_change_cipher_spec
+                    },
+                }),
+            },
+            // Finished Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(InputAction {
+                    recipe: term! {
+                        fn_application_data(
+                            ((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                        )
+                    },
+                }),
+            },
+        ],
+    }
 }
 
+// TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
 pub fn seed_successful_with_tickets(
     client: AgentName,
     server: AgentName,
@@ -593,6 +571,7 @@ pub fn seed_successful_with_tickets(
     trace
 }
 
+// TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
 pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
     let curve = term! {
         fn_get_any_client_curve(
@@ -778,6 +757,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
     }
 }
 
+// TODO: `BAD_SIGNATURE` error with BoringSSL
 pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
     let client_hello = term! {
           fn_client_hello(
@@ -807,170 +787,9 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
         )))
     };
 
-    /*let encrypted_extensions = term! {
-        fn_decrypt_handshake(
-            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
-            (fn_server_hello_transcript(((server, 0)))),
-            (fn_get_server_key_share(((server, 0)))),
-            fn_no_psk,
-            fn_named_group_secp384r1,
-            fn_true,
-            fn_seq_0
-        )
-    };*/
-
-    // ApplicationData 0 is EncryptedExtensions
-    let certificate_request_message = term! {
-        fn_decrypt_handshake(
-            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
-            (fn_server_hello_transcript(((server, 0)))),
-            (fn_get_server_key_share(((server, 0)))),
-            fn_no_psk,
-            fn_named_group_secp384r1,
-            fn_true,
-            fn_seq_1
-        )
-    };
-
-    let certificate = term! {
-        fn_certificate13(
-            (fn_payload_u8((fn_get_context((@certificate_request_message))))),
-            (fn_certificate_entries_make(
-                (fn_append_certificate_entry(
-                (fn_certificate_entry(
-                    fn_bob_cert
-                )),
-              fn_empty_certificate_chain
-            ))))
-        )
-    };
-
-    let certificate_verify = term! {
-        fn_certificate_verify(
-            fn_rsa_pss_signature_algorithm,
-            (fn_payload_u16(
-                (fn_rsa_sign_client(
-                    (fn_certificate_transcript(((server, 0)))),
-                    fn_bob_key,
-                    fn_rsa_pss_signature_algorithm
-                ))
-            ))
-        )
-    };
-
-    let client_finished = term! {
-        fn_finished(
-            (fn_verify_data(
-                (fn_server_finished_transcript(((server, 0)))),
-                (fn_server_hello_transcript(((server, 0)))),
-                (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk,
-                fn_named_group_secp384r1
-            ))
-        )
-    };
-
-    Trace {
-        prior_traces: vec![],
-        descriptors: vec![AgentDescriptor {
-            name: server,
-            tls_version: TLSVersion::V1_3,
-            typ: AgentType::Server,
-            client_authentication: true,
-            ..AgentDescriptor::default()
-        }],
-        steps: vec![
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        @client_hello
-                    },
-                }),
-            },
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_encrypt_handshake(
-                            (@certificate),
-                            (fn_server_hello_transcript(((server, 0)))),
-                            (fn_get_server_key_share(((server, 0)))),
-                            fn_no_psk,
-                            fn_named_group_secp384r1,
-                            fn_true,
-                            fn_seq_0  // sequence 0
-                        )
-                    },
-                }),
-            },
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                         fn_encrypt_handshake(
-                            (@certificate_verify),
-                            (fn_server_hello_transcript(((server, 0)))),
-                            (fn_get_server_key_share(((server, 0)))),
-                            fn_no_psk,
-                            fn_named_group_secp384r1,
-                            fn_true,
-                            fn_seq_1  // sequence 1
-                        )
-                    },
-                }),
-            },
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_encrypt_handshake(
-                            (@client_finished),
-                            (fn_server_hello_transcript(((server, 0)))),
-                            (fn_get_server_key_share(((server, 0)))),
-                            fn_no_psk,
-                            fn_named_group_secp384r1,
-                            fn_true,
-                            fn_seq_2  // sequence 2
-                        )
-                    },
-                }),
-            },
-        ],
-    }
-}
-
-// TODO: `BAD_SIGNATURE` error
-pub fn seed_client_attacker_auth_boring(server: AgentName) -> Trace<TlsQueryMatcher> {
-    let client_hello = term! {
-          fn_client_hello(
-            fn_protocol_version12,
-            fn_new_random,
-            fn_new_session_id,
-            (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
-            )),
-            fn_compressions,
-            (fn_client_extensions_append(
-                (fn_client_extensions_append(
-                    (fn_client_extensions_append(
-                        (fn_client_extensions_append(
-                            fn_client_extensions_new,
-                            (fn_support_group_extension(fn_named_group_secp384r1))
-                        )),
-                        fn_signature_algorithm_extension
-                    )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
-                )),
-                fn_supported_versions13_extension
-            ))
-        )
-    };
-
     let extensions = term! {
-        fn_decrypt_multiple_handshake_messages(
-            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]), // Encrypted Extensions
+        fn_decrypt_handshake_flight(
+            ((server, 0)/MessageFlight), // The first flight of messages sent by the server
             (fn_server_hello_transcript(((server, 0)))),
             (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             fn_no_psk,
@@ -982,7 +801,7 @@ pub fn seed_client_attacker_auth_boring(server: AgentName) -> Trace<TlsQueryMatc
 
     // ApplicationData 0 is EncryptedExtensions
     let certificate_request_message = term! {
-            fn_find_server_certificate_request((@extensions))
+        fn_find_server_certificate_request((@extensions))
     };
 
     let certificate = term! {
@@ -1312,24 +1131,27 @@ pub fn _seed_client_attacker12(
     (trace, client_verify_data)
 }
 
+// TODO: `"Unable to find variable (Some(Agent(AgentName(0))), 1)[None]/MessageFlight!"` error with BoringSSL
 pub fn seed_session_resumption_dhe(
     initial_server: AgentName,
     server: AgentName,
 ) -> Trace<TlsQueryMatcher> {
     let initial_handshake = seed_client_attacker(initial_server);
 
-    let new_ticket_message = term! {
-        fn_decrypt_application(
-            ((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
+    let extensions = term! {
+        fn_decrypt_application_flight(
+            ((initial_server, 1)/MessageFlight), // The first flight of messages sent by the server
             (fn_server_hello_transcript(((initial_server, 0)))),
             (fn_server_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)))),
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
+            fn_seq_0  // sequence 0
         )
     };
+
+    let new_ticket_message = term! {fn_find_server_ticket((@extensions))};
 
     let client_hello = term! {
           fn_client_hello(
@@ -1438,24 +1260,27 @@ pub fn seed_session_resumption_dhe(
     }
 }
 
+// TODO: `Unable to find variable (Some(Agent(AgentName(0))), 1)[None]/MessageFlight!` error with BoringSSL
 pub fn seed_session_resumption_ke(
     initial_server: AgentName,
     server: AgentName,
 ) -> Trace<TlsQueryMatcher> {
     let initial_handshake = seed_client_attacker(initial_server);
 
-    let new_ticket_message = term! {
-        fn_decrypt_application(
-            ((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]), // Ticket from last session
+    let extensions = term! {
+        fn_decrypt_application_flight(
+            ((initial_server, 1)/MessageFlight), // The first flight of messages sent by the server
             (fn_server_hello_transcript(((initial_server, 0)))),
             (fn_server_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)))),
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
+            fn_seq_0  // sequence 0
         )
     };
+
+    let new_ticket_message = term! {fn_find_server_ticket((@extensions))};
 
     let client_hello = term! {
           fn_client_hello(
@@ -1623,217 +1448,9 @@ pub fn _seed_client_attacker_full(
 
     // ((0, 1)) could be a CCS the server sends one
 
-    let encrypted_extensions = term! {
-        fn_decrypt_handshake(
-            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]), // Encrypted Extensions
-            (@server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
-            fn_no_psk,
-            fn_named_group_secp384r1,
-            fn_true,
-            fn_seq_0  // sequence 0
-        )
-    };
-
-    let encrypted_extension_transcript = term! {
-        fn_append_transcript(
-            (@server_hello_transcript),
-            (@encrypted_extensions) // plaintext Encrypted Extensions
-        )
-    };
-
-    let server_certificate = term! {
-        fn_decrypt_handshake(
-            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]),// Server Certificate
-            (@server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)))),
-            fn_no_psk,
-            fn_named_group_secp384r1,
-            fn_true,
-            fn_seq_1 // sequence 1
-        )
-    };
-
-    let server_certificate_transcript = term! {
-        fn_append_transcript(
-            (@encrypted_extension_transcript),
-            (@server_certificate) // plaintext Server Certificate
-        )
-    };
-
-    let server_certificate_verify = term! {
-        fn_decrypt_handshake(
-            ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]), // Server Certificate Verify
-            (@server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)))),
-            fn_no_psk,
-            fn_named_group_secp384r1,
-            fn_true,
-            fn_seq_2 // sequence 2
-        )
-    };
-
-    let server_certificate_verify_transcript = term! {
-        fn_append_transcript(
-            (@server_certificate_transcript),
-            (@server_certificate_verify) // plaintext Server Certificate Verify
-        )
-    };
-
-    let server_finished = term! {
-        fn_decrypt_handshake(
-            ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]), // Server Handshake Finished
-            (@server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)))),
-            fn_no_psk,
-            fn_named_group_secp384r1,
-            fn_true,
-            fn_seq_3 // sequence 3
-        )
-    };
-
-    let server_finished_transcript = term! {
-        fn_append_transcript(
-            (@server_certificate_verify_transcript),
-            (@server_finished) // plaintext Server Handshake Finished
-        )
-    };
-
-    let client_finished = term! {
-        fn_finished(
-            (fn_verify_data(
-                (@server_finished_transcript),
-                (@server_hello_transcript),
-                (fn_get_server_key_share(((server, 0)))),
-                fn_no_psk,
-                fn_named_group_secp384r1
-            ))
-        )
-    };
-
-    let client_finished_transcript = term! {
-        fn_append_transcript(
-            (@server_finished_transcript),
-            (@client_finished)
-        )
-    };
-
-    let trace = Trace {
-        prior_traces: vec![],
-        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
-        steps: vec![
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        @client_hello
-                    },
-                }),
-            },
-            OutputAction::new_step(server),
-            Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                        fn_encrypt_handshake(
-                            (@client_finished),
-                            (@server_hello_transcript),
-                            (fn_get_server_key_share(((server, 0)))),
-                            fn_no_psk,
-                            fn_named_group_secp384r1,
-                            fn_true,
-                            fn_seq_0  // sequence 0
-                        )
-                    },
-                }),
-            },
-            OutputAction::new_step(server),
-            /*Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                         fn_encrypt_application(
-                            fn_alert_close_notify,
-                            (@server_hello_transcript),
-                            (@server_finished_transcript),
-                            (fn_get_server_key_share(((server, 0)))),
-                            fn_no_psk,
-                            fn_named_group_secp384r1,
-                            fn_seq_0  // sequence 0
-                        )
-                    },
-                }),
-            },
-            OutputAction::new_step(server),*/
-        ],
-    };
-
-    (
-        trace,
-        server_hello_transcript,
-        server_finished_transcript,
-        client_finished_transcript,
-    )
-}
-
-pub fn seed_client_attacker_full_boring(server: AgentName) -> Trace<TlsQueryMatcher> {
-    _seed_client_attacker_full_boring(server).0
-}
-
-/// Seed which contains the whole transcript in the tree. This is rather huge >300 symbols
-pub fn _seed_client_attacker_full_boring(
-    server: AgentName,
-) -> (
-    Trace<TlsQueryMatcher>,
-    DYTerm<TlsQueryMatcher>,
-    DYTerm<TlsQueryMatcher>,
-    DYTerm<TlsQueryMatcher>,
-) {
-    let client_hello = term! {
-          fn_client_hello(
-            fn_protocol_version12,
-            fn_new_random,
-            fn_new_session_id,
-            (fn_cipher_suites_make(
-                (fn_append_cipher_suite(
-                    (fn_new_cipher_suites()),
-                    fn_cipher_suite13_aes_128_gcm_sha256
-                ))
-            )),
-            fn_compressions,
-            (fn_client_extensions_make(
-              (fn_client_extensions_append(
-                (fn_client_extensions_append(
-                    (fn_client_extensions_append(
-                        (fn_client_extensions_append(
-                            fn_client_extensions_new,
-                            (fn_support_group_extension(fn_named_group_secp384r1))
-                        )),
-                        fn_signature_algorithm_extension
-                    )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
-                )),
-                fn_supported_versions13_extension
-              )
-            )
-        )))
-    };
-
-    let server_hello_transcript = term! {
-        fn_append_transcript(
-            (fn_append_transcript(
-                fn_new_transcript,
-                (@client_hello) // ClientHello
-            )),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
-        )
-    };
-
-    // ((0, 1)) could be a CCS the server sends one
-
     let extensions = term! {
-        fn_decrypt_multiple_handshake_messages(
-            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]), // Encrypted Extensions
+        fn_decrypt_handshake_flight(
+            ((server, 0)/MessageFlight), // The first flight of messages sent by the server
             (@server_hello_transcript),
             (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             fn_no_psk,
@@ -1936,23 +1553,23 @@ pub fn _seed_client_attacker_full_boring(
                 }),
             },
             OutputAction::new_step(server),
-            /*Step {
-                agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                         fn_encrypt_application(
-                            fn_alert_close_notify,
-                            (@server_hello_transcript),
-                            (@server_finished_transcript),
-                            (fn_get_server_key_share(((server, 0)))),
-                            fn_no_psk,
-                            fn_named_group_secp384r1,
-                            fn_seq_0  // sequence 0
-                        )
-                    },
-                }),
-            },
-            OutputAction::new_step(server),*/
+            // Step {
+            //     agent: server,
+            //     action: Action::Input(InputAction {
+            //         recipe: term! {
+            //              fn_encrypt_application(
+            //                 fn_alert_close_notify,
+            //                 (@server_hello_transcript),
+            //                 (@server_finished_transcript),
+            //                 (fn_get_server_key_share(((server, 0)))),
+            //                 fn_no_psk,
+            //                 fn_named_group_secp384r1,
+            //                 fn_seq_0  // sequence 0
+            //             )
+            //         },
+            //     }),
+            // },
+            // OutputAction::new_step(server),
         ],
     };
 
@@ -2063,16 +1680,20 @@ pub fn seed_session_resumption_dhe_full(
         )
     };
 
-    let resumption_encrypted_extensions = term! {
-        fn_decrypt_handshake(
-            ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]), // Encrypted Extensions
+    let resumption_decrypted_handshake = term! {
+        fn_decrypt_handshake_flight(
+            ((server, 0)/MessageFlight), // The first flight of messages sent by the server
             (@resumption_server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))), //
+            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             (fn_psk((@psk))),
             fn_named_group_secp384r1,
             fn_true,
             fn_seq_0  // sequence 0
         )
+    };
+
+    let resumption_encrypted_extensions = term! {
+        fn_find_encrypted_extensions((@resumption_decrypted_handshake))
     };
 
     let resumption_encrypted_extension_transcript = term! {
@@ -2083,15 +1704,7 @@ pub fn seed_session_resumption_dhe_full(
     };
 
     let resumption_server_finished = term! {
-        fn_decrypt_handshake(
-            ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]), // Server Handshake Finished
-            (@resumption_server_hello_transcript),
-            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))), //
-            (fn_psk((@psk))),
-            fn_named_group_secp384r1,
-            fn_true,
-            fn_seq_1 // sequence 1
-        )
+        fn_find_server_finished((@resumption_decrypted_handshake))
     };
 
     let resumption_server_finished_transcript = term! {
@@ -2195,10 +1808,8 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
         seed_successful12_with_tickets: cfg(all(feature = "tls12", feature = "tls12-session-resumption")),
         // Client Attackers
         seed_client_attacker: cfg(feature = "tls13"),
-        seed_client_attacker_full: cfg(all(feature = "tls13", not(feature = "boringssl-binding"))),
-        seed_client_attacker_full_boring: cfg(all(feature = "tls13", feature = "boringssl-binding")),
-        seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction", not(feature = "boringssl-binding"))),
-        seed_client_attacker_auth_boring: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction", feature = "boringssl-binding")),
+        seed_client_attacker_full: cfg(feature = "tls13"),
+        seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction")),
         seed_client_attacker12: cfg(feature = "tls12"),
         // Session resumption
         seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
@@ -2281,11 +1892,7 @@ pub mod tests {
     fn test_seed_client_attacker_full() {
         use crate::tls::trace_helper::TraceExecutor;
 
-        let ctx = if cfg!(not(feature = "boringssl-binding")) {
-            seed_client_attacker_full.execute_trace()
-        } else {
-            seed_client_attacker_full_boring.execute_trace()
-        };
+        let ctx = seed_client_attacker_full.execute_trace();
         assert!(ctx.agents_successful());
     }
 

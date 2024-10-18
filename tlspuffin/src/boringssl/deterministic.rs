@@ -13,7 +13,7 @@ mod tests {
 
     use crate::{
         put_registry::tls_registry,
-        tls::{seeds::seed_client_attacker_full_boring, trace_helper::TraceHelper},
+        tls::{seeds::seed_client_attacker_full, trace_helper::TraceHelper},
     };
 
     // TODO: This test only works in a single threaded cargo test execution
@@ -21,7 +21,7 @@ mod tests {
     fn test_boringssl_no_randomness_full() {
         let put_registry = tls_registry();
 
-        let trace = seed_client_attacker_full_boring.build_trace();
+        let trace = seed_client_attacker_full.build_trace();
         let mut ctx1 = TraceContext::new(&put_registry, PutOptions::default());
         ctx1.set_deterministic(true);
         let _ = trace.execute(&mut ctx1);

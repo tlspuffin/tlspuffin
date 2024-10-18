@@ -1,38 +1,70 @@
-use std::{
-    any::{Any, TypeId},
-    fmt::Debug,
-};
+use std::fmt::Debug;
 
 use crate::{
     algebra::{signature::Signature, ConcreteMessage, Matcher},
     claims::{Claim, SecurityViolationPolicy},
-    codec::{Codec, Encode, Reader},
+    codec::Codec,
     error::Error,
-    trace::Trace,
-    variable_data::VariableData,
+    trace::{Knowledge, Source, Trace},
 };
+
+/// Provide a way to extract knowledge out of a Message/OpaqueMessage or any type that
+/// might be used in a precomputation
+pub trait ExtractKnowledge<M: Matcher>: std::fmt::Debug {
+    /// Fill `knowledges` with new knowledge gathered form the type implementing ExtractKnowledge
+    /// by recursively calling extract_knowledge on all contained element
+    /// This will put source as the source of all the produced knowledges, matcher is also passed
+    /// recursively but might be overriten by a type with a more specific matcher
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<M>>,
+        matcher: Option<M>,
+        source: &Source,
+    ) -> Result<(), Error>;
+}
+
+/// Store a message flight, a vec of all the messages sent by the PUT between two steps
+pub trait ProtocolMessageFlight<
+    Mt: Matcher,
+    M: ProtocolMessage<Mt, O>,
+    O: OpaqueProtocolMessage<Mt>,
+    OF: OpaqueProtocolMessageFlight<Mt, O>,
+>: Clone + Debug + From<M> + TryFrom<OF> + Into<OF> + ExtractKnowledge<Mt>
+{
+    fn new() -> Self;
+    fn push(&mut self, msg: M);
+    fn debug(&self, info: &str);
+}
+
+/// Store a flight of opaque messages, a vec of all the messages sent by the PUT between two steps
+pub trait OpaqueProtocolMessageFlight<Mt: Matcher, O: OpaqueProtocolMessage<Mt>>:
+    Clone + Debug + Codec + From<O> + ExtractKnowledge<Mt>
+{
+    fn new() -> Self;
+    fn debug(&self, info: &str);
+    fn push(&mut self, msg: O);
+}
 
 /// A structured message. This type defines how all possible messages of a protocol.
 /// Usually this is implemented using an `enum`.
-pub trait ProtocolMessage<O: OpaqueProtocolMessage>: Clone + Debug {
+pub trait ProtocolMessage<Mt: Matcher, O: OpaqueProtocolMessage<Mt>>:
+    Clone + Debug + ExtractKnowledge<Mt>
+{
     fn create_opaque(&self) -> O;
     fn debug(&self, info: &str);
-    fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;
 }
 
 /// A non-structured version of [`ProtocolMessage`]. This can be used for example for encrypted messages
 /// which do not have a structure.
-pub trait OpaqueProtocolMessage: Clone + Debug + Codec {
+pub trait OpaqueProtocolMessage<Mt: Matcher>: Clone + Debug + Codec + ExtractKnowledge<Mt> {
     fn debug(&self, info: &str);
-
-    fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error>;
 }
 
 /// Deframes a stream of bytes into distinct [OpaqueProtocolMessages](OpaqueProtocolMessage).
 /// A deframer is usually state-ful. This means it produces as many messages from the input bytes
 /// and stores them.
-pub trait ProtocolMessageDeframer {
-    type OpaqueProtocolMessage: OpaqueProtocolMessage;
+pub trait ProtocolMessageDeframer<Mt: Matcher> {
+    type OpaqueProtocolMessage: OpaqueProtocolMessage<Mt>;
 
     fn pop_frame(&mut self) -> Option<Self::OpaqueProtocolMessage>;
     fn read(&mut self, rd: &mut dyn std::io::Read) -> std::io::Result<usize>;
@@ -48,14 +80,20 @@ pub trait ProtocolMessageDeframer {
 /// sequences of them. Finally, there is a [matcher](Matcher) which allows traces to include
 /// queries for [knowledge](crate::trace::Knowledge).
 pub trait ProtocolBehavior: 'static {
+    type Matcher: Matcher;
     type Claim: Claim;
     type SecurityViolationPolicy: SecurityViolationPolicy<Self::Claim>;
 
-    type ProtocolMessage: ProtocolMessage<Self::OpaqueProtocolMessage>;
-    type OpaqueProtocolMessage: OpaqueProtocolMessage + Codec;
-
-    type Matcher: Matcher
-        + for<'a> TryFrom<&'a MessageResult<Self::ProtocolMessage, Self::OpaqueProtocolMessage>>;
+    type ProtocolMessage: ProtocolMessage<Self::Matcher, Self::OpaqueProtocolMessage>;
+    type OpaqueProtocolMessage: OpaqueProtocolMessage<Self::Matcher> + Codec;
+    type ProtocolMessageFlight: ProtocolMessageFlight<
+        Self::Matcher,
+        Self::ProtocolMessage,
+        Self::OpaqueProtocolMessage,
+        Self::OpaqueProtocolMessageFlight,
+    >;
+    type OpaqueProtocolMessageFlight: OpaqueProtocolMessageFlight<Self::Matcher, Self::OpaqueProtocolMessage>
+    + From<Self::ProtocolMessageFlight> + Codec;
 
     /// Get the signature that is used in the protocol
     fn signature() -> &'static Signature;
@@ -68,36 +106,4 @@ pub trait ProtocolBehavior: 'static {
 
     /// Try to read a bitstring and interpret it as the TypeShape, which is the type of a message as per the PB's internal structure
     /// This is expected to fail for many types of messages!
-    fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, Error>;
-}
-
-pub struct MessageResult<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>(pub Option<M>, pub O);
-
-impl<M: ProtocolMessage<O>, O: OpaqueProtocolMessage> MessageResult<M, O> {
-    /// Extracts as much data from the message as possible. Depending on the protocol,
-    /// the extraction can be more fine-grained to more coarse.
-    pub fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
-        let opaque_knowledge = self.1.extract_knowledge();
-
-        if let Some(message) = &self.0 {
-            if let Ok(opaque_knowledge) = opaque_knowledge {
-                message.extract_knowledge().map(|mut knowledge| {
-                    knowledge.extend(opaque_knowledge);
-                    knowledge
-                })
-            } else {
-                message.extract_knowledge()
-            }
-        } else {
-            opaque_knowledge
-        }
-    }
-
-    pub fn create_matcher<PB: ProtocolBehavior>(&self) -> Option<PB::Matcher>
-    where
-        PB: ProtocolBehavior<OpaqueProtocolMessage = O, ProtocolMessage = M>,
-    {
-        // TODO: Should we return here or use None?
-        <<PB as ProtocolBehavior>::Matcher as TryFrom<&MessageResult<M, O>>>::try_from(self).ok()
-    }
-}
+    fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, Error>;}

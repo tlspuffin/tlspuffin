@@ -10,7 +10,6 @@ use puffin::{
     agent::{AgentDescriptor, AgentName, AgentType},
     algebra::ConcreteMessage,
     error::Error,
-    protocol::MessageResult,
     put::{Put, PutName},
     put_registry::{Factory, PutKind},
     stream::{MemoryStream, Stream},
@@ -20,14 +19,12 @@ use puffin::{
 
 use crate::{
     openssl::util::{set_max_protocol_version, static_rsa_cert},
-    protocol::TLSProtocolBehavior,
+    protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
     put::TlsPutConfig,
     put_registry::OPENSSL111_PUT,
+    query::TlsQueryMatcher,
     static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT},
-    tls::rustls::msgs::{
-        deframer::MessageDeframer,
-        message::{Message, OpaqueMessage},
-    },
+    tls::rustls::msgs::message::{Message, OpaqueMessage},
 };
 
 mod bindings;
@@ -130,7 +127,7 @@ pub fn new_openssl_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
 }
 
 pub struct OpenSSL {
-    stream: SslStream<MemoryStream<MessageDeframer>>,
+    stream: SslStream<MemoryStream>,
     ctx: SslContext,
     config: TlsPutConfig,
 }
@@ -142,21 +139,21 @@ impl Drop for OpenSSL {
     }
 }
 
-impl Stream<Message, OpaqueMessage> for OpenSSL {
+impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for OpenSSL {
     fn add_to_inbound(&mut self, result: &ConcreteMessage) {
-        <MemoryStream<MessageDeframer> as Stream<Message, OpaqueMessage>>::add_to_inbound(
-            self.stream.get_mut(),
-            result,
-        )
+        <MemoryStream as Stream<
+            TlsQueryMatcher,
+            Message,
+            OpaqueMessage,
+            OpaqueMessageFlight,
+        >>::add_to_inbound(self.stream.get_mut(), result)
     }
 
-    fn take_message_from_outbound(
-        &mut self,
-    ) -> Result<Option<MessageResult<Message, OpaqueMessage>>, Error> {
+    fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
         let memory_stream = self.stream.get_mut();
         //memory_stream.take_message_from_outbound()
 
-        MemoryStream::take_message_from_outbound(memory_stream)
+        <MemoryStream as Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight>>::take_message_from_outbound(memory_stream)
     }
 }
 
@@ -313,16 +310,13 @@ impl OpenSSL {
     fn new_stream(
         ctx: &SslContextRef,
         config: &TlsPutConfig,
-    ) -> Result<SslStream<MemoryStream<MessageDeframer>>, ErrorStack> {
+    ) -> Result<SslStream<MemoryStream>, ErrorStack> {
         let ssl = match config.descriptor.typ {
             AgentType::Server => Self::create_server(ctx)?,
             AgentType::Client => Self::create_client(ctx)?,
         };
 
-        Ok(SslStream::new(
-            ssl,
-            MemoryStream::new(MessageDeframer::new()),
-        )?)
+        Ok(SslStream::new(ssl, MemoryStream::new())?)
     }
 
     fn create_server_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, ErrorStack> {

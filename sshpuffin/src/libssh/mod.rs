@@ -11,7 +11,7 @@
 
 use std::{
     fs,
-    io::{ErrorKind, Write},
+    io::{Read, Write},
     os::unix::{
         io::{IntoRawFd, RawFd},
         net::{UnixListener, UnixStream},
@@ -24,7 +24,6 @@ use puffin::{
     algebra::ConcreteMessage,
     codec::Codec,
     error::Error,
-    protocol::MessageResult,
     put::{Put, PutName},
     put_registry::{Factory, PutKind},
     stream::Stream,
@@ -37,12 +36,10 @@ use crate::{
         SessionOption, SessionState, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest,
         SshResult, SshSession,
     },
-    protocol::SshProtocolBehavior,
+    protocol::{RawSshMessageFlight, SshProtocolBehavior},
     put_registry::LIBSSH_PUT,
-    ssh::{
-        deframe::SshMessageDeframer,
-        message::{RawSshMessage, SshMessage},
-    },
+    query::SshQueryMatcher,
+    ssh::message::{RawSshMessage, SshMessage},
 };
 
 pub mod ssh;
@@ -148,7 +145,6 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
                 put_fd,
                 agent_descriptor: agent_descriptor.clone(),
                 session,
-                deframer: SshMessageDeframer::default(),
                 state: PutState::ExchangingKeys,
             }))
         }
@@ -204,7 +200,6 @@ pub struct LibSSL {
     fuzz_stream: UnixStream,
     agent_descriptor: AgentDescriptor,
     session: SshSession,
-    deframer: SshMessageDeframer,
 
     state: PutState,
     put_fd: RawFd,
@@ -212,55 +207,16 @@ pub struct LibSSL {
 
 impl LibSSL {}
 
-impl Stream<SshMessage, RawSshMessage> for LibSSL {
+impl Stream<SshQueryMatcher, SshMessage, RawSshMessage, RawSshMessageFlight> for LibSSL {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         self.fuzz_stream.write_all(message).unwrap();
     }
 
-    fn take_message_from_outbound(
-        &mut self,
-    ) -> Result<Option<MessageResult<SshMessage, RawSshMessage>>, Error> {
-        // Retry to read if no more frames in the deframer buffer
-        let opaque_message = loop {
-            if let Some(opaque_message) = self.deframer.frames.pop_front() {
-                break Some(opaque_message);
-            } else {
-                match self.deframer.read(&mut self.fuzz_stream) {
-                    Ok(v) => {
-                        if v == 0 {
-                            break None;
-                        }
-                    }
-                    Err(err) => match err.kind() {
-                        ErrorKind::WouldBlock => {
-                            // This is not a hard error. It just means we will should read again from
-                            // the TCPStream in the next steps.
-                            break None;
-                        }
-                        _ => return Err(err.into()),
-                    },
-                }
-            }
-        };
+    fn take_message_from_outbound(&mut self) -> Result<Option<RawSshMessageFlight>, Error> {
+        let mut buf = vec![];
+        let _ = self.fuzz_stream.read_to_end(&mut buf);
 
-        if let Some(opaque_message) = opaque_message {
-            let message = if let RawSshMessage::Packet(packet) = &opaque_message {
-                match SshMessage::try_from(packet) {
-                    Ok(message) => Some(message),
-                    Err(err) => {
-                        log::error!("Failed to decode message! This means we maybe need to remove logical checks from rustls! {}", err);
-                        None
-                    }
-                }
-            } else {
-                None
-            };
-
-            Ok(Some(MessageResult(message, opaque_message)))
-        } else {
-            // no message to return
-            Ok(None)
-        }
+        Ok(RawSshMessageFlight::read_bytes(&mut buf))
     }
 }
 

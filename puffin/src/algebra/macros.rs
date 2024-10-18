@@ -18,9 +18,9 @@ macro_rules! term {
     (($agent:expr, $counter:expr) $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
         use $crate::algebra::{DYTerm,Term};
+        use $crate::trace::Source;
 
-
-        let var = Signature::new_var($($req_type)?, $agent, None, $counter); // TODO: verify hat using here None is fine. Before a refactor it was: Some(TlsMessageType::Handshake(None))
+        let var = Signature::new_var($($req_type)?, Some(Source::Agent($agent)), None, $counter); // TODO: verify hat using here None is fine. Before a refactor it was: Some(TlsMessageType::Handshake(None))
         Term::from(DYTerm::Variable(var))
     }};
 
@@ -37,9 +37,9 @@ macro_rules! term {
     (($agent:expr, $counter:expr) [$message_type:expr] $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
         use $crate::algebra::{DYTerm,Term};
+        use $crate::trace::Source;
 
-
-        let var = Signature::new_var($($req_type)?, $agent, $message_type, $counter);
+        let var = Signature::new_var($($req_type)?, Some(Source::Agent($agent)), $message_type, $counter);
         Term::from(DYTerm::Variable(var))
     }};
 
@@ -49,7 +49,6 @@ macro_rules! term {
     ($func:ident ($($args:tt),*) $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
         use $crate::algebra::{DYTerm,Term};
-
 
         let func = Signature::new_function(&$func);
         #[allow(unused_assignments, unused_variables, unused_mut)]

@@ -2,9 +2,11 @@ use log::debug;
 use puffin::{
     codec::{Codec, Reader},
     error::Error,
-    protocol::{OpaqueProtocolMessage, ProtocolMessage},
-    variable_data::VariableData,
+    protocol::{ExtractKnowledge, OpaqueProtocolMessage, ProtocolMessage},
+    trace::{Knowledge, Source},
 };
+
+use crate::query::SshQueryMatcher;
 
 #[derive(Clone, Debug)]
 pub struct OnWireData(pub Vec<u8>);
@@ -264,7 +266,7 @@ impl TryFrom<&BinaryPacket> for SshMessage {
         SshMessage::read(&mut reader).ok_or_else(|| "Can not parse payload".to_string())
     }
 }
-impl ProtocolMessage<RawSshMessage> for SshMessage {
+impl ProtocolMessage<SshQueryMatcher, RawSshMessage> for SshMessage {
     fn create_opaque(&self) -> RawSshMessage {
         let mut payload = Vec::new();
         self.encode(&mut payload);
@@ -281,9 +283,32 @@ impl ProtocolMessage<RawSshMessage> for SshMessage {
     fn debug(&self, info: &str) {
         debug!("{}: {:?}", info, self)
     }
+}
 
-    fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
-        let knowledge: Vec<Box<dyn VariableData>> = match &self {
+impl TryFrom<RawSshMessage> for SshMessage {
+    type Error = ();
+
+    fn try_from(value: RawSshMessage) -> Result<Self, Self::Error> {
+        let message = if let RawSshMessage::Packet(packet) = &value {
+            match SshMessage::try_from(packet) {
+                Ok(message) => Some(message),
+                Err(_) => None,
+            }
+        } else {
+            None
+        };
+        message.ok_or(())
+    }
+}
+
+impl ExtractKnowledge<SshQueryMatcher> for SshMessage {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<SshQueryMatcher>>,
+        matcher: Option<SshQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        match &self {
             SshMessage::KexInit(KexInitMessage {
                 cookie,
                 kex_algorithms,
@@ -298,51 +323,154 @@ impl ProtocolMessage<RawSshMessage> for SshMessage {
                 languages_server_to_client,
                 first_kex_packet_follows,
             }) => {
-                vec![
-                    Box::new(*cookie),
-                    Box::new(kex_algorithms.clone()),
-                    Box::new(server_host_key_algorithms.clone()),
-                    Box::new(encryption_algorithms_server_to_client.clone()),
-                    Box::new(encryption_algorithms_client_to_server.clone()),
-                    Box::new(mac_algorithms_client_to_server.clone()),
-                    Box::new(mac_algorithms_server_to_client.clone()),
-                    Box::new(compression_algorithms_client_to_server.clone()),
-                    Box::new(compression_algorithms_server_to_client.clone()),
-                    Box::new(languages_client_to_server.clone()),
-                    Box::new(languages_server_to_client.clone()),
-                    Box::new(*first_kex_packet_follows),
-                ]
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(cookie.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(kex_algorithms.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(server_host_key_algorithms.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(encryption_algorithms_server_to_client.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(encryption_algorithms_client_to_server.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(mac_algorithms_client_to_server.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(mac_algorithms_server_to_client.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(compression_algorithms_client_to_server.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(compression_algorithms_server_to_client.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(languages_client_to_server.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(languages_server_to_client.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(first_kex_packet_follows.clone()),
+                });
             }
             SshMessage::KexEcdhInit(KexEcdhInitMessage {
                 ephemeral_public_key,
-            }) => vec![Box::new(ephemeral_public_key.clone())],
+            }) => {
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(ephemeral_public_key.clone()),
+                });
+            }
             SshMessage::KexEcdhReply(KexEcdhReplyMessage {
                 public_host_key,
                 ephemeral_public_key,
                 signature,
-            }) => vec![
-                Box::new(public_host_key.clone()),
-                Box::new(ephemeral_public_key.clone()),
-                Box::new(signature.clone()),
-            ],
-            SshMessage::NewKeys => vec![],
+            }) => {
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(public_host_key.clone()),
+                });
+
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(ephemeral_public_key.clone()),
+                });
+
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(signature.clone()),
+                });
+            }
+
+            SshMessage::NewKeys => {}
         };
 
-        Ok(knowledge)
+        Ok(())
     }
 }
 
-impl OpaqueProtocolMessage for RawSshMessage {
+impl OpaqueProtocolMessage<SshQueryMatcher> for RawSshMessage {
     fn debug(&self, info: &str) {
         debug!("{}: {:?}", info, self)
     }
+}
 
-    fn extract_knowledge(&self) -> Result<Vec<Box<dyn VariableData>>, Error> {
-        Ok(match &self {
-            RawSshMessage::Banner(banner) => vec![Box::new(self.clone()), Box::new(banner.clone())],
-            RawSshMessage::Packet(_) => vec![Box::new(self.clone())],
-            RawSshMessage::OnWire(onwire) => vec![Box::new(self.clone()), Box::new(onwire.clone())],
-        })
+impl ExtractKnowledge<SshQueryMatcher> for RawSshMessage {
+    fn extract_knowledge(
+        &self,
+        knowledges: &mut Vec<Knowledge<SshQueryMatcher>>,
+        matcher: Option<SshQueryMatcher>,
+        source: &Source,
+    ) -> Result<(), Error> {
+        match &self {
+            RawSshMessage::Banner(banner) => {
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(self.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(banner.clone()),
+                });
+            }
+            RawSshMessage::Packet(_) => {
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(self.clone()),
+                });
+            }
+            RawSshMessage::OnWire(onwire) => {
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(self.clone()),
+                });
+                knowledges.push(Knowledge {
+                    source: source.clone(),
+                    matcher,
+                    data: Box::new(onwire.clone()),
+                });
+            }
+        };
+        Ok(())
     }
 }
 

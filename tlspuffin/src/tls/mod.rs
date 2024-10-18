@@ -210,10 +210,15 @@ define_signature!(
     fn_weak_export_cipher_suite
     fn_secure_rsa_cipher_suite12
     // utils
+    fn_new_flight
+    fn_append_flight
+    fn_new_opaque_flight
+    fn_append_opaque_flight
     fn_new_transcript
     fn_append_transcript
-    fn_decrypt_handshake
+    fn_decrypt_handshake_flight
     fn_decrypt_multiple_handshake_messages
+    fn_decrypt_application_flight
     fn_find_server_certificate
     fn_find_server_certificate_request
     fn_find_server_ticket

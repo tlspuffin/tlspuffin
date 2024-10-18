@@ -35,7 +35,7 @@ use crate::{
         utils::{find_term_by_term_path, find_term_by_term_path_mut, TermPath},
     },
     protocol::ProtocolBehavior,
-    trace::{Trace, TraceContext},
+    trace::{Source, Trace, TraceContext},
     variable_data::VariableData,
 };
 
@@ -602,7 +602,12 @@ where
         DYTerm::Variable(variable) => context
             .find_variable(variable.typ, &variable.query)
             .map(|data| data.boxed_any())
-            .or_else(|| context.find_claim(variable.query.agent_name, variable.typ))
+            .or_else(||
+                if let Some(Source::Agent(agent_name)) = variable.query.source {
+                context.find_claim(agent_name, variable.typ)
+                } else {
+                todo!("Implement querying by label");
+                })
             .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
         DYTerm::Application(func, args) => {
             let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new();
