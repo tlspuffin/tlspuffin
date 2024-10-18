@@ -1,3 +1,5 @@
+use core::any::TypeId;
+use core::any::Any;
 use log::debug;
 use puffin::{
     algebra::{signature::Signature, Matcher, ConcreteMessage},
@@ -18,6 +20,7 @@ use crate::{
     tls::{
         rustls::msgs::{
             self,
+            message::{any_get_encoding,try_read_bytes},
             alert::AlertMessagePayload,
             base::Payload,
             ccs::ChangeCipherSpecPayload,
@@ -28,7 +31,7 @@ use crate::{
                 ServerHelloPayload, ServerKeyExchangePayload,
             },
             heartbeat::HeartbeatPayload,
-            any_get_encoding, try_read_bytes, message::{Message, MessagePayload, OpaqueMessage},
+            message::{Message, MessagePayload, OpaqueMessage},
         },
         seeds::create_corpus,
         violation::TlsSecurityViolationPolicy,

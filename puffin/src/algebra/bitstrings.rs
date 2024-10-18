@@ -22,6 +22,7 @@ use crate::{
     protocol::ProtocolBehavior,
     trace::{Trace, TraceContext},
 };
+use crate::trace::Source;
 
 /// Constants governing heuritics for finding payloads in term evaluations
 const THRESHOLD_SUM: usize = 40;
@@ -834,7 +835,13 @@ impl<M: Matcher> Term<M> {
                 let d = ctx
                     .find_variable(variable.typ, &variable.query)
                     .map(|data| data.boxed_any())
-                    .or_else(|| ctx.find_claim(variable.query.agent_name, variable.typ))
+                    .or_else(||
+                        if let Some(Source::Agent(agent_name)) = variable.query.source {
+                            ctx.find_claim(agent_name, variable.typ)
+                        } else {
+                            todo!("Implement querying by label");
+                        }
+                    )
                     .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable)))?;
                 if path.is_empty() || (with_payloads && self.payloads.is_some()) {
                     if let Some(payload) = &self.payloads {

@@ -146,7 +146,7 @@ pub struct WolfSSL {
 }
 
 impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for WolfSSL {
-    fn add_to_inbound(&mut self, message: &ConcreteMessag) {
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         let raw_stream = self.stream.get_mut();
         <MemoryStream as Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight>>::add_to_inbound(
             raw_stream,
