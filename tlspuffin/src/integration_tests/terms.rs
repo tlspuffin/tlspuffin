@@ -54,7 +54,7 @@ mod tests {
                     message::{Message, MessagePayload, OpaqueMessage},
                 },
             },
-            seeds::{create_corpus, seed_client_attacker_full_boring},
+            seeds::{create_corpus},
             trace_helper::TraceHelper,
             TLS_SIGNATURE,
         },
