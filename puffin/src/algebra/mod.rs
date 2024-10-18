@@ -805,7 +805,9 @@ mod tests {
                                     SessionID,
                                     AnyMatcher,
                                 >(
-                                    Some(Source::Agent(AgentName::first())), None, 0
+                                    Some(Source::Agent(AgentName::first())),
+                                    None,
+                                    0,
                                 ))),
                             ],
                         )),
@@ -813,7 +815,9 @@ mod tests {
                             SessionID,
                             AnyMatcher,
                         >(
-                            Some(Source::Agent(AgentName::first())), None, 0
+                            Some(Source::Agent(AgentName::first())),
+                            None,
+                            0,
                         ))),
                     ],
                 )),
@@ -827,7 +831,9 @@ mod tests {
                                     SessionID,
                                     _,
                                 >(
-                                    Some(Source::Agent(AgentName::first())), None, 0
+                                    Some(Source::Agent(AgentName::first())),
+                                    None,
+                                    0,
                                 ))),
                                 Term::from(DYTerm::Application(
                                     Signature::new_function(&example_op_c),

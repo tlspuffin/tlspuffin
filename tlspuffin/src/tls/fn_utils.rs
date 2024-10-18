@@ -23,7 +23,8 @@ use crate::{
                 enums::{HandshakeType, NamedGroup},
                 handshake::{
                     CertificateEntries, CertificateEntry, CertificateExtension,
-                    CertificateExtensions, HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
+                    CertificateExtensions, HandshakeMessagePayload, HandshakePayload, Random,
+                    ServerECDHParams,
                 },
                 message::{Message, MessagePayload, OpaqueMessage, PlainMessage},
             },

@@ -1,6 +1,6 @@
 use log::debug;
 use puffin::{
-    algebra::signature::{Signature,ConcreteMessage},
+    algebra::signature::{ConcreteMessage, Signature},
     codec::{Codec, Reader},
     error::Error,
     protocol::{

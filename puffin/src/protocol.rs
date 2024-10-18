@@ -1,5 +1,4 @@
-use core::any::TypeId;
-use core::any::Any;
+use core::any::{Any, TypeId};
 use std::fmt::Debug;
 
 use crate::{
@@ -95,7 +94,8 @@ pub trait ProtocolBehavior: 'static {
         Self::OpaqueProtocolMessageFlight,
     >;
     type OpaqueProtocolMessageFlight: OpaqueProtocolMessageFlight<Self::Matcher, Self::OpaqueProtocolMessage>
-    + From<Self::ProtocolMessageFlight> + Codec;
+        + From<Self::ProtocolMessageFlight>
+        + Codec;
 
     /// Get the signature that is used in the protocol
     fn signature() -> &'static Signature;
@@ -108,4 +108,5 @@ pub trait ProtocolBehavior: 'static {
 
     /// Try to read a bitstring and interpret it as the TypeShape, which is the type of a message as per the PB's internal structure
     /// This is expected to fail for many types of messages!
-    fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, Error>;}
+    fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, Error>;
+}

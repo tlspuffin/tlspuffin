@@ -20,7 +20,7 @@
 use std::io::{self, Read, Write};
 
 use crate::{
-    algebra::{Matcher,ConcreteMessage},
+    algebra::{ConcreteMessage, Matcher},
     codec::Codec,
     error::Error,
     protocol::{OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolMessage},

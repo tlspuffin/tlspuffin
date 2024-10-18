@@ -273,8 +273,7 @@ impl TcpPut for TcpServerPut {
 
 impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for TcpServerPut {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
-        self.write_to_stream(message)
-            .unwrap();
+        self.write_to_stream(message).unwrap();
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
@@ -284,8 +283,7 @@ impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for Tc
 
 impl Stream<TlsQueryMatcher, Message, OpaqueMessage, OpaqueMessageFlight> for TcpClientPut {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
-        self.write_to_stream(message)
-            .unwrap();
+        self.write_to_stream(message).unwrap();
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
