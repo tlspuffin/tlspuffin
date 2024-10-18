@@ -83,16 +83,16 @@ mod tests {
         let ignore_lazy = [
             // Those 2 are the function symbols for which we can generate a term but all fail to lazy execute!
             // Indeed the HandshakeHash that must be given must be computed in a very specific way! We might give known,valid hash-transcript to help?
-            fn_decrypt_handshake.name(),
+            // fn_decrypt_handshake_flight.name(),
             fn_decrypt_application.name(),
             // Additional failures: we need to be able to decrypt some server's message, very complicated in practice
             fn_find_server_certificate_verify.name(),
             fn_decrypt_multiple_handshake_messages.name(),
-            fn_find_encrypted_extensions.name(),
-            fn_find_server_certificate.name(),
+            // fn_find_encrypted_extensions.name(),
+            // fn_find_server_certificate.name(),
             fn_find_server_finished.name(),
-            fn_find_server_ticket.name(),              // new for boring
-            fn_find_server_certificate_request.name(), // new for boring
+            // fn_find_server_ticket.name(),              // new for boring
+            // fn_find_server_certificate_request.name(), // new for boring
         ]
         .iter()
         .map(|fn_name| fn_name.to_string())
