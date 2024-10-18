@@ -165,7 +165,10 @@ pub struct OpaqueMessage {
 
 impl Codec for OpaqueMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        bytes.extend_from_slice(&OpaqueMessage::encode(self.clone()));
+        self.typ.encode(bytes);
+        self.version.encode(bytes);
+        (self.payload.0.len() as u16).encode(bytes);
+        self.payload.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
@@ -226,15 +229,6 @@ impl OpaqueMessage {
             version,
             payload,
         })
-    }
-
-    pub fn encode(self) -> Vec<u8> {
-        let mut buf = Vec::new();
-        self.typ.encode(&mut buf);
-        self.version.encode(&mut buf);
-        (self.payload.0.len() as u16).encode(&mut buf);
-        self.payload.encode(&mut buf);
-        buf
     }
 
     /// Force conversion into a plaintext message.

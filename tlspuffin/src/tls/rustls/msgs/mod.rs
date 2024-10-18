@@ -29,7 +29,7 @@ mod message_test;
 mod test {
     use std::convert::TryFrom;
 
-    use puffin::codec::Reader;
+    use puffin::codec::{Codec, Reader};
 
     #[test]
     fn smoketest() {
@@ -40,7 +40,7 @@ mod test {
         while r.any_left() {
             let m = OpaqueMessage::read(&mut r).unwrap();
 
-            let out = m.clone().encode();
+            let out = m.clone().get_encoding();
             assert!(!out.is_empty());
 
             Message::try_from(m.into_plain_message()).unwrap();

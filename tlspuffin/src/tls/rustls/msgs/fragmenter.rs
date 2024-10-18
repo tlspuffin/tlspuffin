@@ -81,7 +81,7 @@ impl MessageFragmenter {
 #[cfg(test)]
 mod tests {
     use std::collections::VecDeque;
-
+    use puffin::codec::Codec;
     use super::{MessageFragmenter, PACKET_OVERHEAD};
     use crate::tls::rustls::msgs::{
         base::Payload,
@@ -97,7 +97,7 @@ mod tests {
         bytes: &[u8],
     ) {
         let m = mm.unwrap();
-        let buf = m.clone().into_unencrypted_opaque().encode();
+        let buf = m.clone().into_unencrypted_opaque().get_encoding();
 
         assert_eq!(&m.typ, typ);
         assert_eq!(&m.version, version);

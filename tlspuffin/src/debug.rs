@@ -1,7 +1,7 @@
 use std::convert::TryFrom;
 
 use log::debug;
-use puffin::codec::Reader;
+use puffin::codec::{Codec, Reader};
 
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
 
@@ -44,7 +44,7 @@ pub fn debug_opaque_message_with_info(info: &str, message: &OpaqueMessage) {
         } else {
             info.to_string() + " | "
         },
-        message.clone().encode().len(),
+        message.clone().get_encoding().len(),
         message.version,
         message.typ,
     );

@@ -2175,7 +2175,7 @@ pub mod tests {
     pub mod rustls {
         use std::convert::TryFrom;
 
-        use puffin::codec::Reader;
+        use puffin::codec::{Codec, Reader};
         use test_log::test;
 
         use crate::tls::rustls::msgs::{
@@ -2387,7 +2387,7 @@ pub mod tests {
             out.append(
                 &mut PlainMessage::from(message)
                     .into_unencrypted_opaque()
-                    .encode(),
+                    .get_encoding(),
             );
             //hexdump::hexdump(&out);
 
