@@ -1,24 +1,23 @@
-use puffin::algebra::TermType;
 
 /// Test the function symbols that can be generated, evaluated, encoded
 #[allow(clippy::ptr_arg)]
 #[cfg(test)]
 mod tests {
-    use std::any::{Any, TypeId};
+    
     use std::cmp::max;
     use std::collections::HashSet;
-    use std::fmt::Debug;
+    
 
-    use hex::encode;
+    
     use itertools::Itertools;
     use log::{debug, error, warn};
     use puffin::agent::AgentName;
     use puffin::algebra::dynamic_function::DescribableFunction;
     use puffin::algebra::error::FnError;
-    use puffin::algebra::signature::FunctionDefinition;
-    use puffin::algebra::{evaluate_lazy_test, ConcreteMessage, DYTerm, Matcher, Term, TermType};
-    use puffin::codec;
-    use puffin::codec::{Codec, Encode};
+    
+    use puffin::algebra::{evaluate_lazy_test, DYTerm, Matcher, Term, TermType};
+    
+    
     use puffin::error::Error;
     use puffin::fuzzer::term_zoo::TermZoo;
     use puffin::fuzzer::utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints};
@@ -27,24 +26,19 @@ mod tests {
     use puffin::trace::Action::Input;
     use puffin::trace::{InputAction, Step, Trace, TraceContext};
 
-    use crate::protocol::TLSProtocolBehavior;
+    
     use crate::put_registry::tls_registry;
     use crate::query::TlsQueryMatcher;
     use crate::tls::fn_impl::*;
-    use crate::tls::rustls::hash_hs::HandshakeHash;
-    use crate::tls::rustls::key::{Certificate, PrivateKey};
-    use crate::tls::rustls::msgs::alert::AlertMessagePayload;
-    use crate::tls::rustls::msgs::enums::{
-        CipherSuite, Compression, ExtensionType, HandshakeType, NamedGroup, ProtocolVersion,
-        SignatureScheme,
-    };
-    use crate::tls::rustls::msgs::handshake::{
-        CertificateEntry, ClientExtension, HasServerExtensions, Random, ServerExtension, SessionID,
-    };
-    use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
-    use crate::tls::trace_helper::TraceHelper;
+    
+    
+    
+    
+    
+    
+    
     use crate::tls::TLS_SIGNATURE;
-    use crate::try_downcast;
+    
 
     pub fn ignore_gen() -> HashSet<String> {
         [
@@ -187,7 +181,7 @@ mod tests {
             .map(|(shape, _)| shape.name.to_string())
             .collect::<HashSet<String>>();
 
-        let mut ctx = TraceContext::new(&tls_registry, Default::default());
+        let ctx = TraceContext::new(&tls_registry, Default::default());
         let mut successfully_built_functions = zoo
             .terms()
             .iter()
@@ -226,7 +220,7 @@ mod tests {
         let zoo = TermZoo::<TlsQueryMatcher>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
         let terms = zoo.terms();
         let number_terms = terms.len();
-        let mut ctx = TraceContext::new(&tls_registry, Default::default());
+        let ctx = TraceContext::new(&tls_registry, Default::default());
         let mut eval_count = 0;
         let mut count_lazy_fail = 0;
         let mut count_any_encode_fail = 0;
@@ -258,7 +252,7 @@ mod tests {
                             "Error for {}, so we're trying lazy eval!!",
                             term.name().to_string().to_owned()
                         );
-                        let t1 = evaluate_lazy_test(&term, &ctx);
+                        let t1 = evaluate_lazy_test(term, &ctx);
                         if t1.is_err() {
                             debug!("LAZY failed!");
                             count_lazy_fail += 1;
@@ -277,7 +271,7 @@ mod tests {
                             _ => {
                                 // _ => {
                                 debug!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term, e);
-                                let t1 = evaluate_lazy_test(&term, &ctx);
+                                let t1 = evaluate_lazy_test(term, &ctx);
                                 if t1.is_ok() {
                                     debug!("Evaluate_lazy success. ");
                                     match t1.expect("NO").downcast_ref::<bool>() {
@@ -377,7 +371,7 @@ mod tests {
             // count_lazy_fail: 4018, count_any_encode_fail: 0 Diff = 3
         ) {
             let st = find_term_by_term_path_mut(t, &mut path).unwrap();
-            if let Ok(()) = st.make_payload(&ctx) {
+            if let Ok(()) = st.make_payload(ctx) {
                 debug!("Added payload for subterm at path {path:?}, step{step},\n - sub_term: {st_}\n  - whole_term {trace}\n  - evaluated={:?}, ", st.payloads.as_ref().unwrap().payload_0);
                 if let Some(payloads) = &mut st.payloads {
                     let mut a: Vec<u8> = payloads.payload.clone().into();

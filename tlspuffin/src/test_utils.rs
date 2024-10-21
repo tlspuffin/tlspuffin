@@ -45,15 +45,14 @@ pub fn expect_trace_crash(
                 timeout,
             )
         })
-        .map(|status| {
+        .inspect(|status| {
             use ExecutionStatus as S;
-            match &status {
+            match status {
                 Ok(S::Failure(_)) | Ok(S::Crashed) => info!("trace execution crashed"),
                 Ok(S::Timeout) => info!("trace execution timed out"),
                 Ok(S::Success) => info!("expected trace execution to crash, but succeeded"),
                 Err(reason) => info!("trace execution error: {reason}"),
             };
-            status
         })
         .find(|status| {
             matches!(

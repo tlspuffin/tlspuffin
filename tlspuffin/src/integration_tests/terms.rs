@@ -2,51 +2,46 @@
 #[allow(clippy::ptr_arg)]
 #[cfg(test)]
 mod tests {
-    use std::any::Any;
-    use std::cmp::max;
-    use std::collections::HashSet;
-    use std::fmt::Debug;
+    
+    
+    
+    
 
-    use itertools::Itertools;
-    use log::{debug, error, warn};
-    use puffin::agent::AgentName;
-    use puffin::algebra::bitstrings::{replace_payloads, Payloads};
-    use puffin::algebra::dynamic_function::DescribableFunction;
-    use puffin::algebra::error::FnError;
-    use puffin::algebra::signature::FunctionDefinition;
-    use puffin::algebra::{evaluate_lazy_test, ConcreteMessage, Matcher, Term, TermType};
-    use puffin::codec;
-    use puffin::codec::Codec;
-    use puffin::error::Error;
-    use puffin::fuzzer::term_zoo::TermZoo;
+    
+    use log::debug;
+    
+    
+    
+    
+    
+    use puffin::algebra::TermType;
+    
+    
+    
+    
     use puffin::fuzzer::utils::{
-        choose, find_term_by_term_path, find_term_by_term_path_mut, Choosable, TermConstraints,
+        find_term_by_term_path, find_term_by_term_path_mut,
     };
-    use puffin::libafl_bolts::rands::StdRand;
-    use puffin::protocol::{ProtocolBehavior, ProtocolMessage};
-    use puffin::put::PutOptions;
+    
+    
+    
     use puffin::trace::Action::Input;
-    use puffin::trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext};
+    use puffin::trace::{Trace, TraceContext};
 
     use crate::protocol::TLSProtocolBehavior;
-    use crate::put_registry::tls_registry;
+    
     use crate::query::TlsQueryMatcher;
-    use crate::tls::fn_impl::*;
-    use crate::tls::rustls::hash_hs::HandshakeHash;
-    use crate::tls::rustls::key::{Certificate, PrivateKey};
-    use crate::tls::rustls::msgs::alert::AlertMessagePayload;
-    use crate::tls::rustls::msgs::enums::{
-        CipherSuite, Compression, ExtensionType, HandshakeType, NamedGroup, ProtocolVersion,
-        SignatureScheme,
-    };
-    use crate::tls::rustls::msgs::handshake::{
-        CertificateEntry, ClientExtension, HasServerExtensions, Random, ServerExtension, SessionID,
-    };
-    use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
-    use crate::tls::seeds::{create_corpus, seed_client_attacker_full};
-    use crate::tls::trace_helper::TraceHelper;
-    use crate::tls::TLS_SIGNATURE;
-    use crate::try_downcast;
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
 
     fn test_one_replace(
         trace: &mut Trace<TlsQueryMatcher>,
@@ -59,14 +54,14 @@ mod tests {
         println!("\n=========================\nReplacing step {step_nb} with path {path:?} and new vec: {new_sub_vec:?}.");
         if let Input(input) = &mut trace.steps[step_nb].action {
             let mut term = &mut input.recipe;
-            let e_before = term.evaluate(&ctx).expect("OUPS1");
+            let e_before = term.evaluate(ctx).expect("OUPS1");
             debug!("Term: {term}\nTerm eval: {e_before:?}.");
 
-            let mut sub = find_term_by_term_path_mut(&mut term, &mut path.clone()).expect("OUPS2");
+            let sub = find_term_by_term_path_mut(term, &mut path.clone()).expect("OUPS2");
             sub.erase_payloads_subterms(false);
-            sub.make_payload(&ctx); // will remove payloads in strict sub-terms, as expected
+            sub.make_payload(ctx); // will remove payloads in strict sub-terms, as expected
             let sub_before = sub.clone();
-            let e_sub_before = sub_before.evaluate_symbolic(&ctx).expect("OUPS3"); // evaluate_symbolic:
+            let e_sub_before = sub_before.evaluate_symbolic(ctx).expect("OUPS3"); // evaluate_symbolic:
                                                                                    // mimicking term::make_payload ! We loose all previous mutations on sub-terms!
             debug!("Subterm before: {sub_before}\nSubterm eval_symbolic before: {e_sub_before:?}");
             if let Some(p) = &mut sub.payloads {
@@ -76,9 +71,9 @@ mod tests {
                 panic!("No payload after make_payload!");
             }
             // now that we added a different payload in term, we re-evaluate
-            let e_after = term.evaluate(&ctx).expect("OUPS4");
-            let sub_after = find_term_by_term_path(&term, &mut path.clone()).expect("OUPS5");
-            let e_sub_after = sub_after.evaluate(&ctx).expect("OUPS6");
+            let e_after = term.evaluate(ctx).expect("OUPS4");
+            let sub_after = find_term_by_term_path(term, &mut path.clone()).expect("OUPS5");
+            let e_sub_after = sub_after.evaluate(ctx).expect("OUPS6");
             debug!("Subterm eval after: {e_sub_after:?}");
             debug!("Eval before: {e_before:?}");
             debug!("Eval after: {e_after:?}");

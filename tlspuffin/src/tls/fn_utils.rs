@@ -83,7 +83,7 @@ pub fn fn_decrypt_handshake_flight(
     for msg in &flight.messages {
         if let MessagePayload::ApplicationData(_) = &msg.payload {
             let decrypted_msg = fn_decrypt_multiple_handshake_messages(
-                &msg,
+                msg,
                 server_hello_transcript,
                 server_key_share,
                 psk,
@@ -235,7 +235,7 @@ pub fn fn_decrypt_application_flight(
     for msg in &flight.messages {
         if let MessagePayload::ApplicationData(_) = &msg.payload {
             let decrypted_msg = fn_decrypt_application(
-                &msg,
+                msg,
                 server_hello_transcript,
                 server_finished_transcript,
                 server_key_share,

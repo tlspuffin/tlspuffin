@@ -1,29 +1,23 @@
-use core::mem::size_of;
-use std::thread::{panicking, park_timeout_ms};
 
 use log::{debug, error, warn};
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
 use puffin::algebra::{DYTerm, TermType};
 use puffin::execution::{forked_execution, AssertExecution};
-use puffin::fuzzer::bit_mutations::*;
 use puffin::fuzzer::harness::set_default_put_options;
 use puffin::fuzzer::mutations::{
-    trace_mutations, MakeMessage, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
+    trace_mutations, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
     ReplaceMatchMutator, ReplaceReuseMutator,
 };
 use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::{Corpus, InMemoryCorpus, Testcase};
-use puffin::libafl::inputs::{BytesInput, HasBytesVec};
 use puffin::libafl::mutators::{MutationResult, Mutator, MutatorsTuple};
-use puffin::libafl::prelude::{ByteFlipMutator, HasMaxSize, HasMetadata, HasRand};
 use puffin::libafl::state::{HasCorpus, StdState};
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 use puffin::libafl_bolts::tuples::HasConstLen;
 use puffin::libafl_bolts::HasLen;
 use puffin::protocol::ProtocolBehavior;
 use puffin::put::PutOptions;
-use puffin::put_registry;
 use puffin::put_registry::PutRegistry;
 use puffin::trace::{Action, Step, Trace, TraceContext};
 
@@ -35,7 +29,7 @@ use crate::tls::fn_impl::{
     fn_support_group_extension,
 };
 use crate::tls::seeds::{
-    _seed_client_attacker12, create_corpus, seed_client_attacker, seed_client_attacker_full,
+    _seed_client_attacker12, create_corpus,
     seed_successful,
 };
 use crate::tls::trace_helper::TraceHelper;
@@ -89,7 +83,7 @@ fn test_mutators() {
     let with_dy = true;
     let with_bit_level = true;
 
-    let mut inputs: Vec<Trace<TlsQueryMatcher>> =
+    let inputs: Vec<Trace<TlsQueryMatcher>> =
         create_corpus().iter().map(|(t, _)| t.to_owned()).collect();
     assert_ne!(inputs.len(), 0);
     let tls_registry = tls_registry();
@@ -214,12 +208,12 @@ fn test_mutators() {
                             if c > 0 {
                                 warn!("[test_mutators:with_bit_level] Treating input nb{id_i} and mutation nb{idx}: Success but after {c} attempts....")
                             }
-                            nb_success = nb_success + 1;
+                            nb_success += 1;
                             succeeded = true;
                         }
                         MutationResult::Skipped => {
                             debug!("Skipped");
-                            nb_failures = nb_failures + 1;
+                            nb_failures += 1;
                         }
                     };
                 }

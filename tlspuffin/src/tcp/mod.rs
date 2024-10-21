@@ -43,7 +43,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                     .ok_or_else(|| {
                         Error::Agent(format!(
                             "{} // {:?}",
-                            "Unable to find args".to_string(),
+                            "Unable to find args",
                             put_descriptor
                         ))
                     })?

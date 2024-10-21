@@ -1,8 +1,7 @@
-use std::any::{type_name, Any, TypeId};
+use std::any::{Any, TypeId};
 use std::convert::TryFrom;
 
-use log::{debug, error, trace};
-use puffin::algebra::error::FnError;
+use log::trace;
 use puffin::algebra::ConcreteMessage;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
@@ -15,7 +14,6 @@ use crate::claims::{
 };
 use crate::protocol::{MessageFlight, OpaqueMessageFlight};
 use crate::tls;
-use crate::tls::fn_impl::*;
 use crate::tls::rustls::error::Error;
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::{Certificate, PrivateKey};
@@ -25,7 +23,7 @@ use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
 use crate::tls::rustls::msgs::enums::ContentType::ApplicationData;
 use crate::tls::rustls::msgs::enums::ProtocolVersion::TLSv1_3;
 use crate::tls::rustls::msgs::enums::{
-    AlertDescription, AlertLevel, CipherSuite, Compression, ContentType, ExtensionType,
+    AlertDescription, AlertLevel, CipherSuite, Compression, ContentType,
     HandshakeType, NamedGroup, ProtocolVersion, SignatureScheme,
 };
 use crate::tls::rustls::msgs::handshake::{
@@ -307,8 +305,7 @@ impl Codec for Message {
     fn read(reader: &mut Reader) -> Option<Self> {
         <OpaqueMessage>::read(reader)
             .ok()
-            .map(|op| Message::try_from(op).ok())
-            .flatten()
+            .and_then(|op| Message::try_from(op).ok())
     }
 }
 
@@ -559,8 +556,7 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
             Term(format!(
                 "[any_get_encoding] Failed to downcast to any of the type listed in rustls/msgs/messages.rs and then any_encode::get_encoding message {:?}",
                 &message
-            ))
-                .into(),
+            )),
         )
 }
 

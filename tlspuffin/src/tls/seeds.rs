@@ -4,7 +4,7 @@
 
 use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
 use puffin::algebra::dynamic_function::TypeShape;
-use puffin::algebra::{DYTerm, Term};
+use puffin::algebra::Term;
 use puffin::term;
 use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 
@@ -1567,9 +1567,9 @@ pub fn _seed_client_attacker_full(
 
     (
         trace,
-        server_hello_transcript.into(),
-        server_finished_transcript.into(),
-        client_finished_transcript.into(),
+        server_hello_transcript,
+        server_finished_transcript,
+        client_finished_transcript,
     )
 }
 
@@ -1814,25 +1814,25 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
 #[cfg(test)]
 pub mod tests {
 
-    use log::debug;
+    
     use puffin::agent::AgentName;
-    use puffin::algebra::bitstrings::{replace_payloads, Payloads};
-    use puffin::algebra::error::FnError;
-    use puffin::algebra::term::evaluate_lazy_test;
+    
+    
+    
     use puffin::algebra::TermType;
-    use puffin::codec::Codec;
-    use puffin::fuzzer::harness::default_put_options;
-    use puffin::libafl::inputs::HasBytesVec;
-    use puffin::protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage};
-    use puffin::put::PutOptions;
-    use puffin::trace::Action::Input;
-    use puffin::trace::{Action, TraceContext};
+    
+    
+    
+    
+    
+    
+    use puffin::trace::Action;
     use test_log::test;
 
     use super::*;
-    use crate::protocol::TLSProtocolBehavior;
+    
     use crate::put_registry::tls_registry;
-    use crate::tls::rustls::msgs::message::OpaqueMessage;
+    
     use crate::tls::trace_helper::TraceHelper;
 
     #[test]

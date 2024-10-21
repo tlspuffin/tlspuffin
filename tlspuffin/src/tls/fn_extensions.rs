@@ -10,7 +10,7 @@ use puffin::algebra::error::FnError;
 use webpki::DnsNameRef;
 
 use crate::nyi_fn;
-use crate::tls::fn_impl::{fn_get_ticket_age_add, fn_payload_u16, fn_payload_u8};
+use crate::tls::fn_impl::fn_get_ticket_age_add;
 use crate::tls::fn_utils::fn_get_ticket;
 use crate::tls::key_exchange::deterministic_key_share;
 use crate::tls::rustls::msgs::base::{Payload, PayloadU16, PayloadU24, PayloadU8};

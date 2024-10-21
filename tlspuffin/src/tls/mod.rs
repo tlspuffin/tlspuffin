@@ -1,4 +1,5 @@
 //! The *tls* module provides concrete implementations for the functions used in the term.
+//!
 //! The module offers a variety of
 //! [`DynamicFunction`](puffin::algebra::dynamic_function::DynamicFunction)s which can be used in
 //! the fuzzing.

@@ -111,8 +111,7 @@ pub fn fn_get_any_client_curve(
 
     if let ClientExtension::KeyShare(keyshares) = client_extension {
         Ok(keyshares
-            .0
-            .get(0)
+            .0.first()
             .ok_or(FnError::Malformed("Keyshare not found".to_string()))?
             .group)
     } else {
