@@ -13,7 +13,6 @@ pub fn main() {
     let bindings_path = PathBuf::from(&out_dir).join("bindings.rs");
     bindgen::Builder::default()
         .ctypes_prefix("::libc")
-        .raw_line("use libc::*;")
         .allowlist_file(".*/tlspuffin/[^/]+\\.h")
         .allowlist_recursively(false)
         .no_copy("^AGENT_DESCRIPTOR$")

@@ -2,6 +2,7 @@
 name = "security-claims"
 description = "Optional instrumentation for PUTs"
 version.workspace = true
+rust-version.workspace = true
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -13,8 +14,7 @@ categories.workspace = true
 build = "build.rs"
 
 [dependencies]
-hex = "0.4.3"
-itertools = "0.10.3"
+hex = { workspace = true }
 
 [build-dependencies]
-bindgen = "0.69.1"
+bindgen = { workspace = true }

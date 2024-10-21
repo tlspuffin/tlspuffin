@@ -275,6 +275,7 @@ define_signature!(
     fn_empty_certificate_chain
     fn_append_certificate_entry
     fn_certificate_entries_make
+    fn_chain_append_certificate_entry
     fn_get_context
     fn_eve_pkcs1_signature
     fn_rsa_sign_client

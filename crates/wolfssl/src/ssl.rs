@@ -282,7 +282,7 @@ impl SslContextRef {
     /// [`SSL_CTX_set_verify`]: https://www.openssl.org/docs/man1.1.0/ssl/SSL_CTX_set_verify.html
     pub fn set_verify(&mut self, mode: SslVerifyMode) {
         unsafe {
-            wolf::wolfSSL_CTX_set_verify(self.as_ptr(), mode.bits as c_int, None);
+            wolf::wolfSSL_CTX_set_verify(self.as_ptr(), mode.bits() as c_int, None);
         }
     }
 

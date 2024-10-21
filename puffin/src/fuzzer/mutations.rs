@@ -2,7 +2,9 @@ use std::{ops::Not, thread::panicking};
 
 use anyhow::{Context, Result};
 use libafl::prelude::*;
+use libafl_bolts::prelude::*;
 use log::{debug, error, info, trace, warn};
+use util::{Choosable, *};
 
 use super::utils::{Choosable, *};
 use crate::{
@@ -794,11 +796,11 @@ mod tests {
     use std::collections::{HashMap, HashSet};
 
     use libafl::{
-        bolts::rands::{RomuDuoJrRand, StdRand},
         corpus::InMemoryCorpus,
         mutators::{MutationResult, Mutator},
         state::StdState,
     };
+    use libafl_bolts::rands::{RomuDuoJrRand, StdRand};
     use log::debug;
 
     use super::*;

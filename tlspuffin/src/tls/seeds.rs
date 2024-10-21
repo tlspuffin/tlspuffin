@@ -617,7 +617,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TlsQueryMatcher> {
         fn_certificate13(
             (fn_payload_u8((fn_empty_bytes_vec))),
             (fn_certificate_entries_make(
-                (fn_append_certificate_entry(
+                (fn_chain_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_alice_cert
                 )),
@@ -808,7 +808,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TlsQueryMatcher> {
         fn_certificate13(
             (fn_payload_u8((fn_get_context((@certificate_request_message))))),
             (fn_certificate_entries_make(
-            (fn_append_certificate_entry(
+            (fn_chain_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_bob_cert
                 )),

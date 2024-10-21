@@ -62,7 +62,7 @@ pub fn fn_empty_certificate_chain() -> Result<Vec<CertificateEntry>, FnError> {
     Ok(Vec::new())
 }
 
-pub fn fn_append_certificate_entry(
+pub fn fn_chain_append_certificate_entry(
     cert: &CertificateEntry,
     chain: &Vec<CertificateEntry>,
 ) -> Result<Vec<CertificateEntry>, FnError> {

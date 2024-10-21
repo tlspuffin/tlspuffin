@@ -24,9 +24,9 @@ fn version_test() {
 
     #[cfg(feature = "openssl101f")]
     assert!(version.expect("missing version string").contains("1.0.1f"));
-    #[cfg(feature = "openssl102f")]
-    assert!(version.expect("missing version string").contains("1.0.1u"));
-    #[cfg(feature = "openssl111")]
+    #[cfg(feature = "openssl102u")]
+    assert!(version.expect("missing version string").contains("1.0.2u"));
+    #[cfg(feature = "openssl111k")]
     assert!(version.expect("missing version string").contains("1.1.1k"));
     #[cfg(feature = "openssl111j")]
     assert!(version.expect("missing version string").contains("1.1.1j"));
@@ -43,6 +43,6 @@ fn version_test() {
     assert!(version.expect("missing version string").contains("5.3.0"));
     #[cfg(feature = "wolfssl540")]
     assert!(version.expect("missing version string").contains("5.4.0"));
-    #[cfg(feature = "wolfssl550")]
-    assert!(version.expect("missing version string").contains("5.5.0"));
+    #[cfg(feature = "wolfssl430")]
+    assert!(version.expect("missing version string").contains("4.3.0"));
 }

@@ -1,7 +1,7 @@
 //! Generates a zoo of terms form a [`Signature`]. For each function symbol in the signature
 //! a closed term is generated and added to the zoo.
 
-use libafl::bolts::rands::Rand;
+use libafl_bolts::rands::Rand;
 
 use crate::{
     algebra::{

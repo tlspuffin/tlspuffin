@@ -27,7 +27,8 @@ mod tests {
             term_zoo::TermZoo,
             utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints},
         },
-        libafl::{bolts::rands::StdRand, prelude::Rand},
+        libafl::prelude::Rand,
+        libafl_bolts::rands::StdRand,
         protocol::ProtocolBehavior,
         trace::{Action::Input, InputAction, Step, Trace, TraceContext},
     };

@@ -3,13 +3,9 @@ use std::any::Any;
 use criterion::{criterion_group, criterion_main, Criterion};
 use puffin::{
     algebra::{dynamic_function::make_dynamic, error::FnError, DYTerm, Term},
-    fuzzer::{mutations::ReplaceReuseMutator, utils::TermConstraints},
-    libafl::{
-        bolts::rands::{RomuDuoJrRand, StdRand},
-        corpus::InMemoryCorpus,
-        mutators::Mutator,
-        state::StdState,
-    },
+    fuzzer::mutations::{util::TermConstraints, ReplaceReuseMutator},
+    libafl::{corpus::InMemoryCorpus, mutators::Mutator, state::StdState},
+    libafl_bolts::rands::{RomuDuoJrRand, StdRand},
     term,
     trace::Trace,
 };
