@@ -78,16 +78,31 @@ mod tests {
         .collect::<HashSet<String>>()
     }
 
-    pub fn ignore_lazy() -> HashSet<String> {
+    pub fn ignore_payloads() -> HashSet<String> {
         let mut ignore_gen = ignore_gen();
-        let ignore_lazy = [
+        let ignore_payloads = [
             // Those 2 are the function symbols for which we can generate a term but all fail to lazy execute!
-            // Indeed the HandshakeHash that must be given must be computed in a very specific way! We might give known,valid hash-transcript to help?
+            // Indeed, the HandshakeHash that must be given must be computed in a very specific way! We might give known,valid hash-transcript to help?
             // fn_decrypt_handshake_flight.name(),
             fn_decrypt_application.name(),
+            fn_decrypt_multiple_handshake_messages.name(),
+        ]
+            .iter()
+            .map(|fn_name| fn_name.to_string())
+            .collect::<HashSet<String>>();
+        ignore_gen.extend(ignore_payloads);
+        ignore_gen
+    }
+
+    pub fn ignore_lazy_eval() -> HashSet<String> {
+        let mut ignore_gen = ignore_payloads();
+        let ignore_lazy = [
+            // Those 2 are the function symbols for which we can generate a term but all fail to lazy execute!
+            // Indeed, the HandshakeHash that must be given must be computed in a very specific way! We might give known,valid hash-transcript to help?
+            // fn_decrypt_handshake_flight.name(),
             // Additional failures: we need to be able to decrypt some server's message, very complicated in practice
             fn_find_server_certificate_verify.name(),
-            fn_decrypt_multiple_handshake_messages.name(),
+            fn_find_server_certificate_verify.name(),
             // fn_find_encrypted_extensions.name(),
             // fn_find_server_certificate.name(),
             fn_find_server_finished.name(),
@@ -189,7 +204,7 @@ mod tests {
             .map(|term| term.name().to_string())
             .collect::<HashSet<String>>();
 
-        let ignored_functions = ignore_lazy();
+        let ignored_functions = ignore_lazy_eval();
 
         let successfully_built_functions_0 = successfully_built_functions.clone();
         successfully_built_functions.extend(ignored_functions.clone());
@@ -304,7 +319,7 @@ mod tests {
             .map(|s| s.to_owned())
             .collect::<HashSet<String>>();
 
-        let ignored_functions = ignore_lazy();
+        let ignored_functions = ignore_lazy_eval    ();
 
         let successfully_built_functions_0 = successfully_built_functions.clone();
         successfully_built_functions.extend(ignored_functions.clone());
@@ -588,7 +603,7 @@ mod tests {
             .map(|s| s.to_owned())
             .collect::<HashSet<String>>();
 
-        let ignored_functions = ignore_lazy();
+        let ignored_functions = ignore_payloads();
 
         let successfully_built_functions_0 = successfully_built_functions.clone();
         successfully_built_functions.extend(ignored_functions.clone());
@@ -770,7 +785,7 @@ mod tests {
             .map(|s| s.to_owned())
             .collect::<HashSet<String>>();
 
-        let ignored_functions = ignore_lazy();
+        let ignored_functions = ignore_payloads();
 
         let successfully_built_functions_0 = successfully_built_functions.clone();
         successfully_built_functions.extend(ignored_functions.clone());

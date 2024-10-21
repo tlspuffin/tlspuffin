@@ -650,6 +650,10 @@ pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
     }
     if window_len == 0 {
         trace!("[refine_window_heuristic] window is too narrow, we decrease the depth (= increases window)");
+        if current_depth == 0 {
+            trace!("[refine_window_heuristic] AND current_depth == 0 (evaluation at root yields an empty bitstring)");
+            return min(st.path_to_search.len() - 1, current_depth + 1);
+        }
         return max(0, current_depth - 1);
     }
     if !st.found_window {
