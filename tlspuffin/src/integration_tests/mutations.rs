@@ -2,55 +2,44 @@ use core::mem::size_of;
 use std::thread::{panicking, park_timeout_ms};
 
 use log::{debug, error, warn};
-use puffin::{
-    agent::AgentName,
-    algebra::{dynamic_function::DescribableFunction, DYTerm, TermType},
-    execution::{forked_execution, AssertExecution},
-    fuzzer::{
-        bit_mutations::*,
-        harness::set_default_put_options,
-        mutations::{
-            trace_mutations, MakeMessage, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
-            ReplaceMatchMutator, ReplaceReuseMutator,
-        },
-        utils::TermConstraints,
-    },
-    libafl::{
-        corpus::{Corpus, InMemoryCorpus, Testcase},
-        inputs::{BytesInput, HasBytesVec},
-        mutators::{MutationResult, Mutator, MutatorsTuple},
-        prelude::{ByteFlipMutator, HasMaxSize, HasMetadata, HasRand},
-        state::{HasCorpus, StdState},
-    },
-    libafl_bolts::{
-        rands::{RomuDuoJrRand, StdRand},
-        tuples::HasConstLen,
-        HasLen,
-    },
-    protocol::ProtocolBehavior,
-    put::PutOptions,
-    put_registry,
-    put_registry::PutRegistry,
-    trace::{Action, Step, Trace, TraceContext},
+use puffin::agent::AgentName;
+use puffin::algebra::dynamic_function::DescribableFunction;
+use puffin::algebra::{DYTerm, TermType};
+use puffin::execution::{forked_execution, AssertExecution};
+use puffin::fuzzer::bit_mutations::*;
+use puffin::fuzzer::harness::set_default_put_options;
+use puffin::fuzzer::mutations::{
+    trace_mutations, MakeMessage, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
+    ReplaceMatchMutator, ReplaceReuseMutator,
 };
+use puffin::fuzzer::utils::TermConstraints;
+use puffin::libafl::corpus::{Corpus, InMemoryCorpus, Testcase};
+use puffin::libafl::inputs::{BytesInput, HasBytesVec};
+use puffin::libafl::mutators::{MutationResult, Mutator, MutatorsTuple};
+use puffin::libafl::prelude::{ByteFlipMutator, HasMaxSize, HasMetadata, HasRand};
+use puffin::libafl::state::{HasCorpus, StdState};
+use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
+use puffin::libafl_bolts::tuples::HasConstLen;
+use puffin::libafl_bolts::HasLen;
+use puffin::protocol::ProtocolBehavior;
+use puffin::put::PutOptions;
+use puffin::put_registry;
+use puffin::put_registry::PutRegistry;
+use puffin::trace::{Action, Step, Trace, TraceContext};
 
-use crate::{
-    protocol::TLSProtocolBehavior,
-    put_registry::tls_registry,
-    query::TlsQueryMatcher,
-    tls::{
-        fn_impl::{
-            fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript,
-            fn_signature_algorithm_extension, fn_support_group_extension,
-        },
-        seeds::{
-            _seed_client_attacker12, create_corpus, seed_client_attacker,
-            seed_client_attacker_full, seed_successful,
-        },
-        trace_helper::TraceHelper,
-        TLS_SIGNATURE,
-    },
+use crate::protocol::TLSProtocolBehavior;
+use crate::put_registry::tls_registry;
+use crate::query::TlsQueryMatcher;
+use crate::tls::fn_impl::{
+    fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
+    fn_support_group_extension,
 };
+use crate::tls::seeds::{
+    _seed_client_attacker12, create_corpus, seed_client_attacker, seed_client_attacker_full,
+    seed_successful,
+};
+use crate::tls::trace_helper::TraceHelper;
+use crate::tls::TLS_SIGNATURE;
 
 pub type TLSState = StdState<
     Trace<TlsQueryMatcher>,
@@ -138,7 +127,8 @@ fn test_mutators() {
                     };
                 }
                 if idx == 4 || idx == 1 {
-                    // former requires a list that some traces don't have, latter requires a trace of length >2
+                    // former requires a list that some traces don't have, latter requires a trace
+                    // of length >2
                     error!("[test_mutators::with_dy] Failed to process input nb{id_i} for mutation id {idx}.\n Trace is {}", input)
                 } else {
                     panic!("[test_mutators::with_dy] Failed to process input nb{id_i} for mutation id {idx}.\n Trace is {}", input)
@@ -285,9 +275,11 @@ fn test_make_message() {
     }
 }
 
-/// Test that MakeMessage can be applied on a strict sub-term and them on a whole term, erasing all payloads of strict sub-terms
+/// Test that MakeMessage can be applied on a strict sub-term and them on a whole term, erasing all
+/// payloads of strict sub-terms
 #[cfg(all(feature = "tls13", not(feature = "boringssl-binding")))]
-// require version which supports TLS 1.3, removed boringssl-binding as seed_client_attacker_full cannot be executed with boringssl
+// require version which supports TLS 1.3, removed boringssl-binding as seed_client_attacker_full
+// cannot be executed with boringssl
 #[test]
 // #[test_log::test]
 fn test_byte_remove_payloads() {

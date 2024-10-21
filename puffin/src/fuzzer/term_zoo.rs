@@ -3,14 +3,10 @@
 
 use libafl_bolts::rands::Rand;
 
-use crate::{
-    algebra::{
-        atoms::Function,
-        signature::{FunctionDefinition, Signature},
-        DYTerm, Matcher, Term,
-    },
-    fuzzer::utils::Choosable,
-};
+use crate::algebra::atoms::Function;
+use crate::algebra::signature::{FunctionDefinition, Signature};
+use crate::algebra::{DYTerm, Matcher, Term};
+use crate::fuzzer::utils::Choosable;
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
 const MAX_TRIES: u16 = 100; // How often we want to try to generate before stopping

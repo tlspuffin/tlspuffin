@@ -1,27 +1,25 @@
-use std::{
-    any::{type_name, TypeId},
-    cmp::min,
-    io::Read,
-    ops::Not,
-    thread::panicking,
-};
+use std::any::{type_name, TypeId};
+use std::cmp::min;
+use std::io::Read;
+use std::ops::Not;
+use std::thread::panicking;
 
 use libafl::prelude::*;
-use libafl_bolts::{
-    prelude::{tuple_list, tuple_list_type},
-    rands::Rand,
-    Named,
-};
+use libafl_bolts::prelude::{tuple_list, tuple_list_type};
+use libafl_bolts::rands::Rand;
+use libafl_bolts::Named;
 use log::{debug, info, trace, warn};
 
 use super::utils::{Choosable, *};
-use crate::{
-    algebra::{atoms::Function, signature::Signature, DYTerm, Matcher, Subterms, Term, TermType},
-    codec::Codec,
-    fuzzer::{harness::default_put_options, term_zoo::TermZoo, utils::choose_term_filtered_mut},
-    protocol::ProtocolBehavior,
-    trace::{Trace, TraceContext},
-};
+use crate::algebra::atoms::Function;
+use crate::algebra::signature::Signature;
+use crate::algebra::{DYTerm, Matcher, Subterms, Term, TermType};
+use crate::codec::Codec;
+use crate::fuzzer::harness::default_put_options;
+use crate::fuzzer::term_zoo::TermZoo;
+use crate::fuzzer::utils::choose_term_filtered_mut;
+use crate::protocol::ProtocolBehavior;
+use crate::trace::{Trace, TraceContext};
 
 pub type HavocMutationsTypeDY<S: HasRand + HasMaxSize> = tuple_list_type!(
     BitFlipMutatorDY<S>,
@@ -213,13 +211,13 @@ expand_mutations!(
     BytesRandInsertMutator,
     BytesSetMutator,
     BytesRandSetMutator,
-    BytesCopyMutator // The next 2 require custom implementations:
-                     //   BytesInsertCopyMutator,
-                     //   BytesSwapMutator,
-                     // The three next require to pick up another test-case (cross-over), see dedicated implems:
-                     //   CrossoverInsertMutator
-                     //   CrossoverReplaceMutator
-                     //   SpliceMutator
+    BytesCopyMutator /* The next 2 require custom implementations:
+                      *   BytesInsertCopyMutator,
+                      *   BytesSwapMutator,
+                      * The three next require to pick up another test-case (cross-over), see
+                      * dedicated implems:   CrossoverInsertMutator
+                      *   CrossoverReplaceMutator
+                      *   SpliceMutator */
 );
 
 // We could write another macro for the two following mutations
@@ -392,7 +390,8 @@ where
 }
 
 // --------------------------------------------------------------------------------------------------
-// Trace-level bit-level mutations --> Cross-over need to consider traces with the HasBytesVec trait!
+// Trace-level bit-level mutations --> Cross-over need to consider traces with the HasBytesVec
+// trait!
 // --------------------------------------------------------------------------------------------------
 
 /// Randomly choose a payload and its index (nth) in a trace (mutable reference), if there is any
@@ -579,8 +578,8 @@ where
             return Ok(MutationResult::Skipped);
         }
         let payload_idx = state // we need to split the choice of other_input int two steps to
-            // avoid borrow checker issues (state need sto be immutably borrowed to access the corpus
-            // and mutably borrowed to pick a random payload in the chosen trace)
+            // avoid borrow checker issues (state need sto be immutably borrowed to access the
+            // corpus and mutably borrowed to pick a random payload in the chosen trace)
             .rand_mut()
             .between(0, (size_vec_payloads - 1) as u64) as usize;
         let other_size = {
@@ -714,8 +713,8 @@ where
             return Ok(MutationResult::Skipped);
         }
         let payload_idx = state // we need to split the choice of other_input int two steps to
-            // avoid borrow checker issues (state need sto be immutably borrowed to access the corpus
-            // and mutably borrowed to pick a random payload in the chosen trace)
+            // avoid borrow checker issues (state need sto be immutably borrowed to access the
+            // corpus and mutably borrowed to pick a random payload in the chosen trace)
             .rand_mut()
             .between(0, (size_vec_payloads - 1) as u64) as usize;
         let other_size = {
@@ -838,8 +837,8 @@ where
             return Ok(MutationResult::Skipped);
         }
         let payload_idx = state // we need to split the choice of other_input int two steps to
-            // avoid borrow checker issues (state need sto be immutably borrowed to access the corpus
-            // and mutably borrowed to pick a random payload in the chosen trace)
+            // avoid borrow checker issues (state need sto be immutably borrowed to access the
+            // corpus and mutably borrowed to pick a random payload in the chosen trace)
             .rand_mut()
             .between(0, (size_vec_payloads - 1) as u64) as usize;
         let other_size = {

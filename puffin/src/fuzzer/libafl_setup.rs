@@ -1,22 +1,20 @@
 use core::time::Duration;
-use std::{env, fmt, path::PathBuf};
+use std::path::PathBuf;
+use std::{env, fmt};
 
-use libafl::{corpus::ondisk::OnDiskMetadataFormat, prelude::*};
+use libafl::corpus::ondisk::OnDiskMetadataFormat;
+use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 use log4rs::Handle;
 
 use super::harness;
-use crate::{
-    fuzzer::{
-        mutations::{trace_mutations, MutationConfig},
-        stats_monitor::StatsMonitor,
-        utils::TermConstraints,
-    },
-    log::{config_fuzzing, config_fuzzing_client},
-    protocol::ProtocolBehavior,
-    put_registry::PutRegistry,
-    trace::Trace,
-};
+use crate::fuzzer::mutations::{trace_mutations, MutationConfig};
+use crate::fuzzer::stats_monitor::StatsMonitor;
+use crate::fuzzer::utils::TermConstraints;
+use crate::log::{config_fuzzing, config_fuzzing_client};
+use crate::protocol::ProtocolBehavior;
+use crate::put_registry::PutRegistry;
+use crate::trace::Trace;
 
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
@@ -126,6 +124,7 @@ where
             mutations: None,
         }
     }
+
     fn with_rand(mut self, rand: R) -> Self {
         self.rand = Some(rand);
         self
@@ -198,7 +197,8 @@ where
             ..
         } = self.config;
 
-        // FIXME let mutator = PuffinScheduledMutator::new(self.mutations.unwrap(), max_mutations_per_iteration);
+        // FIXME let mutator = PuffinScheduledMutator::new(self.mutations.unwrap(),
+        // max_mutations_per_iteration);
         let mutator = StdScheduledMutator::new(self.mutations.unwrap());
         let mut stages = tuple_list!(
             // FIXMEPuffinMutationalStage::new(mutator, max_iterations_per_stage),
@@ -212,7 +212,8 @@ where
         let mut executor: ConcreteExecutor<'harness, H, OT, _> = TimeoutExecutor::new(
             InProcessExecutor::new(
                 self.harness_fn,
-                // hint: edges_observer is expensive to serialize (only noticeable if we add all inputs to the corpus)
+                // hint: edges_observer is expensive to serialize (only noticeable if we add all
+                // inputs to the corpus)
                 self.observers.unwrap(),
                 &mut fuzzer,
                 &mut state,
@@ -371,8 +372,9 @@ where
             let edges_observer =
                 HitcountsMapObserver::new(unsafe { StdMapObserver::new(EDGES_OBSERVER_NAME, map) });
             let feedback = feedback_or!(
-                // New maximization map feedback linked to the edges observer and the feedback state
-                // `track_indexes` needed because of IndexesLenTimeMinimizerCorpusScheduler
+                // New maximization map feedback linked to the edges observer and the feedback
+                // state `track_indexes` needed because of
+                // IndexesLenTimeMinimizerCorpusScheduler
                 map_feedback,
                 // Time feedback, this one does not need a feedback state
                 // needed for IndexesLenTimeMinimizerCorpusScheduler
@@ -468,11 +470,11 @@ where
 
         //#[cfg(feature = "sancov")]
         //{
-        /*            let (feedback, observers) = builder.create_feedback_observers();*/
-        /*            builder = builder*/
-        /*                .with_feedback(feedback)*/
-        /*                .with_observers(observers)*/
-        /*                .with_scheduler(IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new()));*/
+        /* let (feedback, observers) = builder.create_feedback_observers(); */
+        /* builder = builder */
+        /* .with_feedback(feedback) */
+        /* .with_observers(observers) */
+        /* .with_scheduler(IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new())); */
         //}
 
         //#[cfg(not(feature = "sancov"))]

@@ -1,7 +1,5 @@
-use std::{
-    marker::PhantomData,
-    sync::atomic::{AtomicBool, AtomicUsize, Ordering},
-};
+use std::marker::PhantomData;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use libafl::prelude::*;
 pub enum RuntimeStats {

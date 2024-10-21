@@ -2,10 +2,8 @@ use std::convert::TryFrom;
 
 use puffin::codec::Reader;
 
-use super::{
-    enums::{AlertDescription, AlertLevel, HandshakeType},
-    message::{Message, OpaqueMessage},
-};
+use super::enums::{AlertDescription, AlertLevel, HandshakeType};
+use super::message::{Message, OpaqueMessage};
 
 #[test]
 fn alert_is_not_handshake() {

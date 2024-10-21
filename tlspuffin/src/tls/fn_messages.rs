@@ -6,25 +6,18 @@
 //!
 //! In the source code all IDs are available, but implementations are missing.
 //! Return type is `Message`
-//!
 
 use puffin::algebra::error::FnError;
 
-use crate::{
-    nyi_fn,
-    tls::rustls::{
-        key,
-        msgs::{
-            alert::AlertMessagePayload,
-            base::{Payload, PayloadU16, PayloadU24, PayloadU8},
-            ccs::ChangeCipherSpecPayload,
-            enums::*,
-            handshake::{CertificateStatus, *},
-            heartbeat::HeartbeatPayload,
-            message::{Message, MessagePayload, OpaqueMessage},
-        },
-    },
-};
+use crate::nyi_fn;
+use crate::tls::rustls::key;
+use crate::tls::rustls::msgs::alert::AlertMessagePayload;
+use crate::tls::rustls::msgs::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
+use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
+use crate::tls::rustls::msgs::enums::*;
+use crate::tls::rustls::msgs::handshake::{CertificateStatus, *};
+use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
+use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
 
 pub fn fn_empty_handshake_message() -> Result<OpaqueMessage, FnError> {
     Ok(OpaqueMessage {
@@ -237,7 +230,8 @@ nyi_fn! {
     /// EndOfEarlyData => 0x05,
 }
 
-/// Specific ClientHello Random recognized by the client as the one previously used for a HelloRetryRequest
+/// Specific ClientHello Random recognized by the client as the one previously used for a
+/// HelloRetryRequest
 pub fn fn_hello_retry_request_random() -> Result<Random, FnError> {
     Ok(Random([
         0xcf, 0x21, 0xad, 0x74, 0xe5, 0x9a, 0x61, 0x11, 0xbe, 0x1d, 0x8c, 0x02, 0x1e, 0x65, 0xb8,

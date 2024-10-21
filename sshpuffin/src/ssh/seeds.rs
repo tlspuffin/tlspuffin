@@ -1,13 +1,10 @@
-use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    term,
-    trace::{InputAction, OutputAction, Trace},
-};
+use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
+use puffin::term;
+use puffin::trace::{InputAction, OutputAction, Trace};
 
-use crate::{
-    query::SshQueryMatcher,
-    ssh::{fn_impl::*, message::*},
-};
+use crate::query::SshQueryMatcher;
+use crate::ssh::fn_impl::*;
+use crate::ssh::message::*;
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshQueryMatcher> {
     Trace {
@@ -168,10 +165,13 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshQueryMa
 
 #[cfg(test)]
 mod tests {
-    use puffin::{agent::AgentName, put::PutOptions};
+    use puffin::agent::AgentName;
+    use puffin::put::PutOptions;
     use test_log::test;
 
-    use crate::{libssh::ssh::set_log_level, ssh::seeds::seed_successful, ssh_registry};
+    use crate::libssh::ssh::set_log_level;
+    use crate::ssh::seeds::seed_successful;
+    use crate::ssh_registry;
 
     #[test]
     fn test_seed_successful() {

@@ -1,4 +1,6 @@
-use std::{cmp, collections::VecDeque, io, io::Read};
+use std::collections::VecDeque;
+use std::io::Read;
+use std::{cmp, io};
 
 /// This is a byte buffer that is built from a vector
 /// of byte vectors.  This avoids extra copies when

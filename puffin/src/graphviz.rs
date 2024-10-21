@@ -1,19 +1,15 @@
 //! This module adds plotting capabilities to[`DYTerm`]sand Traces. The output of the functions in
 //! this module can be passed to the command line utility `dot` which is part of graphviz.
 
-use std::{
-    fmt, io,
-    io::{ErrorKind, Write},
-    process::{Command, Stdio},
-};
+use std::io::{ErrorKind, Write};
+use std::process::{Command, Stdio};
+use std::{fmt, io};
 
 use itertools::Itertools;
 use log::{debug, error, warn};
 
-use crate::{
-    algebra::{remove_fn_prefix, remove_prefix, DYTerm, Matcher, Term, TermType},
-    trace::{Action, Trace},
-};
+use crate::algebra::{remove_fn_prefix, remove_prefix, DYTerm, Matcher, Term, TermType};
+use crate::trace::{Action, Trace};
 
 // Colorful theme
 /*const FONT: &'static str = "Latin Modern Roman";

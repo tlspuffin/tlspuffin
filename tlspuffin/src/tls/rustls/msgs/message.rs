@@ -1,52 +1,41 @@
-use std::{
-    any::{type_name, Any, TypeId},
-    convert::TryFrom,
-};
+use std::any::{type_name, Any, TypeId};
+use std::convert::TryFrom;
 
 use log::{debug, error, trace};
-use puffin::{
-    algebra::{error::FnError, ConcreteMessage},
-    codec,
-    codec::{Codec, Reader, VecCodecWoSize},
-    error::Error::Term,
-    protocol::ProtocolMessage,
-};
+use puffin::algebra::error::FnError;
+use puffin::algebra::ConcreteMessage;
+use puffin::codec;
+use puffin::codec::{Codec, Reader, VecCodecWoSize};
+use puffin::error::Error::Term;
+use puffin::protocol::ProtocolMessage;
 
-use crate::{
-    claims::{
-        TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
-        TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
-    },
-    protocol::{MessageFlight, OpaqueMessageFlight},
-    tls,
-    tls::{
-        fn_impl::*,
-        rustls::{
-            error::Error,
-            hash_hs::HandshakeHash,
-            key::{Certificate, PrivateKey},
-            msgs::{
-                alert::AlertMessagePayload,
-                base::{Codec2, Payload, PayloadU16, PayloadU24, PayloadU8},
-                ccs::ChangeCipherSpecPayload,
-                enums::{
-                    AlertDescription, AlertLevel, CipherSuite, Compression, ContentType,
-                    ContentType::ApplicationData, ExtensionType, HandshakeType, NamedGroup,
-                    ProtocolVersion, ProtocolVersion::TLSv1_3, SignatureScheme,
-                },
-                handshake::{
-                    CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension,
-                    CipherSuites, ClientExtension, ClientExtensions, Compressions,
-                    HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions,
-                    NewSessionTicketExtension, NewSessionTicketExtensions, PresharedKeyIdentity,
-                    Random, ServerExtension, ServerExtensions, SessionID, VecU16OfPayloadU16,
-                    VecU16OfPayloadU8,
-                },
-                heartbeat::HeartbeatPayload,
-            },
-        },
-    },
+use crate::claims::{
+    TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
+    TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
 };
+use crate::protocol::{MessageFlight, OpaqueMessageFlight};
+use crate::tls;
+use crate::tls::fn_impl::*;
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::hash_hs::HandshakeHash;
+use crate::tls::rustls::key::{Certificate, PrivateKey};
+use crate::tls::rustls::msgs::alert::AlertMessagePayload;
+use crate::tls::rustls::msgs::base::{Codec2, Payload, PayloadU16, PayloadU24, PayloadU8};
+use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
+use crate::tls::rustls::msgs::enums::ContentType::ApplicationData;
+use crate::tls::rustls::msgs::enums::ProtocolVersion::TLSv1_3;
+use crate::tls::rustls::msgs::enums::{
+    AlertDescription, AlertLevel, CipherSuite, Compression, ContentType, ExtensionType,
+    HandshakeType, NamedGroup, ProtocolVersion, SignatureScheme,
+};
+use crate::tls::rustls::msgs::handshake::{
+    CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension, CipherSuites,
+    ClientExtension, ClientExtensions, Compressions, HandshakeMessagePayload, HelloRetryExtension,
+    HelloRetryExtensions, NewSessionTicketExtension, NewSessionTicketExtensions,
+    PresharedKeyIdentity, Random, ServerExtension, ServerExtensions, SessionID, VecU16OfPayloadU16,
+    VecU16OfPayloadU8,
+};
+use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 
 #[derive(Debug, Clone)]
 pub enum MessagePayload {
@@ -178,6 +167,15 @@ impl Codec for OpaqueMessage {
 }
 
 impl OpaqueMessage {
+    /// Content type, version and size.
+    const HEADER_SIZE: u16 = 1 + 2 + 2;
+    /// This is the maximum on-the-wire size of a TLSCiphertext.
+    /// That's 2^14 payload bytes, a header, and a 2KB allowance
+    /// for ciphertext overheads.
+    const MAX_PAYLOAD: u16 = 16384 + 2048;
+    /// Maximum on-wire message size.
+    pub const MAX_WIRE_SIZE: usize = (Self::MAX_PAYLOAD + Self::HEADER_SIZE) as usize;
+
     /// `MessageError` allows callers to distinguish between valid prefixes (might
     /// become valid if we read more data) and invalid data.
     pub fn read(r: &mut Reader) -> Result<Self, MessageError> {
@@ -243,17 +241,6 @@ impl OpaqueMessage {
             payload: self.payload,
         }
     }
-
-    /// This is the maximum on-the-wire size of a TLSCiphertext.
-    /// That's 2^14 payload bytes, a header, and a 2KB allowance
-    /// for ciphertext overheads.
-    const MAX_PAYLOAD: u16 = 16384 + 2048;
-
-    /// Content type, version and size.
-    const HEADER_SIZE: u16 = 1 + 2 + 2;
-
-    /// Maximum on-wire message size.
-    pub const MAX_WIRE_SIZE: usize = (Self::MAX_PAYLOAD + Self::HEADER_SIZE) as usize;
 }
 
 impl From<Message> for PlainMessage {
@@ -456,16 +443,19 @@ macro_rules! try_downcast_two {
 }
 
 // Rationale:
-// 1. Messages of types Vec<Item> will be read and encoded without considering the size of the vector (reading until end of buffer).
-//    We consider such messages as "intermediate values", which are not meant to be directly used in struct fields such as
+// 1. Messages of types Vec<Item> will be read and encoded without considering the size of the
+//    vector (reading until end of buffer). We consider such messages as "intermediate values",
+//    which are not meant to be directly used in struct fields such as
 //   `extensions` in `ClientHello`. We use `VecCodecWoSize` for that.
 //    In particular, an empty vector yield an empty bitstring and not [0].
-// 2. Field elements of struct messages such as `extensions` in `ClientHello` are wrapped into a constructor, whose `Codec`
-//    implementation consider the size of the vector, encoded into the appropriate number of bytes. This depends on the
-//    field under consideration. For the above example, we shall use `read_vec_u16` and `encode_vec_u16`.
+// 2. Field elements of struct messages such as `extensions` in `ClientHello` are wrapped into a
+//    constructor, whose `Codec` implementation consider the size of the vector, encoded into the
+//    appropriate number of bytes. This depends on the field under consideration. For the above
+//    example, we shall use `read_vec_u16` and `encode_vec_u16`.
 
-// For all Countable types, we encode list of items of such type by prefixing with the length encoded in 2 bytes
-// For each type: whether it produces empty bitstring for empty list ([]), and u8 or u16 length prefix (8/16)
+// For all Countable types, we encode list of items of such type by prefixing with the length
+// encoded in 2 bytes For each type: whether it produces empty bitstring for empty list ([]), and u8
+// or u16 length prefix (8/16)
 impl VecCodecWoSize for ClientExtension {} // []/u16
 impl VecCodecWoSize for ServerExtension {} // u16    (server has to return at least oen extension it seems)
 impl VecCodecWoSize for HelloRetryExtension {} // ?/u16
@@ -660,7 +650,8 @@ pub fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, puff
     try_read!(
         bitstring,
         ty,
-        // We list all the types that have the Codec trait and that can be the type of a rustls message
+        // We list all the types that have the Codec trait and that can be the type of a rustls
+        // message
         Message,
         OpaqueMessage,
         MessageFlight,

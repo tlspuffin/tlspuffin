@@ -1,23 +1,21 @@
 use std::fmt;
 
-use ring::{aead, digest::Digest};
+use ring::aead;
+use ring::digest::Digest;
 
-use crate::tls::rustls::{
-    cipher::{MessageDecrypter, MessageEncrypter},
-    conn::ConnectionRandoms,
-    kx,
-    msgs::{
-        enums::{CipherSuite, SignatureScheme},
-        handshake::KeyExchangeAlgorithm,
-    },
-    suites::{BulkAlgorithm, CipherSuiteCommon, SupportedCipherSuite},
-};
+use crate::tls::rustls::cipher::{MessageDecrypter, MessageEncrypter};
+use crate::tls::rustls::conn::ConnectionRandoms;
+use crate::tls::rustls::kx;
+use crate::tls::rustls::msgs::enums::{CipherSuite, SignatureScheme};
+use crate::tls::rustls::msgs::handshake::KeyExchangeAlgorithm;
+use crate::tls::rustls::suites::{BulkAlgorithm, CipherSuiteCommon, SupportedCipherSuite};
 
 mod cipher;
 pub use cipher::{AesGcm, ChaCha20Poly1305, Tls12AeadAlgorithm};
 use puffin::codec::Codec;
 
-use crate::tls::rustls::{conn::Side, error::Error};
+use crate::tls::rustls::conn::Side;
+use crate::tls::rustls::error::Error;
 
 pub mod prf;
 
@@ -264,7 +262,8 @@ impl ConnectionSecrets {
         ) -> (aead::LessSafeKey, &'a [u8]) {
             // Might panic if the key block is too small.
             let (key, rest) = key_block.split_at(alg.key_len());
-            // Won't panic because its only prerequisite is that `key` is `alg.key_len()` bytes long.
+            // Won't panic because its only prerequisite is that `key` is `alg.key_len()` bytes
+            // long.
             let key = aead::UnboundKey::new(alg, key).unwrap();
             (aead::LessSafeKey::new(key), rest)
         }

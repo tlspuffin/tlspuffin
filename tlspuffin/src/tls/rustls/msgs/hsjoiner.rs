@@ -2,11 +2,9 @@ use std::collections::VecDeque;
 
 use puffin::codec;
 
-use crate::tls::rustls::msgs::{
-    enums::{ContentType, ProtocolVersion},
-    handshake::HandshakeMessagePayload,
-    message::{Message, MessagePayload, PlainMessage},
-};
+use crate::tls::rustls::msgs::enums::{ContentType, ProtocolVersion};
+use crate::tls::rustls::msgs::handshake::HandshakeMessagePayload;
+use crate::tls::rustls::msgs::message::{Message, MessagePayload, PlainMessage};
 
 const HEADER_SIZE: usize = 1 + 3;
 
@@ -144,12 +142,10 @@ mod tests {
     use puffin::codec::Codec;
 
     use super::HandshakeJoiner;
-    use crate::tls::rustls::msgs::{
-        base::Payload,
-        enums::{ContentType, HandshakeType, ProtocolVersion},
-        handshake::{HandshakeMessagePayload, HandshakePayload},
-        message::{Message, MessagePayload, PlainMessage},
-    };
+    use crate::tls::rustls::msgs::base::Payload;
+    use crate::tls::rustls::msgs::enums::{ContentType, HandshakeType, ProtocolVersion};
+    use crate::tls::rustls::msgs::handshake::{HandshakeMessagePayload, HandshakePayload};
+    use crate::tls::rustls::msgs::message::{Message, MessagePayload, PlainMessage};
 
     #[test]
     fn want() {

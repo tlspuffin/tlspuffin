@@ -1,22 +1,21 @@
 use std::any::Any;
 
 use criterion::{criterion_group, criterion_main, Criterion};
-use puffin::{
-    algebra::{dynamic_function::make_dynamic, error::FnError, DYTerm, Term},
-    fuzzer::mutations::{util::TermConstraints, ReplaceReuseMutator},
-    libafl::{corpus::InMemoryCorpus, mutators::Mutator, state::StdState},
-    libafl_bolts::rands::{RomuDuoJrRand, StdRand},
-    term,
-    trace::Trace,
-};
-use tlspuffin::{
-    query::TlsQueryMatcher,
-    tls::{
-        fn_impl::*,
-        seeds::*,
-        trace_helper::{TraceExecutor, TraceHelper},
-    },
-};
+use puffin::algebra::dynamic_function::make_dynamic;
+use puffin::algebra::error::FnError;
+use puffin::algebra::{DYTerm, Term};
+use puffin::fuzzer::mutations::util::TermConstraints;
+use puffin::fuzzer::mutations::ReplaceReuseMutator;
+use puffin::libafl::corpus::InMemoryCorpus;
+use puffin::libafl::mutators::Mutator;
+use puffin::libafl::state::StdState;
+use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
+use puffin::term;
+use puffin::trace::Trace;
+use tlspuffin::query::TlsQueryMatcher;
+use tlspuffin::tls::fn_impl::*;
+use tlspuffin::tls::seeds::*;
+use tlspuffin::tls::trace_helper::{TraceExecutor, TraceHelper};
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
     Ok(*a * *a)

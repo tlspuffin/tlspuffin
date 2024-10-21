@@ -1,13 +1,9 @@
 use std::collections::VecDeque;
 
-use crate::tls::rustls::{
-    error::Error,
-    msgs::{
-        base::Payload,
-        enums::{ContentType, ProtocolVersion},
-        message::{BorrowedPlainMessage, PlainMessage},
-    },
-};
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::msgs::base::Payload;
+use crate::tls::rustls::msgs::enums::{ContentType, ProtocolVersion};
+use crate::tls::rustls::msgs::message::{BorrowedPlainMessage, PlainMessage};
 
 pub const MAX_FRAGMENT_LEN: usize = 16384;
 pub const PACKET_OVERHEAD: usize = 1 + 2 + 2;
@@ -85,11 +81,9 @@ mod tests {
     use puffin::codec::Codec;
 
     use super::{MessageFragmenter, PACKET_OVERHEAD};
-    use crate::tls::rustls::msgs::{
-        base::Payload,
-        enums::{ContentType, ProtocolVersion},
-        message::PlainMessage,
-    };
+    use crate::tls::rustls::msgs::base::Payload;
+    use crate::tls::rustls::msgs::enums::{ContentType, ProtocolVersion};
+    use crate::tls::rustls::msgs::message::PlainMessage;
 
     fn msg_eq(
         mm: Option<PlainMessage>,

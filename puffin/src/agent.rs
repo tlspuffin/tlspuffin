@@ -9,12 +9,10 @@ use std::fmt::{Debug, Formatter};
 
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    error::Error,
-    protocol::ProtocolBehavior,
-    put::{Put, PutDescriptor},
-    trace::TraceContext,
-};
+use crate::error::Error;
+use crate::protocol::ProtocolBehavior;
+use crate::put::{Put, PutDescriptor};
+use crate::trace::TraceContext;
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]

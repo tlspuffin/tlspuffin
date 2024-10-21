@@ -4,72 +4,60 @@ use puffin::algebra::TermType;
 #[allow(clippy::ptr_arg)]
 #[cfg(test)]
 mod tests {
-    use std::{
-        any::{Any, TypeId},
-        cmp::max,
-        collections::HashSet,
-        fmt::Debug,
-    };
+    use std::any::{Any, TypeId};
+    use std::cmp::max;
+    use std::collections::HashSet;
+    use std::fmt::Debug;
 
     use hex::encode;
     use itertools::Itertools;
     use log::{debug, error, warn};
-    use puffin::{
-        agent::AgentName,
-        algebra::{
-            dynamic_function::DescribableFunction, error::FnError, evaluate_lazy_test,
-            signature::FunctionDefinition, ConcreteMessage, DYTerm, Matcher, Term, TermType,
-        },
-        codec,
-        codec::{Codec, Encode},
-        error::Error,
-        fuzzer::{
-            term_zoo::TermZoo,
-            utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints},
-        },
-        libafl_bolts::rands::{Rand, StdRand},
-        protocol::ProtocolBehavior,
-        trace::{Action::Input, InputAction, Step, Trace, TraceContext},
-    };
+    use puffin::agent::AgentName;
+    use puffin::algebra::dynamic_function::DescribableFunction;
+    use puffin::algebra::error::FnError;
+    use puffin::algebra::signature::FunctionDefinition;
+    use puffin::algebra::{evaluate_lazy_test, ConcreteMessage, DYTerm, Matcher, Term, TermType};
+    use puffin::codec;
+    use puffin::codec::{Codec, Encode};
+    use puffin::error::Error;
+    use puffin::fuzzer::term_zoo::TermZoo;
+    use puffin::fuzzer::utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints};
+    use puffin::libafl_bolts::rands::{Rand, StdRand};
+    use puffin::protocol::ProtocolBehavior;
+    use puffin::trace::Action::Input;
+    use puffin::trace::{InputAction, Step, Trace, TraceContext};
 
-    use crate::{
-        protocol::TLSProtocolBehavior,
-        put_registry::tls_registry,
-        query::TlsQueryMatcher,
-        tls::{
-            fn_impl::*,
-            rustls::{
-                hash_hs::HandshakeHash,
-                key::{Certificate, PrivateKey},
-                msgs::{
-                    alert::AlertMessagePayload,
-                    enums::{
-                        CipherSuite, Compression, ExtensionType, HandshakeType, NamedGroup,
-                        ProtocolVersion, SignatureScheme,
-                    },
-                    handshake::{
-                        CertificateEntry, ClientExtension, HasServerExtensions, Random,
-                        ServerExtension, SessionID,
-                    },
-                    message::{Message, MessagePayload, OpaqueMessage},
-                },
-            },
-            trace_helper::TraceHelper,
-            TLS_SIGNATURE,
-        },
-        try_downcast,
+    use crate::protocol::TLSProtocolBehavior;
+    use crate::put_registry::tls_registry;
+    use crate::query::TlsQueryMatcher;
+    use crate::tls::fn_impl::*;
+    use crate::tls::rustls::hash_hs::HandshakeHash;
+    use crate::tls::rustls::key::{Certificate, PrivateKey};
+    use crate::tls::rustls::msgs::alert::AlertMessagePayload;
+    use crate::tls::rustls::msgs::enums::{
+        CipherSuite, Compression, ExtensionType, HandshakeType, NamedGroup, ProtocolVersion,
+        SignatureScheme,
     };
+    use crate::tls::rustls::msgs::handshake::{
+        CertificateEntry, ClientExtension, HasServerExtensions, Random, ServerExtension, SessionID,
+    };
+    use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
+    use crate::tls::trace_helper::TraceHelper;
+    use crate::tls::TLS_SIGNATURE;
+    use crate::try_downcast;
 
     pub fn ignore_gen() -> HashSet<String> {
         [
-            // As expected, attacker cannot use them as there is no adversarial 'Transcript*Finished'
+            // As expected, attacker cannot use them as there is no adversarial
+            // 'Transcript*Finished'
             fn_server_finished_transcript.name(),
             fn_client_finished_transcript.name(),
             fn_server_hello_transcript.name(),
             fn_certificate_transcript.name(),
             // OLD STUFF, NOT NEEDED:
             //  fn_decrypt_application.name(), // FIXME: why ignore this?
-            //  fn_rsa_sign_client.name(), // FIXME: We are currently excluding this, because an attacker does not have access to the private key of alice, eve or bob.
+            //  fn_rsa_sign_client.name(), // FIXME: We are currently excluding this, because an
+            // attacker does not have access to the private key of alice, eve or bob.
             //  fn_rsa_sign_server.name(),
             // // transcript functions -> ClaimList is usually available as Variable
         ]
@@ -81,8 +69,9 @@ mod tests {
     pub fn ignore_payloads() -> HashSet<String> {
         let mut ignore_gen = ignore_gen();
         let ignore_payloads = [
-            // Those 2 are the function symbols for which we can generate a term but all fail to lazy execute!
-            // Indeed, the HandshakeHash that must be given must be computed in a very specific way! We might give known,valid hash-transcript to help?
+            // Those 2 are the function symbols for which we can generate a term but all fail to
+            // lazy execute! Indeed, the HandshakeHash that must be given must be
+            // computed in a very specific way! We might give known,valid hash-transcript to help?
             // fn_decrypt_handshake_flight.name(),
             fn_decrypt_application.name(),
             fn_decrypt_multiple_handshake_messages.name(),
@@ -97,10 +86,12 @@ mod tests {
     pub fn ignore_lazy_eval() -> HashSet<String> {
         let mut ignore_gen = ignore_payloads();
         let ignore_lazy = [
-            // Those 2 are the function symbols for which we can generate a term but all fail to lazy execute!
-            // Indeed, the HandshakeHash that must be given must be computed in a very specific way! We might give known,valid hash-transcript to help?
+            // Those 2 are the function symbols for which we can generate a term but all fail to
+            // lazy execute! Indeed, the HandshakeHash that must be given must be
+            // computed in a very specific way! We might give known,valid hash-transcript to help?
             // fn_decrypt_handshake_flight.name(),
-            // Additional failures: we need to be able to decrypt some server's message, very complicated in practice
+            // Additional failures: we need to be able to decrypt some server's message, very
+            // complicated in practice
             fn_find_server_certificate_verify.name(),
             fn_find_server_certificate_verify.name(),
             // fn_find_encrypted_extensions.name(),
@@ -166,8 +157,8 @@ mod tests {
         debug!("All functions: #{:?}", &all_functions.len());
         assert_eq!(difference.count(), 0);
         assert_eq!(difference_inverse.count(), 0);
-        // TESTED OK WITH generate_many CALLED WITH HOW_MANY = 400, mo more functions found with MAX_DEPTH=2000 and MAX_TRIES = 50000
-        //debug!("{}", graph);
+        // TESTED OK WITH generate_many CALLED WITH HOW_MANY = 400, mo more functions found with
+        // MAX_DEPTH=2000 and MAX_TRIES = 50000 debug!("{}", graph);
     }
 
     #[test]
@@ -221,13 +212,14 @@ mod tests {
         debug!("All functions: #{:?}", &all_functions.len());
         assert_eq!(difference.count(), 0);
         assert_eq!(difference_inverse.count(), 0);
-        // TESTED OK WITH generate_many CALLED WITH HOW_MANY = 200, mo more functions found with how_many = 10 000
-        //debug!("{}", graph);
+        // TESTED OK WITH generate_many CALLED WITH HOW_MANY = 200, mo more functions found with
+        // how_many = 10 000 debug!("{}", graph);
     }
 
     #[test]
     #[test_log::test]
-    /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
+    /// Tests whether all function symbols can be used when generating random terms and then be
+    /// correctly evaluated
     fn test_term_eval() {
         let tls_registry = tls_registry();
         let mut rand = StdRand::with_seed(101);
@@ -362,25 +354,27 @@ mod tests {
                 ..TermConstraints::default()
             },
             rand,
-            // Tests by varying TermConstraints (diff=2 corresponds to fn_derive_psk.name(), fn_get_ticket.name())
-            // Before   not_inside_list: true,  no_payload_in_subterm: true,     weighted_depth: true,
-            // : number_shapes: 201, number_terms: 78800, eval_count: 182, count_payload_fail: 53, count_lazy_fail: 3668, count_any_encode_fail: 0
-            // DIF=5
+            // Tests by varying TermConstraints (diff=2 corresponds to fn_derive_psk.name(),
+            // fn_get_ticket.name()) Before   not_inside_list: true,
+            // no_payload_in_subterm: true,     weighted_depth: true, : number_shapes:
+            // 201, number_terms: 78800, eval_count: 182, count_payload_fail: 53, count_lazy_fail:
+            // 3668, count_any_encode_fail: 0 DIF=5
 
-            // Default (all false): number_shapes: 201, number_terms: 78800, eval_count: 185, count_payload_fail: 22, count_lazy_fail: 3839, count_any_encode_fail: 0
+            // Default (all false): number_shapes: 201, number_terms: 78800, eval_count: 185,
+            // count_payload_fail: 22, count_lazy_fail: 3839, count_any_encode_fail: 0
             // Dif=2
             //
             // MAke_message: true, false, true
-            //  number_shapes: 201, number_terms: 78800, eval_count: 181, count_payload_fail: 34, count_lazy_fail: 3957, count_any_encode_fail: 0
-            // Diff = 6
+            //  number_shapes: 201, number_terms: 78800, eval_count: 181, count_payload_fail: 34,
+            // count_lazy_fail: 3957, count_any_encode_fail: 0 Diff = 6
 
             // MAke_message + inside: false, false, true
-            // number_shapes: 201, number_terms: 78800, eval_count: 183, count_payload_fail: 23, count_lazy_fail: 3260, count_any_encode_fail: 0
-            // Diff = 4
+            // number_shapes: 201, number_terms: 78800, eval_count: 183, count_payload_fail: 23,
+            // count_lazy_fail: 3260, count_any_encode_fail: 0 Diff = 4
 
             // weighted_Depth = false
-            // number_shapes: 201, number_terms: 78800, eval_count: 184, count_payload_fail: 31, count_lazy_fail: 4018, count_any_encode_fail: 0
-            // Diff = 3
+            // number_shapes: 201, number_terms: 78800, eval_count: 184, count_payload_fail: 31,
+            // count_lazy_fail: 4018, count_any_encode_fail: 0 Diff = 3
         ) {
             let st = find_term_by_term_path_mut(t, &mut path).unwrap();
             if let Ok(()) = st.make_payload(&ctx) {
@@ -464,7 +458,8 @@ mod tests {
     #[test]
     // #[test_log::test]
     // #[ignore]
-    /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
+    /// Tests whether all function symbols can be used when generating random terms and then be
+    /// correctly evaluated
     fn test_term_payloads_eval() {
         let tls_registry = tls_registry();
         let mut rand = StdRand::with_seed(101);
@@ -494,7 +489,8 @@ mod tests {
                     continue;
                 }
                 // FILTER
-                // if !(term.name().to_string().to_owned() == "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake") {
+                // if !(term.name().to_string().to_owned() ==
+                // "tlspuffin::tls::fn_impl::fn_utils::fn_encrypt_handshake") {
                 //     continue;
                 // }
 
@@ -585,13 +581,15 @@ mod tests {
         //          1.window_depth +1 when !st.unique_match
         //          2. window depth -1 when !st.unique_window
         //       B. Related and example of A:  [FIXED WITH fallback_end_parent]
-        //           always fails when BS// is in a term t such that just before or after is a similar t with same encoding
-        //           there won't be a suitable window then!
-        //           Also always fail when the payload is at pos p and a sibling encoding contains the same encoding [ALSO FIXED]
-        //       C.  Read_bytes fail because of MakeMessage but even without adding a != payload for: HandshakeHash, Vec<ClientExtension>, Vec<ServerExtension>
-        //           Could add a test that encode and read many different types, as in this test FIXED
-        //       E. Other failures when running this with DEBUG level=warn  MOST OF THEM FIXED
-        // TODO: run fuzzing campaign, measure failure rates, measure efficiency (execs/s)
+        //           always fails when BS// is in a term t such that just before or after is a
+        // similar t with same encoding           there won't be a suitable window then!
+        //           Also always fail when the payload is at pos p and a sibling encoding contains
+        // the same encoding [ALSO FIXED]       C.  Read_bytes fail because of MakeMessage
+        // but even without adding a != payload for: HandshakeHash, Vec<ClientExtension>,
+        // Vec<ServerExtension>           Could add a test that encode and read many
+        // different types, as in this test FIXED       E. Other failures when running this
+        // with DEBUG level=warn  MOST OF THEM FIXED TODO: run fuzzing campaign, measure
+        // failure rates, measure efficiency (execs/s)
         let all_functions = TLS_SIGNATURE
             .functions
             .iter()
@@ -664,7 +662,8 @@ mod tests {
     #[test]
     // #[test_log::test]
     // #[ignore]
-    /// Tests whether all function symbols can be used when generating random terms and then be correctly evaluated
+    /// Tests whether all function symbols can be used when generating random terms and then be
+    /// correctly evaluated
     fn test_term_read_encode() {
         let tls_registry = tls_registry();
         let mut rand = StdRand::with_seed(101);
@@ -807,7 +806,8 @@ mod tests {
         assert_eq!(difference_inverse.count(), 0);
         assert_eq!(count_any_encode_fail, 0);
         // Excluding fn_heartbleed_fake_length:
-        // Read stats: read_count: 163085, read_success: 162481, read_fail: 2963, read_wrong: 604 --> OKAY :)
-        // number_shapes: 213, number_terms: 209000, eval_count: 166048, count_lazy_fail: 41952, count_any_encode_fail: 0 --> TODO: address some of those
+        // Read stats: read_count: 163085, read_success: 162481, read_fail: 2963, read_wrong: 604
+        // --> OKAY :) number_shapes: 213, number_terms: 209000, eval_count: 166048,
+        // count_lazy_fail: 41952, count_any_encode_fail: 0 --> TODO: address some of those
     }
 }

@@ -1,17 +1,16 @@
-use std::{convert::TryFrom, error::Error as StdError, fmt, sync::Arc};
+use std::convert::TryFrom;
+use std::error::Error as StdError;
+use std::fmt;
+use std::sync::Arc;
 
-use ring::{
-    io::der,
-    rand::SecureRandom,
-    signature::{self, EcdsaKeyPair, Ed25519KeyPair, RsaKeyPair},
-};
+use ring::io::der;
+use ring::rand::SecureRandom;
+use ring::signature::{self, EcdsaKeyPair, Ed25519KeyPair, RsaKeyPair};
 
-use crate::tls::rustls::{
-    error::Error,
-    key,
-    msgs::enums::{SignatureAlgorithm, SignatureScheme},
-    x509::{wrap_in_asn1_len, wrap_in_sequence},
-};
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::key;
+use crate::tls::rustls::msgs::enums::{SignatureAlgorithm, SignatureScheme};
+use crate::tls::rustls::x509::{wrap_in_asn1_len, wrap_in_sequence};
 
 /// An abstract signing key.
 pub trait SigningKey: Send + Sync {
@@ -80,8 +79,7 @@ impl CertifiedKey {
     /// Check the certificate chain for validity:
     /// - it should be non-empty list
     /// - the first certificate should be parsable as a x509v3,
-    /// - the first certificate should quote the given server name
-    ///   (if provided)
+    /// - the first certificate should quote the given server name (if provided)
     ///
     /// These checks are not security-sensitive.  They are the
     /// *server* attempting to detect accidental misconfiguration.

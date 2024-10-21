@@ -1,41 +1,35 @@
 use core::any::{Any, TypeId};
 
 use log::debug;
-use puffin::{
-    algebra::{signature::Signature, ConcreteMessage, Matcher},
-    codec::{Codec, Reader},
-    error::Error,
-    protocol::{
-        ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-        ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
-    },
-    trace::{Knowledge, Source, Trace},
+use puffin::algebra::signature::Signature;
+use puffin::algebra::{ConcreteMessage, Matcher};
+use puffin::codec::{Codec, Reader};
+use puffin::error::Error;
+use puffin::protocol::{
+    ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+    ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
 };
+use puffin::trace::{Knowledge, Source, Trace};
 
-use crate::{
-    claims::TlsClaim,
-    debug::{debug_message_with_info, debug_opaque_message_with_info},
-    query::TlsQueryMatcher,
-    tls::{
-        rustls::msgs::{
-            self,
-            alert::AlertMessagePayload,
-            base::Payload,
-            ccs::ChangeCipherSpecPayload,
-            deframer::MessageDeframer,
-            handshake::{
-                CertificatePayload, ClientHelloPayload, ECDHEServerKeyExchange,
-                HandshakeMessagePayload, HandshakePayload, NewSessionTicketPayload,
-                ServerHelloPayload, ServerKeyExchangePayload,
-            },
-            heartbeat::HeartbeatPayload,
-            message::{any_get_encoding, try_read_bytes, Message, MessagePayload, OpaqueMessage},
-        },
-        seeds::create_corpus,
-        violation::TlsSecurityViolationPolicy,
-        TLS_SIGNATURE,
-    },
+use crate::claims::TlsClaim;
+use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
+use crate::query::TlsQueryMatcher;
+use crate::tls::rustls::msgs::alert::AlertMessagePayload;
+use crate::tls::rustls::msgs::base::Payload;
+use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
+use crate::tls::rustls::msgs::deframer::MessageDeframer;
+use crate::tls::rustls::msgs::handshake::{
+    CertificatePayload, ClientHelloPayload, ECDHEServerKeyExchange, HandshakeMessagePayload,
+    HandshakePayload, NewSessionTicketPayload, ServerHelloPayload, ServerKeyExchangePayload,
 };
+use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
+use crate::tls::rustls::msgs::message::{
+    any_get_encoding, try_read_bytes, Message, MessagePayload, OpaqueMessage,
+};
+use crate::tls::rustls::msgs::{self};
+use crate::tls::seeds::create_corpus;
+use crate::tls::violation::TlsSecurityViolationPolicy;
+use crate::tls::TLS_SIGNATURE;
 
 #[derive(Debug, Clone)]
 pub struct MessageFlight {
@@ -164,6 +158,7 @@ impl ProtocolMessage<TlsQueryMatcher, OpaqueMessage> for Message {
     fn create_opaque(&self) -> OpaqueMessage {
         msgs::message::PlainMessage::from(self.clone()).into_unencrypted_opaque()
     }
+
     fn debug(&self, info: &str) {
         debug_message_with_info(info, self);
     }
@@ -524,17 +519,17 @@ impl ExtractKnowledge<TlsQueryMatcher> for ClientHelloPayload {
         });
         // we add both the Vec<T> and below the Wrapper(T) too
         knowledges.push(Knowledge {
-            source: source,
+            source,
             matcher,
             data: &self.extensions.0,
         });
         knowledges.push(Knowledge {
-            source: source,
+            source,
             matcher,
             data: &self.compression_methods.0,
         });
         knowledges.push(Knowledge {
-            source: source,
+            source,
             matcher,
             data: &self.cipher_suites.0,
         });
@@ -651,6 +646,7 @@ impl ProtocolMessageDeframer<TlsQueryMatcher> for MessageDeframer {
     fn pop_frame(&mut self) -> Option<OpaqueMessage> {
         self.frames.pop_front()
     }
+
     fn read(&mut self, rd: &mut dyn std::io::Read) -> std::io::Result<usize> {
         self.read(rd)
     }
@@ -693,12 +689,12 @@ pub struct TLSProtocolBehavior;
 
 impl ProtocolBehavior for TLSProtocolBehavior {
     type Claim = TlsClaim;
-    type SecurityViolationPolicy = TlsSecurityViolationPolicy;
-    type ProtocolMessage = Message;
-    type OpaqueProtocolMessage = OpaqueMessage;
     type Matcher = TlsQueryMatcher;
-    type ProtocolMessageFlight = MessageFlight;
+    type OpaqueProtocolMessage = OpaqueMessage;
     type OpaqueProtocolMessageFlight = OpaqueMessageFlight;
+    type ProtocolMessage = Message;
+    type ProtocolMessageFlight = MessageFlight;
+    type SecurityViolationPolicy = TlsSecurityViolationPolicy;
 
     fn signature() -> &'static Signature {
         &TLS_SIGNATURE

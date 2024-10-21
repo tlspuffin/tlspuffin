@@ -1,8 +1,7 @@
-use crate::tls::rustls::{
-    key,
-    msgs::handshake::{DistinguishedName, DistinguishedNames, VecU16OfPayloadU16},
-    x509,
+use crate::tls::rustls::msgs::handshake::{
+    DistinguishedName, DistinguishedNames, VecU16OfPayloadU16,
 };
+use crate::tls::rustls::{key, x509};
 
 /// A trust anchor, commonly known as a "Root Certificate."
 #[derive(Debug, Clone)]

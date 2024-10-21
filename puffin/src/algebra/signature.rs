@@ -1,22 +1,16 @@
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Formatter},
-};
+use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 
 use itertools::Itertools;
 use once_cell::sync::Lazy;
 
 use super::atoms::Function;
-use crate::{
-    algebra::{
-        atoms::Variable,
-        dynamic_function::{
-            make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
-        },
-        Matcher,
-    },
-    trace::{Query, Source},
+use crate::algebra::atoms::Variable;
+use crate::algebra::dynamic_function::{
+    make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
 };
+use crate::algebra::Matcher;
+use crate::trace::{Query, Source};
 
 pub type FunctionDefinition = (DynamicFunctionShape, Box<dyn DynamicFunction>);
 

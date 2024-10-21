@@ -9,12 +9,12 @@ pub fn reset_rand() {
 
 #[cfg(test)]
 mod tests {
-    use puffin::{put::PutOptions, trace::TraceContext};
+    use puffin::put::PutOptions;
+    use puffin::trace::TraceContext;
 
-    use crate::{
-        put_registry::tls_registry,
-        tls::{seeds::seed_client_attacker_full, trace_helper::TraceHelper},
-    };
+    use crate::put_registry::tls_registry;
+    use crate::tls::seeds::seed_client_attacker_full;
+    use crate::tls::trace_helper::TraceHelper;
 
     // TODO: This test only works in a single threaded cargo test execution
     #[test]

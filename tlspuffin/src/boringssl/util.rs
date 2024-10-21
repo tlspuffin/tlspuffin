@@ -1,9 +1,7 @@
-use boring::{
-    error::ErrorStack,
-    pkey::{PKey, Private},
-    ssl::{SslContextBuilder, SslVersion},
-    x509::X509,
-};
+use boring::error::ErrorStack;
+use boring::pkey::{PKey, Private};
+use boring::ssl::{SslContextBuilder, SslVersion};
+use boring::x509::X509;
 use puffin::agent::TLSVersion;
 
 pub fn static_rsa_cert(key: &[u8], cert: &[u8]) -> Result<(X509, PKey<Private>), ErrorStack> {

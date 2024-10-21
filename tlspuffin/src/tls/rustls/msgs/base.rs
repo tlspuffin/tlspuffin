@@ -1,9 +1,7 @@
 use std::fmt::Debug;
 
-use puffin::{
-    codec,
-    codec::{Codec, Reader},
-};
+use puffin::codec;
+use puffin::codec::{Codec, Reader};
 
 use crate::tls::rustls::key;
 /// An externally length'd payload

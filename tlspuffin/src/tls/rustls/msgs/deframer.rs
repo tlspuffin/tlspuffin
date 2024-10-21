@@ -1,4 +1,5 @@
-use std::{collections::VecDeque, io};
+use std::collections::VecDeque;
+use std::io;
 
 use puffin::codec;
 
@@ -133,10 +134,12 @@ impl MessageDeframer {
 
 #[cfg(test)]
 mod tests {
-    use std::{convert::TryFrom, io};
+    use std::convert::TryFrom;
+    use std::io;
 
     use super::MessageDeframer;
-    use crate::tls::rustls::{msgs, msgs::message::Message};
+    use crate::tls::rustls::msgs;
+    use crate::tls::rustls::msgs::message::Message;
 
     const FIRST_MESSAGE: &[u8] = include_bytes!("../testdata/deframer-test.1.bin");
     const SECOND_MESSAGE: &[u8] = include_bytes!("../testdata/deframer-test.2.bin");

@@ -1,6 +1,9 @@
-use std::{fmt, fmt::Debug, marker::PhantomData};
+use std::fmt;
+use std::fmt::Debug;
+use std::marker::PhantomData;
 
-use libafl::prelude::{mutational::MutatedTransform, *};
+use libafl::prelude::mutational::MutatedTransform;
+use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
 /// The default mutational stage

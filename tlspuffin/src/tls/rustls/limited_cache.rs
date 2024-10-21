@@ -1,8 +1,7 @@
-use std::{
-    borrow::Borrow,
-    collections::{hash_map::Entry, HashMap, VecDeque},
-    hash::Hash,
-};
+use std::borrow::Borrow;
+use std::collections::hash_map::Entry;
+use std::collections::{HashMap, VecDeque};
+use std::hash::Hash;
 
 /// A HashMap-alike, which never gets larger than a specified
 /// capacity, and evicts the oldest insertion to maintain this.

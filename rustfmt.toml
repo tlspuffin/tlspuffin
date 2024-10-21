@@ -1,8 +1,47 @@
-# imports_granularity= "Crate"
+# NOTE some options are unstable and require nightly
+#
+# Add `+nightly` to your command line, e.g.:
+#   - cargo +nightly fmt [...]
+#   - rustfmt +nightly [...]
+#
+# Or simply call through the provided justfile: `just fmt`
+#
+# see https://rust-lang.github.io/rustfmt/ for the complete list of options
 
-ignore = [
-    "deps"
-]
+ignore = []
 
-group_imports = "StdExternalCrate"
-imports_granularity = "Crate"
+## ! configure the behavior of rustfmt itself
+
+version = "One"          # [unstable] explicitly set version of the formatting rules
+unstable_features = true # [unstable]
+# error_on_line_overflow = true  # [unstable] report error if cannot enforce max line-width
+# error_on_unformatted   = true  # [unstable] report error if cannot enforce the ruleset
+
+## ! spacing / ordering
+
+max_width = 100
+comment_width = 100       # [unstable] same max-width for comments
+wrap_comments = true      # [unstable] enforce comment_width
+reorder_impl_items = true # [unstable] ensure consistent order in `impl` blocks
+
+## ! good practices
+
+newline_style = "Unix"          # force uniform newline
+use_field_init_shorthand = true # rewrite field initialization `x: x` to `x`
+use_try_shorthand = true        # replace outdated `try!` by `?`
+
+## ! imports
+
+group_imports = "StdExternalCrate" # [unstable]
+imports_granularity = "Module"     # [unstable] group by module: easier to grep and cleaner git diffs
+
+## ! comments
+
+format_code_in_doc_comments = true # [unstable]
+normalize_doc_attributes = true    # [unstable] use doc comments instead of #[doc]
+
+## ! macros
+
+format_macro_bodies = true   # [unstable] format bodies of macros
+format_macro_matchers = true # [unstable] format metavariable patterns in macros
+skip_macro_invocations = []  # [unstable] don't format the listed macros

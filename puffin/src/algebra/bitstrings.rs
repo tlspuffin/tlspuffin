@@ -1,13 +1,9 @@
-use std::{
-    any::{Any, TypeId},
-    borrow::{
-        Cow,
-        Cow::{Borrowed, Owned},
-    },
-    cmp::{max, min},
-    fmt::{format, Display, Formatter},
-    ops::Deref,
-};
+use std::any::{Any, TypeId};
+use std::borrow::Cow;
+use std::borrow::Cow::{Borrowed, Owned};
+use std::cmp::{max, min};
+use std::fmt::{format, Display, Formatter};
+use std::ops::Deref;
 
 use anyhow::Context;
 use derivative::Derivative;
@@ -15,13 +11,12 @@ use libafl::inputs::{BytesInput, HasBytesVec};
 use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    algebra::{dynamic_function::TypeShape, ConcreteMessage, DYTerm, Matcher, Term, TermType},
-    error::Error,
-    fuzzer::utils::{find_term_by_term_path, TermPath},
-    protocol::ProtocolBehavior,
-    trace::{Source, Trace, TraceContext},
-};
+use crate::algebra::dynamic_function::TypeShape;
+use crate::algebra::{ConcreteMessage, DYTerm, Matcher, Term, TermType};
+use crate::error::Error;
+use crate::fuzzer::utils::{find_term_by_term_path, TermPath};
+use crate::protocol::ProtocolBehavior;
+use crate::trace::{Source, Trace, TraceContext};
 
 /// Constants governing heuritics for finding payloads in term evaluations
 const THRESHOLD_SUM: usize = 40;
@@ -63,11 +58,14 @@ pub struct EvalTree {
 impl EvalTree {
     pub fn init() -> Self {
         EvalTree {
-            encode: None, // will contain the bitstring encoding when sub-terms have payloads and when evaluation succeeds
+            encode: None, /* will contain the bitstring encoding when sub-terms have payloads and
+                           * when evaluation succeeds */
             path: TermPath::new(),
-            args: vec![], // will be modified while evaluating `term` if there are payloads to replace in this sub-tree
+            args: vec![], /* will be modified while evaluating `term` if there are payloads to
+                           * replace in this sub-tree */
         }
     }
+
     pub fn init_with_path(path: TermPath) -> Self {
         let mut e_t = Self::init();
         e_t.path = path;
@@ -113,18 +111,20 @@ impl EvalTree {
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
 pub struct StatusSearch<'a, M: Matcher> {
-    total_attempts: usize,       // total attempts so far
-    path_to_search: &'a [usize], // path of the sub-term corresponding to `to_search` in `whole_term`
-    path_window: &'a [usize],    // path of the sub-term corresponding to `window` in `whole_term`
-    found_window: bool, // whether the current window has successfully been located (`pos_of_window` has been updated)
+    total_attempts: usize, // total attempts so far
+    path_to_search: &'a [usize], /* path of the sub-term corresponding to `to_search` in
+                            * `whole_term` */
+    path_window: &'a [usize], // path of the sub-term corresponding to `window` in `whole_term`
+    found_window: bool,       /* whether the current window has successfully been located
+                               * (`pos_of_window` has been updated) */
     unique_window: bool, // whether the current window has **uniquely** been located
-    found_match: bool,  // whether `to_search` has been found in the current window
-    unique_match: bool, // whether `to_search` has been **uniquely** been located
+    found_match: bool,   // whether `to_search` has been found in the current window
+    unique_match: bool,  // whether `to_search` has been **uniquely** been located
     pos_of_window: usize, // position of the window with respect to the whole term evaluation
     pos_in_window: usize, // position of `to_search` with respect to the current window
     tried_depth_path: Vec<bool>, // already tried path depths for the window (avoid cycling back)
     to_search: &'a [u8], // slice to be searched in the window
-    window: &'a [u8],   // window where to look for `to_search`
+    window: &'a [u8],    // window where to look for `to_search`
     #[derivative(Debug = "ignore")]
     eval_tree: &'a EvalTree,
     #[derivative(Debug = "ignore")]
@@ -161,8 +161,8 @@ impl<'a, M: Matcher> StatusSearch<'a, M> {
     }
 }
 
-/// Try to recover the evaluation from @eval_tree and, if this fails because we have not computed it in the past,
-/// then we evaluate the corresponding sub-term.
+/// Try to recover the evaluation from @eval_tree and, if this fails because we have not computed it
+/// in the past, then we evaluate the corresponding sub-term.
 pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     path_to_eval: &[usize],
     eval_tree: &'a EvalTree,
@@ -193,14 +193,16 @@ pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     }
 }
 
-/// Search and locate `to_search` (`eval_tree[path_to_search].encode`) in root_eval:=eval_tree[vec![]].encode (=whole_term.encode(ctx))
-/// such that the match is unique in a window corresponding to the evaluation of a sub-term at a path
-/// in between vec![] (root) and `path_to_search`. Return the position of the match in `root_eval`.
-/// ctx is only used in rare occasions, where some evaluations were not computed in eval_tree (when searching for siblings).
+/// Search and locate `to_search` (`eval_tree[path_to_search].encode`) in
+/// root_eval:=eval_tree[vec![]].encode (=whole_term.encode(ctx)) such that the match is unique in a
+/// window corresponding to the evaluation of a sub-term at a path in between vec![] (root) and
+/// `path_to_search`. Return the position of the match in `root_eval`. ctx is only used in rare
+/// occasions, where some evaluations were not computed in eval_tree (when searching for siblings).
 // TODO: Investigate this other idea:
-// another option would be to always encode messages having payloads or siblinbgs with payloads and thus storing in Term the pos in bytes of each sub-term
-// --> could be more costly in terms of eval, but then much less search_sub and much less try and fail below, plus those pos could be serialized and stored as
-// part of the test-case
+// another option would be to always encode messages having payloads or siblinbgs with payloads and
+// thus storing in Term the pos in bytes of each sub-term --> could be more costly in terms of eval,
+// but then much less search_sub and much less try and fail below, plus those pos could be
+// serialized and stored as part of the test-case
 pub fn find_unique_match<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     to_search: &[u8],
     path_to_search: &[usize],
@@ -243,24 +245,25 @@ pub fn find_unique_match<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     }
 }
 
-/// Goal: search and locate `st.to_search` in st.window: to_search == st.window[st.pos_in_window...X]
-/// We must often refine the window (larger or smaller) as it is often the case to_search occurs multiple
-/// times in the st.whole_term.evaluate.encode and we must find the correct occurrence, the one corresponding
-/// to `path_to_search`.
+/// Goal: search and locate `st.to_search` in st.window: to_search ==
+/// st.window[st.pos_in_window...X] We must often refine the window (larger or smaller) as it is
+/// often the case to_search occurs multiple times in the st.whole_term.evaluate.encode and we must
+/// find the correct occurrence, the one corresponding to `path_to_search`.
 /// Invariants:
 /// - path_window is in between vec![] (root) and `path_to_search`
 /// - window = eval_tree[path_window].encode.unwrap()
 /// - window = eval_tree[vec![]].encode.unwrap()[pos_of_window..Y]
 /// - to_search = eval_tree[path_to_search].encode.unwrap()
-/// - if `found_match`, then `to_search` is found in `window` at position `pos_in_window`: to_search == window[pos_in_window..Z]
+/// - if `found_match`, then `to_search` is found in `window` at position `pos_in_window`: to_search
+///   == window[pos_in_window..Z]
 /// - if `found_window`, then try_new_path_window = path_window
 /// - try_new_path_window = path_to_search[0..try_new_depth_path_window]
 /// Therefore: to_search can be found in the whole bitstring (eval_tree[vec![]].encode.unwrap())
 /// at pos `shift_window + pos_in_window`.
-/// This is the base heuristic. This will fail in some cases (empty `to_search`, `to_search` is also found in
-/// sibling nodes). We then fall back to alternative heuristics:
-/// Heuristic 2: we locate `to_search` relatively to its parent term evaluation by computing the length
-///   of all its sibling on the right.
+/// This is the base heuristic. This will fail in some cases (empty `to_search`, `to_search` is also
+/// found in sibling nodes). We then fall back to alternative heuristics:
+/// Heuristic 2: we locate `to_search` relatively to its parent term evaluation by computing the
+/// length   of all its sibling on the right.
 /// Heuristic 3: we find a sibling whose evaluation is contiguous to `to_search` at `path_to_search`
 ///   we locate the sibling and then locate `to_search` relatively to this sibling.
 pub fn find_unique_match_rec<'a, M, PB>(
@@ -278,12 +281,14 @@ where
     st.found_window = try_new_depth_path_window == 0; // no need to find the window if window=eval_root
     let eval_root = &st.eval_tree.encode.as_ref().unwrap()[..];
 
-    let mut fallback_end_parent = false; // when basic heuristic fails, we fall back to searching the position relatively to the accumulation of all right siblings
-    let mut fallback_empty = false; // when everything fails, we fall back to the solution for empty payload (relying on closest nodes)
+    let mut fallback_end_parent = false; // when basic heuristic fails, we fall back to searching the position relatively to the
+                                         // accumulation of all right siblings
+    let mut fallback_empty = false; // when everything fails, we fall back to the solution for empty payload (relying on closest
+                                    // nodes)
     let mut attempts = 0; // while loop # attempts
 
-    // Main while loop where we search for `to_search` in `eval_root` in a unique way (one match) by varying
-    // the search window `window`
+    // Main while loop where we search for `to_search` in `eval_root` in a unique way (one match) by
+    // varying the search window `window`
     while !(st.found_window && st.unique_match && st.found_match && st.unique_window) {
         if st.path_to_search.is_empty() {
             return Ok(0); // then to_search = window
@@ -322,7 +327,8 @@ where
             warn!("[find_unique_match_rec] HIGH NUMBER OF ATTEMPTS!");
         }
 
-        // Heuritstic 2: First fallback heuristic: compute right-shift with respect to the parent term evaluation
+        // Heuritstic 2: First fallback heuristic: compute right-shift with respect to the parent
+        // term evaluation
         if !fallback_empty && (fallback_end_parent || attempts > ATT_BEFORE_FALLBACK) {
             let parent_path_depth = st.path_to_search.len() - 1;
             // Heuristic only applied when st.path_to_search = parent_path
@@ -342,13 +348,15 @@ where
                 }
             }
             // We should address failing cases such as:
-            // - to_search is included in header of parent term encoding (e.g., compression method is in header of ClientHello)
-            // - to_search is included in siblings (e.g., same cipher suite repeated many times in a list)
-            // Assumption: the formatting of t may add some header at the beginning, but no footer at the end
-            //             so that t.encode = HEAD || [ti.encode]_i
-            // Strategy: we compute the length of the evaluations of all siblings on the right and locate
-            // to_search in the window of the parent term evaluation, shifting from the right by this
-            // quantity.
+            // - to_search is included in header of parent term encoding (e.g., compression method
+            //   is in header of ClientHello)
+            // - to_search is included in siblings (e.g., same cipher suite repeated many times in a
+            //   list)
+            // Assumption: the formatting of t may add some header at the beginning, but no footer
+            // at the end             so that t.encode = HEAD || [ti.encode]_i
+            // Strategy: we compute the length of the evaluations of all siblings on the right and
+            // locate to_search in the window of the parent term evaluation, shifting
+            // from the right by this quantity.
             warn!("[find_unique_match_rec] Trying heuristic 2 based on shift from the end of window\n {st:?}.\n Looking for the parent term at path {:?}", &st.path_to_search[0..st.path_to_search.len() - 1]);
             debug!("                       Whole_term {}", st.whole_term);
             if let Some(t_parent) = find_term_by_term_path(
@@ -406,7 +414,8 @@ where
             // to_search is empty, there is no way to locate it directly.
             // Instead, we compute and locate the closest sibling having a non-empty evaluation
             // and locate to_search relatively to the latter.
-            // Spec: path_relative refers to the closest sibling having a non-empty encoding (on the left or on the right)
+            // Spec: path_relative refers to the closest sibling having a non-empty encoding (on the
+            // left or on the right)
             let (path_relative, eval_relative_, relative_on_left, shift_ancestor_to_search) =
                 find_relative_node(
                     st.to_search,
@@ -537,16 +546,19 @@ where
 ///  - strictly between p and path_to_search (according to the lexicographic order)
 ///  - and that is not a descendant of p
 /// has an empty encoding.
-/// For example: if p is the closest cousin on the left, then all siblings on the left of path_to_search must have an empty
-/// encoding.
-/// - Returns p, and whether `relative_on_left`, which is true when the encoding of path_to_search comes after the one of p (true) or before (false).
+/// For example: if p is the closest cousin on the left, then all siblings on the left of
+/// path_to_search must have an empty encoding.
+/// - Returns p, and whether `relative_on_left`, which is true when the encoding of path_to_search
+///   comes after the one of p (true) or before (false).
 /// For instance, if p is an ancestor of path_to_search then it will be false.
-/// If p is a sibling, then it depends whether it is on the left (true) or on the right (false) of path_to_search.
-/// - Returns `shift_ancestor_to_search:usize`: this can be non-zero when p is not a sibling but a sibling of an ancestor of to_search.
-/// It then corresponds to the position of `to_search` relatively to the evaluation of this ancestor.
-/// This can happen for example for append(f, fn_support_group_extension(to_search)) when relative node is f
-/// and fn_support_group_extension add some headers in front of to_search. shift_ancestor_to_search will be
-/// the length of this header.
+/// If p is a sibling, then it depends whether it is on the left (true) or on the right (false) of
+/// path_to_search.
+/// - Returns `shift_ancestor_to_search:usize`: this can be non-zero when p is not a sibling but a
+///   sibling of an ancestor of to_search.
+/// It then corresponds to the position of `to_search` relatively to the evaluation of this
+/// ancestor. This can happen for example for append(f, fn_support_group_extension(to_search)) when
+/// relative node is f and fn_support_group_extension add some headers in front of to_search.
+/// shift_ancestor_to_search will be the length of this header.
 pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     to_search: &[u8],
     path_to_search: &[usize],
@@ -577,7 +589,8 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
             debug!("[find_relative_node] trying on the left, arg_to_search:{arg_to_search}, sib_left:{sib_left}");
             let mut path_sib = path_parent.to_vec();
             path_sib.push(sib_left as usize);
-            // We call eval_or_compute as we might not have tried to evaluate the sibling when creating eval_tree
+            // We call eval_or_compute as we might not have tried to evaluate the sibling when
+            // creating eval_tree
             let eval_sib = eval_or_compute(&path_sib, eval_tree, whole_term, ctx)?;
             if !eval_sib.deref().is_empty() {
                 assert!(path_sib != path_to_search);
@@ -596,7 +609,8 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
             debug!("[find_relative_node] trying on the right, arg_to_search:{arg_to_search}, sib_right:{sib_right}");
             let mut path_sib = path_parent.to_vec();
             path_sib.push(sib_right as usize);
-            // We call eval_or_compute as we might not have tried to evaluate the sibling when creating eval_tree
+            // We call eval_or_compute as we might not have tried to evaluate the sibling when
+            // creating eval_tree
             let eval_sib = eval_or_compute(&path_sib, eval_tree, whole_term, ctx)?;
             if !eval_sib.deref().is_empty() {
                 let mut path_sib = path_parent.to_vec();
@@ -608,7 +622,8 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
                 sib_right += 1;
             }
         }
-    } // we failed to find a sibling candidate, therefore the parent has an empty encoding too, let us try from there!
+    } // we failed to find a sibling candidate, therefore the parent has an empty encoding too, let us
+      // try from there!
     debug!("[find_relative_node] failed, trying parent at path {path_parent:?}");
     let eval_parent = eval_or_compute(&path_parent, eval_tree, whole_term, ctx)?;
     let shift_ancestor_to_search_new =
@@ -635,8 +650,8 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     }
 }
 
-/// Return the depth of the path we should look for the next window, given the current StatusSearch and
-/// notably the current window path depth. This is following best efforts heuristics.
+/// Return the depth of the path we should look for the next window, given the current StatusSearch
+/// and notably the current window path depth. This is following best efforts heuristics.
 pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
     let window_len = st.window.len();
     let current_depth = st.path_window.len();
@@ -710,7 +725,8 @@ pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
             return max(0, st.path_to_search.len() - 1);
         } else {
             return min(
-                // TODO: this slight optimization (trying st.path_to_search.len() -2) has not been benchmarked/measured
+                // TODO: this slight optimization (trying st.path_to_search.len() -2) has not been
+                // benchmarked/measured
                 st.path_to_search.len() - 1,
                 max(current_depth + 1, max(st.path_to_search.len(), 2) - 2),
             );
@@ -718,9 +734,9 @@ pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
     }
 }
 
-/// Operate the payloads replacements in eval_tree.encode[vec![]] and returns the modified bitstring.
-/// `@payloads` follows this order: deeper terms first, left-to-right, assuming no overlap (no two terms
-/// one being a sub-term of the other).
+/// Operate the payloads replacements in eval_tree.encode[vec![]] and returns the modified
+/// bitstring. `@payloads` follows this order: deeper terms first, left-to-right, assuming no
+/// overlap (no two terms one being a sub-term of the other).
 pub fn replace_payloads<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     term: &Term<M>,
     eval_tree: &'a mut EvalTree,
@@ -729,13 +745,16 @@ pub fn replace_payloads<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
 ) -> Result<ConcreteMessage, Error> {
     trace!("[replace_payload] --------> START");
     let mut shift = 0 as isize; // Number of bytes we need to shift on the right to apply the
-                                // splicing, taking into account previous payloads replacements). We assume the aforementioned invariant.
-    let mut to_modify: Vec<u8> = eval_tree.encode.as_mut().unwrap().clone(); //unwrap: eval_until_opaque returns an error if it cannot compute the encoding of the root having payloads
+                                // splicing, taking into account previous payloads replacements). We assume the aforementioned
+                                // invariant.
+    let mut to_modify: Vec<u8> = eval_tree.encode.as_mut().unwrap().clone(); //unwrap: eval_until_opaque returns an error if it cannot compute the encoding of the root
+                                                                             // having payloads
     for payload_context in &payloads {
         trace!("[replace_payload] --------> treating {:?} at path {:?} on message of length = {}. Shift = {shift}", payload_context.payloads, payload_context.path, to_modify.len());
         let old_bitstring = payload_context.payloads.payload_0.bytes();
         let path_payload = &payload_context.path;
-        //Goal: search `to_search` in to_modify[pos_start..pos_end]=eval(term[path]) for `path` between path vec![] and `path_payload`
+        //Goal: search `to_search` in to_modify[pos_start..pos_end]=eval(term[path]) for `path`
+        // between path vec![] and `path_payload`
         let pos_start = find_unique_match(old_bitstring, path_payload, eval_tree, term, ctx)
             .map_err(|e| {
                 error!(
@@ -797,12 +816,14 @@ pub fn replace_payloads<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
 }
 
 impl<M: Matcher> Term<M> {
-    /// Evaluate a term without replacing the payloads (returning the payloads with the corresponding paths instead,
-    /// i.e., a Vec<PayloadContext> accumulator), except when reaching an opaque term with payloads as strict sub-terms.
-    /// In the latter case, fully evaluate each of the arguments (and performing the payload replacements) before
-    /// evaluating the opaque function, which then needs to be read to convert it back to a Box<dyn Any>.
-    /// @path: current path of &self in the overall recipe (initially []).
-    /// Invariant: Returns the payloads to replace in this order: deeper first, left-most arguments first.
+    /// Evaluate a term without replacing the payloads (returning the payloads with the
+    /// corresponding paths instead, i.e., a Vec<PayloadContext> accumulator), except when
+    /// reaching an opaque term with payloads as strict sub-terms. In the latter case, fully
+    /// evaluate each of the arguments (and performing the payload replacements) before
+    /// evaluating the opaque function, which then needs to be read to convert it back to a Box<dyn
+    /// Any>. @path: current path of &self in the overall recipe (initially []).
+    /// Invariant: Returns the payloads to replace in this order: deeper first, left-most arguments
+    /// first.
     pub(crate) fn eval_until_opaque<PB>(
         &self,
         eval_tree: &mut EvalTree,
@@ -818,8 +839,9 @@ impl<M: Matcher> Term<M> {
     {
         debug!("[eval_until_opaque] [START]: Eval term:\n {self}");
         if let (true, Some(payload)) = (with_payloads, &self.payloads) {
-            // TODO: what if we change the actual encoding because of queries and mutations in previous messages ?
-            // Plus: this supposes read_bytes is "perfect" (commute with get_any_encoding), which does not seem to be the case...
+            // TODO: what if we change the actual encoding because of queries and mutations in
+            // previous messages ? Plus: this supposes read_bytes is "perfect" (commute
+            // with get_any_encoding), which does not seem to be the case...
             trace!("[eval_until_opaque] Trying to read payload_0 to skip further computations...........");
             if let Ok(di) = PB::try_read_bytes(payload.payload_0.bytes(), (*type_term).into()) {
                 let p_c = vec![PayloadContext {
@@ -862,7 +884,8 @@ impl<M: Matcher> Term<M> {
                                         e
                                     }));
                             } else {
-                                // we might not need this eval later, we will try to replace payloads without using it // TODO: make sure we resist this!
+                                // we might not need this eval later, we will try to replace
+                                // payloads without using it // TODO: make sure we resist this!
                                 warn!("[eval_until_opaque] Could not any_get_encode a sub-term at path {path:?}, sub-term:\n{}", &self.term);
                             }
                         }
@@ -884,8 +907,10 @@ impl<M: Matcher> Term<M> {
             }
             DYTerm::Application(func, args) => {
                 trace!("[eval_until_opaque] [App]: Application from path={path:?}");
-                let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new(); // will contain all the arguments on which to call the function symbol implementation
-                let mut all_payloads = vec![]; // will collect all payloads contexts of arguments (except those under opaque function symbols)
+                let mut dynamic_args: Vec<Box<dyn Any>> = Vec::new(); // will contain all the arguments on which to call the function symbol
+                                                                      // implementation
+                let mut all_payloads = vec![]; // will collect all payloads contexts of arguments (except those under opaque
+                                               // function symbols)
                 let mut eval_tree_args = vec![]; // will collect the eval tree of the sub-terms, if `with_payloads`
                 let self_has_payloads_wo_root = self.has_payload_to_replace_wo_root();
                 for (i, ti) in args.iter().enumerate() {
@@ -908,7 +933,8 @@ impl<M: Matcher> Term<M> {
                                 }
                                 e
                             })?;
-                        dynamic_args.push(di); // no need to add payloads to all_p as they were consumed (opaque function symbol)
+                        dynamic_args.push(di); // no need to add payloads to all_p as they were
+                                               // consumed (opaque function symbol)
                     } else {
                         let mut path_i = path.clone();
                         path_i.push(i); // adding `i` for i-th argument
@@ -946,7 +972,8 @@ impl<M: Matcher> Term<M> {
                     });
                 }
 
-                // If there are payloads to replace in self, then we will *likely* have to know the encoding of self, we save it for later in eval_tree
+                // If there are payloads to replace in self, then we will *likely* have to know the
+                // encoding of self, we save it for later in eval_tree
                 if with_payloads && (!all_payloads.is_empty() || sibling_has_payloads) {
                     eval_tree.args = eval_tree_args;
                     if let Ok(eval) = PB::any_get_encoding(&result) {
@@ -960,7 +987,8 @@ impl<M: Matcher> Term<M> {
                                     e
                                 }));
                         } else {
-                            // we might not need this eval later, we will try to replace payloads without using it // TODO: make sure we resist this!
+                            // we might not need this eval later, we will try to replace payloads
+                            // without using it // TODO: make sure we resist this!
                             warn!("[eval_until_opaque] Could not any_get_encode a sub-term at path {path:?}, sub-term:\n{}", &self.term);
                         }
                     }

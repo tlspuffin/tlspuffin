@@ -8,12 +8,10 @@ use ring::{
     hmac,
 };
 
-use crate::tls::rustls::{
-    cipher::{Iv, IvLen},
-    error::Error,
-    key_log::KeyLog,
-    msgs::base::PayloadU8,
-};
+use crate::tls::rustls::cipher::{Iv, IvLen};
+use crate::tls::rustls::error::Error;
+use crate::tls::rustls::key_log::KeyLog;
+use crate::tls::rustls::msgs::base::PayloadU8;
 
 /// The kinds of secret we can extract from `KeySchedule`.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -113,7 +111,8 @@ impl KeyScheduleEarly {
 /// Pre-handshake key schedule
 ///
 /// The inner `KeySchedule` is either constructed without any secrets based on ths HKDF algorithm
-/// or is extracted from a `KeyScheduleEarly`. This can then be used to derive the `KeyScheduleHandshakeStart`.
+/// or is extracted from a `KeyScheduleEarly`. This can then be used to derive the
+/// `KeyScheduleHandshakeStart`.
 pub struct KeySchedulePreHandshake {
     ks: KeySchedule,
 }

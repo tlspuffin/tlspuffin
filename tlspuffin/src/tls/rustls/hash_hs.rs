@@ -1,18 +1,12 @@
-use std::{
-    fmt::{Debug, Formatter},
-    mem,
-};
+use std::fmt::{Debug, Formatter};
+use std::mem;
 
-use puffin::{
-    codec,
-    codec::{Codec, Reader},
-};
+use puffin::codec;
+use puffin::codec::{Codec, Reader};
 use ring::digest;
 
-use crate::tls::rustls::msgs::{
-    handshake::HandshakeMessagePayload,
-    message::{Message, MessagePayload},
-};
+use crate::tls::rustls::msgs::handshake::HandshakeMessagePayload;
+use crate::tls::rustls::msgs::message::{Message, MessagePayload};
 
 /// Early stage buffering of handshake payloads.
 ///

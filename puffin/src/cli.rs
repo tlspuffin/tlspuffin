@@ -1,36 +1,29 @@
-use std::{
-    env, fs,
-    fs::File,
-    io::{Read, Write},
-    path::{Path, PathBuf},
-    process::ExitCode,
-};
+use std::fs::File;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+use std::{env, fs};
 
-use clap::{
-    arg, crate_authors, crate_name, crate_version, parser::ValuesRef, value_parser, Command,
-};
+use clap::parser::ValuesRef;
+use clap::{arg, crate_authors, crate_name, crate_version, value_parser, Command};
 use libafl::inputs::Input;
 use libafl_bolts::prelude::Cores;
 use log::{error, info};
 
-use crate::{
-    algebra::set_deserialize_signature,
-    codec::Codec,
-    execution::forked_execution,
-    experiment::*,
-    fuzzer::{
-        harness::{default_put_options, set_default_put_options},
-        sanitizer::asan::{asan_info, setup_asan_env},
-        start, FuzzerConfig,
-    },
-    graphviz::write_graphviz,
-    log::config_default,
-    protocol::{ProtocolBehavior, ProtocolMessage},
-    put::PutOptions,
-    put_registry::PutRegistry,
-    trace::{Action, Trace, TraceContext},
-    GIT_REF,
-};
+use crate::algebra::set_deserialize_signature;
+use crate::codec::Codec;
+use crate::execution::forked_execution;
+use crate::experiment::*;
+use crate::fuzzer::harness::{default_put_options, set_default_put_options};
+use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
+use crate::fuzzer::{start, FuzzerConfig};
+use crate::graphviz::write_graphviz;
+use crate::log::config_default;
+use crate::protocol::{ProtocolBehavior, ProtocolMessage};
+use crate::put::PutOptions;
+use crate::put_registry::PutRegistry;
+use crate::trace::{Action, Trace, TraceContext};
+use crate::GIT_REF;
 
 fn create_app<S>(title: S) -> Command
 where
@@ -511,11 +504,9 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-use crate::{
-    agent::AgentName,
-    algebra::TermType,
-    put::{PutDescriptor, PutName},
-};
+use crate::agent::AgentName;
+use crate::algebra::TermType;
+use crate::put::{PutDescriptor, PutName};
 
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutRegistry<PB>) {
     let trace = match Trace::<PB::Matcher>::from_file(input.as_ref()) {
@@ -529,7 +520,8 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(input: P, put_registry: &PutReg
     info!("Agents: {:?}", &trace.descriptors);
 
     // When generating coverage a crash means that no coverage is stored
-    // By executing in a fork, even when that process crashes, the other executed code will still yield coverage
+    // By executing in a fork, even when that process crashes, the other executed code will still
+    // yield coverage
     let status = forked_execution(
         move || {
             let mut ctx = TraceContext::new(put_registry, default_put_options().clone());

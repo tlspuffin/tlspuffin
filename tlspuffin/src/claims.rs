@@ -1,12 +1,11 @@
-use std::{any::Any, fmt::Debug};
+use std::any::Any;
+use std::fmt::Debug;
 
-use puffin::{
-    agent::{AgentName, AgentType, TLSVersion},
-    algebra::dynamic_function::TypeShape,
-    claims::Claim,
-    codec::Encode,
-    variable_data::VariableData,
-};
+use puffin::agent::{AgentName, AgentType, TLSVersion};
+use puffin::algebra::dynamic_function::TypeShape;
+use puffin::claims::Claim;
+use puffin::codec::Encode;
+use puffin::variable_data::VariableData;
 use smallvec::SmallVec;
 
 #[derive(Debug, Clone)]

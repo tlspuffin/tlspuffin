@@ -1,13 +1,13 @@
 use std::fs::File;
 
-use puffin::{
-    agent::AgentName,
-    libafl::inputs::Input,
-    put::PutOptions,
-    trace::{Trace, TraceContext},
-};
+use puffin::agent::AgentName;
+use puffin::libafl::inputs::Input;
+use puffin::put::PutOptions;
+use puffin::trace::{Trace, TraceContext};
 
-use crate::{protocol::TLSProtocolBehavior, put_registry::tls_registry, query::TlsQueryMatcher};
+use crate::protocol::TLSProtocolBehavior;
+use crate::put_registry::tls_registry;
+use crate::query::TlsQueryMatcher;
 
 pub trait TraceHelper<A>: TraceExecutor<A> {
     fn build_named_trace(self) -> (&'static str, Trace<TlsQueryMatcher>);

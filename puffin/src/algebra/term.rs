@@ -1,13 +1,11 @@
 //! This module provides[`DYTerm`]sas well as iterators over them.
 
-use std::{
-    any::{Any, TypeId},
-    cmp::{max, min},
-    fmt,
-    fmt::{format, Debug, Display, Formatter},
-    hash::Hash,
-    slice::IterMut,
-};
+use std::any::{Any, TypeId};
+use std::cmp::{max, min};
+use std::fmt;
+use std::fmt::{format, Debug, Display, Formatter};
+use std::hash::Hash;
+use std::slice::IterMut;
 
 use anyhow::Context;
 use itertools::Itertools;
@@ -15,26 +13,21 @@ use libafl::inputs::{BytesInput, HasBytesVec};
 use libafl_bolts::AsMutSlice;
 use log::{debug, error, trace, warn};
 use postcard::to_slice;
-use serde::{de::Unexpected::Bytes, Deserialize, Serialize};
+use serde::de::Unexpected::Bytes;
+use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
-use crate::{
-    algebra::{
-        bitstrings::{replace_payloads, EvalTree, Payloads},
-        dynamic_function::TypeShape,
-        error::FnError,
-        Matcher,
-    },
-    define_signature,
-    error::Error,
-    fuzzer::{
-        start,
-        utils::{find_term_by_term_path, find_term_by_term_path_mut, TermPath},
-    },
-    protocol::ProtocolBehavior,
-    trace::{Source, Trace, TraceContext},
-    variable_data::VariableData,
-};
+use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
+use crate::algebra::dynamic_function::TypeShape;
+use crate::algebra::error::FnError;
+use crate::algebra::Matcher;
+use crate::define_signature;
+use crate::error::Error;
+use crate::fuzzer::start;
+use crate::fuzzer::utils::{find_term_by_term_path, find_term_by_term_path_mut, TermPath};
+use crate::protocol::ProtocolBehavior;
+use crate::trace::{Source, Trace, TraceContext};
+use crate::variable_data::VariableData;
 
 const SIZE_LEAF: usize = 1;
 const BITSTRING_NAME: &'static str = "BITSTRING_";
@@ -47,12 +40,11 @@ pub type ConcreteMessage = Vec<u8>;
 pub enum DYTerm<M: Matcher> {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
     /// See [`Variable`] for more information.
-    ///
     Variable(Variable<M>),
     /// An [`Function`] applied to zero or more `Term`s (e.g. (`f(x, y)`, `g()`).
     ///
-    /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be considered a constant.
-    ///
+    /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be
+    /// considered a constant.
     Application(Function, Vec<Term<M>>),
 }
 
@@ -94,7 +86,8 @@ pub trait TermType<M>: Display + Debug + Clone {
         self.evaluate_config(context, true)
     }
 
-    /// Evaluate terms into bitstrings considering all sub-terms as symbolic (even those with Payloads)
+    /// Evaluate terms into bitstrings considering all sub-terms as symbolic (even those with
+    /// Payloads)
     fn evaluate_symbolic<PB: ProtocolBehavior>(
         &self,
         ctx: &TraceContext<PB>,
@@ -123,8 +116,8 @@ fn append<'a, M: Matcher>(term: &'a DYTerm<M>, v: &mut Vec<&'a DYTerm<M>>) {
 /// * https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node
 /// * https://sachanganesh.com/programming/graph-tree-traversals-in-rust/
 impl<'a, M: Matcher> IntoIterator for &'a DYTerm<M> {
-    type Item = &'a DYTerm<M>;
     type IntoIter = std::vec::IntoIter<&'a DYTerm<M>>;
+    type Item = &'a DYTerm<M>;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut result = vec![];
@@ -148,7 +141,8 @@ where
 }
 
 /// `tlspuffin::term::op_impl::op_protocol_version` -> `op_protocol_version`
-/// `alloc::Vec<rustls::msgs::handshake::ServerExtension>` -> `Vec<rustls::msgs::handshake::ServerExtension>`
+/// `alloc::Vec<rustls::msgs::handshake::ServerExtension>` ->
+/// `Vec<rustls::msgs::handshake::ServerExtension>`
 pub(crate) fn remove_prefix(str: &str) -> String {
     let split: Option<(&str, &str)> = str.split('<').collect_tuple();
 
@@ -176,8 +170,9 @@ pub(crate) fn remove_fn_prefix(str: &str) -> String {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 #[serde(bound = "M: Matcher")]
 pub struct Term<M: Matcher> {
-    pub term: DYTerm<M>,            // initial DY term
-    pub payloads: Option<Payloads>, // None until make_message mutation is used and fill this with term.evaluate()
+    pub term: DYTerm<M>, // initial DY term
+    pub payloads: Option<Payloads>, /* None until make_message mutation is used and fill this
+                          * with term.evaluate() */
 }
 
 impl<M: Matcher> Term<M> {
@@ -238,7 +233,8 @@ impl<M: Matcher> Term<M> {
         self.erase_payloads_subterms(false);
     }
 
-    /// Make and Add a payload at the root position, erase payloads in strict sub-terms not under opaque
+    /// Make and Add a payload at the root position, erase payloads in strict sub-terms not under
+    /// opaque
     pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,
@@ -249,8 +245,8 @@ impl<M: Matcher> Term<M> {
     }
 
     /// Return all payloads contains in a term, even under opaque terms.
-    /// Note that we keep the invariant that a non-symbolic term cannot have payloads in struct-subterms,
-    /// see `add_payload/make_payload`.
+    /// Note that we keep the invariant that a non-symbolic term cannot have payloads in
+    /// struct-subterms, see `add_payload/make_payload`.
     pub fn all_payloads(&self) -> Vec<&Payloads> {
         self.into_iter()
             .filter_map(|t| t.payloads.as_ref())
@@ -258,8 +254,8 @@ impl<M: Matcher> Term<M> {
     }
 
     /// Return all payloads contains in a term (mutable references), even under opaque terms.
-    /// Note that we keep the invariant that a non-symbolic term cannot have payloads in struct-subterms,
-    /// see `add_payload/make_payload`.
+    /// Note that we keep the invariant that a non-symbolic term cannot have payloads in
+    /// struct-subterms, see `add_payload/make_payload`.
     pub fn all_payloads_mut(&mut self) -> Vec<&mut Payloads> {
         // unable to implement as_iter_map for Term due to its tree structure so:
         // do it manually instead!
@@ -309,7 +305,8 @@ impl<M: Matcher> Term<M> {
         has_payload_to_replace_rec(self, true)
     }
 
-    /// Return whether there is at least one payload, except those under opaque terms and at the root..
+    /// Return whether there is at least one payload, except those under opaque terms and at the
+    /// root..
     pub fn has_payload_to_replace_wo_root(&self) -> bool {
         has_payload_to_replace_rec(self, false)
     }
@@ -534,8 +531,8 @@ impl<M: Matcher> TermType<M> for Term<M> {
 /// * <https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node>
 /// * <https://sachanganesh.com/programming/graph-tree-traversals-in-rust/>
 impl<'a, M: Matcher> IntoIterator for &'a Term<M> {
-    type Item = &'a Term<M>;
     type IntoIter = std::vec::IntoIter<&'a Term<M>>;
+    type Item = &'a Term<M>;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut result = vec![];
@@ -559,7 +556,8 @@ impl<M: Matcher> Subterms<M, Term<M>> for Vec<Term<M>> {
     ///
     /// A grand subterm is defined as a subterm of a term in `self`.
     ///
-    /// Each grand subterm is returned together with its parent and the index of the parent in `self`.
+    /// Each grand subterm is returned together with its parent and the index of the parent in
+    /// `self`.
     fn filter_grand_subterms<P: Fn(&Term<M>, &Term<M>) -> bool + Copy>(
         &self,
         predicate: P,

@@ -1,4 +1,5 @@
-use std::{ops::Not, thread::panicking};
+use std::ops::Not;
+use std::thread::panicking;
 
 use anyhow::{Context, Result};
 use libafl::prelude::*;
@@ -6,19 +7,18 @@ use libafl_bolts::prelude::*;
 use log::{debug, error, info, trace, warn};
 
 use super::utils::{Choosable, *};
-use crate::{
-    algebra::{
-        atoms::Function,
-        bitstrings::{search_sub_vec, Payloads},
-        signature::Signature,
-        DYTerm, Matcher, Subterms, Term, TermType,
-    },
-    codec::Codec,
-    fuzzer::{bit_mutations::*, harness::default_put_options, term_zoo::TermZoo},
-    protocol::ProtocolBehavior,
-    put_registry::PutRegistry,
-    trace::{Action::Input, Trace, TraceContext},
-};
+use crate::algebra::atoms::Function;
+use crate::algebra::bitstrings::{search_sub_vec, Payloads};
+use crate::algebra::signature::Signature;
+use crate::algebra::{DYTerm, Matcher, Subterms, Term, TermType};
+use crate::codec::Codec;
+use crate::fuzzer::bit_mutations::*;
+use crate::fuzzer::harness::default_put_options;
+use crate::fuzzer::term_zoo::TermZoo;
+use crate::protocol::ProtocolBehavior;
+use crate::put_registry::PutRegistry;
+use crate::trace::Action::Input;
+use crate::trace::{Trace, TraceContext};
 
 #[derive(Clone, Copy, Debug)]
 pub struct MutationConfig {
@@ -387,7 +387,8 @@ where
 
 /// REPLACE-REUSE: Replaces a sub-term with a different sub-term which is part of the trace
 
-/// (such that types match). The new sub-term could come from another step which has a different recipe term.
+/// (such that types match). The new sub-term could come from another step which has a different
+/// recipe term.
 pub struct ReplaceReuseMutator<S>
 where
     S: HasRand,
@@ -656,8 +657,8 @@ where
     }
 }
 
-// ******************************************************************************************************
-// Start bit-level Mutations
+// *************************************************************************************************
+// ***** Start bit-level Mutations
 
 /// MAKE MESSAGE : transforms a sub term into a message which can then be mutated using havoc
 pub struct MakeMessage<'a, S, PB>
@@ -714,10 +715,10 @@ where
     });
 
     let mut t = find_term_mut(tr, path).expect("make_message_term - Should never happen.");
-    // We get payload_0 by symbolically evaluating the term! (and not full eval with potential payloads in sub-terms). This
-    // because, doing differently would dramatically complexify the computation of replace_payloads.
-    // See terms.rs. Also, one could argue the mutations of the strict sub-terms could have been done on the larger
-    // term in thje first place.
+    // We get payload_0 by symbolically evaluating the term! (and not full eval with potential
+    // payloads in sub-terms). This because, doing differently would dramatically complexify the
+    // computation of replace_payloads. See terms.rs. Also, one could argue the mutations of the
+    // strict sub-terms could have been done on the larger term in thje first place.
     t.make_payload(&ctx)?;
     Ok(())
 }
@@ -740,14 +741,21 @@ where
         }
         let rand = state.rand_mut();
         let mut constraints_make_message = TermConstraints {
-            must_be_symbolic: true, // we exclude non-symbolic terms, which were already mutated with MakeMessage
-            no_payload_in_subterm: false, // change to true to exclude picking a term with a payload in a sub-term
-            // Currently sets to false, we would need to measure efficiency improvement before setting to true TODO
-            not_inside_list: true, // true means we are not picking terms inside list (like fn_append in the middle)
-            // we set it to true since it would otherwise be redundant with picking each of the item as mutated term
-            weighted_depth: false, // true means we select a sub-term by giving higher-priority to deeper sub-terms
-            // TODO: set two lasts to false now as they allow to find more case. TODO: fix reservori sampling and set
-            // this to true (as well as in integration_test/term_zoo.rs)
+            must_be_symbolic: true, /* we exclude non-symbolic terms, which were already mutated
+                                     * with MakeMessage */
+            no_payload_in_subterm: false, /* change to true to exclude picking a term with a
+                                           * payload in a sub-term */
+            // Currently sets to false, we would need to measure efficiency improvement before
+            // setting to true TODO
+            not_inside_list: true, /* true means we are not picking terms inside list (like
+                                    * fn_append in the middle) */
+            // we set it to true since it would otherwise be redundant with picking each of the item
+            // as mutated term
+            weighted_depth: false, /* true means we select a sub-term by giving higher-priority
+                                    * to deeper sub-terms */
+            // TODO: set two lasts to false now as they allow to find more case. TODO: fix reservori
+            // sampling and set this to true (as well as in
+            // integration_test/term_zoo.rs)
             ..self.constraints
         };
         if !self.with_dy {
@@ -760,8 +768,8 @@ where
             debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
             let mut ctx = TraceContext::new(self.put_registry, default_put_options().clone());
             match make_message_term(trace, &(step_index, term_path), &mut ctx) {
-                // TODO: possibly we would need to make sure the mutated trace can be executed (if not directly dropped
-                // by the feedback loop once executed)
+                // TODO: possibly we would need to make sure the mutated trace can be executed (if
+                // not directly dropped by the feedback loop once executed)
                 Ok(()) => {
                     debug!("mutation::MakeMessage successful!");
                     Ok(MutationResult::Mutated)
@@ -794,25 +802,19 @@ where
 mod tests {
     use std::collections::{HashMap, HashSet};
 
-    use libafl::{
-        corpus::InMemoryCorpus,
-        mutators::{MutationResult, Mutator},
-        state::StdState,
-    };
+    use libafl::corpus::InMemoryCorpus;
+    use libafl::mutators::{MutationResult, Mutator};
+    use libafl::state::StdState;
     use libafl_bolts::rands::{RomuDuoJrRand, StdRand};
     use log::debug;
 
     use super::*;
-    use crate::{
-        agent::AgentName,
-        algebra::{
-            dynamic_function::DescribableFunction,
-            test_signature::{TestProtocolBehavior, TestTrace, *},
-            AnyMatcher, DYTerm,
-        },
-        trace,
-        trace::{Action, Step},
-    };
+    use crate::agent::AgentName;
+    use crate::algebra::dynamic_function::DescribableFunction;
+    use crate::algebra::test_signature::{TestProtocolBehavior, TestTrace, *};
+    use crate::algebra::{AnyMatcher, DYTerm};
+    use crate::trace;
+    use crate::trace::{Action, Step};
 
     fn create_state(
     ) -> StdState<TestTrace, InMemoryCorpus<TestTrace>, RomuDuoJrRand, InMemoryCorpus<TestTrace>>

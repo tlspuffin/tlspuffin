@@ -1,34 +1,28 @@
-use std::{
-    ffi::OsStr,
-    io::{self, ErrorKind, Read, Write},
-    net::{AddrParseError, IpAddr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs},
-    path::Path,
-    process::{Child, Command, Stdio},
-    str::FromStr,
-    sync::mpsc::{self, channel},
-    thread,
-    time::Duration,
-};
+use std::ffi::OsStr;
+use std::io::{self, ErrorKind, Read, Write};
+use std::net::{AddrParseError, IpAddr, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
+use std::path::Path;
+use std::process::{Child, Command, Stdio};
+use std::str::FromStr;
+use std::sync::mpsc::{self, channel};
+use std::thread;
+use std::time::Duration;
 
 use log::{debug, info, warn};
-use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType},
-    algebra::ConcreteMessage,
-    codec::Codec,
-    error::Error,
-    put::{Put, PutDescriptor, PutName},
-    put_registry::{Factory, PutKind},
-    stream::Stream,
-    trace::TraceContext,
-    VERSION_STR,
-};
+use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::algebra::ConcreteMessage;
+use puffin::codec::Codec;
+use puffin::error::Error;
+use puffin::put::{Put, PutDescriptor, PutName};
+use puffin::put_registry::{Factory, PutKind};
+use puffin::stream::Stream;
+use puffin::trace::TraceContext;
+use puffin::VERSION_STR;
 
-use crate::{
-    protocol::{OpaqueMessageFlight, TLSProtocolBehavior},
-    put_registry::TCP_PUT,
-    query::TlsQueryMatcher,
-    tls::rustls::msgs::message::{Message, OpaqueMessage},
-};
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::put_registry::TCP_PUT;
+use crate::query::TlsQueryMatcher;
+use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
 pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct TCPFactory;
@@ -494,7 +488,8 @@ where
 
 #[cfg(test)]
 pub mod tcp_puts {
-    use puffin::{agent::TLSVersion, put::PutOptions};
+    use puffin::agent::TLSVersion;
+    use puffin::put::PutOptions;
     use tempfile::{tempdir, TempDir};
 
     use crate::tcp::{collect_output, execute_command};
@@ -681,23 +676,16 @@ pub mod tcp_puts {
 #[cfg(test)]
 mod tests {
     use log::info;
-    use puffin::{
-        agent::{AgentName, TLSVersion},
-        put::PutDescriptor,
-    };
+    use puffin::agent::{AgentName, TLSVersion};
+    use puffin::put::PutDescriptor;
     use test_log::test;
 
-    use crate::{
-        put_registry::{tls_registry, TCP_PUT},
-        tcp::tcp_puts::{openssl_client, openssl_server, wolfssl_client},
-        tls::{
-            seeds::{
-                seed_client_attacker_full, seed_session_resumption_dhe_full,
-                seed_successful12_with_tickets,
-            },
-            trace_helper::TraceHelper,
-        },
+    use crate::put_registry::{tls_registry, TCP_PUT};
+    use crate::tcp::tcp_puts::{openssl_client, openssl_server, wolfssl_client};
+    use crate::tls::seeds::{
+        seed_client_attacker_full, seed_session_resumption_dhe_full, seed_successful12_with_tickets,
     };
+    use crate::tls::trace_helper::TraceHelper;
 
     #[test]
     fn test_openssl_session_resumption_dhe_full() {

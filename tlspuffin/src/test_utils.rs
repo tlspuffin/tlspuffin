@@ -1,13 +1,12 @@
 use std::time::Duration;
 
 use log::info;
-use puffin::{
-    execution::{forked_execution, ExecutionStatus},
-    put::PutOptions,
-    trace::Trace,
-};
+use puffin::execution::{forked_execution, ExecutionStatus};
+use puffin::put::PutOptions;
+use puffin::trace::Trace;
 
-use crate::{put_registry::tls_registry, query::TlsQueryMatcher};
+use crate::put_registry::tls_registry;
+use crate::query::TlsQueryMatcher;
 
 // TODO refactor forked execution into a build pattern
 //

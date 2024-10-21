@@ -2,25 +2,18 @@
 //! handshake or an execution which crashes OpenSSL.
 #![allow(dead_code)]
 
-use puffin::{
-    agent::{AgentDescriptor, AgentName, AgentType, TLSVersion},
-    algebra::{dynamic_function::TypeShape, DYTerm, Term},
-    term,
-    trace::{Action, InputAction, OutputAction, Step, Trace},
-};
+use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
+use puffin::algebra::dynamic_function::TypeShape;
+use puffin::algebra::{DYTerm, Term};
+use puffin::term;
+use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 
-use crate::{
-    protocol::MessageFlight,
-    query::TlsQueryMatcher,
-    tls::{
-        fn_impl::*,
-        rustls::msgs::{
-            enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion},
-            handshake::{Random, ServerExtensions, SessionID},
-            message::OpaqueMessage,
-        },
-    },
-};
+use crate::protocol::MessageFlight;
+use crate::query::TlsQueryMatcher;
+use crate::tls::fn_impl::*;
+use crate::tls::rustls::msgs::enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion};
+use crate::tls::rustls::msgs::handshake::{Random, ServerExtensions, SessionID};
+use crate::tls::rustls::msgs::message::OpaqueMessage;
 
 pub fn seed_successful_client_auth(client: AgentName, server: AgentName) -> Trace<TlsQueryMatcher> {
     Trace {
@@ -186,7 +179,8 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TlsQueryMa
                     },
                 }),
             },
-            // ServerHello/EncryptedExtensions/Certificate/CertificateVerify/ServerFinished -> Client
+            // ServerHello/EncryptedExtensions/Certificate/CertificateVerify/ServerFinished ->
+            // Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
@@ -239,7 +233,8 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TlsQu
                     },
                 }),
             },
-            // ServerHello/EncryptedExtensions/Certificate/CertificateVerify/ServerFinished -> Client
+            // ServerHello/EncryptedExtensions/Certificate/CertificateVerify/ServerFinished ->
+            // Client
             Step {
                 agent: client,
                 action: Action::Input(InputAction {
@@ -1132,7 +1127,8 @@ pub fn _seed_client_attacker12(
     (trace, client_verify_data)
 }
 
-// TODO: `"Unable to find variable (Some(Agent(AgentName(0))), 1)[None]/MessageFlight!"` error with BoringSSL
+// TODO: `"Unable to find variable (Some(Agent(AgentName(0))), 1)[None]/MessageFlight!"` error with
+// BoringSSL
 pub fn seed_session_resumption_dhe(
     initial_server: AgentName,
     server: AgentName,
@@ -1261,7 +1257,8 @@ pub fn seed_session_resumption_dhe(
     }
 }
 
-// TODO: `Unable to find variable (Some(Agent(AgentName(0))), 1)[None]/MessageFlight!` error with BoringSSL
+// TODO: `Unable to find variable (Some(Agent(AgentName(0))), 1)[None]/MessageFlight!` error with
+// BoringSSL
 pub fn seed_session_resumption_ke(
     initial_server: AgentName,
     server: AgentName,
@@ -1818,29 +1815,25 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
 pub mod tests {
 
     use log::debug;
-    use puffin::{
-        agent::AgentName,
-        algebra::{
-            bitstrings::{replace_payloads, Payloads},
-            error::FnError,
-            term::evaluate_lazy_test,
-            TermType,
-        },
-        codec::Codec,
-        fuzzer::harness::default_put_options,
-        libafl::inputs::HasBytesVec,
-        protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage},
-        put::PutOptions,
-        trace::{Action, Action::Input, TraceContext},
-    };
+    use puffin::agent::AgentName;
+    use puffin::algebra::bitstrings::{replace_payloads, Payloads};
+    use puffin::algebra::error::FnError;
+    use puffin::algebra::term::evaluate_lazy_test;
+    use puffin::algebra::TermType;
+    use puffin::codec::Codec;
+    use puffin::fuzzer::harness::default_put_options;
+    use puffin::libafl::inputs::HasBytesVec;
+    use puffin::protocol::{OpaqueProtocolMessage, ProtocolBehavior, ProtocolMessage};
+    use puffin::put::PutOptions;
+    use puffin::trace::Action::Input;
+    use puffin::trace::{Action, TraceContext};
     use test_log::test;
 
     use super::*;
-    use crate::{
-        protocol::TLSProtocolBehavior,
-        put_registry::tls_registry,
-        tls::{rustls::msgs::message::OpaqueMessage, trace_helper::TraceHelper},
-    };
+    use crate::protocol::TLSProtocolBehavior;
+    use crate::put_registry::tls_registry;
+    use crate::tls::rustls::msgs::message::OpaqueMessage;
+    use crate::tls::trace_helper::TraceHelper;
 
     #[test]
     fn test_version() {
@@ -1957,8 +1950,9 @@ pub mod tests {
     #[cfg(feature = "tls13")] // require version which supports TLS 1.3
     #[test]
     // Cases:
-    // expected = "Not the best cipher choosen", // in case MITM attack succeeded because transcript is ignored -> We detect the MITM and error
-    // expected = "decryption failed or bad record mac"  // in case MITM attack did fail
+    // expected = "Not the best cipher choosen", // in case MITM attack succeeded because transcript
+    // is ignored -> We detect the MITM and error expected = "decryption failed or bad record
+    // mac"  // in case MITM attack did fail
     #[should_panic]
     fn test_seed_successful_mitm() {
         use crate::tls::trace_helper::TraceExecutor;
@@ -2011,7 +2005,8 @@ pub mod tests {
             for step in &trace.steps {
                 match &step.action {
                     Action::Input(input) => {
-                        // should be below a certain threshold, else we should increase max_term_size in fuzzer setup
+                        // should be below a certain threshold, else we should increase
+                        // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
                             terms < 300,
@@ -2051,7 +2046,8 @@ pub mod tests {
             for step in &trace.steps {
                 match &step.action {
                     Action::Input(input) => {
-                        // should be below a certain threshold, else we should increase max_term_size in fuzzer setup
+                        // should be below a certain threshold, else we should increase
+                        // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
                             terms < 300,
@@ -2067,13 +2063,13 @@ pub mod tests {
     }
 
     pub mod serialization {
-        use puffin::{
-            algebra::{set_deserialize_signature, Matcher},
-            trace::Trace,
-        };
+        use puffin::algebra::{set_deserialize_signature, Matcher};
+        use puffin::trace::Trace;
         use test_log::test;
 
-        use crate::tls::{seeds::*, trace_helper::TraceHelper, TLS_SIGNATURE};
+        use crate::tls::seeds::*;
+        use crate::tls::trace_helper::TraceHelper;
+        use crate::tls::TLS_SIGNATURE;
 
         fn test_postcard_serialization<M: Matcher>(trace: Trace<M>) {
             let _ = set_deserialize_signature(&TLS_SIGNATURE);
@@ -2164,15 +2160,14 @@ pub mod tests {
         use puffin::codec::{Codec, Reader};
         use test_log::test;
 
-        use crate::tls::rustls::msgs::{
-            base::Payload,
-            enums::{ContentType, HandshakeType, ProtocolVersion},
-            handshake::{
-                CipherSuites, ClientExtensions, ClientHelloPayload, Compressions,
-                HandshakeMessagePayload, HandshakePayload, Random, SessionID,
-            },
-            message::{Message, MessagePayload::Handshake, OpaqueMessage, PlainMessage},
+        use crate::tls::rustls::msgs::base::Payload;
+        use crate::tls::rustls::msgs::enums::{ContentType, HandshakeType, ProtocolVersion};
+        use crate::tls::rustls::msgs::handshake::{
+            CipherSuites, ClientExtensions, ClientHelloPayload, Compressions,
+            HandshakeMessagePayload, HandshakePayload, Random, SessionID,
         };
+        use crate::tls::rustls::msgs::message::MessagePayload::Handshake;
+        use crate::tls::rustls::msgs::message::{Message, OpaqueMessage, PlainMessage};
 
         fn create_message(opaque_message: OpaqueMessage) -> Message {
             Message::try_from(opaque_message.into_plain_message()).unwrap()

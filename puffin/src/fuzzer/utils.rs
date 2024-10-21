@@ -3,11 +3,9 @@ use std::cmp::max;
 use libafl_bolts::rands::Rand;
 use log::{debug, error, trace};
 
-use crate::{
-    algebra::{DYTerm, Matcher, Term, TermType},
-    protocol::ProtocolBehavior,
-    trace::{Action, InputAction, Step, Trace},
-};
+use crate::algebra::{DYTerm, Matcher, Term, TermType};
+use crate::protocol::ProtocolBehavior;
+use crate::trace::{Action, InputAction, Step, Trace};
 
 #[derive(Copy, Clone, Debug)]
 pub struct TermConstraints {
@@ -16,10 +14,12 @@ pub struct TermConstraints {
     pub must_be_symbolic: bool,
     // [NO LONGER USED! Can be removed!]
     // when true: only look for terms with no payload in sub-terms (for bit-le
-    // note that we always exclude terms that are sub-terms of non-symbolic terms (i.e., with paylaods)
+    // note that we always exclude terms that are sub-terms of non-symbolic terms (i.e., with
+    // paylaods)
     pub no_payload_in_subterm: bool,
-    // when true: we do not choose terms that have a list symbol and whose parent also has a list symbol
-    // those terms are thus "inside a list", like t in fn_append(t,t3) for t = fn(append(t1,t2)
+    // when true: we do not choose terms that have a list symbol and whose parent also has a list
+    // symbol those terms are thus "inside a list", like t in fn_append(t,t3) for t =
+    // fn(append(t1,t2)
     pub not_inside_list: bool,
     // choose term giving higher probability to deeper term
     pub weighted_depth: bool,
@@ -32,7 +32,8 @@ impl Default for TermConstraints {
     fn default() -> Self {
         Self {
             min_term_size: 0,
-            max_term_size: 300, // was 9000 but we were rewriting this to 300 anyway when instantiating the fuzzer
+            max_term_size: 300, /* was 9000 but we were rewriting this to 300 anyway when
+                                 * instantiating the fuzzer */
             must_be_symbolic: false,
             no_payload_in_subterm: false,
             not_inside_list: false,
@@ -101,8 +102,9 @@ pub type StepIndex = usize;
 pub type TermPath = Vec<usize>;
 pub type TracePath = (StepIndex, TermPath);
 
-// RULE: never choose a term for a DY or bit-level mutation which is a sub-term of a not is_symbolic() term
-// Indeed, this latter term is considered atomic/leaf and is treated as a bitstring.
+// RULE: never choose a term for a DY or bit-level mutation which is a sub-term of a not
+// is_symbolic() term Indeed, this latter term is considered atomic/leaf and is treated as a
+// bitstring.
 /// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
 fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
     trace: &'a Trace<M>,
@@ -111,10 +113,10 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
     rand: &mut R,
 ) -> Option<(&'a Term<M>, TracePath)> {
     // trace!("[reservoir_sample] Start");
-    // If if_wighted is set to true, we run a Reservoir Sampling algorithm per depth (of chosen sub-terms
-    // in the overall recipe. See the two vectors: depth_counts and depth_reservoir, indices are depths.
-    // Otherwise, the two above vectors have size 1 and we only store one counter and one sample, as
-    // in the usual algorithm.
+    // If if_wighted is set to true, we run a Reservoir Sampling algorithm per depth (of chosen
+    // sub-terms in the overall recipe. See the two vectors: depth_counts and depth_reservoir,
+    // indices are depths. Otherwise, the two above vectors have size 1 and we only store one
+    // counter and one sample, as in the usual algorithm.
     let if_weighted = constraints.weighted_depth;
     let mut max_depth = 1;
     let mut depth_counts: Vec<u64> = vec![0];
@@ -145,16 +147,17 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
                 if size <= constraints.min_term_size || size >= constraints.max_term_size {
                     trace!("[reservoir_sample] Skip step {step_index} because of size constraints for term: {term}");
                     continue;
-                    //TODO-bitlevel: consider removing this, we just want to exclude picking such terms
-                    // but it is OK to enter the term and look for suitable sub-terms
+                    //TODO-bitlevel: consider removing this, we just want to exclude picking such
+                    // terms but it is OK to enter the term and look for
+                    // suitable sub-terms
                 }
 
                 let mut stack: Vec<(&Term<M>, TracePath, bool, usize)> =
                     vec![(term, (step_index, TermPath::new()), false, 0)]; // bool is true for terms inside a list (e.g., fn_append)
                                                                            // usize is for depth
 
-                // DFS Algo: the version with if_weighted implements the reservoir sampling algorithm
-                // at each depth, independently
+                // DFS Algo: the version with if_weighted implements the reservoir sampling
+                // algorithm at each depth, independently
                 while let Some((term, path, is_inside_list, depth)) = stack.pop() {
                     // push next terms onto stack
 
@@ -192,7 +195,9 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
                             0
                         };
                         depth_counts[level] += 1;
-                        // trace!("[reservoir_sample] Considering adding a term with count {}, term is {term} and currently stored term is {:?}", depth_counts[level], depth_reservoir[level]);
+                        // trace!("[reservoir_sample] Considering adding a term with count {}, term
+                        // is {term} and currently stored term is {:?}", depth_counts[level],
+                        // depth_reservoir[level]);
 
                         // consider in sampling
                         if depth_reservoir[level].is_none() {
@@ -202,7 +207,8 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
                             // `1/visited` chance of overwriting
                             // replace elements with gradually decreasing probability
                             let r = rand.between(1, depth_counts[level]);
-                            // trace!("[reservoir_sample] Random value was {r} in [1,{}]", depth_counts[level]     );
+                            // trace!("[reservoir_sample] Random value was {r} in [1,{}]",
+                            // depth_counts[level]     );
                             if r == 1 {
                                 // trace!("[reservoir_sample] Replacing term!");
                                 depth_reservoir[level] = Some((term, path));
@@ -223,8 +229,8 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
     if if_weighted {
         // we need to randomly pick a depth from which we will sample the term
         // we give higher probability to deeper terms (linear bonus by 1+lambda) and proportional
-        // to the number of elements in that depths (hence an exponential bonus for deeper terms should
-        // the overall term be roughly balanced
+        // to the number of elements in that depths (hence an exponential bonus for deeper terms
+        // should the overall term be roughly balanced
         let lambda = 0.5 as f64;
         let mut count_weighted = 0 as f64;
         for i in 0..max_depth {
@@ -232,7 +238,8 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
             // TODO: ?: depth_counts[i] = count_weighted.floor() as u64;
         }
         let random = rand.between(0, count_weighted.floor() as u64);
-        // print!("depth_counts: {:?}, count_weighted: {count_weighted}, random: {random}", depth_counts);
+        // print!("depth_counts: {:?}, count_weighted: {count_weighted}, random: {random}",
+        // depth_counts);
         let mut i = 0;
         count_weighted = 0 as f64;
         while random >= count_weighted as u64 && i < max_depth {
@@ -400,25 +407,20 @@ pub fn choose_term_path_filtered<R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + 
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, HashSet};
+
+    use libafl::corpus::InMemoryCorpus;
+    use libafl::mutators::{MutationResult, Mutator};
+    use libafl::state::StdState;
     use libafl_bolts::rands::{RomuDuoJrRand, StdRand};
-    use libafl::{
-        corpus::InMemoryCorpus,
-        mutators::{MutationResult, Mutator},
-        state::StdState,
-    };
     use log::debug;
 
     use super::*;
-    use crate::{
-        agent::AgentName,
-        algebra::{
-            dynamic_function::DescribableFunction,
-            test_signature::{TestProtocolBehavior, TestTrace, *},
-            AnyMatcher, DYTerm,
-        },
-        trace,
-        trace::{Action, Step},
-    };
+    use crate::agent::AgentName;
+    use crate::algebra::dynamic_function::DescribableFunction;
+    use crate::algebra::test_signature::{TestProtocolBehavior, TestTrace, *};
+    use crate::algebra::{AnyMatcher, DYTerm};
+    use crate::trace;
+    use crate::trace::{Action, Step};
 
     #[test]
     fn test_find_term() {

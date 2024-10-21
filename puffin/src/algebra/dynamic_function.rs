@@ -24,11 +24,11 @@
 //! typed function we can generate dynamically types ones which implement the following trait:
 //!
 //! ```rust
-//! use puffin::algebra::error::FnError;
 //! use std::any::Any;
 //!
-//! pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> {
-//! }
+//! use puffin::algebra::error::FnError;
+//!
+//! pub trait DynamicFunction: Fn(&Vec<Box<dyn Any>>) -> Result<Box<dyn Any>, FnError> {}
 //! ```
 //!
 //! Note, that both functions return a `Result` and therefore can gracefully fail.
@@ -49,18 +49,18 @@
 //! ```
 //!
 //! It returns one possibility for the cipher suites which could be sent during a `ClientHello`.
-use std::{
-    any::{type_name, Any, TypeId},
-    collections::hash_map::DefaultHasher,
-    fmt,
-    fmt::Formatter,
-    hash::{Hash, Hasher},
-};
+use std::any::{type_name, Any, TypeId};
+use std::collections::hash_map::DefaultHasher;
+use std::fmt;
+use std::fmt::Formatter;
+use std::hash::{Hash, Hasher};
 
 use itertools::Itertools;
-use serde::{de, de::Visitor, Deserialize, Deserializer, Serialize, Serializer};
+use serde::de::Visitor;
+use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::algebra::{deserialize_signature, error::FnError};
+use crate::algebra::deserialize_signature;
+use crate::algebra::error::FnError;
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]

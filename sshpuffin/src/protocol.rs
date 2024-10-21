@@ -1,25 +1,19 @@
 use log::debug;
-use puffin::{
-    algebra::signature::{ConcreteMessage, Signature},
-    codec::{Codec, Reader},
-    error::Error,
-    protocol::{
-        ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
-        ProtocolMessageDeframer, ProtocolMessageFlight,
-    },
-    trace::{Knowledge, Source, Trace},
+use puffin::algebra::signature::{ConcreteMessage, Signature};
+use puffin::codec::{Codec, Reader};
+use puffin::error::Error;
+use puffin::protocol::{
+    ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
+    ProtocolMessageDeframer, ProtocolMessageFlight,
 };
+use puffin::trace::{Knowledge, Source, Trace};
 
-use crate::{
-    claim::SshClaim,
-    query::SshQueryMatcher,
-    ssh::{
-        deframe::SshMessageDeframer,
-        message::{RawSshMessage, SshMessage},
-        SSH_SIGNATURE,
-    },
-    violation::SshSecurityViolationPolicy,
-};
+use crate::claim::SshClaim;
+use crate::query::SshQueryMatcher;
+use crate::ssh::deframe::SshMessageDeframer;
+use crate::ssh::message::{RawSshMessage, SshMessage};
+use crate::ssh::SSH_SIGNATURE;
+use crate::violation::SshSecurityViolationPolicy;
 
 #[derive(Debug, Clone)]
 pub struct SshMessageFlight {
@@ -168,12 +162,12 @@ pub struct SshProtocolBehavior {}
 
 impl ProtocolBehavior for SshProtocolBehavior {
     type Claim = SshClaim;
-    type SecurityViolationPolicy = SshSecurityViolationPolicy;
-    type ProtocolMessage = SshMessage;
-    type OpaqueProtocolMessage = RawSshMessage;
     type Matcher = SshQueryMatcher;
-    type ProtocolMessageFlight = SshMessageFlight;
+    type OpaqueProtocolMessage = RawSshMessage;
     type OpaqueProtocolMessageFlight = RawSshMessageFlight;
+    type ProtocolMessage = SshMessage;
+    type ProtocolMessageFlight = SshMessageFlight;
+    type SecurityViolationPolicy = SshSecurityViolationPolicy;
 
     fn signature() -> &'static Signature {
         &SSH_SIGNATURE

@@ -11,43 +11,38 @@
 //! store it on disk and replay it when investigating the case.
 //! As traces depend on concrete implementations as discussed in the next section we need to link
 //! serialized data like strings or numerical IDs to functions implemented in Rust.
-//!
 
 use core::fmt;
-use std::{
-    any::{Any, TypeId},
-    collections::HashMap,
-    fmt::Debug,
-    hash::Hash,
-    marker::PhantomData,
-    vec::IntoIter,
-};
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
+use std::fmt::Debug;
+use std::hash::Hash;
+use std::marker::PhantomData;
+use std::vec::IntoIter;
 
 use clap::error::Result;
 use libafl::inputs::HasBytesVec;
 use log::{debug, error, trace, warn};
 use serde::{Deserialize, Serialize};
 
+use crate::agent::{Agent, AgentDescriptor, AgentName};
+use crate::algebra::bitstrings::Payloads;
+use crate::algebra::dynamic_function::TypeShape;
+use crate::algebra::error::FnError;
+use crate::algebra::{remove_prefix, ConcreteMessage, DYTerm, Matcher, Term, TermType};
+use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
+use crate::codec::Codec;
+use crate::error::Error;
+use crate::protocol::{
+    ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
+    ProtocolMessage, ProtocolMessageFlight,
+};
+use crate::put::{PutDescriptor, PutOptions};
+use crate::put_registry::PutRegistry;
 #[allow(unused)] // used in docs
 use crate::stream::Channel;
-use crate::{
-    agent::{Agent, AgentDescriptor, AgentName},
-    algebra::{
-        bitstrings::Payloads, dynamic_function::TypeShape, error::FnError, remove_prefix,
-        ConcreteMessage, DYTerm, Matcher, Term, TermType,
-    },
-    claims::{Claim, GlobalClaimList, SecurityViolationPolicy},
-    codec::Codec,
-    error::Error,
-    protocol::{
-        ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-        ProtocolMessage, ProtocolMessageFlight,
-    },
-    put::{PutDescriptor, PutOptions},
-    put_registry::PutRegistry,
-    trace::Action::Input,
-    variable_data::VariableData,
-};
+use crate::trace::Action::Input;
+use crate::variable_data::VariableData;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct Query<M> {
@@ -109,8 +104,8 @@ impl<M: Matcher> fmt::Display for RawKnowledge<M> {
 }
 
 impl<'a, M: Matcher> IntoIterator for &'a RawKnowledge<M> {
-    type Item = Knowledge<'a, M>;
     type IntoIter = IntoIter<Knowledge<'a, M>>;
+    type Item = Knowledge<'a, M>;
 
     fn into_iter(self) -> Self::IntoIter {
         let mut knowledges = vec![];
@@ -312,8 +307,10 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn verify_security_violations(&self) -> Result<(), Error> {
         let claims = self.claims.deref_borrow();
         if let Some(msg) = PB::SecurityViolationPolicy::check_violation(claims.slice()) {
-            // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
-            // Max: We only check for Finished claims right now, so its fine to check only at the end
+            // [TODO] Lucca: versus checking at each step ? Could detect violation earlier, before a
+            // blocking state is reached ? [BENCH] benchmark the efficiency loss of doing so
+            // Max: We only check for Finished claims right now, so its fine to check only at the
+            // end
             return Err(Error::SecurityClaim(msg));
         }
         Ok(())
@@ -376,8 +373,8 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         agent.put_mut().progress(&agent_name)
     }
 
-    /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter "agent".
-    /// See [`crate::stream::Stream::take_message_from_outbound`]
+    /// Takes data from the outbound [`Channel`] of the [`Agent`] referenced by the parameter
+    /// "agent". See [`crate::stream::Stream::take_message_from_outbound`]
     pub fn take_message_from_outbound(
         &mut self,
         agent_name: AgentName,
@@ -471,10 +468,11 @@ pub struct Trace<M: Matcher> {
     pub prior_traces: Vec<Trace<M>>,
 }
 
-/// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an [`InputAction`].
-/// Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a list of
-/// *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding server
-/// or client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
+/// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an
+/// [`InputAction`]. Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a
+/// list of *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding
+/// server or client role and a specific TLs version. Essentially they are an [`Agent`] without a
+/// stream.
 impl<M: Matcher> Trace<M> {
     pub fn spawn_agents<PB: ProtocolBehavior>(
         &self,
@@ -546,6 +544,7 @@ impl<M: Matcher> Trace<M> {
 
         Ok(())
     }
+
     pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<Matcher = M>,

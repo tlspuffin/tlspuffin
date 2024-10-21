@@ -1,4 +1,5 @@
-use std::{convert::TryInto, fmt::Debug};
+use std::convert::TryInto;
+use std::fmt::Debug;
 
 /// Read from a byte slice.
 pub struct Reader<'a> {
@@ -109,6 +110,7 @@ impl Codec for u8 {
     fn encode(&self, bytes: &mut Vec<u8>) {
         bytes.push(*self);
     }
+
     fn read(r: &mut Reader) -> Option<Self> {
         r.take(1).and_then(decode_u8)
     }

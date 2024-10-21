@@ -2,64 +2,51 @@
 #[allow(clippy::ptr_arg)]
 #[cfg(test)]
 mod tests {
-    use std::{any::Any, cmp::max, collections::HashSet, fmt::Debug};
+    use std::any::Any;
+    use std::cmp::max;
+    use std::collections::HashSet;
+    use std::fmt::Debug;
 
     use itertools::Itertools;
     use log::{debug, error, warn};
-    use puffin::{
-        agent::AgentName,
-        algebra::{
-            bitstrings::{replace_payloads, Payloads},
-            dynamic_function::DescribableFunction,
-            error::FnError,
-            evaluate_lazy_test,
-            signature::FunctionDefinition,
-            ConcreteMessage, Matcher, Term, TermType,
-        },
-        codec,
-        codec::Codec,
-        error::Error,
-        fuzzer::{
-            term_zoo::TermZoo,
-            utils::{
-                choose, find_term_by_term_path, find_term_by_term_path_mut, Choosable,
-                TermConstraints,
-            },
-        },
-        libafl_bolts::rands::StdRand,
-        protocol::{ProtocolBehavior, ProtocolMessage},
-        put::PutOptions,
-        trace::{Action, Action::Input, InputAction, OutputAction, Step, Trace, TraceContext},
+    use puffin::agent::AgentName;
+    use puffin::algebra::bitstrings::{replace_payloads, Payloads};
+    use puffin::algebra::dynamic_function::DescribableFunction;
+    use puffin::algebra::error::FnError;
+    use puffin::algebra::signature::FunctionDefinition;
+    use puffin::algebra::{evaluate_lazy_test, ConcreteMessage, Matcher, Term, TermType};
+    use puffin::codec;
+    use puffin::codec::Codec;
+    use puffin::error::Error;
+    use puffin::fuzzer::term_zoo::TermZoo;
+    use puffin::fuzzer::utils::{
+        choose, find_term_by_term_path, find_term_by_term_path_mut, Choosable, TermConstraints,
     };
+    use puffin::libafl_bolts::rands::StdRand;
+    use puffin::protocol::{ProtocolBehavior, ProtocolMessage};
+    use puffin::put::PutOptions;
+    use puffin::trace::Action::Input;
+    use puffin::trace::{Action, InputAction, OutputAction, Step, Trace, TraceContext};
 
-    use crate::{
-        protocol::TLSProtocolBehavior,
-        put_registry::tls_registry,
-        query::TlsQueryMatcher,
-        tls::{
-            fn_impl::*,
-            rustls::{
-                hash_hs::HandshakeHash,
-                key::{Certificate, PrivateKey},
-                msgs::{
-                    alert::AlertMessagePayload,
-                    enums::{
-                        CipherSuite, Compression, ExtensionType, HandshakeType, NamedGroup,
-                        ProtocolVersion, SignatureScheme,
-                    },
-                    handshake::{
-                        CertificateEntry, ClientExtension, HasServerExtensions, Random,
-                        ServerExtension, SessionID,
-                    },
-                    message::{Message, MessagePayload, OpaqueMessage},
-                },
-            },
-            seeds::{create_corpus, seed_client_attacker_full},
-            trace_helper::TraceHelper,
-            TLS_SIGNATURE,
-        },
-        try_downcast,
+    use crate::protocol::TLSProtocolBehavior;
+    use crate::put_registry::tls_registry;
+    use crate::query::TlsQueryMatcher;
+    use crate::tls::fn_impl::*;
+    use crate::tls::rustls::hash_hs::HandshakeHash;
+    use crate::tls::rustls::key::{Certificate, PrivateKey};
+    use crate::tls::rustls::msgs::alert::AlertMessagePayload;
+    use crate::tls::rustls::msgs::enums::{
+        CipherSuite, Compression, ExtensionType, HandshakeType, NamedGroup, ProtocolVersion,
+        SignatureScheme,
     };
+    use crate::tls::rustls::msgs::handshake::{
+        CertificateEntry, ClientExtension, HasServerExtensions, Random, ServerExtension, SessionID,
+    };
+    use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
+    use crate::tls::seeds::{create_corpus, seed_client_attacker_full};
+    use crate::tls::trace_helper::TraceHelper;
+    use crate::tls::TLS_SIGNATURE;
+    use crate::try_downcast;
 
     fn test_one_replace(
         trace: &mut Trace<TlsQueryMatcher>,
@@ -101,12 +88,12 @@ mod tests {
     }
 
     // UNI TESTS for eval_until_opaque and replace_payloads
-    // Does not work in CI or when executed with other tests when multi threads are used for the same reason
-    // test_attacker_full_det_recreate fails in multi-threads.
+    // Does not work in CI or when executed with other tests when multi threads are used for the
+    // same reason test_attacker_full_det_recreate fails in multi-threads.
     // This test passes with the option `-test-threads=1` though.
-    //    #[test_log::test] // Does not work as it makes Cargo runs tests twice, so tests are failing the second time! Could
-    // be useful in RUST_LOG=DEBUG/TRACE mode to see all the replacements and window refinement of `eval_until_opaque`
-    // in detail.
+    //    #[test_log::test] // Does not work as it makes Cargo runs tests twice, so tests are
+    // failing the second time! Could be useful in RUST_LOG=DEBUG/TRACE mode to see all the
+    // replacements and window refinement of `eval_until_opaque` in detail.
     #[test]
     #[cfg(all(feature = "deterministic", feature = "boringssl-binding"))] // only for boring as we hard-coded payloads for this PUT in the test
     fn test_replace_bitstring_multiple() {
@@ -145,7 +132,13 @@ mod tests {
         //         fn_cipher_suite13_aes_128_gcm_sha256 -> CipherSuite
         //     ) -> Vec<CipherSuite>,
         //     fn_compressions -> Vec<Compression>,      // 4
-        //     BS//fn_client_extensions_make( // 5: [0, 132, 0, 10, 0, 4, 0, 2, 0, 24, 0, 13, 0, 6, 0, 4, 4, 1, 8, 4, 0, 51, 0, 103, 0, 101, 0, 24, 0, 97, 4, 83, 62, 229, 191, 64, 236, 45, 103, 152, 139, 119, 243, 23, 72, 155, 182, 223, 149, 41, 37, 199, 9, 252, 3, 129, 17, 26, 89, 86, 242, 215, 88, 17, 14, 89, 211, 215, 193, 114, 158, 44, 13, 112, 234, 247, 115, 230, 18, 1, 22, 66, 109, 226, 67, 106, 47, 95, 221, 127, 229, 79, 175, 149, 43, 4, 253, 19, 245, 22, 206, 98, 127, 137, 210, 1, 157, 76, 135, 150, 149, 158, 67, 51, 199, 6, 91, 73, 108, 166, 52, 213, 220, 99, 189, 233, 31, 0, 43, 0, 3, 2, 3, 4])]
+        //     BS//fn_client_extensions_make( // 5: [0, 132, 0, 10, 0, 4, 0, 2, 0, 24, 0, 13, 0, 6,
+        // 0, 4, 4, 1, 8, 4, 0, 51, 0, 103, 0, 101, 0, 24, 0, 97, 4, 83, 62, 229, 191, 64, 236, 45,
+        // 103, 152, 139, 119, 243, 23, 72, 155, 182, 223, 149, 41, 37, 199, 9, 252, 3, 129, 17, 26,
+        // 89, 86, 242, 215, 88, 17, 14, 89, 211, 215, 193, 114, 158, 44, 13, 112, 234, 247, 115,
+        // 230, 18, 1, 22, 66, 109, 226, 67, 106, 47, 95, 221, 127, 229, 79, 175, 149, 43, 4, 253,
+        // 19, 245, 22, 206, 98, 127, 137, 210, 1, 157, 76, 135, 150, 149, 158, 67, 51, 199, 6, 91,
+        // 73, 108, 166, 52, 213, 220, 99, 189, 233, 31, 0, 43, 0, 3, 2, 3, 4])]
         //     fn_client_extensions_append(
         //         fn_client_extensions_append(
         //             fn_client_extensions_append(
@@ -166,7 +159,8 @@ mod tests {
         // ) -> ClientExtensions
         // ) -> Message
 
-        // This one operates below encryption! (we are able to replace payload under encryption: fn_encrypt_handshake)
+        // This one operates below encryption! (we are able to replace payload under encryption:
+        // fn_encrypt_handshake)
         let step_nb = 2;
         let path = vec![6];
         let new_vec = vec![0, 0, 4, 0, 0, 0, 0, 0];
@@ -177,8 +171,8 @@ mod tests {
         ];
         test_one_replace(&mut trace, &ctx, step_nb, path, new_vec, expected_vec);
 
-        // This one is tricky since it replaces an empty bitstring with an nonempty one, thus it requires to find it
-        // using left or right brother
+        // This one is tricky since it replaces an empty bitstring with an nonempty one, thus it
+        // requires to find it using left or right brother
         let step_nb = 0;
         let path = vec![5, 0, 0, 0, 0, 0];
         let new_vec = vec![44, 44, 0, 10, 0, 4, 0, 2, 0, 24, 44, 44];
@@ -198,9 +192,10 @@ mod tests {
         ];
         test_one_replace(&mut trace, &ctx, step_nb, path, new_vec, expected_vec);
 
-        // Also tricky because the path 5,0,0,1 is located right after the previous location that was
-        // an empty bitstring but is now, after replacement, a 12-bytes bitstring!
-        // Tricky since the previse byte location to operate the replace is impacted (hence `shift` in `replace_payloads`).
+        // Also tricky because the path 5,0,0,1 is located right after the previous location that
+        // was an empty bitstring but is now, after replacement, a 12-bytes bitstring!
+        // Tricky since the previse byte location to operate the replace is impacted (hence `shift`
+        // in `replace_payloads`).
         let step_nb = 0;
         let path = vec![5, 0, 0, 0, 0, 1];
         let new_vec = vec![41, 41, 0, 40, 0, 4, 0, 2, 0, 24, 37, 37];
