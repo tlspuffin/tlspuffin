@@ -534,6 +534,7 @@ pub fn any_get_encoding(message: &Box<dyn Any>) -> Result<ConcreteMessage, puffi
         SessionID,
         Random,
         u64, // 3603 fail
+        u32, // 3603 fail
         // u8, // OK
         // Vec<u64>, // OK
         ProtocolVersion,  // 400
@@ -702,6 +703,7 @@ pub fn try_read_bytes(bitstring: &[u8], ty: TypeId) -> Result<Box<dyn Any>, puff
         ProtocolVersion,
         HandshakeHash,
         u64,
+        u32,
         // u8,
         // Vec<u64>,
         PayloadU24,
