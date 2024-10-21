@@ -9,7 +9,7 @@ macro_rules! term {
     //
     (($agent:expr, $counter:expr) / $typ:ty $(>$req_type:expr)?) => {{
         use $crate::algebra::dynamic_function::TypeShape;
-        use $crate::algebra::{DYTerm,Term};
+        use $crate::algebra::Term;
 
 
         // ignore $req_type as we are overriding it with $type

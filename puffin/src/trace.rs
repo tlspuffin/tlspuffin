@@ -21,21 +21,17 @@ use std::marker::PhantomData;
 use std::vec::IntoIter;
 
 use clap::error::Result;
-use libafl::inputs::HasBytesVec;
-use log::{debug, error, trace, warn};
+use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};
 use crate::algebra::bitstrings::Payloads;
 use crate::algebra::dynamic_function::TypeShape;
-use crate::algebra::error::FnError;
-use crate::algebra::{remove_prefix, ConcreteMessage, DYTerm, Matcher, Term, TermType};
+use crate::algebra::{remove_prefix, ConcreteMessage, Matcher, Term, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
-use crate::codec::Codec;
 use crate::error::Error;
 use crate::protocol::{
-    ExtractKnowledge, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-    ProtocolMessage, ProtocolMessageFlight,
+    ExtractKnowledge, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessageFlight,
 };
 use crate::put::{PutDescriptor, PutOptions};
 use crate::put_registry::PutRegistry;
@@ -149,6 +145,12 @@ pub struct KnowledgeStore<PB: ProtocolBehavior> {
     raw_knowledge: Vec<RawKnowledge<PB::Matcher>>,
 }
 
+impl<PB: ProtocolBehavior> Default for KnowledgeStore<PB> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
     pub fn new() -> Self {
         Self {
@@ -214,7 +216,7 @@ impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
         let mut possibilities: Vec<Knowledge<PB::Matcher>> = self
             .raw_knowledge
             .iter()
-            .filter(|raw| (query.source == None || query.source.as_ref().unwrap() == &raw.source))
+            .filter(|raw| (query.source.is_none() || query.source.as_ref().unwrap() == &raw.source))
             .flatten()
             .filter(|knowledge| {
                 // let data: &dyn VariableData = knowledge.data;
@@ -590,27 +592,25 @@ impl<M: Matcher> Trace<M> {
         postcard::from_bytes::<Trace<M>>(slice)
     }
 
-    pub fn all_payloads<'a>(&'a self) -> Vec<&'a Payloads> {
+    pub fn all_payloads(&self) -> Vec<&Payloads> {
         self.steps
             .iter()
             .filter_map(|e| match &e.action {
                 Input(r) => Some(&r.recipe),
                 _ => None,
             })
-            .map(|t| t.all_payloads())
-            .flatten()
+            .flat_map(|t| t.all_payloads())
             .collect()
     }
 
-    pub fn all_payloads_mut<'a>(&'a mut self) -> Vec<&'a mut Payloads> {
+    pub fn all_payloads_mut(&mut self) -> Vec<&mut Payloads> {
         self.steps
             .iter_mut()
             .filter_map(|e| match &mut e.action {
                 Input(r) => Some(&mut r.recipe),
                 _ => None,
             })
-            .map(|t| t.all_payloads_mut())
-            .flatten()
+            .flat_map(|t| t.all_payloads_mut())
             .collect()
     }
 
@@ -646,6 +646,7 @@ pub struct Step<M: Matcher> {
 }
 
 /// There are two action types [`OutputAction`] and [`InputAction`] differ.
+///
 /// Both actions drive the internal state machine of an [`Agent`] forward by calling `next_state()`.
 /// The [`OutputAction`] first forwards the state machine and then extracts knowledge from the
 /// TLS messages produced by the underlying stream by calling  `take_message_from_outbound(...)`.

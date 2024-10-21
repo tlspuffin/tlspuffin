@@ -1,19 +1,13 @@
 //! This module provides[`DYTerm`]sas well as iterators over them.
 
-use std::any::{Any, TypeId};
-use std::cmp::{max, min};
+use std::any::Any;
 use std::fmt;
-use std::fmt::{format, Debug, Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
-use std::slice::IterMut;
 
-use anyhow::Context;
 use itertools::Itertools;
-use libafl::inputs::{BytesInput, HasBytesVec};
-use libafl_bolts::AsMutSlice;
-use log::{debug, error, trace, warn};
-use postcard::to_slice;
-use serde::de::Unexpected::Bytes;
+use libafl::inputs::BytesInput;
+use log::{debug, error, trace};
 use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
@@ -21,16 +15,14 @@ use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
 use crate::algebra::Matcher;
-use crate::define_signature;
 use crate::error::Error;
-use crate::fuzzer::start;
-use crate::fuzzer::utils::{find_term_by_term_path, find_term_by_term_path_mut, TermPath};
+use crate::fuzzer::utils::TermPath;
 use crate::protocol::ProtocolBehavior;
-use crate::trace::{Source, Trace, TraceContext};
+use crate::trace::{Source, TraceContext};
 use crate::variable_data::VariableData;
 
 const SIZE_LEAF: usize = 1;
-const BITSTRING_NAME: &'static str = "BITSTRING_";
+const BITSTRING_NAME: &str = "BITSTRING_";
 
 pub type ConcreteMessage = Vec<u8>;
 
@@ -181,9 +173,9 @@ impl<M: Matcher> Term<M> {
         match &self.term {
             DYTerm::Application(_, subterms) => {
                 if subterms.is_empty() || !self.is_symbolic() {
-                    return 1;
+                    1
                 } else {
-                    return 1 + subterms.iter().map(|t| t.height()).max().unwrap();
+                    1 + subterms.iter().map(|t| t.height()).max().unwrap()
                 }
             }
             _ => 1,
@@ -239,8 +231,8 @@ impl<M: Matcher> Term<M> {
     where
         PB: ProtocolBehavior<Matcher = M>,
     {
-        let eval = self.evaluate_symbolic(&ctx)?;
-        self.add_payload(eval.into());
+        let eval = self.evaluate_symbolic(ctx)?;
+        self.add_payload(eval);
         Ok(())
     }
 
@@ -274,7 +266,7 @@ impl<M: Matcher> Term<M> {
         }
         let mut acc = Vec::new();
         rec(self, &mut acc);
-        return acc;
+        acc
     }
 
     /// Return all payloads contained in a term, except those under opaque terms.
@@ -312,7 +304,7 @@ impl<M: Matcher> Term<M> {
     }
 }
 
-pub fn has_payload_to_replace_rec<'a, M: Matcher>(term: &'a Term<M>, include_root: bool) -> bool {
+pub fn has_payload_to_replace_rec<M: Matcher>(term: &Term<M>, include_root: bool) -> bool {
     if let (Some(_), true) = (&term.payloads, include_root) {
         return true;
     } else {
@@ -329,7 +321,7 @@ pub fn has_payload_to_replace_rec<'a, M: Matcher>(term: &'a Term<M>, include_roo
             }
         }
     }
-    return false;
+    false
 }
 
 impl<M: Matcher> Display for Term<M> {
@@ -418,27 +410,25 @@ impl<M: Matcher> TermType<M> for Term<M> {
         if with_payloads && !all_payloads.is_empty() {
             debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",
                     self, &all_payloads);
-            return (Ok(replace_payloads(
+            replace_payloads(
                 self,
                 &mut eval_tree,
                 all_payloads,
                 context,
-            )?));
+            )
+        } else if let Ok(eval) = PB::any_get_encoding(&m) {
+            trace!("        / We successfully evaluated the root term into: {eval:?}");
+            Ok(eval)
         } else {
-            if let Ok(eval) = PB::any_get_encoding(&m) {
-                trace!("        / We successfully evaluated the root term into: {eval:?}");
-                return Ok(eval);
-            } else {
-                error!(
-                    "Error with any_get_encoding: {:?}",
-                    PB::any_get_encoding(&m)
-                );
-                return (Err(Error::Term(format!("[evaluate_config] Could not any_get_encode a term at root position. Current term: {}", &self.term)))
-                        .map_err(|e| {
-                            error!("[evaluate_config] Err: {}", e);
-                            e
-                        }));
-            }
+            error!(
+                "Error with any_get_encoding: {:?}",
+                PB::any_get_encoding(&m)
+            );
+            Err(Error::Term(format!("[evaluate_config] Could not any_get_encode a term at root position. Current term: {}", &self.term)))
+                    .map_err(|e| {
+                        error!("[evaluate_config] Err: {}", e);
+                        e
+                    })
         }
     }
 
@@ -516,10 +506,7 @@ impl<M: Matcher> TermType<M> for Term<M> {
     }
 
     fn is_symbolic(&self) -> bool {
-        match self.payloads {
-            None => true,
-            Some(_) => false, // Once it embeds payloads, a term is no longer symbolic
-        }
+        self.payloads.is_none()
     }
 
     fn make_symbolic(&mut self) {

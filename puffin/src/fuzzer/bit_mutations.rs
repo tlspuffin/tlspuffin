@@ -1,27 +1,19 @@
-use std::any::{type_name, TypeId};
 use std::cmp::min;
 use std::io::Read;
 use std::ops::Not;
-use std::thread::panicking;
 
 use libafl::prelude::*;
 use libafl_bolts::prelude::{tuple_list, tuple_list_type};
 use libafl_bolts::rands::Rand;
 use libafl_bolts::Named;
-use log::{debug, info, trace, warn};
+use log::{debug, trace};
 
-use super::utils::{Choosable, *};
-use crate::algebra::atoms::Function;
-use crate::algebra::signature::Signature;
-use crate::algebra::{DYTerm, Matcher, Subterms, Term, TermType};
-use crate::codec::Codec;
-use crate::fuzzer::harness::default_put_options;
-use crate::fuzzer::term_zoo::TermZoo;
+use super::utils::*;
+use crate::algebra::{Matcher, TermType};
 use crate::fuzzer::utils::choose_term_filtered_mut;
-use crate::protocol::ProtocolBehavior;
-use crate::trace::{Trace, TraceContext};
+use crate::trace::Trace;
 
-pub type HavocMutationsTypeDY<S: HasRand + HasMaxSize> = tuple_list_type!(
+pub type HavocMutationsTypeDY<S> = tuple_list_type!(
     BitFlipMutatorDY<S>,
     ByteFlipMutatorDY<S>,
     ByteIncMutatorDY<S>,
@@ -187,7 +179,7 @@ macro_rules! expand_mutations {
     };
     ($mutation:ident, $($MS:ident),*) => {
           expand_mutation!($mutation);
-          crate::expand_mutations!($($MS),*);
+          $crate::expand_mutations!($($MS),*);
     };
 }
 
@@ -414,7 +406,7 @@ where
     if input.len() < 2 {
         return None;
     }
-    return Some((input, idx));
+    Some((input, idx))
 }
 
 /// Randomly choose a payload and its index (n-th) in a trace, if there is any and if it has at
@@ -433,11 +425,11 @@ where
     if input.len() < 2 {
         return None;
     }
-    return Some((input, idx));
+    Some((input, idx))
 }
 
 /// Access the n-th payload of a trace, if it exists
-fn get_payload<'a, M>(trace: &'a Trace<M>, idx: usize) -> Option<(&'a [u8])>
+fn get_payload<M>(trace: &Trace<M>, idx: usize) -> Option<&[u8]>
 where
     M: Matcher,
 {
@@ -449,7 +441,7 @@ where
     if input.len() < 2 {
         return None;
     }
-    return Some(input);
+    Some(input)
 }
 
 /// Copied from libafl::mutators::mutations
@@ -583,7 +575,7 @@ where
             .rand_mut()
             .between(0, (size_vec_payloads - 1) as u64) as usize;
         let other_size = {
-            let mut other_testcase = state.corpus().get(idx)?.borrow_mut();
+            let other_testcase = state.corpus().get(idx)?.borrow_mut();
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
                 .payload
@@ -607,7 +599,7 @@ where
         // let other_testcase = state.corpus().get(idx)?.borrow_mut();
         // // No need to load the input again, it'll still be cached.
         // let other = other_testcase.input().as_ref().unwrap();
-        let mut other_testcase = state.corpus().get(idx)?.borrow_mut();
+        let other_testcase = state.corpus().get(idx)?.borrow_mut();
         // Input will already be loaded.
         let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
             .payload
@@ -718,7 +710,7 @@ where
             .rand_mut()
             .between(0, (size_vec_payloads - 1) as u64) as usize;
         let other_size = {
-            let mut other_testcase = state.corpus().get(idx)?.borrow_mut();
+            let other_testcase = state.corpus().get(idx)?.borrow_mut();
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
                 .payload
@@ -737,7 +729,7 @@ where
         // let other_testcase = state.corpus().get(idx)?.borrow_mut();
         // // No need to load the input again, it'll still be cached.
         // let other = other_testcase.input().as_ref().unwrap();
-        let mut other_testcase = state.corpus().get(idx)?.borrow_mut();
+        let other_testcase = state.corpus().get(idx)?.borrow_mut();
         // Input will already be loaded.
         let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
             .payload
@@ -842,7 +834,7 @@ where
             .rand_mut()
             .between(0, (size_vec_payloads - 1) as u64) as usize;
         let other_size = {
-            let mut other_testcase = state.corpus().get(idx)?.borrow_mut();
+            let other_testcase = state.corpus().get(idx)?.borrow_mut();
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
                 .payload
@@ -852,7 +844,7 @@ where
         //
 
         let (first_diff, last_diff) = {
-            let mut other_testcase = state.corpus().get(idx)?.borrow_mut();
+            let other_testcase = state.corpus().get(idx)?.borrow_mut();
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
                 .payload
@@ -875,7 +867,7 @@ where
 
         let split_at = state.rand_mut().between(first_diff, last_diff) as usize;
 
-        let mut other_testcase = state.corpus().get(idx)?.borrow_mut();
+        let other_testcase = state.corpus().get(idx)?.borrow_mut();
         // Input will already be loaded.
         let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
             .payload

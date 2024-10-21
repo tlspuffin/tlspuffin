@@ -6,7 +6,7 @@ use std::process::{Command, Stdio};
 use std::{fmt, io};
 
 use itertools::Itertools;
-use log::{debug, error, warn};
+use log::{error, warn};
 
 use crate::algebra::{remove_fn_prefix, remove_prefix, DYTerm, Matcher, Term, TermType};
 use crate::trace::{Action, Trace};
@@ -207,7 +207,7 @@ impl<M: Matcher> Term<M> {
                         term.unique_id(tree_mode, cluster_id),
                         subterm.unique_id(tree_mode, cluster_id)
                     ));
-                    Self::collect_statements(&subterm, tree_mode, cluster_id, statements);
+                    Self::collect_statements(subterm, tree_mode, cluster_id, statements);
                 }
             }
         }

@@ -1,23 +1,18 @@
-use std::ops::Not;
-use std::thread::panicking;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
-use log::{debug, error, info, trace, warn};
+use log::{debug, trace};
 
 use super::utils::{Choosable, *};
 use crate::algebra::atoms::Function;
-use crate::algebra::bitstrings::{search_sub_vec, Payloads};
 use crate::algebra::signature::Signature;
 use crate::algebra::{DYTerm, Matcher, Subterms, Term, TermType};
-use crate::codec::Codec;
 use crate::fuzzer::bit_mutations::*;
 use crate::fuzzer::harness::default_put_options;
 use crate::fuzzer::term_zoo::TermZoo;
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
-use crate::trace::Action::Input;
 use crate::trace::{Trace, TraceContext};
 
 #[derive(Clone, Copy, Debug)]
@@ -48,11 +43,6 @@ impl Default for MutationConfig {
 }
 
 pub type DyMutations<'harness, M, PB, S>
-where
-    S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
-    PB: ProtocolBehavior,
-    <S as libafl::inputs::UsesInput>::Input: libafl::inputs::HasBytesVec,
-    M: Matcher,
 = tuple_list_type!(
 RepeatMutator<S>,
 SkipMutator<S>,
@@ -251,7 +241,7 @@ where
                     .is_some()
             }
         };
-        if let Some(mut to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand)
+        if let Some(to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand)
         {
             debug!(
                 "[Mutation] Mutate RemoveAndLiftMutator on term\n{}",
@@ -336,7 +326,7 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        if let Some(mut to_mutate) = choose_term_mut(trace, self.constraints, rand) {
+        if let Some(to_mutate) = choose_term_mut(trace, self.constraints, rand) {
             debug!("[Mutation] ReplaceMatchMutator on term\n{}", to_mutate);
             match &mut to_mutate.term {
                 // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
@@ -711,15 +701,15 @@ where
             could only happen if this mutation is scheduled with other mutations that create a non-executable trace.\
             Error: {e}", path.0);
         trace!("{}", &tr);
-        return Ok::<MutationResult, Error>(MutationResult::Skipped)
+        Ok::<MutationResult, Error>(MutationResult::Skipped)
     });
 
-    let mut t = find_term_mut(tr, path).expect("make_message_term - Should never happen.");
+    let t = find_term_mut(tr, path).expect("make_message_term - Should never happen.");
     // We get payload_0 by symbolically evaluating the term! (and not full eval with potential
     // payloads in sub-terms). This because, doing differently would dramatically complexify the
     // computation of replace_payloads. See terms.rs. Also, one could argue the mutations of the
     // strict sub-terms could have been done on the larger term in thje first place.
-    t.make_payload(&ctx)?;
+    t.make_payload(ctx)?;
     Ok(())
 }
 
@@ -800,20 +790,20 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
+    
 
     use libafl::corpus::InMemoryCorpus;
     use libafl::mutators::{MutationResult, Mutator};
     use libafl::state::StdState;
     use libafl_bolts::rands::{RomuDuoJrRand, StdRand};
-    use log::debug;
+    
 
     use super::*;
     use crate::agent::AgentName;
     use crate::algebra::dynamic_function::DescribableFunction;
-    use crate::algebra::test_signature::{TestProtocolBehavior, TestTrace, *};
+    use crate::algebra::test_signature::{TestTrace, *};
     use crate::algebra::{AnyMatcher, DYTerm};
-    use crate::trace;
+    
     use crate::trace::{Action, Step};
 
     fn create_state(
@@ -968,7 +958,7 @@ mod tests {
             let mut trace = setup_simple_trace();
             mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
-            let is_first_not_ch = if let Some(first) = trace.steps.get(0) {
+            let is_first_not_ch = if let Some(first) = trace.steps.first() {
                 match &first.action {
                     Action::Input(input) => Some(input.recipe.name() != fn_client_hello.name()),
                     Action::Output(_) => None,

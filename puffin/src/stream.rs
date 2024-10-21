@@ -1,4 +1,5 @@
 //!  These are currently implemented by using an in-memory buffer.
+//!
 //! One might ask why we want two channels. There two very practical reasons
 //! for this. Note that these are advantages for the implementation and are not
 //! strictly required from a theoretical point of view.
@@ -57,6 +58,12 @@ pub struct MemoryStream {
     outbound: Channel,
 }
 
+impl Default for MemoryStream {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemoryStream {
     pub fn new() -> Self {
         Self {
@@ -78,7 +85,7 @@ impl<
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OF>, Error> {
-        let flight = OF::read_bytes(&mut self.outbound.get_ref().as_slice());
+        let flight = OF::read_bytes(self.outbound.get_ref().as_slice());
         self.outbound.set_position(0);
         self.outbound.get_mut().clear();
 

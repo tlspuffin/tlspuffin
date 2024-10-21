@@ -11,7 +11,6 @@ use libafl_bolts::prelude::Cores;
 use log::{error, info};
 
 use crate::algebra::set_deserialize_signature;
-use crate::codec::Codec;
 use crate::execution::forked_execution;
 use crate::experiment::*;
 use crate::fuzzer::harness::{default_put_options, set_default_put_options};
@@ -19,11 +18,10 @@ use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
 use crate::fuzzer::{start, FuzzerConfig};
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
-use crate::protocol::{ProtocolBehavior, ProtocolMessage};
+use crate::protocol::ProtocolBehavior;
 use crate::put::PutOptions;
 use crate::put_registry::PutRegistry;
 use crate::trace::{Action, Trace, TraceContext};
-use crate::GIT_REF;
 
 fn create_app<S>(title: S) -> Command
 where
@@ -353,7 +351,7 @@ where
                 title,
                 description,
                 &put_registry,
-                &matches,
+                matches,
                 port,
             ) {
                 error!("Failed to write readme: {:?}", err);

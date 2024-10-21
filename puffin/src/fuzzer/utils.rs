@@ -1,11 +1,10 @@
 use std::cmp::max;
 
 use libafl_bolts::rands::Rand;
-use log::{debug, error, trace};
+use log::trace;
 
 use crate::algebra::{DYTerm, Matcher, Term, TermType};
-use crate::protocol::ProtocolBehavior;
-use crate::trace::{Action, InputAction, Step, Trace};
+use crate::trace::{Action, Step, Trace};
 
 #[derive(Copy, Clone, Debug)]
 pub struct TermConstraints {
@@ -188,7 +187,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
                             || (!term.is_symbolic() && term.payloads_to_replace().len() == 1))
                         && (!constraints.not_inside_list || !(is_inside_list && term.is_list()))
                     {
-                        let mut level = if if_weighted {
+                        let level = if if_weighted {
                             // if weighted, we reason per-depth, otherwise, we reason globally
                             depth
                         } else {
@@ -231,10 +230,10 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
         // we give higher probability to deeper terms (linear bonus by 1+lambda) and proportional
         // to the number of elements in that depths (hence an exponential bonus for deeper terms
         // should the overall term be roughly balanced
-        let lambda = 0.5 as f64;
+        let lambda = 0.5_f64;
         let mut count_weighted = 0 as f64;
         for i in 0..max_depth {
-            count_weighted += depth_counts[i] as f64 * (1 as f64 + (i as f64 * lambda));
+            count_weighted += depth_counts[i] as f64 * (1_f64 + (i as f64 * lambda));
             // TODO: ?: depth_counts[i] = count_weighted.floor() as u64;
         }
         let random = rand.between(0, count_weighted.floor() as u64);
@@ -243,7 +242,7 @@ fn reservoir_sample<'a, R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + Copy>(
         let mut i = 0;
         count_weighted = 0 as f64;
         while random >= count_weighted as u64 && i < max_depth {
-            count_weighted += depth_counts[i] as f64 * (1 as f64 + i as f64 * lambda);
+            count_weighted += depth_counts[i] as f64 * (1_f64 + i as f64 * lambda);
             i += 1; // TODO: do it more efficiently by benefiting from the previous pre-processing
         }
         assert!(i > 0);
@@ -408,19 +407,19 @@ pub fn choose_term_path_filtered<R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + 
 mod tests {
     use std::collections::{HashMap, HashSet};
 
-    use libafl::corpus::InMemoryCorpus;
-    use libafl::mutators::{MutationResult, Mutator};
-    use libafl::state::StdState;
-    use libafl_bolts::rands::{RomuDuoJrRand, StdRand};
-    use log::debug;
+    
+    
+    
+    use libafl_bolts::rands::StdRand;
+    
 
     use super::*;
-    use crate::agent::AgentName;
-    use crate::algebra::dynamic_function::DescribableFunction;
-    use crate::algebra::test_signature::{TestProtocolBehavior, TestTrace, *};
-    use crate::algebra::{AnyMatcher, DYTerm};
-    use crate::trace;
-    use crate::trace::{Action, Step};
+    
+    
+    use crate::algebra::test_signature::*;
+    
+    
+    
 
     #[test]
     fn test_find_term() {

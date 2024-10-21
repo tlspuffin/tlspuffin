@@ -1,6 +1,6 @@
 use core::time::Duration;
 use std::path::PathBuf;
-use std::{env, fmt};
+use std::fmt;
 
 use libafl::corpus::ondisk::OnDiskMetadataFormat;
 use libafl::prelude::*;
@@ -10,7 +10,6 @@ use log4rs::Handle;
 use super::harness;
 use crate::fuzzer::mutations::{trace_mutations, MutationConfig};
 use crate::fuzzer::stats_monitor::StatsMonitor;
-use crate::fuzzer::utils::TermConstraints;
 use crate::log::{config_fuzzing, config_fuzzing_client};
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
@@ -367,7 +366,7 @@ where
             false,
         );
 
-        return {
+        {
             let time_observer = TimeObserver::new("time");
             let edges_observer =
                 HitcountsMapObserver::new(unsafe { StdMapObserver::new(EDGES_OBSERVER_NAME, map) });
@@ -382,13 +381,13 @@ where
             );
             let observers = tuple_list!(edges_observer, time_observer);
             (feedback, observers)
-        };
+        }
     }
 }
 
 /// Starts the fuzzing loop
-pub fn start<'a, PB>(
-    put_registry: &'a PutRegistry<PB>,
+pub fn start<PB>(
+    put_registry: &PutRegistry<PB>,
     config: FuzzerConfig,
     log_handle: Handle,
 ) -> Result<(), Error>

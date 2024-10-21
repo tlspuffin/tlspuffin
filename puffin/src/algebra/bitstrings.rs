@@ -2,7 +2,6 @@ use std::any::{Any, TypeId};
 use std::borrow::Cow;
 use std::borrow::Cow::{Borrowed, Owned};
 use std::cmp::{max, min};
-use std::fmt::{format, Display, Formatter};
 use std::ops::Deref;
 
 use anyhow::Context;
@@ -16,7 +15,7 @@ use crate::algebra::{ConcreteMessage, DYTerm, Matcher, Term, TermType};
 use crate::error::Error;
 use crate::fuzzer::utils::{find_term_by_term_path, TermPath};
 use crate::protocol::ProtocolBehavior;
-use crate::trace::{Source, Trace, TraceContext};
+use crate::trace::{Source, TraceContext};
 
 /// Constants governing heuritics for finding payloads in term evaluations
 const THRESHOLD_SUM: usize = 40;
@@ -33,7 +32,7 @@ pub struct Payloads {
     pub payload: BytesInput,   // this one will later be subject to bit-level mutation
 }
 impl Payloads {
-    pub fn len(self: &Self) -> usize {
+    pub fn len(&self) -> usize {
         self.payload_0.bytes().len()
     }
 }
@@ -69,12 +68,12 @@ impl EvalTree {
     pub fn init_with_path(path: TermPath) -> Self {
         let mut e_t = Self::init();
         e_t.path = path;
-        return e_t;
+        e_t
     }
 
-    fn get(self: &Self, path: &[usize]) -> Result<&Self, Error> {
+    fn get(&self, path: &[usize]) -> Result<&Self, Error> {
         if path.is_empty() {
-            return Ok(self);
+            Ok(self)
         } else {
             let nb = path[0];
             let path = &path[1..];
@@ -89,9 +88,9 @@ impl EvalTree {
         }
     }
 
-    fn get_mut(self: &mut Self, path: &[usize]) -> Result<&mut Self, Error> {
+    fn get_mut(&mut self, path: &[usize]) -> Result<&mut Self, Error> {
         if path.is_empty() {
-            return Ok(self);
+            Ok(self)
         } else {
             let nb = path[0];
             let path = &path[1..];
@@ -169,12 +168,12 @@ pub fn eval_or_compute<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     whole_term: &Term<M>,
     ctx: &TraceContext<PB>,
 ) -> Result<Cow<'a, ConcreteMessage>, Error> {
-    match eval_tree.get(&path_to_eval)?.encode.as_ref() {
+    match eval_tree.get(path_to_eval)?.encode.as_ref() {
         Some(eval) => Ok(Borrowed(eval)),
         None => {
             debug!("[eval_or_compute] We did not compute eval before for path {path_to_eval:?}, we do it now.");
-            let sibling_term = find_term_by_term_path(whole_term, &path_to_eval).ok_or(
-                Error::Term(format!("[eval_or_compute] Should never happen1")),
+            let sibling_term = find_term_by_term_path(whole_term, path_to_eval).ok_or(
+                Error::Term("[eval_or_compute] Should never happen1".to_string()),
             )?;
             // we must evaluate sibling_term, replacing payloads until opaque ONLY!
             let mut et = EvalTree::init();
@@ -395,14 +394,12 @@ where
                         continue;
                     }
                 } else {
-                    let ft = format!("[find_unique_match_rec] Should never happen [Var]");
+                    let ft = "[find_unique_match_rec] Should never happen [Var]".to_string();
                     error!("{}", ft);
                     return Err(Error::Term(ft));
                 }
             } else {
-                let ft = format!(
-                    "[replace_payloads]  [find_unique_match_rec] Should never happen [Find Parent]"
-                );
+                let ft = "[replace_payloads]  [find_unique_match_rec] Should never happen [Find Parent]".to_string();
                 error!("{}", ft);
                 return Err(Error::Term(ft));
             }
@@ -509,7 +506,7 @@ where
 
         // Main heuristic: STEP 2 `to_search` in `window`
         if !st.found_match {
-            if let Some((pos, unique)) = search_sub_vec_double(&st.window, st.to_search) {
+            if let Some((pos, unique)) = search_sub_vec_double(st.window, st.to_search) {
                 debug!("[find_unique_match_rec] to_search was found in window");
                 st.found_match = true;
                 if unique {
@@ -604,11 +601,11 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     if arg_to_search < nb_args - 1 {
         // search on the right until finding an appropriate sibling
         let mut sib_right = arg_to_search + 1;
-        while sib_right <= nb_args - 1 && att < 20 {
+        while sib_right < nb_args && att < 20 {
             att += 1;
             debug!("[find_relative_node] trying on the right, arg_to_search:{arg_to_search}, sib_right:{sib_right}");
             let mut path_sib = path_parent.to_vec();
-            path_sib.push(sib_right as usize);
+            path_sib.push(sib_right);
             // We call eval_or_compute as we might not have tried to evaluate the sibling when
             // creating eval_tree
             let eval_sib = eval_or_compute(&path_sib, eval_tree, whole_term, ctx)?;
@@ -625,16 +622,16 @@ pub fn find_relative_node<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     } // we failed to find a sibling candidate, therefore the parent has an empty encoding too, let us
       // try from there!
     debug!("[find_relative_node] failed, trying parent at path {path_parent:?}");
-    let eval_parent = eval_or_compute(&path_parent, eval_tree, whole_term, ctx)?;
+    let eval_parent = eval_or_compute(path_parent, eval_tree, whole_term, ctx)?;
     let shift_ancestor_to_search_new =
         shift_ancestor_to_search + (eval_parent.len() - to_search.len());
     if path_parent.is_empty() {
-        return Ok((
+        Ok((
             vec![],
             Borrowed(eval_tree.encode.as_ref().unwrap()),
             true,
             shift_ancestor_to_search_new,
-        ));
+        ))
     // TODO: additional checks?
     } else if path_parent.len() < path_to_search.len() {
         return find_relative_node(
@@ -685,16 +682,16 @@ pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
     {
         if !st.unique_match {
             trace!("[refine_window_heuristic] the below failed, so we go halfway");
-            return min(
+            min(
                 st.path_to_search.len() - 1,
                 max(
                     current_depth + 1,
                     (st.path_to_search.len() - current_depth) / 2,
                 ),
-            );
+            )
         } else {
             trace!("[refine_window_heuristic] we keep as it is --> search in the whole window");
-            return current_depth;
+            current_depth
         }
     } else if st.to_search.len() > 2
         || sum_vec_cap(st.to_search, 1) >= THRESHOLD_SUM / 2
@@ -737,14 +734,14 @@ pub fn refine_window_heuristic<M: Matcher>(st: &StatusSearch<M>) -> usize {
 /// Operate the payloads replacements in eval_tree.encode[vec![]] and returns the modified
 /// bitstring. `@payloads` follows this order: deeper terms first, left-to-right, assuming no
 /// overlap (no two terms one being a sub-term of the other).
-pub fn replace_payloads<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
+pub fn replace_payloads<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
     term: &Term<M>,
-    eval_tree: &'a mut EvalTree,
+    eval_tree: &mut EvalTree,
     payloads: Vec<PayloadContext<M>>,
     ctx: &TraceContext<PB>,
 ) -> Result<ConcreteMessage, Error> {
     trace!("[replace_payload] --------> START");
-    let mut shift = 0 as isize; // Number of bytes we need to shift on the right to apply the
+    let mut shift = 0_isize; // Number of bytes we need to shift on the right to apply the
                                 // splicing, taking into account previous payloads replacements). We assume the aforementioned
                                 // invariant.
     let mut to_modify: Vec<u8> = eval_tree.encode.as_mut().unwrap().clone(); //unwrap: eval_until_opaque returns an error if it cannot compute the encoding of the root
@@ -782,7 +779,7 @@ pub fn replace_payloads<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
                 to_modify.len(), &to_modify[start..end]);
 
         #[cfg(debug_assertions)]
-        if !(to_modify[start..end] == *old_bitstring) {
+        if to_modify[start..end] != *old_bitstring {
             let ft = format!(
                 "[replace_payloads] Payloads returned by eval_until_opaque were inconsistent!\n\
                    - payload_path: {:?}\n\
@@ -810,7 +807,7 @@ pub fn replace_payloads<'a, M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
             &to_remove
         );
         trace!("[replace_payload] Shift update!: New_b: {}, old_b_len: {old_bitstring_len}, old_shift: {shift}, new_shift:{} ", new_bitstring.len(), shift + (new_bitstring.len() as isize - old_bitstring_len as isize));
-        shift += (new_bitstring.len() as isize - old_bitstring_len as isize);
+        shift += new_bitstring.len() as isize - old_bitstring_len as isize;
     }
     Ok(to_modify)
 }
@@ -846,7 +843,7 @@ impl<M: Matcher> Term<M> {
             if let Ok(di) = PB::try_read_bytes(payload.payload_0.bytes(), (*type_term).into()) {
                 let p_c = vec![PayloadContext {
                     of_term: self,
-                    payloads: &payload,
+                    payloads: payload,
                     path,
                 }];
                 eval_tree.encode = Some(payload.payload_0.bytes().to_vec());
@@ -872,30 +869,26 @@ impl<M: Matcher> Term<M> {
                     if let Some(payload) = &self.payloads {
                         trace!("        / We retrieve evaluation for eval_tree from payload.");
                         eval_tree.encode = Some(payload.payload_0.clone().into());
+                    } else if let Ok(eval) = PB::any_get_encoding(&d) {
+                        trace!("        / No payload so we evaluated into: {eval:?}");
+                        eval_tree.encode = Some(eval);
+                    } else if path.is_empty() {
+                        return Err(Error::Term(format!("[eval_until_opaque] Could not any_get_encode a var term at root position, which has payloads to replace. Current term: {}", &self.term)))
+                            .map_err(|e| {
+                                error!("[eval_until_opaque] Err: {}", e);
+                                e
+                            });
                     } else {
-                        if let Ok(eval) = PB::any_get_encoding(&d) {
-                            trace!("        / No payload so we evaluated into: {eval:?}");
-                            eval_tree.encode = Some(eval);
-                        } else {
-                            if path.is_empty() {
-                                return (Err(Error::Term(format!("[eval_until_opaque] Could not any_get_encode a var term at root position, which has payloads to replace. Current term: {}", &self.term)))
-                                    .map_err(|e| {
-                                        error!("[eval_until_opaque] Err: {}", e);
-                                        e
-                                    }));
-                            } else {
-                                // we might not need this eval later, we will try to replace
-                                // payloads without using it // TODO: make sure we resist this!
-                                warn!("[eval_until_opaque] Could not any_get_encode a sub-term at path {path:?}, sub-term:\n{}", &self.term);
-                            }
-                        }
+                        // we might not need this eval later, we will try to replace
+                        // payloads without using it // TODO: make sure we resist this!
+                        warn!("[eval_until_opaque] Could not any_get_encode a sub-term at path {path:?}, sub-term:\n{}", &self.term);
                     }
                     if with_payloads && self.payloads.is_some() {
                         trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {path:?}, payload is: {:?} and eval is: {:?}", self.payloads.as_ref().unwrap(), PB::any_get_encoding(&d).ok());
                         return Ok((
                             d,
                             vec![PayloadContext {
-                                of_term: &self,
+                                of_term: self,
                                 payloads: self.payloads.as_ref().unwrap(),
                                 path,
                             }],
@@ -966,7 +959,7 @@ impl<M: Matcher> Term<M> {
 
                 if with_payloads && self.payloads.is_some() {
                     all_payloads.push(PayloadContext {
-                        of_term: &self,
+                        of_term: self,
                         payloads: self.payloads.as_ref().unwrap(),
                         path: path.clone(),
                     });
@@ -979,18 +972,16 @@ impl<M: Matcher> Term<M> {
                     if let Ok(eval) = PB::any_get_encoding(&result) {
                         debug!("        / We successfully evaluated the term into: {eval:?}");
                         eval_tree.encode = Some(eval);
+                    } else if path.is_empty() {
+                        return Err(Error::Term(format!("[eval_until_opaque] Could not any_get_encode an app term at root position, which has payloads to replace. Current term: {}", &self.term)))
+                            .map_err(|e| {
+                                error!("[eval_until_opaque] Err: {}", e);
+                                e
+                            });
                     } else {
-                        if path.is_empty() {
-                            return (Err(Error::Term(format!("[eval_until_opaque] Could not any_get_encode an app term at root position, which has payloads to replace. Current term: {}", &self.term)))
-                                .map_err(|e| {
-                                    error!("[eval_until_opaque] Err: {}", e);
-                                    e
-                                }));
-                        } else {
-                            // we might not need this eval later, we will try to replace payloads
-                            // without using it // TODO: make sure we resist this!
-                            warn!("[eval_until_opaque] Could not any_get_encode a sub-term at path {path:?}, sub-term:\n{}", &self.term);
-                        }
+                        // we might not need this eval later, we will try to replace payloads
+                        // without using it // TODO: make sure we resist this!
+                        warn!("[eval_until_opaque] Could not any_get_encode a sub-term at path {path:?}, sub-term:\n{}", &self.term);
                     }
                 }
 
@@ -1005,12 +996,7 @@ pub fn search_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if haystack.len() < needle.len() {
         return None;
     }
-    for i in 0..haystack.len() - needle.len() + 1 {
-        if haystack[i..i + needle.len()] == needle[..] {
-            return Some(i);
-        }
-    }
-    None
+    (0..haystack.len() - needle.len() + 1).find(|&i| haystack[i..i + needle.len()] == needle[..])
 }
 
 /// Return the first matching position and whether it is unique (true) or not (false)
@@ -1035,5 +1021,5 @@ pub fn sum_vec_cap(v: &[u8], cap: usize) -> usize {
     for i in 0..min(v.len(), cap) {
         acc += v[i] as usize;
     }
-    return acc;
+    acc
 }

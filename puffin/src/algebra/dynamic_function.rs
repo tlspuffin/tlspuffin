@@ -1,4 +1,5 @@
 //! This module provides traits for calling rust functions dynamically.
+//!
 //! All functions which implement the DynamicFunction trait can be called by passing an array of
 //! [`Any`]s to it. The return value is again of type [`Any`].
 //!

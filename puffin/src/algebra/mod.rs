@@ -1,4 +1,5 @@
 //! The *term* module defines typed[`DYTerm`]sof the form `fn_add(x: u8, fn_square(y: u16)) → u16`.
+//!
 //! Each function like `fn_add` or `fn_square` has a shape. The variables `x` and `y` each have a
 //! type. These types allow type checks during the runtime of the fuzzer.
 //! These checks restrict how[`DYTerm`]scan be mutated in the *fuzzer* module.
@@ -111,7 +112,7 @@ pub mod test_signature {
     use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
     use crate::algebra::dynamic_function::TypeShape;
     use crate::algebra::error::FnError;
-    use crate::algebra::{AnyMatcher, ConcreteMessage, DYTerm, Term};
+    use crate::algebra::{AnyMatcher, ConcreteMessage, Term};
     use crate::claims::{Claim, SecurityViolationPolicy};
     use crate::codec::{Codec, Reader};
     use crate::error::Error;
