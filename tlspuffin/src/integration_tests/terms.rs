@@ -4,13 +4,18 @@
 mod tests {
 
     use log::debug;
-    use puffin::algebra::TermType;
+    use puffin::algebra::{evaluate_lazy_test, TermType};
+    use puffin::codec::Codec;
     use puffin::fuzzer::utils::{find_term_by_term_path, find_term_by_term_path_mut};
+    use puffin::protocol::{ProtocolBehavior, ProtocolMessage};
+    use puffin::put::PutOptions;
     use puffin::trace::Action::Input;
-    use puffin::trace::{Trace, TraceContext};
+    use puffin::trace::{Action, OutputAction, Trace, TraceContext};
 
+    use crate::integration_tests::tls_registry;
     use crate::protocol::TLSProtocolBehavior;
     use crate::query::TlsQueryMatcher;
+    use crate::tls::seeds::create_corpus;
 
     fn test_one_replace(
         trace: &mut Trace<TlsQueryMatcher>,

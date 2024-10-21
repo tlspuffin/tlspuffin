@@ -3,10 +3,11 @@ use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
 use puffin::algebra::{DYTerm, TermType};
 use puffin::execution::{forked_execution, AssertExecution};
+use puffin::fuzzer::bit_mutations::{ByteFlipMutatorDY, ByteInterestingMutatorDY};
 use puffin::fuzzer::harness::set_default_put_options;
 use puffin::fuzzer::mutations::{
-    trace_mutations, MutationConfig, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator,
-    ReplaceReuseMutator,
+    trace_mutations, MakeMessage, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
+    ReplaceMatchMutator, ReplaceReuseMutator,
 };
 use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::{Corpus, InMemoryCorpus, Testcase};
@@ -27,7 +28,9 @@ use crate::tls::fn_impl::{
     fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
     fn_support_group_extension,
 };
-use crate::tls::seeds::{_seed_client_attacker12, create_corpus, seed_successful};
+use crate::tls::seeds::{
+    _seed_client_attacker12, create_corpus, seed_client_attacker_full, seed_successful,
+};
 use crate::tls::trace_helper::TraceHelper;
 use crate::tls::TLS_SIGNATURE;
 

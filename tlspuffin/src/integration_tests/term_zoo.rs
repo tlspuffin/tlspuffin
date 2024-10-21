@@ -3,6 +3,7 @@
 #[cfg(test)]
 mod tests {
 
+    use std::any::TypeId;
     use std::cmp::max;
     use std::collections::HashSet;
 
@@ -20,6 +21,7 @@ mod tests {
     use puffin::trace::Action::Input;
     use puffin::trace::{InputAction, Step, Trace, TraceContext};
 
+    use crate::protocol::TLSProtocolBehavior;
     use crate::put_registry::tls_registry;
     use crate::query::TlsQueryMatcher;
     use crate::tls::fn_impl::*;
