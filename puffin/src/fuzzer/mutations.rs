@@ -4,7 +4,6 @@ use anyhow::{Context, Result};
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 use log::{debug, error, info, trace, warn};
-use util::{Choosable, *};
 
 use super::utils::{Choosable, *};
 use crate::{

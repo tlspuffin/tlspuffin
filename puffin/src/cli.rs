@@ -9,7 +9,8 @@ use std::{
 use clap::{
     arg, crate_authors, crate_name, crate_version, parser::ValuesRef, value_parser, Command,
 };
-use libafl::{inputs::Input, prelude::Cores};
+use libafl::inputs::Input;
+use libafl_bolts::prelude::Cores;
 use log::{error, info};
 
 use crate::{

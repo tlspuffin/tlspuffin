@@ -7,6 +7,11 @@ use std::{
 };
 
 use libafl::prelude::*;
+use libafl_bolts::{
+    prelude::{tuple_list, tuple_list_type},
+    rands::Rand,
+    Named,
+};
 use log::{debug, info, trace, warn};
 
 use super::utils::{Choosable, *};

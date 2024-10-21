@@ -16,15 +16,16 @@ use puffin::{
         utils::TermConstraints,
     },
     libafl::{
-        bolts::{
-            rands::{RomuDuoJrRand, StdRand},
-            HasLen,
-        },
         corpus::{Corpus, InMemoryCorpus, Testcase},
         inputs::{BytesInput, HasBytesVec},
         mutators::{MutationResult, Mutator, MutatorsTuple},
-        prelude::{tuple_list, ByteFlipMutator, HasConstLen, HasMaxSize, HasMetadata, HasRand},
+        prelude::{ByteFlipMutator, HasMaxSize, HasMetadata, HasRand},
         state::{HasCorpus, StdState},
+    },
+    libafl_bolts::{
+        rands::{RomuDuoJrRand, StdRand},
+        tuples::HasConstLen,
+        HasLen,
     },
     protocol::ProtocolBehavior,
     put::PutOptions,

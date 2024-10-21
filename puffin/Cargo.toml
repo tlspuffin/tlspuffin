@@ -50,6 +50,9 @@ cfg-if = { workspace = true }
 itertools = { workspace = true }
 serde_json = { workspace = true }
 nix = { workspace = true }
+anyhow = { workspace = true }
+derivative = { workspace = true }
+paste = { workspace = true }
 
 [dev-dependencies]
 test-log = { workspace = true }

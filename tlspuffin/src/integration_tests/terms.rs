@@ -26,7 +26,7 @@ mod tests {
                 TermConstraints,
             },
         },
-        libafl::{bolts::rands::StdRand, prelude::Rand},
+        libafl_bolts::rands::StdRand,
         protocol::{ProtocolBehavior, ProtocolMessage},
         put::PutOptions,
         trace::{Action, Action::Input, InputAction, OutputAction, Step, Trace, TraceContext},

@@ -65,6 +65,9 @@ libc = "0.2.126"
 foreign-types = "0.5.0"
 rand = "0.8"
 clap = "4.2.4"
+anyhow = "1.0"
+derivative = "2.2.0"
+paste = "1.0"
 
 [patch.crates-io]
 wolfssl-sys = { path = "crates/wolfssl-sys" }

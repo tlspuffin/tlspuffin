@@ -1566,9 +1566,11 @@ name = "puffin"
 version = "0.1.0"
 dependencies = [
  "ahash",
+ "anyhow",
  "cfg-if",
  "chrono",
  "clap",
+ "derivative",
  "dyn-clone",
  "env_logger",
  "itertools 0.13.0",
@@ -1580,6 +1582,7 @@ dependencies = [
  "log4rs",
  "nix 0.25.1",
  "once_cell",
+ "paste",
  "postcard",
  "rand",
  "serde",

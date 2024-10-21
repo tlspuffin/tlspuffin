@@ -1,6 +1,6 @@
 use std::cmp::max;
 
-use libafl::bolts::rands::Rand;
+use libafl_bolts::rands::Rand;
 use log::{debug, error, trace};
 
 use crate::{
@@ -400,9 +400,8 @@ pub fn choose_term_path_filtered<R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + 
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, HashSet};
-
+    use libafl_bolts::rands::{RomuDuoJrRand, StdRand};
     use libafl::{
-        bolts::rands::{RomuDuoJrRand, StdRand},
         corpus::InMemoryCorpus,
         mutators::{MutationResult, Mutator},
         state::StdState,

@@ -11,11 +11,8 @@ use std::{
 
 use anyhow::Context;
 use itertools::Itertools;
-use libafl::{
-    bolts::AsMutSlice,
-    inputs::{BytesInput, HasBytesVec},
-    prelude::AsIterMut,
-};
+use libafl::inputs::{BytesInput, HasBytesVec};
+use libafl_bolts::AsMutSlice;
 use log::{debug, error, trace, warn};
 use postcard::to_slice;
 use serde::{de::Unexpected::Bytes, Deserialize, Serialize};
