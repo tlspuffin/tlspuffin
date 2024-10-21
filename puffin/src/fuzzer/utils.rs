@@ -407,19 +407,10 @@ pub fn choose_term_path_filtered<R: Rand, M: Matcher, P: Fn(&Term<M>) -> bool + 
 mod tests {
     use std::collections::{HashMap, HashSet};
 
-    
-    
-    
     use libafl_bolts::rands::StdRand;
-    
 
     use super::*;
-    
-    
     use crate::algebra::test_signature::*;
-    
-    
-    
 
     #[test]
     fn test_find_term() {

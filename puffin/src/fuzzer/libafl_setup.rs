@@ -1,6 +1,6 @@
 use core::time::Duration;
-use std::path::PathBuf;
 use std::fmt;
+use std::path::PathBuf;
 
 use libafl::corpus::ondisk::OnDiskMetadataFormat;
 use libafl::prelude::*;

@@ -410,12 +410,7 @@ impl<M: Matcher> TermType<M> for Term<M> {
         if with_payloads && !all_payloads.is_empty() {
             debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",
                     self, &all_payloads);
-            replace_payloads(
-                self,
-                &mut eval_tree,
-                all_payloads,
-                context,
-            )
+            replace_payloads(self, &mut eval_tree, all_payloads, context)
         } else if let Ok(eval) = PB::any_get_encoding(&m) {
             trace!("        / We successfully evaluated the root term into: {eval:?}");
             Ok(eval)

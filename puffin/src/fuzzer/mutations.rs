@@ -1,4 +1,3 @@
-
 use anyhow::Result;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
@@ -42,8 +41,7 @@ impl Default for MutationConfig {
     }
 }
 
-pub type DyMutations<'harness, M, PB, S>
-= tuple_list_type!(
+pub type DyMutations<'harness, M, PB, S> = tuple_list_type!(
 RepeatMutator<S>,
 SkipMutator<S>,
 ReplaceReuseMutator<S>,
@@ -241,8 +239,7 @@ where
                     .is_some()
             }
         };
-        if let Some(to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand)
-        {
+        if let Some(to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand) {
             debug!(
                 "[Mutation] Mutate RemoveAndLiftMutator on term\n{}",
                 to_mutate
@@ -790,20 +787,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    
 
     use libafl::corpus::InMemoryCorpus;
     use libafl::mutators::{MutationResult, Mutator};
     use libafl::state::StdState;
     use libafl_bolts::rands::{RomuDuoJrRand, StdRand};
-    
 
     use super::*;
     use crate::agent::AgentName;
     use crate::algebra::dynamic_function::DescribableFunction;
     use crate::algebra::test_signature::{TestTrace, *};
     use crate::algebra::{AnyMatcher, DYTerm};
-    
     use crate::trace::{Action, Step};
 
     fn create_state(

@@ -399,7 +399,9 @@ where
                     return Err(Error::Term(ft));
                 }
             } else {
-                let ft = "[replace_payloads]  [find_unique_match_rec] Should never happen [Find Parent]".to_string();
+                let ft =
+                    "[replace_payloads]  [find_unique_match_rec] Should never happen [Find Parent]"
+                        .to_string();
                 error!("{}", ft);
                 return Err(Error::Term(ft));
             }
@@ -742,8 +744,8 @@ pub fn replace_payloads<M: Matcher, PB: ProtocolBehavior<Matcher = M>>(
 ) -> Result<ConcreteMessage, Error> {
     trace!("[replace_payload] --------> START");
     let mut shift = 0_isize; // Number of bytes we need to shift on the right to apply the
-                                // splicing, taking into account previous payloads replacements). We assume the aforementioned
-                                // invariant.
+                             // splicing, taking into account previous payloads replacements). We assume the aforementioned
+                             // invariant.
     let mut to_modify: Vec<u8> = eval_tree.encode.as_mut().unwrap().clone(); //unwrap: eval_until_opaque returns an error if it cannot compute the encoding of the root
                                                                              // having payloads
     for payload_context in &payloads {
