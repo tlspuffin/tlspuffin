@@ -1,11 +1,25 @@
 {
-    "editor.formatOnSave": true,
-    "files.autoSave": "onFocusChange",
-    "editor.defaultFormatter": "rust-lang.rust-analyzer",
-    "rust-analyzer.cargo.buildScripts.enable": false,
-    "rust-analyzer.procMacro.enable": false,
+    "rust-analyzer.cargo.buildScripts.enable": true,
+    "rust-analyzer.procMacro.enable": true,
+    "rust-analyzer.check.overrideCommand": [
+        "cargo",
+        "clippy",
+        "--quiet",
+        "--workspace",
+        "--message-format=json",
+        "--all-targets"
+    ],
+    "rust-analyzer.cargo.buildScripts.overrideCommand": [
+        "cargo",
+        "check",
+        "--quiet",
+        "--workspace",
+        "--message-format=json",
+        "--all-targets"
+
+    ],
     "rust-analyzer.cargo.features": [
-        "openssl111j"
+        "openssl312"
     ],
     "[json]": {
         "editor.defaultFormatter": "vscode.json-language-features"
