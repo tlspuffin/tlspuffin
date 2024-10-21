@@ -248,6 +248,7 @@ define_signature!(
     fn_append_certificate_entry
     fn_named_group_secp384r1
     fn_named_group_x25519
+    fn_u64_to_u32
     fn_payload_u8
     fn_payload_u16
     fn_payload_u24

@@ -716,7 +716,7 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TlsQue
                 action: Action::Input(InputAction {
                     recipe: term! {
                         fn_new_session_ticket(
-                            ((server, 0)/u64),
+                            ((server, 0)/u32),
                             (fn_payload_u16(fn_large_bytes_vec))
                         )
                     },

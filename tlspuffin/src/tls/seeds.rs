@@ -276,7 +276,7 @@ pub fn seed_successful12_with_tickets(
             action: Action::Input(InputAction {
                 recipe: term! {
                     fn_new_session_ticket(
-                        ((server, 0)/u64),
+                        ((server, 0)/u32),
                         (fn_payload_u16(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>)))
                     )
                 },
