@@ -53,7 +53,7 @@ mod tests {
     ) {
         println!("\n=========================\nReplacing step {step_nb} with path {path:?} and new vec: {new_sub_vec:?}.");
         if let Input(input) = &mut trace.steps[step_nb].action {
-            let mut term = &mut input.recipe;
+            let term = &mut input.recipe;
             let e_before = term.evaluate(ctx).expect("OUPS1");
             debug!("Term: {term}\nTerm eval: {e_before:?}.");
 
