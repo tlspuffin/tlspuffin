@@ -2,46 +2,15 @@
 #[allow(clippy::ptr_arg)]
 #[cfg(test)]
 mod tests {
-    
-    
-    
-    
 
-    
     use log::debug;
-    
-    
-    
-    
-    
     use puffin::algebra::TermType;
-    
-    
-    
-    
-    use puffin::fuzzer::utils::{
-        find_term_by_term_path, find_term_by_term_path_mut,
-    };
-    
-    
-    
+    use puffin::fuzzer::utils::{find_term_by_term_path, find_term_by_term_path_mut};
     use puffin::trace::Action::Input;
     use puffin::trace::{Trace, TraceContext};
 
     use crate::protocol::TLSProtocolBehavior;
-    
     use crate::query::TlsQueryMatcher;
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
 
     fn test_one_replace(
         trace: &mut Trace<TlsQueryMatcher>,
@@ -62,7 +31,7 @@ mod tests {
             sub.make_payload(ctx); // will remove payloads in strict sub-terms, as expected
             let sub_before = sub.clone();
             let e_sub_before = sub_before.evaluate_symbolic(ctx).expect("OUPS3"); // evaluate_symbolic:
-                                                                                   // mimicking term::make_payload ! We loose all previous mutations on sub-terms!
+                                                                                  // mimicking term::make_payload ! We loose all previous mutations on sub-terms!
             debug!("Subterm before: {sub_before}\nSubterm eval_symbolic before: {e_sub_before:?}");
             if let Some(p) = &mut sub.payloads {
                 p.payload = new_sub_vec.clone().into();

@@ -41,11 +41,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 let args = options
                     .get_option("args")
                     .ok_or_else(|| {
-                        Error::Agent(format!(
-                            "{} // {:?}",
-                            "Unable to find args",
-                            put_descriptor
-                        ))
+                        Error::Agent(format!("{} // {:?}", "Unable to find args", put_descriptor))
                     })?
                     .to_owned();
                 let prog = options

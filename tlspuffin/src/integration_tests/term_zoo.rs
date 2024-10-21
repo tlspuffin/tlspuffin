@@ -1,23 +1,17 @@
-
 /// Test the function symbols that can be generated, evaluated, encoded
 #[allow(clippy::ptr_arg)]
 #[cfg(test)]
 mod tests {
-    
+
     use std::cmp::max;
     use std::collections::HashSet;
-    
 
-    
     use itertools::Itertools;
     use log::{debug, error, warn};
     use puffin::agent::AgentName;
     use puffin::algebra::dynamic_function::DescribableFunction;
     use puffin::algebra::error::FnError;
-    
     use puffin::algebra::{evaluate_lazy_test, DYTerm, Matcher, Term, TermType};
-    
-    
     use puffin::error::Error;
     use puffin::fuzzer::term_zoo::TermZoo;
     use puffin::fuzzer::utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints};
@@ -26,19 +20,10 @@ mod tests {
     use puffin::trace::Action::Input;
     use puffin::trace::{InputAction, Step, Trace, TraceContext};
 
-    
     use crate::put_registry::tls_registry;
     use crate::query::TlsQueryMatcher;
     use crate::tls::fn_impl::*;
-    
-    
-    
-    
-    
-    
-    
     use crate::tls::TLS_SIGNATURE;
-    
 
     pub fn ignore_gen() -> HashSet<String> {
         [

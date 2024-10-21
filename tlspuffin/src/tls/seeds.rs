@@ -1814,25 +1814,13 @@ pub fn create_corpus() -> Vec<(Trace<TlsQueryMatcher>, &'static str)> {
 #[cfg(test)]
 pub mod tests {
 
-    
     use puffin::agent::AgentName;
-    
-    
-    
     use puffin::algebra::TermType;
-    
-    
-    
-    
-    
-    
     use puffin::trace::Action;
     use test_log::test;
 
     use super::*;
-    
     use crate::put_registry::tls_registry;
-    
     use crate::tls::trace_helper::TraceHelper;
 
     #[test]

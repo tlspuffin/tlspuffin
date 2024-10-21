@@ -23,8 +23,8 @@ use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
 use crate::tls::rustls::msgs::enums::ContentType::ApplicationData;
 use crate::tls::rustls::msgs::enums::ProtocolVersion::TLSv1_3;
 use crate::tls::rustls::msgs::enums::{
-    AlertDescription, AlertLevel, CipherSuite, Compression, ContentType,
-    HandshakeType, NamedGroup, ProtocolVersion, SignatureScheme,
+    AlertDescription, AlertLevel, CipherSuite, Compression, ContentType, HandshakeType, NamedGroup,
+    ProtocolVersion, SignatureScheme,
 };
 use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension, CipherSuites,
