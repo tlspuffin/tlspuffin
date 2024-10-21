@@ -62,12 +62,6 @@ pub struct MemoryStream {
     outbound: Channel,
 }
 
-impl Default for MemoryStream {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl MemoryStream {
     pub fn new() -> Self {
         Self {

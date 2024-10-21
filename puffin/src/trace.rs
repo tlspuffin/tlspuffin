@@ -146,12 +146,6 @@ pub struct KnowledgeStore<PB: ProtocolBehavior> {
     raw_knowledge: Vec<RawKnowledge<PB::Matcher>>,
 }
 
-impl<PB: ProtocolBehavior> Default for KnowledgeStore<PB> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl<PB: ProtocolBehavior> KnowledgeStore<PB> {
     pub fn new() -> Self {
         Self {
@@ -770,9 +764,9 @@ impl<M: Matcher> InputAction<M> {
     {
         // message controlled by the attacker
         let message = self.recipe.evaluate(ctx)?;
-        debug!("Add to inbound a new message...");
+        log::debug!("Add to inbound a new message...");
         ctx.add_to_inbound(step.agent, &message)?;
-        debug!("Next state...");
+        log::debug!("Next state...");
         ctx.next_state(step.agent)
     }
 }
