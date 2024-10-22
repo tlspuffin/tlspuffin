@@ -1,5 +1,6 @@
-use puffin::algebra::signature::Signature;
 use core::any::{Any, TypeId};
+
+use puffin::algebra::signature::Signature;
 use puffin::algebra::{ConcreteMessage, Matcher};
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;

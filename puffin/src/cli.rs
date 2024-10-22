@@ -8,7 +8,7 @@ use clap::parser::ValuesRef;
 use clap::{arg, crate_authors, crate_name, crate_version, value_parser, Command};
 use libafl::inputs::Input;
 use libafl_bolts::prelude::Cores;
-use log::log;
+
 use crate::algebra::set_deserialize_signature;
 use crate::execution::forked_execution;
 use crate::experiment::*;

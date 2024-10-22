@@ -1,4 +1,8 @@
+use std::any::{Any, TypeId};
+
 use puffin::algebra::signature::Signature;
+use puffin::algebra::ConcreteMessage;
+use puffin::codec;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
@@ -185,7 +189,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
             None => message
                 .downcast_ref::<RawSshMessage>()
                 .map(|b| codec::Encode::get_encoding(b))
-                .ok_or(Term(
+                .ok_or(Error::Term(
                     "[any_get_encoding] Unable to encode (Raw)SshMessage".to_string(),
                 )),
         }

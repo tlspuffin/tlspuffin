@@ -18,7 +18,6 @@ use crate::error::Error;
 use crate::fuzzer::utils::TermPath;
 use crate::protocol::ProtocolBehavior;
 use crate::trace::{Source, TraceContext};
-use crate::variable_data::VariableData;
 
 const SIZE_LEAF: usize = 1;
 const BITSTRING_NAME: &str = "BITSTRING_";
@@ -579,8 +578,8 @@ where
             .find_variable(variable.typ, &variable.query)
             .map(|data| data.boxed_any())
             .or_else(|| {
-                if let Some(Source::Agent(agent_name)) = variable.query.source {
-                    context.find_claim(agent_name, variable.typ)
+                if let Some(Source::Agent(agent_name)) = &variable.query.source {
+                    context.find_claim(agent_name.clone(), variable.typ)
                 } else {
                     todo!("Implement querying by label");
                 }
