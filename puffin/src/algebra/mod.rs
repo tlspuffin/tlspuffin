@@ -760,7 +760,7 @@ mod tests {
         let mut context = TraceContext::new(spawner);
         context
             .knowledge_store
-            .add_raw_knowledge(data, Source::Agent(AgentName::first()));
+            .add_raw_knowledge(data, Source::Agent(AgentName::first()), None);
 
         println!("{:?}", context.knowledge_store);
 

@@ -22,14 +22,17 @@ use crate::tls::rustls::msgs::base::Payload;
 use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
 use crate::tls::rustls::msgs::enums::{
-    AlertDescription, AlertLevel, CipherSuite, Compression, HandshakeType, NamedGroup,
-    ProtocolVersion, SignatureScheme,
+    AlertDescription, AlertLevel, CipherSuite, Compression, HandshakeType, KeyUpdateRequest,
+    NamedGroup, ProtocolVersion, SignatureScheme,
 };
 use crate::tls::rustls::msgs::handshake::{
-    CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayload, ClientExtension,
-    ClientHelloPayload, ECDHEServerKeyExchange, HandshakeMessagePayload, HandshakePayload,
-    HelloRetryExtension, NewSessionTicketExtension, NewSessionTicketPayload, PresharedKeyIdentity,
-    Random, ServerExtension, ServerHelloPayload, ServerKeyExchangePayload, SessionID,
+    CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayload,
+    CertificatePayloadTLS13, CertificateRequestPayload, CertificateRequestPayloadTLS13,
+    CertificateStatus, ClientExtension, ClientHelloPayload, DigitallySignedStruct,
+    ECDHEServerKeyExchange, EncryptedExtensions, HandshakeMessagePayload, HandshakePayload,
+    HelloRetryExtension, NewSessionTicketExtension, NewSessionTicketPayload,
+    NewSessionTicketPayloadTLS13, PresharedKeyIdentity, Random, ServerExtension,
+    ServerHelloPayload, ServerKeyExchangePayload, SessionID,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
@@ -376,9 +379,39 @@ impl EvaluatedTerm<TLSProtocolTypes> for HandshakePayload {
             HandshakePayload::NewSessionTicket(ticket) => {
                 ticket.extract_knowledge(knowledges, matcher, source)?;
             }
-            _ => {
-                log::error!("failed extraction: {self:?}");
-                return Err(Error::Extraction());
+            HandshakePayload::EncryptedExtensions(ext) => {
+                ext.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::CertificateTLS13(c) => {
+                c.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::CertificateRequest(c) => {
+                c.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::CertificateRequestTLS13(c) => {
+                c.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::CertificateVerify(c) => {
+                c.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::EndOfEarlyData => {}
+            HandshakePayload::NewSessionTicketTLS13(t) => {
+                t.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::KeyUpdate(k) => {
+                k.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::Finished(payload) => {
+                payload.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::CertificateStatus(certificate_status) => {
+                certificate_status.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::MessageHash(payload) => {
+                payload.extract_knowledge(knowledges, matcher, source)?;
+            }
+            HandshakePayload::Unknown(payload) => {
+                payload.extract_knowledge(knowledges, matcher, source)?;
             }
         }
         Ok(())
@@ -652,14 +685,22 @@ atom_extract_knowledge!(TLSProtocolTypes, CertReqExtension);
 atom_extract_knowledge!(TLSProtocolTypes, Certificate);
 atom_extract_knowledge!(TLSProtocolTypes, CertificateEntry);
 atom_extract_knowledge!(TLSProtocolTypes, CertificateExtension);
+atom_extract_knowledge!(TLSProtocolTypes, CertificatePayloadTLS13);
+atom_extract_knowledge!(TLSProtocolTypes, CertificateRequestPayload);
+atom_extract_knowledge!(TLSProtocolTypes, CertificateRequestPayloadTLS13);
+atom_extract_knowledge!(TLSProtocolTypes, CertificateStatus);
 atom_extract_knowledge!(TLSProtocolTypes, CipherSuite);
 atom_extract_knowledge!(TLSProtocolTypes, ClientExtension);
 atom_extract_knowledge!(TLSProtocolTypes, Compression);
+atom_extract_knowledge!(TLSProtocolTypes, DigitallySignedStruct);
+atom_extract_knowledge!(TLSProtocolTypes, EncryptedExtensions);
 atom_extract_knowledge!(TLSProtocolTypes, HandshakeHash);
 atom_extract_knowledge!(TLSProtocolTypes, HandshakeType);
 atom_extract_knowledge!(TLSProtocolTypes, HelloRetryExtension);
+atom_extract_knowledge!(TLSProtocolTypes, KeyUpdateRequest);
 atom_extract_knowledge!(TLSProtocolTypes, NamedGroup);
 atom_extract_knowledge!(TLSProtocolTypes, NewSessionTicketExtension);
+atom_extract_knowledge!(TLSProtocolTypes, NewSessionTicketPayloadTLS13);
 atom_extract_knowledge!(TLSProtocolTypes, PresharedKeyIdentity);
 atom_extract_knowledge!(TLSProtocolTypes, ProtocolVersion);
 atom_extract_knowledge!(TLSProtocolTypes, Random);

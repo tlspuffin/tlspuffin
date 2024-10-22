@@ -90,6 +90,7 @@ pub struct Knowledge<'a, PT: ProtocolTypes> {
 pub struct RawKnowledge<PT: ProtocolTypes> {
     pub source: Source,
     pub matcher: Option<PT::Matcher>,
+    pub associated_term: Option<Term<PT>>,
     pub data: Box<dyn EvaluatedTerm<PT>>,
 }
 
@@ -152,23 +153,35 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         }
     }
 
-    pub fn add_raw_knowledge<T: EvaluatedTerm<PT> + 'static>(&mut self, data: T, source: Source) {
+    pub fn add_raw_knowledge<T: EvaluatedTerm<PT> + 'static>(
+        &mut self,
+        data: T,
+        source: Source,
+        term: Option<Term<PT>>,
+    ) {
         log::trace!("Adding raw knowledge for {:?}", &data);
 
         self.raw_knowledge.push(RawKnowledge {
             source,
             matcher: None,
             data: Box::new(data),
+            associated_term: term,
         });
     }
 
-    pub fn add_raw_boxed_knowledge(&mut self, data: Box<dyn EvaluatedTerm<PT>>, source: Source) {
+    pub fn add_raw_boxed_knowledge(
+        &mut self,
+        data: Box<dyn EvaluatedTerm<PT>>,
+        source: Source,
+        term: Option<Term<PT>>,
+    ) {
         log::trace!("Adding raw knowledge : {:?}", &data);
 
         self.raw_knowledge.push(RawKnowledge {
             source,
             matcher: None,
             data,
+            associated_term: term,
         });
     }
 
@@ -613,10 +626,10 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
 
         if let Some(opaque_flight) = agent.take_message_from_outbound()? {
             ctx.knowledge_store
-                .add_raw_knowledge(opaque_flight.clone(), source.clone());
+                .add_raw_knowledge(opaque_flight.clone(), source.clone(), None);
 
             if let Ok(flight) = TryInto::<PB::ProtocolMessageFlight>::try_into(opaque_flight) {
-                ctx.knowledge_store.add_raw_knowledge(flight, source);
+                ctx.knowledge_store.add_raw_knowledge(flight, source, None);
             }
         }
 
@@ -668,8 +681,11 @@ impl<PT: ProtocolTypes> InputAction<PT> {
     {
         for precomputation in &self.precomputations {
             let eval = precomputation.recipe.evaluate(ctx)?;
-            ctx.knowledge_store
-                .add_raw_boxed_knowledge(eval, Source::Label(precomputation.label.clone()));
+            ctx.knowledge_store.add_raw_boxed_knowledge(
+                eval,
+                Source::Label(precomputation.label.clone()),
+                Some(precomputation.recipe.clone()),
+            );
         }
 
         let message = as_message_flight::<PB>(self.recipe.evaluate(ctx)?)?;

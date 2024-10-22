@@ -4,7 +4,7 @@
 
 use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
 use puffin::algebra::Term;
-use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
+use puffin::trace::{Action, InputAction, OutputAction, Precomputation, Step, Trace};
 use puffin::{input_action, term};
 
 use crate::protocol::{MessageFlight, TLSProtocolTypes};
@@ -12,6 +12,7 @@ use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::*;
 use crate::tls::rustls::msgs::enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion};
 use crate::tls::rustls::msgs::handshake::{Random, ServerExtension, SessionID};
+use crate::tls::rustls::msgs::message::Message;
 
 pub fn seed_successful_client_auth(
     client: AgentName,
@@ -1501,6 +1502,182 @@ pub fn _seed_client_attacker_full(
     )
 }
 
+pub fn seed_client_attacker_full_precomputation(server: AgentName) -> Trace<TLSProtocolTypes> {
+    _seed_client_attacker_full_precomputation(server).0
+}
+pub fn _seed_client_attacker_full_precomputation(
+    server: AgentName,
+) -> (
+    Trace<TLSProtocolTypes>,
+    Term<TLSProtocolTypes>,
+    Term<TLSProtocolTypes>,
+    Term<TLSProtocolTypes>,
+) {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )),
+            fn_compressions,
+            (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension(fn_named_group_secp384r1))
+                        )),
+                        fn_signature_algorithm_extension
+                    )),
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                )),
+                fn_supported_versions13_extension
+            ))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                (@client_hello) // ClientHello
+            )),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+        )
+    };
+
+    // ((0, 1)) could be a CCS the server sends one
+    let extensions = term! {
+        fn_decrypt_handshake_flight(
+            ((server, 0)/MessageFlight), // The first flight of messages sent by the server
+            (@server_hello_transcript),
+            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+            fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
+            fn_seq_0  // sequence 0
+        )
+    };
+
+    // We are using a query on a precomputation with label decrypted_extensions
+    let encrypted_extensions = term! {
+        (!"decrypted_extensions", 0)[Some(TlsQueryMatcher::Handshake(Some(
+            HandshakeType::EncryptedExtensions
+        )))] / Message
+    };
+
+    let encrypted_extension_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@encrypted_extensions) // plaintext Encrypted Extensions
+        )
+    };
+
+    let server_certificate = term! {
+        (!"decrypted_extensions", 0)[Some(TlsQueryMatcher::Handshake(Some(
+            HandshakeType::Certificate
+        )))] / Message
+    };
+
+    let server_certificate_transcript = term! {
+        fn_append_transcript(
+            (@encrypted_extension_transcript),
+            (@server_certificate) // plaintext Server Certificate
+        )
+    };
+
+    let server_certificate_verify = term! {
+        (!"decrypted_extensions", 0)[Some(TlsQueryMatcher::Handshake(Some(
+            HandshakeType::CertificateVerify
+        )))] / Message
+    };
+
+    let server_certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@server_certificate_transcript),
+            (@server_certificate_verify) // plaintext Server Certificate Verify
+        )
+    };
+
+    let server_finished = term! {
+        (!"decrypted_extensions", 0)[Some(TlsQueryMatcher::Handshake(Some(
+            HandshakeType::Finished
+        )))] / Message
+    };
+
+    let server_finished_transcript = term! {
+        fn_append_transcript(
+            (@server_certificate_verify_transcript),
+            (@server_finished) // plaintext Server Handshake Finished
+        )
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (@server_finished_transcript),
+                (@server_hello_transcript),
+                (fn_get_server_key_share(((server, 0)))),
+                fn_no_psk,
+                fn_named_group_secp384r1
+            ))
+        )
+    };
+
+    let client_finished_transcript = term! {
+        fn_append_transcript(
+            (@server_finished_transcript),
+            (@client_finished)
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_3)],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        @client_hello
+                    }
+                }),
+            },
+            OutputAction::new_step(server),
+            Step {
+                agent: server,
+                action: Action::Input(input_action! {
+                    "decrypted_extensions" = term! {
+                        @extensions
+                    }
+                    =>
+                    term! {
+                        fn_encrypt_handshake(
+                            (@client_finished),
+                            (@server_hello_transcript),
+                            (fn_get_server_key_share(((server, 0)))),
+                            fn_no_psk,
+                            fn_named_group_secp384r1,
+                            fn_true,
+                            fn_seq_0  // sequence 0
+                        )
+                    }
+                }),
+            },
+            OutputAction::new_step(server),
+        ],
+    };
+
+    (
+        trace,
+        server_hello_transcript,
+        server_finished_transcript,
+        client_finished_transcript,
+    )
+}
+
 /// Seed which contains the whole transcript in the tree. This is rather huge 10k symbols. It grows
 /// exponentially.
 pub fn seed_session_resumption_dhe_full(
@@ -1791,6 +1968,18 @@ pub mod tests {
     fn test_seed_client_attacker_full() {
         let runner = default_runner_for(tls_registry().default().name());
         let trace = seed_client_attacker_full.build_trace();
+
+        let ctx = runner.execute(trace).unwrap();
+
+        assert!(ctx.agents_successful());
+    }
+
+    /// Run seed_client_attacker_full_precomputation to test precomputations
+    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
+    #[test_log::test]
+    fn test_precomputations() {
+        let runner = default_runner_for(tls_registry().default().name());
+        let trace = seed_client_attacker_full_precomputation.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
 
