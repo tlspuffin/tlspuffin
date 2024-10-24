@@ -6,7 +6,6 @@ use std::process::{Command, Stdio};
 use std::{fmt, io};
 
 use itertools::Itertools;
-use log::{error, warn};
 
 use crate::algebra::{remove_fn_prefix, remove_prefix, DYTerm, Term, TermType};
 use crate::protocol::ProtocolTypes;
@@ -76,7 +75,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
     }
 
     pub fn dot_subgraphs(&self, tree_mode: bool) -> Vec<String> {
-        warn!("Calling dot_subgraphs on: {}", self);
+        log::warn!("Calling dot_subgraphs on: {}", self);
         let mut subgraphs = Vec::new();
 
         for (i, step) in self.steps.iter().enumerate() {
@@ -147,7 +146,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         statements: &mut Vec<String>,
     ) {
         if !term.is_symbolic() {
-            error!("WITH PAYLOADS: {:?} on term {}", term.all_payloads(), term);
+            log::error!("WITH PAYLOADS: {:?} on term {}", term.all_payloads(), term);
         }
         match &term.term {
             DYTerm::Variable(variable) => {

@@ -5,7 +5,6 @@ use std::hash::Hash;
 
 use itertools::Itertools;
 use libafl::inputs::BytesInput;
-use log::{debug, error, trace};
 use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
@@ -394,7 +393,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        debug!("[evaluate_config] About to evaluate {}\n===================================================================", &self);
+        log::debug!("[evaluate_config] About to evaluate {}\n===================================================================", &self);
         let mut eval_tree = EvalTree::init();
         let path = TermPath::new();
         let (m, all_payloads) = self.eval_until_opaque(
@@ -408,20 +407,20 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         )?;
         // if let Some(mut e) = eval {
         if with_payloads && !all_payloads.is_empty() {
-            debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",
+            log::debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",
                     self, &all_payloads);
             replace_payloads(self, &mut eval_tree, all_payloads, context)
         } else if let Ok(eval) = PB::any_get_encoding(m.as_ref()) {
-            trace!("        / We successfully evaluated the root term into: {eval:?}");
+            log::trace!("        / We successfully evaluated the root term into: {eval:?}");
             Ok(eval)
         } else {
-            error!(
+            log::error!(
                 "Error with any_get_encoding: {:?}",
                 PB::any_get_encoding(m.as_ref())
             );
             Err(Error::Term(format!("[evaluate_config] Could not any_get_encode a term at root position. Current term: {}", &self.term)))
                     .map_err(|e| {
-                        error!("[evaluate_config] Err: {}", e);
+                        log::error!("[evaluate_config] Err: {}", e);
                         e
                     })
         }

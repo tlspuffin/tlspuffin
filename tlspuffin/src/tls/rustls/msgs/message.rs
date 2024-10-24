@@ -1,6 +1,5 @@
 use std::any::TypeId;
 
-use log::trace;
 use puffin::algebra::ConcreteMessage;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
@@ -388,9 +387,9 @@ macro_rules! try_downcast {
         $message
         .downcast_ref::<$T>()
         .map(|b| {
-            trace!("--->> Successfully downcast from {:?}", std::any::type_name::<$T>());
+            log::trace!("--->> Successfully downcast from {:?}", std::any::type_name::<$T>());
             let b = codec::Encode::get_encoding(b);
-            trace!("====>> Successfully encoded\n");
+            log::trace!("====>> Successfully encoded\n");
             b
         })
         .or_else(|| {
@@ -406,9 +405,9 @@ macro_rules! try_downcast {
                 $message
                 .downcast_ref::<Message>()
                 .map(|b| {
-                      trace!("--->> Successfully downcast from {:?}", std::any::type_name::<Message>());
+                      log::trace!("--->> Successfully downcast from {:?}", std::any::type_name::<Message>());
                       let b = codec::Encode::get_encoding(&b.create_opaque());
-                      trace!("====>> Successfully encoded");
+                      log::trace!("====>> Successfully encoded");
                       b
                 })
         })
@@ -421,9 +420,9 @@ macro_rules! try_downcast_two {
         $message
         .downcast_ref::<$T>()
         .map(|b| {
-            trace!("--->> Successfully downcast from {:?}", std::any::type_name::<$T>());
+            log::trace!("--->> Successfully downcast from {:?}", std::any::type_name::<$T>());
             let b = tls::rustls::msgs::base::Codec2::get_encoding2(b);
-            trace!("====>> Successfully encoded");
+            log::trace!("====>> Successfully encoded");
             b
         })
         .or_else(|| {
@@ -566,7 +565,7 @@ macro_rules! try_read {
   ($bitstring:expr, $ti:expr, $T:ty, $($Ts:ty),+) => {
       {
       if $ti == TypeId::of::<$T>() {
-        trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
+        log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
         <$T>::read_bytes($bitstring).ok_or(Term(format!(
                 "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
@@ -580,7 +579,7 @@ macro_rules! try_read {
     ($bitstring:expr, $ti:expr, $T:ty ) => {
       {
         if $ti == TypeId::of::<$T>() {
-            trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
+            log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
             <$T>::read_bytes($bitstring).ok_or(Term(format!(
                 "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
@@ -605,7 +604,7 @@ macro_rules! try_read_two {
   ($bitstring:expr, $ti:expr, $T:ty, $($Ts:ty),+) => {
       {
       if $ti == TypeId::of::<$T>() {
-        trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
+        log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
         <$T>::read_bytes2($bitstring).ok_or(Term(format!(
                 "[try_read_bytes_2] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
@@ -619,7 +618,7 @@ macro_rules! try_read_two {
     ($bitstring:expr, $ti:expr, $T:ty ) => {
       {
         if $ti == TypeId::of::<$T>() {
-            trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
+            log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
             <$T>::read_bytes2($bitstring).ok_or(Term(format!(
                 "[try_read_bytes_2] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
@@ -646,7 +645,7 @@ pub fn try_read_bytes(
     ty: TypeId,
 ) -> Result<Box<dyn EvaluatedTerm<TLSProtocolTypes>>, puffin::error::Error> {
     let a = <Vec<PayloadU24>>::read_bytes2(bitstring);
-    trace!("Trying read...");
+    log::trace!("Trying read...");
     try_read!(
         bitstring,
         ty,

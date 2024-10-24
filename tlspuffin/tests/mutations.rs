@@ -1,4 +1,3 @@
-use log::{debug, error, warn};
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
 use puffin::algebra::{DYTerm, TermType};
@@ -96,24 +95,24 @@ fn test_mutators() {
     let mut nb_success = 0;
 
     if with_dy {
-        debug!("Start [test_mutators::with_dy] with nb mutations={} and corpus: {:?}, DY mutations only first", mutations.len(), inputs);
+        log::debug!("Start [test_mutators::with_dy] with nb mutations={} and corpus: {:?}, DY mutations only first", mutations.len(), inputs);
 
         for (id_i, input) in inputs.iter().enumerate() {
-            debug!("Treating input nb{id_i}....");
+            log::debug!("Treating input nb{id_i}....");
             let max_idx = if with_bit_level { 8 } else { 7 }; // all DY mutations, including MakeMessages
             'outer: for idx in 0..max_idx {
-                debug!("Treating mutation nb{idx}");
+                log::debug!("Treating mutation nb{idx}");
                 for c in 0..10000 {
-                    // debug!(".");
+                    // log::debug!(".");
                     let mut mutant = input.clone();
                     match mutations
                         .get_and_mutate(idx.into(), &mut state, &mut mutant, 0)
                         .unwrap()
                     {
                         MutationResult::Mutated => {
-                            debug!("Success");
+                            log::debug!("Success");
                             if c > 0 {
-                                warn!("[test_mutators::with_dy] Treating input nb{id_i} and mutation nb{idx}: Success but after {c} attempts....")
+                                log::warn!("[test_mutators::with_dy] Treating input nb{id_i} and mutation nb{idx}: Success but after {c} attempts....")
                             }
                             continue 'outer;
                         }
@@ -123,7 +122,7 @@ fn test_mutators() {
                 if idx == 4 || idx == 1 {
                     // former requires a list that some traces don't have, latter requires a trace
                     // of length >2
-                    error!("[test_mutators::with_dy] Failed to process input nb{id_i} for mutation id {idx}.\n Trace is {}", input)
+                    log::error!("[test_mutators::with_dy] Failed to process input nb{id_i} for mutation id {idx}.\n Trace is {}", input)
                 } else {
                     panic!("[test_mutators::with_dy] Failed to process input nb{id_i} for mutation id {idx}.\n Trace is {}", input)
                 }
@@ -131,24 +130,24 @@ fn test_mutators() {
         }
     }
     if with_bit_level {
-        debug!("Start [test_mutators:MakeMessage] with nb mutations={} and corpus: {:?}, MakeMessage only", mutations.len(), inputs);
+        log::debug!("Start [test_mutators:MakeMessage] with nb mutations={} and corpus: {:?}, MakeMessage only", mutations.len(), inputs);
         let mut acc = vec![];
         let idx = 7; // mutation ID for MakeMessage
-        debug!(
+        log::debug!(
             "First generating many MakeMessages nb idx={} from the inputs...",
             idx
         );
         for (id_i, input) in inputs.iter().enumerate() {
-            debug!("Treating input nb{id_i}....");
+            log::debug!("Treating input nb{id_i}....");
             let mut mutant = input.clone();
             for c in 0..15 {
-                // debug!(".");
+                // log::debug!(".");
                 match mutations
                     .get_and_mutate(idx.into(), &mut state, &mut mutant, 0)
                     .unwrap()
                 {
                     MutationResult::Mutated => {
-                        debug!("Success MakeMessage: adding to new inputs");
+                        log::debug!("Success MakeMessage: adding to new inputs");
                         acc.push(mutant.clone());
                     }
                     MutationResult::Skipped => {
@@ -156,10 +155,10 @@ fn test_mutators() {
                             puffin::trace::Action::Input(r) => r.recipe.is_symbolic(),
                             _ => false,
                         }) {
-                            error!("Mutant: {mutant:?}");
-                            error!("[test_mutators:MakeMessage] Treating input nb{id_i} and mutation nb{idx}: Failed at attempt {c} with mutant: {mutant}...")
+                            log::error!("Mutant: {mutant:?}");
+                            log::error!("[test_mutators:MakeMessage] Treating input nb{id_i} and mutation nb{idx}: Failed at attempt {c} with mutant: {mutant}...")
                         } else {
-                            debug!("Mutant has no symbolic terms after {c} steps: {mutant:?}");
+                            log::debug!("Mutant has no symbolic terms after {c} steps: {mutant:?}");
                             break;
                         }
                     }
@@ -179,7 +178,9 @@ fn test_mutators() {
                 inputs.len()
             );
         }
-        debug!("Adding 4th MakeMessage inputs to the corpus (required for CrossOver mutations...");
+        log::debug!(
+            "Adding 4th MakeMessage inputs to the corpus (required for CrossOver mutations..."
+        );
         for t in &acc {
             state.corpus_mut().add(Testcase::new(t.clone()));
         }
@@ -189,41 +190,41 @@ fn test_mutators() {
                 && t.all_payloads().iter().any(|p| p.payload.len() > 8)
         });
 
-        debug!("Start [test_mutators:with_bit_level] with nb mutations={} and corpus: {:?}, bit-level mutations only (!= MakeMessage)", mutations.len(), inputs);
+        log::debug!("Start [test_mutators:with_bit_level] with nb mutations={} and corpus: {:?}, bit-level mutations only (!= MakeMessage)", mutations.len(), inputs);
         let max_tries = 1000;
         for (id_i, input) in acc.iter().enumerate() {
-            debug!("Treating MakeMessage input nb{id_i}....");
+            log::debug!("Treating MakeMessage input nb{id_i}....");
             for idx in 8..mutations.len() {
-                debug!("Treating mutation nb{idx}");
+                log::debug!("Treating mutation nb{idx}");
                 let mut succeeded = false;
                 for c in 0..max_tries {
-                    // debug!(".");
+                    // log::debug!(".");
                     let mut mutant = input.clone();
                     match mutations
                         .get_and_mutate(idx.into(), &mut state, &mut mutant, 0)
                         .unwrap()
                     {
                         MutationResult::Mutated => {
-                            debug!("Success");
+                            log::debug!("Success");
                             if c > 0 {
-                                warn!("[test_mutators:with_bit_level] Treating input nb{id_i} and mutation nb{idx}: Success but after {c} attempts....")
+                                log::warn!("[test_mutators:with_bit_level] Treating input nb{id_i} and mutation nb{idx}: Success but after {c} attempts....")
                             }
                             nb_success += 1;
                             succeeded = true;
                         }
                         MutationResult::Skipped => {
-                            debug!("Skipped");
+                            log::debug!("Skipped");
                             nb_failures += 1;
                         }
                     };
                 }
                 if !succeeded {
-                    debug!("Input: {}", input);
+                    log::debug!("Input: {}", input);
                     panic!("[test_mutators:with_bit_level] Failed to process input nb{id_i} for mutation id {idx}.\n Trace: {input}\n");
                 }
             }
         }
-        error!("All bit-level mutations could be applied at least once with a total of #{nb_failures} failures over #{nb_success} successes. On {} inputs, and {max_tries} tries for each.", acc.len());
+        log::error!("All bit-level mutations could be applied at least once with a total of #{nb_failures} failures over #{nb_success} successes. On {} inputs, and {max_tries} tries for each.", acc.len());
     }
 }
 
@@ -258,7 +259,7 @@ fn test_make_message() {
 
         if let Some(payloads) = all_payloads {
             if !payloads.is_empty() {
-                debug!("MakeMessage created payloads: {:?}", payloads);
+                log::debug!("MakeMessage created payloads: {:?}", payloads);
                 break;
             }
         }
@@ -308,11 +309,11 @@ fn test_byte_remove_payloads() {
                             && input.recipe.is_symbolic()
                             && !args[5].payloads_to_replace().is_empty()
                         {
-                            debug!(
+                            log::debug!(
                                 "Found term with payload in argument 5: {}",
                                 &input.recipe.term
                             );
-                            debug!(
+                            log::debug!(
                                 "MakeMessage created at step {i} new payloads in a strict sub-term: {:?}",
                                 args[5].payloads_to_replace()
                             );
@@ -339,11 +340,11 @@ fn test_byte_remove_payloads() {
                             if args[5].payloads_to_replace().is_empty()
                                 && input.recipe.payloads_to_replace().len() == 1
                             {
-                                debug!("MakeMessage created new payloads at step {i} in the client hello {} and removed payloads in the strict sub-terms. New paylaod: {:?}", &input.recipe, input.recipe.payloads.as_ref().unwrap());
+                                log::debug!("MakeMessage created new payloads at step {i} in the client hello {} and removed payloads in the strict sub-terms. New paylaod: {:?}", &input.recipe, input.recipe.payloads.as_ref().unwrap());
                                 break;
                             } else {
-                                debug!("Failed to remove payloads in strict sub-terms when adding a payload at top level");
-                                debug!("Should never happen");
+                                log::debug!("Failed to remove payloads in strict sub-terms when adding a payload at top level");
+                                log::debug!("Should never happen");
                             }
                         }
                     }
@@ -398,7 +399,7 @@ fn test_byte_simple() {
 
         if let Some(payloads) = all_payloads {
             if !payloads.is_empty() && !payloads[0].payload_0.is_empty() {
-                debug!(
+                log::debug!(
                     "MakeMessage created new non-empty payloads at step {i}: {:?}",
                     payloads
                 );
@@ -421,7 +422,7 @@ fn test_byte_simple() {
                     let mut found = false;
                     for payload in input.recipe.all_payloads() {
                         if payload.payload_0 != payload.payload {
-                            debug!(
+                            log::debug!(
                                 "ByteFlipMutatorDY created different payloads at step {i}: {:?}",
                                 payload
                             );
@@ -487,7 +488,7 @@ fn test_byte_interesting() {
             for payload in payloads {
                 if payload.payload_0.len() >= size_of::<u8>() {
                     // condition for ByteInterestingMutatorDY to work
-                    debug!(
+                    log::debug!(
                         "MakeMessage created sufficiently large (>= {}) payloads at step {i}: {:?}",
                         size_of::<u8>(),
                         payload
@@ -507,7 +508,7 @@ fn test_byte_interesting() {
 
     while i < MAX {
         i += 1;
-        error!("Test attempt {i}");
+        log::error!("Test attempt {i}");
         mutator_byte_interesting
             .mutate(&mut state, &mut trace, 0)
             .unwrap();
@@ -519,7 +520,7 @@ fn test_byte_interesting() {
                     let t = &input.recipe;
                     for payload in t.all_payloads() {
                         if payload.payload_0 != payload.payload {
-                            debug!(
+                            log::debug!(
                                 "[test_byte_interesting] ByteInterestingMutatorDY created different payloads at step {i}: {:?}",
                                 payload
                             );
@@ -527,15 +528,15 @@ fn test_byte_interesting() {
                         }
                     }
                     if found {
-                        debug!("[test_byte_interesting] We found different payload. Now evaluating e1\n {t}....",);
+                        log::debug!("[test_byte_interesting] We found different payload. Now evaluating e1\n {t}....",);
                         let e1 = t.evaluate(&ctx).unwrap();
-                        debug!("[test_byte_interesting] Now symbolically evaluating....",);
+                        log::debug!("[test_byte_interesting] Now symbolically evaluating....",);
                         let e2 = t.evaluate_symbolic(&ctx).unwrap();
                         if e1 != e2 {
-                            debug!("[test_byte_interesting] Evaluation differed, good...");
+                            log::debug!("[test_byte_interesting] Evaluation differed, good...");
                             break;
                         } else {
-                            debug!("[test_byte_interesting] Should never happen!");
+                            log::debug!("[test_byte_interesting] Should never happen!");
                         }
                     }
                 }

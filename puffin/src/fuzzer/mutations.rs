@@ -1,7 +1,6 @@
 use anyhow::Result;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
-use log::{debug, trace};
 
 use super::utils::{Choosable, *};
 use crate::algebra::atoms::Function;
@@ -158,9 +157,10 @@ where
             ) {
                 let term_a_cloned = term_a.clone();
                 if let Some(term_b_mut) = find_term_mut(trace, &trace_path_b) {
-                    debug!(
+                    log::debug!(
                         "[Mutation] Mutate SwapMutator on terms\n{} and\n {}",
-                        term_a_cloned, term_b_mut
+                        term_a_cloned,
+                        term_b_mut
                     );
                     let term_b_cloned = term_b_mut.clone();
                     term_b_mut.mutate(term_a_cloned);
@@ -239,7 +239,7 @@ where
             }
         };
         if let Some(to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand) {
-            debug!(
+            log::debug!(
                 "[Mutation] Mutate RemoveAndLiftMutator on term\n{}",
                 to_mutate
             );
@@ -325,7 +325,7 @@ where
         }
         let rand = state.rand_mut();
         if let Some(to_mutate) = choose_term_mut(trace, self.constraints, rand) {
-            debug!("[Mutation] ReplaceMatchMutator on term\n{}", to_mutate);
+            log::debug!("[Mutation] ReplaceMatchMutator on term\n{}", to_mutate);
             match &mut to_mutate.term {
                 // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
                 DYTerm::Variable(variable) => {
@@ -422,9 +422,10 @@ where
                 self.constraints,
                 rand,
             ) {
-                debug!(
+                log::debug!(
                     "[Mutation] Mutate ReplaceReuseMutator on terms\n {} and\n{}",
-                    to_replace, replacement
+                    to_replace,
+                    replacement
                 );
                 to_replace.mutate(replacement);
                 return Ok(MutationResult::Mutated);
@@ -488,7 +489,7 @@ where
             return Ok(MutationResult::Skipped);
         }
         let remove_index = state.rand_mut().between(0, (length - 1) as u64) as usize;
-        debug!("[Mutation] Mutate SkipMutator on step {remove_index}");
+        log::debug!("[Mutation] Mutate SkipMutator on step {remove_index}");
         steps.remove(remove_index);
         Ok(MutationResult::Mutated)
     }
@@ -548,7 +549,7 @@ where
         }
         let insert_index = state.rand_mut().between(0, length as u64) as usize;
         let step = state.rand_mut().choose(steps).clone();
-        debug!("[Mutation] Mutate RepeatMutator on step {insert_index}");
+        log::debug!("[Mutation] Mutate RepeatMutator on step {insert_index}");
         trace.steps.insert(insert_index, step);
         Ok(MutationResult::Mutated)
     }
@@ -614,7 +615,7 @@ where
         }
         let rand = state.rand_mut();
         if let Some(to_mutate) = choose_term_mut(trace, self.constraints, rand) {
-            debug!("[Mutation] Mutate GenerateMutator on term\n{}", to_mutate);
+            log::debug!("[Mutation] Mutate GenerateMutator on term\n{}", to_mutate);
             self.mutation_counter += 1;
             let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
                 self.zoo.insert(TermZoo::generate(self.signature, rand))
@@ -696,10 +697,10 @@ where
     tr.execute_until_step(ctx, path.0).err().map(|e| {
         // 20% to 50% MakeMessage mutations fail, so this is a bit costly :(
         // TODO: we could memoize the recipe evaluation in a Option<ConcreteMessage> and use that
-        debug!("mutation::MakeMessage trace is not executable until step {},\
+        log::debug!("mutation::MakeMessage trace is not executable until step {},\
             could only happen if this mutation is scheduled with other mutations that create a non-executable trace.\
             Error: {e}", path.0);
-        trace!("{}", &tr);
+        log::trace!("{}", &tr);
         Ok::<MutationResult, Error>(MutationResult::Skipped)
     });
 
@@ -725,7 +726,7 @@ where
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         if !self.with_bit_level {
-            debug!("[Mutation-bit] Mutate MakeMessage skipped because bit-level mutations are disabled");
+            log::debug!("[Mutation-bit] Mutate MakeMessage skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
@@ -754,23 +755,23 @@ where
         if let Some((chosen_term, (step_index, term_path))) =
             choose(trace, constraints_make_message, rand)
         {
-            debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
+            log::debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
             let spawner = Spawner::new(self.put_registry.clone());
             let mut ctx = TraceContext::new(spawner);
             match make_message_term(trace, &(step_index, term_path), &mut ctx) {
                 // TODO: possibly we would need to make sure the mutated trace can be executed (if
                 // not directly dropped by the feedback loop once executed)
                 Ok(()) => {
-                    debug!("mutation::MakeMessage successful!");
+                    log::debug!("mutation::MakeMessage successful!");
                     Ok(MutationResult::Mutated)
                 }
                 Err(e) => {
-                    debug!("mutation::MakeMessage failed due to {e}");
+                    log::debug!("mutation::MakeMessage failed due to {e}");
                     Ok(MutationResult::Skipped)
                 }
             }
         } else {
-            debug!(
+            log::debug!(
                 "mutation::MakeMessage failed to choose term in trace:\n {}",
                 &trace
             );

@@ -3,7 +3,6 @@ use std::cmp::max;
 use std::collections::HashSet;
 
 use itertools::Itertools;
-use log::{debug, error, warn};
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
 use puffin::algebra::error::FnError;
@@ -86,14 +85,14 @@ pub fn ignore_lazy_eval() -> HashSet<String> {
 fn test_term_generation() {
     let mut rand = StdRand::with_seed(101);
     let zoo = TermZoo::<TLSProtocolTypes>::generate_many(&TLS_SIGNATURE, &mut rand, 1, None);
-    // debug!("zoo size: {}", zoo.terms().len());
+    // log::debug!("zoo size: {}", zoo.terms().len());
     let subgraphs = zoo
         .terms()
         .iter()
         .enumerate()
         .map(|(i, term)| term.dot_subgraph(false, i, i.to_string().as_str()))
         .collect::<Vec<_>>();
-    // debug!("subgraph size: {}", subgraphs.len());
+    // log::debug!("subgraph size: {}", subgraphs.len());
 
     let _graph = format!(
         "strict digraph \"Trace\" {{ splines=true; {} }}",
@@ -119,19 +118,19 @@ fn test_term_generation() {
     successfully_built_functions.extend(ignored_functions.clone());
 
     let difference = all_functions.difference(&successfully_built_functions);
-    debug!("Diff: {:?}\n", &difference);
+    log::debug!("Diff: {:?}\n", &difference);
     let difference_inverse = successfully_built_functions_0.intersection(&ignored_functions);
-    debug!("Intersec with ignored: {:?}\n", &difference_inverse);
-    // debug!("Successfully built: {:?}\n", &successfully_built_functions);
-    debug!(
+    log::debug!("Intersec with ignored: {:?}\n", &difference_inverse);
+    // log::debug!("Successfully built: {:?}\n", &successfully_built_functions);
+    log::debug!(
         "Successfully built: #{:?}",
         &successfully_built_functions.len()
     );
-    debug!("All functions: #{:?}", &all_functions.len());
+    log::debug!("All functions: #{:?}", &all_functions.len());
     assert_eq!(difference.count(), 0);
     assert_eq!(difference_inverse.count(), 0);
     // TESTED OK WITH generate_many CALLED WITH HOW_MANY = 400, mo more functions found with
-    // MAX_DEPTH=2000 and MAX_TRIES = 50000 debug!("{}", graph);
+    // MAX_DEPTH=2000 and MAX_TRIES = 50000 log::debug!("{}", graph);
 }
 
 #[test_log::test]
@@ -140,14 +139,14 @@ fn test_term_lazy_eval() {
     let spawner = Spawner::new(tls_registry.clone());
     let mut rand = StdRand::with_seed(101);
     let zoo = TermZoo::<TLSProtocolTypes>::generate_many(&TLS_SIGNATURE, &mut rand, 400, None);
-    // debug!("zoo size: {}", zoo.terms().len());
+    // log::debug!("zoo size: {}", zoo.terms().len());
     let subgraphs = zoo
         .terms()
         .iter()
         .enumerate()
         .map(|(i, term)| term.dot_subgraph(false, i, i.to_string().as_str()))
         .collect::<Vec<_>>();
-    // debug!("subgraph size: {}", subgraphs.len());
+    // log::debug!("subgraph size: {}", subgraphs.len());
 
     let _graph = format!(
         "strict digraph \"Trace\" {{ splines=true; {} }}",
@@ -174,19 +173,19 @@ fn test_term_lazy_eval() {
     successfully_built_functions.extend(ignored_functions.clone());
 
     let difference = all_functions.difference(&successfully_built_functions);
-    debug!("Diff: {:?}\n", &difference);
+    log::debug!("Diff: {:?}\n", &difference);
     let difference_inverse = successfully_built_functions_0.intersection(&ignored_functions);
-    debug!("Intersec with ignored: {:?}\n", &difference_inverse);
+    log::debug!("Intersec with ignored: {:?}\n", &difference_inverse);
 
-    debug!(
+    log::debug!(
         "Successfully built: #{:?}",
         &successfully_built_functions.len()
     );
-    debug!("All functions: #{:?}", &all_functions.len());
+    log::debug!("All functions: #{:?}", &all_functions.len());
     assert_eq!(difference.count(), 0);
     assert_eq!(difference_inverse.count(), 0);
     // TESTED OK WITH generate_many CALLED WITH HOW_MANY = 200, mo more functions found with
-    // how_many = 10 000 debug!("{}", graph);
+    // how_many = 10 000 log::debug!("{}", graph);
 }
 
 #[test_log::test]
@@ -217,49 +216,50 @@ fn test_term_eval() {
         {
             match term.evaluate(&ctx) {
                 Ok(eval) => {
-                    debug!("OKAY for {}", term.name().to_string().to_owned());
+                    log::debug!("OKAY for {}", term.name().to_string().to_owned());
                     successfully_built_functions.push(term.name().to_string().to_owned());
                     eval_count += 1;
 
-                    // debug!(
+                    // log::debug!(
                     //     " [x] Succeed evaluation of term: {} \nresulting in {:?}\n",
                     //     term, eval
                     // );
                 }
                 Err(e) => {
-                    debug!(
+                    log::debug!(
                         "Error for {}, so we're trying lazy eval!!",
                         term.name().to_string().to_owned()
                     );
                     let t1 = evaluate_lazy_test(term, &ctx);
                     if t1.is_err() {
-                        debug!("LAZY failed!");
+                        log::debug!("LAZY failed!");
                         count_lazy_fail += 1;
                     } else {
                         count_any_encode_fail += 1;
                         match e.clone() {
                             // for debugging encoding failure only
-                            Error::Fn(FnError::Unknown(ee)) => debug!(
+                            Error::Fn(FnError::Unknown(ee)) => log::debug!(
                                 "[Unknown] Failed evaluation due to FnError::Unknown: [{}]",
                                 e
                             ),
-                            Error::Fn(FnError::Crypto(ee)) => debug!(
+                            Error::Fn(FnError::Crypto(ee)) => log::debug!(
                                 "[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}",
-                                e, term
+                                e,
+                                term
                             ),
-                            Error::Fn(FnError::Malformed(ee)) => debug!(
+                            Error::Fn(FnError::Malformed(ee)) => log::debug!(
                                 "[Malformed] Failed evaluation due to FnError::Crypto:[{}]",
                                 e
                             ),
                             Error::Term(ee) => {
-                                debug!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term)
+                                log::debug!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term)
                             }
                             _ => {
                                 // _ => {
-                                debug!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term, e);
+                                log::debug!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term, e);
                                 let t1 = evaluate_lazy_test(term, &ctx);
                                 if t1.is_ok() {
-                                    debug!("Evaluate_lazy success. ");
+                                    log::debug!("Evaluate_lazy success. ");
                                     match t1.expect("NO").as_any().downcast_ref::<bool>() {
                                         Some(downcast) => {
                                             print!("Downcast succeeded: {downcast:?}. ");
@@ -267,11 +267,11 @@ fn test_term_eval() {
                                             // print!("Encoding succeeded:: {bitstring:?}. ");
                                         }
                                         _ => {
-                                            warn!("Downcast FAILED. ")
+                                            log::warn!("Downcast FAILED. ")
                                         }
                                     }
                                 } else {
-                                    warn!("Evaluate_lazy FAILED. ");
+                                    log::warn!("Evaluate_lazy FAILED. ");
                                 }
                             }
                             _ => {}
@@ -299,15 +299,15 @@ fn test_term_eval() {
     successfully_built_functions.extend(ignored_functions.clone());
 
     let difference = all_functions.difference(&successfully_built_functions);
-    debug!("Diff: {:?}\n", &difference);
+    log::debug!("Diff: {:?}\n", &difference);
     let difference_inverse = successfully_built_functions_0.intersection(&ignored_functions);
-    debug!("Intersec with ignored: {:?}\n", &difference_inverse);
-    debug!(
+    log::debug!("Intersec with ignored: {:?}\n", &difference_inverse);
+    log::debug!(
         "Successfully built: #{:?}",
         &successfully_built_functions.len()
     );
-    debug!("All functions: #{:?}", &all_functions.len());
-    debug!("number_terms: {}, eval_count: {}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_terms, eval_count);
+    log::debug!("All functions: #{:?}", &all_functions.len());
+    log::debug!("number_terms: {}, eval_count: {}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_terms, eval_count);
     assert_eq!(difference.count(), 0);
     assert_eq!(difference_inverse.count(), 0);
     assert_eq!(count_any_encode_fail, 0);
@@ -364,7 +364,7 @@ fn add_one_payload_randomly<
     ) {
         let st = find_term_by_term_path_mut(t, &mut path).unwrap();
         if let Ok(()) = st.make_payload(ctx) {
-            debug!("Added payload for subterm at path {path:?}, step{step},\n - sub_term: {st_}\n  - whole_term {trace}\n  - evaluated={:?}, ", st.payloads.as_ref().unwrap().payload_0);
+            log::debug!("Added payload for subterm at path {path:?}, step{step},\n - sub_term: {st_}\n  - whole_term {trace}\n  - evaluated={:?}, ", st.payloads.as_ref().unwrap().payload_0);
             if let Some(payloads) = &mut st.payloads {
                 let mut a: Vec<u8> = payloads.payload.clone().into();
                 a.push(2); // TODO: make something random here! (I suggest mutate with bit-level mutations)
@@ -372,7 +372,7 @@ fn add_one_payload_randomly<
                 a.push(2);
                 a[0] = 2;
                 payloads.payload = a.into();
-                debug!("Added a payload at path {path:?}.");
+                log::debug!("Added a payload at path {path:?}.");
                 Ok(())
             } else {
                 panic!("Should never happen")
@@ -402,7 +402,7 @@ fn add_payloads_randomly<PT: ProtocolTypes, R: Rand, PB: ProtocolBehavior<Protoc
         .choose(rand)
         .unwrap()
         .to_owned();
-    debug!(
+    log::debug!(
         "Adding {nb} payloads for #subterms={nb_subterms}, max={} in term: {t}...",
         max(2, nb_subterms / 5)
     );
@@ -411,7 +411,7 @@ fn add_payloads_randomly<PT: ProtocolTypes, R: Rand, PB: ProtocolBehavior<Protoc
     while i < nb {
         tries += 1;
         if tries > nb * 100 {
-            error!("Failed to add the payloads after {} attempts", tries);
+            log::error!("Failed to add the payloads after {} attempts", tries);
             break;
         }
         if let Ok(()) = add_one_payload_randomly(t, rand, ctx) {
@@ -490,28 +490,30 @@ fn test_term_payloads_eval() {
             add_payloads_randomly(&mut term_with_payloads, &mut rand, &ctx);
 
             if term_with_payloads.all_payloads().len() == 0 {
-                warn!("Failed to add payloads, skipping... For:\n   {term_with_payloads}");
+                log::warn!("Failed to add payloads, skipping... For:\n   {term_with_payloads}");
                 continue;
             }
 
-            debug!("Term with payloads: {term_with_payloads}");
+            log::debug!("Term with payloads: {term_with_payloads}");
 
             // Sanity check:
             test_pay(&term_with_payloads);
 
             match &term_with_payloads.evaluate(&ctx) {
                 Ok(eval) => {
-                    debug!("Eval success!");
+                    log::debug!("Eval success!");
                     successfully_built_functions.push(term.name().to_string().to_owned());
                     eval_count += 1;
                 }
                 Err(e) => {
-                    error!("Eval FAILED with payloads.");
+                    log::error!("Eval FAILED with payloads.");
                     match &term_with_payloads.clone().evaluate_symbolic(&ctx) {
                         Ok(_) => {
-                            error!("Eval FAILED with payloads but succeeded without payloads!");
+                            log::error!(
+                                "Eval FAILED with payloads but succeeded without payloads!"
+                            );
                             count_payload_fail += 1;
-                            error!(
+                            log::error!(
                                 "[Payload] Failed evaluation due to PAYLOADS. Term:\n{}",
                                 term_with_payloads
                             );
@@ -519,36 +521,36 @@ fn test_term_payloads_eval() {
                         Err(_) => {
                             let t1 = evaluate_lazy_test(&term_with_payloads, &ctx);
                             if t1.is_err() {
-                                warn!("LAZY failed!");
+                                log::warn!("LAZY failed!");
                                 count_lazy_fail += 1;
                             } else {
                                 count_any_encode_fail += 1;
                                 match e.clone() { // for debugging encoding failure only
                                         Error::Fn(FnError::Unknown(ee)) =>
-                                            error!("[Unknown] Failed evaluation due to FnError::Unknown: [{}]", e),
+                                            log::error!("[Unknown] Failed evaluation due to FnError::Unknown: [{}]", e),
                                         Error::Fn(FnError::Crypto(ee)) =>
-                                            error!("[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}", e, term_with_payloads),
+                                            log::error!("[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}", e, term_with_payloads),
                                         Error::Fn(FnError::Malformed(ee)) =>
-                                            error!("[Malformed] Failed evaluation due to FnError::Crypto:[{}]", e),
+                                            log::error!("[Malformed] Failed evaluation due to FnError::Crypto:[{}]", e),
                                         Error::Term(ee) => {
-                                            error!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term_with_payloads)
+                                            log::error!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term_with_payloads)
                                         },
                                         _ => {
                                             // _ => {
-                                            error!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term_with_payloads, e);
+                                            log::error!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term_with_payloads, e);
                                             let t1 = evaluate_lazy_test(&term_with_payloads, &ctx);
                                             if t1.is_ok() {
-                                                debug!("Evaluate_lazy success. ");
+                                                log::debug!("Evaluate_lazy success. ");
                                                 match t1.expect("NO").as_any().downcast_ref::<bool>() {
                                                     Some(downcast) => {
                                                         print!("Downcast succeeded: {downcast:?}. ");
                                                         // let bitstring = Encode::get_encoding(downcast);
                                                         // print!("Encoding succeeded:: {bitstring:?}. ");
                                                     },
-                                                    _ => { error!("Downcast FAILED. ") },
+                                                    _ => { log::error!("Downcast FAILED. ") },
                                                 }
                                             } else {
-                                                error!("Evaluate_lazy FAILED. ");
+                                                log::error!("Evaluate_lazy FAILED. ");
                                             }
                                         }
                                         _ => {},
@@ -594,14 +596,14 @@ fn test_term_payloads_eval() {
 
     let difference = all_functions.difference(&successfully_built_functions);
     let difference_inverse = successfully_built_functions_0.intersection(&ignored_functions);
-    error!(
+    log::error!(
         "Successfully built: #{:?}",
         &successfully_built_functions.len()
     );
-    error!("All functions: #{:?}", &all_functions.len());
-    error!("number_shapes: {}, number_terms: {}, eval_count: {}, count_payload_fail: {count_payload_fail}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_shapes, number_terms, eval_count);
-    error!("Diff: {:?}\n", &difference);
-    error!("Intersec with ignored: {:?}\n", &difference_inverse);
+    log::error!("All functions: #{:?}", &all_functions.len());
+    log::error!("number_shapes: {}, number_terms: {}, eval_count: {}, count_payload_fail: {count_payload_fail}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_shapes, number_terms, eval_count);
+    log::error!("Diff: {:?}\n", &difference);
+    log::error!("Intersec with ignored: {:?}\n", &difference_inverse);
     assert_eq!(difference.count(), 0);
     assert_eq!(difference_inverse.count(), 0);
     assert_eq!(count_any_encode_fail, 0);
@@ -682,37 +684,37 @@ fn test_term_read_encode() {
             }
             match &term.evaluate(&ctx) {
                 Ok(eval) => {
-                    debug!("Eval success!");
+                    log::debug!("Eval success!");
                     eval_count += 1;
                     let type_id: TypeId =
                         <TypeShape<TLSProtocolTypes> as Clone>::clone(&(*term.get_type_shape()))
                             .into();
                     match TLSProtocolBehavior::try_read_bytes(eval, type_id) {
                         Ok(message_back) => {
-                            debug!("Read success!");
+                            log::debug!("Read success!");
                             read_count += 1;
                             match TLSProtocolBehavior::any_get_encoding(message_back.as_ref()) {
                                 Ok(eval2) => {
                                     if eval2 == *eval {
-                                        debug!("Consistent for term {term}");
+                                        log::debug!("Consistent for term {term}");
                                         successfully_built_functions
                                             .push(term.name().to_string().to_owned());
                                         read_success += 1;
                                     } else {
-                                        error!("[FAIL] Not the same read for term {}!\n  -Encoding1: {:?}\n  -Encoding2: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval, eval2, term.get_type_shape(), type_id);
+                                        log::error!("[FAIL] Not the same read for term {}!\n  -Encoding1: {:?}\n  -Encoding2: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval, eval2, term.get_type_shape(), type_id);
                                         read_wrong += 1;
                                     }
                                 }
                                 Err(e) => {
-                                    error!("[FAIL] Failed to re-encode read term {}!\n  -Encoding1: {:?}\n Read message {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval, message_back, term.get_type_shape(), type_id);
-                                    error!("Error: {}", e);
+                                    log::error!("[FAIL] Failed to re-encode read term {}!\n  -Encoding1: {:?}\n Read message {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval, message_back, term.get_type_shape(), type_id);
+                                    log::error!("Error: {}", e);
                                     read_wrong += 1;
                                 }
                             }
                         }
                         Err(e) => {
-                            error!("[FAIL] Failed to read for term {}!\n  and encoding: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval, term.get_type_shape(), type_id);
-                            error!("Error: {}", e);
+                            log::error!("[FAIL] Failed to read for term {}!\n  and encoding: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval, term.get_type_shape(), type_id);
+                            log::error!("Error: {}", e);
                             read_fail += 1;
                         }
                     }
@@ -720,33 +722,34 @@ fn test_term_read_encode() {
                 Err(e) => {
                     let t1 = evaluate_lazy_test(&term, &ctx);
                     if t1.is_err() {
-                        warn!("LAZY failed!");
+                        log::warn!("LAZY failed!");
                         count_lazy_fail += 1;
                     } else {
                         count_any_encode_fail += 1;
                         match e.clone() {
                             // for debugging encoding failure only
-                            Error::Fn(FnError::Unknown(ee)) => error!(
+                            Error::Fn(FnError::Unknown(ee)) => log::error!(
                                 "[Unknown] Failed evaluation due to FnError::Unknown: [{}]",
                                 e
                             ),
-                            Error::Fn(FnError::Crypto(ee)) => error!(
+                            Error::Fn(FnError::Crypto(ee)) => log::error!(
                                 "[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}",
-                                e, term
+                                e,
+                                term
                             ),
-                            Error::Fn(FnError::Malformed(ee)) => error!(
+                            Error::Fn(FnError::Malformed(ee)) => log::error!(
                                 "[Malformed] Failed evaluation due to FnError::Crypto:[{}]",
                                 e
                             ),
                             Error::Term(ee) => {
-                                error!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term)
+                                log::error!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term)
                             }
                             _ => {
                                 // _ => {
-                                error!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term, e);
+                                log::error!("===========================\n\n\n [OTHER] Failed evaluation of term: {} \n with error {}. Trying to downcast manually:", term, e);
                                 let t1 = evaluate_lazy_test(&term, &ctx);
                                 if t1.is_ok() {
-                                    debug!("Evaluate_lazy success. ");
+                                    log::debug!("Evaluate_lazy success. ");
                                     match t1.expect("NO").as_any().downcast_ref::<bool>() {
                                         Some(downcast) => {
                                             print!("Downcast succeeded: {downcast:?}. ");
@@ -754,11 +757,11 @@ fn test_term_read_encode() {
                                             // print!("Encoding succeeded:: {bitstring:?}. ");
                                         }
                                         _ => {
-                                            error!("Downcast FAILED. ")
+                                            log::error!("Downcast FAILED. ")
                                         }
                                     }
                                 } else {
-                                    error!("Evaluate_lazy FAILED. ");
+                                    log::error!("Evaluate_lazy FAILED. ");
                                 }
                             }
                             _ => {}
@@ -788,16 +791,16 @@ fn test_term_read_encode() {
     let difference = all_functions.difference(&successfully_built_functions);
     let difference_inverse = successfully_built_functions_0.intersection(&ignored_functions);
 
-    debug!(
+    log::debug!(
         "Successfully built: #{:?}",
         &successfully_built_functions.len()
     );
-    debug!("All functions: #{:?}", &all_functions.len());
-    error!("number_shapes: {}, number_terms: {}, eval_count: {}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_shapes, number_terms, eval_count);
-    error!("Read stats: read_count: {read_count}, read_success: {read_success}, read_fail: {read_fail}, read_wrong: {read_wrong}");
+    log::debug!("All functions: #{:?}", &all_functions.len());
+    log::error!("number_shapes: {}, number_terms: {}, eval_count: {}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_shapes, number_terms, eval_count);
+    log::error!("Read stats: read_count: {read_count}, read_success: {read_success}, read_fail: {read_fail}, read_wrong: {read_wrong}");
 
-    debug!("Diff: {:?}\n", &difference);
-    debug!("Intersec with ignored: {:?}\n", &difference_inverse);
+    log::debug!("Diff: {:?}\n", &difference);
+    log::debug!("Intersec with ignored: {:?}\n", &difference_inverse);
     assert_eq!(difference.count(), 0);
     assert_eq!(difference_inverse.count(), 0);
     assert_eq!(count_any_encode_fail, 0);
