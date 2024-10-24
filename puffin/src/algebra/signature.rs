@@ -70,9 +70,9 @@ impl<PT: ProtocolTypes> Signature<PT> {
     }
 
     /// Create a new [`Function`] distinct from all existing [`Function`]s.
-    pub fn new_function<F, Types>(f: &'static F) -> Function<PT>
+    pub fn new_function<F: 'static, Types>(f: &'static F) -> Function<PT>
     where
-        F: DescribableFunction<PT, Types> + 'static,
+        F: DescribableFunction<PT, Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
 

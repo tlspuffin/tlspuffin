@@ -1,4 +1,4 @@
-//! This module adds plotting capabilities to[`Term`]sand Traces. The output of the functions in
+//! This module adds plotting capabilities to[`DYTerm`]sand Traces. The output of the functions in
 //! this module can be passed to the command line utility `dot` which is part of graphviz.
 
 use std::io::{ErrorKind, Write};
@@ -7,7 +7,7 @@ use std::{fmt, io};
 
 use itertools::Itertools;
 
-use crate::algebra::{remove_fn_prefix, remove_prefix, Term};
+use crate::algebra::{remove_fn_prefix, remove_prefix, DYTerm, Term, TermType};
 use crate::protocol::ProtocolTypes;
 use crate::trace::{Action, Trace};
 
@@ -23,10 +23,15 @@ const SHOW_LABELS: bool = false */
 // Thesis theme
 const FONT: &str = "Latin Modern Roman";
 const SHAPE: &str = "none";
+const SHAPE_PAYLOAD: &str = "box";
 const SHAPE_LEAVES: &str = "none";
+const SHAPE_LEAVES_PAYLOAD: &str = "parallelogram";
+
 const STYLE: &str = "";
-const COLOR: &str = "#00000000";
+const COLOR: &str = "#ffff0000";
 const COLOR_LEAVES: &str = "#00000000";
+const COLOR_LEAVES_PAYLOAD: &str = "#ff00ff";
+const COLOR_PAYLOAD: &str = "#ff0000";
 const SHOW_LABELS: bool = false;
 
 pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<(), io::Error> {
@@ -70,6 +75,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
     }
 
     pub fn dot_subgraphs(&self, tree_mode: bool) -> Vec<String> {
+        log::warn!("Calling dot_subgraphs on: {}", self);
         let mut subgraphs = Vec::new();
 
         for (i, step) in self.steps.iter().enumerate() {
@@ -79,7 +85,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
                 Action::Input(input) => input
                     .recipe
                     .dot_subgraph(tree_mode, i, subgraph_name.as_str())
-                    .to_string(),
+                    .to_string(), // TODO-bitlevel: if not .is_symbolic(), display "bitstring"
                 Action::Output(_) => format!(
                     "subgraph cluster{} \
                     {{ \
@@ -105,15 +111,15 @@ impl<PT: ProtocolTypes> Trace<PT> {
 
 impl<PT: ProtocolTypes> Term<PT> {
     fn unique_id(&self, tree_mode: bool, cluster_id: usize) -> String {
-        match self {
-            Term::Variable(variable) => {
+        match &self.term {
+            DYTerm::Variable(variable) => {
                 if tree_mode {
                     format!("v_{}_{}", cluster_id, variable.unique_id)
                 } else {
                     format!("v_{}", variable.resistant_id)
                 }
             }
-            Term::Application(func, _) => {
+            DYTerm::Application(func, _) => {
                 if tree_mode {
                     format!("f_{}_{}", cluster_id, func.unique_id)
                 } else {
@@ -139,31 +145,58 @@ impl<PT: ProtocolTypes> Term<PT> {
         cluster_id: usize,
         statements: &mut Vec<String>,
     ) {
-        match term {
-            Term::Variable(variable) => {
+        if !term.is_symbolic() {
+            log::error!("WITH PAYLOADS: {:?} on term {}", term.all_payloads(), term);
+        }
+        match &term.term {
+            DYTerm::Variable(variable) => {
+                let color = if term.is_symbolic() {
+                    COLOR_LEAVES
+                } else {
+                    COLOR_LEAVES_PAYLOAD
+                };
+                let shape = if term.is_symbolic() {
+                    SHAPE_LEAVES
+                } else {
+                    SHAPE_LEAVES_PAYLOAD
+                };
                 statements.push(format!(
                     "{} {} [fontname=\"{}\"];",
                     term.unique_id(tree_mode, cluster_id),
-                    Self::node_attributes(variable, COLOR_LEAVES, SHAPE_LEAVES),
+                    Self::node_attributes(variable, color, shape),
                     FONT
                 ));
             }
-            Term::Application(func, subterms) => {
+            DYTerm::Application(func, subterms) => {
+                let color = if term.is_symbolic() {
+                    if func.arity() == 0 {
+                        COLOR_LEAVES
+                    } else {
+                        COLOR
+                    }
+                } else {
+                    COLOR_PAYLOAD
+                };
+                let shape = if term.is_symbolic() {
+                    if func.arity() == 0 {
+                        SHAPE_LEAVES
+                    } else {
+                        SHAPE
+                    }
+                } else {
+                    SHAPE_PAYLOAD
+                };
                 statements.push(format!(
                     "{} {} [fontname=\"{}\"];",
                     term.unique_id(tree_mode, cluster_id),
                     Self::node_attributes(
-                        remove_fn_prefix(&remove_prefix(func.name())),
-                        if func.arity() == 0 {
-                            COLOR_LEAVES
+                        if term.is_symbolic() {
+                            remove_fn_prefix(&remove_prefix(func.name()))
                         } else {
-                            COLOR
+                            format!("BS//{}", remove_fn_prefix(&remove_prefix(func.name())))
                         },
-                        if func.arity() == 0 {
-                            SHAPE_LEAVES
-                        } else {
-                            SHAPE
-                        }
+                        color,
+                        shape,
                     ),
                     FONT
                 ));

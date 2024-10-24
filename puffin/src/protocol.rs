@@ -1,4 +1,4 @@
-use std::any::Any;
+use core::any::{Any, TypeId};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::algebra::signature::Signature;
-use crate::algebra::Matcher;
+use crate::algebra::{ConcreteMessage, Matcher};
 use crate::claims::{Claim, SecurityViolationPolicy};
 use crate::codec::Codec;
 use crate::error::Error;
@@ -14,11 +14,16 @@ use crate::trace::{Knowledge, Source, Trace};
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
+    fn boxed_any(self) -> Box<dyn Any>;
 }
 
 impl<T: 'static> AsAny for T {
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn boxed_any(self) -> Box<dyn Any> {
+        Box::new(self)
     }
 }
 
@@ -161,4 +166,17 @@ pub trait ProtocolBehavior: 'static {
 
     /// Creates a sane initial seed corpus.
     fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)>;
+
+    /// Downcast from `Box<dyn Any>` and encode as bitstring any message as per the PB's internal
+    /// structure
+    fn any_get_encoding(
+        message: &dyn EvaluatedTerm<Self::ProtocolTypes>,
+    ) -> Result<ConcreteMessage, Error>;
+
+    /// Try to read a bitstring and interpret it as the TypeShape, which is the type of a message as
+    /// per the PB's internal structure This is expected to fail for many types of messages!
+    fn try_read_bytes(
+        bitstring: &[u8],
+        ty: TypeId,
+    ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error>;
 }

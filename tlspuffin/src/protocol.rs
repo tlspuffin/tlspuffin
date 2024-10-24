@@ -1,7 +1,7 @@
-use std::fmt::Display;
+use core::any::TypeId;
 
 use puffin::algebra::signature::Signature;
-use puffin::algebra::Matcher;
+use puffin::algebra::{ConcreteMessage, Matcher};
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
@@ -32,7 +32,9 @@ use crate::tls::rustls::msgs::handshake::{
     Random, ServerExtension, ServerHelloPayload, ServerKeyExchangePayload, SessionID,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
-use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
+use crate::tls::rustls::msgs::message::{
+    any_get_encoding, try_read_bytes, Message, MessagePayload, OpaqueMessage,
+};
 use crate::tls::rustls::msgs::{self};
 use crate::tls::seeds::create_corpus;
 use crate::tls::violation::TlsSecurityViolationPolicy;
@@ -64,6 +66,23 @@ impl From<Message> for MessageFlight {
         Self {
             messages: vec![value],
         }
+    }
+}
+
+impl Codec for MessageFlight {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        for msg in &self.messages {
+            msg.encode(bytes);
+        }
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let mut flight = Self::new();
+
+        while let Some(msg) = Message::read(reader) {
+            flight.push(msg);
+        }
+        Some(flight)
     }
 }
 
@@ -511,14 +530,30 @@ impl EvaluatedTerm<TLSProtocolTypes> for ClientHelloPayload {
             matcher,
             data: &self.cipher_suites,
         });
-
-        knowledges.extend(self.extensions.iter().map(|extension| Knowledge {
+        // we add both the Vec<T> and below the Wrapper(T) too
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.extensions.0,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.compression_methods.0,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.cipher_suites.0,
+        });
+        knowledges.extend(self.extensions.0.iter().map(|extension| Knowledge {
             source,
             matcher,
             data: extension,
         }));
         knowledges.extend(
             self.compression_methods
+                .0
                 .iter()
                 .map(|compression| Knowledge {
                     source,
@@ -526,7 +561,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for ClientHelloPayload {
                     data: compression,
                 }),
         );
-        knowledges.extend(self.cipher_suites.iter().map(|cipher_suite| Knowledge {
+        knowledges.extend(self.cipher_suites.0.iter().map(|cipher_suite| Knowledge {
             source,
             matcher,
             data: cipher_suite,
@@ -598,12 +633,18 @@ impl EvaluatedTerm<TLSProtocolTypes> for ServerHelloPayload {
             matcher,
             data: &self.legacy_version,
         });
+        // we add both the Vec<T> and below the Wrapper(T) too
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.extensions.0,
+        });
         knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.extensions,
         });
-        knowledges.extend(self.extensions.iter().map(|extension| Knowledge {
+        knowledges.extend(self.extensions.0.iter().map(|extension| Knowledge {
             source,
             matcher,
             data: extension,
@@ -737,7 +778,7 @@ impl ProtocolTypes for TLSProtocolTypes {
     }
 }
 
-impl Display for TLSProtocolTypes {
+impl std::fmt::Display for TLSProtocolTypes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "")
     }
@@ -757,5 +798,18 @@ impl ProtocolBehavior for TLSProtocolBehavior {
 
     fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
         create_corpus()
+    }
+
+    fn any_get_encoding(
+        message: &dyn EvaluatedTerm<Self::ProtocolTypes>,
+    ) -> Result<ConcreteMessage, Error> {
+        any_get_encoding(message)
+    }
+
+    fn try_read_bytes(
+        bitstring: &[u8],
+        ty: TypeId,
+    ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
+        try_read_bytes(bitstring, ty)
     }
 }

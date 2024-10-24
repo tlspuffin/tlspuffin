@@ -9,6 +9,7 @@ use std::thread;
 use std::time::Duration;
 
 use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::algebra::ConcreteMessage;
 use puffin::claims::GlobalClaimList;
 use puffin::codec::Codec;
 use puffin::error::Error;
@@ -241,9 +242,8 @@ impl TcpPut for TcpServerPut {
 }
 
 impl Stream<TLSProtocolBehavior> for TcpServerPut {
-    fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight) {
-        self.write_to_stream(&opaque_flight.clone().get_encoding())
-            .unwrap();
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        self.write_to_stream(message).unwrap();
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
@@ -252,9 +252,8 @@ impl Stream<TLSProtocolBehavior> for TcpServerPut {
 }
 
 impl Stream<TLSProtocolBehavior> for TcpClientPut {
-    fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight) {
-        self.write_to_stream(&opaque_flight.clone().get_encoding())
-            .unwrap();
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        self.write_to_stream(message).unwrap();
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {

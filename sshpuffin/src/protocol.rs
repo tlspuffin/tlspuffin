@@ -1,6 +1,8 @@
-use std::fmt::Display;
+use std::any::TypeId;
 
 use puffin::algebra::signature::Signature;
+use puffin::algebra::ConcreteMessage;
+use puffin::codec;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
@@ -169,7 +171,7 @@ impl ProtocolTypes for SshProtocolTypes {
     }
 }
 
-impl Display for SshProtocolTypes {
+impl std::fmt::Display for SshProtocolTypes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "")
     }
@@ -189,5 +191,31 @@ impl ProtocolBehavior for SshProtocolBehavior {
 
     fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
         vec![] // TODO
+    }
+
+    fn any_get_encoding(
+        message: &dyn EvaluatedTerm<Self::ProtocolTypes>,
+    ) -> Result<ConcreteMessage, Error> {
+        match message
+            .as_any()
+            .downcast_ref::<SshMessage>()
+            .map(|b| codec::Encode::get_encoding(&b.create_opaque()))
+        {
+            Some(cm) => Ok(cm),
+            None => message
+                .as_any()
+                .downcast_ref::<RawSshMessage>()
+                .map(|b| codec::Encode::get_encoding(b))
+                .ok_or(Error::Term(
+                    "[any_get_encoding] Unable to encode (Raw)SshMessage".to_string(),
+                )),
+        }
+    }
+
+    fn try_read_bytes(
+        bitstring: &[u8],
+        ty: TypeId,
+    ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
+        todo!()
     }
 }

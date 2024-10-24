@@ -26,18 +26,16 @@ use clap::error::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};
+use crate::algebra::bitstrings::Payloads;
 use crate::algebra::dynamic_function::TypeShape;
-use crate::algebra::error::FnError;
-use crate::algebra::{remove_prefix, Matcher, Term};
+use crate::algebra::{remove_prefix, Matcher, Term, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
 use crate::error::Error;
-use crate::protocol::{
-    EvaluatedTerm, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-    ProtocolMessage, ProtocolMessageFlight, ProtocolTypes,
-};
+use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
 use crate::stream::Stream;
+use crate::trace::Action::Input;
 use crate::variable_data::VariableData;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
@@ -130,7 +128,7 @@ impl<PT: ProtocolTypes> Knowledge<'_, PT> {
             remove_prefix(self.data.type_name()),
             ctx.number_matching_message_with_source(source.clone(), data_type_id, &self.matcher)
         );
-        log::trace!("Knowledge data: {:?}", self.data);
+        log::debug!("Knowledge data: {:?}", self.data);
     }
 }
 
@@ -452,7 +450,10 @@ pub struct Trace<PT: ProtocolTypes> {
 /// server or client role and a specific TLs version. Essentially they are an [`Agent`] without a
 /// stream.
 impl<PT: ProtocolTypes> Trace<PT> {
-    fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
+    pub fn spawn_agents<PB: ProtocolBehavior>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             if let Some(reusable) = ctx
                 .agents
@@ -470,7 +471,11 @@ impl<PT: ProtocolTypes> Trace<PT> {
         Ok(())
     }
 
-    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    pub fn execute_until_step<PB>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+        nb_steps: usize,
+    ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -479,7 +484,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
         }
 
         self.spawn_agents(ctx)?;
-        let steps = &self.steps;
+        let steps = &self.steps[0..nb_steps];
         for (i, step) in steps.iter().enumerate() {
             log::debug!("Executing step #{}", i);
             step.execute(ctx)?;
@@ -490,12 +495,48 @@ impl<PT: ProtocolTypes> Trace<PT> {
         Ok(())
     }
 
+    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        self.execute_until_step(ctx, self.steps.len())
+    }
+
     pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {
         postcard::to_allocvec(&self)
     }
 
     pub fn deserialize_postcard(slice: &[u8]) -> Result<Trace<PT>, postcard::Error> {
         postcard::from_bytes::<Trace<PT>>(slice)
+    }
+
+    pub fn all_payloads(&self) -> Vec<&Payloads> {
+        self.steps
+            .iter()
+            .filter_map(|e| match &e.action {
+                Input(r) => Some(&r.recipe),
+                _ => None,
+            })
+            .flat_map(|t| t.all_payloads())
+            .collect()
+    }
+
+    pub fn all_payloads_mut(&mut self) -> Vec<&mut Payloads> {
+        self.steps
+            .iter_mut()
+            .filter_map(|e| match &mut e.action {
+                Input(r) => Some(&mut r.recipe),
+                _ => None,
+            })
+            .flat_map(|t| t.all_payloads_mut())
+            .collect()
+    }
+
+    pub fn is_symbolic(&self) -> bool {
+        self.steps.iter().all(|e| match &e.action {
+            Input(r) => r.recipe.is_symbolic(),
+            _ => true,
+        })
     }
 }
 
@@ -529,7 +570,7 @@ pub struct Step<PT: ProtocolTypes> {
 }
 
 impl<PT: ProtocolTypes> Step<PT> {
-    fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -645,7 +686,7 @@ impl<PT: ProtocolTypes> InputAction<PT> {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        let message = as_message_flight::<PB>(self.recipe.evaluate(ctx)?)?;
+        let message = self.recipe.evaluate(ctx)?;
         let agent = ctx.find_agent_mut(agent_name)?;
 
         agent.add_to_inbound(&message);
@@ -657,35 +698,4 @@ impl<PT: ProtocolTypes> fmt::Display for InputAction<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "InputAction:\n{}", self.recipe)
     }
-}
-
-fn as_message_flight<PB: ProtocolBehavior>(
-    value: Box<dyn EvaluatedTerm<PB::ProtocolTypes>>,
-) -> Result<PB::OpaqueProtocolMessageFlight, Error> {
-    let opaque: PB::OpaqueProtocolMessageFlight = if let Some(flight) =
-        value.as_any().downcast_ref::<PB::ProtocolMessageFlight>()
-    {
-        flight.debug("Input message flight");
-        flight.to_owned().into()
-    } else if let Some(flight) = value
-        .as_any()
-        .downcast_ref::<PB::OpaqueProtocolMessageFlight>()
-    {
-        flight.debug("Input opaque message flight");
-        flight.to_owned()
-    } else if let Some(msg) = value.as_any().downcast_ref::<PB::ProtocolMessage>() {
-        msg.debug("Input message");
-        let message_flight: PB::ProtocolMessageFlight = msg.clone().into();
-        message_flight.into()
-    } else if let Some(opaque_message) = value.as_any().downcast_ref::<PB::OpaqueProtocolMessage>()
-    {
-        opaque_message.debug("Input opaque message");
-        opaque_message.to_owned().into()
-    } else {
-        return Err(FnError::Unknown(String::from(
-                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`, `OpaqueMessageFlight` !",
-            ))
-            .into());
-    };
-    Ok(opaque)
 }

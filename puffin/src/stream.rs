@@ -1,6 +1,7 @@
 //! The communication streams between [`Agent`](crate::agent::Agent)s.
 //!
 //! These are currently implemented by using an in-memory buffer.
+//!
 //! One might ask why we want two channels. There two very practical reasons
 //! for this. Note that these are advantages for the implementation and are not
 //! strictly required from a theoretical point of view.
@@ -21,12 +22,13 @@
 
 use std::io::{self, Read, Write};
 
+use crate::algebra::ConcreteMessage;
 use crate::codec::Codec;
 use crate::error::Error;
 use crate::protocol::ProtocolBehavior;
 
 pub trait Stream<PB: ProtocolBehavior> {
-    fn add_to_inbound(&mut self, message_flight: &PB::OpaqueProtocolMessageFlight);
+    fn add_to_inbound(&mut self, message: &ConcreteMessage);
 
     /// Takes a single TLS message from the outbound channel
     fn take_message_from_outbound(
@@ -66,8 +68,8 @@ impl MemoryStream {
 }
 
 impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream {
-    fn add_to_inbound(&mut self, message_flight: &PB::OpaqueProtocolMessageFlight) {
-        message_flight.encode(self.inbound.get_mut());
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        message.encode(self.inbound.get_mut());
     }
 
     fn take_message_from_outbound(

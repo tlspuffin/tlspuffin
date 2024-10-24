@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use puffin::agent::{AgentName, AgentType, TLSVersion};
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::claims::Claim;
+use puffin::codec::Encode;
 use puffin::dummy_extract_knowledge;
 use puffin::error::Error;
 use puffin::protocol::{EvaluatedTerm, ProtocolTypes};
@@ -35,6 +36,13 @@ pub mod dummy_registration {
 #[derive(Debug, Clone)]
 pub struct TlsTranscript(pub [u8; 64], pub i32);
 
+impl Encode for TlsTranscript {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.0);
+        b.extend(self.1.to_ne_bytes());
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct TranscriptClientHello(pub TlsTranscript);
 impl Transcript for TranscriptClientHello {
@@ -43,6 +51,13 @@ impl Transcript for TranscriptClientHello {
         &transcript.0[..transcript.1 as usize]
     }
 }
+
+impl Encode for TranscriptClientHello {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.as_slice())
+    }
+}
+
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptClientHello);
 
 #[derive(Debug, Clone)]
@@ -53,6 +68,13 @@ impl Transcript for TranscriptPartialClientHello {
         &transcript.0[..transcript.1 as usize]
     }
 }
+
+impl Encode for TranscriptPartialClientHello {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.as_slice())
+    }
+}
+
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptPartialClientHello);
 
 #[derive(Debug, Clone)]
@@ -63,6 +85,13 @@ impl Transcript for TranscriptServerHello {
         &transcript.0[..transcript.1 as usize]
     }
 }
+
+impl Encode for TranscriptServerHello {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.as_slice())
+    }
+}
+
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptServerHello);
 
 #[derive(Debug, Clone)]
@@ -73,6 +102,13 @@ impl Transcript for TranscriptServerFinished {
         &transcript.0[..transcript.1 as usize]
     }
 }
+
+impl Encode for TranscriptServerFinished {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.as_slice())
+    }
+}
+
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptServerFinished);
 
 #[derive(Debug, Clone)]
@@ -83,6 +119,13 @@ impl Transcript for TranscriptClientFinished {
         &transcript.0[..transcript.1 as usize]
     }
 }
+
+impl Encode for TranscriptClientFinished {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.as_slice())
+    }
+}
+
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptClientFinished);
 
 #[derive(Debug, Clone)]
@@ -95,6 +138,11 @@ impl Transcript for TranscriptCertificate {
 }
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptCertificate);
 
+impl Encode for TranscriptCertificate {
+    fn encode(&self, b: &mut Vec<u8>) {
+        b.extend(self.as_slice())
+    }
+}
 pub trait Transcript {
     fn as_slice(&self) -> &[u8];
 }
