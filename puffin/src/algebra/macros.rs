@@ -24,7 +24,7 @@ macro_rules! term {
         use $crate::algebra::Term;
         use $crate::trace::Source;
 
-        let var = Signature::new_var($($req_type)?, Some(Source::Label($precomp.into())), None, $counter); // TODO: verify hat using here None is fine. Before a refactor it was: Some(TlsMessageType::Handshake(None))
+        let var = Signature::new_var($($req_type)?, Some(Source::Label(Some($precomp.into()))), None, $counter); // TODO: verify hat using here None is fine. Before a refactor it was: Some(TlsMessageType::Handshake(None))
         Term::Variable(var)
     }};
     (($agent:expr, $counter:expr) $(>$req_type:expr)?) => {{
@@ -57,7 +57,7 @@ macro_rules! term {
         use $crate::algebra::Term;
         use $crate::trace::Source;
 
-        let var = Signature::new_var($($req_type)?, Some(Source::Label($precomp.into())), $message_type, $counter);
+        let var = Signature::new_var($($req_type)?, Some(Source::Label(Some($precomp.into()))), $message_type, $counter);
         Term::Variable(var)
     }};
     (($agent:expr, $counter:expr) [$message_type:expr] $(>$req_type:expr)?) => {{

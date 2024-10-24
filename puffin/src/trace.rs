@@ -62,14 +62,14 @@ impl<M: Matcher> fmt::Display for Query<M> {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Deserialize, Serialize)]
 pub enum Source {
     Agent(AgentName),
-    Label(String),
+    Label(Option<String>),
 }
 
 impl fmt::Display for Source {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Agent(x) => write!(f, "agent:{}", x),
-            Self::Label(x) => write!(f, "label:{}", x),
+            Self::Label(x) => write!(f, "label:{:?}", x),
         }
     }
 }
@@ -646,7 +646,7 @@ impl<PT: ProtocolTypes> fmt::Display for OutputAction<PT> {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "PT: ProtocolTypes")]
 pub struct Precomputation<PT: ProtocolTypes> {
-    pub label: String,
+    pub label: Option<String>,
     pub recipe: Term<PT>,
 }
 
@@ -755,43 +755,43 @@ impl<PT: ProtocolTypes> fmt::Display for InputAction<PT> {
 /// ```
 #[macro_export]
 macro_rules! input_action {
-    (@internal [$($name:literal = $precomp:expr);+] $recipe:expr) => {
+    (@internal [$($label:expr, $precomp:expr);+] $recipe:expr) => {
         InputAction {
             recipe: $recipe,
-            precomputations: vec![$(Precomputation{label: $name.into(), recipe: $precomp}),*],
+            precomputations: vec![$(Precomputation{label: $label, recipe: $precomp}),*],
         }
     };
 
     (@internal [$($precomps:tt)+] $other_name:literal = $other_precomp:expr => $($tail:tt)+) => {
-        input_action!{@internal [$($precomps)+; $other_name = $other_precomp] $($tail)+ }
+        input_action!{@internal [$($precomps)+; Some($other_name.into()), $other_precomp] $($tail)+ }
     };
 
     (@internal [$($precomps:tt)+] $other_name:literal = $other_precomp:expr, $($tail:tt)+) => {
-        input_action!{@internal [$($precomps)+; $other_name = $other_precomp] $($tail)+ }
+        input_action!{@internal [$($precomps)+; Some($other_name.into()), $other_precomp] $($tail)+ }
     };
 
     (@internal [$($precomps:tt)+] $other_precomp:expr => $($tail:tt)+) => {
-        input_action!{@internal [$($precomps)+; "" = $other_precomp] $($tail)+ }
+        input_action!{@internal [$($precomps)+; None, $other_precomp] $($tail)+ }
     };
 
     (@internal [$($precomps:tt)+] $other_precomp:expr, $($tail:tt)+) => {
-        input_action!{@internal [$($precomps)+; "" = $other_precomp] $($tail)+ }
+        input_action!{@internal [$($precomps)+; None, $other_precomp] $($tail)+ }
     };
 
     ($precomp_name:literal = $precomp:expr => $($tail:tt)+) => {
-        input_action!{@internal [$precomp_name = $precomp] $($tail)+ }
+        input_action!{@internal [Some($precomp_name.into()), $precomp] $($tail)+ }
     };
 
     ($precomp_name:literal = $precomp:expr , $($tail:tt)+) => {
-        input_action!{@internal [$precomp_name = $precomp] $($tail)+ }
+        input_action!{@internal [Some($precomp_name.into()), $precomp] $($tail)+ }
     };
 
     ($precomp:expr => $($tail:tt)+) => {
-        input_action!{@internal ["" = $precomp] $($tail)+ }
+        input_action!{@internal [None, $precomp] $($tail)+ }
     };
 
     ($precomp:expr, $($tail:tt)+) => {
-        input_action!{@internal ["" = $precomp] $($tail)+ }
+        input_action!{@internal [None, $precomp] $($tail)+ }
     };
 
     ($recipe:expr) => {
@@ -854,8 +854,8 @@ mod tests {
                     }
         };
         assert_eq!(action1.precomputations.len(), 2);
-        assert_eq!(action1.precomputations[0].label, "");
-        assert_eq!(action1.precomputations[1].label, "a");
+        assert_eq!(action1.precomputations[0].label, None);
+        assert_eq!(action1.precomputations[1].label, Some("a".into()));
 
         let action2 = input_action! {
             "a" = term!{fn_new_random()}, "b" = term!{fn_finished()} =>
@@ -864,8 +864,8 @@ mod tests {
                 }
         };
         assert_eq!(action2.precomputations.len(), 2);
-        assert_eq!(action2.precomputations[0].label, "a");
-        assert_eq!(action2.precomputations[1].label, "b");
+        assert_eq!(action2.precomputations[0].label, Some("a".into()));
+        assert_eq!(action2.precomputations[1].label, Some("b".into()));
 
         let action3 = input_action! {
             "a" = term!{fn_new_random()} => term!{fn_finished()} =>
@@ -874,8 +874,8 @@ mod tests {
                 }
         };
         assert_eq!(action3.precomputations.len(), 2);
-        assert_eq!(action3.precomputations[0].label, "a");
-        assert_eq!(action3.precomputations[1].label, "");
+        assert_eq!(action3.precomputations[0].label, Some("a".into()));
+        assert_eq!(action3.precomputations[1].label, None);
 
         let action4 = input_action! {
             term!{fn_finished()}, "a" = term!{fn_new_random()} =>
@@ -884,8 +884,8 @@ mod tests {
                 }
         };
         assert_eq!(action4.precomputations.len(), 2);
-        assert_eq!(action4.precomputations[0].label, "");
-        assert_eq!(action4.precomputations[1].label, "a");
+        assert_eq!(action4.precomputations[0].label, None);
+        assert_eq!(action4.precomputations[1].label, Some("a".into()));
 
         let action5 = input_action! {
             term!{fn_finished()}, "a" = term!{fn_new_random()} =>
@@ -898,13 +898,13 @@ mod tests {
                                 }
         };
         assert_eq!(action5.precomputations.len(), 8);
-        assert_eq!(action5.precomputations[0].label, "");
-        assert_eq!(action5.precomputations[1].label, "a");
-        assert_eq!(action5.precomputations[2].label, "b");
-        assert_eq!(action5.precomputations[3].label, "");
-        assert_eq!(action5.precomputations[4].label, "c");
-        assert_eq!(action5.precomputations[5].label, "");
-        assert_eq!(action5.precomputations[6].label, "d");
-        assert_eq!(action5.precomputations[7].label, "e");
+        assert_eq!(action5.precomputations[0].label, None);
+        assert_eq!(action5.precomputations[1].label, Some("a".into()));
+        assert_eq!(action5.precomputations[2].label, Some("b".into()));
+        assert_eq!(action5.precomputations[3].label, None);
+        assert_eq!(action5.precomputations[4].label, Some("c".into()));
+        assert_eq!(action5.precomputations[5].label, None);
+        assert_eq!(action5.precomputations[6].label, Some("d".into()));
+        assert_eq!(action5.precomputations[7].label, Some("e".into()));
     }
 }
