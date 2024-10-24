@@ -822,8 +822,8 @@ impl<PT: ProtocolTypes> Term<PT> {
     /// corresponding paths instead, i.e., a `Vec<PayloadContext>` accumulator), except when
     /// reaching an opaque term with payloads as strict sub-terms. In the latter case, fully
     /// evaluate each of the arguments (and performing the payload replacements) before
-    /// evaluating the opaque function, which then needs to be read to convert it back to a `Box<dyn>`
-    /// Any>. @path: current path of &self in the overall recipe (initially []).
+    /// evaluating the opaque function, which then needs to be read to convert it back to a
+    /// `Box<dyn Any>. @path: current path of &self in the overall recipe (initially []).
     /// Invariant: Returns the payloads to replace in this order: deeper first, left-most arguments
     /// first.
     pub(crate) fn eval_until_opaque<PB>(
