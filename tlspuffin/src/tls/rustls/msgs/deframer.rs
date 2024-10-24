@@ -134,7 +134,6 @@ impl MessageDeframer {
 
 #[cfg(test)]
 mod tests {
-    use std::convert::TryFrom;
     use std::io;
 
     use super::MessageDeframer;

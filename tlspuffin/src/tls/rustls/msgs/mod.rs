@@ -27,8 +27,6 @@ mod message_test;
 
 #[cfg(test)]
 mod test {
-    use std::convert::TryFrom;
-
     use puffin::codec::{Codec, Reader};
 
     #[test_log::test]

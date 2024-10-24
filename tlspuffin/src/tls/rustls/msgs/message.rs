@@ -1,5 +1,4 @@
 use std::any::TypeId;
-use std::convert::TryFrom;
 
 use log::trace;
 use puffin::algebra::ConcreteMessage;

@@ -680,7 +680,6 @@ pub mod test_signature {
 
 #[cfg(test)]
 mod tests {
-
     use super::test_signature::*;
     use crate::agent::AgentName;
     use crate::algebra::atoms::Variable;
