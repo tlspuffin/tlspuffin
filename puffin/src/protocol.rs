@@ -167,7 +167,7 @@ pub trait ProtocolBehavior: 'static {
     /// Creates a sane initial seed corpus.
     fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)>;
 
-    /// Downcast from Box<dyn Any> and encode as bitstring any message as per the PB's internal
+    /// Downcast from `Box<dyn Any>` and encode as bitstring any message as per the PB's internal
     /// structure
     fn any_get_encoding(
         message: &dyn EvaluatedTerm<Self::ProtocolTypes>,

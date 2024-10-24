@@ -249,9 +249,9 @@ pub fn find_unique_match<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes =
 /// find the correct occurrence, the one corresponding to `path_to_search`.
 /// Invariants:
 /// - path_window is in between vec![] (root) and `path_to_search`
-/// - window = eval_tree[path_window].encode.unwrap()
+/// - window = eval_tree\[path_window\].encode.unwrap()
 /// - window = eval_tree[vec![]].encode.unwrap()[pos_of_window..Y]
-/// - to_search = eval_tree[path_to_search].encode.unwrap()
+/// - to_search = eval_tree\[path_to_search\].encode.unwrap()
 /// - if `found_match`, then `to_search` is found in `window` at position `pos_in_window`: to_search
 ///   == window[pos_in_window..Z]
 /// - if `found_window`, then try_new_path_window = path_window
@@ -819,10 +819,10 @@ pub fn replace_payloads<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = 
 
 impl<PT: ProtocolTypes> Term<PT> {
     /// Evaluate a term without replacing the payloads (returning the payloads with the
-    /// corresponding paths instead, i.e., a Vec<PayloadContext> accumulator), except when
+    /// corresponding paths instead, i.e., a `Vec<PayloadContext>` accumulator), except when
     /// reaching an opaque term with payloads as strict sub-terms. In the latter case, fully
     /// evaluate each of the arguments (and performing the payload replacements) before
-    /// evaluating the opaque function, which then needs to be read to convert it back to a Box<dyn
+    /// evaluating the opaque function, which then needs to be read to convert it back to a `Box<dyn>`
     /// Any>. @path: current path of &self in the overall recipe (initially []).
     /// Invariant: Returns the payloads to replace in this order: deeper first, left-most arguments
     /// first.

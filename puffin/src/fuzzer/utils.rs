@@ -104,7 +104,7 @@ pub type TracePath = (StepIndex, TermPath);
 // RULE: never choose a term for a DY or bit-level mutation which is a sub-term of a not
 // is_symbolic() term Indeed, this latter term is considered atomic/leaf and is treated as a
 // bitstring.
-/// https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm
+/// <https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm>
 fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
     trace: &'a Trace<PT>,
     filter: P,
