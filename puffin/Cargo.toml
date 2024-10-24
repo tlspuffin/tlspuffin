@@ -17,6 +17,7 @@ categories.workspace = true
 sancov_pcguard_log = []
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov are mutally exclusive
 sancov = ["libafl_targets/sancov_pcguard_hitcounts"]
+asan = []
 
 introspection = ["libafl/introspection"]
 

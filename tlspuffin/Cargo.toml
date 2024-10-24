@@ -241,7 +241,12 @@ sancov = [
 ]
 
 # Enables ASAN
-asan = ["openssl-src?/asan", "wolfssl-sys?/asan", "boringssl-sys?/asan"]
+asan = [
+    "openssl-src?/asan",
+    "wolfssl-sys?/asan",
+    "boringssl-sys?/asan",
+    "puffin/asan",
+]
 gcov = ["openssl-src?/gcov", "wolfssl-sys?/gcov", "boringssl-sys?/gcov"]
 llvm_cov = [
     "openssl-src?/llvm_cov",
