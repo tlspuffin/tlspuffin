@@ -334,23 +334,22 @@ pub mod test_signature {
                 Step {
                     agent: server,
                     action: Action::Input(InputAction {
+                        precomputations: vec![],
                         recipe: client_hello,
                     }),
                 },
                 Step {
                     agent: server,
                     action: Action::Input(InputAction {
-                        recipe: term! {
-                            fn_client_key_exchange
-                        },
+                        precomputations: vec![],
+                        recipe: term! {fn_client_key_exchange},
                     }),
                 },
                 Step {
                     agent: server,
                     action: Action::Input(InputAction {
-                        recipe: term! {
-                            fn_encrypt12(fn_finished, fn_seq_0)
-                        },
+                        precomputations: vec![],
+                        recipe: term! {fn_encrypt12(fn_finished,fn_seq_0)},
                     }),
                 },
             ],
@@ -761,7 +760,7 @@ mod tests {
         let mut context = TraceContext::new(spawner);
         context
             .knowledge_store
-            .add_raw_knowledge(data, Source::Agent(AgentName::first()));
+            .add_raw_knowledge(data, Source::Agent(AgentName::first()), None);
 
         println!("{:?}", context.knowledge_store);
 

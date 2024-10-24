@@ -7,11 +7,25 @@ macro_rules! term {
     // Handshake with QueryMatcher
     // `>$req_type:expr` must be the last part of the arm, even if it is not used.
     //
+    ((!$precomp:literal, $counter:expr) / $typ:ty $(>$req_type:expr)?) => {{
+        use $crate::algebra::dynamic_function::TypeShape;
+
+        // ignore $req_type as we are overriding it with $type
+        term!((!$precomp, $counter) > TypeShape::of::<$typ>())
+    }};
     (($agent:expr, $counter:expr) / $typ:ty $(>$req_type:expr)?) => {{
         use $crate::algebra::dynamic_function::TypeShape;
 
         // ignore $req_type as we are overriding it with $type
         term!(($agent, $counter) > TypeShape::of::<$typ>())
+    }};
+    ((!$precomp:literal, $counter:expr) $(>$req_type:expr)?) => {{
+        use $crate::algebra::signature::Signature;
+        use $crate::algebra::Term;
+        use $crate::trace::Source;
+
+        let var = Signature::new_var($($req_type)?, Some(Source::Label(Some($precomp.into()))), None, $counter); // TODO: verify hat using here None is fine. Before a refactor it was: Some(TlsMessageType::Handshake(None))
+        Term::Variable(var)
     }};
     (($agent:expr, $counter:expr) $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
@@ -25,6 +39,12 @@ macro_rules! term {
     //
     // Handshake TlsMessageType with `$message_type` as `TlsMessageType`
     //
+    ((!$precomp:literal, $counter:expr) [$message_type:expr] / $typ:ty $(>$req_type:expr)?) => {{
+        use $crate::algebra::dynamic_function::TypeShape;
+
+        // ignore $req_type as we are overriding it with $type
+        term!((!$precomp, $counter) [$message_type] > TypeShape::of::<$typ>())
+    }};
     (($agent:expr, $counter:expr) [$message_type:expr] / $typ:ty $(>$req_type:expr)?) => {{
         use $crate::algebra::dynamic_function::TypeShape;
 
@@ -32,6 +52,14 @@ macro_rules! term {
         term!(($agent, $counter) [$message_type] > TypeShape::of::<$typ>())
     }};
     // Extended with custom $type
+    ((!$precomp:literal, $counter:expr) [$message_type:expr] $(>$req_type:expr)?) => {{
+        use $crate::algebra::signature::Signature;
+        use $crate::algebra::Term;
+        use $crate::trace::Source;
+
+        let var = Signature::new_var($($req_type)?, Some(Source::Label(Some($precomp.into()))), $message_type, $counter);
+        Term::Variable(var)
+    }};
     (($agent:expr, $counter:expr) [$message_type:expr] $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
         use $crate::algebra::Term;
