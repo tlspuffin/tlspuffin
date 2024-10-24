@@ -582,8 +582,8 @@ where
                 if let Some(Source::Agent(agent_name)) = &variable.query.source {
                     context.find_claim(*agent_name, variable.typ.clone())
                 } else {
-                    todo!("Implement querying by label");
-                }
+                    // Claims doesn't have precomputations as source
+                    None                }
             })
             .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
         DYTerm::Application(func, args) => {

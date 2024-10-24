@@ -16,6 +16,7 @@
 //! use puffin::agent::{AgentDescriptor, AgentName};
 //! use puffin::algebra::signature::Signature;
 //! use puffin::algebra::{DYTerm, Term};
+//! use puffin::input_action;
 //! use puffin::trace::{
 //!     Action, InputAction, OutputAction, Query, Source, Step, Trace, TraceContext,
 //! };
@@ -41,8 +42,8 @@
 //!         // Client: Hello Client -> Server
 //!         Step {
 //!             agent: server,
-//!             action: Action::Input(InputAction {
-//!                 recipe: Term::from(DYTerm::Application(
+//!             action: Action::Input(input_action! {
+//!                 Term::from(DYTerm::Application(
 //!                     Signature::new_function(&fn_client_hello),
 //!                     vec![
 //!                         Term::from(DYTerm::Variable(Signature::new_var_with_type::<

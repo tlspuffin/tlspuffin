@@ -4,6 +4,7 @@ use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::term;
 use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
+use puffin::{input_action, term};
 
 use crate::protocol::{MessageFlight, TLSProtocolTypes};
 use crate::query::TlsQueryMatcher;
@@ -114,16 +115,14 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
         steps: vec![
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @client_hello
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@certificate_rsa),
                             (fn_server_hello_transcript(((server, 0)))),
@@ -133,13 +132,12 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_true,
                             fn_seq_0  // sequence 0
                         )
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                          fn_encrypt_handshake(
                             (@certificate_verify_rsa),
                             (fn_server_hello_transcript(((server, 0)))),
@@ -149,13 +147,12 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_true,
                             fn_seq_1  // sequence 1
                         )
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@client_finished),
                             (fn_server_hello_transcript(((server, 0)))),
@@ -165,7 +162,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_true,
                             fn_seq_2  // sequence 2
                         )
-                    },
+                    }
                 }),
             },
         ],
@@ -256,16 +253,14 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
         steps: vec![
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @client_hello
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@certificate),
                             (fn_server_hello_transcript(((server, 0)))),
@@ -275,13 +270,12 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_true,
                             fn_seq_0  // sequence 0
                         )
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@client_finished),
                             (fn_server_hello_transcript(((server, 0)))),
@@ -291,7 +285,7 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_true,
                             fn_seq_1  // sequence 1
                         )
-                    },
+                    }
                 }),
             },
         ],
@@ -338,8 +332,7 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
 
     trace.steps.push(Step {
         agent: server,
-        action: Action::Input(InputAction {
-            recipe: term! {
+        action: Action::Input(input_action! { term! {
                 fn_encrypt12(
                     (@renegotiation_client_hello),
                     ((server, 0)),
@@ -350,14 +343,13 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
                     fn_true,
                     fn_seq_1
                 )
-            },
+            }
         }),
     });
 
     /*trace.steps.push(Step {
         agent: server,
-        action: Action::Input(InputAction {
-            recipe: term! {
+        action: Action::Input(input_action! { term! {
                 fn_encrypt12(
                     renegotiation_client_hello,
                     ((server, 0)),
@@ -368,7 +360,7 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
                     fn_true,
                     fn_seq_1
                 )
-            },
+            }
         }),
     });*/
 
@@ -411,17 +403,15 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TLSProtoco
         steps: vec![
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: client_hello,
+                action: Action::Input(input_action! { client_hello
                 }),
             },
             // Send directly after client_hello such that this does not need to be encrypted
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_heartbeat_fake_length((fn_payload_u16(fn_empty_bytes_vec)), fn_large_length)
-                    },
+                    }
                 }),
             },
         ],
@@ -472,53 +462,48 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolType
             // Server Certificate, Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_certificate(
                             ((server, 0))
                         )
-                    },
+                    }
                 }),
             },
             // Server Key Exchange, Server -> Client
             // If the KEX fails here, then no ephemeral KEX is used
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_server_key_exchange(  // check whether the client rejects this if it does not support export
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Server Hello Done, Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_server_hello_done
-                    },
+                    }
                 }),
             },
             // Client Key Exchange, Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_client_key_exchange(
                              ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Client Change Cipher Spec, Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_change_cipher_spec
-                    },
+                    }
                 }),
             },
         ],
@@ -579,16 +564,14 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
         steps: vec![
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @client_hello
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_encrypt_handshake(
                             (@client_finished),
                             (fn_server_hello_transcript(((server, 0)))),
@@ -598,7 +581,7 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
                             fn_true,
                             fn_seq_0  // sequence 0
                         )
-                    },
+                    }
                 }),
             },
         ],
@@ -645,52 +628,47 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
             // Server Certificate, Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_certificate(
                             ((server, 0))
                         )
-                    },
+                    }
                 }),
             },
             // Server Key Exchange, Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_server_key_exchange(
                             ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Server Hello Done, Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_server_hello_done
-                    },
+                    }
                 }),
             },
             // Client Key Exchange, Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_client_key_exchange(
                             ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
                         )
-                    },
+                    }
                 }),
             },
             // Client Change Cipher Spec, Client -> Server
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_change_cipher_spec
-                    },
+                    }
                 }),
             },
             // Client Handshake Finished, Client -> Server
@@ -699,22 +677,20 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
             // could be a HelloRequest if the encrypted data starts with a 0.
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
-                            (client, 3)[None] > TypeShape::of::<OpaqueMessage>()
-                    },
+                action: Action::Input(input_action! { term! {
+                           (client, 3)[None] > TypeShape::of::<OpaqueMessage>()
+                    }
                 }),
             },
             // NewSessionTicket, Server -> Client
             Step {
                 agent: client,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         fn_new_session_ticket(
                             ((server, 0)/u32),
                             (fn_payload_u16(fn_large_bytes_vec))
                         )
-                    },
+                    }
                 }),
             },
         ],
@@ -836,10 +812,9 @@ pub fn seed_cve_2022_39173(
             // ciphers that will be stored in ssl->suites->suites.
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @full_client_hello
-                    },
+                    }
                 }),
             },
             // Step 3: sends a Client Hello (CH3) with a missing support_group_extension that will
@@ -852,10 +827,9 @@ pub fn seed_cve_2022_39173(
             // include support_group_extension.
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @full_client_hello
-                    },
+                    }
                 }),
             },
         ],
@@ -969,18 +943,16 @@ pub fn seed_cve_2022_39173_full(
         steps: vec![
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @full_client_hello
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @full_client_hello
-                    },
+                    }
                 }),
             },
         ],
@@ -1075,18 +1047,16 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
         steps: vec![
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @client_hello
-                    },
+                    }
                 }),
             },
             Step {
                 agent: server,
-                action: Action::Input(InputAction {
-                    recipe: term! {
+                action: Action::Input(input_action! { term! {
                         @client_hello
-                    },
+                    }
                 }),
             },
         ],
