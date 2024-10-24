@@ -704,6 +704,34 @@ impl<PT: ProtocolTypes> fmt::Display for InputAction<PT> {
 
 /// This macro defines the precomputation syntax to add precomputations to an input action step
 ///
+/// Example of precomputation with TLS
+///
+/// ```ignore
+/// input_action! {
+///     // Here we are precomputing a decryption of TLS extension and using it in the following term
+///     "decrypted_extensions" = term!{fn_decrypt_handshake_flight(
+///         ((server, 0)/MessageFlight),
+///         (@server_hello_transcript),
+///         (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+///         fn_no_psk,
+///         fn_named_group_secp384r1,
+///         fn_true,
+///         fn_seq_0  // sequence 0
+///     )}
+///     =>
+///     // This term will be sent to the PUT by the input action
+///     term!{fn_append_transcript(
+///         (@server_hello_transcript),
+///         (
+///             // We can query our precomputation
+///             (!"decrypted_extensions", 0)[
+///                 Some(TlsQueryMatcher::Handshake(Some(HandshakeType::EncryptedExtensions)))
+///             ] / Message
+///         )
+///     )}
+/// };
+/// ```
+///
 /// The following syntaxes are accepted :
 /// ```ignore
 /// # use puffin::input_action;
@@ -711,18 +739,18 @@ impl<PT: ProtocolTypes> fmt::Display for InputAction<PT> {
 /// # use puffin::trace::Precomputation;
 /// # use puffin::trace::InputAction;
 ///
-/// input_action!{term!{fn_seq_0()}};
-/// input_action!{term!{fn_seq_0()} => term!{fn_seq_0()}};
-/// input_action!{"this_is_a_label" = term!{fn_seq_0()} => term!{fn_seq_0()}};
+/// input_action!{term!{fn_msg()}};
+/// input_action!{term!{fn_precomputation()} => term!{fn_msg()}};
+/// input_action!{"this_is_a_label" = term!{fn_precomputation()} => term!{fn_msg()}};
 /// input_action!{
-///     "this_is_a_label" = term!{fn_seq_0()} =>
-///         term!{fn_seq_0()} =>
-///             term!{fn_seq_0()}
+///     "this_is_a_label" = term!{fn_precomputation_1()} =>
+///         term!{fn_precomputation_2()} =>
+///             term!{fn_msg()}
 /// };
 /// // the latter is equivalent to
 /// input_action!{
-///     "this_is_a_label" = term!{fn_seq_0()}, term!{fn_seq_0()} =>
-///         term!{fn_seq_0()}
+///     "this_is_a_label" = term!{fn_precomputation_1()}, term!{fn_precomputation_2()} =>
+///         term!{fn_msg()}
 /// };
 /// ```
 ///
@@ -731,25 +759,25 @@ impl<PT: ProtocolTypes> fmt::Display for InputAction<PT> {
 /// # use puffin::trace::Precomputation;
 /// # use puffin::trace::InputAction;
 /// # use puffin::term;
-/// # use crate::algebra::test_signature::fn_seq_0;
+/// # use crate::algebra::test_signature::fn_msg;
 ///
 /// InputAction {
-///     recipe: term!{fn_seq_0()},
+///     recipe: term!{fn_msg()},
 ///     precomputations: vec![],
 /// };
 /// InputAction {
-///     recipe: term!{fn_seq_0()},
-///     precomputations: vec![Precomputation{label: "".into(), recipe: term!{fn_seq_0()}}],
+///     recipe: term!{fn_msg()},
+///     precomputations: vec![Precomputation{label: "".into(), recipe: term!{fn_precomputation()}}],
 /// };
 /// InputAction {
-///     recipe: term!{fn_seq_0()},
-///     precomputations: vec![Precomputation{label: "this_is_a_label".into(), recipe: term!{fn_seq_0()}}],
-/// };
+///     recipe: term!{fn_msg()},
+///     precomputations: vec![Precomputation{label: "this_is_a_label".into(), recipe:
+/// term!{fn_precomputation()}}], };
 /// InputAction {
-///     recipe: term!{fn_seq_0()},
+///     recipe: term!{fn_msg()},
 ///     precomputations: vec![
-///         Precomputation{label: "this_is_a_label".into(), recipe: term!{fn_seq_0()}},
-///         Precomputation{label: "".into(), recipe: term!{fn_seq_0()}}
+///         Precomputation{label: "this_is_a_label".into(), recipe: term!{fn_precomputation_1()}},
+///         Precomputation{label: "".into(), recipe: term!{fn_precomputation_2()}}
 ///     ],
 /// };
 /// ```
