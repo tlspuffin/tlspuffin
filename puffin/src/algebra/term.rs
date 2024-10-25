@@ -583,7 +583,8 @@ where
                     context.find_claim(*agent_name, variable.typ.clone())
                 } else {
                     // Claims doesn't have precomputations as source
-                    None                }
+                    None
+                }
             })
             .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
         DYTerm::Application(func, args) => {

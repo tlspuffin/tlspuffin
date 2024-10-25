@@ -2,9 +2,8 @@
 //! handshake or an execution which crashes OpenSSL.
 #![allow(dead_code)]
 
-use crate::tls::rustls::msgs::message::Message;
 use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
-use puffin::algebra::dynamic_function::TypeShape;evious merge
+use puffin::algebra::dynamic_function::TypeShape;
 use puffin::trace::{Action, InputAction, OutputAction, Precomputation, Step, Trace};
 use puffin::{input_action, term};
 
@@ -13,7 +12,7 @@ use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::*;
 use crate::tls::rustls::msgs::enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion};
 use crate::tls::rustls::msgs::handshake::{Random, ServerExtensions, SessionID};
-use crate::tls::rustls::msgs::message::OpaqueMessage;
+use crate::tls::rustls::msgs::message::{Message, OpaqueMessage};
 
 pub fn seed_successful_client_auth(
     client: AgentName,

@@ -721,7 +721,7 @@ impl<PT: ProtocolTypes> InputAction<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         for precomputation in &self.precomputations {
-            let tp =precomputation.recipe.get_type_shape().clone();
+            let tp = precomputation.recipe.get_type_shape().clone();
             let eval = precomputation.recipe.evaluate(ctx)?;
             let eval_term = PB::try_read_bytes(&eval, tp.into())?;
             // TODO: find a better way to evaluate precomputations, add a method: evaluate_term and

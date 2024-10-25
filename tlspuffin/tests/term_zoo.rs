@@ -325,7 +325,10 @@ fn add_one_payload_randomly<
         descriptors: vec![],
         steps: vec![Step {
             agent: AgentName::new(),
-            action: Input(InputAction { precomputations: vec![], recipe: t.clone() }),
+            action: Input(InputAction {
+                precomputations: vec![],
+                recipe: t.clone(),
+            }),
         }],
         prior_traces: vec![],
     };
