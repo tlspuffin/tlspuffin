@@ -30,8 +30,8 @@ impl<T: 'static> AsAny for T {
 /// Provide a way to extract knowledge out of a Message/OpaqueMessage or any type that
 /// might be used in a precomputation
 pub trait EvaluatedTerm<PT: ProtocolTypes>: std::fmt::Debug + AsAny {
-    /// Fill `knowledges` with new knowledge gathered form the type implementing EvaluatedTerm
-    /// by recursively calling extract_knowledge on all contained element
+    /// Fill `knowledges` with new knowledge gathered form the type implementing `EvaluatedTerm`
+    /// by recursively calling `extract_knowledge` on all contained element
     /// This will put source as the source of all the produced knowledge, matcher is also passed
     /// recursively but might be overwritten by a type with a more specific matcher
     fn extract_knowledge<'a>(
@@ -118,7 +118,8 @@ pub trait OpaqueProtocolMessage<PT: ProtocolTypes>:
     fn debug(&self, info: &str);
 }
 
-/// Deframes a stream of bytes into distinct [OpaqueProtocolMessages](OpaqueProtocolMessage).
+/// Deframes a stream of bytes into distinct [`OpaqueProtocolMessages`](OpaqueProtocolMessage).
+///
 /// A deframer is usually state-ful. This means it produces as many messages from the input bytes
 /// and stores them.
 pub trait ProtocolMessageDeframer<PT: ProtocolTypes> {
@@ -146,7 +147,7 @@ pub trait ProtocolTypes:
 /// arbitrary stream of bytes into messages.
 ///
 /// Also the library allows the definition of a type for [claims](Claim) and a
-/// (security policy)[SecurityViolationPolicy] over
+/// (security policy)[`SecurityViolationPolicy`] over
 /// sequences of them. Finally, there is a [matcher](Matcher) which allows traces to include
 /// queries for [knowledge](crate::trace::Knowledge).
 pub trait ProtocolBehavior: 'static {
@@ -173,8 +174,8 @@ pub trait ProtocolBehavior: 'static {
         message: &dyn EvaluatedTerm<Self::ProtocolTypes>,
     ) -> Result<ConcreteMessage, Error>;
 
-    /// Try to read a bitstring and interpret it as the TypeShape, which is the type of a message as
-    /// per the PB's internal structure This is expected to fail for many types of messages!
+    /// Try to read a bitstring and interpret it as the `TypeShape`, which is the type of a message
+    /// as per the PB's internal structure This is expected to fail for many types of messages!
     fn try_read_bytes(
         bitstring: &[u8],
         ty: TypeId,

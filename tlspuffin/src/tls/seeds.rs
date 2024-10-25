@@ -4,6 +4,7 @@
 
 use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
 use puffin::algebra::dynamic_function::TypeShape;
+use puffin::algebra::{DYTerm, Term};
 use puffin::trace::{Action, InputAction, OutputAction, Precomputation, Step, Trace};
 use puffin::{input_action, term};
 

@@ -1,10 +1,11 @@
-use crate::algebra::{DYTerm, Term, TermType};
+use crate::algebra::{DYTerm, Term};
 use crate::execution::{ExecutionStatus, ForkError};
 use crate::graphviz::write_graphviz;
 use crate::protocol::ProtocolTypes;
 use crate::trace::{Action, Trace};
 
 impl<PT: ProtocolTypes> Trace<PT> {
+    #[must_use]
     pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
         self.steps
             .iter()
@@ -15,20 +16,21 @@ impl<PT: ProtocolTypes> Trace<PT> {
             .sum()
     }
 
+    #[must_use]
     pub fn count_functions(&self) -> usize {
         self.steps
             .iter()
-            .flat_map(|step| match &step.action {
+            .filter_map(|step| match &step.action {
                 Action::Input(input) => Some(&input.recipe),
                 Action::Output(_) => None,
             })
-            .map(|term| term.size())
+            .map(super::algebra::term::TermType::size)
             .sum()
     }
 
     pub fn write_plots(&self, i: u16) {
         write_graphviz(
-            format!("test_mutation{}.svg", i).as_str(),
+            format!("test_mutation{i}.svg").as_str(),
             "svg",
             self.dot_graph(true).as_str(),
         )
@@ -39,7 +41,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
 impl<PT: ProtocolTypes> Term<PT> {
     pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
         let mut found = 0;
-        for term in self.into_iter() {
+        for term in self {
             if let DYTerm::Application(func, _) = &term.term {
                 if func.name() == find_name {
                     found += 1;

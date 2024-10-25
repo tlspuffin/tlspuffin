@@ -42,7 +42,7 @@ impl<PT: ProtocolTypes> PartialEq for Variable<PT> {
 
 impl<PT: ProtocolTypes> Clone for Variable<PT> {
     fn clone(&self) -> Self {
-        Variable {
+        Self {
             unique_id: random(),
             resistant_id: self.resistant_id,
             typ: self.typ.clone(),
@@ -84,7 +84,7 @@ pub struct Function<PT: ProtocolTypes> {
 impl<PT: ProtocolTypes> Eq for Function<PT> {}
 impl<PT: ProtocolTypes> Hash for Function<PT> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.fn_container.hash(state)
+        self.fn_container.hash(state);
     }
 }
 
@@ -96,7 +96,7 @@ impl<PT: ProtocolTypes> PartialEq for Function<PT> {
 
 impl<PT: ProtocolTypes> Clone for Function<PT> {
     fn clone(&self) -> Self {
-        Function {
+        Self {
             unique_id: random(),
             resistant_id: self.resistant_id,
             fn_container: self.fn_container.clone(),
@@ -107,6 +107,7 @@ impl<PT: ProtocolTypes> Clone for Function<PT> {
 impl<PT: ProtocolTypes> Function<PT> {
     /// Does the function symbol computes "opaque" message such as encryption, signature, MAC, AEAD,
     /// etc?
+    #[must_use]
     pub fn is_opaque(&self) -> bool {
         // TODO: have protocol-dependent implementation for this
         // debug!("Name: {}", self.fn_container.shape.name);
@@ -146,13 +147,15 @@ impl<PT: ProtocolTypes> Function<PT> {
         // fn_signed_certificate_timestamp_extension is weird, it's encoding is empty....
     }
 
-    /// Does the function symbol computes a list such as fn_append_certificate?
+    /// Does the function symbol computes a list such as `fn_append_certificate`?
+    #[must_use]
     pub fn is_list(&self) -> bool {
         // TODO: have protocol-dependent implementation for this
         // debug!("Name: {}", self.fn_container.shape.name);
         self.fn_container.shape.name.contains("_append")
     }
 
+    #[must_use]
     pub fn new(shape: DynamicFunctionShape<PT>, dynamic_fn: Box<dyn DynamicFunction<PT>>) -> Self {
         Self {
             unique_id: random(),
@@ -161,22 +164,27 @@ impl<PT: ProtocolTypes> Function<PT> {
         }
     }
 
+    #[must_use]
     pub fn arity(&self) -> u16 {
         self.fn_container.shape.arity()
     }
 
+    #[must_use]
     pub fn is_constant(&self) -> bool {
         self.fn_container.shape.is_constant()
     }
 
-    pub fn name(&self) -> &'static str {
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
         self.fn_container.shape.name
     }
 
-    pub fn shape(&self) -> &DynamicFunctionShape<PT> {
+    #[must_use]
+    pub const fn shape(&self) -> &DynamicFunctionShape<PT> {
         &self.fn_container.shape
     }
 
+    #[must_use]
     pub fn dynamic_fn(&self) -> &dyn DynamicFunction<PT> {
         &self.fn_container.dynamic_fn
     }
@@ -222,7 +230,7 @@ mod fn_container {
 
     impl<PT: ProtocolTypes> Hash for FnContainer<PT> {
         fn hash<H: Hasher>(&self, state: &mut H) {
-            self.shape.hash(state)
+            self.shape.hash(state);
         }
     }
 
@@ -272,10 +280,11 @@ mod fn_container {
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
-            let (shape, dynamic_fn) =
-                self.signature.functions_by_name.get(name).ok_or_else(|| {
-                    de::Error::custom(format!("could not find function {}", name))
-                })?;
+            let (shape, dynamic_fn) = self
+                .signature
+                .functions_by_name
+                .get(name)
+                .ok_or_else(|| de::Error::custom(format!("could not find function {name}")))?;
 
             if name != shape.name {
                 return Err(de::Error::custom("Function<PT> name does not match!"));
@@ -330,8 +339,7 @@ mod fn_container {
             let (shape, dynamic_fn) =
                 self.signature.functions_by_name.get(name).ok_or_else(|| {
                     de::Error::custom(format!(
-                        "Failed to link function symbol: Could not find function {}",
-                        name
+                        "Failed to link function symbol: Could not find function {name}"
                     ))
                 })?;
 
@@ -356,7 +364,7 @@ mod fn_container {
     }
 
     impl<'de, PT: ProtocolTypes> Deserialize<'de> for FnContainer<PT> {
-        fn deserialize<D>(deserializer: D) -> Result<FnContainer<PT>, D::Error>
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
             D: Deserializer<'de>,
         {

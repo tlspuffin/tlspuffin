@@ -29,7 +29,7 @@ use crate::agent::{Agent, AgentDescriptor, AgentName};
 use crate::algebra::bitstrings::Payloads;
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{remove_prefix, Matcher, Term, TermType};
-use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
+use crate::claims::{GlobalClaimList, SecurityViolationPolicy};
 use crate::error::Error;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
@@ -66,8 +66,8 @@ pub enum Source {
 impl fmt::Display for Source {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Agent(x) => write!(f, "agent:{}", x),
-            Self::Label(x) => write!(f, "label:{:?}", x),
+            Self::Agent(x) => write!(f, "agent:{x}"),
+            Self::Label(x) => write!(f, "label:{x:?}"),
         }
     }
 }
@@ -83,7 +83,7 @@ pub struct Knowledge<'a, PT: ProtocolTypes> {
     pub data: &'a dyn VariableData<PT>,
 }
 
-/// [RawKnowledge] stores
+/// [`RawKnowledge`] stores
 #[derive(Debug)]
 pub struct RawKnowledge<PT: ProtocolTypes> {
     pub source: Source,
@@ -145,7 +145,8 @@ pub struct KnowledgeStore<PT: ProtocolTypes> {
 }
 
 impl<PT: ProtocolTypes> KnowledgeStore<PT> {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             raw_knowledge: vec![],
         }
@@ -234,7 +235,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             })
             .collect();
 
-        possibilities.sort_by_key(|a| a.specificity());
+        possibilities.sort_by_key(Knowledge::specificity);
 
         possibilities
             .get(query.counter as usize)
@@ -259,6 +260,7 @@ impl<PB: ProtocolBehavior> Spawner<PB> {
         }
     }
 
+    #[must_use]
     pub fn with_mapping(mut self, descriptors: &[(AgentName, PutDescriptor)]) -> Self {
         self.descriptors.extend(descriptors.iter().cloned());
         self
@@ -340,7 +342,7 @@ impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
             self.knowledge_store.raw_knowledge.len()
         )?;
         for k in &self.knowledge_store.raw_knowledge {
-            write!(f, "\n   {},          --  {:?}", k, k)?;
+            write!(f, "\n   {k},          --  {k:?}")?;
         }
         Ok(())
     }
@@ -357,6 +359,7 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
 }
 
 impl<PB: ProtocolBehavior> TraceContext<PB> {
+    #[must_use]
     pub fn new(spawner: Spawner<PB>) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
@@ -405,6 +408,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .number_matching_message(type_id, tls_message_type)
     }
 
+    #[must_use]
     pub fn find_claim(
         &self,
         agent_name: AgentName,
@@ -413,7 +417,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         self.claims
             .deref_borrow()
             .find_last_claim(agent_name, query_type_shape)
-            .map(|claim| claim.inner())
+            .map(super::claims::Claim::inner)
     }
 
     /// Returns the variable which matches best -> highest specificity
@@ -438,8 +442,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
         iter.find(|agent| agent.name() == name).ok_or_else(|| {
             Error::Agent(format!(
-                "Could not find agent {}. Did you forget to call spawn_agents?",
-                name
+                "Could not find agent {name}. Did you forget to call spawn_agents?"
             ))
         })
     }
@@ -448,14 +451,16 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         let mut iter = self.agents.iter();
         iter.find(|agent| agent.name() == name).ok_or_else(|| {
             Error::Agent(format!(
-                "Could not find agent {}. Did you forget to call spawn_agents?",
-                name
+                "Could not find agent {name}. Did you forget to call spawn_agents?"
             ))
         })
     }
 
+    #[must_use]
     pub fn agents_successful(&self) -> bool {
-        self.agents.iter().all(|agent| agent.is_state_successful())
+        self.agents
+            .iter()
+            .all(super::agent::Agent::is_state_successful)
     }
 }
 
@@ -469,7 +474,7 @@ pub struct Trace<PT: ProtocolTypes> {
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an
 /// [`InputAction`]. Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a
-/// list of *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding
+/// list of *`AgentDescriptors`* which act like a blueprint to spawn [`Agent`]s with a corresponding
 /// server or client role and a specific TLs version. Essentially they are an [`Agent`] without a
 /// stream.
 impl<PT: ProtocolTypes> Trace<PT> {
@@ -529,10 +534,11 @@ impl<PT: ProtocolTypes> Trace<PT> {
         postcard::to_allocvec(&self)
     }
 
-    pub fn deserialize_postcard(slice: &[u8]) -> Result<Trace<PT>, postcard::Error> {
-        postcard::from_bytes::<Trace<PT>>(slice)
+    pub fn deserialize_postcard(slice: &[u8]) -> Result<Self, postcard::Error> {
+        postcard::from_bytes::<Self>(slice)
     }
 
+    #[must_use]
     pub fn all_payloads(&self) -> Vec<&Payloads> {
         self.steps
             .iter()
@@ -555,6 +561,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
             .collect()
     }
 
+    #[must_use]
     pub fn is_symbolic(&self) -> bool {
         self.steps.iter().all(|e| match &e.action {
             Input(r) => r.recipe.is_symbolic(),
@@ -579,8 +586,8 @@ impl<PT: ProtocolTypes> fmt::Display for Trace<PT> {
     }
 }
 
-impl<PT: ProtocolTypes> AsRef<Trace<PT>> for Trace<PT> {
-    fn as_ref(&self) -> &Trace<PT> {
+impl<PT: ProtocolTypes> AsRef<Self> for Trace<PT> {
+    fn as_ref(&self) -> &Self {
         self
     }
 }
@@ -598,7 +605,7 @@ impl<PT: ProtocolTypes> Step<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         match &self.action {
-            Action::Input(input) => input.execute(self.agent, ctx).and_then(|_| {
+            Action::Input(input) => input.execute(self.agent, ctx).and_then(|()| {
                 // NOTE force output after each InputAction step
                 (OutputAction {
                     phantom: Default::default(),
@@ -630,8 +637,8 @@ pub enum Action<PT: ProtocolTypes> {
 impl<PT: ProtocolTypes> fmt::Display for Action<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Action::Input(input) => write!(f, "{}", input),
-            Action::Output(output) => write!(f, "{}", output),
+            Self::Input(input) => write!(f, "{input}"),
+            Self::Output(output) => write!(f, "{output}"),
         }
     }
 }
@@ -647,10 +654,11 @@ pub struct OutputAction<PT> {
 }
 
 impl<PT: ProtocolTypes> OutputAction<PT> {
+    #[must_use]
     pub fn new_step(agent: AgentName) -> Step<PT> {
         Step {
             agent,
-            action: Action::Output(OutputAction {
+            action: Action::Output(Self {
                 phantom: Default::default(),
             }),
         }
@@ -704,12 +712,12 @@ pub struct InputAction<PT: ProtocolTypes> {
 }
 
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
-/// or a MultiMessage.
+/// or a `MultiMessage`.
 impl<PT: ProtocolTypes> InputAction<PT> {
-    pub fn new_step(agent: AgentName, recipe: Term<PT>) -> Step<PT> {
+    pub const fn new_step(agent: AgentName, recipe: Term<PT>) -> Step<PT> {
         Step {
             agent,
-            action: Action::Input(InputAction {
+            action: Action::Input(Self {
                 recipe,
                 precomputations: vec![],
             }),

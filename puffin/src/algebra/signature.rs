@@ -32,7 +32,8 @@ impl<PT: ProtocolTypes> std::fmt::Debug for Signature<PT> {
 
 impl<PT: ProtocolTypes> Signature<PT> {
     /// Construct a `Signature` from the given [`FunctionDefinition`]s.
-    pub fn new(definitions: Vec<FunctionDefinition<PT>>) -> Signature<PT> {
+    #[must_use]
+    pub fn new(definitions: Vec<FunctionDefinition<PT>>) -> Self {
         let functions_by_name: HashMap<&'static str, FunctionDefinition<PT>> = definitions
             .clone()
             .into_iter()
@@ -61,7 +62,7 @@ impl<PT: ProtocolTypes> Signature<PT> {
             .map(|typ| (typ.name, typ))
             .collect();
 
-        Signature {
+        Self {
             functions_by_name,
             functions_by_typ,
             functions: definitions,
@@ -79,6 +80,7 @@ impl<PT: ProtocolTypes> Signature<PT> {
         Function::new(shape, dynamic_fn.clone())
     }
 
+    #[must_use]
     pub fn new_var_with_type<T: 'static, M: Matcher>(
         source: Option<Source>,
         matcher: Option<M>,
@@ -91,6 +93,7 @@ impl<PT: ProtocolTypes> Signature<PT> {
         Self::new_var(type_shape, source, matcher, counter)
     }
 
+    #[must_use]
     pub fn new_var<M: Matcher>(
         type_shape: TypeShape<PT>,
         source: Option<Source>,

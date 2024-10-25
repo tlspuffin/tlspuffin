@@ -342,7 +342,7 @@ where
         };
 
         #[cfg(test)]
-        let edge_map_size: usize = // cannot use this in the unsafe env below... TODO
+        let _edge_map_size: usize = // cannot use this in the unsafe env below... TODO
             if std::env::var("TARGET").unwrap().contains("aarch64-apple-darwin") {
             131072
         } else {

@@ -1,6 +1,6 @@
 //! This module provides traits for calling rust functions dynamically.
 //!
-//! All functions which implement the DynamicFunction trait can be called by passing an array of
+//! All functions which implement the `DynamicFunction` trait can be called by passing an array of
 //! [`EvaluatedTerm`]s to it. The return value is again of type [`EvaluatedTerm`].
 //!
 //! Rust is a statically typed language. That means the compiler would be able to statically verify
@@ -38,8 +38,8 @@
 //!
 //! Note, that both functions return a `Result` and therefore can gracefully fail.
 //!
-//! `DynamicFunctions` can be called with an array of any type implementing the EvaluatedTerm
-//! trait. The result must also implement EvaluatedTerm. Rust offers a unique ID for each type.
+//! `DynamicFunctions` can be called with an array of any type implementing the `EvaluatedTerm`
+//! trait. The result must also implement `EvaluatedTerm`. Rust offers a unique ID for each type.
 //! Using this type we can check during runtime whether types are available. The types of each
 //! variable, constant and function are preserved and stored alongside the `DynamicFunction`.
 //!
@@ -85,15 +85,17 @@ impl<PT: ProtocolTypes> PartialEq for DynamicFunctionShape<PT> {
 
 impl<PT: ProtocolTypes> Hash for DynamicFunctionShape<PT> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name.hash(state)
+        self.name.hash(state);
     }
 }
 
 impl<PT: ProtocolTypes> DynamicFunctionShape<PT> {
+    #[must_use]
     pub fn arity(&self) -> u16 {
         self.argument_types.len() as u16
     }
 
+    #[must_use]
     pub fn is_constant(&self) -> bool {
         self.arity() == 0
     }
@@ -139,8 +141,8 @@ fn format_args<PT: ProtocolTypes, P: AsRef<dyn EvaluatedTerm<PT>>>(anys: &[P]) -
 /// [`Clone`] is implemented for `Box<dyn DynamicFunction>` using this trick:
 /// <https://users.rust-lang.org/t/how-to-clone-a-boxed-closure/31035/25>
 ///
-/// We want to use Any here and not VariableData (which implements Clone). Else all returned types
-/// in functions op_impl.rs would need to return a cloneable struct. Message for example is not.
+/// We want to use Any here and not `VariableData` (which implements Clone). Else all returned types
+/// in functions `op_impl.rs` would need to return a cloneable struct. Message for example is not.
 pub trait DynamicFunction<PT: ProtocolTypes>:
     Fn(&Vec<Box<dyn EvaluatedTerm<PT>>>) -> Result<Box<dyn EvaluatedTerm<PT>>, FnError> + Send + Sync
 {
@@ -277,6 +279,7 @@ pub struct TypeShape<PT: ProtocolTypes> {
 }
 
 impl<PT: ProtocolTypes> TypeShape<PT> {
+    #[must_use]
     pub fn of<T: 'static>() -> Self {
         Self {
             inner_type_id: TypeId::of::<T>(),
@@ -321,7 +324,7 @@ impl<PT: ProtocolTypes> Serialize for TypeShape<PT> {
 }
 
 impl<'de, PT: ProtocolTypes> Deserialize<'de> for TypeShape<PT> {
-    fn deserialize<D>(deserializer: D) -> Result<TypeShape<PT>, D::Error>
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {

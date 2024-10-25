@@ -2,7 +2,7 @@ use std::{fmt, io};
 
 use crate::algebra::error::FnError;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     /// Returned if a concrete function from the protocol fails or term evaluation fails
     Fn(FnError),
@@ -25,41 +25,35 @@ impl std::error::Error for Error {}
 
 impl From<anyhow::Error> for Error {
     fn from(value: anyhow::Error) -> Self {
-        Self::Term(format!("AnyHow Error: {}", value))
+        Self::Term(format!("AnyHow Error: {value}"))
     }
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Fn(err) => write!(f, "error executing a function symbol: {}", err),
-            Error::Term(err) => write!(f, "error evaluating a term: {}", err),
-            Error::Put(err) => write!(f, "error in openssl: {}", err),
-            Error::IO(err) => write!(
-                f,
-                "error in io of openssl (this should not happen): {}",
-                err
-            ),
-            Error::Agent(err) => write!(f, "error regarding an agent: {}", err),
-            Error::Stream(err) => write!(f, "error in the stream: {}", err),
-            Error::Extraction() => write!(f, "error while extracting variable",),
-            Error::SecurityClaim(msg) => write!(
-                f,
-                "error because a security violation occurred. msg: {}",
-                msg
-            ),
+            Self::Fn(err) => write!(f, "error executing a function symbol: {err}"),
+            Self::Term(err) => write!(f, "error evaluating a term: {err}"),
+            Self::Put(err) => write!(f, "error in openssl: {err}"),
+            Self::IO(err) => write!(f, "error in io of openssl (this should not happen): {err}"),
+            Self::Agent(err) => write!(f, "error regarding an agent: {err}"),
+            Self::Stream(err) => write!(f, "error in the stream: {err}"),
+            Self::Extraction() => write!(f, "error while extracting variable", ),
+            Self::SecurityClaim(msg) => {
+                write!(f, "error because a security violation occurred. msg: {msg}")
+            }
         }
     }
 }
 
 impl From<FnError> for Error {
     fn from(err: FnError) -> Self {
-        Error::Fn(err)
+        Self::Fn(err)
     }
 }
 
 impl From<io::Error> for Error {
     fn from(err: io::Error) -> Self {
-        Error::IO(err.to_string())
+        Self::IO(err.to_string())
     }
 }

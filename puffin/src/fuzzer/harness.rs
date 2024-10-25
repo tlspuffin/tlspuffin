@@ -4,7 +4,9 @@ use rand::Rng;
 use crate::algebra::TermType;
 use crate::error::Error;
 use crate::execution::{Runner, TraceRunner};
-use crate::fuzzer::stats_stage::*;
+use crate::fuzzer::stats_stage::{
+    AGENT, EXTRACTION, FN_ERROR, IO, PUT, STREAM, TERM, TERM_SIZE, TRACE_LENGTH,
+};
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
 use crate::trace::{Action, Spawner, Trace};
@@ -48,6 +50,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
 }
 
 #[allow(unused)]
+#[must_use]
 pub fn dummy_harness<PB: ProtocolBehavior + 'static>(
     _input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {

@@ -12,7 +12,7 @@ use libafl_bolts::prelude::Cores;
 use crate::agent::AgentName;
 use crate::algebra::TermType;
 use crate::execution::{ForkedRunner, Runner, TraceRunner};
-use crate::experiment::*;
+use crate::experiment::{format_title, write_experiment_markdown};
 use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
 use crate::fuzzer::{start, FuzzerConfig};
 use crate::graphviz::write_graphviz;
@@ -90,7 +90,7 @@ where
     let handle = match log4rs::init_config(config_default()) {
         Ok(handle) => handle,
         Err(err) => {
-            eprintln!("error: failed to initialize logging: {:?}", err);
+            eprintln!("error: failed to initialize logging: {err:?}");
             return ExitCode::FAILURE;
         }
     };
@@ -118,7 +118,7 @@ where
 
     for (id, put) in put_registry.puts() {
         log::info!("({:?}) {}:", put.kind(), id);
-        for (component, version) in put.versions().into_iter() {
+        for (component, version) in put.versions() {
             log::info!("    {}: {}", component, version);
         }
     }
@@ -130,7 +130,7 @@ where
 
     let mut options: Vec<(String, String)> = Vec::new();
     if put_use_clear {
-        options.push(("use_clear".to_string(), put_use_clear.to_string()))
+        options.push(("use_clear".to_string(), put_use_clear.to_string()));
     }
 
     let default_put = PutDescriptor::new(put_registry.default().name(), options);
@@ -155,8 +155,8 @@ where
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
-        let n: usize = *matches.get_one("number").unwrap_or(&inputs.len());
-        let is_batch: bool = matches.get_one::<usize>("number").is_some();
+        let _n: usize = *matches.get_one("number").unwrap_or(&inputs.len());
+        let _is_batch: bool = matches.get_one::<usize>("number").is_some();
 
         let mut paths = inputs
             .flat_map(|input| {
@@ -228,7 +228,7 @@ where
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
                     .as_millis()
-            )
+            );
         }
 
         if end_reached {
@@ -302,15 +302,15 @@ where
         let mut options = vec![("port", port.as_str()), ("host", host)];
 
         if let Some(prog) = prog {
-            options.push(("prog", prog))
+            options.push(("prog", prog));
         }
 
         if let Some(args) = args {
-            options.push(("args", args))
+            options.push(("args", args));
         }
 
         if let Some(cwd) = cwd {
-            options.push(("cwd", cwd))
+            options.push(("cwd", cwd));
         }
 
         let server = trace.descriptors[0].name;
@@ -342,9 +342,10 @@ where
                 num_cores,
             );
             let experiment_path = experiments_root.join(format_t.clone());
-            if experiment_path.as_path().exists() {
-                panic!("Experiment already exists. Consider creating a new experiment.")
-            }
+            assert!(
+                !experiment_path.as_path().exists(),
+                "Experiment already exists. Consider creating a new experiment."
+            );
 
             let base_dec = format_t;
             let description: &String = matches.get_one("description").unwrap_or(&base_dec);
@@ -442,7 +443,7 @@ where
         if let Err(err) = start::<PB>(&put_registry, config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {
-                    log::info!("\nFuzzing stopped by user. Good Bye.")
+                    log::info!("\nFuzzing stopped by user. Good Bye.");
                 }
                 _ => {
                     panic!("Fuzzing failed {err:?}")
@@ -478,9 +479,9 @@ fn plot<PB: ProtocolBehavior>(
 
     if is_multiple {
         for (i, subgraph) in trace.dot_subgraphs(true).iter().enumerate() {
-            let wrapped_subgraph = format!("strict digraph \"\" {{ splines=true; {} }}", subgraph);
+            let wrapped_subgraph = format!("strict digraph \"\" {{ splines=true; {subgraph} }}");
             write_graphviz(
-                format!("{}_{}.{}", output_prefix, i, format).as_str(),
+                format!("{output_prefix}_{i}.{format}").as_str(),
                 format,
                 wrapped_subgraph.as_str(),
             )
@@ -497,7 +498,7 @@ fn seed<PB: ProtocolBehavior>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
     for (trace, name) in PB::create_corpus() {
-        trace.to_file(format!("./seeds/{}.trace", name))?;
+        trace.to_file(format!("./seeds/{name}.trace"))?;
     }
 
     log::info!("Generated seed traces into the directory ./seeds");
@@ -505,12 +506,11 @@ fn seed<PB: ProtocolBehavior>(
 }
 
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) {
-    let trace = match Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
-        Ok(t) => t,
-        Err(_) => {
-            log::error!("Invalid trace file {}", input.as_ref().display());
-            return;
-        }
+    let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
+        t
+    } else {
+        log::error!("Invalid trace file {}", input.as_ref().display());
+        return;
     };
 
     log::info!("Agents: {:?}", &trace.descriptors);
@@ -546,7 +546,7 @@ fn binary_attack<PB: ProtocolBehavior>(
                 if let Ok(evaluated) = input.recipe.evaluate(&ctx) {
                     f.write_all(&evaluated).expect("Unable to write data");
                 } else {
-                    log::error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!")
+                    log::error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!");
                 }
             }
             Action::Output(_) => {}
