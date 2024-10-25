@@ -1,18 +1,17 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run Tests (WolfSSL540)" type="CargoCommandRunConfiguration" factoryName="Cargo Command" folderName="Tests">
-    <option name="command" value="test -p tlspuffin --features boringssl202403" />
+    <option name="command" value="test -p tlspuffin --features wolfssl530" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-    <envs>
-      <env name="RUST_LOG" value="debug" />
-      <env name="LIBAFL_EDGES_MAP_SIZE" value="131072" />
-    </envs>
-    <option name="emulateTerminal" value="false" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />
     <option name="allFeatures" value="false" />
+    <option name="emulateTerminal" value="false" />
     <option name="withSudo" value="false" />
     <option name="buildTarget" value="REMOTE" />
     <option name="backtrace" value="SHORT" />
+    <envs>
+      <env name="RUST_LOG" value="debug" />
+    </envs>
     <option name="isRedirectInput" value="false" />
     <option name="redirectInputPath" value="" />
     <method v="2">

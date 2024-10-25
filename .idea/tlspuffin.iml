@@ -22,6 +22,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/wolfssl-src/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/puffin-build/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/puts/harness/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/tlspuffin/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/deps" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/.venv" />

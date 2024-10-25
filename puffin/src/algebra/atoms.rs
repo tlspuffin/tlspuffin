@@ -42,7 +42,7 @@ impl<PT: ProtocolTypes> PartialEq for Variable<PT> {
 
 impl<PT: ProtocolTypes> Clone for Variable<PT> {
     fn clone(&self) -> Self {
-        Self {
+        Variable {
             unique_id: random(),
             resistant_id: self.resistant_id,
             typ: self.typ.clone(),
@@ -84,7 +84,7 @@ pub struct Function<PT: ProtocolTypes> {
 impl<PT: ProtocolTypes> Eq for Function<PT> {}
 impl<PT: ProtocolTypes> Hash for Function<PT> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.fn_container.hash(state);
+        self.fn_container.hash(state)
     }
 }
 
@@ -96,7 +96,7 @@ impl<PT: ProtocolTypes> PartialEq for Function<PT> {
 
 impl<PT: ProtocolTypes> Clone for Function<PT> {
     fn clone(&self) -> Self {
-        Self {
+        Function {
             unique_id: random(),
             resistant_id: self.resistant_id,
             fn_container: self.fn_container.clone(),
@@ -105,9 +105,10 @@ impl<PT: ProtocolTypes> Clone for Function<PT> {
 }
 
 impl<PT: ProtocolTypes> Function<PT> {
-    /// Does the function symbol computes "opaque" message such as encryption, signature, MAC, AEAD,
-    /// etc?
-    #[must_use]
+    // TODO: make this part of ProtocolBehavior!
+    /// Returns whether the function symbol computes "opaque" message such as encryption, signature,
+    /// MAC, AEAD, Formally: all symbols whose concretization does not contain the conretization
+    /// of its arguments
     pub fn is_opaque(&self) -> bool {
         // TODO: have protocol-dependent implementation for this
         // debug!("Name: {}", self.fn_container.shape.name);
@@ -147,8 +148,7 @@ impl<PT: ProtocolTypes> Function<PT> {
         // fn_signed_certificate_timestamp_extension is weird, it's encoding is empty....
     }
 
-    /// Does the function symbol computes a list such as `fn_append_certificate`?
-    #[must_use]
+    /// Returns whether the function symbol computes a list such as `fn_append_certificate`.
     pub fn is_list(&self) -> bool {
         // TODO: have protocol-dependent implementation for this
         // debug!("Name: {}", self.fn_container.shape.name);
