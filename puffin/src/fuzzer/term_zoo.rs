@@ -88,7 +88,7 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
                     if let Some(subterm) =
                         Self::generate_term(signature, possibility, depth - 1, rand)
                     {
-                        subterms.push(subterm)
+                        subterms.push(subterm);
                     } else {
                         // Max depth reached
                         return None;
@@ -116,6 +116,7 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
         self.terms.choose_filtered(filter, rand)
     }
 
+    #[must_use]
     pub fn terms(&self) -> &[Term<PT>] {
         &self.terms
     }

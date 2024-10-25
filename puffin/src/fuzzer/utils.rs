@@ -232,18 +232,18 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
         // to the number of elements in that depths (hence an exponential bonus for deeper terms
         // should the overall term be roughly balanced
         let lambda = 0.5_f64;
-        let mut count_weighted = 0 as f64;
+        let mut count_weighted = f64::from(0);
         for i in 0..max_depth {
-            count_weighted += depth_counts[i] as f64 * (1_f64 + (i as f64 * lambda));
+            count_weighted += depth_counts[i] as f64 * (i as f64).mul_add(lambda, 1_f64);
             // TODO: ?: depth_counts[i] = count_weighted.floor() as u64;
         }
         let random = rand.between(0, count_weighted.floor() as u64);
         // print!("depth_counts: {:?}, count_weighted: {count_weighted}, random: {random}",
         // depth_counts);
         let mut i = 0;
-        count_weighted = 0 as f64;
+        count_weighted = f64::from(0);
         while random >= count_weighted as u64 && i < max_depth {
-            count_weighted += depth_counts[i] as f64 * (1_f64 + i as f64 * lambda);
+            count_weighted += depth_counts[i] as f64 * (i as f64).mul_add(lambda, 1_f64);
             i += 1; // TODO: do it more efficiently by benefiting from the previous pre-processing
         }
         assert!(i > 0);
@@ -316,6 +316,7 @@ pub fn find_term_mut<'a, PT: ProtocolTypes>(
     }
 }
 
+#[must_use]
 pub fn find_term<'a, PT: ProtocolTypes>(
     trace: &'a Trace<PT>,
     trace_path: &TracePath,
@@ -478,7 +479,7 @@ mod tests {
         }
 
         let std_dev =
-            std_deviation(stats.values().cloned().collect::<Vec<u32>>().as_slice()).unwrap();
+            std_deviation(stats.values().copied().collect::<Vec<u32>>().as_slice()).unwrap();
         /*        println!("{:?}", std_dev);
         println!("{:?}", stats);*/
 

@@ -45,7 +45,7 @@ fn configure_rust_put(vendor_root: impl AsRef<std::path::Path>) {
 
     generate_rust_put_bindings(vendor_name, &library);
 
-    for instrumentation_type in library.instrumentation.iter() {
+    for instrumentation_type in &library.instrumentation {
         println!("cargo:rustc-cfg=has_instr=\"{instrumentation_type}\"");
     }
 
@@ -141,10 +141,11 @@ fn runtime_dir_fallback() -> String {
         _ => panic!("cannot get compiler runtime dir: unsupported os"),
     };
 
-    let runtime_dir = format!("{}/lib/{}/", clang_resource_dir, clang_sysname);
-    if !std::path::Path::new(&runtime_dir).exists() {
-        panic!("failed to find clang runtime dir");
-    }
+    let runtime_dir = format!("{clang_resource_dir}/lib/{clang_sysname}/");
+    assert!(
+        std::path::Path::new(&runtime_dir).exists(),
+        "failed to find clang runtime dir"
+    );
 
     runtime_dir
 }

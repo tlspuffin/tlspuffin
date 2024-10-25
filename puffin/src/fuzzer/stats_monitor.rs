@@ -168,7 +168,7 @@ impl Monitor for StatsMonitor {
     }
 
     fn set_start_time(&mut self, time: Duration) {
-        self.monitor.set_start_time(time)
+        self.monitor.set_start_time(time);
     }
 
     fn display(&mut self, event_msg: String, sender_id: ClientId) {
@@ -192,7 +192,7 @@ enum Statistics {
 impl Display for Statistics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Statistics::Client(client_stats) => {
+            Self::Client(client_stats) => {
                 write!(
                     f,
                     "(CLIENT) corpus: {}, obj: {}, execs: {}, exec/sec: {}",
@@ -212,7 +212,7 @@ impl Display for Statistics {
                 }
             }
 
-            Statistics::Global(global_stats) => {
+            Self::Global(global_stats) => {
                 write!(
                     f,
                     "(GLOBAL) clients: {}, corpus: {}, obj: {}, execs: {}, exec/sec: {}",
@@ -377,7 +377,7 @@ impl Default for IntrospectFeatures {
 }
 
 impl ErrorStatistics {
-    pub fn new(total_execs: u64) -> Self {
+    pub const fn new(total_execs: u64) -> Self {
         Self {
             total_execs,
             fn_error: 0,
@@ -400,7 +400,7 @@ impl ErrorStatistics {
                 RuntimeStats::AgentError(c) => self.ag_error += get_number(client_stats, c.name),
                 RuntimeStats::StreamError(c) => self.str_error += get_number(client_stats, c.name),
                 RuntimeStats::ExtractionError(c) => {
-                    self.ext_error += get_number(client_stats, c.name)
+                    self.ext_error += get_number(client_stats, c.name);
                 }
                 _ => {}
             }
@@ -420,7 +420,7 @@ fn get_number(user_stats: &ClientStats, name: &str) -> u64 {
 }
 
 impl TraceStatistics {
-    pub fn new(user_stats: &ClientStats) -> TraceStatistics {
+    pub fn new(user_stats: &ClientStats) -> Self {
         let mut trace_stats = Self {
             min_trace_length: None,
             max_trace_length: None,
@@ -468,7 +468,7 @@ where
     F: FnMut(ClientId, &str, &Statistics) + Clone + 'static,
 {
     fn process(&mut self, source: ClientId, msg: &str, stats: &Statistics) {
-        self(source, msg, stats)
+        self(source, msg, stats);
     }
 }
 

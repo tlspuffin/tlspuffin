@@ -1,5 +1,5 @@
-//! Definition of the VariableData trait. A VariableData can contain any data which has a `'static`
-//! type.
+//! Definition of the `VariableData` trait. A `VariableData` can contain any data which has a
+//! `'static` type.
 
 use std::any::{Any, TypeId};
 use std::fmt::Debug;
@@ -14,7 +14,7 @@ pub trait VariableData<PT: ProtocolTypes>: Debug + EvaluatedTerm<PT> {
     fn type_name(&self) -> &'static str;
 }
 
-/// A VariableData is cloneable and has a `'static` type. This data type is used throughout
+/// A `VariableData` is cloneable and has a `'static` type. This data type is used throughout
 /// tlspuffin to handle data of dynamic size.
 impl<T: 'static, PT: ProtocolTypes> VariableData<PT> for T
 where

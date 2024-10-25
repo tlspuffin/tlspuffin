@@ -7,7 +7,8 @@ pub struct Reader<'a> {
 }
 
 impl<'a> Reader<'a> {
-    pub fn init(bytes: &[u8]) -> Reader {
+    #[must_use]
+    pub const fn init(bytes: &[u8]) -> Reader {
         Reader {
             buf: bytes,
             offs: 0,
@@ -30,6 +31,7 @@ impl<'a> Reader<'a> {
         Some(&self.buf[current..current + len])
     }
 
+    #[must_use]
     pub fn peek(&self, len: usize) -> Option<&[u8]> {
         if self.left() < len {
             return None;
@@ -39,15 +41,18 @@ impl<'a> Reader<'a> {
         Some(&self.buf[current..current + len])
     }
 
-    pub fn any_left(&self) -> bool {
+    #[must_use]
+    pub const fn any_left(&self) -> bool {
         self.offs < self.buf.len()
     }
 
-    pub fn left(&self) -> usize {
+    #[must_use]
+    pub const fn left(&self) -> usize {
         self.buf.len() - self.offs
     }
 
-    pub fn used(&self) -> usize {
+    #[must_use]
+    pub const fn used(&self) -> usize {
         self.offs
     }
 
@@ -87,6 +92,7 @@ pub trait Codec: Debug + Sized {
 
     /// Read one of these from the front of `bytes` and
     /// return it.
+    #[must_use]
     fn read_bytes(bytes: &[u8]) -> Option<Self> {
         let mut rd = Reader::init(bytes);
         Self::read(&mut rd)
@@ -95,7 +101,7 @@ pub trait Codec: Debug + Sized {
 
 impl<T: Codec> Encode for T {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        Codec::encode(self, bytes)
+        Codec::encode(self, bytes);
     }
 }
 
@@ -120,6 +126,7 @@ pub fn put_u16(v: u16, out: &mut [u8]) {
     *out = u16::to_be_bytes(v);
 }
 
+#[must_use]
 pub fn decode_u16(bytes: &[u8]) -> Option<u16> {
     Some(u16::from_be_bytes(bytes.try_into().ok()?))
 }
@@ -142,6 +149,7 @@ impl Codec for u16 {
 pub struct u24(pub u32);
 
 impl u24 {
+    #[must_use]
     pub fn decode(bytes: &[u8]) -> Option<Self> {
         let [a, b, c]: [u8; 3] = bytes.try_into().ok()?;
         Some(Self(u32::from_be_bytes([0, a, b, c])))
@@ -159,7 +167,7 @@ impl From<u24> for usize {
 impl Codec for u24 {
     fn encode(&self, bytes: &mut Vec<u8>) {
         let be_bytes = u32::to_be_bytes(self.0);
-        bytes.extend_from_slice(&be_bytes[1..])
+        bytes.extend_from_slice(&be_bytes[1..]);
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
@@ -167,13 +175,14 @@ impl Codec for u24 {
     }
 }
 
+#[must_use]
 pub fn decode_u32(bytes: &[u8]) -> Option<u32> {
     Some(u32::from_be_bytes(bytes.try_into().ok()?))
 }
 
 impl Codec for u32 {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        bytes.extend(&Self::to_be_bytes(*self))
+        bytes.extend(&Self::to_be_bytes(*self));
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
@@ -183,9 +192,10 @@ impl Codec for u32 {
 
 pub fn put_u64(v: u64, bytes: &mut [u8]) {
     let bytes: &mut [u8; 8] = (&mut bytes[..8]).try_into().unwrap();
-    *bytes = u64::to_be_bytes(v)
+    *bytes = u64::to_be_bytes(v);
 }
 
+#[must_use]
 pub fn decode_u64(bytes: &[u8]) -> Option<u64> {
     Some(u64::from_be_bytes(bytes.try_into().ok()?))
 }
@@ -224,7 +234,7 @@ impl Codec for Vec<u8> {
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        let mut ret: Vec<u8> = Vec::new();
+        let mut ret: Self = Self::new();
 
         while r.any_left() {
             ret.push(u8::read(r)?);
@@ -253,9 +263,9 @@ impl<T: Debug + Encode, E: Debug> Encode for Result<T, E> {
 impl Codec for bool {
     fn encode(&self, bytes: &mut Vec<u8>) {
         if *self {
-            bytes.push(1)
+            bytes.push(1);
         } else {
-            bytes.push(0)
+            bytes.push(0);
         }
     }
 
@@ -345,7 +355,7 @@ impl<T: Codec + VecCodecWoSize> Codec for Vec<T> {
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        let mut ret: Vec<T> = Vec::new();
+        let mut ret: Self = Self::new();
 
         while r.any_left() {
             ret.push(T::read(r)?);

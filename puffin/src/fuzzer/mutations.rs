@@ -2,11 +2,22 @@ use anyhow::Result;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
-use super::utils::{Choosable, *};
+use super::utils::{
+    choose, choose_iter, choose_term, choose_term_filtered_mut, choose_term_mut,
+    choose_term_path_filtered, find_term_mut, Choosable, TermConstraints, TracePath,
+};
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::Signature;
 use crate::algebra::{DYTerm, Subterms, Term, TermType};
-use crate::fuzzer::bit_mutations::*;
+use crate::fuzzer::bit_mutations::{
+    havoc_mutations_dy, BitFlipMutatorDY, ByteAddMutatorDY, ByteDecMutatorDY, ByteFlipMutatorDY,
+    ByteIncMutatorDY, ByteInterestingMutatorDY, ByteNegMutatorDY, ByteRandMutatorDY,
+    BytesCopyMutatorDY, BytesDeleteMutatorDY, BytesExpandMutatorDY, BytesInsertCopyMutatorDY,
+    BytesInsertMutatorDY, BytesRandInsertMutatorDY, BytesRandSetMutatorDY, BytesSetMutatorDY,
+    BytesSwapMutatorDY, CrossoverInsertMutatorDY, CrossoverReplaceMutatorDY, DwordAddMutatorDY,
+    DwordInterestingMutatorDY, QwordAddMutatorDY, SpliceMutatorDY, WordAddMutatorDY,
+    WordInterestingMutatorDY,
+};
 use crate::fuzzer::term_zoo::TermZoo;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
@@ -79,6 +90,7 @@ CrossoverReplaceMutatorDY<S>,
 SpliceMutatorDY<S>,
 );
 
+#[must_use]
 pub fn trace_mutations<'harness, S, PT: ProtocolTypes, PB>(
     min_trace_length: usize,
     max_trace_length: usize,
@@ -123,7 +135,7 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(constraints: TermConstraints, with_dy: bool) -> Self {
+    pub const fn new(constraints: TermConstraints, with_dy: bool) -> Self {
         Self {
             constraints,
             phantom_s: std::marker::PhantomData,
@@ -145,7 +157,7 @@ where
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
         }
-        let a = BytesInsertMutator;
+        let _a = BytesInsertMutator;
         let rand = state.rand_mut();
         if let Some((term_a, trace_path_a)) = choose(trace, self.constraints, rand) {
             if let Some(trace_path_b) = choose_term_path_filtered(
@@ -179,7 +191,7 @@ where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<SwapMutator<S>>()
+        std::any::type_name::<Self>()
     }
 }
 
@@ -200,7 +212,7 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(constraints: TermConstraints, with_dy: bool) -> Self {
+    pub const fn new(constraints: TermConstraints, with_dy: bool) -> Self {
         Self {
             constraints,
             phantom_s: std::marker::PhantomData,
@@ -272,14 +284,14 @@ where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<RemoveAndLiftMutator<S>>()
+        std::any::type_name::<Self>()
     }
 }
 
 /// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
 ///
 /// An example would be to replace a constant with another constant or the binary function
-/// fn_add with fn_sub.
+/// `fn_add` with `fn_sub`.
 /// It can also replace any variable with a constant.
 pub struct ReplaceMatchMutator<S, PT: ProtocolTypes>
 where
@@ -296,7 +308,7 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(
+    pub const fn new(
         constraints: TermConstraints,
         signature: &'static Signature<PT>,
         with_dy: bool,
@@ -369,7 +381,7 @@ where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<ReplaceMatchMutator<S, PT>>()
+        std::any::type_name::<Self>()
     }
 }
 
@@ -391,7 +403,7 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(constraints: TermConstraints, with_dy: bool) -> Self {
+    pub const fn new(constraints: TermConstraints, with_dy: bool) -> Self {
         Self {
             constraints,
             phantom_s: std::marker::PhantomData,
@@ -440,7 +452,7 @@ where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<ReplaceReuseMutator<S>>()
+        std::any::type_name::<Self>()
     }
 }
 
@@ -459,7 +471,7 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(min_trace_length: usize, with_dy: bool) -> Self {
+    pub const fn new(min_trace_length: usize, with_dy: bool) -> Self {
         Self {
             min_trace_length,
             phantom_s: std::marker::PhantomData,
@@ -499,7 +511,7 @@ where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<SkipMutator<S>>()
+        std::any::type_name::<Self>()
     }
 }
 
@@ -518,7 +530,7 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(max_trace_length: usize, with_dy: bool) -> Self {
+    pub const fn new(max_trace_length: usize, with_dy: bool) -> Self {
         Self {
             max_trace_length,
             phantom_s: std::marker::PhantomData,
@@ -559,7 +571,7 @@ where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<RepeatMutator<S>>()
+        std::any::type_name::<Self>()
     }
 }
 
@@ -581,7 +593,7 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(
+    pub const fn new(
         mutation_counter: u64,
         refresh_zoo_after: u64,
         constraints: TermConstraints,
@@ -643,7 +655,7 @@ where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<GenerateMutator<S, PT>>()
+        std::any::type_name::<Self>()
     }
 }
 
@@ -667,7 +679,7 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(
+    pub const fn new(
         constraints: TermConstraints,
         put_registry: &'a PutRegistry<PB>,
         with_bit_level: bool,
@@ -683,7 +695,7 @@ where
     }
 }
 
-/// MakeMessage on the term at path `path` in `tr`.
+/// `MakeMessage` on the term at path `path` in `tr`.
 fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
     tr: &mut Trace<PT>,
     path: &TracePath,
@@ -791,7 +803,6 @@ where
 
 #[cfg(test)]
 mod tests {
-
     use libafl::corpus::InMemoryCorpus;
     use libafl::mutators::{MutationResult, Mutator};
     use libafl::state::StdState;
@@ -891,7 +902,7 @@ mod tests {
             let before_mutation = sum_extension_appends(&trace);
             let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
-            if let MutationResult::Mutated = result {
+            if result == MutationResult::Mutated {
                 let after_mutation = sum_extension_appends(&trace);
                 if after_mutation < before_mutation {
                     // extension removed
@@ -919,7 +930,7 @@ mod tests {
             let mut trace = setup_simple_trace();
             let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
 
-            if let MutationResult::Mutated = result {
+            if result == MutationResult::Mutated {
                 let client_hellos = count_client_hello(&trace);
                 let finishes = count_finished(&trace);
                 if client_hellos == 2 && finishes == 0 {

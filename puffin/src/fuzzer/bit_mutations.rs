@@ -6,7 +6,7 @@ use libafl_bolts::prelude::{tuple_list, tuple_list_type};
 use libafl_bolts::rands::Rand;
 use libafl_bolts::Named;
 
-use super::utils::*;
+use super::utils::TermConstraints;
 use crate::algebra::TermType;
 use crate::fuzzer::utils::choose_term_filtered_mut;
 use crate::protocol::ProtocolTypes;
@@ -43,6 +43,7 @@ pub type HavocMutationsTypeDY<S> = tuple_list_type!(
     SpliceMutatorDY<S>,
 );
 
+#[must_use]
 pub fn havoc_mutations_dy<S: HasRand + HasMaxSize + HasCorpus>(
     with_bit_level: bool,
 ) -> HavocMutationsTypeDY<S> {
@@ -103,7 +104,7 @@ impl<S> [<$mutation  DY>]<S>
         S: HasRand + HasMaxSize,
 {
     #[must_use]
-    pub fn new(with_bit_level: bool) -> Self {
+    pub const fn new(with_bit_level: bool) -> Self {
         Self {
             with_bit_level,
             phantom_s: std::marker::PhantomData,
@@ -286,7 +287,7 @@ where
     S: HasRand + HasMaxSize,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<BytesSwapMutatorDY<S>>()
+        std::any::type_name::<Self>()
             .splitn(2, '<')
             .collect::<Vec<&str>>()[0]
             .split(':')
@@ -370,7 +371,7 @@ where
     S: HasRand + HasMaxSize,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<BytesInsertCopyMutatorDY<S>>()
+        std::any::type_name::<Self>()
             .splitn(2, '<')
             .collect::<Vec<&str>>()[0]
             .split(':')
@@ -408,42 +409,42 @@ where
     Some((input, idx))
 }
 
-/// Randomly choose a payload and its index (n-th) in a trace, if there is any and if it has at
-/// least 2 bytes
-fn choose_payload<'a, PT, S>(trace: &'a Trace<PT>, state: &mut S) -> Option<(&'a [u8], usize)>
-where
-    S: HasCorpus + HasRand + HasMaxSize,
-    PT: ProtocolTypes,
-{
-    let all_payloads = trace.all_payloads();
-    if all_payloads.is_empty() {
-        return None;
-    }
-    let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
-    let input = all_payloads[idx].payload.bytes();
-    if input.len() < 2 {
-        return None;
-    }
-    Some((input, idx))
-}
+// Randomly choose a payload and its index (n-th) in a trace, if there is any and if it has at
+// least 2 bytes
+// fn choose_payload<'a, PT, S>(trace: &'a Trace<PT>, state: &mut S) -> Option<(&'a [u8], usize)>
+// where
+//     S: HasCorpus + HasRand + HasMaxSize,
+//     PT: ProtocolTypes,
+// {
+//     let all_payloads = trace.all_payloads();
+//     if all_payloads.is_empty() {
+//         return None;
+//     }
+//     let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
+//     let input = all_payloads[idx].payload.bytes();
+//     if input.len() < 2 {
+//         return None;
+//     }
+//     Some((input, idx))
+// }
 
-/// Access the n-th payload of a trace, if it exists
-fn get_payload<PT>(trace: &Trace<PT>, idx: usize) -> Option<&[u8]>
-where
-    PT: ProtocolTypes,
-{
-    let all_payloads = trace.all_payloads();
-    if all_payloads.len() <= idx {
-        return None;
-    }
-    let input = all_payloads[idx].payload.bytes();
-    if input.len() < 2 {
-        return None;
-    }
-    Some(input)
-}
+// Access the n-th payload of a trace, if it exists
+// fn get_payload<PT>(trace: &Trace<PT>, idx: usize) -> Option<&[u8]>
+// where
+//     PT: ProtocolTypes,
+// {
+//     let all_payloads = trace.all_payloads();
+//     if all_payloads.len() <= idx {
+//         return None;
+//     }
+//     let input = all_payloads[idx].payload.bytes();
+//     if input.len() < 2 {
+//         return None;
+//     }
+//     Some(input)
+// }
 
-/// Copied from libafl::mutators::mutations
+/// Copied from `libafl::mutators::mutations`
 /// Returns the first and last diff position between the given vectors, stopping at the min len
 fn locate_diffs(this: &[u8], other: &[u8]) -> (i64, i64) {
     let mut first_diff: i64 = -1;
@@ -460,7 +461,7 @@ fn locate_diffs(this: &[u8], other: &[u8]) -> (i64, i64) {
     (first_diff, last_diff)
 }
 
-/// Copied from libafl::mutators::mutations
+/// Copied from `libafl::mutators::mutations`
 /// Mem move in the own vec
 #[inline]
 pub(crate) unsafe fn buffer_self_copy<T>(data: &mut [T], from: usize, to: usize, len: usize) {
@@ -525,7 +526,7 @@ where
         &mut self,
         state: &mut S,
         trace: &mut Trace<PT>,
-        stage_idx: i32,
+        _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         log::trace!("Start mutate with {:?}", self.name());
 
@@ -601,7 +602,7 @@ where
         let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
             .payload
             .bytes();
-        let other_size = other_input.len();
+        let _other_size = other_input.len();
 
         unsafe {
             buffer_copy(input, other_input, range.start, target, range.len());
@@ -617,7 +618,7 @@ where
     S: HasCorpus + HasRand + HasMaxSize,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<CrossoverInsertMutatorDY<S>>()
+        std::any::type_name::<Self>()
             .splitn(2, '<')
             .collect::<Vec<&str>>()[0]
             .split(':')
@@ -660,7 +661,7 @@ where
         &mut self,
         state: &mut S,
         trace: &mut Trace<PT>,
-        stage_idx: i32,
+        _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         log::trace!("Start mutate with {:?}", self.name());
 
@@ -744,7 +745,7 @@ where
     S: HasCorpus + HasRand + HasMaxSize,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<CrossoverReplaceMutatorDY<S>>()
+        std::any::type_name::<Self>()
             .splitn(2, '<')
             .collect::<Vec<&str>>()[0]
             .split(':')
@@ -788,7 +789,7 @@ where
         &mut self,
         state: &mut S,
         trace: &mut Trace<PT>,
-        stage_idx: i32,
+        _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         log::trace!("Start mutate with {:?}", self.name());
 
@@ -827,7 +828,7 @@ where
             // corpus and mutably borrowed to pick a random payload in the chosen trace)
             .rand_mut()
             .between(0, (size_vec_payloads - 1) as u64) as usize;
-        let other_size = {
+        let _other_size = {
             let other_testcase = state.corpus().get(idx)?.borrow_mut();
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
@@ -879,7 +880,7 @@ where
     S: HasCorpus + HasRand + HasMaxSize,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<SpliceMutatorDY<S>>()
+        std::any::type_name::<Self>()
             .splitn(2, '<')
             .collect::<Vec<&str>>()[0]
             .split(':')

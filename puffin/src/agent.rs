@@ -26,17 +26,20 @@ pub enum AgentType {
 }
 
 impl AgentName {
+    #[must_use]
     pub const fn new() -> Self {
         const FIRST: AgentName = AgentName(0u8);
         FIRST
     }
 
+    #[must_use]
     pub const fn next(&self) -> Self {
-        AgentName(self.0 + 1)
+        Self(self.0 + 1)
     }
 
+    #[must_use]
     pub const fn first() -> Self {
-        AgentName::new()
+        Self::new()
     }
 }
 
@@ -98,41 +101,45 @@ impl Default for AgentDescriptor {
 }
 
 impl AgentDescriptor {
+    #[must_use]
     pub fn new_reusable_server(name: AgentName, tls_version: TLSVersion) -> Self {
         Self {
             name,
             tls_version,
             typ: AgentType::Server,
             try_reuse: true,
-            ..AgentDescriptor::default()
+            ..Self::default()
         }
     }
 
+    #[must_use]
     pub fn new_reusable_client(name: AgentName, tls_version: TLSVersion) -> Self {
         Self {
             name,
             tls_version,
             typ: AgentType::Client,
             try_reuse: true,
-            ..AgentDescriptor::default()
+            ..Self::default()
         }
     }
 
+    #[must_use]
     pub fn new_server(name: AgentName, tls_version: TLSVersion) -> Self {
         Self {
             name,
             tls_version,
             typ: AgentType::Server,
-            ..AgentDescriptor::default()
+            ..Self::default()
         }
     }
 
+    #[must_use]
     pub fn new_client(name: AgentName, tls_version: TLSVersion) -> Self {
         Self {
             name,
             tls_version,
             typ: AgentType::Client,
-            ..AgentDescriptor::default()
+            ..Self::default()
         }
     }
 }
@@ -166,6 +173,7 @@ impl<PB: ProtocolBehavior> PartialEq for Agent<PB> {
 }
 
 impl<PB: ProtocolBehavior> Agent<PB> {
+    #[must_use]
     pub fn new(descriptor: AgentDescriptor, put: Box<dyn Put<PB>>) -> Self {
         Self { descriptor, put }
     }
@@ -185,19 +193,23 @@ impl<PB: ProtocolBehavior> Agent<PB> {
     }
 
     /// Checks whether the agent is in a good state.
+    #[must_use]
     pub fn is_state_successful(&self) -> bool {
         self.put.is_state_successful()
     }
 
     /// Checks whether the agent is reusable with the descriptor.
+    #[must_use]
     pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
         self.descriptor.typ == other.typ && self.descriptor.tls_version == other.tls_version
     }
 
-    pub fn name(&self) -> AgentName {
+    #[must_use]
+    pub const fn name(&self) -> AgentName {
         self.descriptor.name
     }
 
+    #[must_use]
     pub fn put(&self) -> &dyn Put<PB> {
         self.put.as_ref()
     }
@@ -209,7 +221,7 @@ impl<PB: ProtocolBehavior> Agent<PB> {
 
 impl<PB: ProtocolBehavior> Stream<PB> for Agent<PB> {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
-        self.put.add_to_inbound(message)
+        self.put.add_to_inbound(message);
     }
 
     fn take_message_from_outbound(

@@ -38,7 +38,7 @@ pub fn setup_asan_env() {
 }
 
 #[cfg(not(target_os = "linux"))]
-pub fn asan_info() {}
+pub const fn asan_info() {}
 
 #[cfg(target_os = "linux")]
 pub fn asan_info() {

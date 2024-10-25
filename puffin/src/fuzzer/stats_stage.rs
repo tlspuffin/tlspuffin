@@ -20,15 +20,15 @@ impl RuntimeStats {
         consume: &mut dyn FnMut(String, UserStats) -> Result<(), Error>,
     ) -> Result<(), Error> {
         match self {
-            RuntimeStats::FnError(inner) => inner.fire(consume),
-            RuntimeStats::TermError(inner) => inner.fire(consume),
-            RuntimeStats::PutError(inner) => inner.fire(consume),
-            RuntimeStats::IOError(inner) => inner.fire(consume),
-            RuntimeStats::AgentError(inner) => inner.fire(consume),
-            RuntimeStats::StreamError(inner) => inner.fire(consume),
-            RuntimeStats::ExtractionError(inner) => inner.fire(consume),
-            RuntimeStats::TraceLength(inner) => inner.fire(consume),
-            RuntimeStats::TermSize(inner) => inner.fire(consume),
+            Self::FnError(inner) => inner.fire(consume),
+            Self::TermError(inner) => inner.fire(consume),
+            Self::PutError(inner) => inner.fire(consume),
+            Self::IOError(inner) => inner.fire(consume),
+            Self::AgentError(inner) => inner.fire(consume),
+            Self::StreamError(inner) => inner.fire(consume),
+            Self::ExtractionError(inner) => inner.fire(consume),
+            Self::TraceLength(inner) => inner.fire(consume),
+            Self::TermSize(inner) => inner.fire(consume),
         }
     }
 }
@@ -77,7 +77,7 @@ pub struct Counter {
 }
 
 impl Counter {
-    const fn new(name: &'static str) -> Counter {
+    const fn new(name: &'static str) -> Self {
         Self {
             name,
             counter: AtomicUsize::new(0),
@@ -115,7 +115,7 @@ pub struct MinMaxMean {
 }
 
 impl MinMaxMean {
-    const fn new(name: &'static str) -> MinMaxMean {
+    const fn new(name: &'static str) -> Self {
         Self {
             name,
             min_set: AtomicBool::new(false),
@@ -248,7 +248,7 @@ where
     EM: UsesState<State = Z::State>,
     Z: Evaluator<E, EM>,
 {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self {
             phantom: PhantomData,
         }

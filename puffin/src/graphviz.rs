@@ -40,7 +40,7 @@ pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<()
         .stdin(Stdio::piped())
         .spawn()
         .map_err(|err| {
-            if let ErrorKind::NotFound = err.kind() {
+            if err.kind() == ErrorKind::NotFound {
                 io::Error::new(
                     ErrorKind::NotFound,
                     "Unable to find dot in PATH. Install graphviz.",
@@ -61,6 +61,7 @@ pub fn write_graphviz(output: &str, format: &str, dot_script: &str) -> Result<()
 }
 
 impl<PT: ProtocolTypes> Trace<PT> {
+    #[must_use]
     pub fn dot_graph(&self, tree_mode: bool) -> String {
         format!(
             "strict digraph \"Trace\" \
@@ -74,6 +75,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
         )
     }
 
+    #[must_use]
     pub fn dot_subgraphs(&self, tree_mode: bool) -> Vec<String> {
         log::warn!("Calling dot_subgraphs on: {}", self);
         let mut subgraphs = Vec::new();
@@ -131,16 +133,12 @@ impl<PT: ProtocolTypes> Term<PT> {
 
     fn node_attributes(displayable: impl fmt::Display, color: &str, shape: &str) -> String {
         format!(
-            "[label=\"{}\",style=\"{style}\",colorscheme=dark28,fillcolor=\"{}\",shape=\"{}\"]",
-            displayable,
-            color,
-            shape,
-            style = STYLE
+            "[label=\"{displayable}\",style=\"{STYLE}\",colorscheme=dark28,fillcolor=\"{color}\",shape=\"{shape}\"]"
         )
     }
 
     fn collect_statements(
-        term: &Term<PT>,
+        term: &Self,
         tree_mode: bool,
         cluster_id: usize,
         statements: &mut Vec<String>,

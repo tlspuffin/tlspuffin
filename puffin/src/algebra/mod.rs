@@ -177,15 +177,15 @@ pub mod test_signature {
         }
     }
 
-    pub fn fn_hmac256_new_key() -> Result<HmacKey, FnError> {
+    pub const fn fn_hmac256_new_key() -> Result<HmacKey, FnError> {
         Ok(HmacKey)
     }
 
-    pub fn fn_hmac256(_key: &HmacKey, _msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+    pub const fn fn_hmac256(_key: &HmacKey, _msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
         Ok(Vec::new())
     }
 
-    pub fn fn_client_hello(
+    pub const fn fn_client_hello(
         _version: &ProtocolVersion,
         _random: &Random,
         _id: &SessionID,
@@ -196,95 +196,100 @@ pub mod test_signature {
         Ok(HandshakeMessage)
     }
 
-    pub fn fn_finished() -> Result<HandshakeMessage, FnError> {
+    pub const fn fn_finished() -> Result<HandshakeMessage, FnError> {
         Ok(HandshakeMessage)
     }
 
-    pub fn fn_protocol_version12() -> Result<ProtocolVersion, FnError> {
+    pub const fn fn_protocol_version12() -> Result<ProtocolVersion, FnError> {
         Ok(ProtocolVersion)
     }
-    pub fn fn_new_session_id() -> Result<SessionID, FnError> {
+    pub const fn fn_new_session_id() -> Result<SessionID, FnError> {
         Ok(SessionID)
     }
 
-    pub fn fn_new_random() -> Result<Random, FnError> {
+    pub const fn fn_new_random() -> Result<Random, FnError> {
         Ok(Random)
     }
 
-    pub fn fn_client_extensions_append(
+    pub const fn fn_client_extensions_append(
         _extensions: &ClientExtensions,
         _extension: &ClientExtension,
     ) -> Result<ClientExtensions, FnError> {
         Ok(ClientExtensions)
     }
 
-    pub fn fn_client_extensions_new() -> Result<ClientExtensions, FnError> {
+    pub const fn fn_client_extensions_new() -> Result<ClientExtensions, FnError> {
         Ok(ClientExtensions)
     }
-    pub fn fn_support_group_extension(_group: &Group) -> Result<ClientExtension, FnError> {
+    pub const fn fn_support_group_extension(_group: &Group) -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
 
-    pub fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
+    pub const fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
-    pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
+    pub const fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
-    pub fn fn_signed_certificate_timestamp_extension() -> Result<ClientExtension, FnError> {
+    pub const fn fn_signed_certificate_timestamp_extension() -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
-    pub fn fn_renegotiation_info_extension(_info: &Vec<u8>) -> Result<ClientExtension, FnError> {
+    pub const fn fn_renegotiation_info_extension(
+        _info: &Vec<u8>,
+    ) -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
-    pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnError> {
+    pub const fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
 
-    pub fn fn_empty_bytes_vec() -> Result<Vec<u8>, FnError> {
+    pub const fn fn_empty_bytes_vec() -> Result<Vec<u8>, FnError> {
         Ok(Vec::new())
     }
 
-    pub fn fn_named_group_secp384r1() -> Result<Group, FnError> {
+    pub const fn fn_named_group_secp384r1() -> Result<Group, FnError> {
         Ok(Group)
     }
 
-    pub fn fn_client_key_exchange() -> Result<HandshakeMessage, FnError> {
+    pub const fn fn_client_key_exchange() -> Result<HandshakeMessage, FnError> {
         Ok(HandshakeMessage)
     }
 
-    pub fn fn_new_cipher_suites() -> Result<CipherSuites, FnError> {
+    pub const fn fn_new_cipher_suites() -> Result<CipherSuites, FnError> {
         Ok(CipherSuites)
     }
 
-    pub fn fn_append_cipher_suite(
+    pub const fn fn_append_cipher_suite(
         _suites: &CipherSuites,
         _suite: &CipherSuite,
     ) -> Result<CipherSuites, FnError> {
         Ok(CipherSuites)
     }
-    pub fn fn_cipher_suite12() -> Result<CipherSuite, FnError> {
+    pub const fn fn_cipher_suite12() -> Result<CipherSuite, FnError> {
         Ok(CipherSuite)
     }
 
-    pub fn fn_compressions() -> Result<Compressions, FnError> {
+    pub const fn fn_compressions() -> Result<Compressions, FnError> {
         Ok(Compressions)
     }
 
-    pub fn fn_encrypt12(_finished: &HandshakeMessage, _seq: &u32) -> Result<Encrypted, FnError> {
+    pub const fn fn_encrypt12(
+        _finished: &HandshakeMessage,
+        _seq: &u32,
+    ) -> Result<Encrypted, FnError> {
         Ok(Encrypted)
     }
 
-    pub fn fn_seq_0() -> Result<u32, FnError> {
+    pub const fn fn_seq_0() -> Result<u32, FnError> {
         Ok(0)
     }
 
-    pub fn fn_seq_1() -> Result<u32, FnError> {
+    pub const fn fn_seq_1() -> Result<u32, FnError> {
         Ok(1)
     }
 
     pub fn example_op_c(a: &u8) -> Result<u16, FnError> {
-        Ok((a + 1) as u16)
+        Ok(u16::from(a + 1))
     }
 
     fn create_client_hello() -> TestTerm {
@@ -323,6 +328,7 @@ pub mod test_signature {
         }
     }
 
+    #[must_use]
     pub fn setup_simple_trace() -> TestTrace {
         let server = AgentName::first();
         let client_hello = create_client_hello();
@@ -611,7 +617,7 @@ pub mod test_signature {
         }
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Eq)]
     pub struct TestProtocolBehavior;
 
     impl ProtocolBehavior for TestProtocolBehavior {
@@ -628,14 +634,14 @@ pub mod test_signature {
         }
 
         fn any_get_encoding(
-            message: &dyn EvaluatedTerm<Self::ProtocolTypes>,
+            _message: &dyn EvaluatedTerm<Self::ProtocolTypes>,
         ) -> Result<ConcreteMessage, Error> {
             Err(Error::Term("any_get_encoding not implemented".to_owned()))
         }
 
         fn try_read_bytes(
-            bitstring: &[u8],
-            ty: TypeId,
+            _bitstring: &[u8],
+            _ty: TypeId,
         ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
             Err(Error::Term("try_read_bytes not implemented".to_owned()))
         }
@@ -672,7 +678,7 @@ pub mod test_signature {
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {
-            Box::new(TestFactory {})
+            Box::new(Self {})
         }
     }
 }
@@ -685,7 +691,6 @@ mod tests {
     use crate::algebra::dynamic_function::TypeShape;
     use crate::algebra::signature::Signature;
     use crate::algebra::{evaluate_lazy_test, AnyMatcher, DYTerm, Term};
-    use crate::protocol::EvaluatedTerm;
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
     use crate::trace::{Source, Spawner, TraceContext};
@@ -742,7 +747,7 @@ mod tests {
         let hmac256 = Signature::new_function(&fn_hmac256);
         let _client_hello = Signature::new_function(&fn_client_hello);
 
-        let data = "hello".as_bytes().to_vec();
+        let data = b"hello".to_vec();
 
         //println!("TypeId of vec array {:?}", data.type_id());
 
@@ -770,7 +775,7 @@ mod tests {
         let registry =
             PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
 
-        let spawner = Spawner::new(registry.clone());
+        let spawner = Spawner::new(registry);
         let mut context = TraceContext::new(spawner);
         context
             .knowledge_store
@@ -782,7 +787,7 @@ mod tests {
         //     .as_ref()
         //     .unwrap()
         //     .downcast_ref::<Vec<u8>>();
-        let eval = evaluate_lazy_test(&generated_term, &context)
+        let _eval = evaluate_lazy_test(&generated_term, &context)
             .as_ref()
             .unwrap()
             .as_any()

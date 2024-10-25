@@ -43,7 +43,7 @@
 //!         Step {
 //!             agent: server,
 //!             action: Action::Input(input_action! {
-//!                 Term::from(DYTerm::Application(
+//!                 (Term::from(DYTerm::Application(
 //!                     Signature::new_function(&fn_client_hello),
 //!                     vec![
 //!                         Term::from(DYTerm::Variable(Signature::new_var_with_type::<
@@ -96,7 +96,7 @@
 //!                             0,
 //!                         ))),
 //!                     ],
-//!                 )),
+//!                 )))
 //!             }),
 //!         },
 //!         // further steps here

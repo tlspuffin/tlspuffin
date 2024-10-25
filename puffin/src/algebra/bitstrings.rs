@@ -31,6 +31,7 @@ pub struct Payloads {
     pub payload: BytesInput,   // this one will later be subject to bit-level mutation
 }
 impl Payloads {
+    #[must_use]
     pub fn len(&self) -> usize {
         self.payload_0.bytes().len()
     }
@@ -54,8 +55,9 @@ pub struct EvalTree {
     args: Vec<EvalTree>,             // tree structure
 }
 impl EvalTree {
-    pub fn init() -> Self {
-        EvalTree {
+    #[must_use]
+    pub const fn init() -> Self {
+        Self {
             encode: None, /* will contain the bitstring encoding when sub-terms have payloads and
                            * when evaluation succeeds */
             path: TermPath::new(),
@@ -64,6 +66,7 @@ impl EvalTree {
         }
     }
 
+    #[must_use]
     pub fn init_with_path(path: TermPath) -> Self {
         let mut e_t = Self::init();
         e_t.path = path;
@@ -78,8 +81,7 @@ impl EvalTree {
             let path = &path[1..];
             if self.args.len() <= nb {
                 Err(Error::Term(format!(
-                    "[replace_payloads] [get] Should never happen! EvalTree: {:?}\n, path: {:?}",
-                    self, path
+                    "[replace_payloads] [get] Should never happen! EvalTree: {self:?}\n, path: {path:?}"
                 )))
             } else {
                 self.args[nb].get(path)
@@ -87,25 +89,24 @@ impl EvalTree {
         }
     }
 
-    fn get_mut(&mut self, path: &[usize]) -> Result<&mut Self, Error> {
-        if path.is_empty() {
-            Ok(self)
-        } else {
-            let nb = path[0];
-            let path = &path[1..];
-            if self.args.len() <= nb {
-                Err(Error::Term(format!(
-                    "[replace_payloads] [get] Should never happen! EvalTree: {:?}\n, path: {:?}",
-                    self, path
-                )))
-            } else {
-                self.args[nb].get_mut(path)
-            }
-        }
-    }
+    // fn get_mut(&mut self, path: &[usize]) -> Result<&mut Self, Error> {
+    //     if path.is_empty() {
+    //         Ok(self)
+    //     } else {
+    //         let nb = path[0];
+    //         let path = &path[1..];
+    //         if self.args.len() <= nb {
+    //             Err(Error::Term(format!(
+    //                 "[replace_payloads] [get] Should never happen! EvalTree: {self:?}\n, path:
+    // {path:?}"             )))
+    //         } else {
+    //             self.args[nb].get_mut(path)
+    //         }
+    //     }
+    // }
 }
 
-/// Useful struct to store local state when searching for a payload (to_search) in a window
+/// Useful struct to store local state when searching for a payload (`to_search`) in a window
 #[derive(Derivative, Clone)]
 #[derivative(Debug)]
 pub struct StatusSearch<'a, PT: ProtocolTypes> {
@@ -159,43 +160,43 @@ impl<'a, PT: ProtocolTypes> StatusSearch<'a, PT> {
     }
 }
 
-/// Try to recover the evaluation from @eval_tree and, if this fails because we have not computed it
-/// in the past, then we evaluate the corresponding sub-term.
+/// Try to recover the evaluation from @`eval_tree` and, if this fails because we have not computed
+/// it in the past, then we evaluate the corresponding sub-term.
 pub fn eval_or_compute<'a, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
     path_to_eval: &[usize],
     eval_tree: &'a EvalTree,
     whole_term: &Term<PT>,
     ctx: &TraceContext<PB>,
 ) -> Result<Cow<'a, ConcreteMessage>, Error> {
-    match eval_tree.get(path_to_eval)?.encode.as_ref() {
-        Some(eval) => Ok(Borrowed(eval)),
-        None => {
-            log::debug!("[eval_or_compute] We did not compute eval before for path {path_to_eval:?}, we do it now.");
-            let sibling_term = find_term_by_term_path(whole_term, path_to_eval).ok_or(
-                Error::Term("[eval_or_compute] Should never happen1".to_string()),
-            )?;
-            // we must evaluate sibling_term, replacing payloads until opaque ONLY!
-            let mut et = EvalTree::init();
-            let p = vec![];
-            let (sibling_eval_box, _) = sibling_term.eval_until_opaque(
-                &mut et,
-                p,
-                ctx,
-                true,
-                false,
-                false,
-                whole_term.get_type_shape(),
-            )?;
-            Ok(Owned(PB::any_get_encoding(sibling_eval_box.as_ref())?))
-        }
+    if let Some(eval) = eval_tree.get(path_to_eval)?.encode.as_ref() {
+        Ok(Borrowed(eval))
+    } else {
+        log::debug!("[eval_or_compute] We did not compute eval before for path {path_to_eval:?}, we do it now.");
+        let sibling_term = find_term_by_term_path(whole_term, path_to_eval).ok_or(Error::Term(
+            "[eval_or_compute] Should never happen1".to_string(),
+        ))?;
+        // we must evaluate sibling_term, replacing payloads until opaque ONLY!
+        let mut et = EvalTree::init();
+        let p = vec![];
+        let (sibling_eval_box, _) = sibling_term.eval_until_opaque(
+            &mut et,
+            p,
+            ctx,
+            true,
+            false,
+            false,
+            whole_term.get_type_shape(),
+        )?;
+        Ok(Owned(PB::any_get_encoding(sibling_eval_box.as_ref())?))
     }
 }
 
 /// Search and locate `to_search` (`eval_tree[path_to_search].encode`) in
-/// root_eval:=eval_tree[vec![]].encode (=whole_term.encode(ctx)) such that the match is unique in a
-/// window corresponding to the evaluation of a sub-term at a path in between vec![] (root) and
+/// `root_eval:=eval_tree`[vec![]].encode (=`whole_term.encode(ctx)`) such that the match is unique
+/// in a window corresponding to the evaluation of a sub-term at a path in between vec![] (root) and
 /// `path_to_search`. Return the position of the match in `root_eval`. ctx is only used in rare
-/// occasions, where some evaluations were not computed in eval_tree (when searching for siblings).
+/// occasions, where some evaluations were not computed in `eval_tree` (when searching for
+/// siblings).
 // TODO: Investigate this other idea:
 // another option would be to always encode messages having payloads or siblinbgs with payloads and
 // thus storing in Term the pos in bytes of each sub-term --> could be more costly in terms of eval,
@@ -243,21 +244,21 @@ pub fn find_unique_match<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes =
     }
 }
 
-/// Goal: search and locate `st.to_search` in st.window: to_search ==
-/// st.window[st.pos_in_window...X] We must often refine the window (larger or smaller) as it is
-/// often the case to_search occurs multiple times in the st.whole_term.evaluate.encode and we must
-/// find the correct occurrence, the one corresponding to `path_to_search`.
+/// Goal: search and locate `st.to_search` in st.window: `to_search` ==
+/// st.window[`st.pos_in_window...X`] We must often refine the window (larger or smaller) as it is
+/// often the case `to_search` occurs multiple times in the `st.whole_term.evaluate.encode` and we
+/// must find the correct occurrence, the one corresponding to `path_to_search`.
 /// Invariants:
-/// - path_window is in between vec![] (root) and `path_to_search`
-/// - window = eval_tree\[path_window\].encode.unwrap()
-/// - window = eval_tree[vec![]].encode.unwrap()[pos_of_window..Y]
-/// - to_search = eval_tree\[path_to_search\].encode.unwrap()
-/// - if `found_match`, then `to_search` is found in `window` at position `pos_in_window`: to_search
-///   == window[pos_in_window..Z]
-/// - if `found_window`, then try_new_path_window = path_window
-/// - try_new_path_window = path_to_search[0..try_new_depth_path_window]
-/// Therefore: to_search can be found in the whole bitstring (eval_tree[vec![]].encode.unwrap())
-/// at pos `shift_window + pos_in_window`.
+/// - `path_window` is in between vec![] (root) and `path_to_search`
+/// - window = `eval_tree`\[`path_window`\].`encode.unwrap()`
+/// - window = `eval_tree`[vec![]].`encode.unwrap()`[`pos_of_window..Y`]
+/// - `to_search` = `eval_tree`\[`path_to_search`\].`encode.unwrap()`
+/// - if `found_match`, then `to_search` is found in `window` at position `pos_in_window`:
+///   `to_search` == window[`pos_in_window..Z`]
+/// - if `found_window`, then `try_new_path_window` = `path_window`
+/// - `try_new_path_window` = `path_to_search`[`0..try_new_depth_path_window`]
+/// Therefore: `to_search` can be found in the whole bitstring
+/// (`eval_tree`[vec![]].`encode.unwrap()`) at pos `shift_window + pos_in_window`.
 /// This is the base heuristic. This will fail in some cases (empty `to_search`, `to_search` is also
 /// found in sibling nodes). We then fall back to alternative heuristics:
 /// Heuristic 2: we locate `to_search` relatively to its parent term evaluation by computing the
@@ -423,7 +424,7 @@ where
                     st.whole_term,
                     ctx,
                 )?;
-            let eval_relative = eval_relative_.deref();
+            let eval_relative = &*eval_relative_;
             log::warn!("[replace_payloads] Found a relative at path {path_relative:?}, is_on_the_left:{relative_on_left}\n eval_relative: {eval_relative:?}");
 
             let mut st2 = StatusSearch::new(
@@ -543,22 +544,22 @@ where
 }
 
 /// Search relative node. Spec: returns the path p to a node such that all nodes whose path is
-///  - strictly between p and path_to_search (according to the lexicographic order)
+///  - strictly between p and `path_to_search` (according to the lexicographic order)
 ///  - and that is not a descendant of p
 /// has an empty encoding.
 /// For example: if p is the closest cousin on the left, then all siblings on the left of
-/// path_to_search must have an empty encoding.
-/// - Returns p, and whether `relative_on_left`, which is true when the encoding of path_to_search
+/// `path_to_search` must have an empty encoding.
+/// - Returns p, and whether `relative_on_left`, which is true when the encoding of `path_to_search`
 ///   comes after the one of p (true) or before (false).
-/// For instance, if p is an ancestor of path_to_search then it will be false.
+/// For instance, if p is an ancestor of `path_to_search` then it will be false.
 /// If p is a sibling, then it depends whether it is on the left (true) or on the right (false) of
-/// path_to_search.
+/// `path_to_search`.
 /// - Returns `shift_ancestor_to_search:usize`: this can be non-zero when p is not a sibling but a
-///   sibling of an ancestor of to_search.
+///   sibling of an ancestor of `to_search`.
 /// It then corresponds to the position of `to_search` relatively to the evaluation of this
-/// ancestor. This can happen for example for append(f, fn_support_group_extension(to_search)) when
-/// relative node is f and fn_support_group_extension add some headers in front of to_search.
-/// shift_ancestor_to_search will be the length of this header.
+/// ancestor. This can happen for example for append(f, `fn_support_group_extension(to_search)`)
+/// when relative node is f and `fn_support_group_extension` add some headers in front of
+/// `to_search`. `shift_ancestor_to_search` will be the length of this header.
 pub fn find_relative_node<'a, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
     to_search: &[u8],
     path_to_search: &[usize],
@@ -638,7 +639,7 @@ pub fn find_relative_node<'a, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTy
     // TODO: additional checks?
     } else if path_parent.len() < path_to_search.len() {
         return find_relative_node(
-            eval_parent.deref(),
+            &eval_parent,
             path_parent,
             shift_ancestor_to_search_new,
             eval_tree,
@@ -650,8 +651,10 @@ pub fn find_relative_node<'a, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTy
     }
 }
 
-/// Return the depth of the path we should look for the next window, given the current StatusSearch
-/// and notably the current window path depth. This is following best efforts heuristics.
+/// Return the depth of the path we should look for the next window, given the current
+/// `StatusSearch` and notably the current window path depth. This is following best efforts
+/// heuristics.
+#[must_use]
 pub fn refine_window_heuristic<PT: ProtocolTypes>(st: &StatusSearch<PT>) -> usize {
     let window_len = st.window.len();
     let current_depth = st.path_window.len();
@@ -736,7 +739,7 @@ pub fn refine_window_heuristic<PT: ProtocolTypes>(st: &StatusSearch<PT>) -> usiz
     }
 }
 
-/// Operate the payloads replacements in eval_tree.encode[vec![]] and returns the modified
+/// Operate the payloads replacements in `eval_tree.encode`[vec![]] and returns the modified
 /// bitstring. `@payloads` follows this order: deeper terms first, left-to-right, assuming no
 /// overlap (no two terms one being a sub-term of the other).
 pub fn replace_payloads<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
@@ -864,7 +867,7 @@ impl<PT: ProtocolTypes> Term<PT> {
             DYTerm::Variable(variable) => {
                 let d = ctx
                     .find_variable(variable.typ.clone(), &variable.query)
-                    .map(|data| data.boxed_term())
+                    .map(super::super::variable_data::VariableData::boxed_term)
                     .or_else(|| {
                         if let Some(Source::Agent(agent_name)) = variable.query.source {
                             ctx.find_claim(agent_name, variable.typ.clone())
@@ -872,7 +875,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                             todo!("Implement querying by label");
                         }
                     })
-                    .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable)))?;
+                    .ok_or_else(|| Error::Term(format!("Unable to find variable {variable}!")))?;
                 if path.is_empty() || (with_payloads && self.payloads.is_some()) {
                     if let Some(payload) = &self.payloads {
                         log::trace!("        / We retrieve evaluation for eval_tree from payload.");
@@ -1000,6 +1003,7 @@ impl<PT: ProtocolTypes> Term<PT> {
 }
 
 /// Return the first matching position i such that `haystack[i..i + needle.len()] == needle[..]`
+#[must_use]
 pub fn search_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if haystack.len() < needle.len() {
         return None;
@@ -1008,12 +1012,13 @@ pub fn search_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
 }
 
 /// Return the first matching position and whether it is unique (true) or not (false)
+#[must_use]
 pub fn search_sub_vec_double(haystack: &[u8], needle: &[u8]) -> Option<(usize, bool)> {
     if haystack.len() < needle.len() {
         // log::trace!("search_sub_vec_double: length");
         return None;
     }
-    for i in 0..haystack.len() - needle.len() + 1 {
+    for i in 0..=(haystack.len() - needle.len()) {
         if haystack[i..i + needle.len()] == needle[..] {
             // log::trace!("search_sub_vec_double: found for i:{i}");
             return Some((i, search_sub_vec(&haystack[i + 1..], needle).is_none()));
@@ -1024,6 +1029,7 @@ pub fn search_sub_vec_double(haystack: &[u8], needle: &[u8]) -> Option<(usize, b
 }
 
 /// Sum the first `cap` bytes in the bytes-vector `v`
+#[must_use]
 pub fn sum_vec_cap(v: &[u8], cap: usize) -> usize {
     let mut acc = 0;
     for i in 0..min(v.len(), cap) {

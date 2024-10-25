@@ -41,7 +41,7 @@ impl<PT: ProtocolTypes> fmt::Display for DYTerm<PT> {
     }
 }
 
-/// Trait for data we can treat as terms (either DYTerm or Term)
+/// Trait for data we can treat as terms (either `DYTerm` or Term)
 pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn resistant_id(&self) -> u32;
     fn size(&self) -> usize;
@@ -53,7 +53,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn is_symbolic(&self) -> bool;
     fn make_symbolic(&mut self); // remove all payloads
 
-    /// Evaluate terms into bitstrings (considering Payloads or not depending on with_payloads)
+    /// Evaluate terms into bitstrings (considering Payloads or not depending on `with_payloads`)
     fn evaluate_config<PB: ProtocolBehavior>(
         &self,
         context: &TraceContext<PB>,
@@ -170,7 +170,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 if subterms.is_empty() || !self.is_symbolic() {
                     1
                 } else {
-                    1 + subterms.iter().map(|t| t.height()).max().unwrap()
+                    1 + subterms.iter().map(Self::height).max().unwrap()
                 }
             }
             _ => 1,
@@ -273,7 +273,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 DYTerm::Application(_, args) => {
                     if !term.is_opaque() {
                         for t in args {
-                            rec(t, acc)
+                            rec(t, acc);
                         }
                     }
                 }
@@ -326,7 +326,7 @@ impl<PT: ProtocolTypes> fmt::Display for Term<PT> {
 }
 impl<PT: ProtocolTypes> From<DYTerm<PT>> for Term<PT> {
     fn from(term: DYTerm<PT>) -> Self {
-        Term {
+        Self {
             term,
             payloads: None,
         }
@@ -348,23 +348,20 @@ fn display_term_at_depth<PT: ProtocolTypes>(
     match term {
         DYTerm::Variable(ref v) => {
             let is_bitstring = if is_bitstring { "BS//" } else { "" };
-            format!("{}{}{}", tabs, is_bitstring, v)
+            format!("{tabs}{is_bitstring}{v}")
         }
         DYTerm::Application(ref func, ref args) => {
             let op_str = remove_prefix(func.name());
             let return_type = remove_prefix(func.shape().return_type.name);
             let is_bitstring = if is_bitstring { "BS//" } else { "" };
             if args.is_empty() {
-                format!("{}{}{} -> {}", tabs, is_bitstring, op_str, return_type)
+                format!("{tabs}{is_bitstring}{op_str} -> {return_type}")
             } else {
                 let args_str = args
                     .iter()
                     .map(|arg| display_term_at_depth(&arg.term, depth + 1, !arg.is_symbolic()))
                     .join(",\n");
-                format!(
-                    "{}{}{}(\n{}\n{}) -> {}",
-                    tabs, is_bitstring, op_str, args_str, tabs, return_type
-                )
+                format!("{tabs}{is_bitstring}{op_str}(\n{args_str}\n{tabs}) -> {return_type}")
             }
         }
     }
@@ -444,7 +441,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
                     if !self.is_symbolic() {
                         SIZE_LEAF
                     } else {
-                        subterms.iter().map(|subterm| subterm.size()).sum::<usize>() + 1
+                        subterms.iter().map(TermType::size).sum::<usize>() + 1
                     }
                 }
             }
@@ -491,7 +488,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         }
     }
 
-    fn mutate(&mut self, other: Term<PT>) {
+    fn mutate(&mut self, other: Self) {
         *self = other;
     }
 
@@ -508,7 +505,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
     }
 }
 
-/// Having the same mutator for &'a mut DYTerm is not possible in Rust:
+/// Having the same mutator for &'a mut `DYTerm` is not possible in Rust:
 /// * <https://stackoverflow.com/questions/49057270/is-there-a-way-to-iterate-over-a-mutable-tree-to-get-a-random-node>
 /// * <https://sachanganesh.com/programming/graph-tree-traversals-in-rust/>
 impl<'a, PT: ProtocolTypes> IntoIterator for &'a Term<PT> {
@@ -577,7 +574,7 @@ where
     match &term.term {
         DYTerm::Variable(variable) => context
             .find_variable(variable.typ.clone(), &variable.query)
-            .map(|data| data.boxed_term())
+            .map(super::super::variable_data::VariableData::boxed_term)
             .or_else(|| {
                 if let Some(Source::Agent(agent_name)) = &variable.query.source {
                     context.find_claim(*agent_name, variable.typ.clone())
@@ -586,7 +583,7 @@ where
                     None
                 }
             })
-            .ok_or_else(|| Error::Term(format!("Unable to find variable {}!", variable))),
+            .ok_or_else(|| Error::Term(format!("Unable to find variable {variable}!"))),
         DYTerm::Application(func, args) => {
             let mut dynamic_args: Vec<Box<dyn EvaluatedTerm<PT>>> = Vec::new();
             for term in args {

@@ -12,6 +12,7 @@ use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
 use crate::{GIT_MSG, GIT_REF};
 
+#[must_use]
 pub fn format_title<PB: ProtocolBehavior>(
     title: Option<&str>,
     index: Option<usize>,
@@ -29,14 +30,7 @@ pub fn format_title<PB: ProtocolBehavior>(
     let without_dy_mutations = if without_dy_mutations { "_wo-dy" } else { "" };
     let put_use_clear = if put_use_clear { "_put-use-clear" } else { "" };
     let minimizer = if minimizer { "_minimizer" } else { "" };
-    let put: &str = &put_registry
-        .default()
-        .versions()
-        .clone()
-        .last()
-        .unwrap()
-        .1
-        .to_owned();
+    let put: &str = &put_registry.default().versions().last().unwrap().1.clone();
     let put = put.split('(').collect::<Vec<&str>>()[0].trim();
     format!(
         "{date}\
@@ -74,7 +68,7 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
                 n,
                 p.versions()
                     .into_iter()
-                    .map(|(c, v)| format!("{} ({})", c, v))
+                    .map(|(c, v)| format!("{c} ({v})"))
                     .join(" ")
             ))
             .join(", "),
