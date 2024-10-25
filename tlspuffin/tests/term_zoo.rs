@@ -215,7 +215,7 @@ fn test_term_eval() {
         //     == "tlspuffin::tls::fn_impl::fn_utils::fn_get_ticket_nonce"
         {
             match term.evaluate(&ctx) {
-                Ok(eval) => {
+                Ok(_eval) => {
                     log::debug!("OKAY for {}", term.name().to_string().to_owned());
                     successfully_built_functions.push(term.name().to_string().to_owned());
                     eval_count += 1;
@@ -238,20 +238,20 @@ fn test_term_eval() {
                         count_any_encode_fail += 1;
                         match e.clone() {
                             // for debugging encoding failure only
-                            Error::Fn(FnError::Unknown(ee)) => log::debug!(
+                            Error::Fn(FnError::Unknown(_ee)) => log::debug!(
                                 "[Unknown] Failed evaluation due to FnError::Unknown: [{}]",
                                 e
                             ),
-                            Error::Fn(FnError::Crypto(ee)) => log::debug!(
+                            Error::Fn(FnError::Crypto(_ee)) => log::debug!(
                                 "[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}",
                                 e,
                                 term
                             ),
-                            Error::Fn(FnError::Malformed(ee)) => log::debug!(
+                            Error::Fn(FnError::Malformed(_ee)) => log::debug!(
                                 "[Malformed] Failed evaluation due to FnError::Crypto:[{}]",
                                 e
                             ),
-                            Error::Term(ee) => {
+                            Error::Term(_ee) => {
                                 log::debug!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term)
                             }
                             _ => {
@@ -274,7 +274,6 @@ fn test_term_eval() {
                                     log::warn!("Evaluate_lazy FAILED. ");
                                 }
                             }
-                            _ => {}
                         }
                     }
                 }
@@ -326,7 +325,7 @@ fn add_one_payload_randomly<
         descriptors: vec![],
         steps: vec![Step {
             agent: AgentName::new(),
-            action: Input(InputAction { recipe: t.clone() }),
+            action: Input(InputAction { precomputations: vec![], recipe: t.clone() }),
         }],
         prior_traces: vec![],
     };
@@ -500,7 +499,7 @@ fn test_term_payloads_eval() {
             test_pay(&term_with_payloads);
 
             match &term_with_payloads.evaluate(&ctx) {
-                Ok(eval) => {
+                Ok(_eval) => {
                     log::debug!("Eval success!");
                     successfully_built_functions.push(term.name().to_string().to_owned());
                     eval_count += 1;
@@ -526,13 +525,13 @@ fn test_term_payloads_eval() {
                             } else {
                                 count_any_encode_fail += 1;
                                 match e.clone() { // for debugging encoding failure only
-                                        Error::Fn(FnError::Unknown(ee)) =>
+                                        Error::Fn(FnError::Unknown(_ee)) =>
                                             log::error!("[Unknown] Failed evaluation due to FnError::Unknown: [{}]", e),
-                                        Error::Fn(FnError::Crypto(ee)) =>
+                                        Error::Fn(FnError::Crypto(_ee)) =>
                                             log::error!("[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}", e, term_with_payloads),
-                                        Error::Fn(FnError::Malformed(ee)) =>
+                                        Error::Fn(FnError::Malformed(_ee)) =>
                                             log::error!("[Malformed] Failed evaluation due to FnError::Crypto:[{}]", e),
-                                        Error::Term(ee) => {
+                                        Error::Term(_ee) => {
                                             log::error!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term_with_payloads)
                                         },
                                         _ => {
@@ -553,7 +552,6 @@ fn test_term_payloads_eval() {
                                                 log::error!("Evaluate_lazy FAILED. ");
                                             }
                                         }
-                                        _ => {},
                                     }
                             }
                         }
@@ -728,20 +726,20 @@ fn test_term_read_encode() {
                         count_any_encode_fail += 1;
                         match e.clone() {
                             // for debugging encoding failure only
-                            Error::Fn(FnError::Unknown(ee)) => log::error!(
+                            Error::Fn(FnError::Unknown(_ee)) => log::error!(
                                 "[Unknown] Failed evaluation due to FnError::Unknown: [{}]",
                                 e
                             ),
-                            Error::Fn(FnError::Crypto(ee)) => log::error!(
+                            Error::Fn(FnError::Crypto(_ee)) => log::error!(
                                 "[Crypto] Failed evaluation due to FnError::Crypto:[{}]\nTerm: {}",
                                 e,
                                 term
                             ),
-                            Error::Fn(FnError::Malformed(ee)) => log::error!(
+                            Error::Fn(FnError::Malformed(_ee)) => log::error!(
                                 "[Malformed] Failed evaluation due to FnError::Crypto:[{}]",
                                 e
                             ),
-                            Error::Term(ee) => {
+                            Error::Term(_ee) => {
                                 log::error!("[Term] Failed evaluation due to Error:Term: [{}]\n ===For Term: [{}]", e, term)
                             }
                             _ => {
@@ -764,7 +762,6 @@ fn test_term_read_encode() {
                                     log::error!("Evaluate_lazy FAILED. ");
                                 }
                             }
-                            _ => {}
                         }
                     }
                 }

@@ -11,7 +11,7 @@ macro_rules! term {
         use $crate::algebra::dynamic_function::TypeShape;
 
         // ignore $req_type as we are overriding it with $type
-        term!((!$precomp, $counter) > TypeShape::of::<$typ>())
+        Term::from(term!((!$precomp, $counter) > TypeShape::of::<$typ>()))
     }};
     (($agent:expr, $counter:expr) / $typ:ty $(>$req_type:expr)?) => {{
         use $crate::algebra::dynamic_function::TypeShape;
@@ -27,7 +27,7 @@ macro_rules! term {
         use $crate::trace::Source;
 
         let var = Signature::new_var($($req_type)?, Some(Source::Label(Some($precomp.into()))), None, $counter); // TODO: verify hat using here None is fine. Before a refactor it was: Some(TlsMessageType::Handshake(None))
-        Term::Variable(var)
+        Term::from(DYTerm::Variable(var))
     }};
     (($agent:expr, $counter:expr) $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
@@ -45,7 +45,7 @@ macro_rules! term {
         use $crate::algebra::dynamic_function::TypeShape;
 
         // ignore $req_type as we are overriding it with $type
-        term!((!$precomp, $counter) [$message_type] > TypeShape::of::<$typ>())
+       Term::from(term!((!$precomp, $counter) [$message_type] > TypeShape::of::<$typ>()))
     }};
     (($agent:expr, $counter:expr) [$message_type:expr] / $typ:ty $(>$req_type:expr)?) => {{
         use $crate::algebra::dynamic_function::TypeShape;
@@ -60,7 +60,7 @@ macro_rules! term {
         use $crate::trace::Source;
 
         let var = Signature::new_var($($req_type)?, Some(Source::Label(Some($precomp.into()))), $message_type, $counter);
-        Term::Variable(var)
+        Term::from(DYTerm::Variable(var))
     }};
     (($agent:expr, $counter:expr) [$message_type:expr] $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;

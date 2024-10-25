@@ -2,9 +2,9 @@
 //! handshake or an execution which crashes OpenSSL.
 #![allow(dead_code)]
 
+use crate::tls::rustls::msgs::message::Message;
 use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
-use puffin::algebra::dynamic_function::TypeShape;
-use puffin::algebra::Term;
+use puffin::algebra::dynamic_function::TypeShape;evious merge
 use puffin::trace::{Action, InputAction, OutputAction, Precomputation, Step, Trace};
 use puffin::{input_action, term};
 
@@ -1534,12 +1534,14 @@ pub fn _seed_client_attacker_full_precomputation(
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
                 (fn_new_cipher_suites()),
                 fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            )))),
             fn_compressions,
-            (fn_client_extensions_append(
+            (fn_client_extensions_make(
+              (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
@@ -1551,7 +1553,7 @@ pub fn _seed_client_attacker_full_precomputation(
                     (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
-            ))
+            ))))
         )
     };
 

@@ -832,7 +832,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         path: TermPath,
         ctx: &TraceContext<PB>,
         with_payloads: bool,
-        is_in_list: bool,
+        _is_in_list: bool,
         sibling_has_payloads: bool,
         type_term: &TypeShape<PT>,
     ) -> Result<(Box<dyn EvaluatedTerm<PT>>, Vec<PayloadContext<PT>>), Error>
@@ -961,7 +961,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                         log::trace!("  + Ending treating argument # {i} from path {path:?}...");
                     }
                 }
-                log::trace!("[eval_until_opaque] Now calling the function symbol implementation and then updating payloads...");
+                log::trace!("[eval_until_opaque] Now calling the function symbol {} implementation and then updating payloads...", func.name());
                 let dynamic_fn = &func.dynamic_fn();
                 let result: Box<dyn EvaluatedTerm<PT>> = dynamic_fn(&dynamic_args)?; // evaluation of the function symbol implementation
 

@@ -734,7 +734,6 @@ atom_extract_knowledge!(TLSProtocolTypes, CipherSuite);
 atom_extract_knowledge!(TLSProtocolTypes, ClientExtension);
 atom_extract_knowledge!(TLSProtocolTypes, Compression);
 atom_extract_knowledge!(TLSProtocolTypes, DigitallySignedStruct);
-atom_extract_knowledge!(TLSProtocolTypes, EncryptedExtensions);
 atom_extract_knowledge!(TLSProtocolTypes, HandshakeHash);
 atom_extract_knowledge!(TLSProtocolTypes, HandshakeType);
 atom_extract_knowledge!(TLSProtocolTypes, HelloRetryExtension);

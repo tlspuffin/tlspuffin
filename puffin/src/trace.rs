@@ -721,9 +721,13 @@ impl<PT: ProtocolTypes> InputAction<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         for precomputation in &self.precomputations {
+            let tp =precomputation.recipe.get_type_shape().clone();
             let eval = precomputation.recipe.evaluate(ctx)?;
+            let eval_term = PB::try_read_bytes(&eval, tp.into())?;
+            // TODO: find a better way to evaluate precomputations, add a method: evaluate_term and
+            // use evaluate + read only when there is a payload in the precomputation!
             ctx.knowledge_store.add_raw_boxed_knowledge(
-                eval,
+                eval_term,
                 Source::Label(precomputation.label.clone()),
                 Some(precomputation.recipe.clone()),
             );
