@@ -62,14 +62,14 @@ impl<M: Matcher> fmt::Display for Query<M> {
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Deserialize, Serialize)]
 pub enum Source {
     Agent(AgentName),
-    Label(String),
+    Label(Option<String>),
 }
 
 impl fmt::Display for Source {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Agent(x) => write!(f, "agent:{}", x),
-            Self::Label(x) => write!(f, "label:{}", x),
+            Self::Label(x) => write!(f, "label:{:?}", x),
         }
     }
 }
@@ -90,6 +90,7 @@ pub struct Knowledge<'a, PT: ProtocolTypes> {
 pub struct RawKnowledge<PT: ProtocolTypes> {
     pub source: Source,
     pub matcher: Option<PT::Matcher>,
+    pub associated_term: Option<Term<PT>>,
     pub data: Box<dyn EvaluatedTerm<PT>>,
 }
 
@@ -152,13 +153,35 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         }
     }
 
-    pub fn add_raw_knowledge<T: EvaluatedTerm<PT> + 'static>(&mut self, data: T, source: Source) {
+    pub fn add_raw_knowledge<T: EvaluatedTerm<PT> + 'static>(
+        &mut self,
+        data: T,
+        source: Source,
+        term: Option<Term<PT>>,
+    ) {
         log::trace!("Adding raw knowledge for {:?}", &data);
 
         self.raw_knowledge.push(RawKnowledge {
             source,
             matcher: None,
             data: Box::new(data),
+            associated_term: term,
+        });
+    }
+
+    pub fn add_raw_boxed_knowledge(
+        &mut self,
+        data: Box<dyn EvaluatedTerm<PT>>,
+        source: Source,
+        term: Option<Term<PT>>,
+    ) {
+        log::trace!("Adding raw knowledge : {:?}", &data);
+
+        self.raw_knowledge.push(RawKnowledge {
+            source,
+            matcher: None,
+            data,
+            associated_term: term,
         });
     }
 
@@ -603,10 +626,10 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
 
         if let Some(opaque_flight) = agent.take_message_from_outbound()? {
             ctx.knowledge_store
-                .add_raw_knowledge(opaque_flight.clone(), source.clone());
+                .add_raw_knowledge(opaque_flight.clone(), source.clone(), None);
 
             if let Ok(flight) = TryInto::<PB::ProtocolMessageFlight>::try_into(opaque_flight) {
-                ctx.knowledge_store.add_raw_knowledge(flight, source);
+                ctx.knowledge_store.add_raw_knowledge(flight, source, None);
             }
         }
 
@@ -620,6 +643,13 @@ impl<PT: ProtocolTypes> fmt::Display for OutputAction<PT> {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, Hash)]
+#[serde(bound = "PT: ProtocolTypes")]
+pub struct Precomputation<PT: ProtocolTypes> {
+    pub label: Option<String>,
+    pub recipe: Term<PT>,
+}
+
 /// Provide inputs to the [`Agent`].
 ///
 /// The [`InputAction`] evaluates the recipe term and injects the newly produced message
@@ -628,6 +658,7 @@ impl<PT: ProtocolTypes> fmt::Display for OutputAction<PT> {
 #[derive(Serialize, Deserialize, Clone, Debug, Hash)]
 #[serde(bound = "PT: ProtocolTypes")]
 pub struct InputAction<PT: ProtocolTypes> {
+    pub precomputations: Vec<Precomputation<PT>>,
     pub recipe: Term<PT>,
 }
 
@@ -637,7 +668,10 @@ impl<PT: ProtocolTypes> InputAction<PT> {
     pub fn new_step(agent: AgentName, recipe: Term<PT>) -> Step<PT> {
         Step {
             agent,
-            action: Action::Input(InputAction { recipe }),
+            action: Action::Input(InputAction {
+                recipe,
+                precomputations: vec![],
+            }),
         }
     }
 
@@ -645,6 +679,15 @@ impl<PT: ProtocolTypes> InputAction<PT> {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
+        for precomputation in &self.precomputations {
+            let eval = precomputation.recipe.evaluate(ctx)?;
+            ctx.knowledge_store.add_raw_boxed_knowledge(
+                eval,
+                Source::Label(precomputation.label.clone()),
+                Some(precomputation.recipe.clone()),
+            );
+        }
+
         let message = as_message_flight::<PB>(self.recipe.evaluate(ctx)?)?;
         let agent = ctx.find_agent_mut(agent_name)?;
 
@@ -657,6 +700,134 @@ impl<PT: ProtocolTypes> fmt::Display for InputAction<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "InputAction:\n{}", self.recipe)
     }
+}
+
+/// This macro defines the precomputation syntax to add precomputations to an input action step
+///
+/// Example of precomputation with TLS
+///
+/// ```ignore
+/// input_action! {
+///     // Here we are precomputing a decryption of TLS extension and using it in the following term
+///     "decrypted_extensions" = term!{fn_decrypt_handshake_flight(
+///         ((server, 0)/MessageFlight),
+///         (@server_hello_transcript),
+///         (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+///         fn_no_psk,
+///         fn_named_group_secp384r1,
+///         fn_true,
+///         fn_seq_0  // sequence 0
+///     )}
+///     =>
+///     // This term will be sent to the PUT by the input action
+///     term!{fn_append_transcript(
+///         (@server_hello_transcript),
+///         (
+///             // We can query our precomputation
+///             (!"decrypted_extensions", 0)[
+///                 Some(TlsQueryMatcher::Handshake(Some(HandshakeType::EncryptedExtensions)))
+///             ] / Message
+///         )
+///     )}
+/// };
+/// ```
+///
+/// The following syntaxes are accepted :
+/// ```ignore
+/// # use puffin::input_action;
+/// # use puffin::term;
+/// # use puffin::trace::Precomputation;
+/// # use puffin::trace::InputAction;
+///
+/// input_action!{term!{fn_msg()}};
+/// input_action!{term!{fn_precomputation()} => term!{fn_msg()}};
+/// input_action!{"this_is_a_label" = term!{fn_precomputation()} => term!{fn_msg()}};
+/// input_action!{
+///     "this_is_a_label" = term!{fn_precomputation_1()} =>
+///         term!{fn_precomputation_2()} =>
+///             term!{fn_msg()}
+/// };
+/// // the latter is equivalent to
+/// input_action!{
+///     "this_is_a_label" = term!{fn_precomputation_1()}, term!{fn_precomputation_2()} =>
+///         term!{fn_msg()}
+/// };
+/// ```
+///
+/// All the previous examples respectively produce
+/// ```ignore
+/// # use puffin::trace::Precomputation;
+/// # use puffin::trace::InputAction;
+/// # use puffin::term;
+/// # use crate::algebra::test_signature::fn_msg;
+///
+/// InputAction {
+///     recipe: term!{fn_msg()},
+///     precomputations: vec![],
+/// };
+/// InputAction {
+///     recipe: term!{fn_msg()},
+///     precomputations: vec![Precomputation{label: "".into(), recipe: term!{fn_precomputation()}}],
+/// };
+/// InputAction {
+///     recipe: term!{fn_msg()},
+///     precomputations: vec![Precomputation{label: "this_is_a_label".into(), recipe:
+/// term!{fn_precomputation()}}], };
+/// InputAction {
+///     recipe: term!{fn_msg()},
+///     precomputations: vec![
+///         Precomputation{label: "this_is_a_label".into(), recipe: term!{fn_precomputation_1()}},
+///         Precomputation{label: "".into(), recipe: term!{fn_precomputation_2()}}
+///     ],
+/// };
+/// ```
+#[macro_export]
+macro_rules! input_action {
+    (@internal [$($label:expr, $precomp:expr);+] $recipe:expr) => {
+        InputAction {
+            recipe: $recipe,
+            precomputations: vec![$(Precomputation{label: $label, recipe: $precomp}),*],
+        }
+    };
+
+    (@internal [$($precomps:tt)+] $other_name:literal = $other_precomp:expr => $($tail:tt)+) => {
+        input_action!{@internal [$($precomps)+; Some($other_name.into()), $other_precomp] $($tail)+ }
+    };
+
+    (@internal [$($precomps:tt)+] $other_name:literal = $other_precomp:expr, $($tail:tt)+) => {
+        input_action!{@internal [$($precomps)+; Some($other_name.into()), $other_precomp] $($tail)+ }
+    };
+
+    (@internal [$($precomps:tt)+] $other_precomp:expr => $($tail:tt)+) => {
+        input_action!{@internal [$($precomps)+; None, $other_precomp] $($tail)+ }
+    };
+
+    (@internal [$($precomps:tt)+] $other_precomp:expr, $($tail:tt)+) => {
+        input_action!{@internal [$($precomps)+; None, $other_precomp] $($tail)+ }
+    };
+
+    ($precomp_name:literal = $precomp:expr => $($tail:tt)+) => {
+        input_action!{@internal [Some($precomp_name.into()), $precomp] $($tail)+ }
+    };
+
+    ($precomp_name:literal = $precomp:expr , $($tail:tt)+) => {
+        input_action!{@internal [Some($precomp_name.into()), $precomp] $($tail)+ }
+    };
+
+    ($precomp:expr => $($tail:tt)+) => {
+        input_action!{@internal [None, $precomp] $($tail)+ }
+    };
+
+    ($precomp:expr, $($tail:tt)+) => {
+        input_action!{@internal [None, $precomp] $($tail)+ }
+    };
+
+    ($recipe:expr) => {
+        InputAction {
+            recipe: $recipe,
+            precomputations: vec![],
+        }
+    };
 }
 
 fn as_message_flight<PB: ProtocolBehavior>(
@@ -688,4 +859,80 @@ fn as_message_flight<PB: ProtocolBehavior>(
             .into());
     };
     Ok(opaque)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::algebra::test_signature::{
+        fn_encrypt12, fn_finished, fn_new_random, fn_seq_0, fn_seq_1,
+    };
+    use crate::term;
+    use crate::trace::{InputAction, Precomputation};
+
+    #[test]
+    fn test_input_action_macro() {
+        let action0 = input_action! {term!{fn_seq_0()}};
+        assert_eq!(action0.precomputations.len(), 0);
+
+        let action1 = input_action! {
+            term!{fn_new_random()} =>
+                "a" = term!{fn_new_random()} =>
+                    term!{
+                        fn_encrypt12(fn_finished,fn_seq_0)
+                    }
+        };
+        assert_eq!(action1.precomputations.len(), 2);
+        assert_eq!(action1.precomputations[0].label, None);
+        assert_eq!(action1.precomputations[1].label, Some("a".into()));
+
+        let action2 = input_action! {
+            "a" = term!{fn_new_random()}, "b" = term!{fn_finished()} =>
+                term!{
+                    fn_encrypt12(fn_finished,fn_seq_0)
+                }
+        };
+        assert_eq!(action2.precomputations.len(), 2);
+        assert_eq!(action2.precomputations[0].label, Some("a".into()));
+        assert_eq!(action2.precomputations[1].label, Some("b".into()));
+
+        let action3 = input_action! {
+            "a" = term!{fn_new_random()} => term!{fn_finished()} =>
+                term!{
+                    fn_encrypt12(fn_finished,fn_seq_0)
+                }
+        };
+        assert_eq!(action3.precomputations.len(), 2);
+        assert_eq!(action3.precomputations[0].label, Some("a".into()));
+        assert_eq!(action3.precomputations[1].label, None);
+
+        let action4 = input_action! {
+            term!{fn_finished()}, "a" = term!{fn_new_random()} =>
+                term!{
+                    fn_encrypt12(fn_finished,fn_seq_0)
+                }
+        };
+        assert_eq!(action4.precomputations.len(), 2);
+        assert_eq!(action4.precomputations[0].label, None);
+        assert_eq!(action4.precomputations[1].label, Some("a".into()));
+
+        let action5 = input_action! {
+            term!{fn_finished()}, "a" = term!{fn_new_random()} =>
+                "b" = term!{fn_seq_0()} =>
+                    term!{fn_seq_1()} =>
+                        "c" = term!{fn_seq_0()} =>
+                            term!{fn_seq_0()}, "d" = term!{fn_seq_0()}, "e" = term!{fn_seq_0()} =>
+                                term!{
+                                    fn_encrypt12(fn_finished,fn_seq_0)
+                                }
+        };
+        assert_eq!(action5.precomputations.len(), 8);
+        assert_eq!(action5.precomputations[0].label, None);
+        assert_eq!(action5.precomputations[1].label, Some("a".into()));
+        assert_eq!(action5.precomputations[2].label, Some("b".into()));
+        assert_eq!(action5.precomputations[3].label, None);
+        assert_eq!(action5.precomputations[4].label, Some("c".into()));
+        assert_eq!(action5.precomputations[5].label, None);
+        assert_eq!(action5.precomputations[6].label, Some("d".into()));
+        assert_eq!(action5.precomputations[7].label, Some("e".into()));
+    }
 }
