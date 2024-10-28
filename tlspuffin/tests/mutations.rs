@@ -268,7 +268,7 @@ fn test_make_message() {
 
 /// Test that MakeMessage can be applied on a strict sub-term and them on a whole term, erasing all
 /// payloads of strict sub-terms
-#[cfg(all(feature = "tls13", not(feature = "boringssl-binding")))]
+#[cfg(all(feature = "tls13"))]
 // require version which supports TLS 1.3, removed boringssl-binding as seed_client_attacker_full
 // cannot be executed with boringssl
 #[test_log::test]
