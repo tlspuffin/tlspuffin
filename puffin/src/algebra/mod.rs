@@ -99,7 +99,7 @@ pub mod test_signature {
     use serde::{Deserialize, Serialize};
 
     use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
-    use crate::algebra::dynamic_function::TypeShape;
+    use crate::algebra::dynamic_function::{FunctionAttributes, TypeShape};
     use crate::algebra::error::FnError;
     use crate::algebra::{AnyMatcher, ConcreteMessage, Term};
     use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};

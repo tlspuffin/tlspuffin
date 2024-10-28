@@ -67,6 +67,32 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use super::error::FnError;
 use crate::protocol::{EvaluatedTerm, ProtocolTypes};
 
+/// Describes the attributes of a [`DynamicFunction`]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub struct FunctionAttributes {
+    /// Whether the function symbol computes "opaque" message such as encryption, signature,
+    /// MAC, AEAD, Formally: all symbols whose concretization does not contain a single
+    /// conretization of its arguments
+    pub is_opaque: bool,
+    /// Whether the function symbol computes a list such as `fn_append_certificate`.
+    pub is_list: bool,
+    /// Whether the function symbol computes a strict sub-term (accessed function symbols).
+    /// Incidentally, its concretization does not contain all the conretizations of its arguments.
+    /// Examples: `fn_get_server_key_share`.
+    pub is_get: bool,
+}
+// TODO: add a uni test for making sure the given attributes are correct
+
+impl Default for FunctionAttributes {
+    fn default() -> Self {
+        Self {
+            is_opaque: false,
+            is_list: false,
+            is_get: false,
+        }
+    }
+}
+
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(bound = "PT: ProtocolTypes")]
