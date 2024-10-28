@@ -38,7 +38,7 @@ impl fmt::Display for Error {
             Self::IO(err) => write!(f, "error in io of openssl (this should not happen): {err}"),
             Self::Agent(err) => write!(f, "error regarding an agent: {err}"),
             Self::Stream(err) => write!(f, "error in the stream: {err}"),
-            Self::Extraction() => write!(f, "error while extracting variable", ),
+            Self::Extraction() => write!(f, "error while extracting variable",),
             Self::SecurityClaim(msg) => {
                 write!(f, "error because a security violation occurred. msg: {msg}")
             }
