@@ -8,6 +8,7 @@ use puffin::protocol::{
     EvaluatedTerm, Extractable, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
     ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
+use puffin::put::PutDescriptor;
 use puffin::trace::{Knowledge, Source, Trace};
 use serde::{Deserialize, Serialize};
 
@@ -206,7 +207,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
     type ProtocolTypes = SshProtocolTypes;
     type SecurityViolationPolicy = SshSecurityViolationPolicy;
 
-    fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
+    fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
         vec![] // TODO
     }
 

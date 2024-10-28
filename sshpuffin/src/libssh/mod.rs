@@ -161,6 +161,10 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             ]
         }
 
+        fn supports(&self, _capability: &str) -> bool {
+            false
+        }
+
         fn clone_factory(&self) -> Box<dyn Factory<SshProtocolBehavior>> {
             Box::new(LibSSLFactory)
         }

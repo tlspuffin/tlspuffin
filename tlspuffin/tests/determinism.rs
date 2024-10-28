@@ -1,14 +1,10 @@
-#[test_log::test]
-#[cfg(all(
-    feature = "deterministic",
-    feature = "boringssl-binding",
-    feature = "tls13",
-))]
-fn test_attacker_full_det_recreate() {
-    use tlspuffin::test_utils::prelude::*;
+use tlspuffin::test_utils::prelude::*;
+
+#[apply(test_puts, filter = all(tls13, boringssl))]
+fn test_attacker_full_det_recreate(put: &str) {
     use tlspuffin::tls::seeds::seed_client_attacker_full;
 
-    let runner = default_runner_for(tls_registry().default().name());
+    let runner = default_runner_for(put);
     let trace = seed_client_attacker_full.build_trace();
 
     let ctx_1 = runner.execute(&trace);

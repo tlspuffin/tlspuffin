@@ -10,6 +10,7 @@ use crate::algebra::Matcher;
 use crate::claims::{Claim, SecurityViolationPolicy};
 use crate::codec;
 use crate::error::Error;
+use crate::put::PutDescriptor;
 use crate::trace::{Knowledge, Source, Trace};
 
 pub trait AsAny {
@@ -154,7 +155,7 @@ pub trait ProtocolBehavior: 'static {
         + From<Self::ProtocolMessageFlight>;
 
     /// Creates a sane initial seed corpus.
-    fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)>;
+    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)>;
 
     /// Downcast from `Box<dyn Any>` and encode as bitstring any message as per the PB's internal
     /// structure

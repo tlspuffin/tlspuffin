@@ -7,51 +7,49 @@ use puffin::trace::Spawner;
 use tlspuffin::{test_utils::prelude::*, tls::seeds::*, tls::vulnerabilities::*};
 
 // Vulnerable up until OpenSSL 1.0.1j
-#[cfg(all(feature = "openssl101-binding", feature = "asan"))]
-#[cfg(feature = "tls12")]
-#[test_log::test]
-#[ignore] // We cannot check for this vulnerability right now
-fn test_seed_freak() {
+#[apply(test_puts,
+    attrs = [ignore], // We cannot check for this vulnerability right now
+    filter = all(CVE_2015_0204, tls12, asan)
+)]
+fn test_seed_freak(put: &str) {
     expect_trace_crash(
         seed_freak.build_trace(),
-        default_runner_for(tls_registry().default().name()),
+        default_runner_for(put),
         std::time::Duration::from_secs(20),
         Some(20),
     );
 }
 
-#[cfg(all(feature = "openssl101-binding", feature = "asan"))]
-#[cfg(feature = "tls12")]
-#[test_log::test]
-fn test_seed_heartbleed() {
+#[apply(test_puts, filter = all(CVE_2014_0160, tls12, asan))]
+fn test_seed_heartbleed(put: &str) {
     expect_trace_crash(
         seed_heartbleed.build_trace(),
-        default_runner_for(tls_registry().default().name()),
+        default_runner_for(put),
         std::time::Duration::from_secs(20),
         Some(20),
     );
 }
 
-#[test_log::test]
-#[cfg(feature = "openssl111j")]
-#[cfg(feature = "tls12")]
-fn test_seed_cve_2021_3449() {
+#[apply(test_puts, filter = all(CVE_2021_3449, tls12))]
+fn test_seed_cve_2021_3449(put: &str) {
     expect_trace_crash(
         seed_cve_2021_3449.build_trace(),
-        default_runner_for(tls_registry().default().name()),
+        default_runner_for(put),
         std::time::Duration::from_secs(20),
         Some(20),
     );
 }
 
-#[test_log::test]
-#[cfg(feature = "wolfssl510")]
-#[cfg(feature = "tls13")] // require version which supports TLS 1.3
-#[cfg(feature = "client-authentication-transcript-extraction")]
-#[cfg(not(feature = "fix-CVE-2022-25640"))]
-#[should_panic(expected = "Authentication bypass")]
-fn test_seed_cve_2022_25640() {
-    let runner = default_runner_for(tls_registry().default().name());
+#[apply(test_puts,
+    attrs = [should_panic(expected = "Authentication bypass")],
+    filter = all(
+        CVE_2022_25640,
+        tls13,
+        client_authentication_transcript_extraction
+    )
+)]
+fn test_seed_cve_2022_25640(put: &str) {
+    let runner = default_runner_for(put);
     let trace = seed_cve_2022_25640.build_trace();
 
     let ctx = runner.execute(trace).unwrap();
@@ -59,14 +57,16 @@ fn test_seed_cve_2022_25640() {
     assert!(ctx.agents_successful());
 }
 
-#[test_log::test]
-#[cfg(feature = "wolfssl510")]
-#[cfg(feature = "tls13")] // require version which supports TLS 1.3
-#[cfg(feature = "client-authentication-transcript-extraction")]
-#[cfg(not(feature = "fix-CVE-2022-25640"))]
-#[should_panic(expected = "Authentication bypass")]
-fn test_seed_cve_2022_25640_simple() {
-    let runner = default_runner_for(tls_registry().default().name());
+#[apply(test_puts,
+    attrs = [should_panic(expected = "Authentication bypass")],
+    filter = all(
+        CVE_2022_25640,
+        tls13,
+        client_authentication_transcript_extraction
+    )
+)]
+fn test_seed_cve_2022_25640_simple(put: &str) {
+    let runner = default_runner_for(put);
     let trace = seed_cve_2022_25640_simple.build_trace();
 
     let ctx = runner.execute(trace).unwrap();
@@ -74,14 +74,16 @@ fn test_seed_cve_2022_25640_simple() {
     assert!(ctx.agents_successful());
 }
 
-#[test_log::test]
-#[cfg(feature = "wolfssl510")]
-#[cfg(feature = "tls13")] // require version which supports TLS 1.3
-#[cfg(feature = "client-authentication-transcript-extraction")]
-#[cfg(not(feature = "fix-CVE-2022-25638"))]
-#[should_panic(expected = "Authentication bypass")]
-fn test_seed_cve_2022_25638() {
-    let runner = default_runner_for(tls_registry().default().name());
+#[apply(test_puts,
+    attrs = [should_panic(expected = "Authentication bypass")],
+    filter = all(
+        CVE_2022_25638,
+        tls13,
+        client_authentication_transcript_extraction
+    )
+)]
+fn test_seed_cve_2022_25638(put: &str) {
+    let runner = default_runner_for(put);
     let trace = seed_cve_2022_25638.build_trace();
 
     let ctx = runner.execute(trace).unwrap();
@@ -89,15 +91,17 @@ fn test_seed_cve_2022_25638() {
     assert!(ctx.agents_successful());
 }
 
-#[test_log::test]
-#[cfg(feature = "tls12")]
-#[cfg(feature = "wolfssl540")]
-#[cfg(feature = "wolfssl-disable-postauth")]
-fn test_seed_cve_2022_38152() {
+#[apply(test_puts,
+    filter = all(
+        CVE_2022_38152,
+        tls12,
+    )
+)]
+fn test_seed_cve_2022_38152(put: &str) {
     expect_trace_crash(
         seed_session_resumption_dhe_full.build_trace(),
         default_runner_for(puffin::put::PutDescriptor::new(
-            tls_registry().default().name(),
+            put,
             vec![("use_clear", "true")],
         )),
         std::time::Duration::from_secs(20),
@@ -105,12 +109,15 @@ fn test_seed_cve_2022_38152() {
     );
 }
 
-#[test_log::test]
-#[cfg(feature = "tls12")]
-#[cfg(feature = "tls12-session-resumption")]
-#[cfg(feature = "wolfssl530")]
-fn test_seed_cve_2022_38153() {
-    let runner = default_runner_for(tls_registry().default().name());
+#[apply(test_puts,
+    filter = all(
+        CVE_2022_38153,
+        tls12,
+        tls12_session_resumption,
+    )
+)]
+fn test_seed_cve_2022_38153(put: &str) {
+    let runner = default_runner_for(put);
     let trace = seed_successful12_with_tickets.build_trace();
 
     for _ in 0..50 {
@@ -125,49 +132,52 @@ fn test_seed_cve_2022_38153() {
     );
 }
 
-#[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-#[cfg(all(
-    any(feature = "wolfssl540", feature = "wolfssl530", feature = "wolfssl510"),
-    feature = "asan"
-))]
-#[cfg(not(feature = "fix-CVE-2022-39173"))]
-#[test_log::test]
-fn test_seed_cve_2022_39173() {
+#[apply(test_puts,
+    filter = all(
+        CVE_2022_39173,
+        tls13,
+        tls13_session_resumption,
+        asan,
+    )
+)]
+fn test_seed_cve_2022_39173(put: &str) {
     expect_trace_crash(
         seed_cve_2022_39173.build_trace(),
-        default_runner_for(tls_registry().default().name()),
+        default_runner_for(put),
         std::time::Duration::from_secs(20),
         Some(20),
     );
 }
 
-#[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-#[cfg(all(
-    any(feature = "wolfssl540", feature = "wolfssl530", feature = "wolfssl510"),
-    feature = "asan"
-))]
-#[cfg(not(feature = "fix-CVE-2022-39173"))]
-#[test_log::test]
-fn test_seed_cve_2022_39173_full() {
+#[apply(test_puts,
+    filter = all(
+        CVE_2022_39173,
+        tls13,
+        tls13_session_resumption,
+        asan,
+    )
+)]
+fn test_seed_cve_2022_39173_full(put: &str) {
     expect_trace_crash(
         seed_cve_2022_39173_full.build_trace(),
-        default_runner_for(tls_registry().default().name()),
+        default_runner_for(put),
         std::time::Duration::from_secs(20),
         Some(20),
     );
 }
 
-#[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-#[cfg(all(
-    any(feature = "wolfssl540", feature = "wolfssl530", feature = "wolfssl510"),
-    feature = "asan"
-))]
-#[cfg(not(feature = "fix-CVE-2022-39173"))]
-#[test_log::test]
-fn test_seed_cve_2022_39173_minimized() {
+#[apply(test_puts,
+    filter = all(
+        CVE_2022_39173,
+        tls13,
+        tls13_session_resumption,
+        asan,
+    )
+)]
+fn test_seed_cve_2022_39173_minimized(put: &str) {
     expect_trace_crash(
         seed_cve_2022_39173_minimized.build_trace(),
-        default_runner_for(tls_registry().default().name()),
+        default_runner_for(put),
         std::time::Duration::from_secs(20),
         Some(20),
     );

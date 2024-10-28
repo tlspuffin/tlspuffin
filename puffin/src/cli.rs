@@ -136,7 +136,7 @@ where
     let default_put = PutDescriptor::new(put_registry.default().name(), options);
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
-        if let Err(err) = seed(&put_registry) {
+        if let Err(err) = seed(&put_registry, default_put) {
             log::error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -438,7 +438,7 @@ where
             config.mutation_config.with_dy = false;
         }
 
-        if let Err(err) = start::<PB>(&put_registry, config, handle) {
+        if let Err(err) = start::<PB>(&put_registry, default_put, config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {
                     log::info!("\nFuzzing stopped by user. Good Bye.");
@@ -493,9 +493,10 @@ fn plot<PB: ProtocolBehavior>(
 
 fn seed<PB: ProtocolBehavior>(
     _put_registry: &PutRegistry<PB>,
+    put: PutDescriptor,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
-    for (trace, name) in PB::create_corpus() {
+    for (trace, name) in PB::create_corpus(put) {
         trace.to_file(format!("./seeds/{name}.trace"))?;
     }
 

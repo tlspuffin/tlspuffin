@@ -111,6 +111,8 @@ pub trait Factory<PB: ProtocolBehavior> {
     fn name(&self) -> String;
     fn versions(&self) -> Vec<(String, String)>;
 
+    fn supports(&self, capability: &str) -> bool;
+
     fn clone_factory(&self) -> Box<dyn Factory<PB>>;
 
     fn rng_reseed(&self) {

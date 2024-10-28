@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use puffin::agent::AgentDescriptor;
 use puffin::claims::GlobalClaimList;
 use puffin::error::Error;
@@ -53,6 +55,41 @@ impl Factory<TLSProtocolBehavior> for RustFactory {
             ("harness".to_string(), self.harness_version.clone()),
             ("library".to_string(), self.library_version.clone()),
         ]
+    }
+
+    fn supports(&self, capability: &str) -> bool {
+        let capabilities: HashSet<&str> = vec![
+            #[cfg(feature = "openssl-binding")]
+            "openssl_binding",
+            #[cfg(feature = "libressl-binding")]
+            "libressl_binding",
+            #[cfg(feature = "wolfssl-binding")]
+            "wolfssl_binding",
+            #[cfg(feature = "boringssl-binding")]
+            "boringssl_binding",
+            #[cfg(feature = "tls12")]
+            "tls12",
+            #[cfg(feature = "tls13")]
+            "tls13",
+            #[cfg(feature = "tls12-session-resumption")]
+            "tls12_session_resumption",
+            #[cfg(feature = "tls13-session-resumption")]
+            "tls13_session_resumption",
+            #[cfg(feature = "openssl111-binding")]
+            "openssl111_binding",
+            #[cfg(feature = "openssl102-binding")]
+            "openssl102_binding",
+            #[cfg(feature = "openssl101-binding")]
+            "openssl101_binding",
+            #[cfg(feature = "transcript-extraction")]
+            "transcript_extraction",
+            #[cfg(feature = "client-authentication-transcript-extraction")]
+            "client_authentication_transcript_extraction",
+        ]
+        .into_iter()
+        .collect();
+
+        capabilities.contains(capability)
     }
 
     fn rng_reseed(&self) {

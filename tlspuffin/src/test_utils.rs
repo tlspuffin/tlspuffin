@@ -243,6 +243,8 @@ pub mod prelude {
     pub use puffin::execution::TraceRunner;
     pub use puffin::test_utils::AssertExecution;
     pub use puffin::trace_helper::TraceHelper;
+    pub use puffin::{supports, test_puts};
+    pub use puffin_macros::apply;
 
     pub use crate::put_registry::{for_puts, tls_registry};
     pub use crate::test_utils::tcp::*;

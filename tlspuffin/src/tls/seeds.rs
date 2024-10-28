@@ -8,7 +8,7 @@ use puffin::algebra::{DYTerm, Term};
 use puffin::trace::{Action, InputAction, OutputAction, Precomputation, Step, Trace};
 use puffin::{input_action, term};
 
-use crate::protocol::{MessageFlight, TLSProtocolTypes};
+use crate::protocol::{MessageFlight, TLSProtocolBehavior, TLSProtocolTypes};
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::*;
 use crate::tls::rustls::msgs::enums::{CipherSuite, Compression, HandshakeType, ProtocolVersion};
@@ -517,6 +517,8 @@ pub fn seed_successful_with_tickets(
             }
         }),
     });
+
+    // FIXME: don't rely on cargo feature to set the number of session tickets
     // Ticket (wolfSSL 4.4.0 only sends a single ticket)
     #[cfg(not(feature = "wolfssl430"))]
     trace.steps.push(Step {
@@ -1890,19 +1892,15 @@ macro_rules! corpus {
         vec![]
     };
 
-    ( $( $func:ident : cfg($( $meta:meta),* ) ),* ) => {
+    ( $( $func:ident : $cond:expr ),* $(,)? ) => {
         {
-            #[cfg(any( $( $( $meta ),* ),* ))]
             use puffin::trace_helper::TraceHelper;
-            #[cfg(any( $( $( $meta ),* ),* ))]
             let mut corpus = vec![];
 
-            #[cfg(not(any( $( $( $meta ),* ),* )))]
-            let corpus = vec![];
-
             $(
-                #[cfg( $( $meta ),* )]
-                corpus.push(($func.build_trace(), $func.fn_name()));
+                if $cond {
+                    corpus.push(($func.build_trace(), $func.fn_name()));
+                }
             )*
 
             corpus
@@ -1910,24 +1908,26 @@ macro_rules! corpus {
     };
 }
 
-pub fn create_corpus() -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
+pub fn create_corpus(
+    put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
+) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
     corpus!(
         // Full Handshakes
-        seed_successful: cfg(feature = "tls13"),
-        seed_successful_with_ccs: cfg(feature = "tls13"),
-        seed_successful_with_tickets: cfg(feature = "tls13"),
-        seed_successful12: cfg(all(feature = "tls12", not(feature = "tls12-session-resumption"))),
-        seed_successful12_with_tickets: cfg(all(feature = "tls12", feature = "tls12-session-resumption")),
+        seed_successful: put.supports("tls13"),
+        seed_successful_with_ccs: put.supports("tls13"),
+        seed_successful_with_tickets: put.supports("tls13"),
+        seed_successful12: put.supports("tls12") && !put.supports("tls12-session-resumption"),
+        seed_successful12_with_tickets: put.supports("tls12") && put.supports("tls12-session-resumption"),
         // Client Attackers
-        seed_client_attacker: cfg(feature = "tls13"),
-        seed_client_attacker_full: cfg(feature = "tls13"),
-        seed_client_attacker_auth: cfg(all(feature = "tls13", feature = "client-authentication-transcript-extraction")),
-        seed_client_attacker12: cfg(feature = "tls12"),
+        seed_client_attacker: put.supports("tls13"),
+        seed_client_attacker_full: put.supports("tls13"),
+        seed_client_attacker_auth: put.supports("tls13") && put.supports("client-authentication-transcript-extraction"),
+        seed_client_attacker12: put.supports("tls12"),
         // Session resumption
-        seed_session_resumption_dhe: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
-        seed_session_resumption_ke: cfg(all(feature = "tls13", feature = "tls13-session-resumption")),
+        seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13-session-resumption"),
+        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13-session-resumption"),
         // Server Attackers
-        seed_server_attacker_full: cfg(feature = "tls13")
+        seed_server_attacker_full: put.supports("tls13"),
     )
 }
 
@@ -1949,10 +1949,9 @@ pub mod tests {
         }
     }
 
-    #[test_log::test]
-    #[cfg(feature = "tls12")]
-    fn test_seed_client_attacker12() {
-        let runner = default_runner_for(tls_registry().default().name());
+    #[apply(test_puts, filter = tls12)]
+    fn test_seed_client_attacker12(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_client_attacker12.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -1960,11 +1959,9 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(feature = "transcript-extraction")] // this depends on extracted transcripts -> claims are required
-    #[test_log::test]
-    fn test_seed_client_attacker() {
-        let runner = default_runner_for(tls_registry().default().name());
+    #[apply(test_puts, filter = all(tls13, transcript_extraction))]
+    fn test_seed_client_attacker(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_client_attacker.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -1972,12 +1969,9 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(feature = "client-authentication-transcript-extraction")]
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test_log::test]
-    fn test_seed_client_attacker_auth() {
-        let runner = default_runner_for(tls_registry().default().name());
+    #[apply(test_puts, filter = all(tls13, client_authentication_transcript_extraction, not(boringssl)))]
+    fn test_seed_client_attacker_auth(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_client_attacker_auth.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -1985,10 +1979,9 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[test_log::test]
-    fn test_seed_client_attacker_full() {
-        let runner = default_runner_for(tls_registry().default().name());
+    #[apply(test_puts, filter = tls13)]
+    fn test_seed_client_attacker_full(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_client_attacker_full.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -1997,10 +1990,9 @@ pub mod tests {
     }
 
     /// Run seed_client_attacker_full_precomputation to test precomputations
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[test_log::test]
-    fn test_precomputations() {
-        let runner = default_runner_for(tls_registry().default().name());
+    #[apply(test_puts, filter = tls13)]
+    fn test_precomputations(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_client_attacker_full_precomputation.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -2008,11 +2000,9 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test_log::test]
-    fn test_seed_server_attacker_full() {
-        let runner = default_runner_for(tls_registry().default().name());
+    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    fn test_seed_server_attacker_full(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_server_attacker_full.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -2020,12 +2010,9 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(not(feature = "wolfssl-disable-postauth"))]
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test_log::test]
-    fn test_seed_session_resumption_dhe() {
-        let runner = default_runner_for(tls_registry().default().name());
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth), not(boringssl)))]
+    fn test_seed_session_resumption_dhe(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_session_resumption_dhe.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -2033,12 +2020,9 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(not(feature = "wolfssl-disable-postauth"))]
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test_log::test]
-    fn test_seed_session_resumption_dhe_full() {
-        let runner = default_runner_for(tls_registry().default().name());
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth), not(boringssl)))]
+    fn test_seed_session_resumption_dhe_full(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_session_resumption_dhe_full.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -2046,12 +2030,9 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(not(feature = "wolfssl-disable-postauth"))]
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test_log::test]
-    fn test_seed_session_resumption_ke() {
-        let runner = default_runner_for(tls_registry().default().name());
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth), not(boringssl)))]
+    fn test_seed_session_resumption_ke(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_session_resumption_ke.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -2059,11 +2040,9 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test_log::test]
-    fn test_seed_successful() {
-        let runner = default_runner_for(tls_registry().default().name());
+    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    fn test_seed_successful(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_successful.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -2071,11 +2050,9 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test_log::test]
-    fn test_seed_successful_client_auth() {
-        let runner = default_runner_for(tls_registry().default().name());
+    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    fn test_seed_successful_client_auth(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_successful_client_auth.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -2083,15 +2060,13 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[test_log::test]
+    #[apply(test_puts, attrs = [should_panic], filter = tls13)]
     // Cases:
     // expected = "Not the best cipher choosen", // in case MITM attack succeeded because transcript
     // is ignored -> We detect the MITM and error expected = "decryption failed or bad record
     // mac"  // in case MITM attack did fail
-    #[should_panic]
-    fn test_seed_successful_mitm() {
-        let runner = default_runner_for(tls_registry().default().name());
+    fn test_seed_successful_mitm(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_successful_mitm.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -2099,11 +2074,9 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[cfg(feature = "tls13")] // require version which supports TLS 1.3
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test_log::test]
-    fn test_seed_successful_with_ccs() {
-        let runner = default_runner_for(tls_registry().default().name());
+    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    fn test_seed_successful_with_ccs(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_successful_with_ccs.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -2113,11 +2086,9 @@ pub mod tests {
 
     // require version which supports TLS 1.3 and session resumption (else no tickets are sent)
     // LibreSSL does not yet support PSK
-    #[cfg(all(feature = "tls13", feature = "tls13-session-resumption"))]
-    #[cfg(not(feature = "boringssl-binding"))]
-    #[test_log::test]
-    fn test_seed_successful_with_tickets() {
-        let runner = default_runner_for(tls_registry().default().name());
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(boringssl)))]
+    fn test_seed_successful_with_tickets(put: &str) {
+        let runner = default_runner_for(put);
         let trace = seed_successful_with_tickets.build_trace();
 
         let ctx = runner.execute(trace).unwrap();
@@ -2125,15 +2096,15 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[test_log::test]
-    #[cfg(feature = "tls12")]
-    #[cfg(not(feature = "boringssl-binding"))]
-    fn test_seed_successful12() {
-        let runner = default_runner_for(tls_registry().default().name());
-        #[cfg(feature = "tls12-session-resumption")]
-        let trace = seed_successful12_with_tickets.build_trace();
-        #[cfg(not(feature = "tls12-session-resumption"))]
-        let trace = seed_successful12.build_trace();
+    #[apply(test_puts, filter = all(tls12, not(boringssl)))]
+    fn test_seed_successful12(put: &str) {
+        let runner = default_runner_for(put);
+
+        let trace = if supports!(put, "tls12_session_resumption") {
+            seed_successful12_with_tickets.build_trace()
+        } else {
+            seed_successful12.build_trace()
+        };
 
         let ctx = runner.execute(trace).unwrap();
 
@@ -2144,10 +2115,10 @@ pub mod tests {
     fn test_corpus_file_sizes() {
         use puffin::trace::Action;
 
-        let client = puffin::agent::AgentName::first();
-        let _server = client.next();
+        let registry = tls_registry();
+        let factory = registry.default();
 
-        for (trace, name) in create_corpus() {
+        for (trace, name) in create_corpus(factory) {
             for step in &trace.steps {
                 match &step.action {
                     Action::Input(input) => {

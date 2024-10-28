@@ -298,6 +298,7 @@ test-utils = ["tempfile"]
 [dependencies]
 
 puffin = { path = "../puffin" }
+puffin-macros = { path = "../puffin-macros" }
 
 log = { workspace = true }
 #features = ["release_max_level_off", "max_level_warn"]

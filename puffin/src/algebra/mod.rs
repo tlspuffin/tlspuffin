@@ -111,7 +111,7 @@ pub mod test_signature {
         ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
         ProtocolTypes,
     };
-    use crate::put::{Put, PutOptions};
+    use crate::put::{Put, PutDescriptor, PutOptions};
     use crate::put_registry::Factory;
     use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace};
     use crate::{
@@ -614,7 +614,7 @@ pub mod test_signature {
         type ProtocolTypes = TestProtocolTypes;
         type SecurityViolationPolicy = TestSecurityViolationPolicy;
 
-        fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
+        fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
             panic!("Not implemented for test stub");
         }
 
@@ -647,6 +647,10 @@ pub mod test_signature {
                 "harness".to_string(),
                 format!("{} {}", self.name(), puffin::full_version()),
             )]
+        }
+
+        fn supports(&self, _capability: &str) -> bool {
+            false
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {
