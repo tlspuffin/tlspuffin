@@ -60,12 +60,16 @@ pub fn fn_get_server_key_share(
 ) -> Result<Option<Vec<u8>>, FnError> {
     let server_extension = server_extensions
         .find_extension(ExtensionType::KeyShare)
-        .ok_or(FnError::Unknown("KeyShare extension not found".to_string()))?;
+        .ok_or(FnError::Malformed(
+            "KeyShare extension not found".to_string(),
+        ))?;
 
     if let ServerExtension::KeyShare(keyshare) = server_extension {
         Ok(Some(keyshare.payload.0.clone()))
     } else {
-        Err(FnError::Unknown("KeyShare extension not found".to_string()))
+        Err(FnError::Malformed(
+            "KeyShare extension not found".to_string(),
+        ))
     }
 }
 
@@ -76,17 +80,21 @@ pub fn fn_get_client_key_share(
     let client_extension = client_extensions
         .iter()
         .find(|x| x.get_type() == ExtensionType::KeyShare)
-        .ok_or(FnError::Unknown("KeyShare extension not found".to_string()))?;
+        .ok_or(FnError::Malformed(
+            "KeyShare extension not found".to_string(),
+        ))?;
 
     if let ClientExtension::KeyShare(keyshares) = client_extension {
         let keyshare = keyshares
             .0
             .iter()
             .find(|keyshare| keyshare.group == *group)
-            .ok_or(FnError::Unknown("Keyshare not found".to_string()))?;
+            .ok_or(FnError::Malformed("Keyshare not found".to_string()))?;
         Ok(Some(keyshare.payload.0.clone()))
     } else {
-        Err(FnError::Unknown("KeyShare extension not found".to_string()))
+        Err(FnError::Malformed(
+            "KeyShare extension not found".to_string(),
+        ))
     }
 }
 
@@ -96,16 +104,20 @@ pub fn fn_get_any_client_curve(
     let client_extension = client_extensions
         .iter()
         .find(|x| x.get_type() == ExtensionType::KeyShare)
-        .ok_or(FnError::Unknown("KeyShare extension not found".to_string()))?;
+        .ok_or(FnError::Malformed(
+            "KeyShare extension not found".to_string(),
+        ))?;
 
     if let ClientExtension::KeyShare(keyshares) = client_extension {
         Ok(keyshares
             .0
             .first()
-            .ok_or(FnError::Unknown("Keyshare not found".to_string()))?
+            .ok_or(FnError::Malformed("Keyshare not found".to_string()))?
             .group)
     } else {
-        Err(FnError::Unknown("KeyShare extension not found".to_string()))
+        Err(FnError::Malformed(
+            "KeyShare extension not found".to_string(),
+        ))
     }
 }
 

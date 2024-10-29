@@ -130,7 +130,7 @@ pub fn dhe_key_schedule(
                     .output_len],
             ))
         }
-        (None, None) => Err(FnError::Unknown(
+        (None, None) => Err(FnError::Malformed(
             "Need at least a key share or a psk".to_owned(),
         )),
     };
