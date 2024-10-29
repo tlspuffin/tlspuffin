@@ -181,14 +181,14 @@ where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<RemoveAndLiftMutator<S>>()
+        std::any::type_name::<Self>()
     }
 }
 
 /// REPLACE-MATCH: Replaces a function symbol with a different one (such that types match).
 ///
 /// An example would be to replace a constant with another constant or the binary function
-/// fn_add with fn_sub.
+/// `fn_add` with `fn_sub`.
 /// It can also replace any variable with a constant.
 pub struct ReplaceMatchMutator<S, PT: ProtocolTypes>
 where
@@ -204,7 +204,7 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(constraints: TermConstraints, signature: &'static Signature<PT>) -> Self {
+    pub const fn new(constraints: TermConstraints, signature: &'static Signature<PT>) -> Self {
         Self {
             constraints,
             signature,
@@ -267,7 +267,7 @@ where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<ReplaceMatchMutator<S, PT>>()
+        std::any::type_name::<Self>()
     }
 }
 
@@ -288,7 +288,7 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(constraints: TermConstraints) -> Self {
+    pub const fn new(constraints: TermConstraints) -> Self {
         Self {
             constraints,
             phantom_s: std::marker::PhantomData,
@@ -327,7 +327,7 @@ where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<ReplaceReuseMutator<S>>()
+        std::any::type_name::<Self>()
     }
 }
 
@@ -380,7 +380,7 @@ where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<SkipMutator<S>>()
+        std::any::type_name::<Self>()
     }
 }
 
@@ -397,7 +397,7 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(max_trace_length: usize) -> Self {
+    pub const fn new(max_trace_length: usize) -> Self {
         Self {
             max_trace_length,
             phantom_s: std::marker::PhantomData,
@@ -433,7 +433,7 @@ where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<RepeatMutator<S>>()
+        std::any::type_name::<Self>()
     }
 }
 
@@ -454,7 +454,7 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub fn new(
+    pub const fn new(
         mutation_counter: u64,
         refresh_zoo_after: u64,
         constraints: TermConstraints,
@@ -510,7 +510,7 @@ where
     S: HasRand,
 {
     fn name(&self) -> &str {
-        std::any::type_name::<GenerateMutator<S, PT>>()
+        std::any::type_name::<Self>()
     }
 }
 

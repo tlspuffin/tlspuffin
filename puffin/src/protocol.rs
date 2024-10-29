@@ -25,8 +25,8 @@ impl<T: 'static> AsAny for T {
 /// Provide a way to extract knowledge out of a Message/OpaqueMessage or any type that
 /// might be used in a precomputation
 pub trait EvaluatedTerm<PT: ProtocolTypes>: std::fmt::Debug + AsAny {
-    /// Fill `knowledges` with new knowledge gathered form the type implementing EvaluatedTerm
-    /// by recursively calling extract_knowledge on all contained element
+    /// Fill `knowledges` with new knowledge gathered form the type implementing `EvaluatedTerm`
+    /// by recursively calling `extract_knowledge` on all contained element
     /// This will put source as the source of all the produced knowledge, matcher is also passed
     /// recursively but might be overwritten by a type with a more specific matcher
     fn extract_knowledge<'a>(
@@ -113,7 +113,8 @@ pub trait OpaqueProtocolMessage<PT: ProtocolTypes>:
     fn debug(&self, info: &str);
 }
 
-/// Deframes a stream of bytes into distinct [OpaqueProtocolMessages](OpaqueProtocolMessage).
+/// Deframes a stream of bytes into distinct [`OpaqueProtocolMessages`](OpaqueProtocolMessage).
+///
 /// A deframer is usually state-ful. This means it produces as many messages from the input bytes
 /// and stores them.
 pub trait ProtocolMessageDeframer<PT: ProtocolTypes> {

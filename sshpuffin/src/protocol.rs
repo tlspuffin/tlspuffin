@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use puffin::algebra::signature::Signature;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
@@ -169,7 +167,7 @@ impl ProtocolTypes for SshProtocolTypes {
     }
 }
 
-impl Display for SshProtocolTypes {
+impl std::fmt::Display for SshProtocolTypes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "")
     }

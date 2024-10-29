@@ -34,10 +34,12 @@ impl<PT: ProtocolTypes, C: Claim<PT>> ClaimList<PT, C> {
     }
 
     /// finds the last claim matching `type`
+    #[must_use]
     pub fn find_last_claim_by_type<T: 'static>(&self, agent_name: AgentName) -> Option<&C> {
         self.find_last_claim(agent_name, TypeShape::<PT>::of::<T>())
     }
 
+    #[must_use]
     pub fn find_last_claim(&self, agent_name: AgentName, shape: TypeShape<PT>) -> Option<&C> {
         self.claims
             .iter()
@@ -45,6 +47,7 @@ impl<PT: ProtocolTypes, C: Claim<PT>> ClaimList<PT, C> {
             .find(|claim| claim.id() == shape && claim.agent_name() == agent_name)
     }
 
+    #[must_use]
     pub fn slice(&self) -> &[C] {
         &self.claims
     }
@@ -77,6 +80,7 @@ impl<PT: ProtocolTypes, C: Claim<PT>> From<Vec<C>> for ClaimList<PT, C> {
 }
 
 impl<PT: ProtocolTypes, C: Claim<PT>> ClaimList<PT, C> {
+    #[must_use]
     pub const fn new() -> Self {
         Self {
             claims: vec![],
@@ -95,16 +99,19 @@ pub struct GlobalClaimList<PT: ProtocolTypes, C: Claim<PT>> {
 }
 
 impl<PT: ProtocolTypes, C: Claim<PT>> GlobalClaimList<PT, C> {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             claims: Rc::new(RefCell::new(ClaimList::new())),
         }
     }
 
+    #[must_use]
     pub fn deref_borrow(&self) -> Ref<'_, ClaimList<PT, C>> {
         self.claims.deref().borrow()
     }
 
+    #[must_use]
     pub fn deref_borrow_mut(&self) -> RefMut<'_, ClaimList<PT, C>> {
         self.claims.deref().borrow_mut()
     }

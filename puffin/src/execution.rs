@@ -62,7 +62,7 @@ pub struct ForkedRunner<T: TraceRunner> {
 }
 
 impl<T: TraceRunner> ForkedRunner<T> {
-    pub fn new(runner: T) -> Self {
+    pub const fn new(runner: T) -> Self {
         Self {
             runner,
             timeout: None,
@@ -80,7 +80,7 @@ where
     T: TraceRunner,
 {
     fn from(runner: T) -> Self {
-        ForkedRunner::new(runner)
+        Self::new(runner)
     }
 }
 
@@ -201,7 +201,7 @@ struct WatchDog {
 }
 
 impl WatchDog {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { channel: None }
     }
 
@@ -241,19 +241,17 @@ impl TryFrom<Result<WaitStatus, Errno>> for ExecutionStatus {
 
     fn try_from(status: Result<WaitStatus, Errno>) -> Result<Self, Self::Error> {
         match status {
-            Ok(Signaled(_, Signal::SIGSEGV, _)) | Ok(Signaled(_, Signal::SIGABRT, _)) => {
-                Ok(ExecutionStatus::Crashed)
-            }
-            Ok(Signaled(_, _, _)) => Ok(ExecutionStatus::Interrupted),
+            Ok(Signaled(_, Signal::SIGSEGV | Signal::SIGABRT, _)) => Ok(Self::Crashed),
+            Ok(Signaled(_, _, _)) => Ok(Self::Interrupted),
             Ok(Exited(_, code)) => match code {
-                0 => Ok(ExecutionStatus::Success),
-                _ => Ok(ExecutionStatus::Failure(code)),
+                0 => Ok(Self::Success),
+                _ => Ok(Self::Failure(code)),
             },
             Ok(s) => Err(ForkError {
-                reason: format!("failed to retrieve process status: {:?}", s),
+                reason: format!("failed to retrieve process status: {s:?}"),
             }),
             Err(e) => Err(ForkError {
-                reason: format!("failed to retrieve process status: {:?}", e),
+                reason: format!("failed to retrieve process status: {e:?}"),
             }),
         }
     }

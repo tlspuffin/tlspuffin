@@ -1,6 +1,7 @@
 //! The communication streams between [`Agent`](crate::agent::Agent)s.
 //!
 //! These are currently implemented by using an in-memory buffer.
+//!
 //! One might ask why we want two channels. There two very practical reasons
 //! for this. Note that these are advantages for the implementation and are not
 //! strictly required from a theoretical point of view.
@@ -40,10 +41,10 @@ pub trait Stream<PB: ProtocolBehavior> {
 /// in [`MemoryStream`]. Internally a Channel is just an in-memory seekable buffer.
 pub type Channel = io::Cursor<Vec<u8>>;
 
-/// A MemoryStream has two [`Channel`]s. The Stream also implements the [`Write`] and [`Read`]
+/// A `MemoryStream` has two [`Channel`]s. The Stream also implements the [`Write`] and [`Read`]
 /// trait.
-/// * When writing to a MemoryStream its outbound channel gets filled.
-/// * When reading from a MemoryStream data is taken from the inbound channel.
+/// * When writing to a `MemoryStream` its outbound channel gets filled.
+/// * When reading from a `MemoryStream` data is taken from the inbound channel.
 ///
 /// This makes it possible for an [`crate::agent::Agent`] to treat a [`MemoryStream`] like a TLS
 /// socket! By writing to this socket you are sending data out. By reading from it you receive data.
@@ -57,6 +58,7 @@ pub struct MemoryStream {
 }
 
 impl MemoryStream {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             inbound: io::Cursor::new(Vec::new()),

@@ -384,7 +384,7 @@ where
             false,
         );
 
-        return {
+        {
             let time_observer = TimeObserver::new("time");
             let edges_observer =
                 HitcountsMapObserver::new(unsafe { StdMapObserver::new(EDGES_OBSERVER_NAME, map) });
@@ -399,7 +399,7 @@ where
             );
             let observers = tuple_list!(edges_observer, time_observer);
             (feedback, observers)
-        };
+        }
     }
 }
 

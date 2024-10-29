@@ -9,6 +9,7 @@
 //     should reactivate the dead_code lint, as it provides valuable insights.
 #![allow(dead_code)]
 
+use puffin::algebra::dynamic_function::FunctionAttributes;
 pub mod deframe;
 pub mod message;
 mod seeds;
@@ -22,7 +23,6 @@ pub mod fn_impl {
 }
 
 use fn_impl::*;
-use puffin::algebra::dynamic_function::FunctionAttributes;
 use puffin::define_signature;
 
 use crate::protocol::SshProtocolTypes;

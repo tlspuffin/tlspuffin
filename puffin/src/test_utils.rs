@@ -5,6 +5,7 @@ use crate::protocol::ProtocolTypes;
 use crate::trace::{Action, Trace};
 
 impl<PT: ProtocolTypes> Trace<PT> {
+    #[must_use]
     pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
         self.steps
             .iter()
@@ -15,10 +16,11 @@ impl<PT: ProtocolTypes> Trace<PT> {
             .sum()
     }
 
+    #[must_use]
     pub fn count_functions(&self) -> usize {
         self.steps
             .iter()
-            .flat_map(|step| match &step.action {
+            .filter_map(|step| match &step.action {
                 Action::Input(input) => Some(&input.recipe),
                 Action::Output(_) => None,
             })

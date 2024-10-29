@@ -90,6 +90,7 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
         self.terms.choose_filtered(filter, rand)
     }
 
+    #[must_use]
     pub fn terms(&self) -> &[Term<PT>] {
         &self.terms
     }

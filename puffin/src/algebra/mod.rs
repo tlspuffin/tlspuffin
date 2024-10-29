@@ -93,7 +93,6 @@ impl Matcher for AnyMatcher {
 pub mod test_signature {
     use std::any::{Any, TypeId};
     use std::fmt;
-    use std::fmt::{Debug, Display};
     use std::io::Read;
 
     use serde::{Deserialize, Serialize};
@@ -605,7 +604,7 @@ pub mod test_signature {
         }
     }
 
-    impl Display for TestProtocolTypes {
+    impl fmt::Display for TestProtocolTypes {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "")
         }
@@ -756,7 +755,7 @@ mod tests {
         let registry =
             PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
 
-        let spawner = Spawner::new(registry.clone());
+        let spawner = Spawner::new(registry);
         let mut context = TraceContext::new(spawner);
         context
             .knowledge_store
