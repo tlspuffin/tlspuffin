@@ -7,14 +7,45 @@ use crate::algebra::signature::Signature;
 use crate::algebra::{Subterms, Term};
 use crate::fuzzer::term_zoo::TermZoo;
 use crate::protocol::ProtocolTypes;
+use crate::put_registry::PutRegistry;
 use crate::trace::Trace;
 
-pub fn trace_mutations<S, PT: ProtocolTypes>(
+#[derive(Clone, Copy, Debug)]
+pub struct MutationConfig {
+    pub fresh_zoo_after: u64,
+    pub max_trace_length: usize,
+    pub min_trace_length: usize,
+    /// Below this term size we no longer mutate. Note that it is possible to reach
+    /// smaller terms by having a mutation which removes all symbols in a single mutation.
+    /// Above this term size we no longer mutate.
+    pub term_constraints: TermConstraints,
+    pub with_bit_level: bool,
+    pub with_dy: bool,
+}
+
+impl Default for MutationConfig {
+    //  TODO:EVAL: evaluate modifs to this config
+    fn default() -> Self {
+        Self {
+            fresh_zoo_after: 100000,
+            max_trace_length: 15,
+            min_trace_length: 2,
+            term_constraints: TermConstraints::default(),
+            with_bit_level: true,
+            with_dy: true,
+        }
+    }
+}
+
+pub fn trace_mutations<'harness, S, PT: ProtocolTypes, PB>(
     min_trace_length: usize,
     max_trace_length: usize,
     constraints: TermConstraints,
     fresh_zoo_after: u64,
+    _with_bit_level: bool,
+    _with_dy: bool,
     signature: &'static Signature<PT>,
+    _put_registry: &'harness PutRegistry<PB>,
 ) -> tuple_list_type!(
       RepeatMutator<S>,
       SkipMutator<S>,
