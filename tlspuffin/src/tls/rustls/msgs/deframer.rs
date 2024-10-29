@@ -360,6 +360,7 @@ mod tests {
     }
 
     #[test_log::test]
+    #[cfg(feature = "enable-guards")]
     fn test_invalid_contenttype_errors() {
         let mut d = MessageDeframer::new();
         assert_len(
@@ -370,6 +371,7 @@ mod tests {
     }
 
     #[test_log::test]
+    #[cfg(feature = "enable-guards")]
     fn test_invalid_version_errors() {
         let mut d = MessageDeframer::new();
         assert_len(
@@ -380,6 +382,7 @@ mod tests {
     }
 
     #[test_log::test]
+    #[cfg(feature = "enable-guards")]
     fn test_invalid_length_errors() {
         let mut d = MessageDeframer::new();
         assert_len(
@@ -404,6 +407,7 @@ mod tests {
     }
 
     #[test_log::test]
+    #[cfg(feature = "enable-guards")]
     fn test_invalid_empty_errors() {
         let mut d = MessageDeframer::new();
         assert_len(

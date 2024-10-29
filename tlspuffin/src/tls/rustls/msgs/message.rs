@@ -4,6 +4,8 @@ use crate::tls::rustls::error::Error;
 use crate::tls::rustls::msgs::alert::AlertMessagePayload;
 use crate::tls::rustls::msgs::base::Payload;
 use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
+use crate::tls::rustls::msgs::enums::ContentType::ApplicationData;
+use crate::tls::rustls::msgs::enums::ProtocolVersion::TLSv1_3;
 use crate::tls::rustls::msgs::enums::{
     AlertDescription, AlertLevel, ContentType, HandshakeType, ProtocolVersion,
 };
@@ -144,10 +146,18 @@ impl OpaqueMessage {
     /// `MessageError` allows callers to distinguish between valid prefixes (might
     /// become valid if we read more data) and invalid data.
     pub fn read(r: &mut Reader) -> Result<Self, MessageError> {
+        #[cfg(not(feature = "enable-guards"))]
+        let typ = ContentType::read(r).unwrap_or(ApplicationData);
+        #[cfg(not(feature = "enable-guards"))]
+        let version = ProtocolVersion::read(r).unwrap_or(TLSv1_3);
+
+        #[cfg(feature = "enable-guards")]
         let typ = ContentType::read(r).ok_or(MessageError::TooShortForHeader)?;
+        #[cfg(feature = "enable-guards")]
         let version = ProtocolVersion::read(r).ok_or(MessageError::TooShortForHeader)?;
         let len = u16::read(r).ok_or(MessageError::TooShortForHeader)?;
 
+        #[cfg(feature = "enable-guards")]
         // Reject undersize messages
         //  implemented per section 5.1 of RFC8446 (TLSv1.3)
         //              per section 6.2.1 of RFC5246 (TLSv1.2)
@@ -155,16 +165,19 @@ impl OpaqueMessage {
             return Err(MessageError::IllegalLength);
         }
 
+        #[cfg(feature = "enable-guards")]
         // Reject oversize messages
         if len >= Self::MAX_PAYLOAD {
             return Err(MessageError::IllegalLength);
         }
 
+        #[cfg(feature = "enable-guards")]
         // Don't accept any new content-types.
         if let ContentType::Unknown(_) = typ {
             return Err(MessageError::IllegalContentType);
         }
 
+        #[cfg(feature = "enable-guards")]
         // Accept only versions 0x03XX for any XX.
         match version {
             ProtocolVersion::Unknown(ref v) if (v & 0xff00) != 0x0300 => {

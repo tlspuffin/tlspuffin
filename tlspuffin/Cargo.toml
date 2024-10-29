@@ -289,6 +289,9 @@ client-authentication-transcript-extraction = []
 
 introspection = ["puffin/introspection"]
 
+# Enable rustls guards rejecting ill-formed messages, those are disabled by default to allow the fuzzer to explore more messages
+enable-guards = []
+
 # utility functions for testing tlspuffin
 test-utils = ["tempfile"]
 
