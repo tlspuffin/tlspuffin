@@ -107,36 +107,42 @@ impl<PT: ProtocolTypes> Clone for Function<PT> {
 }
 
 impl<PT: ProtocolTypes> Function<PT> {
-    pub fn attrs(&self) -> Option<FunctionAttributes> {
-        PT::signature()
-            .attrs_by_name
-            .get(self.name())
-            .map(|attrs| *attrs)
+    pub fn attrs(&self) -> FunctionAttributes {
+        self.fn_container.attrs
     }
 
     pub fn is_opaque(&self) -> bool {
-        self.attrs().map(|attrs| attrs.is_opaque).unwrap_or(false) || self.is_get() // Added this
-                                                                                    // as bit-level
-                                                                                    // mutations currently
-                                                                                    // interpret `get`
-                                                                                    // symbols as
-                                                                                    // `opaque` symbols
+        self.fn_container.attrs.is_opaque || self.is_get() // Added this
+                                                           // as bit-level
+                                                           // mutations currently
+                                                           // interpret `get`
+                                                           // symbols as
+                                                           // `opaque` symbols
     }
 
     pub fn is_list(&self) -> bool {
-        self.attrs().map(|attrs| attrs.is_list).unwrap_or(false)
+        self.fn_container.attrs.is_list
     }
 
     pub fn is_get(&self) -> bool {
-        self.attrs().map(|attrs| attrs.is_get).unwrap_or(false)
+        self.fn_container.attrs.is_get
     }
 
     #[must_use]
     pub fn new(shape: DynamicFunctionShape<PT>, dynamic_fn: Box<dyn DynamicFunction<PT>>) -> Self {
+        let attrs = PT::signature()
+            .attrs_by_name
+            .get(shape.name)
+            .map(|attrs| *attrs)
+            .unwrap_or_default(); // Default to empty attributes, use Signature::new to provide attributes
         Self {
             unique_id: random(),
             resistant_id: random(),
-            fn_container: FnContainer { shape, dynamic_fn },
+            fn_container: FnContainer {
+                shape,
+                dynamic_fn,
+                attrs,
+            },
         }
     }
 
@@ -189,7 +195,9 @@ mod fn_container {
     use serde::ser::SerializeStruct;
     use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-    use crate::algebra::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
+    use crate::algebra::dynamic_function::{
+        DynamicFunction, DynamicFunctionShape, FunctionAttributes, TypeShape,
+    };
     use crate::algebra::signature::Signature;
     use crate::protocol::ProtocolTypes;
 
@@ -202,6 +210,7 @@ mod fn_container {
     pub struct FnContainer<PT: ProtocolTypes> {
         pub shape: DynamicFunctionShape<PT>,
         pub dynamic_fn: Box<dyn DynamicFunction<PT>>,
+        pub attrs: FunctionAttributes,
     }
 
     impl<PT: ProtocolTypes> Hash for FnContainer<PT> {
@@ -262,6 +271,13 @@ mod fn_container {
                 .get(name)
                 .ok_or_else(|| de::Error::custom(format!("could not find function {name}")))?;
 
+            let attrs = self
+                .signature
+                .attrs_by_name
+                .get(name)
+                .map(|attrs| *attrs)
+                .ok_or_else(|| de::Error::custom(format!("could not find function {name}")))?;
+
             if name != shape.name {
                 return Err(de::Error::custom("Function<PT> name does not match!"));
             }
@@ -275,6 +291,7 @@ mod fn_container {
             Ok(FnContainer {
                 shape: shape.clone(),
                 dynamic_fn: dynamic_fn.clone(),
+                attrs,
             })
         }
 
@@ -318,6 +335,16 @@ mod fn_container {
                         "Failed to link function symbol: Could not find function {name}"
                     ))
                 })?;
+            let attrs = self
+                .signature
+                .attrs_by_name
+                .get(name)
+                .map(|attrs| *attrs)
+                .ok_or_else(|| {
+                    de::Error::custom(format!(
+                        "Failed to link function symbol: Could not find function {name}"
+                    ))
+                })?;
 
             let argument_types = arguments.ok_or_else(|| de::Error::missing_field(ARGUMENTS))?;
             let return_type = ret.ok_or_else(|| de::Error::missing_field(RETURN))?;
@@ -335,6 +362,7 @@ mod fn_container {
             Ok(FnContainer {
                 shape: shape.clone(),
                 dynamic_fn: dynamic_fn.clone(),
+                attrs,
             })
         }
     }
