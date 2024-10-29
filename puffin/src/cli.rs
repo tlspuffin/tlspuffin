@@ -155,8 +155,6 @@ where
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
-        let _n: usize = *matches.get_one("number").unwrap_or(&inputs.len());
-        let _is_batch: bool = matches.get_one::<usize>("number").is_some();
 
         let mut paths = inputs
             .flat_map(|input| {

@@ -70,9 +70,9 @@ macro_rules! declare_u16_vec_empty (
 
       fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
         Some($name(puffin::codec::read_vec_u16::<$itemtype>(r)?)) // we still try to read even though we might
-          // mis-interpret a ['0'] as being the empty list, which is must hozever must be serialized as [] (empty bittstring).
+          // mis-interpret a ['0'] as being the empty list, which is must however must be serialized as [] (empty bittstring).
           // This is a trade-off we accept to be able to correctly read in most cases (non-empty lists).
-          // Moroever, when reading a struct cintaining $name as a field, we shall first check that there is remaining
+          // Moroever, when reading a struct containing $name as a field, we shall first check that there is remaining
           // bytes to read!
       }
     }
@@ -1200,7 +1200,7 @@ impl Codec for HelloRetryRequest {
         Some(Self {
             legacy_version: ProtocolVersion::Unknown(0), /* will be stored by the HandShake
                                                           * message wrapping this payload */
-            random: fn_hello_retry_request_random().unwrap(), //s ame
+            random: fn_hello_retry_request_random().unwrap(), // same
             session_id,
             cipher_suite,
             compression_methods,

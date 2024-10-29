@@ -79,16 +79,16 @@ pub trait Codec: Debug + Sized {
     /// Encode yourself by appending onto `bytes`.
     fn encode(&self, bytes: &mut Vec<u8>);
 
+    /// Decode yourself by fiddling with the `Reader`.
+    /// Return Some if it worked, None if not.
+    fn read(_: &mut Reader) -> Option<Self>;
+
     /// Convenience function to get the results of `encode()`.
     fn get_encoding(&self) -> Vec<u8> {
         let mut ret = Vec::new();
         self.encode(&mut ret);
         ret
     }
-
-    /// Decode yourself by fiddling with the `Reader`.
-    /// Return Some if it worked, None if not.
-    fn read(_: &mut Reader) -> Option<Self>;
 
     /// Read one of these from the front of `bytes` and
     /// return it.

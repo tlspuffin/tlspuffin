@@ -22,7 +22,7 @@ pub trait SecurityViolationPolicy<PT: ProtocolTypes, C: Claim<PT>> {
     fn check_violation(claims: &[C]) -> Option<&'static str>;
 }
 
-#[derive(Default, Clone, Debug, PartialEq, Eq)]
+#[derive(Default, Clone, Debug, PartialEq)]
 pub struct ClaimList<PT: ProtocolTypes, C: Claim<PT>> {
     claims: Vec<C>,
     phantom: PhantomData<PT>,
@@ -93,7 +93,7 @@ impl<PT: ProtocolTypes, C: Claim<PT>> ClaimList<PT, C> {
     }
 }
 
-#[derive(Default, Clone, PartialEq, Eq, Debug)]
+#[derive(Default, Clone, PartialEq, Debug)]
 pub struct GlobalClaimList<PT: ProtocolTypes, C: Claim<PT>> {
     claims: Rc<RefCell<ClaimList<PT, C>>>,
 }

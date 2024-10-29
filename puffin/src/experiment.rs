@@ -25,16 +25,15 @@ pub fn format_title<PB: ProtocolBehavior>(
 ) -> String {
     let date = Local::now().format("%Y-%m-%d");
     let hour = Local::now().format("%H-%M-%S");
-    let asan = if cfg!(feature = "asan") { "_asan" } else { "" };
     let without_bit_level = if without_bit_level { "_wo-bit" } else { "" };
     let without_dy_mutations = if without_dy_mutations { "_wo-dy" } else { "" };
     let put_use_clear = if put_use_clear { "_put-use-clear" } else { "" };
     let minimizer = if minimizer { "_minimizer" } else { "" };
-    let put: &str = &put_registry.default().versions().last().unwrap().1.clone();
-    let put = put.split('(').collect::<Vec<&str>>()[0].trim();
+    let default_put: &str = &put_registry.default().versions().last().unwrap().1.clone();
+    let default_put_short = default_put.split('(').collect::<Vec<&str>>()[0].trim();
     format!(
         "{date}\
-        --{put}-{num_cores}c{asan}{without_bit_level}{without_dy_mutations}{put_use_clear}{minimizer}__\
+        --{default_put_short}-{num_cores}c{without_bit_level}{without_dy_mutations}{put_use_clear}{minimizer}__\
         {title}--{hour}--{index}",
         date = date,
         title = title.unwrap_or(GIT_REF),
