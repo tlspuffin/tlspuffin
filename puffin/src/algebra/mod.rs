@@ -99,7 +99,7 @@ pub mod test_signature {
     use serde::{Deserialize, Serialize};
 
     use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
-    use crate::algebra::dynamic_function::TypeShape;
+    use crate::algebra::dynamic_function::{FunctionAttributes, TypeShape};
     use crate::algebra::error::FnError;
     use crate::algebra::{AnyMatcher, Term};
     use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
@@ -601,7 +601,7 @@ pub mod test_signature {
         type Matcher = AnyMatcher;
 
         fn signature() -> &'static Signature<Self> {
-            panic!("Not implemented for test stub");
+            &TEST_SIGNATURE
         }
     }
 

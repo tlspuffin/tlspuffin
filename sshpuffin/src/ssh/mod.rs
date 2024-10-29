@@ -22,6 +22,7 @@ pub mod fn_impl {
 }
 
 use fn_impl::*;
+use puffin::algebra::dynamic_function::FunctionAttributes;
 use puffin::define_signature;
 
 use crate::protocol::SshProtocolTypes;
