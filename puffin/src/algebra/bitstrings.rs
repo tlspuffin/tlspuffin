@@ -16,7 +16,7 @@ use crate::fuzzer::utils::{find_term_by_term_path, TermPath};
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
-/// Constants governing heuritics for finding payloads in term evaluations
+/// Constants governing heuristic for finding payloads in term evaluations
 const THRESHOLD_SUM: usize = 40;
 const THRESHOLD_RATIO: usize = 4;
 const ATT_BEFORE_FALLBACK: usize = 10;

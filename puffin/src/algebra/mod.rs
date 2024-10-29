@@ -177,15 +177,15 @@ pub mod test_signature {
         }
     }
 
-    pub const fn fn_hmac256_new_key() -> Result<HmacKey, FnError> {
+    pub fn fn_hmac256_new_key() -> Result<HmacKey, FnError> {
         Ok(HmacKey)
     }
 
-    pub const fn fn_hmac256(_key: &HmacKey, _msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+    pub fn fn_hmac256(_key: &HmacKey, _msg: &Vec<u8>) -> Result<Vec<u8>, FnError> {
         Ok(Vec::new())
     }
 
-    pub const fn fn_client_hello(
+    pub fn fn_client_hello(
         _version: &ProtocolVersion,
         _random: &Random,
         _id: &SessionID,
@@ -196,95 +196,90 @@ pub mod test_signature {
         Ok(HandshakeMessage)
     }
 
-    pub const fn fn_finished() -> Result<HandshakeMessage, FnError> {
+    pub fn fn_finished() -> Result<HandshakeMessage, FnError> {
         Ok(HandshakeMessage)
     }
 
-    pub const fn fn_protocol_version12() -> Result<ProtocolVersion, FnError> {
+    pub fn fn_protocol_version12() -> Result<ProtocolVersion, FnError> {
         Ok(ProtocolVersion)
     }
-    pub const fn fn_new_session_id() -> Result<SessionID, FnError> {
+    pub fn fn_new_session_id() -> Result<SessionID, FnError> {
         Ok(SessionID)
     }
 
-    pub const fn fn_new_random() -> Result<Random, FnError> {
+    pub fn fn_new_random() -> Result<Random, FnError> {
         Ok(Random)
     }
 
-    pub const fn fn_client_extensions_append(
+    pub fn fn_client_extensions_append(
         _extensions: &ClientExtensions,
         _extension: &ClientExtension,
     ) -> Result<ClientExtensions, FnError> {
         Ok(ClientExtensions)
     }
 
-    pub const fn fn_client_extensions_new() -> Result<ClientExtensions, FnError> {
+    pub fn fn_client_extensions_new() -> Result<ClientExtensions, FnError> {
         Ok(ClientExtensions)
     }
-    pub const fn fn_support_group_extension(_group: &Group) -> Result<ClientExtension, FnError> {
+    pub fn fn_support_group_extension(_group: &Group) -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
 
-    pub const fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
+    pub fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
-    pub const fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
+    pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
-    pub const fn fn_signed_certificate_timestamp_extension() -> Result<ClientExtension, FnError> {
+    pub fn fn_signed_certificate_timestamp_extension() -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
-    pub const fn fn_renegotiation_info_extension(
-        _info: &Vec<u8>,
-    ) -> Result<ClientExtension, FnError> {
+    pub fn fn_renegotiation_info_extension(_info: &Vec<u8>) -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
-    pub const fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnError> {
+    pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnError> {
         Ok(ClientExtension)
     }
 
-    pub const fn fn_empty_bytes_vec() -> Result<Vec<u8>, FnError> {
+    pub fn fn_empty_bytes_vec() -> Result<Vec<u8>, FnError> {
         Ok(Vec::new())
     }
 
-    pub const fn fn_named_group_secp384r1() -> Result<Group, FnError> {
+    pub fn fn_named_group_secp384r1() -> Result<Group, FnError> {
         Ok(Group)
     }
 
-    pub const fn fn_client_key_exchange() -> Result<HandshakeMessage, FnError> {
+    pub fn fn_client_key_exchange() -> Result<HandshakeMessage, FnError> {
         Ok(HandshakeMessage)
     }
 
-    pub const fn fn_new_cipher_suites() -> Result<CipherSuites, FnError> {
+    pub fn fn_new_cipher_suites() -> Result<CipherSuites, FnError> {
         Ok(CipherSuites)
     }
 
-    pub const fn fn_append_cipher_suite(
+    pub fn fn_append_cipher_suite(
         _suites: &CipherSuites,
         _suite: &CipherSuite,
     ) -> Result<CipherSuites, FnError> {
         Ok(CipherSuites)
     }
-    pub const fn fn_cipher_suite12() -> Result<CipherSuite, FnError> {
+    pub fn fn_cipher_suite12() -> Result<CipherSuite, FnError> {
         Ok(CipherSuite)
     }
 
-    pub const fn fn_compressions() -> Result<Compressions, FnError> {
+    pub fn fn_compressions() -> Result<Compressions, FnError> {
         Ok(Compressions)
     }
 
-    pub const fn fn_encrypt12(
-        _finished: &HandshakeMessage,
-        _seq: &u32,
-    ) -> Result<Encrypted, FnError> {
+    pub fn fn_encrypt12(_finished: &HandshakeMessage, _seq: &u32) -> Result<Encrypted, FnError> {
         Ok(Encrypted)
     }
 
-    pub const fn fn_seq_0() -> Result<u32, FnError> {
+    pub fn fn_seq_0() -> Result<u32, FnError> {
         Ok(0)
     }
 
-    pub const fn fn_seq_1() -> Result<u32, FnError> {
+    pub fn fn_seq_1() -> Result<u32, FnError> {
         Ok(1)
     }
 
@@ -611,7 +606,7 @@ pub mod test_signature {
         }
     }
 
-    impl std::fmt::Display for TestProtocolTypes {
+    impl fmt::Display for TestProtocolTypes {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "")
         }
@@ -678,7 +673,7 @@ pub mod test_signature {
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {
-            Box::new(Self {})
+            Box::new(TestFactory {})
         }
     }
 }
@@ -747,7 +742,7 @@ mod tests {
         let hmac256 = Signature::new_function(&fn_hmac256);
         let _client_hello = Signature::new_function(&fn_client_hello);
 
-        let data = b"hello".to_vec();
+        let data = "hello".as_bytes().to_vec();
 
         //println!("TypeId of vec array {:?}", data.type_id());
 
