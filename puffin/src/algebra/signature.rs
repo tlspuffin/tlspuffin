@@ -141,23 +141,25 @@ macro_rules! define_signature {
         ///
         /// Note: Changes in function symbols may cause deserialization of term to fail.
         pub static $name_signature: StaticSignature<$protocol_types> = create_static_signature(|| {
-            // Process option attributes
-            let mut attrs = FunctionAttributes::default();
-
-            $(
-                    $(
-                        let flag = stringify!($flags);
-                        match flag {
-                            "opaque" => attrs.is_opaque = true,
-                            "list" => attrs.is_list = true,
-                            "get" => attrs.is_get = true,
-                            _ => {},
-                            }
-                    )*
-            )+
 
             let definitions = vec![
-                $( ($crate::algebra::dynamic_function::make_dynamic(&$f), attrs)),*
+                $(
+                    {
+                        let mut attrs = FunctionAttributes::default();
+                        {  // Process option attributes
+                            $(
+                                let flag = stringify!($flags);
+                                match flag {
+                                    "opaque" => attrs.is_opaque = true,
+                                    "list" => attrs.is_list = true,
+                                    "get" => attrs.is_get = true,
+                                    _ => {},
+                                }
+                            )*
+                        }
+                        ($crate::algebra::dynamic_function::make_dynamic(&$f), attrs)
+                    }
+                ),+
             ];
             Signature::new(definitions)
         });
