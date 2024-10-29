@@ -203,6 +203,40 @@ pub fn encode_vec_u8<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     bytes[len_offset] = len.min(0xff) as u8;
 }
 
+// We do not put the size of the vector for Vec<u8> as we consider it as plain data
+impl Codec for Vec<u8> {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        for i in self {
+            bytes.push(*i);
+        }
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        let mut ret: Self = Self::new();
+
+        while r.any_left() {
+            ret.push(u8::read(r)?);
+        }
+
+        Some(ret)
+    }
+}
+
+impl Codec for bool {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        if *self {
+            bytes.push(1);
+        } else {
+            bytes.push(0);
+        }
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        r.take(1).map(|b| b.len() == 1 && b[0] == 1)
+    }
+}
+
+/// encode a Vec whose length is encoded in 2 bytes
 pub fn encode_vec_u16<T: Codec>(bytes: &mut Vec<u8>, items: &[T]) {
     let len_offset = bytes.len();
     bytes.extend(&[0, 0]);

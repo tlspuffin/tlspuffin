@@ -30,6 +30,7 @@ use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
 use crate::algebra::{remove_prefix, Matcher, Term};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
+use crate::codec::Codec;
 use crate::error::Error;
 use crate::protocol::{
     EvaluatedTerm, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
@@ -698,6 +699,7 @@ impl<PT: ProtocolTypes> InputAction<PT> {
         }
 
         let message = as_message_flight::<PB>(self.recipe.evaluate(ctx)?)?;
+        let message = message.get_encoding();
         let agent = ctx.find_agent_mut(agent_name)?;
 
         agent.add_to_inbound(&message);

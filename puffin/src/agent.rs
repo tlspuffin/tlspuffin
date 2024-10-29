@@ -9,6 +9,7 @@ use core::fmt;
 
 use serde::{Deserialize, Serialize};
 
+use crate::algebra::ConcreteMessage;
 use crate::error::Error;
 use crate::protocol::ProtocolBehavior;
 use crate::put::Put;
@@ -219,8 +220,8 @@ impl<PB: ProtocolBehavior> Agent<PB> {
 }
 
 impl<PB: ProtocolBehavior> Stream<PB> for Agent<PB> {
-    fn add_to_inbound(&mut self, message_flight: &PB::OpaqueProtocolMessageFlight) {
-        self.put.add_to_inbound(message_flight)
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        self.put.add_to_inbound(message);
     }
 
     fn take_message_from_outbound(
