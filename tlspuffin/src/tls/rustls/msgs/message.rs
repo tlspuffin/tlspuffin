@@ -1,4 +1,5 @@
 use puffin::codec::{Codec, Reader};
+use puffin::protocol::ProtocolMessage;
 
 use crate::tls::rustls::error::Error;
 use crate::tls::rustls::msgs::alert::AlertMessagePayload;
@@ -125,7 +126,10 @@ pub struct OpaqueMessage {
 
 impl Codec for OpaqueMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        bytes.extend_from_slice(&OpaqueMessage::encode(self.clone()));
+        self.typ.encode(bytes);
+        self.version.encode(bytes);
+        (self.payload.0.len() as u16).encode(bytes);
+        self.payload.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
@@ -155,6 +159,7 @@ impl OpaqueMessage {
         let typ = ContentType::read(r).ok_or(MessageError::TooShortForHeader)?;
         #[cfg(feature = "enable-guards")]
         let version = ProtocolVersion::read(r).ok_or(MessageError::TooShortForHeader)?;
+
         let len = u16::read(r).ok_or(MessageError::TooShortForHeader)?;
 
         #[cfg(feature = "enable-guards")]
@@ -194,15 +199,6 @@ impl OpaqueMessage {
             version,
             payload,
         })
-    }
-
-    pub fn encode(self) -> Vec<u8> {
-        let mut buf = Vec::new();
-        self.typ.encode(&mut buf);
-        self.version.encode(&mut buf);
-        (self.payload.0.len() as u16).encode(&mut buf);
-        self.payload.encode(&mut buf);
-        buf
     }
 
     /// Force conversion into a plaintext message.
@@ -272,6 +268,18 @@ impl PlainMessage {
 pub struct Message {
     pub version: ProtocolVersion,
     pub payload: MessagePayload,
+}
+
+impl Codec for Message {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        Codec::encode(&self.create_opaque(), bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        <OpaqueMessage>::read(reader)
+            .ok()
+            .and_then(|op| Message::try_from(op).ok())
+    }
 }
 
 impl Message {

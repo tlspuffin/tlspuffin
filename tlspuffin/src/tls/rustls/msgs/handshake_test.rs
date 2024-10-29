@@ -4,6 +4,7 @@ use webpki::DnsNameRef;
 use super::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
 use super::enums::*;
 use super::handshake::*;
+use crate::tls::fn_impl::fn_hello_retry_request_random;
 use crate::tls::rustls::key::Certificate;
 
 #[test_log::test]
@@ -356,9 +357,9 @@ fn get_sample_clienthellopayload() -> ClientHelloPayload {
         client_version: ProtocolVersion::TLSv1_2,
         random: Random::from([0; 32]),
         session_id: SessionID::empty(),
-        cipher_suites: vec![CipherSuite::TLS_NULL_WITH_NULL_NULL],
-        compression_methods: vec![Compression::Null],
-        extensions: vec![
+        cipher_suites: CipherSuites(vec![CipherSuite::TLS_NULL_WITH_NULL_NULL]),
+        compression_methods: Compressions(vec![Compression::Null]),
+        extensions: ClientExtensions(vec![
             ClientExtension::ECPointFormats(ECPointFormatList::supported()),
             ClientExtension::NamedGroups(NamedGroups(vec![NamedGroup::X25519])),
             ClientExtension::SignatureAlgorithms(SupportedSignatureSchemes(vec![
@@ -395,7 +396,7 @@ fn get_sample_clienthellopayload() -> ClientHelloPayload {
                 typ: ExtensionType::Unknown(12345),
                 payload: Payload(vec![1, 2, 3]),
             }),
-        ],
+        ]),
     }
 }
 
@@ -414,10 +415,10 @@ fn client_has_duplicate_extensions_works() {
     let mut chp = get_sample_clienthellopayload();
     assert!(chp.has_duplicate_extension()); // due to SessionTicketRequest/SessionTicketOffer
 
-    chp.extensions.drain(1..);
+    chp.extensions.0.drain(1..);
     assert!(!chp.has_duplicate_extension());
 
-    chp.extensions = vec![];
+    chp.extensions = ClientExtensions(vec![]);
     assert!(!chp.has_duplicate_extension());
 }
 
@@ -459,7 +460,7 @@ fn test_truncated_client_hello_is_detected() {
 fn test_truncated_client_extension_is_detected() {
     let chp = get_sample_clienthellopayload();
 
-    for ext in &chp.extensions {
+    for ext in &chp.extensions.0 {
         let mut enc = ext.get_encoding();
         // println!("testing {:?} enc {:?}", ext, enc);
 
@@ -491,16 +492,16 @@ fn test_client_extension_getter(typ: ExtensionType, getter: fn(&ClientHelloPaylo
     let mut chp = get_sample_clienthellopayload();
     let ext = chp.find_extension(typ).unwrap().clone();
 
-    chp.extensions = vec![];
+    chp.extensions = ClientExtensions(vec![]);
     assert!(!getter(&chp));
 
-    chp.extensions = vec![ext];
+    chp.extensions = ClientExtensions(vec![ext]);
     assert!(getter(&chp));
 
-    chp.extensions = vec![ClientExtension::Unknown(UnknownExtension {
+    chp.extensions = ClientExtensions(vec![ClientExtension::Unknown(UnknownExtension {
         typ,
         payload: Payload(vec![]),
-    })];
+    })]);
     assert!(!getter(&chp));
 }
 
@@ -576,7 +577,7 @@ fn client_get_psk_modes() {
 fn test_truncated_helloretry_extension_is_detected() {
     let hrr = get_sample_helloretryrequest();
 
-    for ext in &hrr.extensions {
+    for ext in &hrr.extensions.0 {
         let mut enc = ext.get_encoding();
         // println!("testing {:?} enc {:?}", ext, enc);
 
@@ -603,18 +604,18 @@ fn test_truncated_helloretry_extension_is_detected() {
 
 fn test_helloretry_extension_getter(typ: ExtensionType, getter: fn(&HelloRetryRequest) -> bool) {
     let mut hrr = get_sample_helloretryrequest();
-    let mut exts = std::mem::take(&mut hrr.extensions);
+    let mut exts = std::mem::take(&mut hrr.extensions.0);
     exts.retain(|ext| ext.get_type() == typ);
 
     assert!(!getter(&hrr));
 
-    hrr.extensions = exts;
+    hrr.extensions = HelloRetryExtensions(exts);
     assert!(getter(&hrr));
 
-    hrr.extensions = vec![HelloRetryExtension::Unknown(UnknownExtension {
+    hrr.extensions = HelloRetryExtensions(vec![HelloRetryExtension::Unknown(UnknownExtension {
         typ,
         payload: Payload(vec![]),
-    })];
+    })]);
     assert!(!getter(&hrr));
 }
 
@@ -641,7 +642,7 @@ fn helloretry_get_supported_versions() {
 fn test_truncated_server_extension_is_detected() {
     let shp = get_sample_serverhellopayload();
 
-    for ext in &shp.extensions {
+    for ext in &shp.extensions.0 {
         let mut enc = ext.get_encoding();
         // println!("testing {:?} enc {:?}", ext, enc);
 
@@ -673,16 +674,16 @@ fn test_server_extension_getter(typ: ExtensionType, getter: fn(&ServerHelloPaylo
     let mut shp = get_sample_serverhellopayload();
     let ext = shp.find_extension(typ).unwrap().clone();
 
-    shp.extensions = vec![];
+    shp.extensions = ServerExtensions(vec![]);
     assert!(!getter(&shp));
 
-    shp.extensions = vec![ext];
+    shp.extensions = ServerExtensions(vec![ext]);
     assert!(getter(&shp));
 
-    shp.extensions = vec![ServerExtension::Unknown(UnknownExtension {
+    shp.extensions = ServerExtensions(vec![ServerExtension::Unknown(UnknownExtension {
         typ,
         payload: Payload(vec![]),
-    })];
+    })]);
     assert!(!getter(&shp));
 }
 
@@ -718,7 +719,7 @@ fn server_get_supported_versions() {
 }
 
 fn test_cert_extension_getter(typ: ExtensionType, getter: fn(&CertificateEntry) -> bool) {
-    let mut ce = get_sample_certificatepayloadtls13().entries.remove(0);
+    let mut ce = get_sample_certificatepayloadtls13().entries.0.remove(0);
     let mut exts = std::mem::take(&mut ce.exts.0);
     exts.retain(|ext| ext.get_type() == typ);
 
@@ -753,7 +754,7 @@ fn get_sample_serverhellopayload() -> ServerHelloPayload {
         session_id: SessionID::empty(),
         cipher_suite: CipherSuite::TLS_NULL_WITH_NULL_NULL,
         compression_method: Compression::Null,
-        extensions: vec![
+        extensions: ServerExtensions(vec![
             ServerExtension::ECPointFormats(ECPointFormatList::supported()),
             ServerExtension::ServerNameAck,
             ServerExtension::SessionTicketAck,
@@ -772,7 +773,7 @@ fn get_sample_serverhellopayload() -> ServerHelloPayload {
                 typ: ExtensionType::Unknown(12345),
                 payload: Payload(vec![1, 2, 3]),
             }),
-        ],
+        ]),
     }
 }
 
@@ -789,9 +790,11 @@ fn can_clone_all_serverextensions() {
 fn get_sample_helloretryrequest() -> HelloRetryRequest {
     HelloRetryRequest {
         legacy_version: ProtocolVersion::TLSv1_2,
+        random: fn_hello_retry_request_random().unwrap(),
         session_id: SessionID::empty(),
         cipher_suite: CipherSuite::TLS_NULL_WITH_NULL_NULL,
-        extensions: vec![
+        compression_methods: Compressions(vec![Compression::Null]),
+        extensions: HelloRetryExtensions(vec![
             HelloRetryExtension::KeyShare(NamedGroup::X25519),
             HelloRetryExtension::Cookie(PayloadU16(vec![0])),
             HelloRetryExtension::SupportedVersions(ProtocolVersion::TLSv1_2),
@@ -799,14 +802,14 @@ fn get_sample_helloretryrequest() -> HelloRetryRequest {
                 typ: ExtensionType::Unknown(12345),
                 payload: Payload(vec![1, 2, 3]),
             }),
-        ],
+        ]),
     }
 }
 
 fn get_sample_certificatepayloadtls13() -> CertificatePayloadTLS13 {
     CertificatePayloadTLS13 {
         context: PayloadU8(vec![1, 2, 3]),
-        entries: vec![CertificateEntry {
+        entries: CertificateEntries(vec![CertificateEntry {
             cert: Certificate(vec![3, 4, 5]),
             exts: CertificateExtensions(vec![
                 CertificateExtension::CertificateStatus(CertificateStatus {
@@ -820,7 +823,7 @@ fn get_sample_certificatepayloadtls13() -> CertificatePayloadTLS13 {
                     payload: Payload(vec![1, 2, 3]),
                 }),
             ]),
-        }],
+        }]),
     }
 }
 
@@ -891,7 +894,7 @@ fn get_sample_newsessionticketpayloadtls13() -> NewSessionTicketPayloadTLS13 {
 }
 
 fn get_sample_encryptedextensions() -> EncryptedExtensions {
-    EncryptedExtensions(get_sample_serverhellopayload().extensions)
+    EncryptedExtensions(get_sample_serverhellopayload().extensions.0)
 }
 
 fn get_sample_certificatestatus() -> CertificateStatus {
@@ -1020,11 +1023,11 @@ fn can_detect_truncation_of_all_tls12_handshake_payloads() {
                 _ => {}
             };
 
-            assert!(HandshakeMessagePayload::read_version(
+            let hmp = HandshakeMessagePayload::read_version(
                 &mut Reader::init(&enc),
-                ProtocolVersion::TLSv1_2
-            )
-            .is_none());
+                ProtocolVersion::TLSv1_2,
+            );
+            assert!(hmp.is_none());
             assert!(HandshakeMessagePayload::read_bytes(&enc).is_none());
         }
     }

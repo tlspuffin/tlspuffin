@@ -1,7 +1,11 @@
-use puffin::codec;
 use puffin::codec::{Codec, Reader};
+use puffin::protocol::{EvaluatedTerm, ProtocolTypes};
+use puffin::trace::{Knowledge, Source};
+use puffin::{atom_extract_knowledge, codec};
 
+use crate::protocol::TLSProtocolTypes;
 use crate::tls::rustls::key;
+use crate::tls::Error;
 /// An externally length'd payload
 #[derive(Debug, Clone, PartialEq)]
 pub struct Payload(pub Vec<u8>);
@@ -131,3 +135,7 @@ impl Codec for PayloadU8 {
         Some(Self(body))
     }
 }
+
+atom_extract_knowledge!(TLSProtocolTypes, PayloadU8);
+atom_extract_knowledge!(TLSProtocolTypes, PayloadU16);
+atom_extract_knowledge!(TLSProtocolTypes, PayloadU24);

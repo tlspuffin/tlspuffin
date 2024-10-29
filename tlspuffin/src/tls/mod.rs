@@ -104,20 +104,23 @@ define_signature!(
     fn_heartbeat_fake_length // TODO: Was [get] but that was an error. TO TEST
     fn_hello_request
     fn_hello_retry_request
+    fn_hello_retry_request_random
     fn_key_update
     fn_key_update_not_requested
     fn_message_hash
     fn_new_session_ticket
     fn_new_session_ticket13
-    fn_opaque_message
     fn_server_hello
     fn_server_hello_done
     fn_server_key_exchange
     // extensions
     fn_client_extensions_new
     fn_client_extensions_append [list]
+    fn_client_extensions_make
     fn_server_extensions_new
+    fn_server_extensions_make
     fn_server_extensions_append [list]
+    fn_hello_retry_extensions_make
     fn_hello_retry_extensions_new
     fn_hello_retry_extensions_append [list]
     fn_cert_req_extensions_new
@@ -183,6 +186,7 @@ define_signature!(
     fn_unknown_server_extension
     fn_unknown_hello_retry_extension
     fn_unknown_cert_request_extension
+    fn_new_session_ticket_extensions
     fn_unknown_new_session_ticket_extension
     fn_unknown_certificate_extension
     // fields
@@ -191,6 +195,7 @@ define_signature!(
     fn_new_session_id
     fn_empty_session_id
     fn_new_random
+    // TODO: once fn_compression_append is added, we should then also add fn_compression_make
     fn_compressions
     fn_compression
     fn_no_key_share
@@ -200,6 +205,7 @@ define_signature!(
     fn_verify_data [opaque]
     fn_verify_data_server [opaque]
     fn_sign_transcript
+    fn_cipher_suites_make
     fn_new_cipher_suites
     fn_append_cipher_suite [list]
     fn_cipher_suite12
@@ -248,6 +254,15 @@ define_signature!(
     fn_named_group_secp384r1
     fn_named_group_x25519
     fn_u64_to_u32
+    fn_payload_u8
+    fn_payload_u16
+    fn_payload_u24
+    fn_make_payload_u16_vec_u16
+    fn_empty_payload_u16_vec
+    fn_append_payload_u16_vec [list]
+    fn_make_payload_u8_vec_u16
+    fn_empty_payload_u8_vec
+    fn_append_payload_u8_vec [list]
     // transcript functions
     fn_server_hello_transcript
     fn_client_finished_transcript
@@ -260,9 +275,11 @@ define_signature!(
     fn_alice_key
     fn_eve_cert
     fn_random_ec_cert
+    fn_random_ec_key
     fn_certificate_entry
     fn_empty_certificate_chain
     fn_append_certificate_entry [list]
+    fn_certificate_entries_make
     fn_chain_append_certificate_entry [list]
     fn_get_context [get]
     fn_eve_pkcs1_signature

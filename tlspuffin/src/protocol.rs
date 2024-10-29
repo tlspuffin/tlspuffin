@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use puffin::algebra::signature::Signature;
-use puffin::algebra::Matcher;
+use puffin::algebra::{ConcreteMessage, Matcher};
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
@@ -544,14 +544,30 @@ impl EvaluatedTerm<TLSProtocolTypes> for ClientHelloPayload {
             matcher,
             data: &self.cipher_suites,
         });
-
-        knowledges.extend(self.extensions.iter().map(|extension| Knowledge {
+        // we add both the Vec<T> and below the Wrapper(T) too
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.extensions.0,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.compression_methods.0,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.cipher_suites.0,
+        });
+        knowledges.extend(self.extensions.0.iter().map(|extension| Knowledge {
             source,
             matcher,
             data: extension,
         }));
         knowledges.extend(
             self.compression_methods
+                .0
                 .iter()
                 .map(|compression| Knowledge {
                     source,
@@ -559,7 +575,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for ClientHelloPayload {
                     data: compression,
                 }),
         );
-        knowledges.extend(self.cipher_suites.iter().map(|cipher_suite| Knowledge {
+        knowledges.extend(self.cipher_suites.0.iter().map(|cipher_suite| Knowledge {
             source,
             matcher,
             data: cipher_suite,
@@ -631,12 +647,18 @@ impl EvaluatedTerm<TLSProtocolTypes> for ServerHelloPayload {
             matcher,
             data: &self.legacy_version,
         });
+        // we add both the Vec<T> and below the Wrapper(T) too
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.extensions.0,
+        });
         knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.extensions,
         });
-        knowledges.extend(self.extensions.iter().map(|extension| Knowledge {
+        knowledges.extend(self.extensions.0.iter().map(|extension| Knowledge {
             source,
             matcher,
             data: extension,
@@ -693,7 +715,6 @@ atom_extract_knowledge!(TLSProtocolTypes, CipherSuite);
 atom_extract_knowledge!(TLSProtocolTypes, ClientExtension);
 atom_extract_knowledge!(TLSProtocolTypes, Compression);
 atom_extract_knowledge!(TLSProtocolTypes, DigitallySignedStruct);
-atom_extract_knowledge!(TLSProtocolTypes, EncryptedExtensions);
 atom_extract_knowledge!(TLSProtocolTypes, HandshakeHash);
 atom_extract_knowledge!(TLSProtocolTypes, HandshakeType);
 atom_extract_knowledge!(TLSProtocolTypes, HelloRetryExtension);
@@ -778,7 +799,7 @@ impl ProtocolTypes for TLSProtocolTypes {
     }
 }
 
-impl Display for TLSProtocolTypes {
+impl std::fmt::Display for TLSProtocolTypes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "")
     }

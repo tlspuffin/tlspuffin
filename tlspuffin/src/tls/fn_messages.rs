@@ -15,15 +15,9 @@ use crate::tls::rustls::msgs::alert::AlertMessagePayload;
 use crate::tls::rustls::msgs::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
 use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
 use crate::tls::rustls::msgs::enums::*;
-use crate::tls::rustls::msgs::handshake::{
-    CertificateEntry, CertificateStatus, HelloRetryExtension, *,
-};
+use crate::tls::rustls::msgs::handshake::{CertificateStatus, *};
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
-
-pub fn fn_opaque_message(message: &OpaqueMessage) -> Result<OpaqueMessage, FnError> {
-    Ok(message.clone())
-}
 
 pub fn fn_empty_handshake_message() -> Result<OpaqueMessage, FnError> {
     Ok(OpaqueMessage {
@@ -106,19 +100,22 @@ pub fn fn_application_data(data: &Vec<u8>) -> Result<Message, FnError> {
     ))?)?)
 }*/
 
-pub fn fn_heartbeat_fake_length(payload: &Vec<u8>, fake_length: &u64) -> Result<Message, FnError> {
+pub fn fn_heartbeat_fake_length(
+    payload: &PayloadU16,
+    fake_length: &u64,
+) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Heartbeat(HeartbeatPayload {
             typ: HeartbeatMessageType::Request,
-            payload: PayloadU16::new(payload.clone()),
+            payload: payload.clone(),
             fake_length: Some(*fake_length as u16),
         }),
     })
 }
 
-pub fn fn_heartbeat(payload: &Vec<u8>) -> Result<Message, FnError> {
-    fn_heartbeat_fake_length(payload, &(payload.len() as u64))
+pub fn fn_heartbeat(payload: &PayloadU16) -> Result<Message, FnError> {
+    fn_heartbeat_fake_length(payload, &(payload.0.len() as u64))
 }
 
 // ----
@@ -140,9 +137,9 @@ pub fn fn_client_hello(
     client_version: &ProtocolVersion,
     random: &Random,
     session_id: &SessionID,
-    cipher_suites: &Vec<CipherSuite>,
-    compression_methods: &Vec<Compression>,
-    extensions: &Vec<ClientExtension>,
+    cipher_suites: &CipherSuites,
+    compression_methods: &Compressions,
+    extensions: &ClientExtensions,
 ) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
@@ -166,7 +163,7 @@ pub fn fn_server_hello(
     session_id: &SessionID,
     cipher_suite: &CipherSuite,
     compression_method: &Compression,
-    extensions: &Vec<ServerExtension>,
+    extensions: &ServerExtensions,
 ) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
@@ -187,7 +184,7 @@ nyi_fn! {
     /// hello_verify_request_RESERVED => 0x03,
 }
 /// NewSessionTicket => 0x04,
-pub fn fn_new_session_ticket(lifetime_hint: &u32, ticket: &Vec<u8>) -> Result<Message, FnError> {
+pub fn fn_new_session_ticket(lifetime_hint: &u32, ticket: &PayloadU16) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(Message {
@@ -196,15 +193,22 @@ pub fn fn_new_session_ticket(lifetime_hint: &u32, ticket: &Vec<u8>) -> Result<Me
             typ: HandshakeType::NewSessionTicket,
             payload: HandshakePayload::NewSessionTicket(NewSessionTicketPayload {
                 lifetime_hint: *lifetime_hint,
-                ticket: PayloadU16::new(ticket.clone()),
+                ticket: ticket.clone(),
             }),
         }),
     })
 }
-pub fn fn_new_session_ticket13(
-    nonce: &Vec<u8>,
-    ticket: &Vec<u8>,
+
+pub fn fn_new_session_ticket_extensions(
     extensions: &Vec<NewSessionTicketExtension>,
+) -> Result<NewSessionTicketExtensions, FnError> {
+    Ok(NewSessionTicketExtensions(extensions.clone()))
+}
+
+pub fn fn_new_session_ticket13(
+    nonce: &PayloadU8,
+    ticket: &PayloadU16,
+    extensions: &NewSessionTicketExtensions,
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://github.com/tlspuffin/tlspuffin/issues/155
@@ -215,9 +219,9 @@ pub fn fn_new_session_ticket13(
             payload: HandshakePayload::NewSessionTicketTLS13(NewSessionTicketPayloadTLS13 {
                 lifetime: 10,
                 age_add: 12,
-                nonce: PayloadU8::new(nonce.clone()),
-                ticket: PayloadU16::new(ticket.clone()),
-                exts: NewSessionTicketExtensions(extensions.clone()),
+                nonce: nonce.clone(),
+                ticket: ticket.clone(),
+                exts: extensions.clone(),
             }),
         }),
     })
@@ -225,12 +229,25 @@ pub fn fn_new_session_ticket13(
 nyi_fn! {
     /// EndOfEarlyData => 0x05,
 }
+
+/// Specific ClientHello Random recognized by the client as the one previously used for a
+/// HelloRetryRequest
+pub fn fn_hello_retry_request_random() -> Result<Random, FnError> {
+    Ok(Random([
+        0xcf, 0x21, 0xad, 0x74, 0xe5, 0x9a, 0x61, 0x11, 0xbe, 0x1d, 0x8c, 0x02, 0x1e, 0x65, 0xb8,
+        0x91, 0xc2, 0xa2, 0x11, 0x16, 0x7a, 0xbb, 0x8c, 0x5e, 0x07, 0x9e, 0x09, 0xe2, 0xc8, 0xa8,
+        0x33, 0x9c,
+    ]))
+}
+
 /// HelloRetryRequest => 0x06,
 pub fn fn_hello_retry_request(
     legacy_version: &ProtocolVersion,
+    random: &Random,
     session_id: &SessionID,
     cipher_suite: &CipherSuite,
-    extensions: &Vec<HelloRetryExtension>,
+    compression_methods: &Compressions,
+    extensions: &HelloRetryExtensions,
 ) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
@@ -238,8 +255,10 @@ pub fn fn_hello_retry_request(
             typ: HandshakeType::HelloRetryRequest,
             payload: HandshakePayload::HelloRetryRequest(HelloRetryRequest {
                 legacy_version: *legacy_version,
+                random: *random,
                 session_id: *session_id,
                 cipher_suite: *cipher_suite,
+                compression_methods: compression_methods.clone(),
                 extensions: extensions.clone(),
             }),
         }),
@@ -276,8 +295,8 @@ pub fn fn_certificate(certs: &Vec<key::Certificate>) -> Result<Message, FnError>
     })
 }
 pub fn fn_certificate13(
-    context: &Vec<u8>,
-    entries: &Vec<CertificateEntry>,
+    context: &PayloadU8,
+    entries: &CertificateEntries,
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      Vec<CertificateEntry> is not possible to create
@@ -287,7 +306,7 @@ pub fn fn_certificate13(
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::Certificate,
             payload: HandshakePayload::CertificateTLS13(CertificatePayloadTLS13 {
-                context: PayloadU8::new(context.clone()),
+                context: context.clone(),
                 entries: entries.clone(),
             }),
         }),
@@ -324,7 +343,7 @@ pub fn fn_certificate_request() -> Result<Message, FnError> {
     })
 }
 pub fn fn_certificate_request13(
-    context: &Vec<u8>,
+    context: &PayloadU8,
     extensions: &Vec<CertReqExtension>,
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
@@ -335,7 +354,7 @@ pub fn fn_certificate_request13(
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::CertificateRequest,
             payload: HandshakePayload::CertificateRequestTLS13(CertificateRequestPayloadTLS13 {
-                context: PayloadU8::new(context.clone()),
+                context: context.clone(),
                 extensions: CertReqExtensions(extensions.clone()),
             }),
         }),
@@ -351,10 +370,57 @@ pub fn fn_server_hello_done() -> Result<Message, FnError> {
         }),
     })
 }
+
+pub fn fn_payload_u8(vec: &Vec<u8>) -> Result<PayloadU8, FnError> {
+    Ok(PayloadU8::new(vec.clone()))
+}
+
+pub fn fn_payload_u16(vec: &Vec<u8>) -> Result<PayloadU16, FnError> {
+    Ok(PayloadU16::new(vec.clone()))
+}
+
+pub fn fn_payload_u24(vec: &Vec<u8>) -> Result<PayloadU24, FnError> {
+    Ok(PayloadU24::new(vec.clone()))
+}
+
+pub fn fn_empty_payload_u16_vec() -> Result<Vec<PayloadU16>, FnError> {
+    Ok(vec![])
+}
+
+pub fn fn_append_payload_u16_vec(
+    p: &PayloadU16,
+    vec: &Vec<PayloadU16>,
+) -> Result<Vec<PayloadU16>, FnError> {
+    let mut vec = vec.clone();
+    vec.push(p.clone());
+    Ok(vec)
+}
+
+pub fn fn_make_payload_u16_vec_u16(vec: &Vec<PayloadU16>) -> Result<VecU16OfPayloadU16, FnError> {
+    Ok(VecU16OfPayloadU16(vec.clone()))
+}
+
+pub fn fn_empty_payload_u8_vec() -> Result<Vec<PayloadU8>, FnError> {
+    Ok(vec![])
+}
+
+pub fn fn_append_payload_u8_vec(
+    p: &PayloadU8,
+    vec: &Vec<PayloadU8>,
+) -> Result<Vec<PayloadU8>, FnError> {
+    let mut vec = vec.clone();
+    vec.push(p.clone());
+    Ok(vec)
+}
+
+pub fn fn_make_payload_u8_vec_u16(vec: &Vec<PayloadU8>) -> Result<VecU16OfPayloadU8, FnError> {
+    Ok(VecU16OfPayloadU8(vec.clone()))
+}
+
 /// CertificateVerify => 0x0f,
 pub fn fn_certificate_verify(
     scheme: &SignatureScheme,
-    signature: &Vec<u8>,
+    signature: &PayloadU16,
 ) -> Result<Message, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://github.com/tlspuffin/tlspuffin/issues/155
@@ -364,7 +430,7 @@ pub fn fn_certificate_verify(
             typ: HandshakeType::CertificateVerify,
             payload: HandshakePayload::CertificateVerify(DigitallySignedStruct {
                 scheme: *scheme,
-                sig: PayloadU16::new(signature.clone()),
+                sig: signature.clone(),
             }),
         }),
     })
@@ -393,13 +459,13 @@ nyi_fn! {
     /// CertificateURL => 0x15,
 }
 /// CertificateStatus => 0x16,
-pub fn fn_certificate_status(ocsp_response: &Vec<u8>) -> Result<Message, FnError> {
+pub fn fn_certificate_status(ocsp_response: &PayloadU24) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Handshake(HandshakeMessagePayload {
             typ: HandshakeType::CertificateStatus,
             payload: HandshakePayload::CertificateStatus(CertificateStatus {
-                ocsp_response: PayloadU24::new(ocsp_response.clone()),
+                ocsp_response: ocsp_response.clone(),
             }),
         }),
     })

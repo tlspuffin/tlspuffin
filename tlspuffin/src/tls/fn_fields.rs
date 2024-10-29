@@ -12,7 +12,8 @@ use crate::tls::rustls::msgs::enums::{
     CipherSuite, Compression, ExtensionType, NamedGroup, ProtocolVersion,
 };
 use crate::tls::rustls::msgs::handshake::{
-    ClientExtension, HasServerExtensions, Random, ServerExtension, SessionID,
+    CipherSuites, ClientExtension, Compressions, HasServerExtensions, Random, ServerExtension,
+    SessionID,
 };
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
@@ -43,8 +44,8 @@ pub fn fn_new_random() -> Result<Random, FnError> {
     Ok(Random::from(random_data))
 }
 
-pub fn fn_compressions() -> Result<Vec<Compression>, FnError> {
-    Ok(vec![Compression::Null])
+pub fn fn_compressions() -> Result<Compressions, FnError> {
+    Ok(Compressions(vec![Compression::Null]))
 }
 
 pub fn fn_compression() -> Result<Compression, FnError> {
@@ -207,6 +208,10 @@ pub fn fn_append_cipher_suite(
     let mut new: Vec<CipherSuite> = suites.clone();
     new.push(*suite);
     Ok(new)
+}
+
+pub fn fn_cipher_suites_make(suites: &Vec<CipherSuite>) -> Result<CipherSuites, FnError> {
+    Ok(CipherSuites(suites.clone()))
 }
 
 pub fn fn_cipher_suite12() -> Result<CipherSuite, FnError> {
