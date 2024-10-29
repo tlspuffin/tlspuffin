@@ -607,7 +607,7 @@ pub mod test_signature {
         type Matcher = AnyMatcher;
 
         fn signature() -> &'static Signature<Self> {
-            panic!("Not implemented for test stub");
+            &TEST_SIGNATURE
         }
     }
 
