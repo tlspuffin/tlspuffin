@@ -12,7 +12,7 @@ use crate::fuzzer::bit_mutations::{
     bit_mutations_dy, havoc_mutations_dy, MakeMessage, ReadMessage,
 };
 pub(crate) use crate::fuzzer::config::FuzzerConfig;
-use crate::fuzzer::config::{MIN_BIT_CORPUS, MIN_BIT_EXECS};
+use crate::fuzzer::config::{FuzzingTarget, MIN_BIT_CORPUS, MIN_BIT_EXECS};
 use crate::fuzzer::feedback::MinimizingFeedback;
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
 use crate::fuzzer::stages::{FocusScheduledMutator, PuffinMutationalStage};
@@ -578,6 +578,7 @@ where
         is_experiment,
         log_folder,
         verbosity,
+        target,
         ..
     } = &config;
 
@@ -597,7 +598,20 @@ where
         }
         log::info!("log_handle: {:?}", &log_handle);
 
-        let harness_fn = &mut (|input: &_| harness::harness::<PB>(put_registry, input));
+        // Choose a harness to do single target/differential fuzzing
+        // We can't directly return a closure since they don't have the same
+        // signature so we return a boxed closure that we call in the next closure
+        let mut boxed_harness_fn: Box<dyn FnMut(&Trace<PB::ProtocolTypes>) -> ExitKind> =
+            match target {
+                FuzzingTarget::Single(_) => {
+                    Box::new(|input: &_| harness::harness::<PB>(put_registry, input))
+                }
+                FuzzingTarget::Differential(first, second) => Box::new(|input: &_| {
+                    harness::differential_harness::<PB>(put_registry, first, second, input)
+                }),
+            };
+
+        let harness_fn = &mut (|input: &_| boxed_harness_fn(input));
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder

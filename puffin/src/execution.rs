@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -134,6 +135,81 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
                 std::process::exit(ret);
             },
             self.timeout,
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DifferentialRunner<PB: ProtocolBehavior> {
+    registry: PutRegistry<PB>,
+    first_spawner: Spawner<PB>,
+    second_spawner: Spawner<PB>,
+}
+
+impl<PB: ProtocolBehavior> DifferentialRunner<PB> {
+    pub fn new(
+        registry: impl Into<PutRegistry<PB>>,
+        first_spawner: impl Into<Spawner<PB>>,
+        second_spawner: impl Into<Spawner<PB>>,
+    ) -> Self {
+        Self {
+            registry: registry.into(),
+            first_spawner: first_spawner.into(),
+            second_spawner: second_spawner.into(),
+        }
+    }
+}
+
+impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
+    type E = Error;
+    type PB = PB;
+    type R = TraceContext<Self::PB>;
+
+    fn execute_config<T>(
+        self,
+        trace: T,
+        config_trace: ConfigTrace,
+        executed_until: &mut usize,
+    ) -> Result<Self::R, Self::E>
+    where
+        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
+    {
+        if config_trace.with_reseed {
+            // We reseed all PUTs before executing a trace!
+            self.registry.determinism_reseed_all_factories();
+        }
+
+        log::info!("Executing first PUT");
+        let mut first_ctx = TraceContext::new(self.first_spawner.clone());
+        trace.as_ref().execute(&mut first_ctx, &mut 0)?;
+
+        log::info!("Executing second PUT");
+        let mut second_ctx = TraceContext::new(self.second_spawner.clone());
+        trace.as_ref().execute(&mut second_ctx, &mut 0)?;
+
+        *executed_until = usize::max(first_ctx.executed_until, second_ctx.executed_until);
+
+        let is_diff = first_ctx.compare(&second_ctx);
+
+        if let Err(_) = is_diff {
+            println!("Difference between the PUTs");
+            return Err(Error::Difference("ERROR".into()));
+        }
+
+        Ok(first_ctx)
+    }
+
+    fn execute<T>(self, trace: T, executed_until: &mut usize) -> Result<Self::R, Self::E>
+    where
+        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
+    {
+        self.execute_config(
+            trace,
+            ConfigTrace {
+                with_bit_level: false,
+                with_reseed: true,
+            },
+            executed_until,
         )
     }
 }

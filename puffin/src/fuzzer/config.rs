@@ -28,6 +28,7 @@ pub struct FuzzerConfig {
     pub is_experiment: bool,
     pub put_use_clear: bool, // use clear instead of free on Agents in between traces of some Input
     pub verbosity: LevelFilter, // level for the client logging
+    pub target: FuzzingTarget,
 }
 
 impl Default for FuzzerConfig {
@@ -51,9 +52,23 @@ impl Default for FuzzerConfig {
             mutation_stage_config: Default::default(),
             mutation_config: Default::default(),
             put_use_clear: false,
+            target: Default::default(),
         }
     }
 }
+
+#[derive(Clone, Debug)]
+pub enum FuzzingTarget {
+    Single(Option<String>),
+    Differential(String, String),
+}
+
+impl Default for FuzzingTarget {
+    fn default() -> Self {
+        Self::Single(None)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct MutationStageConfig {
     /// How many iterations each stage gets, as an upper bound
