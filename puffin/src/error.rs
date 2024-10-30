@@ -24,6 +24,8 @@ pub enum Error {
     Stream(String),
     Extraction(),
     SecurityClaim(&'static str),
+    /// There is a difference between two PUT in differential fuzzing
+    Difference(String),
 }
 
 impl std::error::Error for Error {}
@@ -46,6 +48,7 @@ impl fmt::Display for Error {
             Self::SecurityClaim(msg) => {
                 write!(f, "error because a security violation occurred. msg: {msg}")
             }
+            Error::Difference(msg) => write!(f, "difference between two PUTs : {}", msg),
         }
     }
 }
