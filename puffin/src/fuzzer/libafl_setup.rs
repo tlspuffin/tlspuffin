@@ -46,6 +46,19 @@ pub struct FuzzerConfig {
     pub log_folder: PathBuf,
     pub is_experiment: bool,
     pub verbosity: LevelFilter, // level for the client logging
+    pub target: FuzzingTarget,
+}
+
+#[derive(Clone, Debug)]
+pub enum FuzzingTarget {
+    Single(Option<String>),
+    Differential(String, String),
+}
+
+impl Default for FuzzingTarget {
+    fn default() -> Self {
+        Self::Single(None)
+    }
 }
 
 impl Default for FuzzerConfig {
@@ -67,6 +80,7 @@ impl Default for FuzzerConfig {
             verbosity: LevelFilter::Info, // default verbosity
             mutation_stage_config: Default::default(),
             mutation_config: Default::default(),
+            target: Default::default(),
         }
     }
 }
@@ -536,6 +550,7 @@ where
         is_experiment,
         log_folder,
         verbosity,
+        target,
         ..
     } = &config;
 
@@ -555,7 +570,20 @@ where
         }
         log::info!("log_handle: {:?}", &log_handle);
 
-        let harness_fn = &mut (|input: &_| harness::harness::<PB>(put_registry, input));
+        // Choose a harness to do single target/differential fuzzing
+        // We can't directly return a closure since they don't have the same
+        // signature so we return a boxed closure that we call in the next closure
+        let mut boxed_harness_fn: Box<dyn FnMut(&Trace<PB::ProtocolTypes>) -> ExitKind> =
+            match target {
+                FuzzingTarget::Single(_) => {
+                    Box::new(|input: &_| harness::harness::<PB>(put_registry, input))
+                }
+                FuzzingTarget::Differential(first, second) => Box::new(|input: &_| {
+                    harness::differential_harness::<PB>(put_registry, first, second, input)
+                }),
+            };
+
+        let harness_fn = &mut (|input: &_| boxed_harness_fn(input));
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder

@@ -2,13 +2,15 @@ use libafl::executors::ExitKind;
 use rand::Rng;
 
 use crate::algebra::TermType;
-use crate::execution::{Runner, TraceRunner};
+use crate::error::Error;
+use crate::execution::{DifferentialRunner, Runner, TraceRunner};
 use crate::fuzzer::feedback::FAIL_AT_STEP;
 use crate::fuzzer::stats_stage::{
     HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
     TERM_SIZE, TRACE_LENGTH,
 };
 use crate::protocol::ProtocolBehavior;
+use crate::put::{PutDescriptor, PutOptions};
 use crate::put_registry::PutRegistry;
 use crate::trace::{Action, Spawner, Trace};
 
@@ -53,6 +55,74 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         input.size(),
     );
     FAIL_AT_STEP.set(Some(fail_at_step));
+
+    ExitKind::Ok
+}
+
+pub fn differential_harness<PB: ProtocolBehavior + 'static>(
+    put_registry: &PutRegistry<PB>,
+    first_put: &str,
+    second_put: &str,
+    input: &Trace<PB::ProtocolTypes>,
+) -> ExitKind {
+    let runner = DifferentialRunner::new(
+        put_registry.clone(),
+        Spawner::new(put_registry.clone())
+            .with_default(PutDescriptor::new(first_put, PutOptions::default())),
+        Spawner::new(put_registry.clone())
+            .with_default(PutDescriptor::new(second_put, PutOptions::default())),
+    );
+
+    HARNESS_EXEC.increment();
+    TRACE_LENGTH.update(input.steps.len());
+
+    if cfg!(feature = "introspection") {
+        NB_PAYLOAD.update(input.all_payloads().len());
+        for payload in input.all_payloads() {
+            PAYLOAD_LENGTH.update(payload.len());
+        }
+        for step in &input.steps {
+            match &step.action {
+                Action::Input(input) => {
+                    TERM_SIZE.update(input.recipe.size());
+                }
+                Action::Output(_) => {}
+            }
+        }
+    }
+
+    // Execute the trace
+    let mut fail_at_step = 0;
+    let exec_res = runner.execute(input, &mut fail_at_step);
+
+    log::trace!(
+        "[a:trace len={}/size={}/{fail_at_step}] [[harness] Executed until {fail_at_step}.",
+        input.steps.len(),
+        input.size(),
+    );
+    FAIL_AT_STEP.set(Some(fail_at_step));
+
+    match exec_res {
+        Ok(ctx) => {
+            HARNESS_EXEC_SUCCESS.increment();
+            if cfg!(feature = "introspection") {
+                if ctx.agents_successful() {
+                    HARNESS_EXEC_AGENT_SUCCESS.increment();
+                }
+            }
+        }
+        Err(err) => match &err {
+            Error::SecurityClaim(msg) => {
+                log::warn!("{}", msg);
+                std::process::abort()
+            }
+            Error::Difference(msg) => {
+                log::warn!("{}", msg);
+                std::process::abort()
+            }
+            _ => (),
+        },
+    }
 
     ExitKind::Ok
 }

@@ -13,14 +13,14 @@ use puffin_build::puffin;
 
 use crate::agent::AgentName;
 use crate::algebra::TermType;
-use crate::execution::{ForkedRunner, Runner, TraceRunner};
-use crate::experiment::{format_title, write_experiment_markdown};
+use crate::execution::{DifferentialRunner, ForkedRunner, Runner, TraceRunner};
+use crate::experiment::*;
 use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
-use crate::fuzzer::{start, FuzzerConfig};
+use crate::fuzzer::{start, FuzzerConfig, FuzzingTarget};
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
 use crate::protocol::ProtocolBehavior;
-use crate::put::PutDescriptor;
+use crate::put::{PutDescriptor, PutOptions};
 use crate::put_registry::{PutRegistry, TCP_PUT};
 use crate::trace::{Action, ExecutionResult, Spawner, Trace, TraceContext};
 
@@ -91,7 +91,12 @@ where
                 .arg(arg!(-a --args [a] "The args of the program"))
                 .arg(arg!(-t --host [h] "The host to connect to, or the server host"))
                 .arg(arg!(-p --port [n] "The client port to connect to, or the server port")
-                    .value_parser(value_parser!(u16).range(1..)))
+                    .value_parser(value_parser!(u16).range(1..))),
+            Command::new("differential")
+                .about("Start a differential fuzzing campaign")
+                .arg(arg!(<first_target> "The first target to fuzz"))
+                .arg(arg!(<second_target> "The second target to fuzz"))
+                .arg(arg!(<input> "Input trace"))
         ])
 }
 
@@ -425,6 +430,58 @@ where
         log::info!("{}", shutdown);
 
         return ExitCode::SUCCESS;
+    } else if let Some(matches) = matches.subcommand_matches("differential") {
+        // differential fuzzing here
+        let first_put: &String = matches.get_one("first_target").unwrap();
+        let second_put: &String = matches.get_one("second_target").unwrap();
+        let input: &String = matches.get_one("input").unwrap();
+
+        let path = PathBuf::from(input);
+        let trace = match Trace::<PB::ProtocolTypes>::from_file(&path) {
+            Ok(t) => t,
+            Err(_) => {
+                log::error!("Invalid trace file {}", path.display());
+                return ExitCode::FAILURE;
+            }
+        };
+
+        let puts_exist = put_registry
+            .puts()
+            .map(|(put_name, _)| {
+                log::debug!("Available PUT : {}", put_name);
+                (put_name == first_put, put_name == second_put)
+            })
+            .fold((false, false), |acc, x| (acc.0 || x.0, acc.1 || x.1));
+
+        match puts_exist {
+            (true, true) => (),
+            (true, false) => {
+                log::error!("PUT {} is not available", second_put);
+                return ExitCode::FAILURE;
+            }
+            (false, true) => {
+                log::error!("PUT {} is not available", first_put);
+                return ExitCode::FAILURE;
+            }
+            (false, false) => {
+                log::error!("PUTs {} and {} are not available", first_put, second_put);
+                return ExitCode::FAILURE;
+            }
+        }
+
+        let runner = DifferentialRunner::new(
+            put_registry.clone(),
+            Spawner::new(put_registry.clone())
+                .with_default(PutDescriptor::new(first_put, PutOptions::default())),
+            Spawner::new(put_registry)
+                .with_default(PutDescriptor::new(second_put, PutOptions::default())),
+        );
+
+        let status = ForkedRunner::new(&runner).execute(trace, &mut 0);
+
+        println!("{:?}", status);
+
+        return ExitCode::SUCCESS;
     } else {
         let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
             let git_ref = "_".to_string();
@@ -509,6 +566,7 @@ where
             no_launcher,
             is_experiment,
             verbosity,
+            target: FuzzingTarget::default(),
             ..Default::default()
         };
 
