@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -106,6 +107,77 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
             },
             self.timeout,
         )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DifferentialRunner<PB: ProtocolBehavior> {
+    registry: PutRegistry<PB>,
+    first_spawner: Spawner<PB>,
+    second_spawner: Spawner<PB>,
+}
+
+impl<PB: ProtocolBehavior> DifferentialRunner<PB> {
+    pub fn new(
+        registry: impl Into<PutRegistry<PB>>,
+        first_spawner: impl Into<Spawner<PB>>,
+        second_spawner: impl Into<Spawner<PB>>,
+    ) -> Self {
+        Self {
+            registry: registry.into(),
+            first_spawner: first_spawner.into(),
+            second_spawner: second_spawner.into(),
+        }
+    }
+}
+
+impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
+    type E = Error;
+    type PB = PB;
+    type R = TraceContext<Self::PB>;
+
+    fn execute<T>(self, trace: T) -> Result<Self::R, Self::E>
+    where
+        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
+    {
+        // We reseed all PUTs before executing a trace!
+        self.registry.determinism_reseed_all_factories();
+
+        println!("Executing first PUT");
+        let mut first_ctx = TraceContext::new(self.first_spawner.clone());
+        trace.as_ref().execute(&mut first_ctx)?;
+
+        println!("Executing second PUT");
+        let mut second_ctx = TraceContext::new(self.second_spawner.clone());
+        trace.as_ref().execute(&mut second_ctx)?;
+
+        let is_diff = first_ctx.compare(&second_ctx);
+
+        if let Err(_) = is_diff {
+            println!("Difference between the PUTs");
+            return Err(Error::Difference("ERROR".into()));
+        }
+
+        println!(
+            "knowledges : {}",
+            first_ctx
+                .knowledge_store
+                .knowledges()
+                .iter()
+                .flatten()
+                .count()
+        );
+        println!(
+            "knowledges : {}",
+            second_ctx
+                .knowledge_store
+                .knowledges()
+                .iter()
+                .flatten()
+                .count()
+        );
+
+        Ok(first_ctx)
     }
 }
 

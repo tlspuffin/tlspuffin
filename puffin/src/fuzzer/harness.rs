@@ -3,11 +3,12 @@ use rand::Rng;
 
 use crate::algebra::TermType;
 use crate::error::Error;
-use crate::execution::{Runner, TraceRunner};
+use crate::execution::{DifferentialRunner, Runner, TraceRunner};
 use crate::fuzzer::stats_stage::{
     AGENT, CODEC, EXTRACTION, FN_ERROR, IO, PUT, STREAM, TERM, TERM_SIZE, TRACE_LENGTH,
 };
 use crate::protocol::ProtocolBehavior;
+use crate::put::{PutDescriptor, PutOptions};
 use crate::put_registry::PutRegistry;
 use crate::trace::{Action, Spawner, Trace};
 
@@ -39,6 +40,58 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
             Error::Stream(_) => STREAM.increment(),
             Error::Extraction() => EXTRACTION.increment(),
             Error::SecurityClaim(msg) => {
+                log::warn!("{}", msg);
+                std::process::abort()
+            }
+            Error::Difference(_) => (),
+        }
+
+        log::trace!("{}", err);
+    }
+
+    ExitKind::Ok
+}
+
+pub fn differential_harness<PB: ProtocolBehavior + 'static>(
+    put_registry: &PutRegistry<PB>,
+    first_put: &str,
+    second_put: &str,
+    input: &Trace<PB::ProtocolTypes>,
+) -> ExitKind {
+    let runner = DifferentialRunner::new(
+        put_registry.clone(),
+        Spawner::new(put_registry.clone())
+            .with_default(PutDescriptor::new(first_put, PutOptions::default())),
+        Spawner::new(put_registry.clone())
+            .with_default(PutDescriptor::new(second_put, PutOptions::default())),
+    );
+
+    TRACE_LENGTH.update(input.steps.len());
+
+    for step in &input.steps {
+        match &step.action {
+            Action::Input(input) => {
+                TERM_SIZE.update(input.recipe.size());
+            }
+            Action::Output(_) => {}
+        }
+    }
+
+    if let Err(err) = runner.execute(input) {
+        match &err {
+            Error::Fn(_) => FN_ERROR.increment(),
+            Error::Term(_e) => TERM.increment(),
+            Error::Put(_) => PUT.increment(),
+            Error::Codec(_) => CODEC.increment(),
+            Error::IO(_) => IO.increment(),
+            Error::Agent(_) => AGENT.increment(),
+            Error::Stream(_) => STREAM.increment(),
+            Error::Extraction() => EXTRACTION.increment(),
+            Error::SecurityClaim(msg) => {
+                log::warn!("{}", msg);
+                std::process::abort()
+            }
+            Error::Difference(msg) => {
                 log::warn!("{}", msg);
                 std::process::abort()
             }

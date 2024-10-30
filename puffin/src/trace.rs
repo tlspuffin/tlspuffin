@@ -246,6 +246,25 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             .get(query.counter as usize)
             .map(|possibility| possibility.data)
     }
+
+    pub fn knowledges(&self) -> &Vec<RawKnowledge<PT>> {
+        &self.raw_knowledge
+    }
+
+    pub fn compare(&self, other: &Self) -> bool {
+        let is_diff = std::iter::zip(
+            self.knowledges().iter().flatten(),
+            other.knowledges().iter().flatten(),
+        )
+        .map(|(x, y)| {
+            println!("{} == {}", x.data.type_name(), y.data.type_name());
+
+            x.data.type_name() == y.data.type_name()
+        })
+        .any(|x| !x);
+
+        !is_diff
+    }
 }
 
 #[derive(Debug)]
@@ -474,6 +493,17 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         self.agents
             .iter()
             .all(super::agent::Agent::is_state_successful)
+    }
+
+    pub fn compare(&self, other: &Self) -> Result<(), ()> {
+        // Comparing the claims
+        // TODO
+
+        // Comparing the knowledges
+        match self.knowledge_store.compare(&other.knowledge_store) {
+            true => Ok(()),
+            false => Err(()),
+        }
     }
 }
 
