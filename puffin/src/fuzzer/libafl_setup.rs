@@ -39,6 +39,19 @@ pub struct FuzzerConfig {
     pub tui: bool,
     pub no_launcher: bool,
     pub log_file: PathBuf,
+    pub target: FuzzingTarget,
+}
+
+#[derive(Clone, Debug)]
+pub enum FuzzingTarget {
+    Single(Option<String>),
+    Differential(String, String),
+}
+
+impl Default for FuzzingTarget {
+    fn default() -> Self {
+        Self::Single(None)
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -406,6 +419,7 @@ where
                 with_bit_level,
                 with_dy,
             },
+        target,
         ..
     } = &config;
 
@@ -421,7 +435,20 @@ where
             .clone()
             .set_config(config_fuzzing_client(log_file));
 
-        let harness_fn = &mut (|input: &_| harness::harness::<PB>(put_registry, input));
+        // Choose a harness to do single target/differential fuzzing
+        // We can't directly return a closure since they don't have the same
+        // signature so we return a boxed closure that we call in the next closure
+        let mut boxed_harness_fn: Box<dyn FnMut(&Trace<PB::ProtocolTypes>) -> ExitKind> =
+            match target {
+                FuzzingTarget::Single(_) => {
+                    Box::new(|input: &_| harness::harness::<PB>(put_registry, input))
+                }
+                FuzzingTarget::Differential(first, second) => Box::new(|input: &_| {
+                    harness::differential_harness::<PB>(put_registry, first, second, input)
+                }),
+            };
+
+        let harness_fn = &mut (|input: &_| boxed_harness_fn(input));
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder
