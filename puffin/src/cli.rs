@@ -80,11 +80,15 @@ where
                 .arg(arg!(-t --host [h] "The host to connect to, or the server host"))
                 .arg(arg!(-p --port [n] "The client port to connect to, or the server port")
                     .value_parser(value_parser!(u16).range(1..))),
+            Command::new("differential_exec")
+                .about("Execute a trace on multiple targets")
+                .arg(arg!(<first_target> "The first target to fuzz"))
+                .arg(arg!(<second_target> "The second target to fuzz"))
+                .arg(arg!(<input> "Input trace")),
             Command::new("differential")
                 .about("Start a differential fuzzing campaign")
                 .arg(arg!(<first_target> "The first target to fuzz"))
                 .arg(arg!(<second_target> "The second target to fuzz"))
-                .arg(arg!(<input> "Input trace"))
         ])
 }
 
@@ -329,7 +333,7 @@ where
         log::info!("{}", shutdown);
 
         return ExitCode::SUCCESS;
-    } else if let Some(matches) = matches.subcommand_matches("differential") {
+    } else if let Some(matches) = matches.subcommand_matches("differential_exec") {
         // differential fuzzing here
         let first_put: &String = matches.get_one("first_target").unwrap();
         let second_put: &String = matches.get_one("second_target").unwrap();
@@ -344,28 +348,8 @@ where
             }
         };
 
-        let puts_exist = put_registry
-            .puts()
-            .map(|(put_name, _)| {
-                log::debug!("Available PUT : {}", put_name);
-                (put_name == first_put, put_name == second_put)
-            })
-            .fold((false, false), |acc, x| (acc.0 || x.0, acc.1 || x.1));
-
-        match puts_exist {
-            (true, true) => (),
-            (true, false) => {
-                log::error!("PUT {} is not available", second_put);
-                return ExitCode::FAILURE;
-            }
-            (false, true) => {
-                log::error!("PUT {} is not available", first_put);
-                return ExitCode::FAILURE;
-            }
-            (false, false) => {
-                log::error!("PUTs {} and {} are not available", first_put, second_put);
-                return ExitCode::FAILURE;
-            }
+        if !check_if_puts_exist(&put_registry, first_put, second_put) {
+            return ExitCode::FAILURE;
         }
 
         let runner = DifferentialRunner::new(
@@ -471,6 +455,20 @@ where
             return ExitCode::FAILURE;
         }
 
+        // Differential fuzzing
+        let target = if let Some(matches) = matches.subcommand_matches("differential") {
+            let first_put: &String = matches.get_one("first_target").unwrap();
+            let second_put: &String = matches.get_one("second_target").unwrap();
+
+            if !check_if_puts_exist(&put_registry, first_put, second_put) {
+                return ExitCode::FAILURE;
+            }
+
+            FuzzingTarget::Differential(first_put.into(), second_put.into())
+        } else {
+            FuzzingTarget::default()
+        };
+
         let mut config = FuzzerConfig {
             initial_corpus_dir: PathBuf::from("./seeds"),
             static_seed,
@@ -486,7 +484,7 @@ where
             mutation_config: Default::default(),
             tui,
             no_launcher,
-            target: FuzzingTarget::default(),
+            target,
         };
 
         if without_bit_level {
@@ -610,4 +608,34 @@ fn binary_attack<PB: ProtocolBehavior>(
         }
     }
     Ok(())
+}
+
+fn check_if_puts_exist<PB: ProtocolBehavior>(
+    put_registry: &PutRegistry<PB>,
+    first_put: &str,
+    second_put: &str,
+) -> bool {
+    let puts_exist = put_registry
+        .puts()
+        .map(|(put_name, _)| {
+            log::debug!("Available PUT : {}", put_name);
+            (put_name == first_put, put_name == second_put)
+        })
+        .fold((false, false), |acc, x| (acc.0 || x.0, acc.1 || x.1));
+
+    match puts_exist {
+        (true, true) => true,
+        (true, false) => {
+            log::error!("PUT {} is not available", second_put);
+            false
+        }
+        (false, true) => {
+            log::error!("PUT {} is not available", first_put);
+            false
+        }
+        (false, false) => {
+            log::error!("PUTs {} and {} are not available", first_put, second_put);
+            false
+        }
+    }
 }
