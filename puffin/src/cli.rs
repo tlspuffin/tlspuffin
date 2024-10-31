@@ -348,7 +348,7 @@ where
             }
         };
 
-        if !check_if_puts_exist(&put_registry, first_put, second_put) {
+        if !check_if_puts_exist(&put_registry, vec![first_put, second_put]) {
             return ExitCode::FAILURE;
         }
 
@@ -460,7 +460,7 @@ where
             let first_put: &String = matches.get_one("first_target").unwrap();
             let second_put: &String = matches.get_one("second_target").unwrap();
 
-            if !check_if_puts_exist(&put_registry, first_put, second_put) {
+            if !check_if_puts_exist(&put_registry, vec![first_put, second_put]) {
                 return ExitCode::FAILURE;
             }
 
@@ -612,30 +612,25 @@ fn binary_attack<PB: ProtocolBehavior>(
 
 fn check_if_puts_exist<PB: ProtocolBehavior>(
     put_registry: &PutRegistry<PB>,
-    first_put: &str,
-    second_put: &str,
+    put_list: Vec<&str>,
 ) -> bool {
-    let puts_exist = put_registry
-        .puts()
-        .map(|(put_name, _)| {
-            log::debug!("Available PUT : {}", put_name);
-            (put_name == first_put, put_name == second_put)
-        })
-        .fold((false, false), |acc, x| (acc.0 || x.0, acc.1 || x.1));
+    let available_puts: Vec<&str> = put_registry.puts().map(|(name, _)| name).collect();
 
-    match puts_exist {
-        (true, true) => true,
-        (true, false) => {
-            log::error!("PUT {} is not available", second_put);
-            false
-        }
-        (false, true) => {
-            log::error!("PUT {} is not available", first_put);
-            false
-        }
-        (false, false) => {
-            log::error!("PUTs {} and {} are not available", first_put, second_put);
-            false
-        }
+    let non_available_puts: Vec<&str> = put_list
+        .iter()
+        .filter_map(|name| {
+            if available_puts.iter().any(|x| x == name) {
+                None
+            } else {
+                Some(*name)
+            }
+        })
+        .collect();
+
+    if non_available_puts.is_empty() {
+        true
+    } else {
+        println!("PUT not found : {}", non_available_puts.join(","));
+        false
     }
 }
