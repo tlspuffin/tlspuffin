@@ -44,13 +44,13 @@ pub struct FuzzerConfig {
 
 #[derive(Clone, Debug)]
 pub enum FuzzingTarget {
-    Single(Option<String>),
-    Differential(String, String),
+    Single(PutDescriptor),
+    Differential(PutDescriptor, PutDescriptor),
 }
 
 impl Default for FuzzingTarget {
     fn default() -> Self {
-        Self::Single(None)
+        Self::Single(Default::default())
     }
 }
 
@@ -440,8 +440,8 @@ where
         // signature so we return a boxed closure that we call in the next closure
         let mut boxed_harness_fn: Box<dyn FnMut(&Trace<PB::ProtocolTypes>) -> ExitKind> =
             match target {
-                FuzzingTarget::Single(_) => {
-                    Box::new(|input: &_| harness::harness::<PB>(put_registry, input))
+                FuzzingTarget::Single(put) => {
+                    Box::new(|input: &_| harness::harness::<PB>(put_registry, put, input))
                 }
                 FuzzingTarget::Differential(first, second) => Box::new(|input: &_| {
                     harness::differential_harness::<PB>(put_registry, first, second, input)
