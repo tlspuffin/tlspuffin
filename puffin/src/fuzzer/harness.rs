@@ -10,12 +10,13 @@ use crate::fuzzer::stats_stage::{
     TERM_SIZE, TRACE_LENGTH,
 };
 use crate::protocol::ProtocolBehavior;
-use crate::put::{PutDescriptor, PutOptions};
+use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
 use crate::trace::{Action, Spawner, Trace};
 
 pub fn harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
+    put_descriptor: &PutDescriptor,
     input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {
     // Stats
@@ -37,7 +38,11 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         }
     }
     // Execute the trace
-    let runner = Runner::new(put_registry.clone(), Spawner::new(put_registry.clone()));
+    let agent = input.descriptors[0].name;
+    let runner = Runner::new(
+        put_registry.clone(),
+        Spawner::new(put_registry.clone()).with_mapping(&[(agent, put_descriptor.clone())]),
+    );
     let mut fail_at_step = 0;
     if let Ok(ctx) = runner.execute(input, &mut fail_at_step) {
         HARNESS_EXEC_SUCCESS.increment();
@@ -61,17 +66,15 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
 
 pub fn differential_harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
-    first_put: &str,
-    second_put: &str,
+    first_put: &PutDescriptor,
+    second_put: &PutDescriptor,
     input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {
     let agent = input.descriptors[0].name;
     let runner = DifferentialRunner::new(
         put_registry.clone(),
-        Spawner::new(put_registry.clone())
-            .with_mapping(&[(agent, PutDescriptor::new(first_put, PutOptions::empty()))]),
-        Spawner::new(put_registry.clone())
-            .with_mapping(&[(agent, PutDescriptor::new(second_put, PutOptions::empty()))]),
+        Spawner::new(put_registry.clone()).with_mapping(&[(agent, first_put.clone())]),
+        Spawner::new(put_registry.clone()).with_mapping(&[(agent, second_put.clone())]),
     );
 
     HARNESS_EXEC.increment();

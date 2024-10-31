@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use log::LevelFilter;
 
 use crate::fuzzer::mutations::MutationConfig;
+use crate::put::PutDescriptor;
 
 /// Minimum of executions before starting to run bit-level mutations
 pub const MIN_BIT_EXECS: usize = 5_000; // one 1 core
@@ -59,8 +60,8 @@ impl Default for FuzzerConfig {
 
 #[derive(Clone, Debug)]
 pub enum FuzzingTarget {
-    Single(Option<String>),
-    Differential(String, String),
+    Single(Option<PutDescriptor>),
+    Differential(PutDescriptor, PutDescriptor),
 }
 
 impl Default for FuzzingTarget {

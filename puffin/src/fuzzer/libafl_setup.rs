@@ -598,13 +598,20 @@ where
         }
         log::info!("log_handle: {:?}", &log_handle);
 
+        let default_put = put_registry.default_put_descriptor();
+
         // Choose a harness to do single target/differential fuzzing
         // We can't directly return a closure since they don't have the same
         // signature so we return a boxed closure that we call in the next closure
         let mut boxed_harness_fn: Box<dyn FnMut(&Trace<PB::ProtocolTypes>) -> ExitKind> =
             match target {
-                FuzzingTarget::Single(_) => {
-                    Box::new(|input: &_| harness::harness::<PB>(put_registry, input))
+                FuzzingTarget::Single(put) => {
+                    let put_desc = if let Some(put_desc) = put {
+                        put_desc
+                    } else {
+                        &default_put
+                    };
+                    Box::new(|input: &_| harness::harness::<PB>(put_registry, put_desc, input))
                 }
                 FuzzingTarget::Differential(first, second) => Box::new(|input: &_| {
                     harness::differential_harness::<PB>(put_registry, first, second, input)

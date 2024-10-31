@@ -550,7 +550,10 @@ where
                 return ExitCode::FAILURE;
             }
 
-            FuzzingTarget::Differential(first_put.into(), second_put.into())
+            FuzzingTarget::Differential(
+                PutDescriptor::new(first_put, PutOptions::empty()),
+                PutDescriptor::new(second_put, PutOptions::empty()),
+            )
         } else {
             FuzzingTarget::default()
         };
