@@ -869,10 +869,11 @@ impl<PT: ProtocolTypes> Term<PT> {
                     .find_variable(variable.typ.clone(), &variable.query)
                     .map(super::super::variable_data::VariableData::boxed_term)
                     .or_else(|| {
-                        if let Some(Source::Agent(agent_name)) = variable.query.source {
-                            ctx.find_claim(agent_name, variable.typ.clone())
+                        if let Some(Source::Agent(agent_name)) = &variable.query.source {
+                            ctx.find_claim(*agent_name, variable.typ.clone())
                         } else {
-                            todo!("Implement querying by label");
+                            // Claims doesn't have precomputations as source
+                            None
                         }
                     })
                     .ok_or_else(|| Error::Term(format!("Unable to find variable {variable}!")))?;
