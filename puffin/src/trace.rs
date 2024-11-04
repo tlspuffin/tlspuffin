@@ -267,7 +267,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             other.knowledges().iter().flatten(),
         )
         .map(|(x, y)| {
-            println!("{} == {}", x.data.type_name(), y.data.type_name());
+            // println!("{} == {}", x.data.type_name(), y.data.type_name());
 
             x.data.type_name() == y.data.type_name()
         })
