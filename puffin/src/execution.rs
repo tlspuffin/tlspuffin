@@ -143,11 +143,11 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
         // We reseed all PUTs before executing a trace!
         self.registry.determinism_reseed_all_factories();
 
-        println!("Executing first PUT");
+        log::info!("Executing first PUT");
         let mut first_ctx = TraceContext::new(self.first_spawner.clone());
         trace.as_ref().execute(&mut first_ctx)?;
 
-        println!("Executing second PUT");
+        log::info!("Executing second PUT");
         let mut second_ctx = TraceContext::new(self.second_spawner.clone());
         trace.as_ref().execute(&mut second_ctx)?;
 
@@ -157,25 +157,6 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             println!("Difference between the PUTs");
             return Err(Error::Difference("ERROR".into()));
         }
-
-        println!(
-            "knowledges : {}",
-            first_ctx
-                .knowledge_store
-                .knowledges()
-                .iter()
-                .flatten()
-                .count()
-        );
-        println!(
-            "knowledges : {}",
-            second_ctx
-                .knowledge_store
-                .knowledges()
-                .iter()
-                .flatten()
-                .count()
-        );
 
         Ok(first_ctx)
     }
