@@ -252,9 +252,19 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
     }
 
     pub fn compare(&self, other: &Self) -> bool {
+        let whitelist = PT::differential_fuzzing_whitelist();
+        let blacklist = PT::differential_fuzzing_blacklist();
+
         let is_diff = std::iter::zip(
-            self.knowledges().iter().flatten(),
-            other.knowledges().iter().flatten(),
+            self.knowledges()
+                .iter()
+                .flatten()
+                .filter(|x| filter_knowledge(x, &whitelist, &blacklist)),
+            other
+                .knowledges()
+                .iter()
+                .flatten()
+                .filter(|x| filter_knowledge(x, &whitelist, &blacklist)),
         )
         .map(|(x, y)| {
             // println!("{} == {}", x.data.type_name(), y.data.type_name());
@@ -265,6 +275,31 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
 
         !is_diff
     }
+}
+
+/// Should a specific knowledge be filtered out
+fn filter_knowledge<PT: ProtocolTypes>(
+    knowledge: &Knowledge<PT>,
+    whitelist: &Option<Vec<TypeId>>,
+    blacklist: &Option<Vec<TypeId>>,
+) -> bool {
+    if whitelist.is_none() && blacklist.is_none() {
+        return true;
+    }
+
+    if let Some(list) = whitelist {
+        if !list.iter().any(|x| x == &knowledge.data.type_id()) {
+            return false;
+        }
+    }
+
+    if let Some(list) = blacklist {
+        if list.iter().any(|x| x == &knowledge.data.type_id()) {
+            return false;
+        }
+    }
+
+    true
 }
 
 #[derive(Debug)]

@@ -128,6 +128,9 @@ pub trait ProtocolTypes:
 
     /// Get the signature that is used in the protocol
     fn signature() -> &'static Signature<Self>;
+
+    fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>>;
+    fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>>;
 }
 
 /// Defines the protocol which is being tested.
