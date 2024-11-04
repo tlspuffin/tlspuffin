@@ -185,6 +185,14 @@ impl ProtocolTypes for SshProtocolTypes {
     fn signature() -> &'static Signature<Self> {
         &SSH_SIGNATURE
     }
+
+    fn differential_fuzzing_blacklist() -> Option<Vec<std::any::TypeId>> {
+        None
+    }
+
+    fn differential_fuzzing_whitelist() -> Option<Vec<std::any::TypeId>> {
+        None
+    }
 }
 
 impl std::fmt::Display for SshProtocolTypes {
