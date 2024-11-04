@@ -181,11 +181,21 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
 
         log::info!("Executing first PUT");
         let mut first_ctx = TraceContext::new(self.first_spawner.clone());
-        trace.as_ref().execute(&mut first_ctx, &mut 0)?;
+        let first_trace_status = trace.as_ref().execute(&mut first_ctx, &mut 0);
 
         log::info!("Executing second PUT");
         let mut second_ctx = TraceContext::new(self.second_spawner.clone());
-        trace.as_ref().execute(&mut second_ctx, &mut 0)?;
+        let second_trace_status = trace.as_ref().execute(&mut second_ctx, &mut 0);
+
+        match (&first_trace_status, &second_trace_status) {
+            (Err(_), Ok(_)) | (Ok(_), Err(_)) => {
+                return Err(Error::Difference(format!(
+                    "Execution status difference:\n\tFirst PUT: {:?}\n\tSecond PUT: {:?}",
+                    first_trace_status, second_trace_status
+                )))
+            }
+            _ => (),
+        }
 
         *executed_until = usize::max(first_ctx.executed_until, second_ctx.executed_until);
 
