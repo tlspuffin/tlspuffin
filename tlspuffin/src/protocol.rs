@@ -360,6 +360,14 @@ impl ProtocolTypes for TLSProtocolTypes {
     fn signature() -> &'static Signature<Self> {
         &TLS_SIGNATURE
     }
+
+    fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>> {
+        Some(vec![TypeId::of::<OpaqueMessage>()])
+    }
+
+    fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
+        None
+    }
 }
 
 impl std::fmt::Display for TLSProtocolTypes {
