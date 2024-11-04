@@ -594,6 +594,14 @@ pub mod test_signature {
         fn signature() -> &'static Signature<Self> {
             &TEST_SIGNATURE
         }
+
+        fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>> {
+            None
+        }
+
+        fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
+            None
+        }
     }
 
     impl fmt::Display for TestProtocolTypes {
