@@ -1,4 +1,4 @@
-use std::any::Any;
+use std::any::{Any, TypeId};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
@@ -22,9 +22,25 @@ impl<T: 'static> AsAny for T {
     }
 }
 
+pub trait AsBoxedTerm<PT> {
+    fn boxed(&self) -> Box<dyn EvaluatedTerm<PT>>;
+}
+
+impl<T, PT: ProtocolTypes> AsBoxedTerm<PT> for T
+where
+    T: Clone + Debug + EvaluatedTerm<PT> + 'static,
+{
+    fn boxed(&self) -> Box<dyn EvaluatedTerm<PT>> {
+        Box::new(self.clone())
+    }
+}
+
 /// Provide a way to extract knowledge out of a Message/OpaqueMessage or any type that
 /// might be used in a precomputation
-pub trait EvaluatedTerm<PT: ProtocolTypes>: std::fmt::Debug + AsAny {
+pub trait EvaluatedTerm<PT: ProtocolTypes>: std::fmt::Debug + AsAny + AsBoxedTerm<PT>
+where
+    Self: 'static,
+{
     /// Fill `knowledges` with new knowledge gathered form the type implementing EvaluatedTerm
     /// by recursively calling extract_knowledge on all contained element
     /// This will put source as the source of all the produced knowledge, matcher is also passed
@@ -35,6 +51,14 @@ pub trait EvaluatedTerm<PT: ProtocolTypes>: std::fmt::Debug + AsAny {
         matcher: Option<PT::Matcher>,
         source: &'a Source,
     ) -> Result<(), Error>;
+
+    fn type_id(&self) -> TypeId {
+        Any::type_id(self)
+    }
+
+    fn type_name(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
 }
 
 #[macro_export]

@@ -2,7 +2,7 @@
 //!
 //! Each [`Trace`]s consist of several [`Step`]s, of which each has either an [`OutputAction`] or
 //! [`InputAction`]. This is a declarative way of modeling communication between [`Agent`]s. The
-//! [`TraceContext`] holds data, also known as [`VariableData`], which is created by [`Agent`]s
+//! [`TraceContext`] holds data, also known as [`EvaluatedTerm`], which is created by [`Agent`]s
 //! during the concrete execution of the Trace. It also holds the [`Agent`]s with the references to
 //! concrete PUT.
 //!
@@ -38,7 +38,6 @@ use crate::protocol::{
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
 use crate::stream::Stream;
-use crate::variable_data::VariableData;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct Query<M> {
@@ -82,7 +81,7 @@ impl fmt::Display for Source {
 pub struct Knowledge<'a, PT: ProtocolTypes> {
     pub source: &'a Source,
     pub matcher: Option<PT::Matcher>,
-    pub data: &'a dyn VariableData<PT>,
+    pub data: &'a dyn EvaluatedTerm<PT>,
 }
 
 /// [RawKnowledge] stores
@@ -222,7 +221,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         &self,
         query_type_shape: TypeShape<PT>,
         query: &Query<PT::Matcher>,
-    ) -> Option<&(dyn VariableData<PT>)> {
+    ) -> Option<&(dyn EvaluatedTerm<PT>)> {
         let query_type_id: TypeId = query_type_shape.into();
 
         let mut possibilities: Vec<Knowledge<PT>> = self
@@ -317,8 +316,8 @@ impl<PB: ProtocolBehavior> Clone for Spawner<PB> {
 
 /// The [`TraceContext`] represents the state of an execution.
 ///
-/// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
-/// of the attacker. [`VariableData`] can contain data of various types like for example
+/// The [`TraceContext`] contains a list of [`EvaluatedTerm`], which is known as the knowledge
+/// of the attacker. [`EvaluatedTerm`] can contain data of various types like for example
 /// client and server extensions, cipher suits or session ID It also holds the concrete
 /// references to the [`Agent`]s and the underlying streams, which contain the messages
 /// which have need exchanged and are not yet processed by an output step.
@@ -424,7 +423,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         &self,
         query_type_shape: TypeShape<PB::ProtocolTypes>,
         query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
-    ) -> Option<&(dyn VariableData<PB::ProtocolTypes>)> {
+    ) -> Option<&(dyn EvaluatedTerm<PB::ProtocolTypes>)> {
         self.knowledge_store.find_variable(query_type_shape, query)
     }
 

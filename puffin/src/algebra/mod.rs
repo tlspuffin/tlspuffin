@@ -91,7 +91,6 @@ impl Matcher for AnyMatcher {
 #[cfg(test)]
 #[allow(clippy::ptr_arg)]
 pub mod test_signature {
-    use std::any::{Any, TypeId};
     use std::fmt;
     use std::fmt::{Debug, Display};
     use std::io::Read;
@@ -112,34 +111,33 @@ pub mod test_signature {
     use crate::put::{Put, PutOptions};
     use crate::put_registry::{Factory, PutKind};
     use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace};
-    use crate::variable_data::VariableData;
     use crate::{define_signature, dummy_extract_knowledge, term, VERSION_STR};
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct HmacKey;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct HandshakeMessage;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Encrypted;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct ProtocolVersion;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Random;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct ClientExtension;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct ClientExtensions;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Group;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct SessionID;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct CipherSuites;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct CipherSuite;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Compression;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Compressions;
 
     dummy_extract_knowledge!(TestProtocolTypes, HmacKey);
@@ -388,31 +386,10 @@ pub mod test_signature {
     pub type TestTrace = Trace<TestProtocolTypes>;
     pub type TestTerm = Term<TestProtocolTypes>;
 
+    #[derive(Clone)]
     pub struct TestClaim;
 
     dummy_extract_knowledge!(TestProtocolTypes, TestClaim);
-
-    impl VariableData<TestProtocolTypes> for TestClaim {
-        fn boxed(&self) -> Box<dyn VariableData<TestProtocolTypes>> {
-            panic!("Not implemented for test stub");
-        }
-
-        fn boxed_any(&self) -> Box<dyn Any> {
-            panic!("Not implemented for test stub");
-        }
-
-        fn type_id(&self) -> TypeId {
-            panic!("Not implemented for test stub");
-        }
-
-        fn type_name(&self) -> &'static str {
-            panic!("Not implemented for test stub");
-        }
-
-        fn boxed_term(&self) -> Box<dyn EvaluatedTerm<TestProtocolTypes>> {
-            panic!("Not implemented for test stub");
-        }
-    }
 
     impl fmt::Debug for TestClaim {
         fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
