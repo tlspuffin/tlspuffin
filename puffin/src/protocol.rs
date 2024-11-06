@@ -1,4 +1,4 @@
-use core::any::{Any, TypeId};
+use std::any::{Any, TypeId};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
@@ -9,26 +9,27 @@ use crate::algebra::signature::Signature;
 use crate::algebra::{ConcreteMessage, Matcher};
 use crate::claims::{Claim, SecurityViolationPolicy};
 use crate::codec;
+use crate::codec::CodecP;
 use crate::error::Error;
 use crate::trace::{Knowledge, Source, Trace};
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
-    fn boxed_any(self) -> Box<dyn Any>;
 }
 
 impl<T: 'static> AsAny for T {
     fn as_any(&self) -> &dyn Any {
         self
     }
-
-    fn boxed_any(self) -> Box<dyn Any> {
-        Box::new(self)
-    }
 }
 
+/// Fill `knowledges` with new knowledge gathered form the type implementing EvaluatedTerm
+/// by recursively calling extract_knowledge on all contained element
 /// Knowledges can be extracted from using `extract_knowledge`
-pub trait Extractable<PT: ProtocolTypes>: std::fmt::Debug + AsAny {
+pub trait Extractable<PT: ProtocolTypes>: std::fmt::Debug + AsAny
+where
+    Self: 'static,
+{
     /// Fill `knowledges` with new knowledge gathered form the type implementing `EvaluatedTerm`
     /// by recursively calling `extract_knowledge` on all contained element
     /// This will put source as the source of all the produced knowledge, matcher is also passed
@@ -41,77 +42,30 @@ pub trait Extractable<PT: ProtocolTypes>: std::fmt::Debug + AsAny {
     ) -> Result<(), Error>;
 }
 
-/// `EvaluatedTerm`: have both Codec and extraction capabilities into knowledge.
-pub trait EvaluatedTerm<PT: ProtocolTypes>: codec::CodecP + Extractable<PT> {}
-impl<T, PT: ProtocolTypes> EvaluatedTerm<PT> for T where T: codec::CodecP + Extractable<PT> {}
+/// `EvaluatedTerm`: have both Codec and a way to extract knowledge out of a Message/OpaqueMessage
+/// or any type that might be used in a precomputation
+pub trait EvaluatedTerm<PT: ProtocolTypes>:
+    codec::CodecP + Extractable<PT> + Debug + AsAny + 'static
+where
+    Self: 'static,
+{
+    fn type_id(&self) -> TypeId {
+        Any::type_id(self)
+    }
 
-#[macro_export]
-macro_rules! dummy_extract_knowledge {
-    ($protocol_type:ty, $extract_type:ty) => {
-        impl Extractable<$protocol_type> for $extract_type {
-            fn extract_knowledge<'a>(
-                &'a self,
-                _knowledges: &mut Vec<Knowledge<'a, $protocol_type>>,
-                _matcher: Option<<$protocol_type as ProtocolTypes>::Matcher>,
-                _source: &'a Source,
-            ) -> Result<(), Error> {
-                log::warn!(
-                    "Trying to extract a dummy type: {}",
-                    stringify!($extract_type)
-                );
-                Ok(())
-            }
-        }
-    };
+    fn type_name(&self) -> &'static str {
+        std::any::type_name::<Self>()
+    }
+
+    fn boxed(&self) -> Box<dyn EvaluatedTerm<PT>>;
 }
-
-#[macro_export]
-macro_rules! dummy_codec {
-    ($protocol_type:ty, $extract_type:ty) => {
-        impl codec::CodecP for $extract_type {
-            fn encode(&self, _bytes: &mut Vec<u8>) {
-                log::warn!(
-                    "Trying to encode a dummy type: {}",
-                    stringify!($extract_type)
-                );
-            }
-
-            fn read(&mut self, _r: &mut codec::Reader) -> Result<(), Error> {
-                log::warn!("Trying to read a dummy type: {}", stringify!($extract_type));
-                Ok(())
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! dummy_extract_knowledge_codec {
-    ($protocol_type:ty, $extract_type:ty) => {
-        dummy_extract_knowledge!($protocol_type, $extract_type);
-        dummy_codec!($protocol_type, $extract_type);
-    };
-}
-
-#[macro_export]
-macro_rules! atom_extract_knowledge {
-    ($protocol_type:ty, $extract_type:ty) => {
-        impl Extractable<$protocol_type> for $extract_type {
-            fn extract_knowledge<'a>(
-                &'a self,
-                knowledges: &mut Vec<Knowledge<'a, $protocol_type>>,
-                matcher: Option<<$protocol_type as ProtocolTypes>::Matcher>,
-                source: &'a Source,
-            ) -> Result<(), Error> {
-                log::debug!("Extract atom: {}", stringify!($extract_type));
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: self,
-                });
-                Ok(())
-            }
-        }
-    };
+impl<T, PT: ProtocolTypes> EvaluatedTerm<PT> for T
+where
+    T: codec::CodecP + Extractable<PT> + 'static + Clone,
+{
+    fn boxed(&self) -> Box<dyn EvaluatedTerm<PT>> {
+        Box::new(self.clone())
+    }
 }
 
 /// Store a message flight, a vec of all the messages sent by the PUT between two steps
@@ -215,4 +169,74 @@ pub trait ProtocolBehavior: 'static {
         bitstring: &[u8],
         ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error>;
+}
+
+// -- Macros --
+#[macro_export]
+macro_rules! dummy_extract_knowledge {
+    ($protocol_type:ty, $extract_type:ty) => {
+        impl Extractable<$protocol_type> for $extract_type {
+            fn extract_knowledge<'a>(
+                &'a self,
+                _knowledges: &mut Vec<Knowledge<'a, $protocol_type>>,
+                _matcher: Option<<$protocol_type as ProtocolTypes>::Matcher>,
+                _source: &'a Source,
+            ) -> Result<(), Error> {
+                log::warn!(
+                    "Trying to extract a dummy type: {}",
+                    stringify!($extract_type)
+                );
+                Ok(())
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! dummy_codec {
+    ($protocol_type:ty, $extract_type:ty) => {
+        impl codec::CodecP for $extract_type {
+            fn encode(&self, _bytes: &mut Vec<u8>) {
+                log::warn!(
+                    "Trying to encode a dummy type: {}",
+                    stringify!($extract_type)
+                );
+            }
+
+            fn read(&mut self, _r: &mut codec::Reader) -> Result<(), Error> {
+                log::warn!("Trying to read a dummy type: {}", stringify!($extract_type));
+                Ok(())
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! dummy_extract_knowledge_codec {
+    ($protocol_type:ty, $extract_type:ty) => {
+        dummy_extract_knowledge!($protocol_type, $extract_type);
+        dummy_codec!($protocol_type, $extract_type);
+    };
+}
+
+#[macro_export]
+macro_rules! atom_extract_knowledge {
+    ($protocol_type:ty, $extract_type:ty) => {
+        impl Extractable<$protocol_type> for $extract_type {
+            fn extract_knowledge<'a>(
+                &'a self,
+                knowledges: &mut Vec<Knowledge<'a, $protocol_type>>,
+                matcher: Option<<$protocol_type as ProtocolTypes>::Matcher>,
+                source: &'a Source,
+            ) -> Result<(), Error> {
+                log::debug!("Extract atom: {}", stringify!($extract_type));
+                knowledges.push(Knowledge {
+                    source,
+                    matcher,
+                    data: self,
+                });
+                Ok(())
+            }
+        }
+    };
 }

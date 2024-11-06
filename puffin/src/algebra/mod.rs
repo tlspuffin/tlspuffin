@@ -92,7 +92,7 @@ impl Matcher for AnyMatcher {
 #[cfg(test)]
 #[allow(clippy::ptr_arg)]
 pub mod test_signature {
-    use std::any::{Any, TypeId};
+    use std::any::TypeId;
     use std::fmt;
     use std::io::Read;
 
@@ -105,41 +105,44 @@ pub mod test_signature {
     use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
     use crate::codec::{CodecP, Reader};
     use crate::error::Error;
-    use crate::protocol::{EvaluatedTerm, Extractable, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes};
+    use crate::protocol::{
+        EvaluatedTerm, Extractable, OpaqueProtocolMessage, OpaqueProtocolMessageFlight,
+        ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
+        ProtocolTypes,
+    };
     use crate::put::{Put, PutOptions};
     use crate::put_registry::{Factory, PutKind};
     use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace};
-    use crate::variable_data::VariableData;
     use crate::{
         codec, define_signature, dummy_codec, dummy_extract_knowledge,
         dummy_extract_knowledge_codec, term, VERSION_STR,
     };
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct HmacKey;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct HandshakeMessage;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Encrypted;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct ProtocolVersion;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Random;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct ClientExtension;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct ClientExtensions;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Group;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct SessionID;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct CipherSuites;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct CipherSuite;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Compression;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Compressions;
 
     dummy_extract_knowledge_codec!(TestProtocolTypes, HmacKey);
@@ -392,31 +395,10 @@ pub mod test_signature {
     pub type TestTrace = Trace<TestProtocolTypes>;
     pub type TestTerm = Term<TestProtocolTypes>;
 
+    #[derive(Clone)]
     pub struct TestClaim;
 
     dummy_extract_knowledge_codec!(TestProtocolTypes, TestClaim);
-
-    impl VariableData<TestProtocolTypes> for TestClaim {
-        fn boxed(&self) -> Box<dyn VariableData<TestProtocolTypes>> {
-            panic!("Not implemented for test stub");
-        }
-
-        fn boxed_any(&self) -> Box<dyn Any> {
-            panic!("Not implemented for test stub");
-        }
-
-        fn type_id(&self) -> TypeId {
-            panic!("Not implemented for test stub");
-        }
-
-        fn type_name(&self) -> &'static str {
-            panic!("Not implemented for test stub");
-        }
-
-        fn boxed_term(&self) -> Box<dyn EvaluatedTerm<TestProtocolTypes>> {
-            panic!("Not implemented for test stub");
-        }
-    }
 
     impl fmt::Debug for TestClaim {
         fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
