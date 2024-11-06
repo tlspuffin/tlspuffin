@@ -88,7 +88,7 @@ pub struct HandshakeHash {
 
 impl fmt::Debug for HandshakeHash {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        writeln!(f, "HandshakeHash: {:?}", codec::Encode::get_encoding(self))
+        writeln!(f, "HandshakeHash: {:?}", codec::Codec::get_encoding(self))
     }
 }
 

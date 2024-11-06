@@ -799,8 +799,8 @@ fn test_term_read_encode() {
     log::error!("number_shapes: {}, number_terms: {}, eval_count: {}, count_lazy_fail: {count_lazy_fail}, count_any_encode_fail: {count_any_encode_fail}\n", number_shapes, number_terms, eval_count);
     log::error!("Read stats: read_count: {read_count}, read_success: {read_success}, read_fail: {read_fail}, read_wrong: {read_wrong}");
 
-    log::debug!("Diff: {:?}\n", &difference);
-    log::debug!("Intersec with ignored: {:?}\n", &difference_inverse);
+    log::error!("Diff: {:?}\n", &difference);
+    log::error!("Intersec with ignored: {:?}\n", &difference_inverse);
     assert_eq!(difference.count(), 0);
     assert_eq!(difference_inverse.count(), 0);
     assert_eq!(count_any_encode_fail, 0);

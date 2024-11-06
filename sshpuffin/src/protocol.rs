@@ -3,10 +3,10 @@ use std::any::TypeId;
 use puffin::algebra::signature::Signature;
 use puffin::algebra::ConcreteMessage;
 use puffin::codec;
-use puffin::codec::{Codec, Reader};
+use puffin::codec::{Codec, Reader, VecCodecWoSize};
 use puffin::error::Error;
 use puffin::protocol::{
-    EvaluatedTerm, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
+    EvaluatedTerm, Extractable, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
     ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
 use puffin::trace::{Knowledge, Source, Trace};
@@ -22,6 +22,24 @@ use crate::violation::SshSecurityViolationPolicy;
 #[derive(Debug, Clone)]
 pub struct SshMessageFlight {
     pub messages: Vec<SshMessage>,
+}
+
+impl VecCodecWoSize for SshMessage {}
+impl codec::Codec for SshMessageFlight {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        for msg in &self.messages {
+            msg.encode(bytes);
+        }
+    }
+
+    fn read(reader: &mut codec::Reader) -> Option<Self> {
+        let mut flight = Vec::new();
+
+        while let Some(msg) = SshMessage::read(reader) {
+            flight.push(msg);
+        }
+        Some(SshMessageFlight { messages: flight })
+    }
 }
 
 impl ProtocolMessageFlight<SshProtocolTypes, SshMessage, RawSshMessage, RawSshMessageFlight>
@@ -48,7 +66,7 @@ impl From<SshMessage> for SshMessageFlight {
     }
 }
 
-impl EvaluatedTerm<SshProtocolTypes> for SshMessageFlight {
+impl Extractable<SshProtocolTypes> for SshMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
@@ -86,7 +104,7 @@ impl OpaqueProtocolMessageFlight<SshProtocolTypes, RawSshMessage> for RawSshMess
     }
 }
 
-impl EvaluatedTerm<SshProtocolTypes> for RawSshMessageFlight {
+impl Extractable<SshProtocolTypes> for RawSshMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
@@ -199,13 +217,13 @@ impl ProtocolBehavior for SshProtocolBehavior {
         match message
             .as_any()
             .downcast_ref::<SshMessage>()
-            .map(|b| codec::Encode::get_encoding(&b.create_opaque()))
+            .map(|b| codec::Codec::get_encoding(&b.create_opaque()))
         {
             Some(cm) => Ok(cm),
             None => message
                 .as_any()
                 .downcast_ref::<RawSshMessage>()
-                .map(|b| codec::Encode::get_encoding(b))
+                .map(|b| codec::Codec::get_encoding(b))
                 .ok_or(Error::Term(
                     "[any_get_encoding] Unable to encode (Raw)SshMessage".to_string(),
                 )),

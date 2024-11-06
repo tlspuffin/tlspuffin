@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
-use puffin::protocol::{EvaluatedTerm, ProtocolTypes};
+use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
 use puffin::{atom_extract_knowledge, codec};
 
@@ -138,100 +138,10 @@ impl Codec for PayloadU8 {
     }
 }
 
-/// Things we can encode and read from a Reader.
-pub trait Codec2: Debug + Sized {
-    /// Encode yourself by appending onto `bytes`.
-    fn encode2(&self, bytes: &mut Vec<u8>);
-
-    /// Convenience function to get the results of `encode()`.
-    fn get_encoding2(&self) -> Vec<u8> {
-        let mut ret = Vec::new();
-        self.encode2(&mut ret);
-        ret
-    }
-
-    /// Decode yourself by fiddling with the `Reader`.
-    /// Return Some if it worked, None if not.
-    fn read2(_: &mut Reader) -> Option<Self>;
-
-    /// Read one of these from the front of `bytes` and
-    /// return it.
-    fn read_bytes2(bytes: &[u8]) -> Option<Self> {
-        let mut rd = Reader::init(bytes);
-        Self::read2(&mut rd)
-    }
-}
-
-impl Codec2 for Vec<PayloadU8> {
-    fn encode2(&self, bytes: &mut Vec<u8>) {
-        for i in self {
-            i.encode(bytes);
-        }
-    }
-
-    fn read2(r: &mut Reader) -> Option<Vec<PayloadU8>> {
-        let mut ret: Vec<PayloadU8> = Vec::new();
-
-        while r.any_left() {
-            ret.push(PayloadU8::read(r)?);
-        }
-
-        Some(ret)
-    }
-}
-
-impl Codec2 for Vec<PayloadU16> {
-    fn encode2(&self, bytes: &mut Vec<u8>) {
-        for i in self {
-            i.encode(bytes);
-        }
-    }
-
-    fn read2(r: &mut Reader) -> Option<Vec<PayloadU16>> {
-        let mut ret: Vec<PayloadU16> = Vec::new();
-
-        while r.any_left() {
-            ret.push(PayloadU16::read(r)?);
-        }
-
-        Some(ret)
-    }
-}
-
-impl Codec2 for Vec<PayloadU24> {
-    fn encode2(&self, bytes: &mut Vec<u8>) {
-        for i in self {
-            i.encode(bytes);
-        }
-    }
-
-    fn read2(r: &mut Reader) -> Option<Vec<PayloadU24>> {
-        let mut ret: Vec<PayloadU24> = Vec::new();
-
-        while r.any_left() {
-            ret.push(PayloadU24::read(r)?);
-        }
-
-        Some(ret)
-    }
-}
-
-impl Codec2 for Option<Vec<u8>> {
-    fn encode2(&self, bytes: &mut Vec<u8>) {
-        match self {
-            None => {}
-            Some(v) => v.encode(bytes),
-        }
-    }
-
-    fn read2(r: &mut Reader) -> Option<Option<Vec<u8>>> {
-        if !r.any_left() {
-            Some(None)
-        } else {
-            Some(<Vec<u8>>::read(r))
-        }
-    }
-}
+// Make it VecCodecWoSize so that Vec<T>: Codec for free
+impl codec::VecCodecWoSize for PayloadU8 {}
+impl codec::VecCodecWoSize for PayloadU16 {}
+impl codec::VecCodecWoSize for PayloadU24 {}
 
 atom_extract_knowledge!(TLSProtocolTypes, PayloadU8);
 atom_extract_knowledge!(TLSProtocolTypes, PayloadU16);

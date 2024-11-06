@@ -72,7 +72,7 @@ impl fmt::Display for Source {
 }
 
 /// [Knowledge] describes an atomic piece of knowledge inferred by the
-/// [`crate::protocol::EvaluatedTerm::extract_knowledge`] function
+/// [`crate::protocol::Extractable::extract_knowledge`] function
 /// [Knowledge] is made of the data, the source of the output, the
 /// TLS message type and the internal type.
 #[derive(Debug)]

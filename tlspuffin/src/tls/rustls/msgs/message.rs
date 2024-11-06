@@ -16,7 +16,7 @@ use crate::tls::rustls::error::Error;
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::{Certificate, PrivateKey};
 use crate::tls::rustls::msgs::alert::AlertMessagePayload;
-use crate::tls::rustls::msgs::base::{Codec2, Payload, PayloadU16, PayloadU24, PayloadU8};
+use crate::tls::rustls::msgs::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
 use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
 use crate::tls::rustls::msgs::enums::ContentType::ApplicationData;
 use crate::tls::rustls::msgs::enums::ProtocolVersion::TLSv1_3;
@@ -44,9 +44,16 @@ pub enum MessagePayload {
     Heartbeat(HeartbeatPayload),
 }
 
-impl codec::Encode for MessagePayload {
+impl codec::CodecP for MessagePayload {
     fn encode(&self, bytes: &mut Vec<u8>) {
         MessagePayload::encode(self, bytes);
+    }
+
+    fn read(&mut self, _: &mut Reader) -> Result<(), puffin::error::Error> {
+        Err(puffin::error::Error::Term(format!(
+            "Failed to read for type {:?}",
+            std::any::type_name::<MessagePayload>()
+        )))
     }
 }
 impl MessagePayload {
@@ -295,6 +302,9 @@ pub struct Message {
     pub payload: MessagePayload,
 }
 
+// Make it VecCodecWoSize so that we have `Vec<T>: Codec` for free
+impl VecCodecWoSize for Message {}
+
 impl Codec for Message {
     fn encode(&self, bytes: &mut Vec<u8>) {
         Codec::encode(&self.create_opaque(), bytes);
@@ -381,63 +391,7 @@ pub enum MessageError {
     IllegalProtocolVersion,
 }
 
-#[macro_export]
-macro_rules! try_downcast {
-  ($message:expr, $T:ty, $($Ts:ty),+) => {
-        $message
-        .downcast_ref::<$T>()
-        .map(|b| {
-            log::trace!("--->> Successfully downcast from {:?}", std::any::type_name::<$T>());
-            let b = codec::Encode::get_encoding(b);
-            log::trace!("====>> Successfully encoded\n");
-            b
-        })
-        .or_else(|| {
-                // print!("Failed to downcast from {:?}", std::any::type_name::<$T>());
-                try_downcast!($message,$($Ts),+)
-        })
-  };
-    ($message:expr, $T:ty ) => {
-        $message
-        .downcast_ref::<$T>()
-        .map(|b| codec::Encode::get_encoding(b))
-         .or_else(|| {
-                $message
-                .downcast_ref::<Message>()
-                .map(|b| {
-                      log::trace!("--->> Successfully downcast from {:?}", std::any::type_name::<Message>());
-                      let b = codec::Encode::get_encoding(&b.create_opaque());
-                      log::trace!("====>> Successfully encoded");
-                      b
-                })
-        })
-  };
-}
-
-#[macro_export]
-macro_rules! try_downcast_two {
-  ($message:expr, $T:ty, $($Ts:ty),+) => {
-        $message
-        .downcast_ref::<$T>()
-        .map(|b| {
-            log::trace!("--->> Successfully downcast from {:?}", std::any::type_name::<$T>());
-            let b = tls::rustls::msgs::base::Codec2::get_encoding2(b);
-            log::trace!("====>> Successfully encoded");
-            b
-        })
-        .or_else(|| {
-                // print!("Failed to downcast from {:?}", std::any::type_name::<$T>());
-                try_downcast_two!($message,$($Ts),+)
-        })
-  };
-    ($message:expr, $T:ty ) => {
-        $message
-        .downcast_ref::<$T>()
-        .map(|b| tls::rustls::msgs::base::Codec2::get_encoding2(b))
-  };
-}
-
-// Rationale:
+// Rationale for `any_get_encoding` and `try_read_bytes`:
 // 1. Messages of types Vec<Item> will be read and encoded without considering the size of the
 //    vector (reading until end of buffer). We consider such messages as "intermediate values",
 //    which are not meant to be directly used in struct fields such as
@@ -463,101 +417,11 @@ impl VecCodecWoSize for CertificateEntry {} // u24
 impl VecCodecWoSize for CipherSuite {} // u16
 impl VecCodecWoSize for PresharedKeyIdentity {} //u16
 
-// Re-interpret any type of rustls message into bitstrings through successive downcast tries
+/// Use the `codecP::get_encoding` method to encode any `EvaluatedTerm<PT>`
 pub fn any_get_encoding(
     message: &dyn EvaluatedTerm<TLSProtocolTypes>,
 ) -> Result<ConcreteMessage, puffin::error::Error> {
-    try_downcast!(
-        message.as_any(),
-        // We list all the types that have the Encode trait and that can be the type of a rustls message
-        // Using term_zoo.rs integration test `test_term_eval, I am able to measure how many generated terms
-        // require each of the encode type below. Can be used to remove non-required ones and possibly
-        // to refine the order of them (heuristics to speed up the encoding).
-        Message,
-        OpaqueMessage,
-        MessageFlight,
-        OpaqueMessageFlight,
-        Vec<Certificate>,
-        Certificate,
-        CertificateEntries,
-        Vec<CertificateEntry>,
-        CertificateEntry,
-        HandshakeHash,
-        PrivateKey,
-        CipherSuites,
-        CipherSuite,
-        Vec<CipherSuite>,
-        Vec<PresharedKeyIdentity>,
-        PresharedKeyIdentity,
-        AlertMessagePayload,
-        SignatureScheme, // 800
-        NamedGroup,           // 407
-        ClientExtensions,     //368
-        Vec<ClientExtension>, //368 // to remove!
-        ClientExtension,      // 4067
-        ServerExtensions,
-        Vec<ServerExtension>, // TODO
-        ServerExtension,
-        HelloRetryExtensions,
-        Vec<HelloRetryExtension>,
-        HelloRetryExtension,
-        Vec<CertReqExtension>,
-        CertReqExtension,
-        Vec<CertificateExtension>,
-        CertificateExtension,
-        NewSessionTicketExtension,
-        Vec<NewSessionTicketExtension>,
-        NewSessionTicketExtensions,
-        TranscriptServerHello,
-        TranscriptClientFinished,
-        TranscriptServerFinished,
-        TranscriptCertificate,
-        TlsTranscript,
-        TranscriptClientHello,
-        TranscriptPartialClientHello,
-        Compressions,
-        Compression,
-        Vec<Compression>,
-        SessionID,
-        Random,
-        u64, // 3603 fail
-        u32, // 3603 fail
-        // u8, // OK
-        // Vec<u64>, // OK
-        ProtocolVersion,  // 400
-        PayloadU24,
-        PayloadU16,
-        PayloadU8,
-        VecU16OfPayloadU16,
-        VecU16OfPayloadU8,
-        Vec<u8>,         // 2385 Fail
-        Vec<Vec<u8>>,    // Fail 332
-        Option<Vec<u8>>, // Fail 542
-        bool             // 400 Fail
-        // Option<Vec<Vec<u8>>>, // OK
-        // Result<Option<Vec<u8>>, FnError>, // OK
-        // Result<Vec<u8>, FnError>, // OK
-        // Result<bool, FnError>, // OK
-        // Result<Vec<u8>, FnError>,
-        // Result<Vec<Vec<u8>>, FnError>,
-        //
-        // Message, // 4185 Fail  TODOOO
-        // Result<Message, FnError>,
-        // MessagePayload,
-        // ExtensionType,
-    )
-        .or_else(|| try_downcast_two!(
-                    message.as_any(),
-                    // We list all the types having custom Codec2 now
-                    Vec<PayloadU24>,
-                    Vec<PayloadU16>,
-                    Vec<PayloadU8>))
-        .ok_or(
-            Term(format!(
-                "[any_get_encoding] Failed to downcast to any of the type listed in rustls/msgs/messages.rs and then any_encode::get_encoding message {:?}",
-                &message
-            )),
-        )
+    Ok(codec::CodecP::get_encoding(message))
 }
 
 #[macro_export]
@@ -571,12 +435,13 @@ macro_rules! try_read {
                 core::any::type_name::<$T>(),
                 & $bitstring
             )).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
-    } else {
+      } else {
         try_read!($bitstring, $ti, $($Ts),+)
-    }
-    }
+      }
+      }
   };
-    ($bitstring:expr, $ti:expr, $T:ty ) => {
+
+  ($bitstring:expr, $ti:expr, $T:ty ) => {
       {
         if $ti == TypeId::of::<$T>() {
             log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
@@ -585,66 +450,28 @@ macro_rules! try_read {
                 core::any::type_name::<$T>(),
                 & $bitstring
             )).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
-    } else {
-           try_read_two!(
-                $bitstring,
-                $ti,
-                Vec<PayloadU24>,
-                Vec<PayloadU16>,
-                Vec<PayloadU8>,
-                Option<Vec<u8>>
-            )
+        } else {
+                log::error!("Failed to find a suitable type with typeID {:?} to read the bitstring {:?}", $ti, &$bitstring);
+                Err(Term(format!(
+                    "[try_read_bytes] Failed to find a suitable type with typeID {:?} to read the bitstring {:?}",
+                    $ti,
+                    &$bitstring
+                )).into())
+        }
       }
-}
-};
-}
-
-#[macro_export]
-macro_rules! try_read_two {
-  ($bitstring:expr, $ti:expr, $T:ty, $($Ts:ty),+) => {
-      {
-      if $ti == TypeId::of::<$T>() {
-        log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
-        <$T>::read_bytes2($bitstring).ok_or(Term(format!(
-                "[try_read_bytes_2] Failed to read to type {:?} the bitstring {:?}",
-                core::any::type_name::<$T>(),
-                & $bitstring
-            )).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
-    } else {
-        try_read_two!($bitstring, $ti, $($Ts),+)
-    }
-    }
   };
-    ($bitstring:expr, $ti:expr, $T:ty ) => {
-      {
-        if $ti == TypeId::of::<$T>() {
-            log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
-            <$T>::read_bytes2($bitstring).ok_or(Term(format!(
-                "[try_read_bytes_2] Failed to read to type {:?} the bitstring {:?}",
-                core::any::type_name::<$T>(),
-                & $bitstring
-            )).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
-    } else {
-            // error!(
-            //     "[try_read_bytes] Failed to find a suitable type with typeID {:?} to read the bitstring {:?}",
-            //     $ti,
-            //     & $bitstring
-            // );
-           Err(Term(format!(
-                "[try_read_bytes_2] Failed to find a suitable type with typeID {:?} to read the bitstring {:?}",
-                $ti,
-                & $bitstring
-            )).into())
-      }
-}
-};
 }
 
+/// To `read` an `EvaluatedTerm<PT>` out of a bitstring, we cannot simply use `Codec::read_bytes`
+/// since the type of the value to be initialized is not known, we only have the argument `ty` from
+/// which we can downcast and then call `read_bytes` on the appropriate type.
+/// `try_read_bytes` calls a macro `try_read` that does this.
+///  (There is no workaround for the uninitialized value type since we need to make Codec traits
+/// into dyn objects, hence it cannot have `Sized` as a supertrait.)
 pub fn try_read_bytes(
     bitstring: &[u8],
     ty: TypeId,
 ) -> Result<Box<dyn EvaluatedTerm<TLSProtocolTypes>>, puffin::error::Error> {
-    let a = <Vec<PayloadU24>>::read_bytes2(bitstring);
     log::trace!("Trying read...");
     try_read!(
         bitstring,
@@ -699,9 +526,13 @@ pub fn try_read_bytes(
         PayloadU24,
         PayloadU16,
         PayloadU8,
+        Vec<PayloadU24>,
+        Vec<PayloadU16>,
+        Vec<PayloadU8>,
         VecU16OfPayloadU16,
         VecU16OfPayloadU8,
         Vec<u8>,
+        Option<Vec<u8>>,
         Vec<Vec<u8>>,
         bool,
         // Option<Vec<Vec<u8>>>,
@@ -712,7 +543,7 @@ pub fn try_read_bytes(
         // Result<Vec<Vec<u8>>, FnError>,
         //
         // Message,
-        // Result<Message, FnError>,
+        // Result<Message FnError>,
         // MessagePayload,
         // ExtensionType,
         NamedGroup

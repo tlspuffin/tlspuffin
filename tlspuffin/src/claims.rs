@@ -3,11 +3,10 @@ use std::fmt::Debug;
 use puffin::agent::{AgentName, AgentType, TLSVersion};
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::claims::Claim;
-use puffin::codec::Encode;
-use puffin::dummy_extract_knowledge;
 use puffin::error::Error;
-use puffin::protocol::{AsBoxedTerm, EvaluatedTerm, ProtocolTypes};
+use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
+use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
 use smallvec::SmallVec;
 
 use crate::protocol::TLSProtocolTypes;
@@ -35,10 +34,16 @@ pub mod dummy_registration {
 #[derive(Debug, Clone)]
 pub struct TlsTranscript(pub [u8; 64], pub i32);
 
-impl Encode for TlsTranscript {
+impl codec::Codec for TlsTranscript {
     fn encode(&self, b: &mut Vec<u8>) {
         b.extend(self.0);
         b.extend(self.1.to_ne_bytes());
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        let t: [u8; 64] = <[u8; 64]>::try_from(r.take(64)?).ok()?;
+        let x = r.take(4)?;
+        Some(TlsTranscript(t, i32::from_ne_bytes(x.try_into().unwrap())))
     }
 }
 
@@ -51,9 +56,13 @@ impl Transcript for TranscriptClientHello {
     }
 }
 
-impl Encode for TranscriptClientHello {
+impl codec::Codec for TranscriptClientHello {
     fn encode(&self, b: &mut Vec<u8>) {
         b.extend(self.as_slice())
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        <TlsTranscript as codec::Codec>::read(r).map(TranscriptClientHello)
     }
 }
 
@@ -68,9 +77,13 @@ impl Transcript for TranscriptPartialClientHello {
     }
 }
 
-impl Encode for TranscriptPartialClientHello {
+impl codec::Codec for TranscriptPartialClientHello {
     fn encode(&self, b: &mut Vec<u8>) {
         b.extend(self.as_slice())
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        <TlsTranscript as codec::Codec>::read(r).map(TranscriptPartialClientHello)
     }
 }
 
@@ -85,9 +98,13 @@ impl Transcript for TranscriptServerHello {
     }
 }
 
-impl Encode for TranscriptServerHello {
+impl codec::Codec for TranscriptServerHello {
     fn encode(&self, b: &mut Vec<u8>) {
         b.extend(self.as_slice())
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        <TlsTranscript as codec::Codec>::read(r).map(TranscriptServerHello)
     }
 }
 
@@ -102,9 +119,13 @@ impl Transcript for TranscriptServerFinished {
     }
 }
 
-impl Encode for TranscriptServerFinished {
+impl codec::Codec for TranscriptServerFinished {
     fn encode(&self, b: &mut Vec<u8>) {
         b.extend(self.as_slice())
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        <TlsTranscript as codec::Codec>::read(r).map(TranscriptServerFinished)
     }
 }
 
@@ -119,9 +140,13 @@ impl Transcript for TranscriptClientFinished {
     }
 }
 
-impl Encode for TranscriptClientFinished {
+impl codec::Codec for TranscriptClientFinished {
     fn encode(&self, b: &mut Vec<u8>) {
         b.extend(self.as_slice())
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        <TlsTranscript as codec::Codec>::read(r).map(TranscriptClientFinished)
     }
 }
 
@@ -137,27 +162,33 @@ impl Transcript for TranscriptCertificate {
 }
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptCertificate);
 
-impl Encode for TranscriptCertificate {
+impl codec::Codec for TranscriptCertificate {
     fn encode(&self, b: &mut Vec<u8>) {
         b.extend(self.as_slice())
     }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        <TlsTranscript as codec::Codec>::read(r).map(TranscriptCertificate)
+    }
 }
+
 pub trait Transcript {
     fn as_slice(&self) -> &[u8];
 }
 
 #[derive(Debug, Clone)]
 pub struct ClientHello;
-dummy_extract_knowledge!(TLSProtocolTypes, ClientHello);
+// We do not expect to encode/read claims!
+dummy_extract_knowledge_codec!(TLSProtocolTypes, ClientHello);
 #[derive(Debug, Clone)]
 pub struct ServerHello;
-dummy_extract_knowledge!(TLSProtocolTypes, ServerHello);
+dummy_extract_knowledge_codec!(TLSProtocolTypes, ServerHello);
 #[derive(Debug, Clone)]
 pub struct Certificate;
-dummy_extract_knowledge!(TLSProtocolTypes, Certificate);
+dummy_extract_knowledge_codec!(TLSProtocolTypes, Certificate);
 #[derive(Debug, Clone)]
 pub struct CertificateVerify;
-dummy_extract_knowledge!(TLSProtocolTypes, CertificateVerify);
+dummy_extract_knowledge_codec!(TLSProtocolTypes, CertificateVerify);
 #[derive(Debug, Clone)]
 pub struct Finished {
     pub outbound: bool,
@@ -204,7 +235,7 @@ pub struct Finished {
                     }
     */
 }
-dummy_extract_knowledge!(TLSProtocolTypes, Finished);
+dummy_extract_knowledge_codec!(TLSProtocolTypes, Finished);
 
 #[derive(Debug, Clone)]
 pub enum ClaimDataTranscript {
@@ -238,6 +269,8 @@ pub struct TlsClaim {
     pub protocol_version: TLSVersion,
     pub data: ClaimData,
 }
+
+dummy_codec!(TLSProtocolTypes, TlsClaim);
 
 impl Claim<TLSProtocolTypes> for TlsClaim {
     fn agent_name(&self) -> AgentName {
@@ -290,7 +323,7 @@ impl Claim<TLSProtocolTypes> for TlsClaim {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for TlsClaim {
+impl Extractable<TLSProtocolTypes> for TlsClaim {
     fn extract_knowledge(
         &self,
         _knowledges: &mut Vec<puffin::trace::Knowledge<TLSProtocolTypes>>,

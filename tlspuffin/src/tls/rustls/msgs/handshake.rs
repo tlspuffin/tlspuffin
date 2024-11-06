@@ -2,7 +2,7 @@ use std::{collections, fmt};
 
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
-use puffin::protocol::{EvaluatedTerm, ProtocolTypes};
+use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
 use puffin::{atom_extract_knowledge, codec};
 
@@ -106,12 +106,12 @@ pub struct Random(pub [u8; 32]);
 
 static ZERO_RANDOM: Random = Random([0u8; 32]);
 
-impl Codec for Random {
+impl codec::Codec for Random {
     fn encode(&self, bytes: &mut Vec<u8>) {
         bytes.extend_from_slice(&self.0);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let bytes = r.take(32)?;
         let mut opaque = [0; 32];
         opaque.clone_from_slice(bytes);
@@ -169,14 +169,14 @@ impl PartialEq for SessionID {
     }
 }
 
-impl Codec for SessionID {
+impl codec::Codec for SessionID {
     fn encode(&self, bytes: &mut Vec<u8>) {
         debug_assert!(self.len <= 32);
         bytes.push(self.len as u8);
         bytes.extend_from_slice(&self.data[..self.len]);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let len = u8::read(r)? as usize;
         if len > 32 {
             return None;
@@ -224,7 +224,7 @@ impl UnknownExtension {
         self.payload.encode(bytes);
     }
 
-    fn read(typ: ExtensionType, r: &mut Reader) -> Self {
+    fn read(typ: ExtensionType, r: &mut codec::Reader) -> Self {
         let payload = Payload::read(r);
         Self { typ, payload }
     }
@@ -301,7 +301,7 @@ impl ServerNamePayload {
         Self::HostName((raw, hostname))
     }
 
-    fn read_hostname(r: &mut Reader) -> Option<Self> {
+    fn read_hostname(r: &mut codec::Reader) -> Option<Self> {
         let raw = PayloadU16::read(r)?;
 
         let dns_name = {
@@ -330,13 +330,13 @@ pub struct ServerName {
     pub payload: ServerNamePayload,
 }
 
-impl Codec for ServerName {
+impl codec::Codec for ServerName {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.typ.encode(bytes);
         self.payload.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let typ = ServerNameType::read(r)?;
 
         let payload = match typ {
@@ -433,13 +433,13 @@ impl KeyShareEntry {
     }
 }
 
-impl Codec for KeyShareEntry {
+impl codec::Codec for KeyShareEntry {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.group.encode(bytes);
         self.payload.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let group = NamedGroup::read(r)?;
         let payload = PayloadU16::read(r)?;
 
@@ -463,13 +463,13 @@ impl PresharedKeyIdentity {
     }
 }
 
-impl Codec for PresharedKeyIdentity {
+impl codec::Codec for PresharedKeyIdentity {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.identity.encode(bytes);
         self.obfuscated_ticket_age.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         Some(Self {
             identity: PayloadU16::read(r)?,
             obfuscated_ticket_age: u32::read(r)?,
@@ -497,13 +497,13 @@ impl PresharedKeyOffer {
     }
 }
 
-impl Codec for PresharedKeyOffer {
+impl codec::Codec for PresharedKeyOffer {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.identities.encode(bytes);
         self.binders.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         Some(Self {
             identities: PresharedKeyIdentities::read(r)?,
             binders: PresharedKeyBinders::read(r)?,
@@ -520,14 +520,14 @@ pub struct OCSPCertificateStatusRequest {
     pub extensions: PayloadU16,
 }
 
-impl Codec for OCSPCertificateStatusRequest {
+impl codec::Codec for OCSPCertificateStatusRequest {
     fn encode(&self, bytes: &mut Vec<u8>) {
         CertificateStatusType::OCSP.encode(bytes);
         self.responder_ids.encode(bytes);
         self.extensions.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         Some(Self {
             responder_ids: ResponderIDs::read(r)?,
             extensions: PayloadU16::read(r)?,
@@ -541,7 +541,7 @@ pub enum CertificateStatusRequest {
     Unknown((CertificateStatusType, Payload)),
 }
 
-impl Codec for CertificateStatusRequest {
+impl codec::Codec for CertificateStatusRequest {
     fn encode(&self, bytes: &mut Vec<u8>) {
         match self {
             Self::OCSP(ref r) => r.encode(bytes),
@@ -552,7 +552,7 @@ impl Codec for CertificateStatusRequest {
         }
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let typ = CertificateStatusType::read(r)?;
 
         match typ {
@@ -640,7 +640,7 @@ impl ClientExtension {
     }
 }
 
-impl Codec for ClientExtension {
+impl codec::Codec for ClientExtension {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.get_type().encode(bytes);
 
@@ -674,7 +674,7 @@ impl Codec for ClientExtension {
         bytes.append(&mut sub);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let typ = ExtensionType::read(r)?;
         let len = u16::read(r)? as usize;
         let mut sub = r.sub(len)?;
@@ -818,7 +818,7 @@ impl ServerExtension {
     }
 }
 
-impl Codec for ServerExtension {
+impl codec::Codec for ServerExtension {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.get_type().encode(bytes);
 
@@ -846,7 +846,7 @@ impl Codec for ServerExtension {
         bytes.append(&mut sub);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let typ = ExtensionType::read(r)?;
         let len = u16::read(r)? as usize;
         let mut sub = r.sub(len)?;
@@ -918,7 +918,7 @@ pub struct ClientHelloPayload {
     pub extensions: ClientExtensions,
 }
 
-impl Codec for ClientHelloPayload {
+impl codec::Codec for ClientHelloPayload {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.client_version.encode(bytes);
         self.random.encode(bytes);
@@ -928,7 +928,7 @@ impl Codec for ClientHelloPayload {
         self.extensions.encode(bytes); // will not write anything if the list is empty!
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let mut ret = Self {
             client_version: ProtocolVersion::read(r)?,
             random: Random::read(r)?,
@@ -1124,7 +1124,7 @@ impl HelloRetryExtension {
     }
 }
 
-impl Codec for HelloRetryExtension {
+impl codec::Codec for HelloRetryExtension {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.get_type().encode(bytes);
 
@@ -1140,7 +1140,7 @@ impl Codec for HelloRetryExtension {
         bytes.append(&mut sub);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let typ = ExtensionType::read(r)?;
         let len = u16::read(r)? as usize;
         let mut sub = r.sub(len)?;
@@ -1174,7 +1174,7 @@ pub struct HelloRetryRequest {
     pub extensions: HelloRetryExtensions,
 }
 
-impl Codec for HelloRetryRequest {
+impl codec::Codec for HelloRetryRequest {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.legacy_version.encode(bytes);
         self.random.encode(bytes);
@@ -1188,7 +1188,7 @@ impl Codec for HelloRetryRequest {
         // }
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let session_id = SessionID::read(r)?;
         let cipher_suite = CipherSuite::read(r)?;
         let compression_methods = Compressions::read(r)?;
@@ -1276,7 +1276,7 @@ pub struct ServerHelloPayload {
     pub extensions: ServerExtensions,
 }
 
-impl Codec for ServerHelloPayload {
+impl codec::Codec for ServerHelloPayload {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.legacy_version.encode(bytes);
         self.random.encode(bytes);
@@ -1288,7 +1288,7 @@ impl Codec for ServerHelloPayload {
     }
 
     // minus version and random, which have already been read.
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let session_id = SessionID::read(r)?;
         let suite = CipherSuite::read(r)?;
         let compression = Compression::read(r)?;
@@ -1371,12 +1371,12 @@ impl ServerHelloPayload {
 #[derive(Debug, Clone)]
 pub struct CertificatePayload(pub Vec<key::Certificate>);
 
-impl Codec for CertificatePayload {
+impl codec::Codec for CertificatePayload {
     fn encode(&self, bytes: &mut Vec<u8>) {
         codec::encode_vec_u24(bytes, &self.0);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         // 64KB of certificates is plenty, 16MB is obviously silly
         Some(CertificatePayload(codec::read_vec_u24_limited(r, 0x10000)?))
     }
@@ -1422,7 +1422,7 @@ impl CertificateExtension {
     }
 }
 
-impl Codec for CertificateExtension {
+impl codec::Codec for CertificateExtension {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.get_type().encode(bytes);
 
@@ -1437,7 +1437,7 @@ impl Codec for CertificateExtension {
         bytes.append(&mut sub);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let typ = ExtensionType::read(r)?;
         let len = u16::read(r)? as usize;
         let mut sub = r.sub(len)?;
@@ -1470,13 +1470,13 @@ pub struct CertificateEntry {
     pub exts: CertificateExtensions,
 }
 
-impl Codec for CertificateEntry {
+impl codec::Codec for CertificateEntry {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.cert.encode(bytes);
         self.exts.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         Some(Self {
             cert: key::Certificate::read(r)?,
             exts: CertificateExtensions::read(r)?,
@@ -1537,13 +1537,13 @@ pub struct CertificatePayloadTLS13 {
     pub entries: CertificateEntries,
 }
 
-impl Codec for CertificatePayloadTLS13 {
+impl codec::Codec for CertificatePayloadTLS13 {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.context.encode(bytes);
         self.entries.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         Some(Self {
             context: PayloadU8::read(r)?,
             entries: CertificateEntries::read(r)?,
@@ -1634,13 +1634,13 @@ pub struct ECParameters {
     pub named_group: NamedGroup,
 }
 
-impl Codec for ECParameters {
+impl codec::Codec for ECParameters {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.curve_type.encode(bytes);
         self.named_group.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let ct = ECCurveType::read(r)?;
         let grp = NamedGroup::read(r)?;
 
@@ -1666,13 +1666,13 @@ impl DigitallySignedStruct {
     }
 }
 
-impl Codec for DigitallySignedStruct {
+impl codec::Codec for DigitallySignedStruct {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.scheme.encode(bytes);
         self.sig.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let scheme = SignatureScheme::read(r)?;
         let sig = PayloadU16::read(r)?;
 
@@ -1685,12 +1685,12 @@ pub struct ClientECDHParams {
     pub public: PayloadU8,
 }
 
-impl Codec for ClientECDHParams {
+impl codec::Codec for ClientECDHParams {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.public.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let pb = PayloadU8::read(r)?;
         Some(Self { public: pb })
     }
@@ -1714,13 +1714,13 @@ impl ServerECDHParams {
     }
 }
 
-impl Codec for ServerECDHParams {
+impl codec::Codec for ServerECDHParams {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.curve_params.encode(bytes);
         self.public.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let cp = ECParameters::read(r)?;
         let pb = PayloadU8::read(r)?;
 
@@ -1737,13 +1737,13 @@ pub struct ECDHEServerKeyExchange {
     pub dss: DigitallySignedStruct,
 }
 
-impl Codec for ECDHEServerKeyExchange {
+impl codec::Codec for ECDHEServerKeyExchange {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.params.encode(bytes);
         self.dss.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let params = ServerECDHParams::read(r)?;
         let dss = DigitallySignedStruct::read(r)?;
 
@@ -1757,7 +1757,7 @@ pub enum ServerKeyExchangePayload {
     Unknown(Payload),
 }
 
-impl Codec for ServerKeyExchangePayload {
+impl codec::Codec for ServerKeyExchangePayload {
     fn encode(&self, bytes: &mut Vec<u8>) {
         match *self {
             ServerKeyExchangePayload::ECDHE(ref x) => x.encode(bytes),
@@ -1765,7 +1765,7 @@ impl Codec for ServerKeyExchangePayload {
         }
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         // read as Unknown, fully parse when we know the
         // KeyExchangeAlgorithm
         Some(Self::Unknown(Payload::read(r)))
@@ -1775,7 +1775,7 @@ impl Codec for ServerKeyExchangePayload {
 impl ServerKeyExchangePayload {
     pub fn unwrap_given_kxa(&self, kxa: &KeyExchangeAlgorithm) -> Option<ECDHEServerKeyExchange> {
         if let ServerKeyExchangePayload::Unknown(ref unk) = *self {
-            let mut rd = Reader::init(&unk.0);
+            let mut rd = codec::Reader::init(&unk.0);
 
             let result = match *kxa {
                 KeyExchangeAlgorithm::ECDHE => ECDHEServerKeyExchange::read(&mut rd),
@@ -1866,14 +1866,14 @@ pub struct CertificateRequestPayload {
     pub canames: DistinguishedNames,
 }
 
-impl Codec for CertificateRequestPayload {
+impl codec::Codec for CertificateRequestPayload {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.certtypes.encode(bytes);
         self.sigschemes.encode(bytes);
         self.canames.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let certtypes = ClientCertificateTypes::read(r)?;
         let sigschemes = SupportedSignatureSchemes::read(r)?;
         let canames = DistinguishedNames::read(r)?;
@@ -1903,7 +1903,7 @@ impl CertReqExtension {
     }
 }
 
-impl Codec for CertReqExtension {
+impl codec::Codec for CertReqExtension {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.get_type().encode(bytes);
 
@@ -1918,7 +1918,7 @@ impl Codec for CertReqExtension {
         bytes.append(&mut sub);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let typ = ExtensionType::read(r)?;
         let len = u16::read(r)? as usize;
         let mut sub = r.sub(len)?;
@@ -1954,13 +1954,13 @@ pub struct CertificateRequestPayloadTLS13 {
     pub extensions: CertReqExtensions,
 }
 
-impl Codec for CertificateRequestPayloadTLS13 {
+impl codec::Codec for CertificateRequestPayloadTLS13 {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.context.encode(bytes);
         self.extensions.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let context = PayloadU8::read(r)?;
         let extensions = CertReqExtensions::read(r)?;
 
@@ -2009,13 +2009,13 @@ impl NewSessionTicketPayload {
     }
 }
 
-impl Codec for NewSessionTicketPayload {
+impl codec::Codec for NewSessionTicketPayload {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.lifetime_hint.encode(bytes);
         self.ticket.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let lifetime = u32::read(r)?;
         let ticket = PayloadU16::read(r)?;
 
@@ -2042,7 +2042,7 @@ impl NewSessionTicketExtension {
     }
 }
 
-impl Codec for NewSessionTicketExtension {
+impl codec::Codec for NewSessionTicketExtension {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.get_type().encode(bytes);
 
@@ -2056,7 +2056,7 @@ impl Codec for NewSessionTicketExtension {
         bytes.append(&mut sub);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let typ = ExtensionType::read(r)?;
         let len = u16::read(r)? as usize;
         let mut sub = r.sub(len)?;
@@ -2124,7 +2124,7 @@ impl NewSessionTicketPayloadTLS13 {
     }
 }
 
-impl Codec for NewSessionTicketPayloadTLS13 {
+impl codec::Codec for NewSessionTicketPayloadTLS13 {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.lifetime.encode(bytes);
         self.age_add.encode(bytes);
@@ -2133,7 +2133,7 @@ impl Codec for NewSessionTicketPayloadTLS13 {
         self.exts.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let lifetime = u32::read(r)?;
         let age_add = u32::read(r)?;
         let nonce = PayloadU8::read(r)?;
@@ -2158,13 +2158,13 @@ pub struct CertificateStatus {
     pub ocsp_response: PayloadU24,
 }
 
-impl Codec for CertificateStatus {
+impl codec::Codec for CertificateStatus {
     fn encode(&self, bytes: &mut Vec<u8>) {
         CertificateStatusType::OCSP.encode(bytes);
         self.ocsp_response.encode(bytes);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         let typ = CertificateStatusType::read(r)?;
 
         match typ {
@@ -2213,7 +2213,7 @@ pub enum HandshakePayload {
     Unknown(Payload),
 }
 
-impl HandshakePayload {
+impl codec::Codec for HandshakePayload {
     fn encode(&self, bytes: &mut Vec<u8>) {
         use self::HandshakePayload::*;
         match *self {
@@ -2238,6 +2238,10 @@ impl HandshakePayload {
             Unknown(ref x) => x.encode(bytes),
         }
     }
+
+    fn read(_: &mut Reader) -> Option<Self> {
+        None
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -2246,7 +2250,7 @@ pub struct HandshakeMessagePayload {
     pub payload: HandshakePayload,
 }
 
-impl Codec for HandshakeMessagePayload {
+impl codec::Codec for HandshakeMessagePayload {
     fn encode(&self, bytes: &mut Vec<u8>) {
         // encode payload to learn length
         let mut sub: Vec<u8> = Vec::new();
@@ -2262,13 +2266,13 @@ impl Codec for HandshakeMessagePayload {
         bytes.append(&mut sub);
     }
 
-    fn read(r: &mut Reader) -> Option<Self> {
+    fn read(r: &mut codec::Reader) -> Option<Self> {
         Self::read_version(r, ProtocolVersion::TLSv1_2)
     }
 }
 
 impl HandshakeMessagePayload {
-    pub fn read_version(r: &mut Reader, vers: ProtocolVersion) -> Option<Self> {
+    pub fn read_version(r: &mut codec::Reader, vers: ProtocolVersion) -> Option<Self> {
         let mut typ = HandshakeType::read(r)?;
 
         let len = codec::u24::read(r)?.0 as usize;

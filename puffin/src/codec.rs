@@ -284,7 +284,7 @@ impl<T: Debug + Codec> Codec for Option<T> {
         if r.any_left() {
             Some(T::read(r))
         } else {
-            None
+            Some(None)
         }
     }
 }
@@ -385,6 +385,29 @@ pub fn read_vec_u24_limited<T: Codec>(r: &mut Reader, max_bytes: usize) -> Optio
     Some(ret)
 }
 
+impl Codec for [u8; 16] {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        bytes.extend_from_slice(self);
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        <Vec<u8> as Codec>::read(r).and_then(|v| {
+            let mut ret = [0u8; 16];
+            ret.copy_from_slice(&v);
+            Some(ret)
+        })
+    }
+}
+
+impl Codec for String {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        <Vec<u8> as Codec>::encode(&self.as_bytes().to_vec(), bytes);
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        <Vec<u8> as Codec>::read(r).map(|v| String::from_utf8_lossy(&v).to_string())
+    }
+}
 // Trait for data whose Vectors are encoded without length prefix
 pub trait VecCodecWoSize {}
 impl VecCodecWoSize for Vec<u8> {}
