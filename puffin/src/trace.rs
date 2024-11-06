@@ -2,7 +2,7 @@
 //!
 //! Each [`Trace`]s consist of several [`Step`]s, of which each has either an [`OutputAction`] or
 //! [`InputAction`]. This is a declarative way of modeling communication between [`Agent`]s. The
-//! [`TraceContext`] holds data, also known as [`VariableData`], which is created by [`Agent`]s
+//! [`TraceContext`] holds data, also known as [`Knowledge`], which is created by [`Agent`]s
 //! during the concrete execution of the Trace. It also holds the [`Agent`]s with the references to
 //! concrete PUT.
 //!
@@ -29,17 +29,13 @@ use crate::agent::{Agent, AgentDescriptor, AgentName};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
 use crate::algebra::{remove_prefix, Matcher, Term};
-use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
-use crate::codec::Codec;
+use crate::claims::{GlobalClaimList, SecurityViolationPolicy};
 use crate::error::Error;
-use crate::protocol::{
-    EvaluatedTerm, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-    ProtocolMessage, ProtocolMessageFlight, ProtocolTypes,
-};
+use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
 use crate::stream::Stream;
-use crate::variable_data::VariableData;
+use crate::trace::Action::Input;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct Query<M> {
@@ -76,14 +72,14 @@ impl fmt::Display for Source {
 }
 
 /// [Knowledge] describes an atomic piece of knowledge inferred by the
-/// [`crate::protocol::EvaluatedTerm::extract_knowledge`] function
+/// [`crate::protocol::Extractable::extract_knowledge`] function
 /// [Knowledge] is made of the data, the source of the output, the
 /// TLS message type and the internal type.
 #[derive(Debug)]
 pub struct Knowledge<'a, PT: ProtocolTypes> {
     pub source: &'a Source,
     pub matcher: Option<PT::Matcher>,
-    pub data: &'a dyn VariableData<PT>,
+    pub data: &'a dyn EvaluatedTerm<PT>,
 }
 
 /// [`RawKnowledge`] stores
@@ -224,7 +220,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         &self,
         query_type_shape: TypeShape<PT>,
         query: &Query<PT::Matcher>,
-    ) -> Option<&(dyn VariableData<PT>)> {
+    ) -> Option<&(dyn EvaluatedTerm<PT>)> {
         let query_type_id: TypeId = query_type_shape.into();
 
         let mut possibilities: Vec<Knowledge<PT>> = self
@@ -320,8 +316,8 @@ impl<PB: ProtocolBehavior> Clone for Spawner<PB> {
 
 /// The [`TraceContext`] represents the state of an execution.
 ///
-/// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
-/// of the attacker. [`VariableData`] can contain data of various types like for example
+/// The [`TraceContext`] contains a list of [`EvaluatedTerm`], which is known as the knowledge
+/// of the attacker. [`EvaluatedTerm`] can contain data of various types like for example
 /// client and server extensions, cipher suits or session ID It also holds the concrete
 /// references to the [`Agent`]s and the underlying streams, which contain the messages
 /// which have need exchanged and are not yet processed by an output step.
@@ -429,7 +425,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         &self,
         query_type_shape: TypeShape<PB::ProtocolTypes>,
         query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
-    ) -> Option<&(dyn VariableData<PB::ProtocolTypes>)> {
+    ) -> Option<&(dyn EvaluatedTerm<PB::ProtocolTypes>)> {
         self.knowledge_store.find_variable(query_type_shape, query)
     }
 
@@ -698,10 +694,9 @@ impl<PT: ProtocolTypes> InputAction<PT> {
             );
         }
 
-        let message = as_message_flight::<PB>(self.recipe.evaluate(ctx)?)?;
-        let message = message.get_encoding();
+        let message = self.recipe.evaluate(ctx)?;
         let agent = ctx.find_agent_mut(agent_name)?;
-
+        let message = message.get_encoding();
         agent.add_to_inbound(&message);
         agent.progress()
     }
@@ -839,37 +834,6 @@ macro_rules! input_action {
             precomputations: vec![],
         }
     };
-}
-
-fn as_message_flight<PB: ProtocolBehavior>(
-    value: Box<dyn EvaluatedTerm<PB::ProtocolTypes>>,
-) -> Result<PB::OpaqueProtocolMessageFlight, Error> {
-    let opaque: PB::OpaqueProtocolMessageFlight = if let Some(flight) =
-        value.as_any().downcast_ref::<PB::ProtocolMessageFlight>()
-    {
-        flight.debug("Input message flight");
-        flight.to_owned().into()
-    } else if let Some(flight) = value
-        .as_any()
-        .downcast_ref::<PB::OpaqueProtocolMessageFlight>()
-    {
-        flight.debug("Input opaque message flight");
-        flight.to_owned()
-    } else if let Some(msg) = value.as_any().downcast_ref::<PB::ProtocolMessage>() {
-        msg.debug("Input message");
-        let message_flight: PB::ProtocolMessageFlight = msg.clone().into();
-        message_flight.into()
-    } else if let Some(opaque_message) = value.as_any().downcast_ref::<PB::OpaqueProtocolMessage>()
-    {
-        opaque_message.debug("Input opaque message");
-        opaque_message.to_owned().into()
-    } else {
-        return Err(FnError::Unknown(String::from(
-                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`, `OpaqueMessageFlight` !",
-            ))
-            .into());
-    };
-    Ok(opaque)
 }
 
 #[cfg(test)]

@@ -4,7 +4,7 @@ use rand::Rng;
 use crate::error::Error;
 use crate::execution::{Runner, TraceRunner};
 use crate::fuzzer::stats_stage::{
-    AGENT, EXTRACTION, FN_ERROR, IO, PUT, STREAM, TERM, TERM_SIZE, TRACE_LENGTH,
+    AGENT, CODEC, EXTRACTION, FN_ERROR, IO, PUT, STREAM, TERM, TERM_SIZE, TRACE_LENGTH,
 };
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
@@ -32,6 +32,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
             Error::Fn(_) => FN_ERROR.increment(),
             Error::Term(_e) => TERM.increment(),
             Error::Put(_) => PUT.increment(),
+            Error::Codec(_) => CODEC.increment(),
             Error::IO(_) => IO.increment(),
             Error::Agent(_) => AGENT.increment(),
             Error::Stream(_) => STREAM.increment(),

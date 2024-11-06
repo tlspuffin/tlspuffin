@@ -10,7 +10,7 @@ use libafl::inputs::Input;
 use libafl_bolts::prelude::Cores;
 
 use crate::agent::AgentName;
-use crate::codec::Codec;
+use crate::codec::CodecP;
 use crate::execution::{ForkedRunner, Runner, TraceRunner};
 use crate::experiment::*;
 use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};

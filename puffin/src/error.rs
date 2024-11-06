@@ -2,11 +2,14 @@ use std::{fmt, io};
 
 use crate::algebra::error::FnError;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
     /// Returned if a concrete function from the protocol fails or term evaluation fails
     Fn(FnError),
+    /// Error while evaluating a term
     Term(String),
+    /// Error while encoding/reading EvaluatedTerm ->/<- bitstring
+    Codec(String),
     /// PUT reported an error
     Put(String),
     /// There was an unexpected IO error. Should never happen because we are not fuzzing on a
@@ -28,6 +31,10 @@ impl fmt::Display for Error {
         match self {
             Self::Fn(err) => write!(f, "error executing a function symbol: {err}"),
             Self::Term(err) => write!(f, "error evaluating a term: {err}"),
+            Error::Codec(err) => write!(
+                f,
+                "error encoding/reading an EvaluatedTerm/bitstring: {err}"
+            ),
             Self::Put(err) => write!(f, "error in openssl: {err}"),
             Self::IO(err) => write!(f, "error in io of openssl (this should not happen): {err}"),
             Self::Agent(err) => write!(f, "error regarding an agent: {err}"),

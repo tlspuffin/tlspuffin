@@ -77,7 +77,7 @@ impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream {
         &mut self,
     ) -> Result<Option<PB::OpaqueProtocolMessageFlight>, Error> {
         let flight =
-            PB::OpaqueProtocolMessageFlight::read_bytes(&mut self.outbound.get_ref().as_slice());
+            PB::OpaqueProtocolMessageFlight::read_bytes(self.outbound.get_ref().as_slice());
         self.outbound.set_position(0);
         self.outbound.get_mut().clear();
 
