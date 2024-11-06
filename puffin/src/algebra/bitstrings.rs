@@ -867,7 +867,7 @@ impl<PT: ProtocolTypes> Term<PT> {
             DYTerm::Variable(variable) => {
                 let d = ctx
                     .find_variable(variable.typ.clone(), &variable.query)
-                    .map(super::super::variable_data::VariableData::boxed_term)
+                    .map(|data| data.boxed())
                     .or_else(|| {
                         if let Some(Source::Agent(agent_name)) = &variable.query.source {
                             ctx.find_claim(*agent_name, variable.typ.clone())

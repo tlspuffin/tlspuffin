@@ -6,9 +6,8 @@ use puffin::claims::Claim;
 use puffin::codec::Encode;
 use puffin::dummy_extract_knowledge;
 use puffin::error::Error;
-use puffin::protocol::{EvaluatedTerm, ProtocolTypes};
+use puffin::protocol::{AsBoxedTerm, EvaluatedTerm, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
-use puffin::variable_data::VariableData;
 use smallvec::SmallVec;
 
 use crate::protocol::TLSProtocolTypes;
@@ -273,19 +272,19 @@ impl Claim<TLSProtocolTypes> for TlsClaim {
         type Transcript = ClaimDataTranscript;
         match &self.data {
             ClaimData::Message(message) => match message {
-                Message::ClientHello(claim) => claim.boxed_term(),
-                Message::ServerHello(claim) => claim.boxed_term(),
-                Message::Certificate(claim) => claim.boxed_term(),
-                Message::CertificateVerify(claim) => claim.boxed_term(),
-                Message::Finished(claim) => claim.boxed_term(),
+                Message::ClientHello(claim) => claim.boxed(),
+                Message::ServerHello(claim) => claim.boxed(),
+                Message::Certificate(claim) => claim.boxed(),
+                Message::CertificateVerify(claim) => claim.boxed(),
+                Message::Finished(claim) => claim.boxed(),
             },
             ClaimData::Transcript(transcript) => match transcript {
-                Transcript::ClientHello(claim) => claim.boxed_term(),
-                Transcript::PartialClientHello(claim) => claim.boxed_term(),
-                Transcript::ServerHello(claim) => claim.boxed_term(),
-                Transcript::ServerFinished(claim) => claim.boxed_term(),
-                Transcript::ClientFinished(claim) => claim.boxed_term(),
-                Transcript::Certificate(claim) => claim.boxed_term(),
+                Transcript::ClientHello(claim) => claim.boxed(),
+                Transcript::PartialClientHello(claim) => claim.boxed(),
+                Transcript::ServerHello(claim) => claim.boxed(),
+                Transcript::ServerFinished(claim) => claim.boxed(),
+                Transcript::ClientFinished(claim) => claim.boxed(),
+                Transcript::Certificate(claim) => claim.boxed(),
             },
         }
     }
