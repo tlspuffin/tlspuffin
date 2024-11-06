@@ -9,7 +9,6 @@ use crate::algebra::signature::Signature;
 use crate::algebra::{ConcreteMessage, Matcher};
 use crate::claims::{Claim, SecurityViolationPolicy};
 use crate::codec;
-use crate::codec::CodecP;
 use crate::error::Error;
 use crate::trace::{Knowledge, Source, Trace};
 

@@ -39,7 +39,7 @@ impl<PT: ProtocolTypes> Signature<PT> {
         let attrs_by_name: HashMap<&'static str, FunctionAttributes> = definitions
             .clone()
             .iter()
-            .map(|((shape, dynamic_fn), attrs)| (shape.name, attrs.clone()))
+            .map(|((shape, _dynamic_fn), attrs)| (shape.name, attrs.clone()))
             .collect();
         let functions_by_name: HashMap<&'static str, FunctionDefinition<PT>> = definitions
             .clone()
@@ -50,7 +50,7 @@ impl<PT: ProtocolTypes> Signature<PT> {
         let functions_by_typ: HashMap<TypeShape<PT>, Vec<FunctionDefinition<PT>>> = definitions
             .clone()
             .into_iter()
-            .map(|(fd, attrs)| fd)
+            .map(|(fd, _attrs)| fd)
             .into_group_map_by(|(shape, _dynamic_fn)| shape.return_type.clone());
 
         let types_by_name: HashMap<&'static str, TypeShape<PT>> = definitions

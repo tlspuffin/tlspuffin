@@ -225,7 +225,7 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
     }
 
     // Picking the actual term by randomly picking a level
-    let mut reservoir = None;
+    let mut reservoir;
     if if_weighted {
         // we need to randomly pick a depth from which we will sample the term
         // we give higher probability to deeper terms (linear bonus by 1+lambda) and proportional
