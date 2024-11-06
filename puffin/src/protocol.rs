@@ -8,7 +8,7 @@ use serde::Serialize;
 use crate::algebra::signature::Signature;
 use crate::algebra::{ConcreteMessage, Matcher};
 use crate::claims::{Claim, SecurityViolationPolicy};
-use crate::codec::Codec;
+use crate::codec;
 use crate::error::Error;
 use crate::trace::{Knowledge, Source, Trace};
 
@@ -27,9 +27,8 @@ impl<T: 'static> AsAny for T {
     }
 }
 
-/// Provide a way to extract knowledge out of a Message/OpaqueMessage or any type that
-/// might be used in a precomputation
-pub trait EvaluatedTerm<PT: ProtocolTypes>: std::fmt::Debug + AsAny {
+/// Knowledges can be extracted from using `extract_knowledge`
+pub trait Extractable<PT: ProtocolTypes>: std::fmt::Debug + AsAny {
     /// Fill `knowledges` with new knowledge gathered form the type implementing `EvaluatedTerm`
     /// by recursively calling `extract_knowledge` on all contained element
     /// This will put source as the source of all the produced knowledge, matcher is also passed
@@ -42,16 +41,24 @@ pub trait EvaluatedTerm<PT: ProtocolTypes>: std::fmt::Debug + AsAny {
     ) -> Result<(), Error>;
 }
 
+/// `EvaluatedTerm`: have both Codec and extraction capabilities into knowledge.
+pub trait EvaluatedTerm<PT: ProtocolTypes>: codec::CodecP + Extractable<PT> {}
+impl<T, PT: ProtocolTypes> EvaluatedTerm<PT> for T where T: codec::CodecP + Extractable<PT> {}
+
 #[macro_export]
 macro_rules! dummy_extract_knowledge {
     ($protocol_type:ty, $extract_type:ty) => {
-        impl EvaluatedTerm<$protocol_type> for $extract_type {
+        impl Extractable<$protocol_type> for $extract_type {
             fn extract_knowledge<'a>(
                 &'a self,
                 _knowledges: &mut Vec<Knowledge<'a, $protocol_type>>,
                 _matcher: Option<<$protocol_type as ProtocolTypes>::Matcher>,
                 _source: &'a Source,
             ) -> Result<(), Error> {
+                log::warn!(
+                    "Trying to extract a dummy type: {}",
+                    stringify!($extract_type)
+                );
                 Ok(())
             }
         }
@@ -59,15 +66,43 @@ macro_rules! dummy_extract_knowledge {
 }
 
 #[macro_export]
+macro_rules! dummy_codec {
+    ($protocol_type:ty, $extract_type:ty) => {
+        impl codec::CodecP for $extract_type {
+            fn encode(&self, _bytes: &mut Vec<u8>) {
+                log::warn!(
+                    "Trying to encode a dummy type: {}",
+                    stringify!($extract_type)
+                );
+            }
+
+            fn read(&mut self, _r: &mut codec::Reader) -> Result<(), Error> {
+                log::warn!("Trying to read a dummy type: {}", stringify!($extract_type));
+                Ok(())
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! dummy_extract_knowledge_codec {
+    ($protocol_type:ty, $extract_type:ty) => {
+        dummy_extract_knowledge!($protocol_type, $extract_type);
+        dummy_codec!($protocol_type, $extract_type);
+    };
+}
+
+#[macro_export]
 macro_rules! atom_extract_knowledge {
     ($protocol_type:ty, $extract_type:ty) => {
-        impl EvaluatedTerm<$protocol_type> for $extract_type {
+        impl Extractable<$protocol_type> for $extract_type {
             fn extract_knowledge<'a>(
                 &'a self,
                 knowledges: &mut Vec<Knowledge<'a, $protocol_type>>,
                 matcher: Option<<$protocol_type as ProtocolTypes>::Matcher>,
                 source: &'a Source,
             ) -> Result<(), Error> {
+                log::debug!("Extract atom: {}", stringify!($extract_type));
                 knowledges.push(Knowledge {
                     source,
                     matcher,
@@ -93,8 +128,10 @@ pub trait ProtocolMessageFlight<
 }
 
 /// Store a flight of opaque messages, a vec of all the messages sent by the PUT between two steps
+// We require codec::Codec to be able to read a bitstring and produce an owned
+// `OpaqueProtocolMessageFlight<PT>` so we use the `Sized` version of `Codec`
 pub trait OpaqueProtocolMessageFlight<PT: ProtocolTypes, O: OpaqueProtocolMessage<PT>>:
-    Clone + Debug + Codec + From<O> + EvaluatedTerm<PT>
+    Clone + Debug + codec::Codec + From<O> + EvaluatedTerm<PT>
 {
     fn new() -> Self;
     fn debug(&self, info: &str);
@@ -112,9 +149,7 @@ pub trait ProtocolMessage<PT: ProtocolTypes, O: OpaqueProtocolMessage<PT>>:
 
 /// A non-structured version of [`ProtocolMessage`]. This can be used for example for encrypted
 /// messages which do not have a structure.
-pub trait OpaqueProtocolMessage<PT: ProtocolTypes>:
-    Clone + Debug + Codec + EvaluatedTerm<PT>
-{
+pub trait OpaqueProtocolMessage<PT: ProtocolTypes>: Clone + Debug + EvaluatedTerm<PT> {
     fn debug(&self, info: &str);
 }
 

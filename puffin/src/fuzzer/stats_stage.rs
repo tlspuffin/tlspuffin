@@ -5,6 +5,7 @@ use libafl::prelude::*;
 pub enum RuntimeStats {
     FnError(&'static Counter),
     TermError(&'static Counter),
+    CodecError(&'static Counter),
     PutError(&'static Counter),
     IOError(&'static Counter),
     AgentError(&'static Counter),
@@ -22,6 +23,7 @@ impl RuntimeStats {
         match self {
             Self::FnError(inner) => inner.fire(consume),
             Self::TermError(inner) => inner.fire(consume),
+            Self::CodecError(inner) => inner.fire(consume),
             Self::PutError(inner) => inner.fire(consume),
             Self::IOError(inner) => inner.fire(consume),
             Self::AgentError(inner) => inner.fire(consume),
@@ -37,6 +39,8 @@ impl RuntimeStats {
 pub static FN_ERROR: Counter = Counter::new("fn");
 // Term(String),
 pub static TERM: Counter = Counter::new("term");
+// Codec(String),
+pub static CODEC: Counter = Counter::new("codec");
 // Put(String),
 pub static PUT: Counter = Counter::new("put");
 // IO(String),
@@ -52,9 +56,10 @@ pub static TRACE_LENGTH: MinMaxMean = MinMaxMean::new("trace-length");
 
 pub static TERM_SIZE: MinMaxMean = MinMaxMean::new("term-size");
 
-pub static STATS: [RuntimeStats; 9] = [
+pub static STATS: [RuntimeStats; 10] = [
     RuntimeStats::FnError(&FN_ERROR),
     RuntimeStats::TermError(&TERM),
+    RuntimeStats::CodecError(&TERM),
     RuntimeStats::PutError(&PUT),
     RuntimeStats::IOError(&IO),
     RuntimeStats::AgentError(&AGENT),

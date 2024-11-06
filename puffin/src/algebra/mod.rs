@@ -103,17 +103,17 @@ pub mod test_signature {
     use crate::algebra::error::FnError;
     use crate::algebra::{AnyMatcher, ConcreteMessage, Term};
     use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
-    use crate::codec::{Codec, Reader};
+    use crate::codec::{CodecP, Reader};
     use crate::error::Error;
-    use crate::protocol::{
-        EvaluatedTerm, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-        ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
-    };
+    use crate::protocol::{EvaluatedTerm, Extractable, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes};
     use crate::put::{Put, PutOptions};
     use crate::put_registry::{Factory, PutKind};
     use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace};
     use crate::variable_data::VariableData;
-    use crate::{define_signature, dummy_extract_knowledge, term, VERSION_STR};
+    use crate::{
+        codec, define_signature, dummy_codec, dummy_extract_knowledge,
+        dummy_extract_knowledge_codec, term, VERSION_STR,
+    };
 
     #[derive(Debug)]
     pub struct HmacKey;
@@ -142,25 +142,28 @@ pub mod test_signature {
     #[derive(Debug)]
     pub struct Compressions;
 
-    dummy_extract_knowledge!(TestProtocolTypes, HmacKey);
-    dummy_extract_knowledge!(TestProtocolTypes, HandshakeMessage);
-    dummy_extract_knowledge!(TestProtocolTypes, Encrypted);
-    dummy_extract_knowledge!(TestProtocolTypes, ProtocolVersion);
-    dummy_extract_knowledge!(TestProtocolTypes, Random);
-    dummy_extract_knowledge!(TestProtocolTypes, ClientExtension);
-    dummy_extract_knowledge!(TestProtocolTypes, ClientExtensions);
-    dummy_extract_knowledge!(TestProtocolTypes, Group);
-    dummy_extract_knowledge!(TestProtocolTypes, SessionID);
-    dummy_extract_knowledge!(TestProtocolTypes, CipherSuites);
-    dummy_extract_knowledge!(TestProtocolTypes, CipherSuite);
-    dummy_extract_knowledge!(TestProtocolTypes, Compression);
-    dummy_extract_knowledge!(TestProtocolTypes, Compressions);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, HmacKey);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, HandshakeMessage);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, Encrypted);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, ProtocolVersion);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, Random);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, ClientExtension);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, ClientExtensions);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, Group);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, SessionID);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, CipherSuites);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, CipherSuite);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, Compression);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, Compressions);
     dummy_extract_knowledge!(TestProtocolTypes, u8);
     dummy_extract_knowledge!(TestProtocolTypes, u16);
     dummy_extract_knowledge!(TestProtocolTypes, u32);
     dummy_extract_knowledge!(TestProtocolTypes, u64);
 
-    impl<T: std::fmt::Debug + Clone + 'static> EvaluatedTerm<TestProtocolTypes> for Vec<T> {
+    impl<T: std::fmt::Debug + Clone + 'static + CodecP> Extractable<TestProtocolTypes> for Vec<T>
+    where
+        Vec<T>: CodecP,
+    {
         fn extract_knowledge<'a>(
             &'a self,
             knowledges: &mut Vec<Knowledge<'a, TestProtocolTypes>>,
@@ -391,7 +394,7 @@ pub mod test_signature {
 
     pub struct TestClaim;
 
-    dummy_extract_knowledge!(TestProtocolTypes, TestClaim);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, TestClaim);
 
     impl VariableData<TestProtocolTypes> for TestClaim {
         fn boxed(&self) -> Box<dyn VariableData<TestProtocolTypes>> {
@@ -449,12 +452,12 @@ pub mod test_signature {
         }
     }
 
-    impl Codec for TestOpaqueMessage {
+    impl CodecP for TestOpaqueMessage {
         fn encode(&self, _bytes: &mut Vec<u8>) {
             panic!("Not implemented for test stub");
         }
 
-        fn read(_: &mut Reader) -> Option<Self> {
+        fn read(&mut self, _: &mut Reader) -> Result<(), Error> {
             panic!("Not implemented for test stub");
         }
     }
@@ -491,7 +494,7 @@ pub mod test_signature {
         }
     }
 
-    dummy_extract_knowledge!(TestProtocolTypes, TestMessage);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, TestMessage);
 
     pub struct TestMessageDeframer;
 
@@ -546,7 +549,7 @@ pub mod test_signature {
         }
     }
 
-    dummy_extract_knowledge!(TestProtocolTypes, TestMessageFlight);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, TestMessageFlight);
 
     impl From<TestMessage> for TestMessageFlight {
         fn from(_value: TestMessage) -> Self {
@@ -554,7 +557,7 @@ pub mod test_signature {
         }
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Default)]
     pub struct TestOpaqueMessageFlight;
 
     impl OpaqueProtocolMessageFlight<TestProtocolTypes, TestOpaqueMessage> for TestOpaqueMessageFlight {
@@ -579,7 +582,7 @@ pub mod test_signature {
         }
     }
 
-    impl Codec for TestOpaqueMessageFlight {
+    impl codec::Codec for TestOpaqueMessageFlight {
         fn encode(&self, _bytes: &mut Vec<u8>) {
             panic!("Not implemented for test stub");
         }
