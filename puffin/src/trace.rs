@@ -30,6 +30,7 @@ use crate::algebra::bitstrings::Payloads;
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{remove_prefix, Matcher, Term, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
+use crate::differential::TraceDifference;
 use crate::error::Error;
 use crate::fuzzer::stats_stage::{
     ALL_EXEC, ALL_EXEC_AGENT_SUCCESS, ALL_EXEC_SUCCESS, ERROR_AGENT, ERROR_CODEC, ERROR_EXTRACTION,
@@ -261,11 +262,11 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         &self.raw_knowledge
     }
 
-    pub fn compare(&self, other: &Self) -> bool {
+    pub fn compare(&self, other: &Self) -> Result<(), TraceDifference> {
         let whitelist = PT::differential_fuzzing_whitelist();
         let blacklist = PT::differential_fuzzing_blacklist();
 
-        let is_diff = std::iter::zip(
+        let differences: Vec<(String, String)> = std::iter::zip(
             self.knowledges()
                 .iter()
                 .flatten()
@@ -276,14 +277,19 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
                 .flatten()
                 .filter(|x| filter_knowledge(x, &whitelist, &blacklist)),
         )
-        .map(|(x, y)| {
+        .filter_map(|(x, y)| {
             // println!("{} == {}", x.data.type_name(), y.data.type_name());
-
-            x.data.type_name() == y.data.type_name()
+            match x.data.type_name() == y.data.type_name() {
+                true => None,
+                false => Some((x.data.type_name().into(), y.data.type_name().into())),
+            }
         })
-        .any(|x| !x);
+        .collect();
 
-        !is_diff
+        match differences.is_empty() {
+            false => Err(TraceDifference::Knowledges(differences)),
+            true => Ok(()),
+        }
     }
 }
 
@@ -543,15 +549,12 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .all(super::agent::Agent::is_state_successful)
     }
 
-    pub fn compare(&self, other: &Self) -> Result<(), ()> {
+    pub fn compare(&self, other: &Self) -> Result<(), TraceDifference> {
         // Comparing the claims
         // TODO
 
         // Comparing the knowledges
-        match self.knowledge_store.compare(&other.knowledge_store) {
-            true => Ok(()),
-            false => Err(()),
-        }
+        self.knowledge_store.compare(&other.knowledge_store)
     }
 }
 
