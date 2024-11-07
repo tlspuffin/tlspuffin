@@ -14,7 +14,7 @@ use crate::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 #[derive(Clone)]
 pub struct TlsPutConfig {
     pub descriptor: AgentDescriptor,
-    pub claims: GlobalClaimList<TLSProtocolTypes, TlsClaim>,
+    pub claims: GlobalClaimList<TlsClaim>,
     pub authenticate_peer: bool,
     pub extract_deferred: Rc<RefCell<Option<TypeShape<TLSProtocolTypes>>>>,
     pub use_clear: bool,
@@ -23,10 +23,7 @@ pub struct TlsPutConfig {
 impl TlsPutConfig {
     pub fn new(
         agent_descriptor: &AgentDescriptor,
-        claims: &GlobalClaimList<
-            TLSProtocolTypes,
-            <TLSProtocolBehavior as ProtocolBehavior>::Claim,
-        >,
+        claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
         options: &PutOptions,
     ) -> TlsPutConfig {
         let use_clear = options

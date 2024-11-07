@@ -272,7 +272,9 @@ pub struct TlsClaim {
 
 dummy_codec!(TLSProtocolTypes, TlsClaim);
 
-impl Claim<TLSProtocolTypes> for TlsClaim {
+impl Claim for TlsClaim {
+    type PT = TLSProtocolTypes;
+
     fn agent_name(&self) -> AgentName {
         self.agent_name
     }

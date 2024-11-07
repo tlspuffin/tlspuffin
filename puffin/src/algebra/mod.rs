@@ -406,7 +406,9 @@ pub mod test_signature {
         }
     }
 
-    impl Claim<TestProtocolTypes> for TestClaim {
+    impl Claim for TestClaim {
+        type PT = TestProtocolTypes;
+
         fn agent_name(&self) -> AgentName {
             panic!("Not implemented for test stub");
         }
@@ -493,7 +495,9 @@ pub mod test_signature {
     }
 
     pub struct TestSecurityViolationPolicy;
-    impl SecurityViolationPolicy<TestProtocolTypes, TestClaim> for TestSecurityViolationPolicy {
+    impl SecurityViolationPolicy for TestSecurityViolationPolicy {
+        type C = TestClaim;
+
         fn check_violation(_claims: &[TestClaim]) -> Option<&'static str> {
             panic!("Not implemented for test stub");
         }
@@ -627,10 +631,7 @@ pub mod test_signature {
         fn create(
             &self,
             _agent_descriptor: &AgentDescriptor,
-            _claims: &GlobalClaimList<
-                TestProtocolTypes,
-                <TestProtocolBehavior as ProtocolBehavior>::Claim,
-            >,
+            _claims: &GlobalClaimList<<TestProtocolBehavior as ProtocolBehavior>::Claim>,
             _options: &PutOptions,
         ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {
             panic!("Not implemented for test stub");

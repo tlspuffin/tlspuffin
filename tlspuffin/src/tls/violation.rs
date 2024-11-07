@@ -3,12 +3,13 @@ use puffin::agent::{AgentType, TLSVersion};
 use puffin::claims::SecurityViolationPolicy;
 
 use crate::claims::{ClaimData, ClaimDataMessage, Finished, TlsClaim};
-use crate::protocol::TLSProtocolTypes;
 use crate::static_certs::{ALICE_CERT, BOB_CERT};
 
 pub struct TlsSecurityViolationPolicy;
 
-impl SecurityViolationPolicy<TLSProtocolTypes, TlsClaim> for TlsSecurityViolationPolicy {
+impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
+    type C = TlsClaim;
+
     fn check_violation(claims: &[TlsClaim]) -> Option<&'static str> {
         if let Some((claim_a, claim_b)) = find_two_finished_messages(claims) {
             if let Some(((client_claim, client), (server_claim, server))) =
