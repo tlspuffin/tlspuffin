@@ -8,6 +8,7 @@ use nix::sys::wait::WaitStatus::{self, Exited, Signaled};
 use nix::sys::wait::{waitpid, WaitPidFlag};
 use nix::unistd::{fork, ForkResult, Pid};
 
+use crate::differential::TraceDifference;
 use crate::error::Error;
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
@@ -152,10 +153,16 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
         let second_trace_status = trace.as_ref().execute(&mut second_ctx);
 
         match (&first_trace_status, &second_trace_status) {
-            (Err(_), Ok(_)) | (Ok(_), Err(_)) => {
-                return Err(Error::Difference(format!(
-                    "Execution status difference:\n\tFirst PUT: {:?}\n\tSecond PUT: {:?}",
-                    first_trace_status, second_trace_status
+            (Err(put1_status), Ok(_)) => {
+                return Err(Error::Difference(TraceDifference::Status(
+                    put1_status.to_string(),
+                    "Success".into(),
+                )))
+            }
+            (Ok(_), Err(put2_status)) => {
+                return Err(Error::Difference(TraceDifference::Status(
+                    "Success".into(),
+                    put2_status.to_string(),
                 )))
             }
             _ => (),
@@ -163,9 +170,9 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
 
         let is_diff = first_ctx.compare(&second_ctx);
 
-        if let Err(_) = is_diff {
+        if let Err(diff) = is_diff {
             println!("Difference between the PUTs");
-            return Err(Error::Difference("ERROR".into()));
+            return Err(Error::Difference(diff));
         }
 
         Ok(first_ctx)

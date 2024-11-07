@@ -1,6 +1,7 @@
 use std::{fmt, io};
 
 use crate::algebra::error::FnError;
+use crate::differential::TraceDifference;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -23,7 +24,7 @@ pub enum Error {
     Extraction(),
     SecurityClaim(&'static str),
     /// There is a difference between two PUT in differential fuzzing
-    Difference(String),
+    Difference(TraceDifference),
 }
 
 impl std::error::Error for Error {}
