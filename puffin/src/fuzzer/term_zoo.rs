@@ -5,8 +5,8 @@ use libafl_bolts::rands::Rand;
 
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::{FunctionDefinition, Signature};
-use crate::algebra::Term;
-use crate::fuzzer::mutations::util::Choosable;
+use crate::algebra::{DYTerm, Term};
+use crate::fuzzer::utils::Choosable;
 use crate::protocol::ProtocolTypes;
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
@@ -103,10 +103,10 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
             }
         }
 
-        Some(Term::Application(
+        Some(Term::from(DYTerm::Application(
             Function::new(shape.clone(), dynamic_fn.clone()),
             subterms,
-        ))
+        )))
     }
 
     pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&Term<PT>>

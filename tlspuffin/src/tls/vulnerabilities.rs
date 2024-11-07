@@ -1064,6 +1064,8 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
 
 #[cfg(test)]
 pub mod tests {
+    use puffin::algebra::TermType;
+
     #[allow(unused_imports)]
     use crate::{test_utils::prelude::*, tls::vulnerabilities::*};
 

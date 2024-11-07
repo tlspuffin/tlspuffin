@@ -3,6 +3,8 @@ use std::collections::HashSet;
 
 use puffin::algebra::dynamic_function::DescribableFunction;
 use puffin::algebra::error::FnError;
+use puffin::algebra::TermType;
+use puffin::codec::CodecP;
 use puffin::error::Error;
 use puffin::fuzzer::term_zoo::TermZoo;
 use puffin::libafl_bolts::rands::StdRand;

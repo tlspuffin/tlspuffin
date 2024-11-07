@@ -26,6 +26,12 @@ pub enum Error {
 
 impl std::error::Error for Error {}
 
+impl From<anyhow::Error> for Error {
+    fn from(value: anyhow::Error) -> Self {
+        Self::Term(format!("AnyHow Error: {value}"))
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

@@ -10,14 +10,14 @@ use libafl::inputs::Input;
 use libafl_bolts::prelude::Cores;
 
 use crate::agent::AgentName;
-use crate::codec::CodecP;
+use crate::algebra::TermType;
 use crate::execution::{ForkedRunner, Runner, TraceRunner};
-use crate::experiment::*;
+use crate::experiment::{format_title, write_experiment_markdown};
 use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
 use crate::fuzzer::{start, FuzzerConfig};
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
-use crate::protocol::{ProtocolBehavior, ProtocolMessage};
+use crate::protocol::ProtocolBehavior;
 use crate::put::PutDescriptor;
 use crate::put_registry::{PutRegistry, TCP_PUT};
 use crate::trace::{Action, Spawner, Trace, TraceContext};
@@ -47,7 +47,7 @@ where
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
-                         .arg(arg!(-d --description <d> "Description of the experiment"))
+                .arg(arg!(-d --description [d] "Description of the experiment"))
             ,
             Command::new("seed").about("Generates seeds to ./seeds"),
             Command::new("plot")
@@ -542,22 +542,9 @@ fn binary_attack<PB: ProtocolBehavior>(
         match step.action {
             Action::Input(input) => {
                 if let Ok(evaluated) = input.recipe.evaluate(&ctx) {
-                    if let Some(msg) = evaluated.as_any().downcast_ref::<PB::ProtocolMessage>() {
-                        let mut data: Vec<u8> = Vec::new();
-                        msg.create_opaque().encode(&mut data);
-                        f.write_all(&data).expect("Unable to write data");
-                    } else if let Some(opaque_message) = evaluated
-                        .as_any()
-                        .downcast_ref::<PB::OpaqueProtocolMessage>()
-                    {
-                        let mut data: Vec<u8> = Vec::new();
-                        opaque_message.encode(&mut data);
-                        f.write_all(&data).expect("Unable to write data");
-                    } else {
-                        log::error!(
-                            "Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!"
-                        );
-                    }
+                    f.write_all(&evaluated).expect("Unable to write data");
+                } else {
+                    log::error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!");
                 }
             }
             Action::Output(_) => {}

@@ -26,9 +26,9 @@ use clap::error::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};
+use crate::algebra::bitstrings::Payloads;
 use crate::algebra::dynamic_function::TypeShape;
-use crate::algebra::error::FnError;
-use crate::algebra::{remove_prefix, Matcher, Term};
+use crate::algebra::{remove_prefix, Matcher, Term, TermType};
 use crate::claims::{GlobalClaimList, SecurityViolationPolicy};
 use crate::error::Error;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
@@ -498,7 +498,11 @@ impl<PT: ProtocolTypes> Trace<PT> {
         Ok(())
     }
 
-    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    pub fn execute_until_step<PB>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+        nb_steps: usize,
+    ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -507,7 +511,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
         }
 
         self.spawn_agents(ctx)?;
-        let steps = &self.steps;
+        let steps = &self.steps[0..nb_steps];
         for (i, step) in steps.iter().enumerate() {
             log::debug!("Executing step #{}", i);
             step.execute(ctx)?;
@@ -518,12 +522,50 @@ impl<PT: ProtocolTypes> Trace<PT> {
         Ok(())
     }
 
+    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        self.execute_until_step(ctx, self.steps.len())
+    }
+
     pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {
         postcard::to_allocvec(&self)
     }
 
-    pub fn deserialize_postcard(slice: &[u8]) -> Result<Trace<PT>, postcard::Error> {
-        postcard::from_bytes::<Trace<PT>>(slice)
+    pub fn deserialize_postcard(slice: &[u8]) -> Result<Self, postcard::Error> {
+        postcard::from_bytes::<Self>(slice)
+    }
+
+    #[must_use]
+    pub fn all_payloads(&self) -> Vec<&Payloads> {
+        self.steps
+            .iter()
+            .filter_map(|e| match &e.action {
+                Input(r) => Some(&r.recipe),
+                _ => None,
+            })
+            .flat_map(|t| t.all_payloads())
+            .collect()
+    }
+
+    pub fn all_payloads_mut(&mut self) -> Vec<&mut Payloads> {
+        self.steps
+            .iter_mut()
+            .filter_map(|e| match &mut e.action {
+                Input(r) => Some(&mut r.recipe),
+                _ => None,
+            })
+            .flat_map(|t| t.all_payloads_mut())
+            .collect()
+    }
+
+    #[must_use]
+    pub fn is_symbolic(&self) -> bool {
+        self.steps.iter().all(|e| match &e.action {
+            Input(r) => r.recipe.is_symbolic(),
+            _ => true,
+        })
     }
 }
 
@@ -686,7 +728,7 @@ impl<PT: ProtocolTypes> InputAction<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         for precomputation in &self.precomputations {
-            let eval = precomputation.recipe.evaluate(ctx)?;
+            let eval = precomputation.recipe.evaluate_DY(ctx)?; // We do not accept payloads in recipes
             ctx.knowledge_store.add_raw_boxed_knowledge(
                 eval,
                 Source::Label(precomputation.label.clone()),
@@ -694,7 +736,7 @@ impl<PT: ProtocolTypes> InputAction<PT> {
             );
         }
 
-        let message = self.recipe.evaluate(ctx)?;
+        let message = self.recipe.evaluate_DY(ctx)?;
         let agent = ctx.find_agent_mut(agent_name)?;
         let message = message.get_encoding();
         agent.add_to_inbound(&message);

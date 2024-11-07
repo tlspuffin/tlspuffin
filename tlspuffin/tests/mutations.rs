@@ -1,11 +1,11 @@
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
-use puffin::algebra::Term;
+use puffin::algebra::{DYTerm, Term, TermType};
 use puffin::execution::{run_in_subprocess, TraceRunner};
-use puffin::fuzzer::mutations::util::TermConstraints;
 use puffin::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
 };
+use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::InMemoryCorpus;
 use puffin::libafl::mutators::{MutationResult, Mutator};
 use puffin::libafl::state::StdState;
@@ -48,7 +48,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 // Check if we can append another encrypted message
 
-                let mut mutator = RepeatMutator::new(15);
+                let mut mutator = RepeatMutator::new(15, true);
 
                 fn check_is_encrypt12(step: &Step<TLSProtocolTypes>) -> bool {
                     if let Action::Input(input) = &step.action {
@@ -81,11 +81,8 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 // Check if we have a client hello in last encrypted one
 
-                let constraints = TermConstraints {
-                    min_term_size: 0,
-                    max_term_size: 300,
-                };
-                let mut mutator = ReplaceReuseMutator::new(constraints);
+                let constraints = TermConstraints::default();
+                let mut mutator = ReplaceReuseMutator::new(constraints, true);
 
                 loop {
                     attempts += 1;
@@ -94,9 +91,9 @@ fn test_mutate_seed_cve_2021_3449() {
 
                     if let Some(last) = mutate.steps.iter().last() {
                         match &last.action {
-                            Action::Input(input) => match &input.recipe {
-                                Term::Variable(_) => {}
-                                Term::Application(_, subterms) => {
+                            Action::Input(input) => match &input.recipe.term {
+                                DYTerm::Variable(_) => {}
+                                DYTerm::Application(_, subterms) => {
                                     if let Some(first_subterm) = subterms.iter().next() {
                                         if first_subterm.name() == fn_client_hello.name() {
                                             trace = mutate;
@@ -114,7 +111,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 // Test if we can replace the sequence number
 
-                let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE);
+                let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE, true);
 
                 loop {
                     attempts += 1;
@@ -123,9 +120,9 @@ fn test_mutate_seed_cve_2021_3449() {
 
                     if let Some(last) = mutate.steps.iter().last() {
                         match &last.action {
-                            Action::Input(input) => match &input.recipe {
-                                Term::Variable(_) => {}
-                                Term::Application(_, subterms) => {
+                            Action::Input(input) => match &input.recipe.term {
+                                DYTerm::Variable(_) => {}
+                                DYTerm::Application(_, subterms) => {
                                     if let Some(last_subterm) = subterms.iter().last() {
                                         if last_subterm.name() == fn_seq_1.name() {
                                             trace = mutate;
@@ -143,7 +140,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 // Remove sig algo
 
-                let mut mutator = RemoveAndLiftMutator::new(constraints);
+                let mut mutator = RemoveAndLiftMutator::new(constraints, true);
 
                 loop {
                     attempts += 1;
@@ -153,9 +150,9 @@ fn test_mutate_seed_cve_2021_3449() {
                     if let MutationResult::Mutated = result {
                         if let Some(last) = mutate.steps.iter().last() {
                             match &last.action {
-                                Action::Input(input) => match &input.recipe {
-                                    Term::Variable(_) => {}
-                                    Term::Application(_, subterms) => {
+                                Action::Input(input) => match &input.recipe.term {
+                                    DYTerm::Variable(_) => {}
+                                    DYTerm::Application(_, subterms) => {
                                         if let Some(first_subterm) = subterms.iter().next() {
                                             let sig_alg_extensions = first_subterm
                                                 .count_functions_by_name(
@@ -184,7 +181,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
                 // Sucessfully renegotiate
 
-                let mut mutator = ReplaceReuseMutator::new(constraints);
+                let mut mutator = ReplaceReuseMutator::new(constraints, true);
 
                 loop {
                     attempts += 1;
@@ -193,9 +190,9 @@ fn test_mutate_seed_cve_2021_3449() {
 
                     if let Some(last) = mutate.steps.iter().last() {
                         match &last.action {
-                            Action::Input(input) => match &input.recipe {
-                                Term::Variable(_) => {}
-                                Term::Application(_, subterms) => {
+                            Action::Input(input) => match &input.recipe.term {
+                                DYTerm::Variable(_) => {}
+                                DYTerm::Application(_, subterms) => {
                                     if let Some(first_subterm) = subterms.iter().next() {
                                         let signatures = first_subterm
                                             .count_functions_by_name(fn_sign_transcript.name());

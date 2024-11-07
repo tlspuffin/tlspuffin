@@ -4,7 +4,7 @@
 
 use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
 use puffin::algebra::dynamic_function::TypeShape;
-use puffin::algebra::Term;
+use puffin::algebra::{DYTerm, Term};
 use puffin::trace::{Action, InputAction, OutputAction, Precomputation, Step, Trace};
 use puffin::{input_action, term};
 
@@ -1933,6 +1933,8 @@ pub fn create_corpus() -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
 
 #[cfg(test)]
 pub mod tests {
+    use puffin::algebra::TermType;
+
     use super::*;
     #[allow(unused_imports)]
     use crate::{test_utils::prelude::*, tls::seeds::*};

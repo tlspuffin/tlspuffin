@@ -1,4 +1,5 @@
-use crate::algebra::Term;
+use crate::algebra::term::TermType;
+use crate::algebra::{DYTerm, Term};
 use crate::execution::{ExecutionStatus, ForkError};
 use crate::graphviz::write_graphviz;
 use crate::protocol::ProtocolTypes;
@@ -30,7 +31,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
 
     pub fn write_plots(&self, i: u16) {
         write_graphviz(
-            format!("test_mutation{}.svg", i).as_str(),
+            format!("test_mutation{i}.svg").as_str(),
             "svg",
             self.dot_graph(true).as_str(),
         )
@@ -41,8 +42,8 @@ impl<PT: ProtocolTypes> Trace<PT> {
 impl<PT: ProtocolTypes> Term<PT> {
     pub fn count_functions_by_name(&self, find_name: &'static str) -> usize {
         let mut found = 0;
-        for term in self.into_iter() {
-            if let Term::Application(func, _) = term {
+        for term in self {
+            if let DYTerm::Application(func, _) = &term.term {
                 if func.name() == find_name {
                     found += 1;
                 }

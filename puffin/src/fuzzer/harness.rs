@@ -1,6 +1,7 @@
 use libafl::executors::ExitKind;
 use rand::Rng;
 
+use crate::algebra::TermType;
 use crate::error::Error;
 use crate::execution::{Runner, TraceRunner};
 use crate::fuzzer::stats_stage::{
