@@ -407,19 +407,10 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
             log::debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",
                     self, &all_payloads);
             replace_payloads(self, &mut eval_tree, all_payloads, context)
-        } else if let Ok(eval) = PB::any_get_encoding(m.as_ref()) {
+        } else {
+            let eval = PB::any_get_encoding(m.as_ref());
             log::trace!("        / We successfully evaluated the root term into: {eval:?}");
             Ok(eval)
-        } else {
-            log::error!(
-                "Error with any_get_encoding: {:?}",
-                PB::any_get_encoding(m.as_ref())
-            );
-            Err(Error::Term(format!("[evaluate_config] Could not any_get_encode a term at root position. Current term: {}", &self.term)))
-                    .map_err(|e| {
-                        log::error!("[evaluate_config] Err: {}", e);
-                        e
-                    })
         }
     }
 

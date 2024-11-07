@@ -408,7 +408,8 @@ impl Codec for String {
         <Vec<u8> as Codec>::read(r).map(|v| String::from_utf8_lossy(&v).to_string())
     }
 }
-// Trait for data whose Vectors are encoded without length prefix
+
+/// Trait for data whose Vectors are encoded without length prefix
 pub trait VecCodecWoSize {}
 impl VecCodecWoSize for Vec<u8> {}
 

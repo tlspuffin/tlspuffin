@@ -187,7 +187,7 @@ pub fn eval_or_compute<'a, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes
             false,
             whole_term.get_type_shape(),
         )?;
-        Ok(Owned(PB::any_get_encoding(sibling_eval_box.as_ref())?))
+        Ok(Owned(PB::any_get_encoding(sibling_eval_box.as_ref())))
     }
 }
 
@@ -881,22 +881,13 @@ impl<PT: ProtocolTypes> Term<PT> {
                     if let Some(payload) = &self.payloads {
                         log::trace!("        / We retrieve evaluation for eval_tree from payload.");
                         eval_tree.encode = Some(payload.payload_0.clone().into());
-                    } else if let Ok(eval) = PB::any_get_encoding(d.as_ref()) {
+                    } else {
+                        let eval = PB::any_get_encoding(d.as_ref());
                         log::trace!("        / No payload so we evaluated into: {eval:?}");
                         eval_tree.encode = Some(eval);
-                    } else if path.is_empty() {
-                        return Err(Error::Term(format!("[eval_until_opaque] Could not any_get_encode a var term at root position, which has payloads to replace. Current term: {}", &self.term)))
-                            .map_err(|e| {
-                                log::error!("[eval_until_opaque] Err: {}", e);
-                                e
-                            });
-                    } else {
-                        // we might not need this eval later, we will try to replace
-                        // payloads without using it // TODO: make sure we resist this!
-                        log::warn!("[eval_until_opaque] Could not any_get_encode a sub-term at path {path:?}, sub-term:\n{}", &self.term);
                     }
                     if with_payloads && self.payloads.is_some() {
-                        log::trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {path:?}, payload is: {:?} and eval is: {:?}", self.payloads.as_ref().unwrap(), PB::any_get_encoding(d.as_ref()).ok());
+                        log::trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {path:?}, payload is: {:?} and eval is: {:?}", self.payloads.as_ref().unwrap(), PB::any_get_encoding(d.as_ref()));
                         return Ok((
                             d,
                             vec![PayloadContext {
@@ -981,20 +972,9 @@ impl<PT: ProtocolTypes> Term<PT> {
                 // encoding of self, we save it for later in eval_tree
                 if with_payloads && (!all_payloads.is_empty() || sibling_has_payloads) {
                     eval_tree.args = eval_tree_args;
-                    if let Ok(eval) = PB::any_get_encoding(result.as_ref()) {
-                        log::debug!("        / We successfully evaluated the term into: {eval:?}");
-                        eval_tree.encode = Some(eval);
-                    } else if path.is_empty() {
-                        return Err(Error::Term(format!("[eval_until_opaque] Could not any_get_encode an app term at root position, which has payloads to replace. Current term: {}", &self.term)))
-                            .map_err(|e| {
-                                log::error!("[eval_until_opaque] Err: {}", e);
-                                e
-                            });
-                    } else {
-                        // we might not need this eval later, we will try to replace payloads
-                        // without using it // TODO: make sure we resist this!
-                        log::warn!("[eval_until_opaque] Could not any_get_encode a sub-term at path {path:?}, sub-term:\n{}", &self.term);
-                    }
+                    let eval = PB::any_get_encoding(result.as_ref());
+                    log::debug!("        / We successfully evaluated the term into: {eval:?}");
+                    eval_tree.encode = Some(eval);
                 }
 
                 Ok((result, all_payloads))

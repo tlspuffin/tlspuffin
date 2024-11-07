@@ -613,12 +613,6 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn any_get_encoding(
-            _message: &dyn EvaluatedTerm<Self::ProtocolTypes>,
-        ) -> Result<ConcreteMessage, Error> {
-            Err(Error::Term("any_get_encoding not implemented".to_owned()))
-        }
-
         fn try_read_bytes(
             _bitstring: &[u8],
             _ty: TypeId,

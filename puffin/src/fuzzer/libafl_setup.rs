@@ -342,18 +342,9 @@ where
         };
 
         #[cfg(test)]
-        let _edge_map_size: usize = // cannot use this in the unsafe env below... TODO
-            if std::env::var("TARGET").unwrap().contains("aarch64-apple-darwin") {
-            131072
-        } else {
-            65536
-        };
-
-        #[cfg(test)]
         let map = unsafe {
             // When testing we should not import libafl_targets, else it conflicts with sancov_dummy
             pub const EDGES_MAP_SIZE: usize = 65536;
-
             pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
             pub static mut MAX_EDGES_NUM: usize = 0;
             &mut EDGES_MAP[0..MAX_EDGES_NUM]

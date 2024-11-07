@@ -48,5 +48,5 @@ define_signature!(
     fn_seq_14
     fn_seq_15
     fn_seq_16
-    // fn_empty_bytes_vec
+    fn_empty_bytes_vec
 );

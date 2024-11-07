@@ -1,7 +1,6 @@
 use std::any::TypeId;
 
 use puffin::algebra::signature::Signature;
-use puffin::algebra::ConcreteMessage;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
 use puffin::error::Error;
@@ -211,28 +210,9 @@ impl ProtocolBehavior for SshProtocolBehavior {
         vec![] // TODO
     }
 
-    fn any_get_encoding(
-        message: &dyn EvaluatedTerm<Self::ProtocolTypes>,
-    ) -> Result<ConcreteMessage, Error> {
-        match message
-            .as_any()
-            .downcast_ref::<SshMessage>()
-            .map(|b| codec::Codec::get_encoding(&b.create_opaque()))
-        {
-            Some(cm) => Ok(cm),
-            None => message
-                .as_any()
-                .downcast_ref::<RawSshMessage>()
-                .map(|b| codec::Codec::get_encoding(b))
-                .ok_or(Error::Term(
-                    "[any_get_encoding] Unable to encode (Raw)SshMessage".to_string(),
-                )),
-        }
-    }
-
     fn try_read_bytes(
-        bitstring: &[u8],
-        ty: TypeId,
+        _bitstring: &[u8],
+        _ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
         todo!()
     }

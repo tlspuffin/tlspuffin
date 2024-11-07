@@ -694,23 +694,16 @@ fn test_term_read_encode() {
                         Ok(message_back) => {
                             log::debug!("Read success!");
                             read_count += 1;
-                            match TLSProtocolBehavior::any_get_encoding(message_back.as_ref()) {
-                                Ok(eval2) => {
-                                    if eval2 == *eval {
-                                        log::debug!("Consistent for term {term}");
-                                        successfully_built_functions
-                                            .push(term.name().to_string().to_owned());
-                                        read_success += 1;
-                                    } else {
-                                        log::error!("[FAIL] Not the same read for term {}!\n  -Encoding1: {:?}\n  -Encoding2: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval, eval2, term.get_type_shape(), type_id);
-                                        read_wrong += 1;
-                                    }
-                                }
-                                Err(e) => {
-                                    log::error!("[FAIL] Failed to re-encode read term {}!\n  -Encoding1: {:?}\n Read message {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval, message_back, term.get_type_shape(), type_id);
-                                    log::error!("Error: {}", e);
-                                    read_wrong += 1;
-                                }
+                            let eval2 =
+                                TLSProtocolBehavior::any_get_encoding(message_back.as_ref());
+                            if eval2 == *eval {
+                                log::debug!("Consistent for term {term}");
+                                successfully_built_functions
+                                    .push(term.name().to_string().to_owned());
+                                read_success += 1;
+                            } else {
+                                log::error!("[FAIL] Not the same read for term {}!\n  -Encoding1: {:?}\n  -Encoding2: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval, eval2, term.get_type_shape(), type_id);
+                                read_wrong += 1;
                             }
                         }
                         Err(e) => {

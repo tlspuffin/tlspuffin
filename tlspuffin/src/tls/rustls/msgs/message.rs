@@ -417,13 +417,6 @@ impl VecCodecWoSize for CertificateEntry {} // u24
 impl VecCodecWoSize for CipherSuite {} // u16
 impl VecCodecWoSize for PresharedKeyIdentity {} //u16
 
-/// Use the `codecP::get_encoding` method to encode any `EvaluatedTerm<PT>`
-pub fn any_get_encoding(
-    message: &dyn EvaluatedTerm<TLSProtocolTypes>,
-) -> Result<ConcreteMessage, puffin::error::Error> {
-    Ok(codec::CodecP::get_encoding(message))
-}
-
 #[macro_export]
 macro_rules! try_read {
   ($bitstring:expr, $ti:expr, $T:ty, $($Ts:ty),+) => {
@@ -478,6 +471,8 @@ pub fn try_read_bytes(
         ty,
         // We list all the types that have the Codec trait and that can be the type of a rustls
         // message
+        // The uni-test `term_zoo::test_term_read_encode` tests this is exhaustive for the TLS
+        // signature at least
         Message,
         OpaqueMessage,
         MessageFlight,

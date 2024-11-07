@@ -6,7 +6,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::algebra::signature::Signature;
-use crate::algebra::{ConcreteMessage, Matcher};
+use crate::algebra::Matcher;
 use crate::claims::{Claim, SecurityViolationPolicy};
 use crate::codec;
 use crate::error::Error;
@@ -158,9 +158,10 @@ pub trait ProtocolBehavior: 'static {
 
     /// Downcast from `Box<dyn Any>` and encode as bitstring any message as per the PB's internal
     /// structure
-    fn any_get_encoding(
-        message: &dyn EvaluatedTerm<Self::ProtocolTypes>,
-    ) -> Result<ConcreteMessage, Error>;
+    fn any_get_encoding(message: &dyn EvaluatedTerm<Self::ProtocolTypes>) -> Vec<u8> {
+        /// Use the `codecP::get_encoding` method to encode any `EvaluatedTerm<PT>`
+        codec::CodecP::get_encoding(message)
+    }
 
     /// Try to read a bitstring and interpret it as the `TypeShape`, which is the type of a message
     /// as per the PB's internal structure This is expected to fail for many types of messages!

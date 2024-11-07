@@ -37,9 +37,7 @@ use crate::tls::rustls::msgs::handshake::{
     ServerHelloPayload, ServerKeyExchangePayload, SessionID,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
-use crate::tls::rustls::msgs::message::{
-    any_get_encoding, try_read_bytes, Message, MessagePayload, OpaqueMessage,
-};
+use crate::tls::rustls::msgs::message::{try_read_bytes, Message, MessagePayload, OpaqueMessage};
 use crate::tls::rustls::msgs::{self};
 use crate::tls::seeds::create_corpus;
 use crate::tls::violation::TlsSecurityViolationPolicy;
@@ -843,12 +841,6 @@ impl ProtocolBehavior for TLSProtocolBehavior {
 
     fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
         create_corpus()
-    }
-
-    fn any_get_encoding(
-        message: &dyn EvaluatedTerm<Self::ProtocolTypes>,
-    ) -> Result<ConcreteMessage, Error> {
-        any_get_encoding(message)
     }
 
     fn try_read_bytes(
