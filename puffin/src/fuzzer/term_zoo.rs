@@ -9,8 +9,8 @@ use crate::algebra::{DYTerm, Term};
 use crate::fuzzer::utils::Choosable;
 use crate::protocol::ProtocolTypes;
 
-const MAX_DEPTH: u16 = 8; // how deep terms we allow max
-const MAX_TRIES: u16 = 100; // How often we want to try to generate before stopping
+const MAX_DEPTH: u16 = 12; // how deep terms we allow max
+const MAX_TRIES: usize = 200; // How often we want to try to generate before stopping
 
 pub struct TermZoo<PT: ProtocolTypes> {
     terms: Vec<Term<PT>>,
@@ -29,7 +29,7 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
     ) -> Self {
         let mut acc = vec![];
         if let Some(def) = filter {
-            let mut counter = MAX_TRIES as usize * how_many;
+            let mut counter = MAX_TRIES * how_many;
             let mut many = 0;
 
             loop {
@@ -46,7 +46,7 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
             }
         } else {
             for def in &signature.functions {
-                let mut counter = MAX_TRIES as usize * how_many;
+                let mut counter = MAX_TRIES * how_many;
                 let mut many = 0;
 
                 loop {
