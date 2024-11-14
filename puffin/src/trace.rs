@@ -221,6 +221,12 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         query_type_shape: TypeShape<PT>,
         query: &Query<PT::Matcher>,
     ) -> Option<&(dyn EvaluatedTerm<PT>)> {
+        log::trace!(
+            "Looking for variable {:?} with query_type_shape {:?} and query {:?}",
+            self,
+            query_type_shape,
+            query
+        );
         let query_type_id: TypeId = query_type_shape.into();
 
         let mut possibilities: Vec<Knowledge<PT>> = self
@@ -426,6 +432,11 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         query_type_shape: TypeShape<PB::ProtocolTypes>,
         query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
     ) -> Option<&(dyn EvaluatedTerm<PB::ProtocolTypes>)> {
+        log::trace!(
+            "Looking for variable in {:?} with query {:?}",
+            self.knowledge_store,
+            query
+        );
         self.knowledge_store.find_variable(query_type_shape, query)
     }
 
@@ -728,7 +739,7 @@ impl<PT: ProtocolTypes> InputAction<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         for precomputation in &self.precomputations {
-            let eval = precomputation.recipe.evaluate_DY(ctx)?; // We do not accept payloads in recipes
+            let eval = precomputation.recipe.evaluate_dy(ctx)?; // We do not accept payloads in precomputation recipes
             ctx.knowledge_store.add_raw_boxed_knowledge(
                 eval,
                 Source::Label(precomputation.label.clone()),
@@ -736,9 +747,9 @@ impl<PT: ProtocolTypes> InputAction<PT> {
             );
         }
 
-        let message = self.recipe.evaluate_DY(ctx)?;
+        let message = self.recipe.evaluate(ctx)?;
         let agent = ctx.find_agent_mut(agent_name)?;
-        let message = message.get_encoding();
+
         agent.add_to_inbound(&message);
         agent.progress()
     }

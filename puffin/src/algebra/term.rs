@@ -89,7 +89,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
 
     /// Evaluate terms into `EvaluatedTerm`  considering all sub-terms as symbolic (even those with
     /// Payloads)
-    fn evaluate_DY<PB: ProtocolBehavior>(
+    fn evaluate_dy<PB: ProtocolBehavior>(
         &self,
         ctx: &TraceContext<PB>,
     ) -> Result<Box<dyn EvaluatedTerm<PT>>, Error>
@@ -395,7 +395,7 @@ fn append_eval<'a, PT: ProtocolTypes>(term_eval: &'a Term<PT>, v: &mut Vec<&'a T
 }
 
 impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
-    /// Evaluate terms into bitstrings (considering Payloads)
+    /// Evaluate terms into bitstrings and `EvaluatedTerm` (considering Payloads)
     fn evaluate_config<PB: ProtocolBehavior>(
         &self,
         context: &TraceContext<PB>,
@@ -566,48 +566,6 @@ impl<PT: ProtocolTypes> Subterms<PT, Term<PT>> for Vec<Term<PT>> {
         }
 
         found_grand_subterms
-    }
-}
-
-/// [FOR TESTING ONLY] This is the old version of `evaluate_until_opaque` when `Terms` had no
-/// payloads.
-pub fn evaluate_lazy_test<PB, PT>(
-    term: &Term<PT>,
-    context: &TraceContext<PB>,
-) -> Result<Box<dyn EvaluatedTerm<PT>>, Error>
-where
-    PT: ProtocolTypes,
-    PB: ProtocolBehavior<ProtocolTypes = PT>,
-{
-    match &term.term {
-        DYTerm::Variable(variable) => context
-            .find_variable(variable.typ.clone(), &variable.query)
-            .map(|data| data.boxed())
-            .or_else(|| {
-                if let Some(Source::Agent(agent_name)) = &variable.query.source {
-                    context.find_claim(*agent_name, variable.typ.clone())
-                } else {
-                    // Claims doesn't have precomputations as source
-                    None
-                }
-            })
-            .ok_or_else(|| Error::Term(format!("Unable to find variable {variable}!"))),
-        DYTerm::Application(func, args) => {
-            let mut dynamic_args: Vec<Box<dyn EvaluatedTerm<PT>>> = Vec::new();
-            for term in args {
-                match evaluate_lazy_test(term, context) {
-                    Ok(data) => {
-                        dynamic_args.push(data);
-                    }
-                    Err(e) => {
-                        return Err(e);
-                    }
-                }
-            }
-            let dynamic_fn = &func.dynamic_fn();
-            let result: Result<Box<dyn EvaluatedTerm<PT>>, FnError> = dynamic_fn(&dynamic_args);
-            result.map_err(Error::Fn)
-        }
     }
 }
 

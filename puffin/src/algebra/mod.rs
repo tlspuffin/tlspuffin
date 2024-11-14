@@ -666,7 +666,6 @@ mod tests {
     use crate::algebra::signature::Signature;
     use crate::algebra::term::TermType;
     use crate::algebra::{AnyMatcher, DYTerm, Term};
-    use crate::protocol::AsAny;
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
     use crate::trace::{Source, Spawner, TraceContext};
@@ -725,7 +724,7 @@ mod tests {
 
         let data = "hello".as_bytes().to_vec();
 
-        //println!("TypeId of vec array {:?}", data.type_id());
+        // log::debug!("TypeId of vec array {:?}", data.type_id());
 
         let variable: Variable<TestProtocolTypes> = Signature::new_var(
             TypeShape::of::<Vec<u8>>(),
@@ -742,7 +741,7 @@ mod tests {
             ],
         ));
 
-        //println!("{}", generated_term);
+        log::debug!("{}", generated_term);
 
         fn dummy_factory() -> Box<dyn Factory<TestProtocolBehavior>> {
             Box::new(TestFactory)
@@ -757,16 +756,16 @@ mod tests {
             .knowledge_store
             .add_raw_knowledge(data, Source::Agent(AgentName::first()), None);
 
-        println!("{:?}", context.knowledge_store);
+        log::debug!("{:?}", context.knowledge_store);
 
         let _string = generated_term
-            .evaluate_DY(&context)
+            .evaluate_dy(&context)
             .as_ref()
             .unwrap()
             .as_any()
-            .downcast_ref::<Vec<u8>>();
-        // .unwrap(); TODO
-        //println!("{:?}", string);
+            .downcast_ref::<Vec<u8>>()
+            .unwrap();
+        // log::debug!("{:?}", string);
     }
 
     #[test_log::test]
@@ -783,8 +782,8 @@ mod tests {
         let _string = dynamic_fn(&vec![Box::new(1u8)])
             .unwrap()
             .as_any()
-            .downcast_ref::<u16>();
-        // .unwrap(); TODO: why it used to work annd ow now?
+            .downcast_ref::<u16>()
+            .unwrap();
         //println!("{:?}", string);
         let _string = Signature::new_function(&example_op_c).shape();
         //println!("{}", string);
