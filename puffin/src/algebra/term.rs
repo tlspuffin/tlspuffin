@@ -53,27 +53,29 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn is_symbolic(&self) -> bool;
     fn make_symbolic(&mut self); // remove all payloads
 
-    /// Evaluate terms into bitstrings (considering Payloads or not depending on `with_payloads`)
+    /// Evaluate terms into `ConcreteMessage` and `EvaluatedTerm` (considering Payloads or not
+    /// depending on `with_payloads`) With `with_payloads, the returned `EvaluatedTerm` is
+    /// without payload replacements; use the `ConcreteMessage` instead.
     fn evaluate_config<PB: ProtocolBehavior>(
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<ConcreteMessage, Error>
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>;
 
-    /// Evaluate terms into bitstrings (considering Payloads)
+    /// Evaluate terms into `ConcreteMessage` (considering Payloads)
     fn evaluate<PB: ProtocolBehavior>(
         &self,
-        context: &TraceContext<PB>,
+        ctx: &TraceContext<PB>,
     ) -> Result<ConcreteMessage, Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        self.evaluate_config(context, true)
+        Ok(self.evaluate_config(ctx, true)?.0)
     }
 
-    /// Evaluate terms into bitstrings considering all sub-terms as symbolic (even those with
+    /// Evaluate terms into `ConcreteMessage` considering all sub-terms as symbolic (even those with
     /// Payloads)
     fn evaluate_symbolic<PB: ProtocolBehavior>(
         &self,
@@ -82,7 +84,19 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        self.evaluate_config(ctx, false)
+        Ok(self.evaluate_config(ctx, false)?.0)
+    }
+
+    /// Evaluate terms into `EvaluatedTerm`  considering all sub-terms as symbolic (even those with
+    /// Payloads)
+    fn evaluate_dy<PB: ProtocolBehavior>(
+        &self,
+        ctx: &TraceContext<PB>,
+    ) -> Result<Box<dyn EvaluatedTerm<PT>>, Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        Ok(self.evaluate_config(ctx, false)?.1)
     }
 }
 
@@ -381,12 +395,12 @@ fn append_eval<'a, PT: ProtocolTypes>(term_eval: &'a Term<PT>, v: &mut Vec<&'a T
 }
 
 impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
-    /// Evaluate terms into bitstrings (considering Payloads)
+    /// Evaluate terms into bitstrings and `EvaluatedTerm` (considering Payloads)
     fn evaluate_config<PB: ProtocolBehavior>(
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<ConcreteMessage, Error>
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -399,18 +413,20 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
             context,
             with_payloads,
             false,
-            false,
             self.get_type_shape(),
         )?;
         // if let Some(mut e) = eval {
         if with_payloads && !all_payloads.is_empty() {
             log::debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",
                     self, &all_payloads);
-            replace_payloads(self, &mut eval_tree, all_payloads, context)
+            Ok((
+                replace_payloads(self, &mut eval_tree, all_payloads, context)?,
+                m,
+            ))
         } else {
             let eval = PB::any_get_encoding(m.as_ref());
             log::trace!("        / We successfully evaluated the root term into: {eval:?}");
-            Ok(eval)
+            Ok((eval, m))
         }
     }
 
@@ -550,47 +566,6 @@ impl<PT: ProtocolTypes> Subterms<PT, Term<PT>> for Vec<Term<PT>> {
         }
 
         found_grand_subterms
-    }
-}
-
-// FOR TESTING ONLY
-pub fn evaluate_lazy_test<PB, PT>(
-    term: &Term<PT>,
-    context: &TraceContext<PB>,
-) -> Result<Box<dyn EvaluatedTerm<PT>>, Error>
-where
-    PT: ProtocolTypes,
-    PB: ProtocolBehavior<ProtocolTypes = PT>,
-{
-    match &term.term {
-        DYTerm::Variable(variable) => context
-            .find_variable(variable.typ.clone(), &variable.query)
-            .map(|data| data.boxed())
-            .or_else(|| {
-                if let Some(Source::Agent(agent_name)) = &variable.query.source {
-                    context.find_claim(*agent_name, variable.typ.clone())
-                } else {
-                    // Claims doesn't have precomputations as source
-                    None
-                }
-            })
-            .ok_or_else(|| Error::Term(format!("Unable to find variable {variable}!"))),
-        DYTerm::Application(func, args) => {
-            let mut dynamic_args: Vec<Box<dyn EvaluatedTerm<PT>>> = Vec::new();
-            for term in args {
-                match evaluate_lazy_test(term, context) {
-                    Ok(data) => {
-                        dynamic_args.push(data);
-                    }
-                    Err(e) => {
-                        return Err(e);
-                    }
-                }
-            }
-            let dynamic_fn = &func.dynamic_fn();
-            let result: Result<Box<dyn EvaluatedTerm<PT>>, FnError> = dynamic_fn(&dynamic_args);
-            result.map_err(Error::Fn)
-        }
     }
 }
 

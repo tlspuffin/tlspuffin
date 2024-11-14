@@ -2,7 +2,7 @@
 //!
 //! Each [`Trace`]s consist of several [`Step`]s, of which each has either an [`OutputAction`] or
 //! [`InputAction`]. This is a declarative way of modeling communication between [`Agent`]s. The
-//! [`TraceContext`] holds data, also known as [`EvaluatedTerm`], which is created by [`Agent`]s
+//! [`TraceContext`] holds data, also known as [`Knowledge`], which is created by [`Agent`]s
 //! during the concrete execution of the Trace. It also holds the [`Agent`]s with the references to
 //! concrete PUT.
 //!
@@ -221,6 +221,12 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         query_type_shape: TypeShape<PT>,
         query: &Query<PT::Matcher>,
     ) -> Option<&(dyn EvaluatedTerm<PT>)> {
+        log::trace!(
+            "Looking for variable {:?} with query_type_shape {:?} and query {:?}",
+            self,
+            query_type_shape,
+            query
+        );
         let query_type_id: TypeId = query_type_shape.into();
 
         let mut possibilities: Vec<Knowledge<PT>> = self
@@ -426,6 +432,11 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         query_type_shape: TypeShape<PB::ProtocolTypes>,
         query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
     ) -> Option<&(dyn EvaluatedTerm<PB::ProtocolTypes>)> {
+        log::debug!(
+            "Looking for variable in {:?} with query {:?}",
+            self.knowledge_store,
+            query
+        );
         self.knowledge_store.find_variable(query_type_shape, query)
     }
 
@@ -728,13 +739,9 @@ impl<PT: ProtocolTypes> InputAction<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         for precomputation in &self.precomputations {
-            let tp = precomputation.recipe.get_type_shape().clone();
-            let eval = precomputation.recipe.evaluate(ctx)?;
-            let eval_term = PB::try_read_bytes(&eval, tp.into())?;
-            // TODO: find a better way to evaluate precomputations, add a method: evaluate_term and
-            // use evaluate + read only when there is a payload in the precomputation!
+            let eval = precomputation.recipe.evaluate_dy(ctx)?; // We do not accept payloads in precomputation recipes
             ctx.knowledge_store.add_raw_boxed_knowledge(
-                eval_term,
+                eval,
                 Source::Label(precomputation.label.clone()),
                 Some(precomputation.recipe.clone()),
             );

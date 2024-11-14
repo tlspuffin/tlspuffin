@@ -1,4 +1,4 @@
-use puffin::algebra::{evaluate_lazy_test, TermType};
+use puffin::algebra::TermType;
 use puffin::codec::Codec;
 use puffin::fuzzer::utils::{find_term_by_term_path, find_term_by_term_path_mut};
 use puffin::protocol::{ProtocolBehavior, ProtocolMessage};
@@ -209,83 +209,4 @@ fn test_replace_bitstring_multiple() {
         0, 132, 0, 10, 0, 4, 0, 2, 0, 24, 0, // from previous replacement
     ];
     test_one_replace(&mut trace, &ctx, step_nb, path, new_vec, expected_vec);
-}
-
-#[cfg(feature = "tls13")] // require version which supports TLS 1.3
-#[test_log::test]
-#[ignore] // OLD STUFF! SHOULD BE REMOVED!?
-fn test_evaluate_recipe_input_compare_new() {
-    use puffin::stream::Stream;
-    use puffin::trace::Spawner;
-    use tlspuffin::protocol::TLSProtocolTypes;
-
-    let spawner = Spawner::new(tls_registry());
-
-    for (tr, name) in create_corpus() {
-        log::debug!("\n\n============= Executing trace {name}");
-        if name == "tlspuffin::tls::seeds::seed_client_attacker_auth" {
-            // currently failing traces because of broken certs (?), even before my edits
-            continue;
-        }
-        let mut ctx = TraceContext::new(spawner.clone());
-
-        for trace in &tr.prior_traces {
-            trace.execute(&mut ctx).expect("d");
-        }
-
-        tr.spawn_agents(&mut ctx).unwrap();
-        let steps = &tr.steps;
-        for (i, step) in steps.iter().enumerate() {
-            log::debug!("Executing step #{}", i);
-
-            match &step.action {
-                Action::Input(input) => {
-                    log::debug!("Running custom test for inputs...");
-                    {
-                            let evaluated_lazy = evaluate_lazy_test(&input.recipe, &ctx).expect("a");
-                            if let Some(msg_old) = evaluated_lazy.as_any().downcast_ref::<<TLSProtocolBehavior as ProtocolBehavior>::ProtocolMessage>() {
-                                log::debug!("Term {}\n could be parsed as ProtocolMessage", input.recipe);
-                                let evaluated = input.recipe.evaluate(&ctx).expect("a");
-                                if let Some(msg) = <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage::read_bytes(&evaluated) {
-                                    log::debug!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
-                                    assert_eq!(msg_old.create_opaque().get_encoding(), msg.get_encoding());
-                                    ctx.find_agent_mut(step.agent).unwrap().add_to_inbound(&msg.get_encoding());
-                                } else {
-                                    panic!("Should not happen")
-                                }
-
-                            } else if let Some(opaque_message_old) = evaluated_lazy
-                                .as_any()
-                                .downcast_ref::<<TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage>()
-                            {
-                                log::debug!("Term {}\n could be parsed as OpaqueProtocolMessage", input.recipe);
-                                let evaluated = input.recipe.evaluate(&ctx).expect("c");
-                                if let Some(msg) = <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessage::read_bytes(&evaluated) {
-                                    log::debug!("=====> and was successfully handled with the new input evaluation routine! We now check they are equal...");
-                                    assert_eq!(opaque_message_old.get_encoding(), msg.get_encoding());
-                                    ctx.find_agent_mut(step.agent).unwrap().add_to_inbound(&msg.get_encoding());
-                                } else {
-                                    panic!("Should not happen")
-                                }
-                            } else {
-                                panic!("Should not happen")
-                            }
-
-                            ctx.find_agent_mut(step.agent).unwrap().progress()
-                        }.expect("TODO: panic message");
-
-                    let output_step = &OutputAction::<TLSProtocolTypes>::new_step(step.agent);
-                    output_step.execute(&mut ctx);
-                }
-                Action::Output(_) => {
-                    step.execute(&mut ctx);
-                }
-            }
-
-            // ctx.claims.deref_borrow().log();
-
-            // ctx.verify_security_violations();
-        }
-        assert!(ctx.agents_successful());
-    }
 }

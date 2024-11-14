@@ -184,7 +184,6 @@ pub fn eval_or_compute<'a, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes
             ctx,
             true,
             false,
-            false,
             whole_term.get_type_shape(),
         )?;
         Ok(Owned(PB::any_get_encoding(sibling_eval_box.as_ref())))
@@ -445,6 +444,17 @@ where
                 Ok(pos_relative_in_root + eval_relative.len() + shift_ancestor_to_search)
             } else {
                 // to_search | eval_relative
+                if st.to_search.len() > pos_relative_in_root {
+                    log::error!(
+                        "[replace_payloads] [find_unique_match_rec] Should never happen! to_search.len() > pos_relative_in_root. pos_relative_in_root: {} > {pos_relative_in_root}\n\
+                        st: {st:?}",
+                        st.to_search.len()
+                    );
+                    return Err(Error::Term(
+                        "[replace_payloads] [find_unique_match_rec] Should never happen!"
+                            .to_string(),
+                    ));
+                }
                 Ok(pos_relative_in_root - st.to_search.len())
             };
         }
@@ -826,16 +836,17 @@ impl<PT: ProtocolTypes> Term<PT> {
     /// reaching an opaque term with payloads as strict sub-terms. In the latter case, fully
     /// evaluate each of the arguments (and performing the payload replacements) before
     /// evaluating the opaque function, which then needs to be read to convert it back to a
-    /// `Box<dyn Any>`. @path: current path of &self in the overall recipe (initially []).
-    /// Invariant: Returns the payloads to replace in this order: deeper first, left-most arguments
-    /// first.
+    /// `Box<dyn EvaluatedTerm<PT>>`. @path: current path of &self in the overall recipe (initially
+    /// []). Invariant: Returns the payloads to replace in this order: deeper first, left-most
+    /// arguments first.
+    /// When `with_payloads` is false, then this should be equivalent to `evaluate_lazy_test` and it
+    /// always return empty `PayloadContext` vectors.
     pub(crate) fn eval_until_opaque<PB>(
         &self,
         eval_tree: &mut EvalTree,
         path: TermPath,
         ctx: &TraceContext<PB>,
         with_payloads: bool,
-        _is_in_list: bool,
         sibling_has_payloads: bool,
         type_term: &TypeShape<PT>,
     ) -> Result<(Box<dyn EvaluatedTerm<PT>>, Vec<PayloadContext<PT>>), Error>
@@ -844,9 +855,8 @@ impl<PT: ProtocolTypes> Term<PT> {
     {
         log::debug!("[eval_until_opaque] [START]: Eval term:\n {self}");
         if let (true, Some(payload)) = (with_payloads, &self.payloads) {
-            // TODO: what if we change the actual encoding because of queries and mutations in
-            // previous messages ? Plus: this supposes read_bytes is "perfect" (commute
-            // with get_any_encoding), which does not seem to be the case...
+            // TODO: investigate whether this value could be incorrect due to modifications to the
+            // terms through mutations previously applied (+ this depends on reading being correct)
             log::trace!("[eval_until_opaque] Trying to read payload_0 to skip further computations...........");
             if let Ok(di) = PB::try_read_bytes(
                 payload.payload_0.bytes(),
@@ -860,7 +870,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 eval_tree.encode = Some(payload.payload_0.bytes().to_vec());
                 return Ok((di, p_c));
             }
-            log::trace!("[eval_until_opaque] Attempt failed, fall back to normal evaluation...");
+            log::trace!("[eval_until_opaque] Attempt to skip evaluation failed, fall back to normal evaluation...");
         }
 
         match &self.term {
@@ -870,14 +880,19 @@ impl<PT: ProtocolTypes> Term<PT> {
                     .map(|data| data.boxed())
                     .or_else(|| {
                         if let Some(Source::Agent(agent_name)) = &variable.query.source {
+                            log::trace!(
+                                "[eval_until_opaque] [Var] Variable {variable} is a claim."
+                            );
                             ctx.find_claim(*agent_name, variable.typ.clone())
                         } else {
-                            // Claims doesn't have precomputations as source
+                            log::trace!(
+                                "[eval_until_opaque] [Var] Variable {variable} is not found."
+                            );
                             None
                         }
                     })
                     .ok_or_else(|| Error::Term(format!("Unable to find variable {variable}!")))?;
-                if path.is_empty() || (with_payloads && self.payloads.is_some()) {
+                if with_payloads && (path.is_empty() || (self.payloads.is_some())) {
                     if let Some(payload) = &self.payloads {
                         log::trace!("        / We retrieve evaluation for eval_tree from payload.");
                         eval_tree.encode = Some(payload.payload_0.clone().into());
@@ -917,13 +932,15 @@ impl<PT: ProtocolTypes> Term<PT> {
                         let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
                         let typei = func.shape().argument_types[i].clone();
                         let di = PB::try_read_bytes(&bi, typei.clone().into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
-                            .with_context(||
+                            .with_context(|| {
+                                log::warn!("[Eval_until_opaque] Try Read bytes failed for typeid: {}, typeid: {:?} on term (arg: {i}):\n {}",
+                                        typei, TypeId::from(typei.clone()), &self);
                                 format!("[Eval_until_opaque] Try Read bytes failed for typeid: {}, typeid: {:?} on term (arg: {i}):\n {}",
-                                        typei, TypeId::from(typei.clone()), &self))
+                                        typei, TypeId::from(typei.clone()), &self)
+                            })
                             .map_err(|e| {
                                 if !ti.is_symbolic() {
                                     log::warn!("[eval_until_opaque] [Argument has payload, might explain why] Warn: {}", e);
-
                                 } else {
                                     log::warn!("[eval_until_opaque] [Argument is symbolic!] Err: {}", e);
                                 }
@@ -944,7 +961,6 @@ impl<PT: ProtocolTypes> Term<PT> {
                             path_i,
                             ctx,
                             with_payloads,
-                            self.is_list(),
                             self_has_payloads_wo_root,
                             &func.shape().argument_types[i],
                         )?;

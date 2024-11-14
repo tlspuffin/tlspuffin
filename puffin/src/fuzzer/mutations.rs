@@ -803,6 +803,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::collections::{HashMap, HashSet};
+
     use libafl::corpus::InMemoryCorpus;
     use libafl::mutators::{MutationResult, Mutator};
     use libafl::state::StdState;
@@ -813,6 +815,7 @@ mod tests {
     use crate::algebra::dynamic_function::DescribableFunction;
     use crate::algebra::test_signature::{TestTrace, *};
     use crate::algebra::DYTerm;
+    use crate::fuzzer::utils::choose_term_path;
     use crate::trace::{Action, Step};
 
     fn create_state(
@@ -995,5 +998,78 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test_log::test]
+    fn test_find_term() {
+        let mut rand = StdRand::with_seed(45);
+        let mut trace = setup_simple_trace();
+        let term_size = trace.count_functions();
+
+        let mut stats: HashSet<TracePath> = HashSet::new();
+
+        for _ in 0..10000 {
+            let path = choose_term_path(&trace, TermConstraints::default(), &mut rand).unwrap();
+            find_term_mut(&mut trace, &path).unwrap();
+            stats.insert(path);
+        }
+
+        assert_eq!(term_size, stats.len());
+    }
+
+    #[test_log::test]
+    fn test_reservoir_sample_randomness() {
+        /// https://rust-lang-nursery.github.io/rust-cookbook/science/mathematics/statistics.html#standard-deviation
+        fn std_deviation(data: &[u32]) -> Option<f32> {
+            fn mean(data: &[u32]) -> Option<f32> {
+                let sum = data.iter().sum::<u32>() as f32;
+                let count = data.len();
+
+                match count {
+                    positive if positive > 0 => Some(sum / count as f32),
+                    _ => None,
+                }
+            }
+
+            match (mean(data), data.len()) {
+                (Some(data_mean), count) if count > 0 => {
+                    let variance = data
+                        .iter()
+                        .map(|value| {
+                            let diff = data_mean - (*value as f32);
+
+                            diff * diff
+                        })
+                        .sum::<f32>()
+                        / count as f32;
+
+                    Some(variance.sqrt())
+                }
+                _ => None,
+            }
+        }
+
+        let trace = setup_simple_trace();
+        let term_size = trace.count_functions();
+
+        let mut rand = StdRand::with_seed(45);
+        let mut stats: HashMap<u32, u32> = HashMap::new();
+
+        for _ in 0..10000 {
+            let term = choose(&trace, TermConstraints::default(), &mut rand).unwrap();
+
+            let id = term.0.resistant_id();
+
+            let count: u32 = *stats.get(&id).unwrap_or(&0);
+            stats.insert(id, count + 1);
+        }
+
+        let std_dev =
+            std_deviation(stats.values().cloned().collect::<Vec<u32>>().as_slice()).unwrap();
+        /*        println!("{:?}", std_dev);
+        println!("{:?}", stats);*/
+
+        assert!(std_dev < 30.0);
+        assert_eq!(term_size, stats.len());
     }
 }

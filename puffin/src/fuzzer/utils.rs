@@ -11,10 +11,7 @@ pub struct TermConstraints {
     pub min_term_size: usize,
     pub max_term_size: usize,
     pub must_be_symbolic: bool,
-    // [NO LONGER USED! Can be removed!]
-    // when true: only look for terms with no payload in sub-terms (for bit-le
-    // note that we always exclude terms that are sub-terms of non-symbolic terms (i.e., with
-    // paylaods)
+    // when true: only look for terms with no payload in sub-terms
     pub no_payload_in_subterm: bool,
     // when true: we do not choose terms that have a list symbol and whose parent also has a list
     // symbol those terms are thus "inside a list", like t in fn_append(t,t3) for t =
