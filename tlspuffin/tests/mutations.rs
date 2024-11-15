@@ -1,6 +1,6 @@
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
-use puffin::algebra::{DYTerm, Term, TermType};
+use puffin::algebra::{DYTerm, TermType};
 use puffin::execution::{run_in_subprocess, TraceRunner};
 use puffin::fuzzer::mutations::{
     RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,

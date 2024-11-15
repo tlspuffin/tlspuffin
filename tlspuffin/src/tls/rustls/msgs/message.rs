@@ -1,20 +1,14 @@
 use std::any::TypeId;
 
-use puffin::algebra::ConcreteMessage;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
 use puffin::error::Error::Term;
 use puffin::protocol::{EvaluatedTerm, ProtocolMessage};
 
-use crate::claims::{
-    TlsTranscript, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
-    TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
-};
 use crate::protocol::{MessageFlight, OpaqueMessageFlight, TLSProtocolTypes};
-use crate::tls;
 use crate::tls::rustls::error::Error;
 use crate::tls::rustls::hash_hs::HandshakeHash;
-use crate::tls::rustls::key::{Certificate, PrivateKey};
+use crate::tls::rustls::key::Certificate;
 use crate::tls::rustls::msgs::alert::AlertMessagePayload;
 use crate::tls::rustls::msgs::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
 use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;

@@ -4,7 +4,7 @@ use libafl_bolts::prelude::*;
 
 use super::utils::{
     choose, choose_iter, choose_term, choose_term_filtered_mut, choose_term_mut,
-    choose_term_path_filtered, find_term_mut, Choosable, TermConstraints, TracePath,
+    choose_term_path_filtered, find_term_mut, Choosable, TermConstraints,
 };
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::Signature;
@@ -629,7 +629,7 @@ mod tests {
     use crate::algebra::dynamic_function::DescribableFunction;
     use crate::algebra::test_signature::{TestTrace, *};
     use crate::algebra::DYTerm;
-    use crate::fuzzer::utils::choose_term_path;
+    use crate::fuzzer::utils::{choose_term_path, TracePath};
     use crate::trace::{Action, Step};
 
     fn create_state(

@@ -1,7 +1,7 @@
 use core::any::TypeId;
 
 use puffin::algebra::signature::Signature;
-use puffin::algebra::{ConcreteMessage, Matcher};
+use puffin::algebra::Matcher;
 use puffin::error::Error;
 use puffin::protocol::{
     EvaluatedTerm, Extractable, OpaqueProtocolMessage, OpaqueProtocolMessageFlight,
@@ -9,9 +9,7 @@ use puffin::protocol::{
     ProtocolTypes,
 };
 use puffin::trace::{Knowledge, Source, Trace};
-use puffin::{
-    atom_extract_knowledge, codec, dummy_extract_knowledge, dummy_extract_knowledge_codec,
-};
+use puffin::{atom_extract_knowledge, codec, dummy_extract_knowledge};
 use serde::{Deserialize, Serialize};
 
 use crate::claims::TlsClaim;
@@ -31,10 +29,10 @@ use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayload,
     CertificatePayloadTLS13, CertificateRequestPayload, CertificateRequestPayloadTLS13,
     CertificateStatus, ClientExtension, ClientHelloPayload, DigitallySignedStruct,
-    ECDHEServerKeyExchange, EncryptedExtensions, HandshakeMessagePayload, HandshakePayload,
-    HelloRetryExtension, NewSessionTicketExtension, NewSessionTicketPayload,
-    NewSessionTicketPayloadTLS13, PresharedKeyIdentity, Random, ServerExtension,
-    ServerHelloPayload, ServerKeyExchangePayload, SessionID,
+    ECDHEServerKeyExchange, HandshakeMessagePayload, HandshakePayload, HelloRetryExtension,
+    NewSessionTicketExtension, NewSessionTicketPayload, NewSessionTicketPayloadTLS13,
+    PresharedKeyIdentity, Random, ServerExtension, ServerHelloPayload, ServerKeyExchangePayload,
+    SessionID,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 use crate::tls::rustls::msgs::message::{try_read_bytes, Message, MessagePayload, OpaqueMessage};

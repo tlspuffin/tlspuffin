@@ -146,11 +146,15 @@ mod tests {
     const EMPTY_APPLICATIONDATA_MESSAGE: &[u8] =
         include_bytes!("../testdata/deframer-empty-applicationdata.bin");
 
+    #[allow(dead_code)]
     const INVALID_EMPTY_MESSAGE: &[u8] = include_bytes!("../testdata/deframer-invalid-empty.bin");
+    #[allow(dead_code)]
     const INVALID_CONTENTTYPE_MESSAGE: &[u8] =
         include_bytes!("../testdata/deframer-invalid-contenttype.bin");
+    #[allow(dead_code)]
     const INVALID_VERSION_MESSAGE: &[u8] =
         include_bytes!("../testdata/deframer-invalid-version.bin");
+    #[allow(dead_code)]
     const INVALID_LENGTH_MESSAGE: &[u8] = include_bytes!("../testdata/deframer-invalid-length.bin");
 
     struct ByteRead<'a> {

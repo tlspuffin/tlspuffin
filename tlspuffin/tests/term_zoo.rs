@@ -1,22 +1,16 @@
 use std::any::TypeId;
-use std::cmp::max;
 use std::collections::HashSet;
 
-use itertools::Itertools;
-use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::{DescribableFunction, TypeShape};
 use puffin::algebra::error::FnError;
 use puffin::algebra::signature::FunctionDefinition;
-use puffin::algebra::{DYTerm, Term, TermType};
-use puffin::codec::CodecP;
+use puffin::algebra::{Term, TermType};
 use puffin::error::Error;
 use puffin::fuzzer::term_zoo::TermZoo;
-use puffin::fuzzer::utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints};
 use puffin::libafl_bolts::prelude::RomuDuoJrRand;
-use puffin::libafl_bolts::rands::{Rand, StdRand};
-use puffin::protocol::{ProtocolBehavior, ProtocolTypes};
-use puffin::trace::Action::Input;
-use puffin::trace::{InputAction, Spawner, Step, Trace, TraceContext};
+use puffin::libafl_bolts::rands::StdRand;
+use puffin::protocol::ProtocolBehavior;
+use puffin::trace::{Spawner, TraceContext};
 use tlspuffin::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use tlspuffin::put_registry::tls_registry;
 use tlspuffin::tls::fn_impl::*;
@@ -190,10 +184,10 @@ where
 #[test_log::test]
 /// Tests whether all function symbols can be used when generating random terms
 fn test_term_generation() {
-    let mut rand = StdRand::with_seed(102);
+    let rand = StdRand::with_seed(102);
     for i in 0..10 {
         let res = zoo_test(
-            |term, _ctx, _rand| Ok(()),
+            |_term, _ctx, _rand| Ok(()),
             rand,
             200,
             false,
@@ -216,7 +210,7 @@ fn test_term_generation() {
 #[test_log::test]
 fn test_term_dy_eval() {
     for i in 0..5 {
-        let mut rand = StdRand::with_seed(i as u64);
+        let rand = StdRand::with_seed(i as u64);
         let res = zoo_test(
             |term, ctx, _| term.evaluate_dy(&ctx).map(|_| ()),
             rand,
@@ -245,7 +239,7 @@ fn test_term_dy_eval() {
 #[test_log::test]
 fn test_term_eval() {
     for i in 0..5 {
-        let mut rand = StdRand::with_seed(i as u64);
+        let rand = StdRand::with_seed(i as u64);
         let res = zoo_test(
             |term, ctx, _| term.evaluate(&ctx).map(|_| ()),
             rand,
@@ -297,19 +291,19 @@ fn test_term_read_encode() {
                             Err(Error::Term("Not the same read".to_string()))
                         }
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         log::error!("Failed to read for term {}!\n  and encoding: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval1, term.get_type_shape(), type_id);
                         if !ignored_functions.contains(term.name()) {
                             read_fail += 1;
                         }
-                        Err(Error::Fn(FnError::Unknown("Failed to read: {e}".to_string())))
+                        Err(Error::Fn(FnError::Unknown("Failed to read: {_e}".to_string())))
                     }
                 }
             })?
     };
 
     for i in 0..5 {
-        let mut rand = StdRand::with_seed(i as u64);
+        let rand = StdRand::with_seed(i as u64);
         let res = zoo_test(
             &mut closure,
             rand,

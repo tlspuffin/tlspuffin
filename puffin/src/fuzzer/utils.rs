@@ -1,5 +1,3 @@
-use std::cmp::max;
-
 use libafl_bolts::rands::Rand;
 
 use crate::algebra::{DYTerm, Term, TermType};

@@ -1,18 +1,13 @@
 use std::any::TypeId;
-use std::borrow::Cow;
-use std::borrow::Cow::{Borrowed, Owned};
-use std::cmp::{max, min};
-use std::ops::Deref;
 
 use anyhow::Context;
-use derivative::Derivative;
 use libafl::inputs::{BytesInput, HasBytesVec};
 use serde::{Deserialize, Serialize};
 
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{ConcreteMessage, DYTerm, Term, TermType};
 use crate::error::Error;
-use crate::fuzzer::utils::{find_term_by_term_path, TermPath};
+use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
@@ -66,6 +61,7 @@ impl EvalTree {
         e_t
     }
 
+    #[allow(dead_code)]
     fn get(&self, path: &[usize]) -> Result<&Self, Error> {
         if path.is_empty() {
             Ok(self)
