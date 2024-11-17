@@ -278,7 +278,7 @@ impl<PB: ProtocolBehavior> Spawner<PB> {
 
     pub fn spawn(
         &self,
-        claims: &GlobalClaimList<PB::ProtocolTypes, PB::Claim>,
+        claims: &GlobalClaimList<PB::Claim>,
         descriptor: &AgentDescriptor,
     ) -> Result<Agent<PB>, Error> {
         let put_descriptor = self
@@ -332,7 +332,7 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     /// The knowledge of the attacker
     pub knowledge_store: KnowledgeStore<PB::ProtocolTypes>,
     agents: Vec<Agent<PB>>,
-    claims: GlobalClaimList<PB::ProtocolTypes, PB::Claim>,
+    claims: GlobalClaimList<PB::Claim>,
 
     spawner: Spawner<PB>,
 
@@ -368,7 +368,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn new(spawner: Spawner<PB>) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
-        let claims = GlobalClaimList::new();
+        let claims = GlobalClaimList::<PB::Claim>::new();
 
         Self {
             knowledge_store: KnowledgeStore::new(),

@@ -23,6 +23,8 @@ introspection = ["libafl/introspection"]
 
 [dependencies]
 
+puffin-build = { path = "../puffin-build" }
+
 # LibAFL
 libafl = { version = "0.11", features = ["introspection"] }
 libafl_targets = "0.11"
@@ -39,7 +41,7 @@ log4rs = { workspace = true }
 
 # Other Dependencies
 libc = { workspace = true }
-clap = { workspace = true, features = ["cargo"] }
+clap = { workspace = true, features = ["cargo", "string"] }
 rand = { workspace = true }
 dyn-clone = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -52,6 +54,10 @@ nix = { workspace = true, features = ["process", "signal"] }
 signal-hook = { workspace = true, features = ["iterator", "extended-siginfo"] }
 anyhow = { workspace = true }
 derivative = { workspace = true }
+
+[build-dependencies]
+bindgen = { workspace = true }
+cc = { workspace = true }
 
 [dev-dependencies]
 test-log = { workspace = true }

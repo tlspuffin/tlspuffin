@@ -8,12 +8,14 @@ use puffin::protocol::{
     ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
     ProtocolTypes,
 };
+use puffin::put::PutDescriptor;
 use puffin::trace::{Knowledge, Source, Trace};
 use puffin::{atom_extract_knowledge, codec, dummy_extract_knowledge};
 use serde::{Deserialize, Serialize};
 
 use crate::claims::TlsClaim;
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
+use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::Certificate;
@@ -37,7 +39,6 @@ use crate::tls::rustls::msgs::handshake::{
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 use crate::tls::rustls::msgs::message::{try_read_bytes, Message, MessagePayload, OpaqueMessage};
 use crate::tls::rustls::msgs::{self};
-use crate::tls::seeds::create_corpus;
 use crate::tls::violation::TlsSecurityViolationPolicy;
 use crate::tls::TLS_SIGNATURE;
 
@@ -837,8 +838,12 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     type ProtocolTypes = TLSProtocolTypes;
     type SecurityViolationPolicy = TlsSecurityViolationPolicy;
 
-    fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
-        create_corpus()
+    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
+        crate::tls::seeds::create_corpus(
+            tls_registry()
+                .find_by_id(put.factory)
+                .expect("missing PUT in TLS registry"),
+        )
     }
 
     fn try_read_bytes(

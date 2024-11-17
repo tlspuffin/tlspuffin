@@ -35,3 +35,8 @@ autotools_builder(
     $<$<BOOL:${gcov}>:-fprofile-arcs>
     $<$<BOOL:${gcov}>:-O0>
 )
+
+set(tls12 yes)
+set(tls13 yes)
+set(tls12_session_resumption yes)
+set(transcript_extraction yes)

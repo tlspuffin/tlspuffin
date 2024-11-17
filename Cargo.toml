@@ -8,7 +8,7 @@ members = [
     "sshpuffin",
     "tlspuffin-claims",
     "puffin-build",
-    "puts/harness",
+    "puffin-macros",
 ]
 
 exclude = [
@@ -71,6 +71,11 @@ clap = "4.2.4"
 anyhow = "1.0"
 derivative = "2.2.0"
 regex = "1.10"
+derive_more = "1.0"
+syn = "2.0.66"
+quote = "1.0.36"
+proc-macro2 = "1.0.79"
+trybuild = "< 1.0.91"
 
 [patch.crates-io]
 wolfssl-sys = { path = "crates/wolfssl-sys" }

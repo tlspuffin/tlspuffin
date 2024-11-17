@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use puffin_build::vendor;
+use puffin_build::{library, vendor_dir};
 
 pub struct WolfSSLOptions {
     pub fix: Vec<String>,
@@ -61,7 +61,7 @@ pub fn build(options: &WolfSSLOptions) -> Artifacts {
     let suffix = if options.asan { "-asan" } else { "" };
     let name = format!("{}{suffix}", options.preset);
 
-    let mut config = vendor::Config::preset("wolfssl", &options.preset)
+    let mut config = library::Config::preset("wolfssl", &options.preset)
         .unwrap_or_else(|| panic!("missing preset wolfssl:{}", options.preset));
 
     config.option("sancov", options.sancov);
@@ -71,19 +71,9 @@ pub fn build(options: &WolfSSLOptions) -> Artifacts {
     config.option("postauth", options.postauth);
     config.option("fix", options.fix.clone());
 
-    let prefix = vendor::dir()
-        .lock(&name)
-        .and_then(|config_dir| {
-            if let Some(old_config) = config_dir.config()? {
-                if old_config == config {
-                    return Ok(config_dir.path().to_path_buf());
-                }
-
-                eprintln!("found incompatible config '{name}' in VENDOR_DIR, rebuilding...");
-            }
-
-            config_dir.make(config)
-        })
+    let prefix = vendor_dir::from_env()
+        .library_dir(&name)
+        .and_then(|dir| dir.make(config))
         .unwrap();
 
     Artifacts {

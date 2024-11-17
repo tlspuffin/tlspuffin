@@ -21,6 +21,8 @@ itertools = { workspace = true }
 tempfile = { workspace = true }
 regex = { workspace = true }
 nix = { workspace = true, features = ["fs"] }
+derive_more = { workspace = true, features = ["full"] }
+syn = { workspace = true, features = ["full"] }
 
 
 [[bin]]
