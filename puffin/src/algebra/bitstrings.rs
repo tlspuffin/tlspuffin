@@ -880,14 +880,9 @@ impl<PT: ProtocolTypes> Term<PT> {
                     .map(|data| data.boxed())
                     .or_else(|| {
                         if let Some(Source::Agent(agent_name)) = &variable.query.source {
-                            log::trace!(
-                                "[eval_until_opaque] [Var] Variable {variable} is a claim."
-                            );
                             ctx.find_claim(*agent_name, variable.typ.clone())
                         } else {
-                            log::trace!(
-                                "[eval_until_opaque] [Var] Variable {variable} is not found."
-                            );
+                            // Claims doesn't have precomputations as source
                             None
                         }
                     })
