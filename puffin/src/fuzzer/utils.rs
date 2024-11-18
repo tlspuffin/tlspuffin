@@ -1,3 +1,5 @@
+use std::cmp::max;
+
 use libafl_bolts::rands::Rand;
 
 use crate::algebra::{DYTerm, Term, TermType};
@@ -96,6 +98,9 @@ pub type StepIndex = usize;
 pub type TermPath = Vec<usize>;
 pub type TracePath = (StepIndex, TermPath);
 
+// RULE: never choose a term for a DY or bit-level mutation which is a sub-term of a not
+// is_symbolic() term Indeed, this latter term is considered atomic/leaf and is treated as a
+// bitstring.
 /// <https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm>
 fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
     trace: &'a Trace<PT>,
@@ -103,8 +108,31 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
     constraints: TermConstraints,
     rand: &mut R,
 ) -> Option<(&'a Term<PT>, TracePath)> {
-    let mut reservoir: Option<(&'a Term<PT>, TracePath)> = None;
-    let mut visited = 0;
+    // log::trace!("[reservoir_sample] Start");
+    // If if_wighted is set to true, we run a Reservoir Sampling algorithm per depth (of chosen
+    // sub-terms in the overall recipe. See the two vectors: depth_counts and depth_reservoir,
+    // indices are depths. Otherwise, the two above vectors have size 1 and we only store one
+    // counter and one sample, as in the usual algorithm.
+    let if_weighted = constraints.weighted_depth;
+    let mut max_depth = 1;
+    let mut depth_counts: Vec<u64> = vec![0];
+    let mut depth_reservoir: Vec<Option<(&'a Term<PT>, TracePath)>> = vec![None];
+    // if if_weighted=false, we will only access the first cell of those two vec
+    // independently of the depth
+
+    // calculate max tree height amongst the input steps
+    if if_weighted {
+        for step in &trace.steps {
+            match &step.action {
+                Action::Input(input) => {
+                    max_depth = max(max_depth, input.recipe.height());
+                }
+                Action::Output(_) => {}
+            }
+        }
+        depth_counts.resize(max_depth, 0);
+        depth_reservoir.resize(max_depth, None);
+    }
 
     for (step_index, step) in trace.steps.iter().enumerate() {
         match &step.action {
@@ -113,51 +141,113 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
 
                 let size = term.size();
                 if size <= constraints.min_term_size || size >= constraints.max_term_size {
+                    log::trace!("[reservoir_sample] Skip step {step_index} because of size constraints for term: {term}");
                     continue;
+                    //TODO-bitlevel: consider removing this, we just want to exclude picking such
+                    // terms but it is OK to enter the term and look for
+                    // suitable sub-terms
                 }
 
-                let mut stack: Vec<(&Term<PT>, TracePath)> = vec![(term, (step_index, Vec::new()))];
+                let mut stack: Vec<(&Term<PT>, TracePath, bool, usize)> =
+                    vec![(term, (step_index, TermPath::new()), false, 0)]; // bool is true for terms inside a list (e.g., fn_append)
+                                                                           // usize is for depth
 
-                while let Some((term, path)) = stack.pop() {
+                // DFS Algo: the version with if_weighted implements the reservoir sampling
+                // algorithm at each depth, independently
+                while let Some((term, path, is_inside_list, depth)) = stack.pop() {
                     // push next terms onto stack
-                    match &term.term {
-                        DYTerm::Variable(_) => {
-                            // reached leaf
-                        }
-                        DYTerm::Application(_, subterms) => {
-                            // inner node, recursively continue
-                            for (path_index, subterm) in subterms.iter().enumerate() {
-                                let mut new_path = path.clone();
-                                new_path.1.push(path_index); // invert because of .iter().rev()
-                                stack.push((subterm, new_path));
+
+                    if term.is_symbolic() && !constraints.must_be_root {
+                        // if not, we reached a leaf (real leaf or a term with payloads)
+                        match &term.term {
+                            DYTerm::Variable(_) => {
+                                // reached leaf
+                            }
+                            DYTerm::Application(fd, subterms) => {
+                                // inner node, recursively continue
+                                for (path_index, subterm) in subterms.iter().enumerate() {
+                                    let mut new_path = path.clone();
+                                    new_path.1.push(path_index);
+                                    let is_inside_list_sub =
+                                        constraints.not_inside_list && fd.is_list();
+                                    stack.push((subterm, new_path, is_inside_list_sub, depth + 1));
+                                }
                             }
                         }
                     }
 
                     // sample
-                    if filter(term) {
-                        visited += 1;
+                    if filter(term)
+                        && (!constraints.must_be_symbolic || term.is_symbolic())
+                        && (!constraints.no_payload_in_subterm // TODO: currently not used!
+                            || (term.is_symbolic() && term.payloads_to_replace().is_empty())
+                            || (!term.is_symbolic() && term.payloads_to_replace().len() == 1))
+                        && (!constraints.not_inside_list || !(is_inside_list && term.is_list()))
+                    {
+                        let level = if if_weighted {
+                            // if weighted, we reason per-depth, otherwise, we reason globally
+                            depth
+                        } else {
+                            0
+                        };
+                        depth_counts[level] += 1;
+                        // log::trace!("[reservoir_sample] Considering adding a term with count {},
+                        // term is {term} and currently stored term is
+                        // {:?}", depth_counts[level],
+                        // depth_reservoir[level]);
 
                         // consider in sampling
-                        if reservoir.is_none() {
+                        if depth_reservoir[level].is_none() {
                             // fill initial reservoir
-                            reservoir = Some((term, path));
+                            depth_reservoir[level] = Some((term, path));
                         } else {
                             // `1/visited` chance of overwriting
                             // replace elements with gradually decreasing probability
-                            if rand.between(1, visited) == 1 {
-                                reservoir = Some((term, path));
+                            let r = rand.between(1, depth_counts[level]);
+                            // log::trace!("[reservoir_sample] Random value was {r} in [1,{}]",
+                            // depth_counts[level]     );
+                            if r == 1 {
+                                // log::trace!("[reservoir_sample] Replacing term!");
+                                depth_reservoir[level] = Some((term, path));
                             }
                         }
                     }
                 }
             }
             Action::Output(_) => {
+                continue;
                 // no term -> skip
             }
         }
     }
 
+    // Picking the actual term by randomly picking a level
+    let mut reservoir;
+    if if_weighted {
+        // we need to randomly pick a depth from which we will sample the term
+        // we give higher probability to deeper terms (linear bonus by 1+lambda) and proportional
+        // to the number of elements in that depths (hence an exponential bonus for deeper terms
+        // should the overall term be roughly balanced
+        let lambda = 0.5_f64;
+        let mut count_weighted = f64::from(0);
+        for i in 0..max_depth {
+            count_weighted += depth_counts[i] as f64 * (i as f64).mul_add(lambda, 1_f64);
+            // TODO: ?: depth_counts[i] = count_weighted.floor() as u64;
+        }
+        let random = rand.between(0, count_weighted.floor() as u64);
+        // print!("depth_counts: {:?}, count_weighted: {count_weighted}, random: {random}",
+        // depth_counts);
+        let mut i = 0;
+        count_weighted = f64::from(0);
+        while random >= count_weighted as u64 && i < max_depth {
+            count_weighted += depth_counts[i] as f64 * (i as f64).mul_add(lambda, 1_f64);
+            i += 1; // TODO: do it more efficiently by benefiting from the previous pre-processing
+        }
+        assert!(i > 0);
+        reservoir = depth_reservoir.remove(i - 1);
+    } else {
+        reservoir = depth_reservoir.remove(0);
+    }
     reservoir
 }
 
@@ -391,6 +481,26 @@ mod tests {
         println!("{:?}", stats);*/
 
         assert!(std_dev < 30.0);
+        assert_eq!(term_size, stats.len());
+    }
+
+    #[test_log::test]
+    fn test_reservoir_sample_weighted() {
+        let mut rand = StdRand::with_seed(50);
+        let mut trace = setup_simple_trace();
+        let term_size = trace.count_functions();
+        let constraints = TermConstraints {
+            weighted_depth: true,
+            ..TermConstraints::default()
+        };
+        let mut stats: HashSet<TracePath> = HashSet::new();
+
+        for _ in 0..10000 {
+            let path = choose_term_path(&trace, constraints, &mut rand).unwrap();
+            find_term_mut(&mut trace, &path).unwrap();
+            stats.insert(path);
+        }
+
         assert_eq!(term_size, stats.len());
     }
 }
