@@ -469,7 +469,7 @@ where
         //#[cfg(not(feature = "sancov"))]
         {
             // FIXME
-            log::error!("Running without minimizer is unsupported");
+            log::warn!("Running without minimizer is unsupported");
             let (feedback, observer) = builder.create_feedback_observers();
             builder = builder
                 .with_feedback(feedback)
