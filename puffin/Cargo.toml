@@ -53,6 +53,7 @@ nix = { workspace = true, features = ["process", "signal"] }
 signal-hook = { workspace = true, features = ["iterator", "extended-siginfo"] }
 anyhow = { workspace = true }
 derivative = { workspace = true }
+paste = { workspace = true }
 
 [build-dependencies]
 bindgen = { workspace = true }
