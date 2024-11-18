@@ -73,6 +73,7 @@ impl EvalTree {
         e_t
     }
 
+    #[allow(dead_code)]
     fn get(&self, path: &[usize]) -> Result<&Self, Error> {
         if path.is_empty() {
             Ok(self)
@@ -88,22 +89,6 @@ impl EvalTree {
             }
         }
     }
-
-    // fn get_mut(&mut self, path: &[usize]) -> Result<&mut Self, Error> {
-    //     if path.is_empty() {
-    //         Ok(self)
-    //     } else {
-    //         let nb = path[0];
-    //         let path = &path[1..];
-    //         if self.args.len() <= nb {
-    //             Err(Error::Term(format!(
-    //                 "[replace_payloads] [get] Should never happen! EvalTree: {self:?}\n, path:
-    // {path:?}"             )))
-    //         } else {
-    //             self.args[nb].get_mut(path)
-    //         }
-    //     }
-    // }
 }
 
 /// Useful struct to store local state when searching for a payload (`to_search`) in a window

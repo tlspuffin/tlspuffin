@@ -432,7 +432,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         query_type_shape: TypeShape<PB::ProtocolTypes>,
         query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
     ) -> Option<&(dyn EvaluatedTerm<PB::ProtocolTypes>)> {
-        log::debug!(
+        log::trace!(
             "Looking for variable in {:?} with query {:?}",
             self.knowledge_store,
             query

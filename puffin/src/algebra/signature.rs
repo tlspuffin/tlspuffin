@@ -140,6 +140,7 @@ macro_rules! define_signature {
         /// for linking function implementations to serialized data.
         ///
         /// Note: Changes in function symbols may cause deserialization of term to fail.
+        #[allow(unused_mut)]
         pub static $name_signature: StaticSignature<$protocol_types> = create_static_signature(|| {
 
             let definitions = vec![

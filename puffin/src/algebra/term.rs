@@ -10,11 +10,10 @@ use serde::{Deserialize, Serialize};
 use super::atoms::{Function, Variable};
 use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
 use crate::algebra::dynamic_function::TypeShape;
-use crate::algebra::error::FnError;
 use crate::error::Error;
 use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
-use crate::trace::{Source, TraceContext};
+use crate::trace::TraceContext;
 
 const SIZE_LEAF: usize = 1;
 const BITSTRING_NAME: &str = "BITSTRING_";

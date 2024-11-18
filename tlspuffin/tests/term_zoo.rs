@@ -190,10 +190,10 @@ where
 #[test_log::test]
 /// Tests whether all function symbols can be used when generating random terms
 fn test_term_generation() {
-    let mut rand = StdRand::with_seed(102);
+    let rand = StdRand::with_seed(102);
     for i in 0..10 {
         let res = zoo_test(
-            |term, _ctx, _rand| Ok(()),
+            |_term, _ctx, _rand| Ok(()),
             rand,
             200,
             false,
@@ -214,9 +214,9 @@ fn test_term_generation() {
 /// Tests whether all function symbols can be used when generating random terms and then be
 /// correctly DY evaluated
 #[test_log::test]
-fn test_term_DY_eval() {
+fn test_term_dy_eval() {
     for i in 0..5 {
-        let mut rand = StdRand::with_seed(i as u64);
+        let rand = StdRand::with_seed(i as u64);
         let res = zoo_test(
             |term, ctx, _| term.evaluate_dy(&ctx).map(|_| ()),
             rand,
@@ -245,7 +245,7 @@ fn test_term_DY_eval() {
 #[test_log::test]
 fn test_term_eval() {
     for i in 0..5 {
-        let mut rand = StdRand::with_seed(i as u64);
+        let rand = StdRand::with_seed(i as u64);
         let res = zoo_test(
             |term, ctx, _| term.evaluate(&ctx).map(|_| ()),
             rand,
@@ -297,19 +297,19 @@ fn test_term_read_encode() {
                             Err(Error::Term("Not the same read".to_string()))
                         }
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         log::error!("Failed to read for term {}!\n  and encoding: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval1, term.get_type_shape(), type_id);
                         if !ignored_functions.contains(term.name()) {
                             read_fail += 1;
                         }
-                        Err(Error::Fn(FnError::Unknown("Failed to read: {e}".to_string())))
+                        Err(Error::Fn(FnError::Unknown("Failed to read: {_e}".to_string())))
                     }
                 }
             })?
     };
 
     for i in 0..5 {
-        let mut rand = StdRand::with_seed(i as u64);
+        let rand = StdRand::with_seed(i as u64);
         let res = zoo_test(
             &mut closure,
             rand,

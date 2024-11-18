@@ -815,7 +815,7 @@ mod tests {
     use crate::algebra::dynamic_function::DescribableFunction;
     use crate::algebra::test_signature::{TestTrace, *};
     use crate::algebra::DYTerm;
-    use crate::fuzzer::utils::choose_term_path;
+    use crate::fuzzer::utils::{choose_term_path, TracePath};
     use crate::trace::{Action, Step};
 
     fn create_state(

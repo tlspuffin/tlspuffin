@@ -2,7 +2,7 @@ use std::{collections, fmt};
 
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
-use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
+use puffin::protocol::{Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
 use puffin::{atom_extract_knowledge, codec};
 
