@@ -18,6 +18,7 @@ mod stats_monitor;
 mod stats_stage;
 pub mod term_zoo;
 // Public for benchmarks
+pub mod bit_mutations;
 pub mod mutations;
 pub mod utils;
 
