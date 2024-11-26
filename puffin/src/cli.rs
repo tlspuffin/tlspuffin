@@ -631,6 +631,7 @@ fn check_if_puts_exist<PB: ProtocolBehavior>(
         true
     } else {
         println!("PUT not found : {}", non_available_puts.join(","));
+        println!("Available PUTs: {}", available_puts.join(","));
         false
     }
 }
