@@ -26,7 +26,7 @@ pub enum Error {
     Extraction(),
     SecurityClaim(&'static str),
     /// There is a difference between two PUT in differential fuzzing
-    Difference(TraceDifference),
+    Difference(Vec<TraceDifference>),
 }
 
 impl std::error::Error for Error {}
@@ -49,7 +49,17 @@ impl fmt::Display for Error {
             Self::SecurityClaim(msg) => {
                 write!(f, "error because a security violation occurred. msg: {msg}")
             }
-            Error::Difference(msg) => write!(f, "difference between two PUTs : {}", msg),
+            Error::Difference(diffs) => {
+                write!(
+                    f,
+                    "difference between two PUTs : {}",
+                    diffs
+                        .iter()
+                        .map(|x| x.to_string())
+                        .collect::<Vec<String>>()
+                        .join("\n")
+                )
+            }
         }
     }
 }
