@@ -1,5 +1,6 @@
-use core::any::TypeId;
+use std::any::TypeId;
 
+use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::agent::{AgentDescriptor, AgentName, ProtocolDescriptorConfig};
 use puffin::algebra::signature::Signature;
@@ -33,7 +34,7 @@ use crate::tls::rustls::msgs::{self};
 use crate::tls::violation::TlsSecurityViolationPolicy;
 use crate::tls::TLS_SIGNATURE;
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct MessageFlight {
     pub messages: Vec<Message>,
@@ -80,7 +81,7 @@ impl codec::Codec for MessageFlight {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct OpaqueMessageFlight {
     pub messages: Vec<OpaqueMessage>,
@@ -362,11 +363,11 @@ impl ProtocolTypes for TLSProtocolTypes {
     }
 
     fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>> {
-        Some(vec![TypeId::of::<OpaqueMessage>()])
+        None
     }
 
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
-        None
+        Some(vec![TypeId::of::<MessagePayload>()])
     }
 }
 

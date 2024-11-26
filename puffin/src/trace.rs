@@ -24,6 +24,8 @@ use std::marker::PhantomData;
 use std::mem;
 use std::vec::IntoIter;
 
+use clap::error::Result;
+use comparable::Comparable;
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};
@@ -264,32 +266,44 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         &self.raw_knowledge
     }
 
-    pub fn compare(&self, other: &Self) -> Result<(), TraceDifference> {
+    pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
         let whitelist = PT::differential_fuzzing_whitelist();
         let blacklist = PT::differential_fuzzing_blacklist();
 
-        let differences: Vec<(String, String)> = std::iter::zip(
-            self.knowledges()
-                .iter()
-                .flatten()
-                .filter(|x| filter_knowledge(x, &whitelist, &blacklist)),
-            other
-                .knowledges()
-                .iter()
-                .flatten()
-                .filter(|x| filter_knowledge(x, &whitelist, &blacklist)),
-        )
-        .filter_map(|(x, y)| {
-            // println!("{} == {}", x.data.type_name(), y.data.type_name());
-            match x.data.type_name() == y.data.type_name() {
-                true => None,
-                false => Some((x.data.type_name().into(), y.data.type_name().into())),
-            }
-        })
-        .collect();
+        let mut differences: Vec<TraceDifference> = vec![];
+
+        let first_store: Vec<Knowledge<'_, PT>> = self
+            .knowledges()
+            .iter()
+            .flatten()
+            .filter(|x| filter_knowledge(x, &whitelist, &blacklist))
+            .collect();
+        let second_store: Vec<Knowledge<'_, PT>> = other
+            .knowledges()
+            .iter()
+            .flatten()
+            .filter(|x| filter_knowledge(x, &whitelist, &blacklist))
+            .collect();
+        let first_store_count = first_store.len();
+        let second_store_count = second_store.len();
+
+        let _ = std::iter::zip(first_store, second_store)
+            .enumerate()
+            .map(|(idx, (x, y))| {
+                log::trace!("{} | {}", x.data.type_name(), y.data.type_name());
+                x.data.find_differences(y.data, &mut differences, idx);
+            })
+            .count();
+
+        if first_store_count != second_store_count {
+            differences.push(TraceDifference::Knowledges(format!(
+                "Differences in filtered knowledges numbers : {} != {}",
+                first_store_count, second_store_count
+            )));
+        }
 
         match differences.is_empty() {
-            false => Err(TraceDifference::Knowledges(differences)),
+            false => Err(differences),
             true => Ok(()),
         }
     }
@@ -567,7 +581,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .all(super::agent::Agent::is_state_successful)
     }
 
-    pub fn compare(&self, other: &Self) -> Result<(), TraceDifference> {
+    pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
         // Comparing the claims
         // TODO
 
@@ -598,7 +612,7 @@ pub struct Trace<PT: ProtocolTypes> {
 }
 
 /// Identify a step and a (prior) trace
-#[derive(Clone, Debug, Deserialize, Serialize, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, PartialEq, Eq, Comparable)]
 pub struct StepNumber {
     /// identify the trace (allow to differentiate between prior traces)
     pub trace: usize,
