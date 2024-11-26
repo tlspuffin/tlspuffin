@@ -93,8 +93,15 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
                 log::warn!("{}", msg);
                 std::process::abort()
             }
-            Error::Difference(msg) => {
-                log::warn!("{}", msg);
+            Error::Difference(diffs) => {
+                log::warn!(
+                    "{}",
+                    diffs
+                        .iter()
+                        .map(|x| x.to_string())
+                        .collect::<Vec<String>>()
+                        .join("\n")
+                );
                 std::process::abort()
             }
         }

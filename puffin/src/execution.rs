@@ -154,16 +154,16 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
 
         match (&first_trace_status, &second_trace_status) {
             (Err(put1_status), Ok(_)) => {
-                return Err(Error::Difference(TraceDifference::Status(
+                return Err(Error::Difference(vec![TraceDifference::Status(
                     put1_status.to_string(),
                     "Success".into(),
-                )))
+                )]))
             }
             (Ok(_), Err(put2_status)) => {
-                return Err(Error::Difference(TraceDifference::Status(
+                return Err(Error::Difference(vec![TraceDifference::Status(
                     "Success".into(),
                     put2_status.to_string(),
-                )))
+                )]))
             }
             _ => (),
         }
@@ -171,7 +171,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
         let is_diff = first_ctx.compare(&second_ctx);
 
         if let Err(diff) = is_diff {
-            println!("Difference between the PUTs");
+            println!("Difference between the PUTs, {:?}", diff);
             return Err(Error::Difference(diff));
         }
 
