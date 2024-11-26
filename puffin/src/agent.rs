@@ -9,6 +9,7 @@ use core::fmt;
 use std::fmt::Debug;
 use std::hash::Hash;
 
+use comparable::Comparable;
 use serde::{Deserialize, Serialize};
 
 use crate::algebra::ConcreteMessage;
@@ -18,7 +19,7 @@ use crate::put::Put;
 use crate::stream::Stream;
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash, Comparable)]
 pub struct AgentName(u8);
 
 impl AgentName {

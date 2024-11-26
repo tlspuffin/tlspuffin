@@ -262,11 +262,12 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         &self.raw_knowledge
     }
 
-    pub fn compare(&self, other: &Self) -> Result<(), TraceDifference> {
+    pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
         let whitelist = PT::differential_fuzzing_whitelist();
         let blacklist = PT::differential_fuzzing_blacklist();
 
-        let differences: Vec<(String, String)> = std::iter::zip(
+        let mut differences: Vec<TraceDifference> = vec![];
+        let _ = std::iter::zip(
             self.knowledges()
                 .iter()
                 .flatten()
@@ -277,17 +278,15 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
                 .flatten()
                 .filter(|x| filter_knowledge(x, &whitelist, &blacklist)),
         )
-        .filter_map(|(x, y)| {
-            // println!("{} == {}", x.data.type_name(), y.data.type_name());
-            match x.data.type_name() == y.data.type_name() {
-                true => None,
-                false => Some((x.data.type_name().into(), y.data.type_name().into())),
-            }
+        .enumerate()
+        .map(|(idx, (x, y))| {
+            log::trace!("{} == {}", x.data.type_name(), y.data.type_name());
+            x.data.find_differences(y.data, &mut differences, idx);
         })
-        .collect();
+        .count();
 
         match differences.is_empty() {
-            false => Err(TraceDifference::Knowledges(differences)),
+            false => Err(differences),
             true => Ok(()),
         }
     }
@@ -549,7 +548,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .all(super::agent::Agent::is_state_successful)
     }
 
-    pub fn compare(&self, other: &Self) -> Result<(), TraceDifference> {
+    pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
         // Comparing the claims
         // TODO
 
