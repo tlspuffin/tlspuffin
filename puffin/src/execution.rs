@@ -209,7 +209,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
         let is_diff = first_ctx.compare(&second_ctx);
 
         if let Err(diff) = is_diff {
-            println!("Difference between the PUTs, {:?}", diff);
+            println!("Difference between the PUTs, {:#?}", diff);
             return Err(Error::Difference(diff));
         }
 
