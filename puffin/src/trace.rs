@@ -257,23 +257,36 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         let blacklist = PT::differential_fuzzing_blacklist();
 
         let mut differences: Vec<TraceDifference> = vec![];
-        let _ = std::iter::zip(
-            self.knowledges()
-                .iter()
-                .flatten()
-                .filter(|x| filter_knowledge(x, &whitelist, &blacklist)),
-            other
-                .knowledges()
-                .iter()
-                .flatten()
-                .filter(|x| filter_knowledge(x, &whitelist, &blacklist)),
-        )
-        .enumerate()
-        .map(|(idx, (x, y))| {
-            log::trace!("{} == {}", x.data.type_name(), y.data.type_name());
-            x.data.find_differences(y.data, &mut differences, idx);
-        })
-        .count();
+
+        let first_store: Vec<Knowledge<'_, PT>> = self
+            .knowledges()
+            .iter()
+            .flatten()
+            .filter(|x| filter_knowledge(x, &whitelist, &blacklist))
+            .collect();
+        let second_store: Vec<Knowledge<'_, PT>> = other
+            .knowledges()
+            .iter()
+            .flatten()
+            .filter(|x| filter_knowledge(x, &whitelist, &blacklist))
+            .collect();
+        let first_store_count = first_store.len();
+        let second_store_count = second_store.len();
+
+        let _ = std::iter::zip(first_store, second_store)
+            .enumerate()
+            .map(|(idx, (x, y))| {
+                log::trace!("{} == {}", x.data.type_name(), y.data.type_name());
+                x.data.find_differences(y.data, &mut differences, idx);
+            })
+            .count();
+
+        if first_store_count != second_store_count {
+            differences.push(TraceDifference::Knowledges(format!(
+                "Differences in filtered knowledges numbers : {} != {}",
+                first_store_count, second_store_count
+            )));
+        }
 
         match differences.is_empty() {
             false => Err(differences),
