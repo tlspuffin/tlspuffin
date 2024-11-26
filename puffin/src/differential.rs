@@ -3,7 +3,7 @@ use core::fmt;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TraceDifference {
     Status(String, String),
-    Knowledges(Vec<(String, String)>),
+    Knowledges(String),
     Claims(Vec<String>),
 }
 
@@ -15,12 +15,8 @@ impl fmt::Display for TraceDifference {
                 "Execution status difference\n\tfirst put : {}\n\tsecond put: {}}}",
                 a, b
             ),
-            TraceDifference::Knowledges(diffs) => {
-                writeln!(f, "Differences in knowledges:")?;
-                for diff in diffs {
-                    writeln!(f, "\tfirst put : {}, second put {}", diff.0, diff.1)?;
-                }
-                Ok(())
+            TraceDifference::Knowledges(diff) => {
+                writeln!(f, "Differences in knowledges: {}", diff)
             }
             TraceDifference::Claims(_) => write!(f, ""),
         }
