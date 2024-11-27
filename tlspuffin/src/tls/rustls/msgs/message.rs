@@ -1,5 +1,6 @@
 use std::any::TypeId;
 
+use comparable::Comparable;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
 use puffin::error::Error::Term;
@@ -27,7 +28,7 @@ use crate::tls::rustls::msgs::handshake::{
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub enum MessagePayload {
     Alert(AlertMessagePayload),
     Handshake(HandshakeMessagePayload),
@@ -50,6 +51,23 @@ impl codec::CodecP for MessagePayload {
         )))
     }
 }
+impl PartialEq for MessagePayload {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (MessagePayload::Alert(_), MessagePayload::Alert(_)) => true,
+            (MessagePayload::Handshake(_), MessagePayload::Handshake(_)) => true,
+            (
+                MessagePayload::TLS12EncryptedHandshake(_),
+                MessagePayload::TLS12EncryptedHandshake(_),
+            ) => true,
+            (MessagePayload::ChangeCipherSpec(_), MessagePayload::ChangeCipherSpec(_)) => true,
+            (MessagePayload::ApplicationData(_), MessagePayload::ApplicationData(_)) => true,
+            (MessagePayload::Heartbeat(_), MessagePayload::Heartbeat(_)) => true,
+            (_, _) => false,
+        }
+    }
+}
+
 impl MessagePayload {
     pub fn encode(&self, bytes: &mut Vec<u8>) {
         match *self {
@@ -143,10 +161,13 @@ impl MessagePayload {
 /// This type owns all memory for its interior parts. It is used to read/write from/to I/O
 /// buffers as well as for fragmenting, joining and encryption/decryption. It can be converted
 /// into a `Message` by decoding the payload.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct OpaqueMessage {
+    #[comparable_ignore]
     pub typ: ContentType,
+    #[comparable_ignore]
     pub version: ProtocolVersion,
+    #[comparable_ignore]
     pub payload: Payload,
 }
 
@@ -290,9 +311,10 @@ impl PlainMessage {
 }
 
 /// A message with decoded payload
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable, PartialEq)]
 pub struct Message {
     pub version: ProtocolVersion,
+    #[comparable_ignore]
     pub payload: MessagePayload,
 }
 
