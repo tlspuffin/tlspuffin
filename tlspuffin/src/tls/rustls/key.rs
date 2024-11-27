@@ -1,5 +1,6 @@
 use std::fmt;
 
+use comparable::Comparable;
 use puffin::codec::{Codec, Reader};
 
 /// This type contains a private key by value.
@@ -17,7 +18,7 @@ pub struct PrivateKey(pub Vec<u8>);
 /// The certificate must be DER-encoded X.509.
 ///
 /// The `rustls-pemfile` crate can be used to parse a PEM file.
-#[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
+#[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd, Comparable)]
 pub struct Certificate(pub Vec<u8>);
 
 impl Codec for PrivateKey {
