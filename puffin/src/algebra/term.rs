@@ -111,7 +111,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         match self {
             Term::Variable(variable) => context
                 .find_variable(variable.typ.clone(), &variable.query)
-                .map(|data| data.boxed_term())
+                .map(|data| data.boxed())
                 .or_else(|| {
                     if let Some(Source::Agent(agent_name)) = variable.query.source {
                         context.find_claim(agent_name, variable.typ.clone())
