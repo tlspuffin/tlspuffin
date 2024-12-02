@@ -33,8 +33,20 @@ pub fn fn_client_extensions_append(
     Ok(new_extensions)
 }
 
+pub fn fn_client_extensions_make(
+    extensions: &Vec<ClientExtension>,
+) -> Result<ClientExtensions, FnError> {
+    Ok(ClientExtensions(extensions.clone()))
+}
+
 pub fn fn_server_extensions_new() -> Result<Vec<ServerExtension>, FnError> {
     Ok(vec![])
+}
+
+pub fn fn_server_extensions_make(
+    extensions: &Vec<ServerExtension>,
+) -> Result<ServerExtensions, FnError> {
+    Ok(ServerExtensions(extensions.clone()))
 }
 
 pub fn fn_server_extensions_append(
@@ -47,6 +59,11 @@ pub fn fn_server_extensions_append(
     Ok(new_extensions)
 }
 
+pub fn fn_hello_retry_extensions_make(
+    extensions: &Vec<HelloRetryExtension>,
+) -> Result<HelloRetryExtensions, FnError> {
+    Ok(HelloRetryExtensions(extensions.clone()))
+}
 pub fn fn_hello_retry_extensions_new() -> Result<Vec<HelloRetryExtension>, FnError> {
     Ok(vec![])
 }
@@ -152,20 +169,15 @@ nyi_fn! {
 }
 /// StatusRequest => 0x0005,
 pub fn fn_status_request_extension(
-    responder_ids: &Vec<Vec<u8>>,
-    extensions: &Vec<u8>,
+    responder_ids: &VecU16OfPayloadU16,
+    extensions: &PayloadU16,
 ) -> Result<ClientExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(ClientExtension::CertificateStatusRequest(
         CertificateStatusRequest::OCSP(OCSPCertificateStatusRequest {
-            responder_ids: VecU16OfPayloadU16(
-                responder_ids
-                    .iter()
-                    .map(|data| PayloadU16::new(data.clone()))
-                    .collect(),
-            ),
-            extensions: PayloadU16::new(extensions.clone()),
+            responder_ids: responder_ids.clone(),
+            extensions: extensions.clone(),
         }),
     ))
 }
@@ -174,12 +186,12 @@ pub fn fn_status_request_server_extension() -> Result<ServerExtension, FnError> 
 }
 
 pub fn fn_status_request_certificate_extension(
-    ocsp_response: &Vec<u8>,
+    ocsp_response: &PayloadU24,
 ) -> Result<CertificateExtension, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(CertificateExtension::CertificateStatus(CertificateStatus {
-        ocsp_response: PayloadU24::new(ocsp_response.clone()),
+        ocsp_response: ocsp_response.clone(),
     }))
 }
 nyi_fn! {
@@ -247,24 +259,14 @@ pub fn fn_append_vec(vec_of_vec: &Vec<Vec<u8>>, data: &Vec<u8>) -> Result<Vec<Ve
     Ok(new)
 }
 pub fn fn_al_protocol_negotiation(
-    protocol_name_list: &Vec<Vec<u8>>,
+    protocol_name_list: &VecU16OfPayloadU8,
 ) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::Protocols(VecU16OfPayloadU8(
-        protocol_name_list
-            .iter()
-            .map(|data| PayloadU8::new(data.clone()))
-            .collect(),
-    )))
+    Ok(ClientExtension::Protocols(protocol_name_list.clone()))
 }
 pub fn fn_al_protocol_server_negotiation(
-    protocol_name_list: &Vec<Vec<u8>>,
+    protocol_name_list: &VecU16OfPayloadU8,
 ) -> Result<ServerExtension, FnError> {
-    Ok(ServerExtension::Protocols(VecU16OfPayloadU8(
-        protocol_name_list
-            .iter()
-            .map(|data| PayloadU8::new(data.clone()))
-            .collect(),
-    )))
+    Ok(ServerExtension::Protocols(protocol_name_list.clone()))
 }
 nyi_fn! {
     /// status_request_v2 => 0x0011
@@ -367,11 +369,13 @@ nyi_fn! {
     /// supported_ekt_ciphers => 0x0027,
 }
 /// PreSharedKey => 0x0029,
-pub fn fn_new_preshared_key_identity(identity: &Vec<u8>) -> Result<PresharedKeyIdentity, FnError> {
+pub fn fn_new_preshared_key_identity(
+    identity: &PayloadU16,
+) -> Result<PresharedKeyIdentity, FnError> {
     // todo unclear where the arguments come from here, needs manual trace implementation
     //      https://github.com/tlspuffin/tlspuffin/issues/155
     Ok(PresharedKeyIdentity {
-        identity: PayloadU16::new(identity.clone()),
+        identity: identity.clone(),
         obfuscated_ticket_age: 10,
     })
 }
@@ -452,11 +456,14 @@ pub fn fn_supported_versions13_server_extension() -> Result<ServerExtension, FnE
     Ok(ServerExtension::SupportedVersions(ProtocolVersion::TLSv1_3))
 }
 /// Cookie => 0x002c,
-pub fn fn_cookie_extension(cookie: &Vec<u8>) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::Cookie(PayloadU16::new(cookie.clone())))
+pub fn fn_cookie_extension(cookie: &PayloadU16) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::Cookie(cookie.clone()))
 }
-pub fn fn_cookie_hello_retry_extension(cookie: &Vec<u8>) -> Result<HelloRetryExtension, FnError> {
-    Ok(HelloRetryExtension::Cookie(PayloadU16::new(cookie.clone())))
+
+pub fn fn_cookie_hello_retry_extension(
+    cookie: &PayloadU16,
+) -> Result<HelloRetryExtension, FnError> {
+    Ok(HelloRetryExtension::Cookie(cookie.clone()))
 }
 /// PSKKeyExchangeModes => 0x002d,
 pub fn fn_psk_exchange_mode_dhe_ke_extension() -> Result<ClientExtension, FnError> {
@@ -514,31 +521,31 @@ pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnErro
 pub fn fn_key_share_deterministic_extension(
     group: &NamedGroup,
 ) -> Result<ClientExtension, FnError> {
-    fn_key_share_extension(&deterministic_key_share(group)?, group)
+    fn_key_share_extension(&PayloadU16::new(deterministic_key_share(group)?), group)
 }
 pub fn fn_key_share_extension(
-    key_share: &Vec<u8>,
+    key_share: &PayloadU16,
     group: &NamedGroup,
 ) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::KeyShare(KeyShareEntries(vec![
         KeyShareEntry {
             group: *group,
-            payload: PayloadU16::new(key_share.clone()),
+            payload: key_share.clone(),
         },
     ])))
 }
 pub fn fn_key_share_deterministic_server_extension(
     group: &NamedGroup,
 ) -> Result<ServerExtension, FnError> {
-    fn_key_share_server_extension(&deterministic_key_share(group)?, group)
+    fn_key_share_server_extension(&PayloadU16::new(deterministic_key_share(group)?), group)
 }
 pub fn fn_key_share_server_extension(
-    key_share: &Vec<u8>,
+    key_share: &PayloadU16,
     group: &NamedGroup,
 ) -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::KeyShare(KeyShareEntry {
         group: *group,
-        payload: PayloadU16::new(key_share.clone()),
+        payload: key_share.clone(),
     }))
 }
 pub fn fn_key_share_hello_retry_extension(
@@ -577,16 +584,16 @@ nyi_fn! {
 nyi_fn! {
     /// ChannelId => 0x754f,
 }
+
 /// RenegotiationInfo => 0xff01,
-pub fn fn_renegotiation_info_extension(data: &Vec<u8>) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::RenegotiationInfo(PayloadU8::new(
-        data.clone(),
-    )))
+pub fn fn_renegotiation_info_extension(data: &PayloadU8) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::RenegotiationInfo(data.clone()))
 }
-pub fn fn_renegotiation_info_server_extension(data: &Vec<u8>) -> Result<ServerExtension, FnError> {
-    Ok(ServerExtension::RenegotiationInfo(PayloadU8::new(
-        data.clone(),
-    )))
+
+pub fn fn_renegotiation_info_server_extension(
+    data: &PayloadU8,
+) -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::RenegotiationInfo(data.clone()))
 }
 /// TransportParametersDraft => 0xffa5
 pub fn fn_transport_parameters_draft_extension(

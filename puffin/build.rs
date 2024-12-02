@@ -1,5 +1,6 @@
 use std::process::Command;
 
+#[must_use]
 pub fn get_git_ref() -> String {
     Command::new("git")
         .args(["rev-parse", "HEAD"])
@@ -13,12 +14,12 @@ pub fn get_git_ref() -> String {
             }
         })
         .and_then(|output| String::from_utf8(output.stdout).ok())
-        .map(|git_ref| git_ref[..6].to_string())
-        .unwrap_or_else(|| "unknown".to_string())
+        .map_or_else(|| "unknown".to_string(), |git_ref| git_ref[..6].to_string())
         .trim()
         .to_string()
 }
 
+#[must_use]
 pub fn get_git_msg() -> String {
     Command::new("git")
         .args(["log", "-1", "--pretty=%B"])
@@ -30,11 +31,12 @@ pub fn get_git_msg() -> String {
         .to_string()
 }
 
+#[must_use]
 pub fn get_version() -> String {
     let semver = env!("CARGO_PKG_VERSION");
     let commit = format!("+git.{}", get_git_ref());
 
-    format!("tlspuffin {}{}", semver, commit)
+    format!("tlspuffin {semver}{commit}")
 }
 
 fn main() {

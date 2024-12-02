@@ -9,6 +9,7 @@ use log4rs::config::{Appender, Logger, Root};
 use log4rs::encode::pattern::PatternEncoder;
 use log4rs::{self, Config};
 
+#[must_use]
 pub fn config_default() -> log4rs::Config {
     Config::builder()
         .appender(appender_stderr("stderr"))
