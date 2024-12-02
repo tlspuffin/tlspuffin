@@ -2,7 +2,7 @@
 //!
 //! Each [`Trace`]s consist of several [`Step`]s, of which each has either an [`OutputAction`] or
 //! [`InputAction`]. This is a declarative way of modeling communication between [`Agent`]s. The
-//! [`TraceContext`] holds data, also known as [`VariableData`], which is created by [`Agent`]s
+//! [`TraceContext`] holds data, also known as [`Knowledge`], which is created by [`Agent`]s
 //! during the concrete execution of the Trace. It also holds the [`Agent`]s with the references to
 //! concrete PUT.
 //!
@@ -26,19 +26,16 @@ use clap::error::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};
+use crate::algebra::bitstrings::Payloads;
 use crate::algebra::dynamic_function::TypeShape;
-use crate::algebra::error::FnError;
-use crate::algebra::{remove_prefix, Matcher, Term};
-use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
+use crate::algebra::{remove_prefix, Matcher, Term, TermType};
+use crate::claims::{GlobalClaimList, SecurityViolationPolicy};
 use crate::error::Error;
-use crate::protocol::{
-    EvaluatedTerm, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-    ProtocolMessage, ProtocolMessageFlight, ProtocolTypes,
-};
+use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
 use crate::stream::Stream;
-use crate::variable_data::VariableData;
+use crate::trace::Action::Input;
 
 #[derive(Debug, Deserialize, Serialize, Clone, Hash, Eq, PartialEq)]
 pub struct Query<M> {
@@ -68,24 +65,24 @@ pub enum Source {
 impl fmt::Display for Source {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Agent(x) => write!(f, "agent:{}", x),
-            Self::Label(x) => write!(f, "label:{:?}", x),
+            Self::Agent(x) => write!(f, "agent:{x}"),
+            Self::Label(x) => write!(f, "label:{x:?}"),
         }
     }
 }
 
 /// [Knowledge] describes an atomic piece of knowledge inferred by the
-/// [`crate::protocol::EvaluatedTerm::extract_knowledge`] function
+/// [`crate::protocol::Extractable::extract_knowledge`] function
 /// [Knowledge] is made of the data, the source of the output, the
 /// TLS message type and the internal type.
 #[derive(Debug)]
 pub struct Knowledge<'a, PT: ProtocolTypes> {
     pub source: &'a Source,
     pub matcher: Option<PT::Matcher>,
-    pub data: &'a dyn VariableData<PT>,
+    pub data: &'a dyn EvaluatedTerm<PT>,
 }
 
-/// [RawKnowledge] stores
+/// [`RawKnowledge`] stores
 #[derive(Debug)]
 pub struct RawKnowledge<PT: ProtocolTypes> {
     pub source: Source,
@@ -131,7 +128,7 @@ impl<PT: ProtocolTypes> Knowledge<'_, PT> {
             remove_prefix(self.data.type_name()),
             ctx.number_matching_message_with_source(source.clone(), data_type_id, &self.matcher)
         );
-        log::trace!("Knowledge data: {:?}", self.data);
+        log::debug!("Knowledge data: {:?}", self.data);
     }
 }
 
@@ -147,7 +144,8 @@ pub struct KnowledgeStore<PT: ProtocolTypes> {
 }
 
 impl<PT: ProtocolTypes> KnowledgeStore<PT> {
-    pub fn new() -> Self {
+    #[must_use]
+    pub const fn new() -> Self {
         Self {
             raw_knowledge: vec![],
         }
@@ -222,7 +220,13 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         &self,
         query_type_shape: TypeShape<PT>,
         query: &Query<PT::Matcher>,
-    ) -> Option<&(dyn VariableData<PT>)> {
+    ) -> Option<&(dyn EvaluatedTerm<PT>)> {
+        log::trace!(
+            "Looking for variable {:?} with query_type_shape {:?} and query {:?}",
+            self,
+            query_type_shape,
+            query
+        );
         let query_type_id: TypeId = query_type_shape.into();
 
         let mut possibilities: Vec<Knowledge<PT>> = self
@@ -236,7 +240,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             })
             .collect();
 
-        possibilities.sort_by_key(|a| a.specificity());
+        possibilities.sort_by_key(Knowledge::specificity);
 
         possibilities
             .get(query.counter as usize)
@@ -261,6 +265,7 @@ impl<PB: ProtocolBehavior> Spawner<PB> {
         }
     }
 
+    #[must_use]
     pub fn with_mapping(mut self, descriptors: &[(AgentName, PutDescriptor)]) -> Self {
         self.descriptors.extend(descriptors.iter().cloned());
         self
@@ -317,8 +322,8 @@ impl<PB: ProtocolBehavior> Clone for Spawner<PB> {
 
 /// The [`TraceContext`] represents the state of an execution.
 ///
-/// The [`TraceContext`] contains a list of [`VariableData`], which is known as the knowledge
-/// of the attacker. [`VariableData`] can contain data of various types like for example
+/// The [`TraceContext`] contains a list of [`EvaluatedTerm`], which is known as the knowledge
+/// of the attacker. [`EvaluatedTerm`] can contain data of various types like for example
 /// client and server extensions, cipher suits or session ID It also holds the concrete
 /// references to the [`Agent`]s and the underlying streams, which contain the messages
 /// which have need exchanged and are not yet processed by an output step.
@@ -342,7 +347,7 @@ impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
             self.knowledge_store.raw_knowledge.len()
         )?;
         for k in &self.knowledge_store.raw_knowledge {
-            write!(f, "\n   {},          --  {:?}", k, k)?;
+            write!(f, "\n   {k},          --  {k:?}")?;
         }
         Ok(())
     }
@@ -359,6 +364,7 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
 }
 
 impl<PB: ProtocolBehavior> TraceContext<PB> {
+    #[must_use]
     pub fn new(spawner: Spawner<PB>) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
@@ -407,6 +413,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .number_matching_message(type_id, tls_message_type)
     }
 
+    #[must_use]
     pub fn find_claim(
         &self,
         agent_name: AgentName,
@@ -415,7 +422,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         self.claims
             .deref_borrow()
             .find_last_claim(agent_name, query_type_shape)
-            .map(|claim| claim.inner())
+            .map(super::claims::Claim::inner)
     }
 
     /// Returns the variable which matches best -> highest specificity
@@ -424,7 +431,12 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         &self,
         query_type_shape: TypeShape<PB::ProtocolTypes>,
         query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
-    ) -> Option<&(dyn VariableData<PB::ProtocolTypes>)> {
+    ) -> Option<&(dyn EvaluatedTerm<PB::ProtocolTypes>)> {
+        log::trace!(
+            "Looking for variable in {:?} with query {:?}",
+            self.knowledge_store,
+            query
+        );
         self.knowledge_store.find_variable(query_type_shape, query)
     }
 
@@ -440,8 +452,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 
         iter.find(|agent| agent.name() == name).ok_or_else(|| {
             Error::Agent(format!(
-                "Could not find agent {}. Did you forget to call spawn_agents?",
-                name
+                "Could not find agent {name}. Did you forget to call spawn_agents?"
             ))
         })
     }
@@ -450,14 +461,16 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         let mut iter = self.agents.iter();
         iter.find(|agent| agent.name() == name).ok_or_else(|| {
             Error::Agent(format!(
-                "Could not find agent {}. Did you forget to call spawn_agents?",
-                name
+                "Could not find agent {name}. Did you forget to call spawn_agents?"
             ))
         })
     }
 
+    #[must_use]
     pub fn agents_successful(&self) -> bool {
-        self.agents.iter().all(|agent| agent.is_state_successful())
+        self.agents
+            .iter()
+            .all(super::agent::Agent::is_state_successful)
     }
 }
 
@@ -471,11 +484,14 @@ pub struct Trace<PT: ProtocolTypes> {
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an
 /// [`InputAction`]. Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a
-/// list of *AgentDescriptors* which act like a blueprint to spawn [`Agent`]s with a corresponding
+/// list of *`AgentDescriptors`* which act like a blueprint to spawn [`Agent`]s with a corresponding
 /// server or client role and a specific TLs version. Essentially they are an [`Agent`] without a
 /// stream.
 impl<PT: ProtocolTypes> Trace<PT> {
-    fn spawn_agents<PB: ProtocolBehavior>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error> {
+    pub fn spawn_agents<PB: ProtocolBehavior>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             if let Some(reusable) = ctx
                 .agents
@@ -493,7 +509,11 @@ impl<PT: ProtocolTypes> Trace<PT> {
         Ok(())
     }
 
-    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    pub fn execute_until_step<PB>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+        nb_steps: usize,
+    ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -502,7 +522,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
         }
 
         self.spawn_agents(ctx)?;
-        let steps = &self.steps;
+        let steps = &self.steps[0..nb_steps];
         for (i, step) in steps.iter().enumerate() {
             log::debug!("Executing step #{}", i);
             step.execute(ctx)?;
@@ -513,12 +533,50 @@ impl<PT: ProtocolTypes> Trace<PT> {
         Ok(())
     }
 
+    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        self.execute_until_step(ctx, self.steps.len())
+    }
+
     pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {
         postcard::to_allocvec(&self)
     }
 
-    pub fn deserialize_postcard(slice: &[u8]) -> Result<Trace<PT>, postcard::Error> {
-        postcard::from_bytes::<Trace<PT>>(slice)
+    pub fn deserialize_postcard(slice: &[u8]) -> Result<Self, postcard::Error> {
+        postcard::from_bytes::<Self>(slice)
+    }
+
+    #[must_use]
+    pub fn all_payloads(&self) -> Vec<&Payloads> {
+        self.steps
+            .iter()
+            .filter_map(|e| match &e.action {
+                Input(r) => Some(&r.recipe),
+                _ => None,
+            })
+            .flat_map(|t| t.all_payloads())
+            .collect()
+    }
+
+    pub fn all_payloads_mut(&mut self) -> Vec<&mut Payloads> {
+        self.steps
+            .iter_mut()
+            .filter_map(|e| match &mut e.action {
+                Input(r) => Some(&mut r.recipe),
+                _ => None,
+            })
+            .flat_map(|t| t.all_payloads_mut())
+            .collect()
+    }
+
+    #[must_use]
+    pub fn is_symbolic(&self) -> bool {
+        self.steps.iter().all(|e| match &e.action {
+            Input(r) => r.recipe.is_symbolic(),
+            _ => true,
+        })
     }
 }
 
@@ -538,8 +596,8 @@ impl<PT: ProtocolTypes> fmt::Display for Trace<PT> {
     }
 }
 
-impl<PT: ProtocolTypes> AsRef<Trace<PT>> for Trace<PT> {
-    fn as_ref(&self) -> &Trace<PT> {
+impl<PT: ProtocolTypes> AsRef<Self> for Trace<PT> {
+    fn as_ref(&self) -> &Self {
         self
     }
 }
@@ -552,12 +610,12 @@ pub struct Step<PT: ProtocolTypes> {
 }
 
 impl<PT: ProtocolTypes> Step<PT> {
-    fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         match &self.action {
-            Action::Input(input) => input.execute(self.agent, ctx).and_then(|_| {
+            Action::Input(input) => input.execute(self.agent, ctx).and_then(|()| {
                 // NOTE force output after each InputAction step
                 (OutputAction {
                     phantom: Default::default(),
@@ -589,8 +647,8 @@ pub enum Action<PT: ProtocolTypes> {
 impl<PT: ProtocolTypes> fmt::Display for Action<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Action::Input(input) => write!(f, "{}", input),
-            Action::Output(output) => write!(f, "{}", output),
+            Self::Input(input) => write!(f, "{input}"),
+            Self::Output(output) => write!(f, "{output}"),
         }
     }
 }
@@ -606,10 +664,11 @@ pub struct OutputAction<PT> {
 }
 
 impl<PT: ProtocolTypes> OutputAction<PT> {
+    #[must_use]
     pub fn new_step(agent: AgentName) -> Step<PT> {
         Step {
             agent,
-            action: Action::Output(OutputAction {
+            action: Action::Output(Self {
                 phantom: Default::default(),
             }),
         }
@@ -663,12 +722,12 @@ pub struct InputAction<PT: ProtocolTypes> {
 }
 
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
-/// or a MultiMessage.
+/// or a `MultiMessage`.
 impl<PT: ProtocolTypes> InputAction<PT> {
-    pub fn new_step(agent: AgentName, recipe: Term<PT>) -> Step<PT> {
+    pub const fn new_step(agent: AgentName, recipe: Term<PT>) -> Step<PT> {
         Step {
             agent,
-            action: Action::Input(InputAction {
+            action: Action::Input(Self {
                 recipe,
                 precomputations: vec![],
             }),
@@ -680,7 +739,7 @@ impl<PT: ProtocolTypes> InputAction<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         for precomputation in &self.precomputations {
-            let eval = precomputation.recipe.evaluate(ctx)?;
+            let eval = precomputation.recipe.evaluate_dy(ctx)?; // We do not accept payloads in precomputation recipes
             ctx.knowledge_store.add_raw_boxed_knowledge(
                 eval,
                 Source::Label(precomputation.label.clone()),
@@ -688,7 +747,7 @@ impl<PT: ProtocolTypes> InputAction<PT> {
             );
         }
 
-        let message = as_message_flight::<PB>(self.recipe.evaluate(ctx)?)?;
+        let message = self.recipe.evaluate(ctx)?;
         let agent = ctx.find_agent_mut(agent_name)?;
 
         agent.add_to_inbound(&message);
@@ -828,37 +887,6 @@ macro_rules! input_action {
             precomputations: vec![],
         }
     };
-}
-
-fn as_message_flight<PB: ProtocolBehavior>(
-    value: Box<dyn EvaluatedTerm<PB::ProtocolTypes>>,
-) -> Result<PB::OpaqueProtocolMessageFlight, Error> {
-    let opaque: PB::OpaqueProtocolMessageFlight = if let Some(flight) =
-        value.as_any().downcast_ref::<PB::ProtocolMessageFlight>()
-    {
-        flight.debug("Input message flight");
-        flight.to_owned().into()
-    } else if let Some(flight) = value
-        .as_any()
-        .downcast_ref::<PB::OpaqueProtocolMessageFlight>()
-    {
-        flight.debug("Input opaque message flight");
-        flight.to_owned()
-    } else if let Some(msg) = value.as_any().downcast_ref::<PB::ProtocolMessage>() {
-        msg.debug("Input message");
-        let message_flight: PB::ProtocolMessageFlight = msg.clone().into();
-        message_flight.into()
-    } else if let Some(opaque_message) = value.as_any().downcast_ref::<PB::OpaqueProtocolMessage>()
-    {
-        opaque_message.debug("Input opaque message");
-        opaque_message.to_owned().into()
-    } else {
-        return Err(FnError::Unknown(String::from(
-                "Recipe is not a `ProtocolMessage`, `OpaqueProtocolMessage`, `MessageFlight`, `OpaqueMessageFlight` !",
-            ))
-            .into());
-    };
-    Ok(opaque)
 }
 
 #[cfg(test)]

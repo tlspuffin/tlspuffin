@@ -15,6 +15,7 @@ use std::os::unix::io::{IntoRawFd, RawFd};
 use std::os::unix::net::{UnixListener, UnixStream};
 
 use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::algebra::ConcreteMessage;
 use puffin::claims::GlobalClaimList;
 use puffin::codec::Codec;
 use puffin::error::Error;
@@ -189,11 +190,8 @@ pub struct LibSSL {
 impl LibSSL {}
 
 impl Stream<SshProtocolBehavior> for LibSSL {
-    fn add_to_inbound(&mut self, result: &RawSshMessageFlight) {
-        let mut buffer = Vec::new();
-        Codec::encode(result, &mut buffer);
-
-        self.fuzz_stream.write_all(&buffer).unwrap();
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        self.fuzz_stream.write_all(message).unwrap();
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<RawSshMessageFlight>, Error> {

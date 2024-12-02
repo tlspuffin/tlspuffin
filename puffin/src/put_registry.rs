@@ -62,6 +62,7 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
         result
     }
 
+    #[must_use]
     pub fn default(&self) -> &dyn Factory<PB> {
         self.find_by_id(&self.default_put)
             .unwrap_or_else(|| panic!("default PUT {} is not in registry", &self.default_put))
@@ -81,7 +82,7 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
 
     pub fn determinism_reseed_all_factories(&self) {
         log::debug!("[RNG] reseed all PUT factories");
-        for (_, factory) in self.factories.iter() {
+        for factory in self.factories.values() {
             factory.rng_reseed();
         }
     }

@@ -32,6 +32,7 @@ mod util;
 
 use std::ops::Deref;
 
+use puffin::algebra::ConcreteMessage;
 use transcript::extract_current_transcript;
 
 pub fn new_factory(preset: impl Into<String>) -> Box<dyn Factory<TLSProtocolBehavior>> {
@@ -113,7 +114,7 @@ impl Drop for BoringSSL {
 }
 
 impl Stream<TLSProtocolBehavior> for BoringSSL {
-    fn add_to_inbound(&mut self, result: &OpaqueMessageFlight) {
+    fn add_to_inbound(&mut self, result: &ConcreteMessage) {
         <MemoryStream as Stream<TLSProtocolBehavior>>::add_to_inbound(self.stream.get_mut(), result)
     }
 

@@ -6,6 +6,7 @@ use std::ops::Deref;
 use foreign_types::ForeignType;
 use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
 use puffin::algebra::dynamic_function::TypeShape;
+use puffin::algebra::ConcreteMessage;
 use puffin::claims::GlobalClaimList;
 use puffin::error::Error;
 use puffin::protocol::ProtocolBehavior;
@@ -113,9 +114,9 @@ pub struct WolfSSL {
 }
 
 impl Stream<TLSProtocolBehavior> for WolfSSL {
-    fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight) {
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         let raw_stream = self.stream.get_mut();
-        <MemoryStream as Stream<TLSProtocolBehavior>>::add_to_inbound(raw_stream, opaque_flight)
+        <MemoryStream as Stream<TLSProtocolBehavior>>::add_to_inbound(raw_stream, message)
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
