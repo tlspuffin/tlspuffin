@@ -38,7 +38,7 @@ nix-shell
 
 *tlspuffin* comes with several preconfigured fuzz targets and a wrapper script `mk_vendor` to simplify the build process:
 ```sh
-./tools/mk_vendor make openssl:openssl312 --options=sancov,asan
+./tools/mk_vendor make openssl:openssl312-asan
 ```
 
 ## Building the Fuzzer

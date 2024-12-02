@@ -7,7 +7,7 @@ title: 'Building OpenSSL'
 *tlspuffin* comes with several preconfigured fuzz targets and a wrapper script *mk_vendor* to simplify the build process:
 
 ```sh
-./tools/mk_vendor make openssl:openssl312 --options=sancov,asan --name=openssl312-asan
+./tools/mk_vendor make openssl:openssl312-asan
 ```
 
 This command will fetch the sources for OpenSSL 3.1.2 and build it with Clang's [SanitizerCoverage](https://clang.llvm.org/docs/SanitizerCoverage.html) and [AddressSanitizer](https://clang.llvm.org/docs/AddressSanitizer.html) activated.
