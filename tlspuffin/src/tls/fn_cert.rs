@@ -7,6 +7,7 @@ use ring::signature::{RsaKeyPair, ECDSA_P256_SHA256_ASN1_SIGNING};
 
 use crate::static_certs::{
     ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT, RANDOM_EC_CERT,
+    RANDOM_EC_PRIVATE_KEY_PKCS8,
 };
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::{Certificate, PrivateKey};
@@ -44,6 +45,10 @@ pub fn fn_random_ec_cert() -> Result<Vec<u8>, FnError> {
     Ok(RANDOM_EC_CERT.1.into())
 }
 
+pub fn fn_random_ec_key() -> Result<Vec<u8>, FnError> {
+    Ok(RANDOM_EC_PRIVATE_KEY_PKCS8.1.into())
+}
+
 pub fn fn_certificate_entry(cert: &Vec<u8>) -> Result<CertificateEntry, FnError> {
     Ok(CertificateEntry {
         cert: Certificate(cert.clone()),
@@ -72,7 +77,7 @@ pub fn fn_get_context(certificate_request: &Message) -> Result<Vec<u8>, FnError>
         },
         _ => None,
     }
-    .ok_or_else(|| FnError::Unknown("Could not find context in message".to_owned()))
+    .ok_or_else(|| FnError::Malformed("Could not find context in message".to_owned()))
 }
 
 pub fn fn_eve_pkcs1_signature() -> Result<Vec<u8>, FnError> {
@@ -150,7 +155,7 @@ pub fn fn_ecdsa_sign_server(
     _fn_ecdsa_sign(&message, private_key)
 }
 
-fn _fn_ecdsa_sign(message: &[u8], private_key: &[u8]) -> Result<Vec<u8>, FnError> {
+pub fn _fn_ecdsa_sign(message: &[u8], private_key: &[u8]) -> Result<Vec<u8>, FnError> {
     let key = EcdsaSigningKey::new(
         &PrivateKey(private_key.to_vec()),
         SignatureScheme::ECDSA_NISTP256_SHA256,

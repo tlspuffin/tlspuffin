@@ -13,12 +13,14 @@ pub struct PutOptions {
 }
 
 impl PutOptions {
-    pub fn new(options: Vec<(String, String)>) -> Self {
+    #[must_use]
+    pub const fn new(options: Vec<(String, String)>) -> Self {
         Self { options }
     }
 }
 
 impl PutOptions {
+    #[must_use]
     pub fn get_option(&self, key: &str) -> Option<&str> {
         self.options
             .iter()
@@ -61,7 +63,7 @@ where
     S: Into<String>,
 {
     fn from(name: S) -> Self {
-        PutDescriptor::new(name, PutOptions::default())
+        Self::new(name, PutOptions::default())
     }
 }
 
@@ -77,7 +79,7 @@ pub trait Put<PB: ProtocolBehavior>: Stream<PB> + 'static {
     fn descriptor(&self) -> &AgentDescriptor;
 
     /// Returns a textual representation of the state in which self is
-    fn describe_state(&self) -> &str;
+    fn describe_state(&self) -> String;
 
     /// Checks whether the Put is in a good state
     fn is_state_successful(&self) -> bool;

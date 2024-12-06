@@ -12,7 +12,8 @@ use crate::tls::rustls::msgs::enums::{
     CipherSuite, Compression, ExtensionType, NamedGroup, ProtocolVersion,
 };
 use crate::tls::rustls::msgs::handshake::{
-    ClientExtension, HasServerExtensions, Random, ServerExtension, SessionID,
+    CipherSuites, ClientExtension, Compressions, HasServerExtensions, Random, ServerExtension,
+    SessionID,
 };
 
 pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
@@ -43,8 +44,8 @@ pub fn fn_new_random() -> Result<Random, FnError> {
     Ok(Random::from(random_data))
 }
 
-pub fn fn_compressions() -> Result<Vec<Compression>, FnError> {
-    Ok(vec![Compression::Null])
+pub fn fn_compressions() -> Result<Compressions, FnError> {
+    Ok(Compressions(vec![Compression::Null]))
 }
 
 pub fn fn_compression() -> Result<Compression, FnError> {
@@ -60,12 +61,16 @@ pub fn fn_get_server_key_share(
 ) -> Result<Option<Vec<u8>>, FnError> {
     let server_extension = server_extensions
         .find_extension(ExtensionType::KeyShare)
-        .ok_or(FnError::Unknown("KeyShare extension not found".to_string()))?;
+        .ok_or(FnError::Malformed(
+            "KeyShare extension not found".to_string(),
+        ))?;
 
     if let ServerExtension::KeyShare(keyshare) = server_extension {
         Ok(Some(keyshare.payload.0.clone()))
     } else {
-        Err(FnError::Unknown("KeyShare extension not found".to_string()))
+        Err(FnError::Malformed(
+            "KeyShare extension not found".to_string(),
+        ))
     }
 }
 
@@ -76,17 +81,21 @@ pub fn fn_get_client_key_share(
     let client_extension = client_extensions
         .iter()
         .find(|x| x.get_type() == ExtensionType::KeyShare)
-        .ok_or(FnError::Unknown("KeyShare extension not found".to_string()))?;
+        .ok_or(FnError::Malformed(
+            "KeyShare extension not found".to_string(),
+        ))?;
 
     if let ClientExtension::KeyShare(keyshares) = client_extension {
         let keyshare = keyshares
             .0
             .iter()
             .find(|keyshare| keyshare.group == *group)
-            .ok_or(FnError::Unknown("Keyshare not found".to_string()))?;
+            .ok_or(FnError::Malformed("Keyshare not found".to_string()))?;
         Ok(Some(keyshare.payload.0.clone()))
     } else {
-        Err(FnError::Unknown("KeyShare extension not found".to_string()))
+        Err(FnError::Malformed(
+            "KeyShare extension not found".to_string(),
+        ))
     }
 }
 
@@ -96,16 +105,20 @@ pub fn fn_get_any_client_curve(
     let client_extension = client_extensions
         .iter()
         .find(|x| x.get_type() == ExtensionType::KeyShare)
-        .ok_or(FnError::Unknown("KeyShare extension not found".to_string()))?;
+        .ok_or(FnError::Malformed(
+            "KeyShare extension not found".to_string(),
+        ))?;
 
     if let ClientExtension::KeyShare(keyshares) = client_extension {
         Ok(keyshares
             .0
             .first()
-            .ok_or(FnError::Unknown("Keyshare not found".to_string()))?
+            .ok_or(FnError::Malformed("Keyshare not found".to_string()))?
             .group)
     } else {
-        Err(FnError::Unknown("KeyShare extension not found".to_string()))
+        Err(FnError::Malformed(
+            "KeyShare extension not found".to_string(),
+        ))
     }
 }
 
@@ -195,6 +208,10 @@ pub fn fn_append_cipher_suite(
     let mut new: Vec<CipherSuite> = suites.clone();
     new.push(*suite);
     Ok(new)
+}
+
+pub fn fn_cipher_suites_make(suites: &Vec<CipherSuite>) -> Result<CipherSuites, FnError> {
+    Ok(CipherSuites(suites.clone()))
 }
 
 pub fn fn_cipher_suite12() -> Result<CipherSuite, FnError> {

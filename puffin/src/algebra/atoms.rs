@@ -7,7 +7,9 @@ use rand::random;
 use serde::{Deserialize, Serialize};
 
 use crate::algebra::atoms::fn_container::FnContainer;
-use crate::algebra::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
+use crate::algebra::dynamic_function::{
+    DynamicFunction, DynamicFunctionShape, FunctionAttributes, TypeShape,
+};
 use crate::algebra::remove_prefix;
 use crate::protocol::ProtocolTypes;
 use crate::trace::Query;
@@ -105,30 +107,66 @@ impl<PT: ProtocolTypes> Clone for Function<PT> {
 }
 
 impl<PT: ProtocolTypes> Function<PT> {
+    pub fn attrs(&self) -> FunctionAttributes {
+        self.fn_container.attrs
+    }
+
+    pub fn is_opaque(&self) -> bool {
+        self.fn_container.attrs.is_opaque || self.is_get() // Added this
+                                                           // as bit-level
+                                                           // mutations currently
+                                                           // interpret `get`
+                                                           // symbols as
+                                                           // `opaque` symbols
+    }
+
+    pub fn is_list(&self) -> bool {
+        self.fn_container.attrs.is_list
+    }
+
+    pub fn is_get(&self) -> bool {
+        self.fn_container.attrs.is_get
+    }
+
+    #[must_use]
     pub fn new(shape: DynamicFunctionShape<PT>, dynamic_fn: Box<dyn DynamicFunction<PT>>) -> Self {
+        let attrs = PT::signature()
+            .attrs_by_name
+            .get(shape.name)
+            .map(|attrs| *attrs)
+            .unwrap_or_default(); // Default to empty attributes, use Signature::new to provide attributes
         Self {
             unique_id: random(),
             resistant_id: random(),
-            fn_container: FnContainer { shape, dynamic_fn },
+            fn_container: FnContainer {
+                shape,
+                dynamic_fn,
+                attrs,
+            },
         }
     }
 
+    #[must_use]
     pub fn arity(&self) -> u16 {
         self.fn_container.shape.arity()
     }
 
+    #[must_use]
     pub fn is_constant(&self) -> bool {
         self.fn_container.shape.is_constant()
     }
 
-    pub fn name(&self) -> &'static str {
+    #[must_use]
+    pub const fn name(&self) -> &'static str {
         self.fn_container.shape.name
     }
 
-    pub fn shape(&self) -> &DynamicFunctionShape<PT> {
+    #[must_use]
+    pub const fn shape(&self) -> &DynamicFunctionShape<PT> {
         &self.fn_container.shape
     }
 
+    #[must_use]
     pub fn dynamic_fn(&self) -> &dyn DynamicFunction<PT> {
         &self.fn_container.dynamic_fn
     }
@@ -157,7 +195,9 @@ mod fn_container {
     use serde::ser::SerializeStruct;
     use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-    use crate::algebra::dynamic_function::{DynamicFunction, DynamicFunctionShape, TypeShape};
+    use crate::algebra::dynamic_function::{
+        DynamicFunction, DynamicFunctionShape, FunctionAttributes, TypeShape,
+    };
     use crate::algebra::signature::Signature;
     use crate::protocol::ProtocolTypes;
 
@@ -170,11 +210,12 @@ mod fn_container {
     pub struct FnContainer<PT: ProtocolTypes> {
         pub shape: DynamicFunctionShape<PT>,
         pub dynamic_fn: Box<dyn DynamicFunction<PT>>,
+        pub attrs: FunctionAttributes,
     }
 
     impl<PT: ProtocolTypes> Hash for FnContainer<PT> {
         fn hash<H: Hasher>(&self, state: &mut H) {
-            self.shape.hash(state)
+            self.shape.hash(state);
         }
     }
 
@@ -224,10 +265,18 @@ mod fn_container {
                 .next_element()?
                 .ok_or_else(|| de::Error::invalid_length(2, &self))?;
 
-            let (shape, dynamic_fn) =
-                self.signature.functions_by_name.get(name).ok_or_else(|| {
-                    de::Error::custom(format!("could not find function {}", name))
-                })?;
+            let (shape, dynamic_fn) = self
+                .signature
+                .functions_by_name
+                .get(name)
+                .ok_or_else(|| de::Error::custom(format!("could not find function {name}")))?;
+
+            let attrs = self
+                .signature
+                .attrs_by_name
+                .get(name)
+                .map(|attrs| *attrs)
+                .ok_or_else(|| de::Error::custom(format!("could not find function {name}")))?;
 
             if name != shape.name {
                 return Err(de::Error::custom("Function<PT> name does not match!"));
@@ -242,6 +291,7 @@ mod fn_container {
             Ok(FnContainer {
                 shape: shape.clone(),
                 dynamic_fn: dynamic_fn.clone(),
+                attrs,
             })
         }
 
@@ -282,8 +332,17 @@ mod fn_container {
             let (shape, dynamic_fn) =
                 self.signature.functions_by_name.get(name).ok_or_else(|| {
                     de::Error::custom(format!(
-                        "Failed to link function symbol: Could not find function {}",
-                        name
+                        "Failed to link function symbol: Could not find function {name}"
+                    ))
+                })?;
+            let attrs = self
+                .signature
+                .attrs_by_name
+                .get(name)
+                .map(|attrs| *attrs)
+                .ok_or_else(|| {
+                    de::Error::custom(format!(
+                        "Failed to link function symbol: Could not find function {name}"
                     ))
                 })?;
 
@@ -303,12 +362,13 @@ mod fn_container {
             Ok(FnContainer {
                 shape: shape.clone(),
                 dynamic_fn: dynamic_fn.clone(),
+                attrs,
             })
         }
     }
 
     impl<'de, PT: ProtocolTypes> Deserialize<'de> for FnContainer<PT> {
-        fn deserialize<D>(deserializer: D) -> Result<FnContainer<PT>, D::Error>
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
         where
             D: Deserializer<'de>,
         {
