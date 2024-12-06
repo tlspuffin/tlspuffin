@@ -270,13 +270,13 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
 
         let mut differences: Vec<TraceDifference> = vec![];
 
-        let first_store: Vec<Knowledge<'_, PT>> = self
+        let mut first_store: Vec<Knowledge<'_, PT>> = self
             .knowledges()
             .iter()
             .flatten()
             .filter(|x| filter_knowledge(x, &whitelist, &blacklist))
             .collect();
-        let second_store: Vec<Knowledge<'_, PT>> = other
+        let mut second_store: Vec<Knowledge<'_, PT>> = other
             .knowledges()
             .iter()
             .flatten()
@@ -284,6 +284,20 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             .collect();
         let first_store_count = first_store.len();
         let second_store_count = second_store.len();
+
+        if first_store_count > second_store_count {
+            second_store.extend((second_store_count..first_store_count).map(|_| Knowledge {
+                source: &Source::Label(None),
+                matcher: None,
+                data: &(),
+            }))
+        } else {
+            first_store.extend((first_store_count..second_store_count).map(|_| Knowledge {
+                source: &Source::Label(None),
+                matcher: None,
+                data: &(),
+            }))
+        }
 
         let _ = std::iter::zip(first_store, second_store)
             .enumerate()
