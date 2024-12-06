@@ -286,6 +286,25 @@ pub trait ProtocolBehavior: 'static {
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error>;
 }
 
+impl<T: ProtocolTypes> Extractable<T> for () {
+    fn extract_knowledge<'a>(
+        &'a self,
+        _knowledges: &mut Vec<Knowledge<'a, T>>,
+        _matcher: Option<<T as ProtocolTypes>::Matcher>,
+        _source: &'a Source,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl codec::CodecP for () {
+    fn encode(&self, _bytes: &mut Vec<u8>) {}
+
+    fn read(&mut self, _r: &mut codec::Reader) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
 // -- Macros --
 #[macro_export]
 macro_rules! dummy_extract_knowledge {
