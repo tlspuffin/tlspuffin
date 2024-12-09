@@ -172,19 +172,22 @@ macro_rules! r_ccall {
 
 impl CAgent {
     fn new(put: &CPut, config: TlsPutConfig) -> Result<Self, Error> {
+        let server_cert = pem!(ALICE_CERT);
+        let server_pkey = pem!(ALICE_PRIVATE_KEY);
+        let client_cert = pem!(BOB_CERT);
+        let client_pkey = pem!(BOB_PRIVATE_KEY);
+        let other_cert = pem!(EVE_CERT);
+
+        let server_store = [&client_cert as *const _, &other_cert];
+        let client_store = [&server_cert as *const _, &other_cert];
+
         let descriptor = match config.descriptor.typ {
-            AgentType::Server => make_descriptor(
-                &config,
-                &pem!(ALICE_CERT),
-                &pem!(ALICE_PRIVATE_KEY),
-                &[&pem!(BOB_CERT) as *const _, &pem!(EVE_CERT) as *const _],
-            ),
-            AgentType::Client => make_descriptor(
-                &config,
-                &pem!(BOB_CERT),
-                &pem!(BOB_PRIVATE_KEY),
-                &[&pem!(ALICE_CERT) as *const _, &pem!(EVE_CERT) as *const _],
-            ),
+            AgentType::Server => {
+                make_descriptor(&config, &server_cert, &server_pkey, &server_store)
+            }
+            AgentType::Client => {
+                make_descriptor(&config, &client_cert, &client_pkey, &client_store)
+            }
         };
 
         let c_agent = unsafe { (put.interface.create.unwrap())(&descriptor as *const _) };
@@ -334,10 +337,16 @@ impl Drop for CAgent {
 
 fn make_descriptor(
     config: &TlsPutConfig,
-    cert: &PEM,
-    pkey: &PEM,
+    cert: *const PEM,
+    pkey: *const PEM,
     store: &[*const PEM],
 ) -> TLS_AGENT_DESCRIPTOR {
+    // eprintln!("{:?}", cert);
+    // eprintln!("{:?}", pkey);
+    // for pem in store.iter() {
+    //     eprintln!("store cert pem ptr: {:?}", pem);
+    // }
+
     TLS_AGENT_DESCRIPTOR {
         name: config.descriptor.name.into(),
         role: match config.descriptor.typ {
@@ -351,8 +360,8 @@ fn make_descriptor(
         client_authentication: config.descriptor.client_authentication,
         server_authentication: config.descriptor.server_authentication,
 
-        cert: cert as *const _,
-        pkey: pkey as *const _,
+        cert,
+        pkey,
 
         store: store.as_ptr(),
         store_length: store.len() as libc::size_t,
