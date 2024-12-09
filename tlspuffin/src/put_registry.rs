@@ -115,6 +115,7 @@ pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
     PutRegistry::new(puts, default)
 }
 
+#[cfg(not(feature = "cputs"))]
 #[cfg(test)]
 mod tests {
     use super::*;
