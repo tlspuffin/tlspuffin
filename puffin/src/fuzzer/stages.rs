@@ -91,7 +91,7 @@ where
 {
     #[allow(dead_code)]
     /// Creates a new default mutational stage
-    pub fn new(mutator: M, max_iterations_per_stage: u64) -> Self {
+    pub const fn new(mutator: M, max_iterations_per_stage: u64) -> Self {
         Self {
             mutator,
             phantom: PhantomData,
@@ -203,8 +203,8 @@ where
 {
     #[allow(dead_code)]
     /// Create a new [`PuffinScheduledMutator`] instance specifying mutations
-    pub fn new(mutations: MT, max_mutations_per_iteration: u64) -> Self {
-        PuffinScheduledMutator {
+    pub const fn new(mutations: MT, max_mutations_per_iteration: u64) -> Self {
+        Self {
             mutations,
             phantom: PhantomData,
             max_mutations_per_iteration,

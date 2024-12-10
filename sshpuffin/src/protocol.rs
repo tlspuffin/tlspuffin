@@ -1,12 +1,15 @@
-use std::fmt::Display;
+use std::any::TypeId;
 
+use comparable::Comparable;
 use puffin::algebra::signature::Signature;
-use puffin::codec::{Codec, Reader};
+use puffin::codec;
+use puffin::codec::{Codec, Reader, VecCodecWoSize};
 use puffin::error::Error;
 use puffin::protocol::{
-    EvaluatedTerm, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
+    EvaluatedTerm, Extractable, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
     ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
+use puffin::put::PutDescriptor;
 use puffin::trace::{Knowledge, Source, Trace};
 use serde::{Deserialize, Serialize};
 
@@ -17,9 +20,27 @@ use crate::ssh::message::{RawSshMessage, SshMessage};
 use crate::ssh::SSH_SIGNATURE;
 use crate::violation::SshSecurityViolationPolicy;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct SshMessageFlight {
     pub messages: Vec<SshMessage>,
+}
+
+impl VecCodecWoSize for SshMessage {}
+impl codec::Codec for SshMessageFlight {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        for msg in &self.messages {
+            msg.encode(bytes);
+        }
+    }
+
+    fn read(reader: &mut codec::Reader) -> Option<Self> {
+        let mut flight = Vec::new();
+
+        while let Some(msg) = SshMessage::read(reader) {
+            flight.push(msg);
+        }
+        Some(SshMessageFlight { messages: flight })
+    }
 }
 
 impl ProtocolMessageFlight<SshProtocolTypes, SshMessage, RawSshMessage, RawSshMessageFlight>
@@ -46,7 +67,7 @@ impl From<SshMessage> for SshMessageFlight {
     }
 }
 
-impl EvaluatedTerm<SshProtocolTypes> for SshMessageFlight {
+impl Extractable<SshProtocolTypes> for SshMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
@@ -65,7 +86,7 @@ impl EvaluatedTerm<SshProtocolTypes> for SshMessageFlight {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct RawSshMessageFlight {
     pub messages: Vec<RawSshMessage>,
 }
@@ -84,7 +105,7 @@ impl OpaqueProtocolMessageFlight<SshProtocolTypes, RawSshMessage> for RawSshMess
     }
 }
 
-impl EvaluatedTerm<SshProtocolTypes> for RawSshMessageFlight {
+impl Extractable<SshProtocolTypes> for RawSshMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
@@ -167,9 +188,17 @@ impl ProtocolTypes for SshProtocolTypes {
     fn signature() -> &'static Signature<Self> {
         &SSH_SIGNATURE
     }
+
+    fn differential_fuzzing_blacklist() -> Option<Vec<std::any::TypeId>> {
+        None
+    }
+
+    fn differential_fuzzing_whitelist() -> Option<Vec<std::any::TypeId>> {
+        None
+    }
 }
 
-impl Display for SshProtocolTypes {
+impl std::fmt::Display for SshProtocolTypes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "")
     }
@@ -187,7 +216,14 @@ impl ProtocolBehavior for SshProtocolBehavior {
     type ProtocolTypes = SshProtocolTypes;
     type SecurityViolationPolicy = SshSecurityViolationPolicy;
 
-    fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
+    fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
         vec![] // TODO
+    }
+
+    fn try_read_bytes(
+        _bitstring: &[u8],
+        _ty: TypeId,
+    ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
+        todo!()
     }
 }

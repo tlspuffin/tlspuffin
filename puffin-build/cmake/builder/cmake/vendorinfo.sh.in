@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+function to_toml_array() {
+    declare -a array=( "$@" )
+
+    if (( ${#array[@]} == 0 )); then
+        printf "[]\n"
+        return 0
+    fi
+
+    array=( $(printf '"%s"\n' "${array[@]}" ) )
+    array=$(IFS=','; printf '%s\n' "${array[*]+"${array[*]}"}")
+    printf "[%s]\n" "${array}"
+}
+
+LIBNAME=@VENDOR_LIBNAME@
+VERSION=@VENDOR_VERSION@
+KNOWN_VULNERABILITIES=( @KNOWN_VULNERABILITIES@ )
+FIXED_VULNERABILITIES=( @FIXED_VULNERABILITIES@ )
+
+if [ -z ${INSTALL_DIR+x} ]; then
+    INSTALL_DIR=$( cd -P "$( dirname -- "${BASH_SOURCE[0]}" )/.." &> /dev/null && pwd )
+fi
+
+if [ -z ${NM+x} ]; then
+    NM="nm"
+fi
+
+declare -a CAPABILITIES=(
+    $<$<BOOL:@tls12@>:tls12>
+    $<$<BOOL:@tls13@>:tls13>
+    $<$<BOOL:@tls12_session_resumption@>:tls12_session_resumption>
+    $<$<BOOL:@tls13_session_resumption@>:tls13_session_resumption>
+    $<$<BOOL:@transcript_extraction@>:transcript_extraction>
+    $<$<BOOL:@client_authentication_transcript_extraction@>:client_authentication_transcript_extraction>
+    $<$<BOOL:@disable_postauth@>:disable_postauth>
+)
+
+declare -a INSTRUMENTATION=(
+    $<$<BOOL:@sancov@>:sancov>
+    $<$<BOOL:@asan@>:asan>
+    $<$<BOOL:@gcov@>:gcov>
+    $<$<BOOL:@llvm_cov@>:llvm_cov>
+)
+
+if "${NM}" "${INSTALL_DIR}"/lib/*.a 2>/dev/null | grep "register_claimer" >/dev/null; then
+    INSTRUMENTATION+=("claimer")
+fi
+
+cat <<EOF
+vendor = "${LIBNAME}"
+version = "${VERSION}"
+instrumentation = $(to_toml_array "${INSTRUMENTATION[@]}")
+known_vulnerabilities = $(to_toml_array ${KNOWN_VULNERABILITIES[@]})
+fixed_vulnerabilities = $(to_toml_array ${FIXED_VULNERABILITIES[@]})
+capabilities = $(to_toml_array ${CAPABILITIES[@]})
+EOF

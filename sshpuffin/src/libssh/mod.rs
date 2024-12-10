@@ -15,19 +15,19 @@ use std::os::unix::io::{IntoRawFd, RawFd};
 use std::os::unix::net::{UnixListener, UnixStream};
 
 use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::algebra::ConcreteMessage;
 use puffin::claims::GlobalClaimList;
 use puffin::codec::Codec;
 use puffin::error::Error;
 use puffin::put::{Put, PutOptions};
-use puffin::put_registry::{Factory, PutKind};
+use puffin::put_registry::Factory;
 use puffin::stream::Stream;
-use puffin::VERSION_STR;
 
 use crate::libssh::ssh::{
     SessionOption, SessionState, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest,
     SshResult, SshSession,
 };
-use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior, SshProtocolTypes};
+use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior};
 use crate::put_registry::LIBSSH_RUST_PUT;
 
 pub mod ssh;
@@ -79,7 +79,6 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             &self,
             agent_descriptor: &AgentDescriptor,
             _claims: &GlobalClaimList<
-                SshProtocolTypes,
                 <SshProtocolBehavior as puffin::protocol::ProtocolBehavior>::Claim,
             >,
             _options: &PutOptions,
@@ -141,10 +140,6 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             }))
         }
 
-        fn kind(&self) -> PutKind {
-            PutKind::Rust
-        }
-
         fn name(&self) -> String {
             String::from(LIBSSH_RUST_PUT)
         }
@@ -153,13 +148,21 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", LIBSSH_RUST_PUT, VERSION_STR),
+                    format!(
+                        "{} {}",
+                        LIBSSH_RUST_PUT,
+                        puffin_build::puffin::full_version()
+                    ),
                 ),
                 (
                     "library".to_string(),
                     format!("libssh ({} / {})", "libssh0104", LibSSL::version()),
                 ),
             ]
+        }
+
+        fn supports(&self, _capability: &str) -> bool {
+            false
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<SshProtocolBehavior>> {
@@ -189,11 +192,8 @@ pub struct LibSSL {
 impl LibSSL {}
 
 impl Stream<SshProtocolBehavior> for LibSSL {
-    fn add_to_inbound(&mut self, result: &RawSshMessageFlight) {
-        let mut buffer = Vec::new();
-        Codec::encode(result, &mut buffer);
-
-        self.fuzz_stream.write_all(&buffer).unwrap();
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        self.fuzz_stream.write_all(message).unwrap();
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<RawSshMessageFlight>, Error> {
@@ -270,13 +270,14 @@ impl Put<SshProtocolBehavior> for LibSSL {
         &self.agent_descriptor
     }
 
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         // TODO: We can use internal state
         match self.state {
             PutState::ExchangingKeys => "ExchangingKeys",
             PutState::Authenticating => "Authenticating",
             PutState::Done => "Done",
         }
+        .to_owned()
     }
 
     fn is_state_successful(&self) -> bool {
