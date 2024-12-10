@@ -99,24 +99,19 @@ impl<PB: ProtocolBehavior> Clone for PutRegistry<PB> {
     }
 }
 
-#[derive(Debug)]
-pub enum PutKind {
-    CPUT,
-    Rust,
-}
-
 /// Factory for instantiating programs-under-test.
 pub trait Factory<PB: ProtocolBehavior> {
     fn create(
         &self,
         agent_descriptor: &AgentDescriptor,
-        claims: &GlobalClaimList<PB::ProtocolTypes, PB::Claim>,
+        claims: &GlobalClaimList<PB::Claim>,
         options: &PutOptions,
     ) -> Result<Box<dyn Put<PB>>, Error>;
 
-    fn kind(&self) -> PutKind;
     fn name(&self) -> String;
     fn versions(&self) -> Vec<(String, String)>;
+
+    fn supports(&self, capability: &str) -> bool;
 
     fn clone_factory(&self) -> Box<dyn Factory<PB>>;
 

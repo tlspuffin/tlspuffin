@@ -20,7 +20,9 @@ pub struct SshClaim {
 
 dummy_extract_knowledge_codec!(SshProtocolTypes, SshClaim);
 
-impl Claim<SshProtocolTypes> for SshClaim {
+impl Claim for SshClaim {
+    type PT = SshProtocolTypes;
+
     fn agent_name(&self) -> AgentName {
         self.agent_name
     }

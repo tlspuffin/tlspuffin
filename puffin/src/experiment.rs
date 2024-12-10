@@ -7,10 +7,10 @@ use std::{fs, io};
 use chrono::Local;
 use clap::ArgMatches;
 use itertools::Itertools;
+use puffin_build::puffin;
 
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
-use crate::{GIT_MSG, GIT_REF};
 
 #[must_use]
 pub fn format_title<PB: ProtocolBehavior>(
@@ -36,7 +36,7 @@ pub fn format_title<PB: ProtocolBehavior>(
         --{default_put_short}-{num_cores}c{without_bit_level}{without_dy_mutations}{put_use_clear}{minimizer}__\
         {title}--{hour}--{index}",
         date = date,
-        title = title.unwrap_or(GIT_REF),
+        title = title.unwrap_or(&puffin::git_ref().unwrap_or_default()),
         index = index.unwrap_or(0)
     )
 }
@@ -72,8 +72,8 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
             ))
             .join(", "),
         date = Local::now().to_rfc3339(),
-        git_ref = GIT_REF,
-        git_msg = GIT_MSG,
+        git_ref = puffin::git_ref().as_deref().unwrap_or("unknown"),
+        git_msg = puffin::git_msg().as_deref().unwrap_or("unknown"),
         command = commands,
         description = description_text
     );

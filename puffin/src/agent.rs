@@ -55,6 +55,12 @@ impl fmt::Display for AgentName {
     }
 }
 
+impl From<AgentName> for u8 {
+    fn from(value: AgentName) -> Self {
+        value.0
+    }
+}
+
 /// [`AgentDescriptor`]s act like a blueprint to spawn [`Agent`]s with a corresponding server or
 /// client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 ///
