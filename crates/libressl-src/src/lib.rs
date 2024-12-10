@@ -1,7 +1,7 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-use puffin_build::vendor;
+use puffin_build::{library, vendor_dir};
 
 const PRESET: &str = if cfg!(feature = "libressl333") {
     "libressl333"
@@ -53,7 +53,7 @@ impl Build {
         let suffix = if cfg!(feature = "asan") { "-asan" } else { "" };
         let name = format!("{PRESET}{suffix}");
 
-        let mut config = vendor::Config::preset("libressl", PRESET)
+        let mut config = library::Config::preset("libressl", PRESET)
             .unwrap_or_else(|| panic!("missing preset libressl:{PRESET}"));
 
         config.option("sancov", cfg!(feature = "sancov"));
@@ -61,19 +61,9 @@ impl Build {
         config.option("gcov", cfg!(feature = "gcov"));
         config.option("llvm_cov", cfg!(feature = "llvm_cov"));
 
-        let prefix = vendor::dir()
-            .lock(&name)
-            .and_then(|config_dir| {
-                if let Some(old_config) = config_dir.config()? {
-                    if old_config == config {
-                        return Ok(config_dir.path().to_path_buf());
-                    }
-
-                    eprintln!("found incompatible config '{name}' in VENDOR_DIR, rebuilding...");
-                }
-
-                config_dir.make(config)
-            })
+        let prefix = vendor_dir::from_env()
+            .library_dir(&name)
+            .and_then(|dir| dir.make(config))
             .unwrap();
 
         let libressl = Artifacts {

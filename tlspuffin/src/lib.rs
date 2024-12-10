@@ -131,17 +131,8 @@
 //! };
 //! ```
 
-#[cfg(feature = "boringssl-binding")]
-pub mod boringssl;
-#[cfg(feature = "libressl-binding")]
-pub mod libressl;
-#[cfg(feature = "openssl-binding")]
-pub mod openssl;
-#[cfg(feature = "wolfssl-binding")]
-pub mod wolfssl;
-
 #[cfg(feature = "rust-put")]
-pub mod rand;
+mod rust_put;
 
 pub mod claims;
 pub mod debug;

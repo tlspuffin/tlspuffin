@@ -12,6 +12,7 @@ use crate::fuzzer::mutations::{trace_mutations, MutationConfig};
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::log::{config_fuzzing, config_fuzzing_client};
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
+use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
 use crate::trace::Trace;
 
@@ -379,6 +380,7 @@ where
 /// Starts the fuzzing loop
 pub fn start<PB>(
     put_registry: &PutRegistry<PB>,
+    put: PutDescriptor,
     config: FuzzerConfig,
     log_handle: Handle,
 ) -> Result<(), Error>
@@ -433,7 +435,7 @@ where
                 <PB::ProtocolTypes as ProtocolTypes>::signature(),
                 put_registry,
             ))
-            .with_initial_inputs(PB::create_corpus())
+            .with_initial_inputs(PB::create_corpus(put.clone()))
             .with_rand(StdRand::new())
             .with_corpus(
                 //InMemoryCorpus::new(),

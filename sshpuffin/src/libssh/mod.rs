@@ -20,15 +20,14 @@ use puffin::claims::GlobalClaimList;
 use puffin::codec::Codec;
 use puffin::error::Error;
 use puffin::put::{Put, PutOptions};
-use puffin::put_registry::{Factory, PutKind};
+use puffin::put_registry::Factory;
 use puffin::stream::Stream;
-use puffin::VERSION_STR;
 
 use crate::libssh::ssh::{
     SessionOption, SessionState, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest,
     SshResult, SshSession,
 };
-use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior, SshProtocolTypes};
+use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior};
 use crate::put_registry::LIBSSH_RUST_PUT;
 
 pub mod ssh;
@@ -80,7 +79,6 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             &self,
             agent_descriptor: &AgentDescriptor,
             _claims: &GlobalClaimList<
-                SshProtocolTypes,
                 <SshProtocolBehavior as puffin::protocol::ProtocolBehavior>::Claim,
             >,
             _options: &PutOptions,
@@ -142,10 +140,6 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             }))
         }
 
-        fn kind(&self) -> PutKind {
-            PutKind::Rust
-        }
-
         fn name(&self) -> String {
             String::from(LIBSSH_RUST_PUT)
         }
@@ -154,13 +148,21 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
             vec![
                 (
                     "harness".to_string(),
-                    format!("{} ({})", LIBSSH_RUST_PUT, VERSION_STR),
+                    format!(
+                        "{} {}",
+                        LIBSSH_RUST_PUT,
+                        puffin_build::puffin::full_version()
+                    ),
                 ),
                 (
                     "library".to_string(),
                     format!("libssh ({} / {})", "libssh0104", LibSSL::version()),
                 ),
             ]
+        }
+
+        fn supports(&self, _capability: &str) -> bool {
+            false
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<SshProtocolBehavior>> {
@@ -268,13 +270,14 @@ impl Put<SshProtocolBehavior> for LibSSL {
         &self.agent_descriptor
     }
 
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         // TODO: We can use internal state
         match self.state {
             PutState::ExchangingKeys => "ExchangingKeys",
             PutState::Authenticating => "Authenticating",
             PutState::Done => "Done",
         }
+        .to_owned()
     }
 
     fn is_state_successful(&self) -> bool {

@@ -1,0 +1,23 @@
+[package]
+name = "puffin-macros"
+description = "Utility macros for puffin"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+quote = { workspace = true }
+syn = { workspace = true, features = ["full"] }
+proc-macro2 = { workspace = true }
+
+[dev-dependencies]
+trybuild = { workspace = true, features = ["diff"] }
