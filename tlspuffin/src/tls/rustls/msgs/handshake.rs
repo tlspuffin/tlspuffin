@@ -352,7 +352,6 @@ impl ServerNamePayload {
 #[extractable(TLSProtocolTypes)]
 pub struct ServerName {
     #[extractable_ignore]
-    #[comparable_ignore]
     pub typ: ServerNameType,
     #[extractable_ignore]
     #[comparable_ignore]
@@ -1519,7 +1518,6 @@ declare_u16_vec!(CertificateExtensions, CertificateExtension);
 
 #[derive(Debug, Clone, Comparable, PartialEq)]
 pub struct CertificateEntry {
-    #[comparable_ignore]
     pub cert: key::Certificate,
     pub exts: CertificateExtensions,
 }
@@ -1683,7 +1681,7 @@ pub enum KeyExchangeAlgorithm {
 // We don't support arbitrary curves.  It's a terrible
 // idea and unnecessary attack surface.  Please,
 // get a grip.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct ECParameters {
     pub curve_type: ECCurveType,
     pub named_group: NamedGroup,
@@ -1756,7 +1754,6 @@ impl codec::Codec for ClientECDHParams {
 #[extractable(TLSProtocolTypes)]
 pub struct ServerECDHParams {
     #[extractable_ignore]
-    #[comparable_ignore]
     pub curve_params: ECParameters,
     #[extractable_ignore]
     #[comparable_ignore]
@@ -1795,10 +1792,8 @@ impl codec::Codec for ServerECDHParams {
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct ECDHEServerKeyExchange {
-    #[comparable_ignore]
     pub params: ServerECDHParams,
     #[extractable_ignore]
-    #[comparable_ignore]
     pub dss: DigitallySignedStruct,
 }
 
@@ -1819,9 +1814,7 @@ impl codec::Codec for ECDHEServerKeyExchange {
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub enum ServerKeyExchangePayload {
-    #[comparable_ignore]
     ECDHE(ECDHEServerKeyExchange),
-    #[comparable_ignore]
     Unknown(Payload),
 }
 
@@ -1931,7 +1924,6 @@ pub type DistinguishedNames = VecU16OfPayloadU16;
 pub struct CertificateRequestPayload {
     pub certtypes: ClientCertificateTypes,
     pub sigschemes: SupportedSignatureSchemes,
-    #[comparable_ignore]
     pub canames: DistinguishedNames,
 }
 
