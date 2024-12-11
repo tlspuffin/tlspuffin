@@ -163,9 +163,7 @@ impl MessagePayload {
 /// into a `Message` by decoding the payload.
 #[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct OpaqueMessage {
-    #[comparable_ignore]
     pub typ: ContentType,
-    #[comparable_ignore]
     pub version: ProtocolVersion,
     #[comparable_ignore]
     pub payload: Payload,
@@ -314,7 +312,6 @@ impl PlainMessage {
 #[derive(Debug, Clone, Comparable, PartialEq)]
 pub struct Message {
     pub version: ProtocolVersion,
-    #[comparable_ignore]
     pub payload: MessagePayload,
 }
 
