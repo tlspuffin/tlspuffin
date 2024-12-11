@@ -26,8 +26,8 @@ mod enums_test;
 mod message_test;
 
 #[cfg(test)]
-mod tests {
-    use puffin::codec::Reader;
+mod test {
+    use puffin::codec::{Codec, Reader};
 
     #[test_log::test]
     fn smoketest() {
@@ -38,7 +38,7 @@ mod tests {
         while r.any_left() {
             let m = OpaqueMessage::read(&mut r).unwrap();
 
-            let out = m.clone().encode();
+            let out = m.clone().get_encoding();
             assert!(!out.is_empty());
 
             Message::try_from(m.into_plain_message()).unwrap();

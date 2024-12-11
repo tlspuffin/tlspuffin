@@ -1,23 +1,35 @@
+use comparable::Comparable;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
-use puffin::protocol::{EvaluatedTerm, OpaqueProtocolMessage, ProtocolMessage, ProtocolTypes};
+use puffin::protocol::{Extractable, OpaqueProtocolMessage, ProtocolMessage, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
 use puffin::{atom_extract_knowledge, dummy_extract_knowledge};
 
 use crate::protocol::SshProtocolTypes;
 use crate::query::SshQueryMatcher;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct OnWireData(pub Vec<u8>);
 
-#[derive(Clone, Debug)]
+impl Codec for OnWireData {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        bytes.extend_from_slice(&self.0);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let data = <Vec<u8> as Codec>::read(reader)?;
+        Some(OnWireData(data))
+    }
+}
+
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub enum RawSshMessage {
     Banner(String),
     Packet(BinaryPacket),
     OnWire(OnWireData),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct BinaryPacket {
     payload: Vec<u8>,
     random_padding: Vec<u8>,
@@ -52,7 +64,7 @@ impl Codec for BinaryPacket {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct NameList {
     names: Vec<String>,
 }
@@ -85,7 +97,7 @@ impl Codec for NameList {
 
 macro_rules! declare_name_list (
   ($name:ident) => {
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable, PartialEq)]
     pub struct $name(pub NameList);
 
     impl puffin::codec::Codec for $name {
@@ -100,7 +112,7 @@ macro_rules! declare_name_list (
   }
 );
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub enum SshMessage {
     KexInit(KexInitMessage),
     KexEcdhInit(KexEcdhInitMessage),
@@ -114,7 +126,7 @@ declare_name_list!(EncryptionAlgorithms);
 declare_name_list!(MacAlgorithms);
 declare_name_list!(CompressionAlgorithms);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct KexInitMessage {
     pub cookie: [u8; 16],
     pub kex_algorithms: KexAlgorithms,
@@ -171,7 +183,7 @@ impl Codec for KexInitMessage {
         Some(message)
     }
 }
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct KexEcdhInitMessage {
     pub ephemeral_public_key: Vec<u8>,
 }
@@ -191,7 +203,7 @@ impl Codec for KexEcdhInitMessage {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct KexEcdhReplyMessage {
     pub public_host_key: Vec<u8>,
     pub ephemeral_public_key: Vec<u8>,
@@ -301,7 +313,7 @@ impl TryFrom<RawSshMessage> for SshMessage {
     }
 }
 
-impl EvaluatedTerm<SshProtocolTypes> for SshMessage {
+impl Extractable<SshProtocolTypes> for SshMessage {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
@@ -430,7 +442,9 @@ impl OpaqueProtocolMessage<SshProtocolTypes> for RawSshMessage {
     }
 }
 
-impl EvaluatedTerm<SshProtocolTypes> for RawSshMessage {
+dummy_extract_knowledge!(SshProtocolTypes, Vec<u8>);
+
+impl Extractable<SshProtocolTypes> for RawSshMessage {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
@@ -505,48 +519,3 @@ atom_extract_knowledge!(SshProtocolTypes, [u8; 16]);
 atom_extract_knowledge!(SshProtocolTypes, MacAlgorithms);
 atom_extract_knowledge!(SshProtocolTypes, SignatureSchemes);
 dummy_extract_knowledge!(SshProtocolTypes, bool);
-
-impl<T: EvaluatedTerm<SshProtocolTypes> + Clone + 'static> EvaluatedTerm<SshProtocolTypes>
-    for Vec<T>
-{
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
-        matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-
-        for k in self {
-            k.extract_knowledge(knowledges, matcher, source)?;
-        }
-        Ok(())
-    }
-}
-
-impl<T: EvaluatedTerm<SshProtocolTypes> + Clone + 'static> EvaluatedTerm<SshProtocolTypes>
-    for Option<T>
-{
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
-        matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-
-        match self {
-            Some(x) => x.extract_knowledge(knowledges, matcher, source)?,
-            None => (),
-        }
-        Ok(())
-    }
-}

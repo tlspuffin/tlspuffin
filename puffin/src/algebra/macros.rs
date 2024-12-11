@@ -11,13 +11,15 @@ macro_rules! term {
         use $crate::algebra::dynamic_function::TypeShape;
 
         // ignore $req_type as we are overriding it with $type
-        term!((!$precomp, $counter) > TypeShape::of::<$typ>())
+        Term::from(term!((!$precomp, $counter) > TypeShape::of::<$typ>()))
     }};
     (($agent:expr, $counter:expr) / $typ:ty $(>$req_type:expr)?) => {{
         use $crate::algebra::dynamic_function::TypeShape;
+        use $crate::algebra::Term;
+
 
         // ignore $req_type as we are overriding it with $type
-        term!(($agent, $counter) > TypeShape::of::<$typ>())
+        Term::from(term!(($agent, $counter) > TypeShape::of::<$typ>()))
     }};
     ((!$precomp:literal, $counter:expr) $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
@@ -25,15 +27,15 @@ macro_rules! term {
         use $crate::trace::Source;
 
         let var = Signature::new_var($($req_type)?, Some(Source::Label(Some($precomp.into()))), None, $counter); // TODO: verify hat using here None is fine. Before a refactor it was: Some(TlsMessageType::Handshake(None))
-        Term::Variable(var)
+        Term::from(DYTerm::Variable(var))
     }};
     (($agent:expr, $counter:expr) $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
-        use $crate::algebra::Term;
+        use $crate::algebra::{DYTerm,Term};
         use $crate::trace::Source;
 
         let var = Signature::new_var($($req_type)?, Some(Source::Agent($agent)), None, $counter); // TODO: verify hat using here None is fine. Before a refactor it was: Some(TlsMessageType::Handshake(None))
-        Term::Variable(var)
+        Term::from(DYTerm::Variable(var))
     }};
 
     //
@@ -43,13 +45,13 @@ macro_rules! term {
         use $crate::algebra::dynamic_function::TypeShape;
 
         // ignore $req_type as we are overriding it with $type
-        term!((!$precomp, $counter) [$message_type] > TypeShape::of::<$typ>())
+       Term::from(term!((!$precomp, $counter) [$message_type] > TypeShape::of::<$typ>()))
     }};
     (($agent:expr, $counter:expr) [$message_type:expr] / $typ:ty $(>$req_type:expr)?) => {{
         use $crate::algebra::dynamic_function::TypeShape;
 
         // ignore $req_type as we are overriding it with $type
-        term!(($agent, $counter) [$message_type] > TypeShape::of::<$typ>())
+        Term::from(term!(($agent, $counter) [$message_type] > TypeShape::of::<$typ>()))
     }};
     // Extended with custom $type
     ((!$precomp:literal, $counter:expr) [$message_type:expr] $(>$req_type:expr)?) => {{
@@ -58,15 +60,15 @@ macro_rules! term {
         use $crate::trace::Source;
 
         let var = Signature::new_var($($req_type)?, Some(Source::Label(Some($precomp.into()))), $message_type, $counter);
-        Term::Variable(var)
+        Term::from(DYTerm::Variable(var))
     }};
     (($agent:expr, $counter:expr) [$message_type:expr] $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
-        use $crate::algebra::Term;
+        use $crate::algebra::{DYTerm,Term};
         use $crate::trace::Source;
 
         let var = Signature::new_var($($req_type)?, Some(Source::Agent($agent)), $message_type, $counter);
-        Term::Variable(var)
+        Term::from(DYTerm::Variable(var))
     }};
 
     //
@@ -74,7 +76,7 @@ macro_rules! term {
     //
     ($func:ident ($($args:tt),*) $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
-        use $crate::algebra::Term;
+        use $crate::algebra::{DYTerm,Term};
 
         let func = Signature::new_function(&$func);
         #[allow(unused_assignments, unused_variables, unused_mut)]
@@ -86,39 +88,46 @@ macro_rules! term {
             #[allow(unused)]
             if let Some(argument) = func.shape().argument_types.get(i) {
                 i += 1;
-                $crate::term_arg!($args > argument.clone())
+                Term::from($crate::term_arg!($args > argument.clone()))
             } else {
                 panic!("too many arguments specified for function {}", func)
             }
         }),*];
 
-        Term::Application(func, arguments)
+        Term::from(DYTerm::Application(func, arguments))
     }};
     // Shorthand for constants
     ($func:ident $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
-        use $crate::algebra::Term;
+        use $crate::algebra::{DYTerm,Term};
+
 
         let func = Signature::new_function(&$func);
-        Term::Application(func, vec![])
+        Term::from(DYTerm::Application(func, vec![]))
     }};
 
     //
     // Allows to use variables which already contain a term by starting with a `@`
     //
     (@$e:ident $(>$req_type:expr)?) => {{
-        use $crate::algebra::Term;
+        use $crate::algebra::{DYTerm,Term};
 
         let subterm: &Term<_> = &$e;
-        subterm.clone()
+        Term::from(subterm.clone())
     }};
 }
 
 #[macro_export]
 macro_rules! term_arg {
     // Somehow the following rules is very important
-    ( ( $($e:tt)* ) $(>$req_type:expr)?) => (term!($($e)* $(>$req_type)?));
+    ( ( $($e:tt)* ) $(>$req_type:expr)?) => {{
+        use $crate::algebra::{DYTerm,Term};
+
+        Term::from(term!($($e)* $(>$req_type)?))
+    }};
     // not sure why I should need this
     // ( ( $e:tt ) ) => (ast!($e));
-    ($e:tt $(>$req_type:expr)?) => (term!($e $(>$req_type)?));
+    ($e:tt $(>$req_type:expr)?) => {{
+        Term::from(term!($e $(>$req_type)?))
+    }};
 }

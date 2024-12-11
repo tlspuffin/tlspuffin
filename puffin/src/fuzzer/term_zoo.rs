@@ -5,8 +5,8 @@ use libafl_bolts::rands::Rand;
 
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::{FunctionDefinition, Signature};
-use crate::algebra::Term;
-use crate::fuzzer::mutations::util::Choosable;
+use crate::algebra::{DYTerm, Term};
+use crate::fuzzer::utils::Choosable;
 use crate::protocol::ProtocolTypes;
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
@@ -18,27 +18,53 @@ pub struct TermZoo<PT: ProtocolTypes> {
 
 impl<PT: ProtocolTypes> TermZoo<PT> {
     pub fn generate<R: Rand>(signature: &Signature<PT>, rand: &mut R) -> Self {
-        let terms = signature
-            .functions
-            .iter()
-            .filter_map(|def| {
-                let mut counter = MAX_TRIES;
+        Self::generate_many(signature, rand, 1, None)
+    }
+
+    pub fn generate_many<R: Rand>(
+        signature: &Signature<PT>,
+        rand: &mut R,
+        how_many: usize,
+        filter: Option<&FunctionDefinition<PT>>,
+    ) -> Self {
+        let mut acc = vec![];
+        if let Some(def) = filter {
+            let mut counter = MAX_TRIES as usize * how_many;
+            let mut many = 0;
+
+            loop {
+                if counter == 0 || many >= how_many {
+                    break;
+                }
+
+                counter -= 1;
+
+                if let Some(term) = Self::generate_term(signature, def, MAX_DEPTH, rand) {
+                    many += 1;
+                    acc.push(term);
+                }
+            }
+        } else {
+            for def in &signature.functions {
+                let mut counter = MAX_TRIES as usize * how_many;
+                let mut many = 0;
 
                 loop {
-                    if counter == 0 {
-                        break None;
+                    if counter == 0 || many >= how_many {
+                        break;
                     }
 
                     counter -= 1;
 
                     if let Some(term) = Self::generate_term(signature, def, MAX_DEPTH, rand) {
-                        break Some(term);
+                        many += 1;
+                        acc.push(term);
                     }
                 }
-            })
-            .collect::<Vec<_>>();
+            }
+        }
 
-        Self { terms }
+        Self { terms: acc }
     }
 
     fn generate_term<R: Rand>(
@@ -62,7 +88,7 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
                     if let Some(subterm) =
                         Self::generate_term(signature, possibility, depth - 1, rand)
                     {
-                        subterms.push(subterm)
+                        subterms.push(subterm);
                     } else {
                         // Max depth reached
                         return None;
@@ -77,10 +103,10 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
             }
         }
 
-        Some(Term::Application(
+        Some(Term::from(DYTerm::Application(
             Function::new(shape.clone(), dynamic_fn.clone()),
             subterms,
-        ))
+        )))
     }
 
     pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&Term<PT>>
@@ -90,6 +116,7 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
         self.terms.choose_filtered(filter, rand)
     }
 
+    #[must_use]
     pub fn terms(&self) -> &[Term<PT>] {
         &self.terms
     }

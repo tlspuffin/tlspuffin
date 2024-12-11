@@ -7,6 +7,10 @@ if(VENDOR_VERSION VERSION_LESS "5.2.0")
   declare_vulnerability("CVE-2022-25640" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-25640.patch)
 endif()
 
+if(VENDOR_VERSION VERSION_EQUAL "5.3.0")
+  declare_vulnerability("CVE-2022-38153")
+endif()
+
 if(VENDOR_VERSION VERSION_LESS "5.5.0" AND NOT postauth)
   declare_vulnerability("CVE-2022-38152")
 endif()
@@ -89,3 +93,14 @@ autotools_builder(
     $<$<BOOL:${gcov}>:-O0>
 )
 
+set(tls12 yes)
+set(tls13 yes)
+set(transcript_extraction yes)
+if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.0")
+  set(tls12_session_resumption yes)
+  set(tls13_session_resumption yes)
+  set(client_authentication_transcript_extraction yes)
+endif()
+if(NOT postauth)
+  set(disable_postauth yes)
+endif()

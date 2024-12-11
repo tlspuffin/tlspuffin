@@ -1,6 +1,5 @@
 use std::cell::{Ref, RefCell, RefMut};
 use std::fmt::Debug;
-use std::marker::PhantomData;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::slice::Iter;
@@ -10,47 +9,52 @@ use itertools::Itertools;
 use crate::agent::AgentName;
 use crate::algebra::dynamic_function::TypeShape;
 use crate::protocol::{EvaluatedTerm, ProtocolTypes};
-use crate::variable_data::VariableData;
 
-pub trait Claim<PT: ProtocolTypes>: EvaluatedTerm<PT> + VariableData<PT> + Debug {
+pub trait Claim: EvaluatedTerm<Self::PT> + Debug {
+    type PT: ProtocolTypes;
+
     fn agent_name(&self) -> AgentName;
-    fn id(&self) -> TypeShape<PT>;
-    fn inner(&self) -> Box<dyn EvaluatedTerm<PT>>;
+    fn id(&self) -> TypeShape<Self::PT>;
+    fn inner(&self) -> Box<dyn EvaluatedTerm<Self::PT>>;
 }
 
-pub trait SecurityViolationPolicy<PT: ProtocolTypes, C: Claim<PT>> {
-    fn check_violation(claims: &[C]) -> Option<&'static str>;
+pub trait SecurityViolationPolicy {
+    type C: Claim;
+
+    fn check_violation(claims: &[Self::C]) -> Option<&'static str>;
 }
 
 #[derive(Default, Clone, Debug, PartialEq)]
-pub struct ClaimList<PT: ProtocolTypes, C: Claim<PT>> {
+pub struct ClaimList<C: Claim> {
     claims: Vec<C>,
-    phantom: PhantomData<PT>,
 }
 
-impl<PT: ProtocolTypes, C: Claim<PT>> ClaimList<PT, C> {
+impl<C: Claim> ClaimList<C> {
     pub fn iter(&self) -> Iter<'_, C> {
         self.claims.iter()
     }
 
     /// finds the last claim matching `type`
+    #[must_use]
     pub fn find_last_claim_by_type<T: 'static>(&self, agent_name: AgentName) -> Option<&C> {
-        self.find_last_claim(agent_name, TypeShape::<PT>::of::<T>())
+        self.find_last_claim(agent_name, TypeShape::<C::PT>::of::<T>())
     }
 
-    pub fn find_last_claim(&self, agent_name: AgentName, shape: TypeShape<PT>) -> Option<&C> {
+    #[must_use]
+    pub fn find_last_claim(&self, agent_name: AgentName, shape: TypeShape<C::PT>) -> Option<&C> {
         self.claims
             .iter()
             .rev()
             .find(|claim| claim.id() == shape && claim.agent_name() == agent_name)
     }
 
+    #[must_use]
     pub fn slice(&self) -> &[C] {
         &self.claims
     }
 }
 
-impl<PT: ProtocolTypes, C: Claim<PT>> ClaimList<PT, C> {
+impl<C: Claim> ClaimList<C> {
     pub fn log(&self) {
         // TODO: skip logging completely during fuzzing -> more performance
         log::debug!(
@@ -67,21 +71,16 @@ impl<PT: ProtocolTypes, C: Claim<PT>> ClaimList<PT, C> {
     }
 }
 
-impl<PT: ProtocolTypes, C: Claim<PT>> From<Vec<C>> for ClaimList<PT, C> {
+impl<C: Claim> From<Vec<C>> for ClaimList<C> {
     fn from(claims: Vec<C>) -> Self {
-        Self {
-            claims,
-            phantom: PhantomData,
-        }
+        Self { claims }
     }
 }
 
-impl<PT: ProtocolTypes, C: Claim<PT>> ClaimList<PT, C> {
+impl<C: Claim> ClaimList<C> {
+    #[must_use]
     pub const fn new() -> Self {
-        Self {
-            claims: vec![],
-            phantom: PhantomData,
-        }
+        Self { claims: vec![] }
     }
 
     pub fn claim_sized(&mut self, claim: C) {
@@ -90,22 +89,25 @@ impl<PT: ProtocolTypes, C: Claim<PT>> ClaimList<PT, C> {
 }
 
 #[derive(Default, Clone, PartialEq, Debug)]
-pub struct GlobalClaimList<PT: ProtocolTypes, C: Claim<PT>> {
-    claims: Rc<RefCell<ClaimList<PT, C>>>,
+pub struct GlobalClaimList<C: Claim> {
+    claims: Rc<RefCell<ClaimList<C>>>,
 }
 
-impl<PT: ProtocolTypes, C: Claim<PT>> GlobalClaimList<PT, C> {
+impl<C: Claim> GlobalClaimList<C> {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             claims: Rc::new(RefCell::new(ClaimList::new())),
         }
     }
 
-    pub fn deref_borrow(&self) -> Ref<'_, ClaimList<PT, C>> {
+    #[must_use]
+    pub fn deref_borrow(&self) -> Ref<'_, ClaimList<C>> {
         self.claims.deref().borrow()
     }
 
-    pub fn deref_borrow_mut(&self) -> RefMut<'_, ClaimList<PT, C>> {
+    #[must_use]
+    pub fn deref_borrow_mut(&self) -> RefMut<'_, ClaimList<C>> {
         self.claims.deref().borrow_mut()
     }
 }

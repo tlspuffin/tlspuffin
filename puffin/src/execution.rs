@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -7,6 +8,7 @@ use nix::sys::wait::WaitStatus::{self, Exited, Signaled};
 use nix::sys::wait::{waitpid, WaitPidFlag};
 use nix::unistd::{fork, ForkResult, Pid};
 
+use crate::differential::TraceDifference;
 use crate::error::Error;
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
@@ -62,7 +64,7 @@ pub struct ForkedRunner<T: TraceRunner> {
 }
 
 impl<T: TraceRunner> ForkedRunner<T> {
-    pub fn new(runner: T) -> Self {
+    pub const fn new(runner: T) -> Self {
         Self {
             runner,
             timeout: None,
@@ -80,7 +82,7 @@ where
     T: TraceRunner,
 {
     fn from(runner: T) -> Self {
-        ForkedRunner::new(runner)
+        Self::new(runner)
     }
 }
 
@@ -106,6 +108,77 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
             },
             self.timeout,
         )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DifferentialRunner<PB: ProtocolBehavior> {
+    registry: PutRegistry<PB>,
+    first_spawner: Spawner<PB>,
+    second_spawner: Spawner<PB>,
+}
+
+impl<PB: ProtocolBehavior> DifferentialRunner<PB> {
+    pub fn new(
+        registry: impl Into<PutRegistry<PB>>,
+        first_spawner: impl Into<Spawner<PB>>,
+        second_spawner: impl Into<Spawner<PB>>,
+    ) -> Self {
+        Self {
+            registry: registry.into(),
+            first_spawner: first_spawner.into(),
+            second_spawner: second_spawner.into(),
+        }
+    }
+}
+
+impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
+    type E = Error;
+    type PB = PB;
+    type R = TraceContext<Self::PB>;
+
+    fn execute<T>(self, trace: T) -> Result<Self::R, Self::E>
+    where
+        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
+    {
+        // We reseed all PUTs before executing a trace!
+        self.registry.determinism_reseed_all_factories();
+
+        log::info!("Executing first PUT");
+        let mut first_ctx = TraceContext::new(self.first_spawner.clone());
+        let first_trace_status = trace.as_ref().execute(&mut first_ctx);
+
+        log::info!("Executing second PUT");
+        let mut second_ctx = TraceContext::new(self.second_spawner.clone());
+        let second_trace_status = trace.as_ref().execute(&mut second_ctx);
+
+        match (&first_trace_status, &second_trace_status) {
+            (Err(put1_status), Ok(_)) => {
+                return Err(Error::Difference(vec![TraceDifference::Status(
+                    put1_status.to_string(),
+                    "Success".into(),
+                )]))
+            }
+            (Ok(_), Err(put2_status)) => {
+                return Err(Error::Difference(vec![TraceDifference::Status(
+                    "Success".into(),
+                    put2_status.to_string(),
+                )]))
+            }
+            _ => (),
+        }
+
+        let is_diff = first_ctx.compare(&second_ctx);
+
+        if let Err(diff) = is_diff {
+            println!(
+                "Difference between the PUTs, {}",
+                format!("{:#?}", diff).replace("\\n", "\n\t\t")
+            );
+            return Err(Error::Difference(diff));
+        }
+
+        Ok(first_ctx)
     }
 }
 
@@ -201,7 +274,7 @@ struct WatchDog {
 }
 
 impl WatchDog {
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self { channel: None }
     }
 
@@ -241,19 +314,17 @@ impl TryFrom<Result<WaitStatus, Errno>> for ExecutionStatus {
 
     fn try_from(status: Result<WaitStatus, Errno>) -> Result<Self, Self::Error> {
         match status {
-            Ok(Signaled(_, Signal::SIGSEGV, _)) | Ok(Signaled(_, Signal::SIGABRT, _)) => {
-                Ok(ExecutionStatus::Crashed)
-            }
-            Ok(Signaled(_, _, _)) => Ok(ExecutionStatus::Interrupted),
+            Ok(Signaled(_, Signal::SIGSEGV | Signal::SIGABRT, _)) => Ok(Self::Crashed),
+            Ok(Signaled(_, _, _)) => Ok(Self::Interrupted),
             Ok(Exited(_, code)) => match code {
-                0 => Ok(ExecutionStatus::Success),
-                _ => Ok(ExecutionStatus::Failure(code)),
+                0 => Ok(Self::Success),
+                _ => Ok(Self::Failure(code)),
             },
             Ok(s) => Err(ForkError {
-                reason: format!("failed to retrieve process status: {:?}", s),
+                reason: format!("failed to retrieve process status: {s:?}"),
             }),
             Err(e) => Err(ForkError {
-                reason: format!("failed to retrieve process status: {:?}", e),
+                reason: format!("failed to retrieve process status: {e:?}"),
             }),
         }
     }

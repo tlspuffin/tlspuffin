@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
+use puffin::algebra::dynamic_function::TypeShape;
 use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 use puffin::{input_action, term};
 
@@ -8,6 +9,7 @@ use crate::protocol::{MessageFlight, TLSProtocolTypes};
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::*;
 use crate::tls::rustls::msgs::enums::HandshakeType;
+use crate::tls::rustls::msgs::message::OpaqueMessage;
 use crate::tls::seeds::*;
 
 /// <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638>
@@ -17,11 +19,13 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            (fn_cipher_suites_make(
+                  (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                   fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -35,7 +39,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                 )),
                 fn_supported_versions13_extension
             ))
-        )
+        )))
     };
 
     let decrypted_handshake = term! {
@@ -57,15 +61,16 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
 
     let certificate_rsa = term! {
         fn_certificate13(
-            (fn_get_context((@certificate_request_message))),
+            (fn_payload_u8((fn_get_context((@certificate_request_message))))),
             //fn_empty_certificate_chain
             // Or append eve cert
-            (fn_chain_append_certificate_entry(
+            (fn_certificate_entries_make(
+                (fn_chain_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_eve_cert
                 )),
               fn_empty_certificate_chain
-            ))
+            ))))
         )
     };
 
@@ -75,7 +80,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
             // Option 1 (something random, only possible because of fn_empty_certificate_chain, if FAIL_IF_NO_PEER_CERT is unset):
             //fn_eve_cert // or fn_empty_bytes_vec
             // Option 2 (impersonating eve, you have to send eve cert):
-            fn_eve_pkcs1_signature
+            (fn_payload_u16(fn_eve_pkcs1_signature))
             // Option 3 (for testing):
             /* (fn_rsa_sign_client(
                 (fn_certificate_transcript(((server, 0)))),
@@ -170,11 +175,13 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            (fn_cipher_suites_make(
+                  (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                  fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -188,7 +195,7 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                 )),
                 fn_supported_versions13_extension
             ))
-        )
+        )))
     };
 
     let decrypted_handshake = term! {
@@ -210,13 +217,14 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
 
     let certificate = term! {
         fn_certificate13(
-            (fn_get_context((@certificate_request_message))),
-            (fn_chain_append_certificate_entry(
+            (fn_payload_u8((fn_get_context((@certificate_request_message))))),
+            (fn_certificate_entries_make(
+                (fn_chain_append_certificate_entry(
                 (fn_certificate_entry(
                     fn_eve_cert
                 )),
               fn_empty_certificate_chain
-            ))
+            ))))
         )
     };
 
@@ -292,12 +300,14 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
                 (fn_new_cipher_suites()),
                 // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
                 fn_cipher_suite12
-            )),
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -311,12 +321,12 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
                         fn_signed_certificate_timestamp_extension
                     )),
                      // Enable Renegotiation
-                    (fn_renegotiation_info_extension((@client_verify_data)))
+                    (fn_renegotiation_info_extension((fn_payload_u8((@client_verify_data)))))
                 )),
                 // Add signature cert extension
                 fn_signature_algorithm_cert_extension
             ))
-        )
+        )))
     };
 
     trace.steps.push(Step {
@@ -362,12 +372,14 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TLSProtoco
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
                 (fn_new_cipher_suites()),
                 // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
                 fn_cipher_suite12
-            )),
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -378,7 +390,7 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TLSProtoco
                 )),
                 fn_signed_certificate_timestamp_extension
             ))
-        )
+        )))
     };
 
     Trace {
@@ -397,7 +409,7 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TLSProtoco
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                        fn_heartbeat_fake_length(fn_empty_bytes_vec, fn_large_length)
+                        fn_heartbeat_fake_length((fn_payload_u16(fn_empty_bytes_vec)), fn_large_length)
                     }
                 }),
             },
@@ -422,10 +434,11 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolType
                         ((client, 0)),
                         ((client, 0)),
                         ((client, 0)),
-                        (fn_append_cipher_suite(
+                        (fn_cipher_suites_make(
+                            (fn_append_cipher_suite(
                             (fn_new_cipher_suites()),
                             fn_weak_export_cipher_suite
-                        )),
+                        )))),
                         ((client, 0)),
                         ((client, 0))
                     )
@@ -503,11 +516,13 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
                 (fn_new_cipher_suites()),
                 fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -521,7 +536,7 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
                 )),
                 fn_supported_versions13_extension
             ))
-        )
+        )))
     };
 
     let client_finished = term! {
@@ -662,9 +677,7 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                        fn_opaque_message(
-                            ((client, 3)[None])
-                        )
+                           (client, 3)[None] > TypeShape::of::<OpaqueMessage>()
                     }
                 }),
             },
@@ -674,7 +687,7 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
                 action: Action::Input(input_action! { term! {
                         fn_new_session_ticket(
                             ((server, 0)/u32),
-                            fn_large_bytes_vec
+                            (fn_payload_u16(fn_large_bytes_vec))
                         )
                     }
                 }),
@@ -725,12 +738,14 @@ pub fn seed_cve_2022_39173(
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
                  (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
                 // CHANGED FROM fn_cipher_suite13_aes_128_gcm_sha256
                 fn_cipher_suite13_aes_256_gcm_sha384
-            )),
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -756,7 +771,7 @@ pub fn seed_cve_2022_39173(
                     (@new_ticket_message)
                 ))
             ))
-        )
+        )))
     };
 
     let psk = term! {
@@ -862,11 +877,13 @@ pub fn seed_cve_2022_39173_full(
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                 (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
-                fn_cipher_suite13_aes_128_gcm_sha256
-            )),
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                   (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
+                  fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -891,7 +908,7 @@ pub fn seed_cve_2022_39173_full(
                     (@new_ticket_message)
                 ))
             ))
-        )
+        )))
     };
 
     let psk = term! {
@@ -946,9 +963,9 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
 
     let new_ticket_message = term! {
         fn_new_session_ticket13(  // DUMMY resumption ticket
-            fn_alice_cert,
-            fn_alice_cert,
-            fn_new_session_ticket_extensions_new
+            (fn_payload_u8(fn_alice_cert)),
+            (fn_payload_u16(fn_alice_cert)),
+            (fn_new_session_ticket_extensions(fn_new_session_ticket_extensions_new))
         )
         // WAS:
         // fn_decrypt_application(
@@ -986,12 +1003,14 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
             fn_protocol_version12,
             fn_new_random,
             fn_new_session_id,
-            (fn_append_cipher_suite(
-                 (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
-                // CHANGED FROM fn_cipher_suite13_aes_128_gcm_sha256
-                fn_cipher_suite13_aes_256_gcm_sha384
-            )),
+            (fn_cipher_suites_make(
+                  (fn_append_cipher_suite(
+                   (@cipher_suites), // CHANGED FROM: (fn_new_cipher_suites()),
+                  // CHANGED FROM fn_cipher_suite13_aes_128_gcm_sha256
+                  fn_cipher_suite13_aes_256_gcm_sha384
+            )))),
             fn_compressions,
+            (fn_client_extensions_make(
             (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -1017,7 +1036,7 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
                     (@new_ticket_message)
                 ))
             ))
-        )
+        )))
     };
 
     Trace {
@@ -1045,6 +1064,8 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
 
 #[cfg(test)]
 pub mod tests {
+    use puffin::algebra::TermType;
+
     #[allow(unused_imports)]
     use crate::{test_utils::prelude::*, tls::vulnerabilities::*};
 

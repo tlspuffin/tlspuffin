@@ -9,16 +9,16 @@ use std::thread;
 use std::time::Duration;
 
 use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::algebra::ConcreteMessage;
 use puffin::claims::GlobalClaimList;
 use puffin::codec::Codec;
 use puffin::error::Error;
 use puffin::protocol::ProtocolBehavior;
 use puffin::put::{Put, PutOptions};
-use puffin::put_registry::{Factory, PutKind, TCP_PUT};
+use puffin::put_registry::{Factory, TCP_PUT};
 use puffin::stream::Stream;
-use puffin::VERSION_STR;
 
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolTypes};
+use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
 
 pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct TCPFactory;
@@ -26,10 +26,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         fn create(
             &self,
             agent_descriptor: &AgentDescriptor,
-            _claims: &GlobalClaimList<
-                TLSProtocolTypes,
-                <TLSProtocolBehavior as ProtocolBehavior>::Claim,
-            >,
+            _claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
             options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
             if options.get_option("args").is_some() {
@@ -70,10 +67,6 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
             }
         }
 
-        fn kind(&self) -> PutKind {
-            PutKind::Rust
-        }
-
         fn name(&self) -> String {
             String::from(TCP_PUT)
         }
@@ -81,8 +74,12 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         fn versions(&self) -> Vec<(String, String)> {
             vec![(
                 "harness".to_string(),
-                format!("{} ({})", TCP_PUT, VERSION_STR),
+                format!("{} {}", TCP_PUT, puffin_build::puffin::full_version()),
             )]
+        }
+
+        fn supports(&self, _capability: &str) -> bool {
+            false
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
@@ -241,9 +238,8 @@ impl TcpPut for TcpServerPut {
 }
 
 impl Stream<TLSProtocolBehavior> for TcpServerPut {
-    fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight) {
-        self.write_to_stream(&opaque_flight.clone().get_encoding())
-            .unwrap();
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        self.write_to_stream(message).unwrap();
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
@@ -252,9 +248,8 @@ impl Stream<TLSProtocolBehavior> for TcpServerPut {
 }
 
 impl Stream<TLSProtocolBehavior> for TcpClientPut {
-    fn add_to_inbound(&mut self, opaque_flight: &OpaqueMessageFlight) {
-        self.write_to_stream(&opaque_flight.clone().get_encoding())
-            .unwrap();
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        self.write_to_stream(message).unwrap();
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
@@ -298,7 +293,7 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         &self.agent_descriptor
     }
 
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         panic!("Not supported")
     }
 
@@ -334,7 +329,7 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         &self.agent_descriptor
     }
 
-    fn describe_state(&self) -> &str {
+    fn describe_state(&self) -> String {
         panic!("Not supported")
     }
 

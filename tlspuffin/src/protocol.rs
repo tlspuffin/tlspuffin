@@ -1,19 +1,22 @@
-use std::fmt::Display;
+use std::any::TypeId;
 
+use comparable::Comparable;
 use puffin::algebra::signature::Signature;
 use puffin::algebra::Matcher;
-use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
-    EvaluatedTerm, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-    ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
+    CompareKnowledge, EvaluatedTerm, Extractable, OpaqueProtocolMessage,
+    OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer,
+    ProtocolMessageFlight, ProtocolTypes,
 };
+use puffin::put::PutDescriptor;
 use puffin::trace::{Knowledge, Source, Trace};
-use puffin::{atom_extract_knowledge, dummy_extract_knowledge};
+use puffin::{atom_extract_knowledge, codec, dummy_compare, dummy_extract_knowledge};
 use serde::{Deserialize, Serialize};
 
 use crate::claims::TlsClaim;
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
+use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::Certificate;
@@ -29,19 +32,18 @@ use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayload,
     CertificatePayloadTLS13, CertificateRequestPayload, CertificateRequestPayloadTLS13,
     CertificateStatus, ClientExtension, ClientHelloPayload, DigitallySignedStruct,
-    ECDHEServerKeyExchange, EncryptedExtensions, HandshakeMessagePayload, HandshakePayload,
-    HelloRetryExtension, NewSessionTicketExtension, NewSessionTicketPayload,
-    NewSessionTicketPayloadTLS13, PresharedKeyIdentity, Random, ServerExtension,
-    ServerHelloPayload, ServerKeyExchangePayload, SessionID,
+    ECDHEServerKeyExchange, HandshakeMessagePayload, HandshakePayload, HelloRetryExtension,
+    NewSessionTicketExtension, NewSessionTicketPayload, NewSessionTicketPayloadTLS13,
+    PresharedKeyIdentity, Random, ServerExtension, ServerHelloPayload, ServerKeyExchangePayload,
+    SessionID,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
-use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage};
+use crate::tls::rustls::msgs::message::{try_read_bytes, Message, MessagePayload, OpaqueMessage};
 use crate::tls::rustls::msgs::{self};
-use crate::tls::seeds::create_corpus;
 use crate::tls::violation::TlsSecurityViolationPolicy;
 use crate::tls::TLS_SIGNATURE;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct MessageFlight {
     pub messages: Vec<Message>,
 }
@@ -70,7 +72,24 @@ impl From<Message> for MessageFlight {
     }
 }
 
-#[derive(Debug, Clone)]
+impl codec::Codec for MessageFlight {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        for msg in &self.messages {
+            msg.encode(bytes);
+        }
+    }
+
+    fn read(reader: &mut codec::Reader) -> Option<Self> {
+        let mut flight = Self::new();
+
+        while let Some(msg) = Message::read(reader) {
+            flight.push(msg);
+        }
+        Some(flight)
+    }
+}
+
+#[derive(Debug, Clone, Comparable)]
 pub struct OpaqueMessageFlight {
     pub messages: Vec<OpaqueMessage>,
 }
@@ -89,14 +108,14 @@ impl OpaqueProtocolMessageFlight<TLSProtocolTypes, OpaqueMessage> for OpaqueMess
     }
 }
 
-impl Codec for OpaqueMessageFlight {
+impl codec::Codec for OpaqueMessageFlight {
     fn encode(&self, bytes: &mut Vec<u8>) {
         for msg in &self.messages {
             msg.encode(bytes);
         }
     }
 
-    fn read(reader: &mut Reader) -> Option<Self> {
+    fn read(reader: &mut codec::Reader) -> Option<Self> {
         let mut deframer = MessageDeframer::new();
         let mut flight = Self::new();
 
@@ -157,7 +176,7 @@ impl ProtocolMessage<TLSProtocolTypes, OpaqueMessage> for Message {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for MessageFlight {
+impl Extractable<TLSProtocolTypes> for MessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -177,7 +196,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for MessageFlight {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for OpaqueMessageFlight {
+impl Extractable<TLSProtocolTypes> for OpaqueMessageFlight {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -196,7 +215,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for OpaqueMessageFlight {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for Message {
+impl Extractable<TLSProtocolTypes> for Message {
     /// Extracts knowledge from a [`crate::tls::rustls::msgs::message::Message`].
     /// Only plaintext messages yield more knowledge than their binary payload.
     /// If a message is an ApplicationData (TLS 1.3) or an encrypted Heartbeet
@@ -229,7 +248,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for Message {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for MessagePayload {
+impl Extractable<TLSProtocolTypes> for MessagePayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -259,7 +278,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for MessagePayload {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for ChangeCipherSpecPayload {
+impl Extractable<TLSProtocolTypes> for ChangeCipherSpecPayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -276,7 +295,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for ChangeCipherSpecPayload {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for HeartbeatPayload {
+impl Extractable<TLSProtocolTypes> for HeartbeatPayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -297,7 +316,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for HeartbeatPayload {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for AlertMessagePayload {
+impl Extractable<TLSProtocolTypes> for AlertMessagePayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -323,7 +342,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for AlertMessagePayload {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for HandshakeMessagePayload {
+impl Extractable<TLSProtocolTypes> for HandshakeMessagePayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -346,7 +365,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for HandshakeMessagePayload {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for HandshakePayload {
+impl Extractable<TLSProtocolTypes> for HandshakePayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -418,7 +437,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for HandshakePayload {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for CertificatePayload {
+impl Extractable<TLSProtocolTypes> for CertificatePayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -439,7 +458,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for CertificatePayload {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for ServerKeyExchangePayload {
+impl Extractable<TLSProtocolTypes> for ServerKeyExchangePayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -465,7 +484,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for ServerKeyExchangePayload {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for ECDHEServerKeyExchange {
+impl Extractable<TLSProtocolTypes> for ECDHEServerKeyExchange {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -481,7 +500,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for ECDHEServerKeyExchange {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for Payload {
+impl Extractable<TLSProtocolTypes> for Payload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -502,7 +521,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for Payload {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for ClientHelloPayload {
+impl Extractable<TLSProtocolTypes> for ClientHelloPayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -544,14 +563,30 @@ impl EvaluatedTerm<TLSProtocolTypes> for ClientHelloPayload {
             matcher,
             data: &self.cipher_suites,
         });
-
-        knowledges.extend(self.extensions.iter().map(|extension| Knowledge {
+        // we add both the Vec<T> and below the Wrapper(T) too
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.extensions.0,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.compression_methods.0,
+        });
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.cipher_suites.0,
+        });
+        knowledges.extend(self.extensions.0.iter().map(|extension| Knowledge {
             source,
             matcher,
             data: extension,
         }));
         knowledges.extend(
             self.compression_methods
+                .0
                 .iter()
                 .map(|compression| Knowledge {
                     source,
@@ -559,7 +594,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for ClientHelloPayload {
                     data: compression,
                 }),
         );
-        knowledges.extend(self.cipher_suites.iter().map(|cipher_suite| Knowledge {
+        knowledges.extend(self.cipher_suites.0.iter().map(|cipher_suite| Knowledge {
             source,
             matcher,
             data: cipher_suite,
@@ -568,7 +603,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for ClientHelloPayload {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for NewSessionTicketPayload {
+impl Extractable<TLSProtocolTypes> for NewSessionTicketPayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -594,7 +629,7 @@ impl EvaluatedTerm<TLSProtocolTypes> for NewSessionTicketPayload {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for ServerHelloPayload {
+impl Extractable<TLSProtocolTypes> for ServerHelloPayload {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -631,12 +666,18 @@ impl EvaluatedTerm<TLSProtocolTypes> for ServerHelloPayload {
             matcher,
             data: &self.legacy_version,
         });
+        // we add both the Vec<T> and below the Wrapper(T) too
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: &self.extensions.0,
+        });
         knowledges.push(Knowledge {
             source,
             matcher,
             data: &self.extensions,
         });
-        knowledges.extend(self.extensions.iter().map(|extension| Knowledge {
+        knowledges.extend(self.extensions.0.iter().map(|extension| Knowledge {
             source,
             matcher,
             data: extension,
@@ -663,7 +704,7 @@ impl OpaqueProtocolMessage<TLSProtocolTypes> for OpaqueMessage {
     }
 }
 
-impl EvaluatedTerm<TLSProtocolTypes> for OpaqueMessage {
+impl Extractable<TLSProtocolTypes> for OpaqueMessage {
     fn extract_knowledge<'a>(
         &'a self,
         knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
@@ -693,7 +734,6 @@ atom_extract_knowledge!(TLSProtocolTypes, CipherSuite);
 atom_extract_knowledge!(TLSProtocolTypes, ClientExtension);
 atom_extract_knowledge!(TLSProtocolTypes, Compression);
 atom_extract_knowledge!(TLSProtocolTypes, DigitallySignedStruct);
-atom_extract_knowledge!(TLSProtocolTypes, EncryptedExtensions);
 atom_extract_knowledge!(TLSProtocolTypes, HandshakeHash);
 atom_extract_knowledge!(TLSProtocolTypes, HandshakeType);
 atom_extract_knowledge!(TLSProtocolTypes, HelloRetryExtension);
@@ -712,8 +752,25 @@ atom_extract_knowledge!(TLSProtocolTypes, u64);
 atom_extract_knowledge!(TLSProtocolTypes, u8);
 dummy_extract_knowledge!(TLSProtocolTypes, bool);
 
-impl<T: EvaluatedTerm<TLSProtocolTypes> + Clone + 'static> EvaluatedTerm<TLSProtocolTypes>
-    for Vec<T>
+dummy_compare!(TLSProtocolTypes, HandshakeHash);
+dummy_compare!(TLSProtocolTypes, SessionID);
+dummy_compare!(
+    TLSProtocolTypes,
+    crate::claims::TranscriptPartialClientHello
+);
+dummy_compare!(TLSProtocolTypes, crate::claims::TranscriptServerHello);
+dummy_compare!(TLSProtocolTypes, crate::claims::TranscriptServerFinished);
+dummy_compare!(TLSProtocolTypes, crate::claims::TranscriptClientFinished);
+dummy_compare!(TLSProtocolTypes, crate::claims::ClientHello);
+dummy_compare!(TLSProtocolTypes, crate::claims::ServerHello);
+dummy_compare!(TLSProtocolTypes, crate::claims::Certificate);
+dummy_compare!(TLSProtocolTypes, crate::claims::CertificateVerify);
+dummy_compare!(TLSProtocolTypes, crate::claims::Finished);
+
+impl<T: Extractable<TLSProtocolTypes> + Clone + codec::Codec + 'static>
+    Extractable<TLSProtocolTypes> for Vec<T>
+where
+    Vec<T>: codec::Codec + CompareKnowledge<TLSProtocolTypes>,
 {
     fn extract_knowledge<'a>(
         &'a self,
@@ -734,8 +791,9 @@ impl<T: EvaluatedTerm<TLSProtocolTypes> + Clone + 'static> EvaluatedTerm<TLSProt
     }
 }
 
-impl<T: EvaluatedTerm<TLSProtocolTypes> + Clone + 'static> EvaluatedTerm<TLSProtocolTypes>
-    for Option<T>
+impl<T: Extractable<TLSProtocolTypes> + Clone + 'static> Extractable<TLSProtocolTypes> for Option<T>
+where
+    Option<T>: codec::Codec + Comparable,
 {
     fn extract_knowledge<'a>(
         &'a self,
@@ -776,9 +834,17 @@ impl ProtocolTypes for TLSProtocolTypes {
     fn signature() -> &'static Signature<Self> {
         &TLS_SIGNATURE
     }
+
+    fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>> {
+        None
+    }
+
+    fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
+        Some(vec![TypeId::of::<MessagePayload>()])
+    }
 }
 
-impl Display for TLSProtocolTypes {
+impl std::fmt::Display for TLSProtocolTypes {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "")
     }
@@ -796,7 +862,18 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     type ProtocolTypes = TLSProtocolTypes;
     type SecurityViolationPolicy = TlsSecurityViolationPolicy;
 
-    fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
-        create_corpus()
+    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
+        crate::tls::seeds::create_corpus(
+            tls_registry()
+                .find_by_id(put.factory)
+                .expect("missing PUT in TLS registry"),
+        )
+    }
+
+    fn try_read_bytes(
+        bitstring: &[u8],
+        ty: TypeId,
+    ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
+        try_read_bytes(bitstring, ty)
     }
 }
