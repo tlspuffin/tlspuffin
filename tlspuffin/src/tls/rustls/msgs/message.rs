@@ -169,10 +169,8 @@ impl MessagePayload {
 #[extractable(TLSProtocolTypes)]
 pub struct OpaqueMessage {
     #[extractable_ignore]
-    #[comparable_ignore]
     pub typ: ContentType,
     #[extractable_ignore]
-    #[comparable_ignore]
     pub version: ProtocolVersion,
     #[extractable_ignore]
     #[comparable_ignore]
@@ -324,7 +322,6 @@ impl PlainMessage {
 #[derive(Debug, Clone, Comparable, PartialEq)]
 pub struct Message {
     pub version: ProtocolVersion,
-    #[comparable_ignore]
     pub payload: MessagePayload,
 }
 
