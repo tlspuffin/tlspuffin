@@ -31,6 +31,7 @@ where
         .version(puffin::version())
         .author(crate_authors!())
         .about(title.as_ref().to_owned())
+        .arg(arg!(-T --target <T> "The PUT to use"))
         .arg(arg!(-c --cores [spec] "Sets the cores to use during fuzzing"))
         .arg(arg!(-s --seed [n] "(experimental) provide a seed for all clients")
             .value_parser(value_parser!(u64)))
@@ -113,6 +114,7 @@ where
     let put_use_clear = matches.get_flag("put-use-clear");
     let without_bit_level = matches.get_flag("wo-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
+    let target: Option<&String> = matches.get_one("target");
 
     log::info!("Version: {}", puffin::full_version());
     log::info!("Put Versions:");
@@ -133,7 +135,15 @@ where
         options.push(("use_clear".to_string(), put_use_clear.to_string()));
     }
 
-    let default_put = PutDescriptor::new(put_registry.default().name(), options);
+    let default_put = match target {
+        Some(name) => {
+            if !check_if_puts_exist(&put_registry, vec![name]) {
+                return ExitCode::FAILURE;
+            };
+            PutDescriptor::new(name, options)
+        }
+        None => PutDescriptor::new(put_registry.default().name(), options),
+    };
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         if let Err(err) = seed(&put_registry, default_put) {
@@ -552,4 +562,30 @@ fn binary_attack<PB: ProtocolBehavior>(
         }
     }
     Ok(())
+}
+
+fn check_if_puts_exist<PB: ProtocolBehavior>(
+    put_registry: &PutRegistry<PB>,
+    put_list: Vec<&str>,
+) -> bool {
+    let available_puts: Vec<&str> = put_registry.puts().map(|(name, _)| name).collect();
+
+    let non_available_puts: Vec<&str> = put_list
+        .iter()
+        .filter_map(|name| {
+            if available_puts.iter().any(|x| x == name) {
+                None
+            } else {
+                Some(*name)
+            }
+        })
+        .collect();
+
+    if non_available_puts.is_empty() {
+        true
+    } else {
+        println!("PUT not found : {}", non_available_puts.join(","));
+        println!("Available PUTs: {}", available_puts.join(","));
+        false
+    }
 }
