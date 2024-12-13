@@ -1,3 +1,25 @@
+[openssl340-asan]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_3_4", version = "3.4.0" }
+builder = { type = "builtin", name = "openssl" }
+asan = true
+sancov = true
+
+[openssl340]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_3_4", version = "3.4.0" }
+builder = { type = "builtin", name = "openssl" }
+sancov = true
+
+[openssl320-asan]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_3_2", version = "3.2.0" }
+builder = { type = "builtin", name = "openssl" }
+asan = true
+sancov = true
+
+[openssl320]
+sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_3_2", version = "3.2.0" }
+builder = { type = "builtin", name = "openssl" }
+sancov = true
+
 [openssl312-asan]
 sources = { repo = "https://github.com/tlspuffin/openssl", branch = "fuzz-OpenSSL_3_1_2", version = "3.1.2" }
 builder = { type = "builtin", name = "openssl" }
