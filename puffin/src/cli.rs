@@ -137,7 +137,11 @@ where
 
     let default_put = match target {
         Some(name) => {
-            if !check_if_puts_exist(&put_registry, vec![name]) {
+            if let Err((available_puts, non_available_puts)) =
+                check_if_puts_exist(&put_registry, &[name])
+            {
+                log::error!("PUT not found : {}", non_available_puts.join(","));
+                log::error!("Available PUTs: {}", available_puts.join(","));
                 return ExitCode::FAILURE;
             };
             PutDescriptor::new(name, options)
@@ -564,10 +568,10 @@ fn binary_attack<PB: ProtocolBehavior>(
     Ok(())
 }
 
-fn check_if_puts_exist<PB: ProtocolBehavior>(
-    put_registry: &PutRegistry<PB>,
-    put_list: Vec<&str>,
-) -> bool {
+fn check_if_puts_exist<'a, 'b, PB: ProtocolBehavior>(
+    put_registry: &'b PutRegistry<PB>,
+    put_list: &[&'a str],
+) -> Result<(), (Vec<&'b str>, Vec<&'a str>)> {
     let available_puts: Vec<&str> = put_registry.puts().map(|(name, _)| name).collect();
 
     let non_available_puts: Vec<&str> = put_list
@@ -582,10 +586,8 @@ fn check_if_puts_exist<PB: ProtocolBehavior>(
         .collect();
 
     if non_available_puts.is_empty() {
-        true
+        Ok(())
     } else {
-        println!("PUT not found : {}", non_available_puts.join(","));
-        println!("Available PUTs: {}", available_puts.join(","));
-        false
+        Err((available_puts, non_available_puts))
     }
 }
