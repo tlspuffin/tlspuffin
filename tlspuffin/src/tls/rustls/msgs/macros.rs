@@ -7,7 +7,7 @@ macro_rules! enum_builder {
         EnumVal { $( $enum_var: ident => $enum_val: expr ),* }
     ) => {
         $(#[$comment])*
-        #[derive(Debug, PartialEq, Eq, Clone, Copy, serde::Deserialize, serde::Serialize, Hash, Extractable, Comparable)]
+        #[derive(Debug, PartialEq, Eq, Clone, Copy, serde::Deserialize, serde::Serialize, Hash, Extractable, Comparable, Ord, PartialOrd)]
         #[extractable(TLSProtocolTypes)]
         pub enum $enum_name {
             $( $enum_var),*
@@ -47,7 +47,7 @@ macro_rules! enum_builder {
         EnumVal { $( $enum_var: ident => $enum_val: expr ),* }
     ) => {
         $(#[$comment])*
-        #[derive(Debug, PartialEq, Eq, Clone, Copy, serde::Deserialize, serde::Serialize, Hash, Extractable, Comparable)]
+        #[derive(Debug, PartialEq, Eq, Clone, Copy, serde::Deserialize, serde::Serialize, Hash, Extractable, Comparable, Ord, PartialOrd)]
         #[extractable(TLSProtocolTypes)]
         pub enum $enum_name {
             $( $enum_var),*

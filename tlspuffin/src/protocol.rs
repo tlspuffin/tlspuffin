@@ -16,7 +16,10 @@ use puffin::trace::{Knowledge, Source, Trace};
 use puffin::{atom_extract_knowledge, codec, dummy_codec, dummy_extract_knowledge};
 use serde::{Deserialize, Serialize};
 
-use crate::claims::TlsClaim;
+use crate::claims::{
+    TlsClaim, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
+    TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
+};
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
@@ -254,13 +257,13 @@ impl Matcher for msgs::enums::HandshakeType {
     }
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash, Comparable)]
 pub enum AgentType {
     Server,
     Client,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Comparable)]
 pub enum TLSVersion {
     V1_3,
     V1_2,
@@ -368,6 +371,21 @@ impl ProtocolTypes for TLSProtocolTypes {
 
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
         Some(vec![TypeId::of::<MessagePayload>()])
+    }
+
+    fn differential_fuzzing_terms_to_eval() -> Vec<puffin::algebra::Term<Self>> {
+        [].into()
+    }
+
+    fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
+        Some(vec![
+            TypeId::of::<TranscriptCertificate>(),
+            TypeId::of::<TranscriptClientFinished>(),
+            TypeId::of::<TranscriptClientHello>(),
+            TypeId::of::<TranscriptPartialClientHello>(),
+            TypeId::of::<TranscriptServerFinished>(),
+            TypeId::of::<TranscriptServerHello>(),
+        ])
     }
 }
 

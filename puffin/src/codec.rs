@@ -417,3 +417,10 @@ impl<T: Codec + VecCodecWoSize> Codec for Vec<T> {
         Some(ret)
     }
 }
+
+pub fn compare_encoding<X: Codec, Y: Codec>(x: &X, y: &Y) -> std::cmp::Ordering {
+    match Codec::get_encoding(x) <= Codec::get_encoding(y) {
+        true => std::cmp::Ordering::Less,
+        false => std::cmp::Ordering::Greater,
+    }
+}
