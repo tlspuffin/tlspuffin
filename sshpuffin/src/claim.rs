@@ -9,11 +9,11 @@ use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledg
 
 use crate::protocol::SshProtocolTypes;
 
-#[derive(Debug, Clone, Comparable)]
+#[derive(Debug, Clone, Comparable, PartialEq)]
 pub struct SshClaimInner;
 dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 
-#[derive(Debug, Clone, Comparable)]
+#[derive(Debug, Clone, Comparable, PartialEq)]
 pub struct SshClaim {
     agent_name: AgentName,
     inner: Box<SshClaimInner>,
