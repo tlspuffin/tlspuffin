@@ -15,7 +15,10 @@ use puffin::trace::{Knowledge, Source, Trace};
 use puffin::{atom_extract_knowledge, codec, dummy_compare, dummy_extract_knowledge};
 use serde::{Deserialize, Serialize};
 
-use crate::claims::TlsClaim;
+use crate::claims::{
+    TlsClaim, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
+    TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
+};
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
@@ -755,18 +758,6 @@ dummy_extract_knowledge!(TLSProtocolTypes, bool);
 
 dummy_compare!(TLSProtocolTypes, HandshakeHash);
 dummy_compare!(TLSProtocolTypes, SessionID);
-dummy_compare!(
-    TLSProtocolTypes,
-    crate::claims::TranscriptPartialClientHello
-);
-dummy_compare!(TLSProtocolTypes, crate::claims::TranscriptServerHello);
-dummy_compare!(TLSProtocolTypes, crate::claims::TranscriptServerFinished);
-dummy_compare!(TLSProtocolTypes, crate::claims::TranscriptClientFinished);
-dummy_compare!(TLSProtocolTypes, crate::claims::ClientHello);
-dummy_compare!(TLSProtocolTypes, crate::claims::ServerHello);
-dummy_compare!(TLSProtocolTypes, crate::claims::Certificate);
-dummy_compare!(TLSProtocolTypes, crate::claims::CertificateVerify);
-dummy_compare!(TLSProtocolTypes, crate::claims::Finished);
 
 impl<T: Extractable<TLSProtocolTypes> + Clone + codec::Codec + 'static>
     Extractable<TLSProtocolTypes> for Vec<T>
@@ -826,13 +817,13 @@ impl Matcher for msgs::enums::HandshakeType {
     }
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash, Comparable)]
 pub enum AgentType {
     Server,
     Client,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Comparable)]
 pub enum TLSVersion {
     V1_3,
     V1_2,
@@ -930,6 +921,21 @@ impl ProtocolTypes for TLSProtocolTypes {
 
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
         Some(vec![TypeId::of::<MessagePayload>()])
+    }
+
+    fn differential_fuzzing_terms_to_eval() -> Vec<puffin::algebra::Term<Self>> {
+        [].into()
+    }
+
+    fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
+        Some(vec![
+            TypeId::of::<TranscriptCertificate>(),
+            TypeId::of::<TranscriptClientFinished>(),
+            TypeId::of::<TranscriptClientHello>(),
+            TypeId::of::<TranscriptPartialClientHello>(),
+            TypeId::of::<TranscriptServerFinished>(),
+            TypeId::of::<TranscriptServerHello>(),
+        ])
     }
 }
 

@@ -397,7 +397,7 @@ pub mod test_signature {
     pub type TestTrace = Trace<TestProtocolTypes>;
     pub type TestTerm = Term<TestProtocolTypes>;
 
-    #[derive(Clone, Comparable)]
+    #[derive(Clone, Comparable, PartialEq)]
     pub struct TestClaim;
 
     dummy_extract_knowledge_codec!(TestProtocolTypes, TestClaim);
@@ -604,6 +604,14 @@ pub mod test_signature {
         }
 
         fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
+            None
+        }
+
+        fn differential_fuzzing_terms_to_eval() -> Vec<crate::algebra::Term<Self>> {
+            vec![]
+        }
+
+        fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
             None
         }
     }

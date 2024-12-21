@@ -227,6 +227,14 @@ impl ProtocolTypes for SshProtocolTypes {
     fn differential_fuzzing_whitelist() -> Option<Vec<std::any::TypeId>> {
         None
     }
+
+    fn differential_fuzzing_terms_to_eval() -> Vec<puffin::algebra::Term<Self>> {
+        vec![]
+    }
+
+    fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
+        None
+    }
 }
 
 impl std::fmt::Display for SshProtocolTypes {

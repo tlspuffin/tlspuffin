@@ -19,7 +19,9 @@ use crate::put::Put;
 use crate::stream::Stream;
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash, Comparable)]
+#[derive(
+    Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash, Comparable, Ord, PartialOrd,
+)]
 pub struct AgentName(u8);
 
 impl AgentName {

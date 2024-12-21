@@ -569,11 +569,29 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 
     pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
+        let mut res = vec![];
+
         // Comparing the claims
-        // TODO
+        res.extend(
+            self.claims
+                .compare(&other.claims)
+                .err()
+                .map_or(vec![], |x| x),
+        );
 
         // Comparing the knowledges
-        self.knowledge_store.compare(&other.knowledge_store)
+        res.extend(
+            self.knowledge_store
+                .compare(&other.knowledge_store)
+                .err()
+                .map_or(vec![], |x| x),
+        );
+
+        if res.is_empty() {
+            Ok(())
+        } else {
+            Err(res)
+        }
     }
 }
 
