@@ -164,6 +164,7 @@ pub mod test_signature {
     dummy_extract_knowledge!(TestProtocolTypes, u16);
     dummy_extract_knowledge!(TestProtocolTypes, u32);
     dummy_extract_knowledge!(TestProtocolTypes, u64);
+    dummy_extract_knowledge!(TestProtocolTypes, ());
 
     impl<T: std::fmt::Debug + Clone + 'static + CodecP> Extractable<TestProtocolTypes> for Vec<T>
     where
