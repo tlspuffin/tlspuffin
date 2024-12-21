@@ -64,7 +64,7 @@ pub trait ProtocolBehavior: 'static {
     fn signature() -> &'static Signature;
 
     /// Creates a sane initial seed corpus.
-    fn create_corpus() -> Vec<(Trace<Self::Matcher>, &'static str)>;
+    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::Matcher>, &'static str)>;
 }
 
 pub struct MessageResult<M: ProtocolMessage<O>, O: OpaqueProtocolMessage>(pub Option<M>, pub O);
@@ -102,7 +102,7 @@ pub trait Put<PB: ProtocolBehavior>:
     fn descriptor(&self) -> &AgentDescriptor;
 
     /// Returns a textual representation of the state in which self is
-    fn describe_state(&self) -> &str;
+    fn describe_state(&self) -> String;
 
     /// Checks whether the Put is in a good state
     fn is_state_successful(&self) -> bool;

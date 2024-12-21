@@ -9,11 +9,6 @@ die() {
     exit 1
 }
 
-fatal() {
-    printf 'error: %s internal error: %s\n' "${NAME}" "$1" >&2
-    exit 2
-}
-
 need_cmd() {
     if ! command -v "$1" > /dev/null 2>&1; then
         die "required command not found: '$1'"
@@ -48,8 +43,6 @@ SCRIPT_DIR=$(normalize_path "$( cd -P "$( dirname -- "${BASH_SOURCE[0]}" )" &> /
 PUFFIN_DIR=${TARGET_DIR:-$(normalize_path "${SCRIPT_DIR}/..")}
 TARGET_DIR=${TARGET_DIR:-$(normalize_path "${SCRIPT_DIR}/../target")}
 
-if [[ ! -x "${TARGET_DIR}/debug/mk_vendor" ]]; then
-    (cd "${PUFFIN_DIR}" && cargo build --target-dir="${TARGET_DIR}" --profile=dev --bin mk_vendor) || die "failed to build mk_vendor"
-fi
+(cd "${PUFFIN_DIR}" && cargo build --quiet --target-dir="${TARGET_DIR}" --profile=dev --bin mk_vendor) || die "failed to build mk_vendor"
 
 "${TARGET_DIR}/debug/mk_vendor" "$@"
