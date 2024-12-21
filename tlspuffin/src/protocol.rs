@@ -754,18 +754,6 @@ dummy_extract_knowledge!(TLSProtocolTypes, bool);
 
 dummy_compare!(TLSProtocolTypes, HandshakeHash);
 dummy_compare!(TLSProtocolTypes, SessionID);
-dummy_compare!(
-    TLSProtocolTypes,
-    crate::claims::TranscriptPartialClientHello
-);
-dummy_compare!(TLSProtocolTypes, crate::claims::TranscriptServerHello);
-dummy_compare!(TLSProtocolTypes, crate::claims::TranscriptServerFinished);
-dummy_compare!(TLSProtocolTypes, crate::claims::TranscriptClientFinished);
-dummy_compare!(TLSProtocolTypes, crate::claims::ClientHello);
-dummy_compare!(TLSProtocolTypes, crate::claims::ServerHello);
-dummy_compare!(TLSProtocolTypes, crate::claims::Certificate);
-dummy_compare!(TLSProtocolTypes, crate::claims::CertificateVerify);
-dummy_compare!(TLSProtocolTypes, crate::claims::Finished);
 
 impl<T: Extractable<TLSProtocolTypes> + Clone + codec::Codec + 'static>
     Extractable<TLSProtocolTypes> for Vec<T>

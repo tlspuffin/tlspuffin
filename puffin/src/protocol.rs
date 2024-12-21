@@ -57,7 +57,6 @@ where
         diffs: &mut Vec<TraceDifference>,
         knowledge_num: usize,
     ) {
-        log::trace!("\n===================={knowledge_num}=======================\n{:?}\n+++++++++++++++++++++++++++++++++++++++++++\n{:?}\n===================={knowledge_num}=======================", self,other);
         match other.as_any().downcast_ref::<T>() {
             Some(casted_other) => {
                 // For later

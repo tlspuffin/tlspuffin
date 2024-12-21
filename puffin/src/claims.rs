@@ -4,13 +4,16 @@ use std::ops::Deref;
 use std::rc::Rc;
 use std::slice::Iter;
 
+use anyhow::Result;
+use comparable::Comparable;
 use itertools::Itertools;
 
 use crate::agent::AgentName;
 use crate::algebra::dynamic_function::TypeShape;
+use crate::differential::TraceDifference;
 use crate::protocol::{EvaluatedTerm, ProtocolTypes};
 
-pub trait Claim: EvaluatedTerm<Self::PT> + Debug {
+pub trait Claim: EvaluatedTerm<Self::PT> + Debug + Comparable + PartialEq {
     type PT: ProtocolTypes;
 
     fn agent_name(&self) -> AgentName;
@@ -86,6 +89,30 @@ impl<C: Claim> ClaimList<C> {
     pub fn claim_sized(&mut self, claim: C) {
         self.claims.push(claim);
     }
+
+    pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
+        // Here we sort the claims. This is mostly a heuristic
+        let mut self_claims: Vec<&C> = self.claims.iter().collect();
+        self_claims.sort_by_key(|x| x.inner().type_name());
+        // self_claims = self_claims
+        //     .into_iter()
+        //     .dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
+        //     .collect();
+        let mut other_claims: Vec<&C> = other.claims.iter().collect();
+        other_claims.sort_by_key(|x| x.inner().type_name());
+        // other_claims = other_claims
+        //     .into_iter()
+        //     .dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
+        //     .collect();
+
+        let diffs = self_claims.comparison(&other_claims);
+        match diffs {
+            comparable::Changed::Unchanged => Ok(()),
+            comparable::Changed::Changed(changes) => {
+                Err(vec![TraceDifference::Claims(format!("{:#?}", changes))])
+            }
+        }
+    }
 }
 
 #[derive(Default, Clone, PartialEq, Debug)]
@@ -109,5 +136,9 @@ impl<C: Claim> GlobalClaimList<C> {
     #[must_use]
     pub fn deref_borrow_mut(&self) -> RefMut<'_, ClaimList<C>> {
         self.claims.deref().borrow_mut()
+    }
+
+    pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
+        self.claims.borrow().compare(&other.claims.borrow())
     }
 }

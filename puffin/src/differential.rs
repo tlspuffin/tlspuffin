@@ -4,7 +4,7 @@ use core::fmt;
 pub enum TraceDifference {
     Status(String, String),
     Knowledges(String),
-    Claims(Vec<String>),
+    Claims(String),
 }
 
 impl fmt::Display for TraceDifference {

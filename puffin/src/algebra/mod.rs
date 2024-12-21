@@ -397,7 +397,7 @@ pub mod test_signature {
     pub type TestTrace = Trace<TestProtocolTypes>;
     pub type TestTerm = Term<TestProtocolTypes>;
 
-    #[derive(Clone, Comparable)]
+    #[derive(Clone, Comparable, PartialEq)]
     pub struct TestClaim;
 
     dummy_extract_knowledge_codec!(TestProtocolTypes, TestClaim);
