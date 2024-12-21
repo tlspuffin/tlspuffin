@@ -77,7 +77,7 @@ syn = "2.0.66"
 quote = "1.0.36"
 proc-macro2 = "1.0.79"
 trybuild = "< 1.0.91"
-comparable = "0.5.4"
+comparable = "0.5.5"
 
 [patch.crates-io]
 wolfssl-sys = { path = "crates/wolfssl-sys" }

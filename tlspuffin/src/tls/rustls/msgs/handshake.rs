@@ -951,6 +951,12 @@ declare_u8_vec!(Compressions, Compression);
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct ClientHelloPayload {
+    #[comparable_synthetic {
+        let sorted_cipher_suites = |x: &Self| -> std::collections::HashMap<CipherSuite, ()> { let ciphers : std::collections::HashMap<CipherSuite, ()>= x.cipher_suites.0.clone().into_iter().map(|c| (c,())).collect(); ciphers };
+    }]
+    #[comparable_synthetic {
+        let sorted_extensions = |x: &Self| -> ClientExtensions { let mut ext = x.extensions.clone(); ext.0.sort_by(puffin::codec::compare_encoding); ext };
+    }]
     pub client_version: ProtocolVersion,
     #[comparable_ignore]
     pub random: Random,
@@ -958,7 +964,7 @@ pub struct ClientHelloPayload {
     pub session_id: SessionID,
     #[comparable_ignore]
     pub cipher_suites: CipherSuites,
-    #[comparable_ignore]
+    // #[comparable_ignore]
     pub compression_methods: Compressions,
     #[comparable_ignore]
     pub extensions: ClientExtensions,
@@ -1321,6 +1327,9 @@ declare_u16_vec_empty!(ServerExtensions, ServerExtension);
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct ServerHelloPayload {
+    #[comparable_synthetic {
+        let sorted_extensions = |x: &Self| -> ServerExtensions { let mut ext = x.extensions.clone(); ext.0.sort_by(puffin::codec::compare_encoding); ext };
+    }]
     pub legacy_version: ProtocolVersion,
     #[comparable_ignore]
     pub random: Random,
@@ -1328,6 +1337,7 @@ pub struct ServerHelloPayload {
     pub session_id: SessionID,
     pub cipher_suite: CipherSuite,
     pub compression_method: Compression,
+    #[comparable_ignore]
     pub extensions: ServerExtensions,
 }
 
