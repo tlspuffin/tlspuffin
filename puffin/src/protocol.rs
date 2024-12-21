@@ -58,7 +58,6 @@ where
         diffs: &mut Vec<TraceDifference>,
         knowledge_num: usize,
     ) {
-        log::trace!("\n===================={knowledge_num}=======================\n{:?}\n+++++++++++++++++++++++++++++++++++++++++++\n{:?}\n===================={knowledge_num}=======================", self,other);
         match other.as_any().downcast_ref::<T>() {
             Some(casted_other) => {
                 // For later
@@ -238,8 +237,18 @@ pub trait ProtocolTypes:
     /// Get the signature that is used in the protocol
     fn signature() -> &'static Signature<Self>;
 
+    /// Knowleges' TypeIds to blacklist when comparing knowledges stores
     fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>>;
+
+    /// Allowed Knowlege's TypeIds when comparing knowledges stores
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>>;
+
+    /// Claims' TypeIds to blacklist when comparing knowledges stores
+    fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>>;
+
+    /// Terms to evaluate and compare during differential fuzzing
+    /// eg. decryption recipes
+    fn differential_fuzzing_terms_to_eval() -> Vec<crate::algebra::Term<Self>>;
 }
 
 /// Defines the protocol which is being tested.
