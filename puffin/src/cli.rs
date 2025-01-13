@@ -31,7 +31,7 @@ where
         .version(puffin::version())
         .author(crate_authors!())
         .about(title.as_ref().to_owned())
-        .arg(arg!(-T --target <T> "The PUT to use"))
+        .arg(arg!(-T --put <T> "The PUT to use"))
         .arg(arg!(-c --cores [spec] "Sets the cores to use during fuzzing"))
         .arg(arg!(-s --seed [n] "(experimental) provide a seed for all clients")
             .value_parser(value_parser!(u64)))
@@ -114,7 +114,7 @@ where
     let put_use_clear = matches.get_flag("put-use-clear");
     let without_bit_level = matches.get_flag("wo-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
-    let target: Option<&String> = matches.get_one("target");
+    let target_put: Option<&String> = matches.get_one("put");
 
     log::info!("Version: {}", puffin::full_version());
     log::info!("Put Versions:");
@@ -135,7 +135,7 @@ where
         options.push(("use_clear".to_string(), put_use_clear.to_string()));
     }
 
-    let default_put = match target {
+    let default_put = match target_put {
         Some(name) => {
             if let Err((available_puts, non_available_puts)) =
                 check_if_puts_exist(&put_registry, &[name])
