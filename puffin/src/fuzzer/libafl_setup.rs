@@ -2,13 +2,14 @@ use core::time::Duration;
 use std::fmt;
 use std::path::PathBuf;
 
+use itertools::Itertools;
 use libafl::corpus::ondisk::OnDiskMetadataFormat;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 use log4rs::Handle;
 
 use super::harness;
-use crate::fuzzer::mutations::{trace_mutations, MutationConfig};
+use crate::fuzzer::mutations::{normalize_proba, proba_mutations, trace_mutations, MutationConfig};
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::log::load_fuzzing_client;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
@@ -53,8 +54,12 @@ impl Default for MutationStageConfig {
     //  TODO:EVAL: evaluate modifications of this config
     fn default() -> Self {
         Self {
-            max_iterations_per_stage: 256,
-            max_mutations_per_iteration: 16,
+            max_iterations_per_stage: 128, // Was the default of StdMutationalStage (=128)
+            max_mutations_per_iteration: 32, /* With TuneableScheduledMutator, we set the
+                                            * probability
+                                            * to mutate n times for 1 <= n <=
+                                            * max_mutations_per_iteration to be (2/n)/N (N: to
+                                            * normalize. */
         }
     }
 }
@@ -191,19 +196,66 @@ where
             max_iters,
             mutation_stage_config:
                 MutationStageConfig {
-                    max_iterations_per_stage: _,
-                    max_mutations_per_iteration: _,
+                    max_iterations_per_stage,
+                    max_mutations_per_iteration,
+                },
+            mutation_config:
+                MutationConfig {
+                    with_bit_level,
+                    with_dy,
+                    ..
                 },
             ..
         } = self.config;
 
-        // FIXME let mutator = PuffinScheduledMutator::new(self.mutations.unwrap(),
-        // max_mutations_per_iteration);
-        let mutator = StdScheduledMutator::new(self.mutations.unwrap());
+        // Main mutational stage
+        let mutator = TuneableScheduledMutator::new(&mut state, self.mutations.unwrap());
+
+        // Set the probability to mutate n times for 1 <= n <= max_mutations_per_iteration to be
+        // (2/n)/N (N: to normalize).
+        let mut proba_iter = (1..(1 + (max_mutations_per_iteration as f32).log2().ceil() as usize))
+            .map(|n| 2.0f32 / n as f32)
+            .collect_vec();
+        normalize_proba(&mut proba_iter);
+        log::error!(
+            "[TuneableScheduledMutator] set_iter_probabilities_pow: {:?}",
+            proba_iter
+        );
+        TuneableScheduledMutator::set_iter_probabilities_pow(&mut state, proba_iter)
+            .expect("[TuneableScheduledMutator::set_iter_probabilities_pow] panic");
+        // Fine-tune the probability for each mutation
+        let proba_mutator = proba_mutations(with_bit_level, with_dy, *state.executions());
+        log::error!(
+            "[TuneableScheduledMutator] set_mutation_probabilities: {:?}",
+            proba_mutator
+        );
+        TuneableScheduledMutator::set_mutation_probabilities(&mut state, proba_mutator)
+            .expect("[TuneableScheduledMutator::set_mutation_probabilities] panic ");
+
+        // Put together the mutational stage and stage for updating mutation probabilities
         let mut stages = tuple_list!(
-            // FIXMEPuffinMutationalStage::new(mutator, max_iterations_per_stage),
-            StdMutationalStage::new(mutator),
-            // FIXME StatsStage::new()
+            StdMutationalStage::with_max_iterations(mutator, max_iterations_per_stage),
+            // Update the mutation probabilities every 100 executions
+            IfStage::new(
+                |_, _, state: &mut ConcreteState<C, R, SC, I>, _, _| Ok(
+                    *state.executions() % 100 == 0
+                ),
+                tuple_list!(ClosureStage::new(
+                    |_, _, state: &mut ConcreteState<C, R, SC, I>, _, _| {
+                        // Update the mutation probabilities
+                        let proba_mutator =
+                            proba_mutations(with_bit_level, with_dy, *state.executions());
+                        log::error!(
+                            "[TuneableScheduledMutator] update set_mutation_probabilities (#executions={}): {:?}",
+                            state.executions(),
+                            proba_mutator
+                        );
+                        TuneableScheduledMutator::set_mutation_probabilities(state, proba_mutator)
+                            .expect("[TuneableScheduledMutator::set_mutation_probabilities] panic");
+                        Ok(())
+                    }
+                ))
+            )
         );
 
         let mut fuzzer: StdFuzzer<CS, F, OF, OT> =
