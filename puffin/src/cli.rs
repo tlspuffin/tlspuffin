@@ -447,6 +447,11 @@ where
             no_launcher,
         };
 
+        if without_bit_level && without_dy_mutations {
+            log::error!("Both bit-level and DY mutations are disabled. This is not supported.");
+            return ExitCode::FAILURE;
+        }
+
         if without_bit_level {
             config.mutation_config.with_bit_level = false;
         }
