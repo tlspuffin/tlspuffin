@@ -59,6 +59,88 @@
     "labels": [
       "fast"
     ],
+    "name": "openssl312",
+    "mk_vendor": {
+      "vendor": "openssl",
+      "preset": "openssl312"
+    },
+    "cargo": {
+      "name": "",
+      "features": ["cputs"]
+    }
+  },
+  {
+    "labels": [
+      "fast"
+    ],
+    "name": "openssl312-asan",
+    "mk_vendor": {
+      "vendor": "openssl",
+      "preset": "openssl312-asan"
+    },
+    "cargo": {
+      "name": "",
+      "features": ["cputs"]
+    }
+  },
+  {
+    "labels": [
+    ],
+    "name": "openssl320",
+    "mk_vendor": {
+      "vendor": "openssl",
+      "preset": "openssl320"
+    },
+    "cargo": {
+      "name": "",
+      "features": ["cputs"]
+    }
+  },
+  {
+    "labels": [
+    ],
+    "name": "openssl320-asan",
+    "mk_vendor": {
+      "vendor": "openssl",
+      "preset": "openssl320-asan"
+    },
+    "cargo": {
+      "name": "",
+      "features": ["cputs"]
+    }
+  },
+  {
+    "labels": [
+      "fast"
+    ],
+    "name": "openssl340",
+    "mk_vendor": {
+      "vendor": "openssl",
+      "preset": "openssl340"
+    },
+    "cargo": {
+      "name": "",
+      "features": ["cputs"]
+    }
+  },
+  {
+    "labels": [
+      "fast"
+    ],
+    "name": "openssl340-asan",
+    "mk_vendor": {
+      "vendor": "openssl",
+      "preset": "openssl340-asan"
+    },
+    "cargo": {
+      "name": "",
+      "features": ["cputs"]
+    }
+  },
+  {
+    "labels": [
+      "fast"
+    ],
     "name": "libressl333",
     "mk_vendor": {
       "vendor": "libressl",

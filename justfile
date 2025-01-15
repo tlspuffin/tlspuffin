@@ -15,6 +15,7 @@ export CARGO_TERM_COLOR := "always"
 export RUST_BACKTRACE := "1"
 export CC := "clang"
 export CXX := "clang++"
+export LIBAFL_EDGES_MAP_SIZE := "262144"
 
 export TLSPUFFIN_DOCS_DIR := justfile_directory() / "docs"
 export TLSPUFFIN_PKGS_DIR := CARGO_TARGET_DIR / "package"
