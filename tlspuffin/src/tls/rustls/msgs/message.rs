@@ -1,13 +1,30 @@
-use puffin::codec::{Codec, Reader};
+use std::any::TypeId;
 
+use puffin::codec;
+use puffin::codec::{Codec, Reader, VecCodecWoSize};
+use puffin::error::Error::Term;
+use puffin::protocol::{EvaluatedTerm, ProtocolMessage};
+
+use crate::protocol::{MessageFlight, OpaqueMessageFlight, TLSProtocolTypes};
 use crate::tls::rustls::error::Error;
+use crate::tls::rustls::hash_hs::HandshakeHash;
+use crate::tls::rustls::key::Certificate;
 use crate::tls::rustls::msgs::alert::AlertMessagePayload;
-use crate::tls::rustls::msgs::base::Payload;
+use crate::tls::rustls::msgs::base::{Payload, PayloadU16, PayloadU24, PayloadU8};
 use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
+use crate::tls::rustls::msgs::enums::ContentType::ApplicationData;
+use crate::tls::rustls::msgs::enums::ProtocolVersion::TLSv1_3;
 use crate::tls::rustls::msgs::enums::{
-    AlertDescription, AlertLevel, ContentType, HandshakeType, ProtocolVersion,
+    AlertDescription, AlertLevel, CipherSuite, Compression, ContentType, HandshakeType, NamedGroup,
+    ProtocolVersion, SignatureScheme,
 };
-use crate::tls::rustls::msgs::handshake::HandshakeMessagePayload;
+use crate::tls::rustls::msgs::handshake::{
+    CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension, CipherSuites,
+    ClientExtension, ClientExtensions, Compressions, HandshakeMessagePayload, HelloRetryExtension,
+    HelloRetryExtensions, NewSessionTicketExtension, NewSessionTicketExtensions,
+    PresharedKeyIdentity, Random, ServerExtension, ServerExtensions, SessionID, VecU16OfPayloadU16,
+    VecU16OfPayloadU8,
+};
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 
 #[derive(Debug, Clone)]
@@ -21,6 +38,18 @@ pub enum MessagePayload {
     Heartbeat(HeartbeatPayload),
 }
 
+impl codec::CodecP for MessagePayload {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        MessagePayload::encode(self, bytes);
+    }
+
+    fn read(&mut self, _: &mut Reader) -> Result<(), puffin::error::Error> {
+        Err(puffin::error::Error::Term(format!(
+            "Failed to read for type {:?}",
+            std::any::type_name::<MessagePayload>()
+        )))
+    }
+}
 impl MessagePayload {
     pub fn encode(&self, bytes: &mut Vec<u8>) {
         match *self {
@@ -123,7 +152,10 @@ pub struct OpaqueMessage {
 
 impl Codec for OpaqueMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        bytes.extend_from_slice(&OpaqueMessage::encode(self.clone()));
+        self.typ.encode(bytes);
+        self.version.encode(bytes);
+        (self.payload.0.len() as u16).encode(bytes);
+        self.payload.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
@@ -144,10 +176,19 @@ impl OpaqueMessage {
     /// `MessageError` allows callers to distinguish between valid prefixes (might
     /// become valid if we read more data) and invalid data.
     pub fn read(r: &mut Reader) -> Result<Self, MessageError> {
+        #[cfg(not(feature = "enable-guards"))]
+        let typ = ContentType::read(r).unwrap_or(ApplicationData);
+        #[cfg(not(feature = "enable-guards"))]
+        let version = ProtocolVersion::read(r).unwrap_or(TLSv1_3);
+
+        #[cfg(feature = "enable-guards")]
         let typ = ContentType::read(r).ok_or(MessageError::TooShortForHeader)?;
+        #[cfg(feature = "enable-guards")]
         let version = ProtocolVersion::read(r).ok_or(MessageError::TooShortForHeader)?;
+
         let len = u16::read(r).ok_or(MessageError::TooShortForHeader)?;
 
+        #[cfg(feature = "enable-guards")]
         // Reject undersize messages
         //  implemented per section 5.1 of RFC8446 (TLSv1.3)
         //              per section 6.2.1 of RFC5246 (TLSv1.2)
@@ -155,16 +196,19 @@ impl OpaqueMessage {
             return Err(MessageError::IllegalLength);
         }
 
+        #[cfg(feature = "enable-guards")]
         // Reject oversize messages
         if len >= Self::MAX_PAYLOAD {
             return Err(MessageError::IllegalLength);
         }
 
+        #[cfg(feature = "enable-guards")]
         // Don't accept any new content-types.
         if let ContentType::Unknown(_) = typ {
             return Err(MessageError::IllegalContentType);
         }
 
+        #[cfg(feature = "enable-guards")]
         // Accept only versions 0x03XX for any XX.
         match version {
             ProtocolVersion::Unknown(ref v) if (v & 0xff00) != 0x0300 => {
@@ -181,15 +225,6 @@ impl OpaqueMessage {
             version,
             payload,
         })
-    }
-
-    pub fn encode(self) -> Vec<u8> {
-        let mut buf = Vec::new();
-        self.typ.encode(&mut buf);
-        self.version.encode(&mut buf);
-        (self.payload.0.len() as u16).encode(&mut buf);
-        self.payload.encode(&mut buf);
-        buf
     }
 
     /// Force conversion into a plaintext message.
@@ -259,6 +294,21 @@ impl PlainMessage {
 pub struct Message {
     pub version: ProtocolVersion,
     pub payload: MessagePayload,
+}
+
+// Make it VecCodecWoSize so that we have `Vec<T>: Codec` for free
+impl VecCodecWoSize for Message {}
+
+impl Codec for Message {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        Codec::encode(&self.create_opaque(), bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        <OpaqueMessage>::read(reader)
+            .ok()
+            .and_then(|op| Message::try_from(op).ok())
+    }
 }
 
 impl Message {
@@ -333,4 +383,158 @@ pub enum MessageError {
     IllegalLength,
     IllegalContentType,
     IllegalProtocolVersion,
+}
+
+// Rationale for `any_get_encoding` and `try_read_bytes`:
+// 1. Messages of types Vec<Item> will be read and encoded without considering the size of the
+//    vector (reading until end of buffer). We consider such messages as "intermediate values",
+//    which are not meant to be directly used in struct fields such as
+//   `extensions` in `ClientHello`. We use `VecCodecWoSize` for that.
+//    In particular, an empty vector yield an empty bitstring and not [0].
+// 2. Field elements of struct messages such as `extensions` in `ClientHello` are wrapped into a
+//    constructor, whose `Codec` implementation consider the size of the vector, encoded into the
+//    appropriate number of bytes. This depends on the field under consideration. For the above
+//    example, we shall use `read_vec_u16` and `encode_vec_u16`.
+
+// For all Countable types, we encode list of items of such type by prefixing with the length
+// encoded in 2 bytes For each type: whether it produces empty bitstring for empty list ([]), and u8
+// or u16 length prefix (8/16)
+impl VecCodecWoSize for ClientExtension {} // []/u16
+impl VecCodecWoSize for ServerExtension {} // u16    (server has to return at least oen extension it seems)
+impl VecCodecWoSize for HelloRetryExtension {} // ?/u16
+impl VecCodecWoSize for CertReqExtension {} // u16 -s
+impl VecCodecWoSize for CertificateExtension {} // u16 -s
+impl VecCodecWoSize for NewSessionTicketExtension {} //u16 -s
+impl VecCodecWoSize for Compression {} // u8
+impl VecCodecWoSize for Certificate {} // u24, no need?
+impl VecCodecWoSize for CertificateEntry {} // u24
+impl VecCodecWoSize for CipherSuite {} // u16
+impl VecCodecWoSize for PresharedKeyIdentity {} //u16
+
+#[macro_export]
+macro_rules! try_read {
+  ($bitstring:expr, $ti:expr, $T:ty, $($Ts:ty),+) => {
+      {
+      if $ti == TypeId::of::<$T>() {
+        log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
+        <$T>::read_bytes($bitstring).ok_or(Term(format!(
+                "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
+                core::any::type_name::<$T>(),
+                & $bitstring
+            )).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
+      } else {
+        try_read!($bitstring, $ti, $($Ts),+)
+      }
+      }
+  };
+
+  ($bitstring:expr, $ti:expr, $T:ty ) => {
+      {
+        if $ti == TypeId::of::<$T>() {
+            log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
+            <$T>::read_bytes($bitstring).ok_or(Term(format!(
+                "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
+                core::any::type_name::<$T>(),
+                & $bitstring
+            )).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
+        } else {
+                log::error!("Failed to find a suitable type with typeID {:?} to read the bitstring {:?}", $ti, &$bitstring);
+                Err(Term(format!(
+                    "[try_read_bytes] Failed to find a suitable type with typeID {:?} to read the bitstring {:?}",
+                    $ti,
+                    &$bitstring
+                )).into())
+        }
+      }
+  };
+}
+
+/// To `read` an `EvaluatedTerm<PT>` out of a bitstring, we cannot simply use `Codec::read_bytes`
+/// since the type of the value to be initialized is not known, we only have the argument `ty` from
+/// which we can downcast and then call `read_bytes` on the appropriate type.
+/// `try_read_bytes` calls a macro `try_read` that does this.
+///  (There is no workaround for the uninitialized value type since we need to make Codec traits
+/// into dyn objects, hence it cannot have `Sized` as a supertrait.)
+pub fn try_read_bytes(
+    bitstring: &[u8],
+    ty: TypeId,
+) -> Result<Box<dyn EvaluatedTerm<TLSProtocolTypes>>, puffin::error::Error> {
+    log::trace!("Trying read...");
+    try_read!(
+        bitstring,
+        ty,
+        // We list all the types that have the Codec trait and that can be the type of a rustls
+        // message
+        // The uni-test `term_zoo::test_term_read_encode` tests this is exhaustive for the TLS
+        // signature at least
+        Message,
+        OpaqueMessage,
+        MessageFlight,
+        OpaqueMessageFlight,
+        Vec<Certificate>,
+        Certificate,
+        CertificateEntries,
+        Vec<CertificateEntry>,
+        CertificateEntry,
+        ServerExtensions,
+        Vec<ServerExtension>,
+        ClientExtensions,
+        Vec<ClientExtension>,
+        ClientExtension,
+        ServerExtension,
+        HelloRetryExtensions,
+        Vec<HelloRetryExtension>,
+        HelloRetryExtension,
+        Vec<CertReqExtension>,
+        CertReqExtension,
+        Vec<CertificateExtension>,
+        CertificateExtension,
+        Vec<NewSessionTicketExtension>,
+        NewSessionTicketExtension,
+        NewSessionTicketExtensions,
+        Random,
+        Compressions,
+        Vec<Compression>,
+        Compression,
+        SessionID,
+        // HandshakeHash,
+        // PrivateKey,
+        CipherSuites,
+        Vec<CipherSuite>,
+        CipherSuite,
+        Vec<PresharedKeyIdentity>,
+        PresharedKeyIdentity,
+        AlertMessagePayload,
+        SignatureScheme,
+        ProtocolVersion,
+        HandshakeHash,
+        u64,
+        u32,
+        // u8,
+        // Vec<u64>,
+        PayloadU24,
+        PayloadU16,
+        PayloadU8,
+        Vec<PayloadU24>,
+        Vec<PayloadU16>,
+        Vec<PayloadU8>,
+        VecU16OfPayloadU16,
+        VecU16OfPayloadU8,
+        Vec<u8>,
+        Option<Vec<u8>>,
+        Vec<Vec<u8>>,
+        bool,
+        // Option<Vec<Vec<u8>>>,
+        // Result<Option<Vec<u8>>, FnError>,
+        // Result<Vec<u8>, FnError>,
+        // Result<bool, FnError>,
+        // Result<Vec<u8>, FnError>,
+        // Result<Vec<Vec<u8>>, FnError>,
+        //
+        // Message,
+        // Result<Message FnError>,
+        // MessagePayload,
+        // ExtensionType,
+        NamedGroup
+    )
 }

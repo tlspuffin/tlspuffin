@@ -5,6 +5,7 @@ use openssl::ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslStream, SslVeri
 use openssl::x509::store::X509StoreBuilder;
 use openssl::x509::X509;
 use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::algebra::ConcreteMessage;
 use puffin::claims::GlobalClaimList;
 use puffin::error::Error;
 use puffin::protocol::ProtocolBehavior;
@@ -98,7 +99,7 @@ impl Drop for OpenSSL {
 }
 
 impl Stream<TLSProtocolBehavior> for OpenSSL {
-    fn add_to_inbound(&mut self, result: &OpaqueMessageFlight) {
+    fn add_to_inbound(&mut self, result: &ConcreteMessage) {
         <MemoryStream as Stream<TLSProtocolBehavior>>::add_to_inbound(self.stream.get_mut(), result)
     }
 

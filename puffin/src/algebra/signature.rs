@@ -6,7 +6,8 @@ use once_cell::sync::Lazy;
 use super::atoms::Function;
 use crate::algebra::atoms::Variable;
 use crate::algebra::dynamic_function::{
-    make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, TypeShape,
+    make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, FunctionAttributes,
+    TypeShape,
 };
 use crate::algebra::Matcher;
 use crate::protocol::ProtocolTypes;
@@ -22,6 +23,7 @@ pub struct Signature<PT: ProtocolTypes> {
     pub functions_by_typ: HashMap<TypeShape<PT>, Vec<FunctionDefinition<PT>>>,
     pub functions: Vec<FunctionDefinition<PT>>,
     pub types_by_name: HashMap<&'static str, TypeShape<PT>>,
+    pub attrs_by_name: HashMap<&'static str, FunctionAttributes>,
 }
 
 impl<PT: ProtocolTypes> std::fmt::Debug for Signature<PT> {
@@ -32,22 +34,29 @@ impl<PT: ProtocolTypes> std::fmt::Debug for Signature<PT> {
 
 impl<PT: ProtocolTypes> Signature<PT> {
     /// Construct a `Signature` from the given [`FunctionDefinition`]s.
-    pub fn new(definitions: Vec<FunctionDefinition<PT>>) -> Signature<PT> {
+    #[must_use]
+    pub fn new(definitions: Vec<(FunctionDefinition<PT>, FunctionAttributes)>) -> Self {
+        let attrs_by_name: HashMap<&'static str, FunctionAttributes> = definitions
+            .clone()
+            .iter()
+            .map(|((shape, _dynamic_fn), attrs)| (shape.name, attrs.clone()))
+            .collect();
         let functions_by_name: HashMap<&'static str, FunctionDefinition<PT>> = definitions
             .clone()
             .into_iter()
-            .map(|(shape, dynamic_fn)| (shape.name, (shape, dynamic_fn)))
+            .map(|((shape, dynamic_fn), _attrs)| (shape.name, (shape, dynamic_fn)))
             .collect();
 
         let functions_by_typ: HashMap<TypeShape<PT>, Vec<FunctionDefinition<PT>>> = definitions
             .clone()
             .into_iter()
+            .map(|(fd, _attrs)| fd)
             .into_group_map_by(|(shape, _dynamic_fn)| shape.return_type.clone());
 
         let types_by_name: HashMap<&'static str, TypeShape<PT>> = definitions
             .clone()
             .into_iter()
-            .map(|(shape, _dynamic_fn)| {
+            .map(|((shape, _dynamic_fn), _attrs)| {
                 let used_types: Vec<TypeShape<PT>> = shape // vector of the argument shapes + return type
                     .argument_types
                     .iter()
@@ -61,24 +70,26 @@ impl<PT: ProtocolTypes> Signature<PT> {
             .map(|typ| (typ.name, typ))
             .collect();
 
-        Signature {
+        Self {
             functions_by_name,
             functions_by_typ,
-            functions: definitions,
+            functions: definitions.into_iter().map(|(fd, _attrs)| fd).collect(),
             types_by_name,
+            attrs_by_name,
         }
     }
 
     /// Create a new [`Function`] distinct from all existing [`Function`]s.
-    pub fn new_function<F, Types>(f: &'static F) -> Function<PT>
+    pub fn new_function<F: 'static, Types>(f: &'static F) -> Function<PT>
     where
-        F: DescribableFunction<PT, Types> + 'static,
+        F: DescribableFunction<PT, Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
 
         Function::new(shape, dynamic_fn.clone())
     }
 
+    #[must_use]
     pub fn new_var_with_type<T: 'static, M: Matcher>(
         source: Option<Source>,
         matcher: Option<M>,
@@ -91,6 +102,7 @@ impl<PT: ProtocolTypes> Signature<PT> {
         Self::new_var(type_shape, source, matcher, counter)
     }
 
+    #[must_use]
     pub fn new_var<M: Matcher>(
         type_shape: TypeShape<PT>,
         source: Option<Source>,
@@ -119,7 +131,7 @@ pub const fn create_static_signature<PT: ProtocolTypes>(
 
 #[macro_export]
 macro_rules! define_signature {
-    ($name_signature:ident<$protocol_types:ident>, $($f:path)+) => {
+    ($name_signature:ident<$protocol_types:ident>, $($f:path $([$flags:expr])*)+) => {
         use $crate::algebra::signature::create_static_signature;
         use $crate::algebra::signature::StaticSignature;
         use $crate::algebra::signature::Signature;
@@ -128,9 +140,27 @@ macro_rules! define_signature {
         /// for linking function implementations to serialized data.
         ///
         /// Note: Changes in function symbols may cause deserialization of term to fail.
+        #[allow(unused_mut)]
         pub static $name_signature: StaticSignature<$protocol_types> = create_static_signature(|| {
+
             let definitions = vec![
-                $($crate::algebra::dynamic_function::make_dynamic(&$f)),*
+                $(
+                    {
+                        let mut attrs = FunctionAttributes::default();
+                        {  // Process option attributes
+                            $(
+                                let flag = stringify!($flags);
+                                match flag {
+                                    "opaque" => attrs.is_opaque = true,
+                                    "list" => attrs.is_list = true,
+                                    "get" => attrs.is_get = true,
+                                    _ => {},
+                                }
+                            )*
+                        }
+                        ($crate::algebra::dynamic_function::make_dynamic(&$f), attrs)
+                    }
+                ),+
             ];
             Signature::new(definitions)
         });

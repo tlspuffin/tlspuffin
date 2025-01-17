@@ -7,16 +7,17 @@ use std::{env, fs};
 use clap::parser::ValuesRef;
 use clap::{arg, crate_authors, crate_name, crate_version, value_parser, Command};
 use libafl::inputs::Input;
+use libafl_bolts::prelude::Cores;
 
 use crate::agent::AgentName;
-use crate::codec::Codec;
+use crate::algebra::TermType;
 use crate::execution::{ForkedRunner, Runner, TraceRunner};
-use crate::experiment::*;
+use crate::experiment::{format_title, write_experiment_markdown};
 use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
 use crate::fuzzer::{start, FuzzerConfig};
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
-use crate::protocol::{ProtocolBehavior, ProtocolMessage};
+use crate::protocol::ProtocolBehavior;
 use crate::put::PutDescriptor;
 use crate::put_registry::{PutRegistry, TCP_PUT};
 use crate::trace::{Action, Spawner, Trace, TraceContext};
@@ -40,11 +41,13 @@ where
         .arg(arg!(--tui "Display fuzzing logs using the interactive terminal UI"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
+        .arg(arg!(--"wo-bit" "Disable bit-level mutations"))
+        .arg(arg!(--"wo-dy" "Disable DY mutations"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
-                         .arg(arg!(-d --description <d> "Description of the experiment"))
+                .arg(arg!(-d --description [d] "Description of the experiment"))
             ,
             Command::new("seed").about("Generates seeds to ./seeds"),
             Command::new("plot")
@@ -87,7 +90,7 @@ where
     let handle = match log4rs::init_config(config_default()) {
         Ok(handle) => handle,
         Err(err) => {
-            eprintln!("error: failed to initialize logging: {:?}", err);
+            eprintln!("error: failed to initialize logging: {err:?}");
             return ExitCode::FAILURE;
         }
     };
@@ -96,6 +99,10 @@ where
 
     let first_core = "0".to_string();
     let core_definition = matches.get_one("cores").unwrap_or(&first_core);
+    let num_cores = Cores::from_cmdline(core_definition.as_str())
+        .unwrap()
+        .ids
+        .len();
     let port: u16 = *matches.get_one::<u16>("port").unwrap_or(&1337u16);
     let static_seed: Option<u64> = matches.get_one("seed").copied();
     let max_iters: Option<u64> = matches.get_one("max-iters").copied();
@@ -103,13 +110,15 @@ where
     let tui = matches.get_flag("tui");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
+    let without_bit_level = matches.get_flag("wo-bit");
+    let without_dy_mutations = matches.get_flag("wo-dy");
 
     log::info!("Git Version: {}", crate::GIT_REF);
     log::info!("Put Versions:");
 
     for (id, put) in put_registry.puts() {
         log::info!("({:?}) {}:", put.kind(), id);
-        for (component, version) in put.versions().into_iter() {
+        for (component, version) in put.versions() {
             log::info!("    {}: {}", component, version);
         }
     }
@@ -121,7 +130,7 @@ where
 
     let mut options: Vec<(String, String)> = Vec::new();
     if put_use_clear {
-        options.push(("use_clear".to_string(), put_use_clear.to_string()))
+        options.push(("use_clear".to_string(), put_use_clear.to_string()));
     }
 
     let default_put = PutDescriptor::new(put_registry.default().name(), options);
@@ -217,7 +226,7 @@ where
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap()
                     .as_millis()
-            )
+            );
         }
 
         if end_reached {
@@ -291,15 +300,15 @@ where
         let mut options = vec![("port", port.as_str()), ("host", host)];
 
         if let Some(prog) = prog {
-            options.push(("prog", prog))
+            options.push(("prog", prog));
         }
 
         if let Some(args) = args {
-            options.push(("args", args))
+            options.push(("args", args));
         }
 
         if let Some(cwd) = cwd {
-            options.push(("cwd", cwd))
+            options.push(("cwd", cwd));
         }
 
         let server = trace.descriptors[0].name;
@@ -317,17 +326,35 @@ where
         return ExitCode::SUCCESS;
     } else {
         let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
-            let title: &String = matches.get_one("title").unwrap();
-            let description: &String = matches.get_one("description").unwrap();
+            let git_ref = "_".to_string();
+            let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
             let experiments_root = PathBuf::new().join("experiments");
-            let experiment_path = experiments_root.join(format_title(Some(title), None));
-            if experiment_path.as_path().exists() {
-                panic!("Experiment already exists. Consider creating a new experiment.")
-            }
+            let format_t = format_title(
+                Some(title),
+                None,
+                &put_registry,
+                without_bit_level,
+                without_dy_mutations,
+                put_use_clear,
+                minimizer,
+                num_cores,
+            );
+            let experiment_path = experiments_root.join(format_t.clone());
+            assert!(
+                !experiment_path.as_path().exists(),
+                "Experiment already exists. Consider creating a new experiment."
+            );
 
-            if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, &put_registry)
-            {
+            let base_dec = format_t;
+            let description: &String = matches.get_one("description").unwrap_or(&base_dec);
+            if let Err(err) = write_experiment_markdown(
+                &experiment_path,
+                title,
+                description,
+                &put_registry,
+                matches,
+                port,
+            ) {
                 log::error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
             }
@@ -337,20 +364,43 @@ where
             let description = "No Description, because this is a quick experiment.";
             let experiments_root = PathBuf::from("experiments");
 
-            let title = format_title(None, None);
+            let title = format_title(
+                None,
+                None,
+                &put_registry,
+                without_bit_level,
+                without_dy_mutations,
+                put_use_clear,
+                minimizer,
+                num_cores,
+            );
 
             let mut experiment_path = experiments_root.join(&title);
 
             let mut i = 1;
             while experiment_path.as_path().exists() {
-                let title = format_title(None, Some(i));
+                let title = format_title(
+                    None,
+                    Some(i),
+                    &put_registry,
+                    without_bit_level,
+                    without_dy_mutations,
+                    put_use_clear,
+                    minimizer,
+                    num_cores,
+                );
                 experiment_path = experiments_root.join(title);
                 i += 1;
             }
 
-            if let Err(err) =
-                write_experiment_markdown(&experiment_path, title, description, &put_registry)
-            {
+            if let Err(err) = write_experiment_markdown(
+                &experiment_path,
+                title,
+                description,
+                &put_registry,
+                &matches,
+                port,
+            ) {
                 log::error!("Failed to write readme: {:?}", err);
                 return ExitCode::FAILURE;
             }
@@ -364,7 +414,7 @@ where
             return ExitCode::FAILURE;
         }
 
-        let config = FuzzerConfig {
+        let mut config = FuzzerConfig {
             initial_corpus_dir: PathBuf::from("./seeds"),
             static_seed,
             max_iters,
@@ -381,10 +431,17 @@ where
             no_launcher,
         };
 
+        if without_bit_level {
+            config.mutation_config.with_bit_level = false;
+        }
+        if without_dy_mutations {
+            config.mutation_config.with_dy = false;
+        }
+
         if let Err(err) = start::<PB>(&put_registry, config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {
-                    log::info!("\nFuzzing stopped by user. Good Bye.")
+                    log::info!("\nFuzzing stopped by user. Good Bye.");
                 }
                 _ => {
                     panic!("Fuzzing failed {err:?}")
@@ -420,9 +477,9 @@ fn plot<PB: ProtocolBehavior>(
 
     if is_multiple {
         for (i, subgraph) in trace.dot_subgraphs(true).iter().enumerate() {
-            let wrapped_subgraph = format!("strict digraph \"\" {{ splines=true; {} }}", subgraph);
+            let wrapped_subgraph = format!("strict digraph \"\" {{ splines=true; {subgraph} }}");
             write_graphviz(
-                format!("{}_{}.{}", output_prefix, i, format).as_str(),
+                format!("{output_prefix}_{i}.{format}").as_str(),
                 format,
                 wrapped_subgraph.as_str(),
             )
@@ -439,7 +496,7 @@ fn seed<PB: ProtocolBehavior>(
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
     for (trace, name) in PB::create_corpus() {
-        trace.to_file(format!("./seeds/{}.trace", name))?;
+        trace.to_file(format!("./seeds/{name}.trace"))?;
     }
 
     log::info!("Generated seed traces into the directory ./seeds");
@@ -447,12 +504,11 @@ fn seed<PB: ProtocolBehavior>(
 }
 
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) {
-    let trace = match Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
-        Ok(t) => t,
-        Err(_) => {
-            log::error!("Invalid trace file {}", input.as_ref().display());
-            return;
-        }
+    let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
+        t
+    } else {
+        log::error!("Invalid trace file {}", input.as_ref().display());
+        return;
     };
 
     log::info!("Agents: {:?}", &trace.descriptors);
@@ -486,20 +542,9 @@ fn binary_attack<PB: ProtocolBehavior>(
         match step.action {
             Action::Input(input) => {
                 if let Ok(evaluated) = input.recipe.evaluate(&ctx) {
-                    if let Some(msg) = evaluated.as_any().downcast_ref::<PB::ProtocolMessage>() {
-                        let mut data: Vec<u8> = Vec::new();
-                        msg.create_opaque().encode(&mut data);
-                        f.write_all(&data).expect("Unable to write data");
-                    } else if let Some(opaque_message) = evaluated
-                        .as_any()
-                        .downcast_ref::<PB::OpaqueProtocolMessage>()
-                    {
-                        let mut data: Vec<u8> = Vec::new();
-                        opaque_message.encode(&mut data);
-                        f.write_all(&data).expect("Unable to write data");
-                    } else {
-                        log::error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!")
-                    }
+                    f.write_all(&evaluated).expect("Unable to write data");
+                } else {
+                    log::error!("Recipe is not a `ProtocolMessage` or `OpaqueProtocolMessage`!");
                 }
             }
             Action::Output(_) => {}

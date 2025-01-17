@@ -13,12 +13,14 @@ pub struct PutOptions {
 }
 
 impl PutOptions {
-    pub fn new(options: Vec<(String, String)>) -> Self {
+    #[must_use]
+    pub const fn new(options: Vec<(String, String)>) -> Self {
         Self { options }
     }
 }
 
 impl PutOptions {
+    #[must_use]
     pub fn get_option(&self, key: &str) -> Option<&str> {
         self.options
             .iter()
@@ -61,7 +63,7 @@ where
     S: Into<String>,
 {
     fn from(name: S) -> Self {
-        PutDescriptor::new(name, PutOptions::default())
+        Self::new(name, PutOptions::default())
     }
 }
 

@@ -18,7 +18,6 @@ pub mod stream;
 pub mod test_utils;
 pub mod trace;
 pub mod trace_helper;
-pub mod variable_data;
 
 pub use {libafl, libafl_bolts};
 

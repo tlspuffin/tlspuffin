@@ -22,6 +22,8 @@ pub fn fn_seq_2() -> Result<u64, FnError> {
 pub fn fn_seq_3() -> Result<u64, FnError> {
     Ok(3)
 }
+// No symbolic use of sequence number >=4, could be removed if bit-level mutations
+// are allowed on this type
 pub fn fn_seq_4() -> Result<u64, FnError> {
     Ok(4)
 }

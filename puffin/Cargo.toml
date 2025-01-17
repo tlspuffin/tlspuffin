@@ -17,6 +17,7 @@ categories.workspace = true
 sancov_pcguard_log = []
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov are mutally exclusive
 sancov = ["libafl_targets/sancov_pcguard_hitcounts"]
+asan = []
 
 introspection = ["libafl/introspection"]
 
@@ -48,6 +49,8 @@ itertools = { workspace = true }
 serde_json = { workspace = true }
 nix = { workspace = true, features = ["process", "signal"] }
 signal-hook = { workspace = true, features = ["iterator", "extended-siginfo"] }
+anyhow = { workspace = true }
+derivative = { workspace = true }
 
 [dev-dependencies]
 test-log = { workspace = true }

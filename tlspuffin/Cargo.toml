@@ -289,6 +289,9 @@ client-authentication-transcript-extraction = []
 
 introspection = ["puffin/introspection"]
 
+# Enable rustls guards rejecting ill-formed messages, those were disabled by default to allow the fuzzer to explore more messages
+enable-guards = []
+
 # utility functions for testing tlspuffin
 test-utils = ["tempfile"]
 
@@ -297,6 +300,7 @@ test-utils = ["tempfile"]
 puffin = { path = "../puffin" }
 
 log = { workspace = true }
+#features = ["release_max_level_off", "max_level_warn"]
 itertools = { workspace = true }
 libc = { workspace = true }
 hex = { workspace = true }

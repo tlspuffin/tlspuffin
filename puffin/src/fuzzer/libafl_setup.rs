@@ -8,8 +8,7 @@ use libafl_bolts::prelude::*;
 use log4rs::Handle;
 
 use super::harness;
-use crate::fuzzer::mutations::trace_mutations;
-use crate::fuzzer::mutations::util::TermConstraints;
+use crate::fuzzer::mutations::{trace_mutations, MutationConfig};
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::log::{config_fuzzing, config_fuzzing_client};
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
@@ -55,32 +54,6 @@ impl Default for MutationStageConfig {
         Self {
             max_iterations_per_stage: 256,
             max_mutations_per_iteration: 16,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct MutationConfig {
-    pub fresh_zoo_after: u64,
-    pub max_trace_length: usize,
-    pub min_trace_length: usize,
-    /// Below this term size we no longer mutate. Note that it is possible to reach
-    /// smaller terms by having a mutation which removes all symbols in a single mutation.
-    /// Above this term size we no longer mutate.
-    pub term_constraints: TermConstraints,
-}
-
-impl Default for MutationConfig {
-    //  TODO:EVAL: evaluate modifications of this config
-    fn default() -> Self {
-        Self {
-            fresh_zoo_after: 100000,
-            max_trace_length: 15,
-            min_trace_length: 2,
-            term_constraints: TermConstraints {
-                min_term_size: 0,
-                max_term_size: 300,
-            },
         }
     }
 }
@@ -384,7 +357,7 @@ where
             false,
         );
 
-        return {
+        {
             let time_observer = TimeObserver::new("time");
             let edges_observer =
                 HitcountsMapObserver::new(unsafe { StdMapObserver::new(EDGES_OBSERVER_NAME, map) });
@@ -399,7 +372,7 @@ where
             );
             let observers = tuple_list!(edges_observer, time_observer);
             (feedback, observers)
-        };
+        }
     }
 }
 
@@ -428,6 +401,8 @@ where
                 max_trace_length,
                 min_trace_length,
                 term_constraints,
+                with_bit_level,
+                with_dy,
             },
         ..
     } = &config;
@@ -448,12 +423,15 @@ where
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder
-            .with_mutations(trace_mutations(
+            .with_mutations(trace_mutations::<_, _, PB>(
                 *min_trace_length,
                 *max_trace_length,
                 *term_constraints,
                 *fresh_zoo_after,
+                *with_bit_level,
+                *with_dy,
                 <PB::ProtocolTypes as ProtocolTypes>::signature(),
+                put_registry,
             ))
             .with_initial_inputs(PB::create_corpus())
             .with_rand(StdRand::new())

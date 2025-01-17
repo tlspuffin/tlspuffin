@@ -1,6 +1,7 @@
 //! The communication streams between [`Agent`](crate::agent::Agent)s.
 //!
 //! These are currently implemented by using an in-memory buffer.
+//!
 //! One might ask why we want two channels. There two very practical reasons
 //! for this. Note that these are advantages for the implementation and are not
 //! strictly required from a theoretical point of view.
@@ -21,12 +22,13 @@
 
 use std::io::{self, Read, Write};
 
+use crate::algebra::ConcreteMessage;
 use crate::codec::Codec;
 use crate::error::Error;
 use crate::protocol::ProtocolBehavior;
 
 pub trait Stream<PB: ProtocolBehavior> {
-    fn add_to_inbound(&mut self, message_flight: &PB::OpaqueProtocolMessageFlight);
+    fn add_to_inbound(&mut self, message: &ConcreteMessage);
 
     /// Takes a single TLS message from the outbound channel
     fn take_message_from_outbound(
@@ -40,10 +42,10 @@ pub trait Stream<PB: ProtocolBehavior> {
 /// in [`MemoryStream`]. Internally a Channel is just an in-memory seekable buffer.
 pub type Channel = io::Cursor<Vec<u8>>;
 
-/// A MemoryStream has two [`Channel`]s. The Stream also implements the [`Write`] and [`Read`]
+/// A `MemoryStream` has two [`Channel`]s. The Stream also implements the [`Write`] and [`Read`]
 /// trait.
-/// * When writing to a MemoryStream its outbound channel gets filled.
-/// * When reading from a MemoryStream data is taken from the inbound channel.
+/// * When writing to a `MemoryStream` its outbound channel gets filled.
+/// * When reading from a `MemoryStream` data is taken from the inbound channel.
 ///
 /// This makes it possible for an [`crate::agent::Agent`] to treat a [`MemoryStream`] like a TLS
 /// socket! By writing to this socket you are sending data out. By reading from it you receive data.
@@ -57,6 +59,7 @@ pub struct MemoryStream {
 }
 
 impl MemoryStream {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             inbound: io::Cursor::new(Vec::new()),
@@ -66,15 +69,15 @@ impl MemoryStream {
 }
 
 impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream {
-    fn add_to_inbound(&mut self, message_flight: &PB::OpaqueProtocolMessageFlight) {
-        message_flight.encode(self.inbound.get_mut());
+    fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        message.encode(self.inbound.get_mut());
     }
 
     fn take_message_from_outbound(
         &mut self,
     ) -> Result<Option<PB::OpaqueProtocolMessageFlight>, Error> {
         let flight =
-            PB::OpaqueProtocolMessageFlight::read_bytes(&mut self.outbound.get_ref().as_slice());
+            PB::OpaqueProtocolMessageFlight::read_bytes(self.outbound.get_ref().as_slice());
         self.outbound.set_position(0);
         self.outbound.get_mut().clear();
 

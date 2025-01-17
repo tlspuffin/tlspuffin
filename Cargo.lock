@@ -1584,9 +1584,11 @@ name = "puffin"
 version = "0.1.0"
 dependencies = [
  "ahash",
+ "anyhow",
  "cfg-if",
  "chrono",
  "clap",
+ "derivative",
  "dyn-clone",
  "env_logger",
  "itertools 0.13.0",

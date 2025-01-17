@@ -5,16 +5,36 @@ use std::path::Path;
 use std::{fs, io};
 
 use chrono::Local;
+use clap::ArgMatches;
 use itertools::Itertools;
 
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
 use crate::{GIT_MSG, GIT_REF};
 
-pub fn format_title(title: Option<&str>, index: Option<usize>) -> String {
-    let date = Local::now().format("%Y-%m-%d-%H%M%S");
+#[must_use]
+pub fn format_title<PB: ProtocolBehavior>(
+    title: Option<&str>,
+    index: Option<usize>,
+    put_registry: &PutRegistry<PB>,
+    without_bit_level: bool,
+    without_dy_mutations: bool,
+    put_use_clear: bool,
+    minimizer: bool,
+    num_cores: usize,
+) -> String {
+    let date = Local::now().format("%Y-%m-%d");
+    let hour = Local::now().format("%H-%M-%S");
+    let without_bit_level = if without_bit_level { "_wo-bit" } else { "" };
+    let without_dy_mutations = if without_dy_mutations { "_wo-dy" } else { "" };
+    let put_use_clear = if put_use_clear { "_put-use-clear" } else { "" };
+    let minimizer = if minimizer { "_minimizer" } else { "" };
+    let default_put: &str = &put_registry.default().versions().last().unwrap().1.clone();
+    let default_put_short = default_put.split('(').collect::<Vec<&str>>()[0].trim();
     format!(
-        "{date}-{title}-{index}",
+        "{date}\
+        --{default_put_short}-{num_cores}c{without_bit_level}{without_dy_mutations}{put_use_clear}{minimizer}__\
+        {title}--{hour}--{index}",
         date = date,
         title = title.unwrap_or(GIT_REF),
         index = index.unwrap_or(0)
@@ -26,6 +46,8 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
     title: impl Display,
     description_text: impl Display,
     put_registry: &PutRegistry<PB>,
+    commands: &ArgMatches,
+    port: u16,
 ) -> Result<String, io::Error> {
     let full_description = format!(
         "# Experiment: {title}\n\
@@ -33,6 +55,8 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
                 * Date: {date}\n\
                 * Git Ref: {git_ref}\n\
                 * Git Commit: {git_msg}\n\
+                * Launched with: {command:?}\n\
+                * Port: {port}\n\
                 * Log: [tlspuffin.log](./tlspuffin.log)\n\n\
                 {description}\n",
         title = &title,
@@ -43,13 +67,14 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
                 n,
                 p.versions()
                     .into_iter()
-                    .map(|(c, v)| format!("{} ({})", c, v))
+                    .map(|(c, v)| format!("{c} ({v})"))
                     .join(" ")
             ))
             .join(", "),
         date = Local::now().to_rfc3339(),
         git_ref = GIT_REF,
         git_msg = GIT_MSG,
+        command = commands,
         description = description_text
     );
 

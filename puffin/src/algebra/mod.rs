@@ -1,8 +1,8 @@
-//! The *term* module defines typed[`Term`]s of the form `fn_add(x: u8, fn_square(y: u16)) → u16`.
+//! The *term* module defines typed[`DYTerm`]s of the form `fn_add(x: u8, fn_square(y: u16)) → u16`.
 //!
 //! Each function like `fn_add` or `fn_square` has a shape. The variables `x` and `y` each have a
 //! type. These types allow type checks during the runtime of the fuzzer.
-//! These checks restrict how[`Term`]scan be mutated in the *fuzzer* module.
+//! These checks restrict how[`DYTerm`]scan be mutated in the *fuzzer* module.
 
 // Code in this directory is derived from https://github.com/joshrule/term-rewriting-rs/
 // and is licensed under:
@@ -38,6 +38,7 @@ use serde::{Deserialize, Serialize};
 pub use self::term::*;
 
 pub mod atoms;
+pub mod bitstrings;
 pub mod dynamic_function;
 pub mod error;
 pub mod macros;
@@ -91,76 +92,81 @@ impl Matcher for AnyMatcher {
 #[cfg(test)]
 #[allow(clippy::ptr_arg)]
 pub mod test_signature {
-    use std::any::{Any, TypeId};
+    use std::any::TypeId;
     use std::fmt;
-    use std::fmt::{Debug, Display};
     use std::io::Read;
 
     use serde::{Deserialize, Serialize};
 
     use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
-    use crate::algebra::dynamic_function::TypeShape;
+    use crate::algebra::dynamic_function::{FunctionAttributes, TypeShape};
     use crate::algebra::error::FnError;
     use crate::algebra::{AnyMatcher, Term};
     use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
-    use crate::codec::{Codec, Reader};
+    use crate::codec::{CodecP, Reader};
     use crate::error::Error;
     use crate::protocol::{
-        EvaluatedTerm, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolBehavior,
-        ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
+        EvaluatedTerm, Extractable, OpaqueProtocolMessage, OpaqueProtocolMessageFlight,
+        ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
+        ProtocolTypes,
     };
     use crate::put::{Put, PutOptions};
     use crate::put_registry::{Factory, PutKind};
     use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace};
-    use crate::variable_data::VariableData;
-    use crate::{define_signature, dummy_extract_knowledge, term, VERSION_STR};
+    use crate::{
+        codec, define_signature, dummy_codec, dummy_extract_knowledge,
+        dummy_extract_knowledge_codec, term, VERSION_STR,
+    };
 
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct HmacKey;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct HandshakeMessage;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Encrypted;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct ProtocolVersion;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Random;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct ClientExtension;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct ClientExtensions;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Group;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct SessionID;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct CipherSuites;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct CipherSuite;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Compression;
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct Compressions;
 
-    dummy_extract_knowledge!(TestProtocolTypes, HmacKey);
-    dummy_extract_knowledge!(TestProtocolTypes, HandshakeMessage);
-    dummy_extract_knowledge!(TestProtocolTypes, Encrypted);
-    dummy_extract_knowledge!(TestProtocolTypes, ProtocolVersion);
-    dummy_extract_knowledge!(TestProtocolTypes, Random);
-    dummy_extract_knowledge!(TestProtocolTypes, ClientExtension);
-    dummy_extract_knowledge!(TestProtocolTypes, ClientExtensions);
-    dummy_extract_knowledge!(TestProtocolTypes, Group);
-    dummy_extract_knowledge!(TestProtocolTypes, SessionID);
-    dummy_extract_knowledge!(TestProtocolTypes, CipherSuites);
-    dummy_extract_knowledge!(TestProtocolTypes, CipherSuite);
-    dummy_extract_knowledge!(TestProtocolTypes, Compression);
-    dummy_extract_knowledge!(TestProtocolTypes, Compressions);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, HmacKey);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, HandshakeMessage);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, Encrypted);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, ProtocolVersion);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, Random);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, ClientExtension);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, ClientExtensions);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, Group);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, SessionID);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, CipherSuites);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, CipherSuite);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, Compression);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, Compressions);
     dummy_extract_knowledge!(TestProtocolTypes, u8);
     dummy_extract_knowledge!(TestProtocolTypes, u16);
     dummy_extract_knowledge!(TestProtocolTypes, u32);
     dummy_extract_knowledge!(TestProtocolTypes, u64);
 
-    impl<T: std::fmt::Debug + Clone + 'static> EvaluatedTerm<TestProtocolTypes> for Vec<T> {
+    impl<T: std::fmt::Debug + Clone + 'static + CodecP> Extractable<TestProtocolTypes> for Vec<T>
+    where
+        Vec<T>: CodecP,
+    {
         fn extract_knowledge<'a>(
             &'a self,
             knowledges: &mut Vec<Knowledge<'a, TestProtocolTypes>>,
@@ -284,7 +290,7 @@ pub mod test_signature {
     }
 
     pub fn example_op_c(a: &u8) -> Result<u16, FnError> {
-        Ok((a + 1) as u16)
+        Ok(u16::from(a + 1))
     }
 
     fn create_client_hello() -> TestTerm {
@@ -323,6 +329,7 @@ pub mod test_signature {
         }
     }
 
+    #[must_use]
     pub fn setup_simple_trace() -> TestTrace {
         let server = AgentName::first();
         let client_hello = create_client_hello();
@@ -388,31 +395,10 @@ pub mod test_signature {
     pub type TestTrace = Trace<TestProtocolTypes>;
     pub type TestTerm = Term<TestProtocolTypes>;
 
+    #[derive(Clone)]
     pub struct TestClaim;
 
-    dummy_extract_knowledge!(TestProtocolTypes, TestClaim);
-
-    impl VariableData<TestProtocolTypes> for TestClaim {
-        fn boxed(&self) -> Box<dyn VariableData<TestProtocolTypes>> {
-            panic!("Not implemented for test stub");
-        }
-
-        fn boxed_any(&self) -> Box<dyn Any> {
-            panic!("Not implemented for test stub");
-        }
-
-        fn type_id(&self) -> TypeId {
-            panic!("Not implemented for test stub");
-        }
-
-        fn type_name(&self) -> &'static str {
-            panic!("Not implemented for test stub");
-        }
-
-        fn boxed_term(&self) -> Box<dyn EvaluatedTerm<TestProtocolTypes>> {
-            panic!("Not implemented for test stub");
-        }
-    }
+    dummy_extract_knowledge_codec!(TestProtocolTypes, TestClaim);
 
     impl fmt::Debug for TestClaim {
         fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
@@ -448,12 +434,12 @@ pub mod test_signature {
         }
     }
 
-    impl Codec for TestOpaqueMessage {
+    impl CodecP for TestOpaqueMessage {
         fn encode(&self, _bytes: &mut Vec<u8>) {
             panic!("Not implemented for test stub");
         }
 
-        fn read(_: &mut Reader) -> Option<Self> {
+        fn read(&mut self, _: &mut Reader) -> Result<(), Error> {
             panic!("Not implemented for test stub");
         }
     }
@@ -490,7 +476,7 @@ pub mod test_signature {
         }
     }
 
-    dummy_extract_knowledge!(TestProtocolTypes, TestMessage);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, TestMessage);
 
     pub struct TestMessageDeframer;
 
@@ -545,7 +531,7 @@ pub mod test_signature {
         }
     }
 
-    dummy_extract_knowledge!(TestProtocolTypes, TestMessageFlight);
+    dummy_extract_knowledge_codec!(TestProtocolTypes, TestMessageFlight);
 
     impl From<TestMessage> for TestMessageFlight {
         fn from(_value: TestMessage) -> Self {
@@ -553,7 +539,7 @@ pub mod test_signature {
         }
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Default)]
     pub struct TestOpaqueMessageFlight;
 
     impl OpaqueProtocolMessageFlight<TestProtocolTypes, TestOpaqueMessage> for TestOpaqueMessageFlight {
@@ -578,7 +564,7 @@ pub mod test_signature {
         }
     }
 
-    impl Codec for TestOpaqueMessageFlight {
+    impl codec::Codec for TestOpaqueMessageFlight {
         fn encode(&self, _bytes: &mut Vec<u8>) {
             panic!("Not implemented for test stub");
         }
@@ -601,17 +587,17 @@ pub mod test_signature {
         type Matcher = AnyMatcher;
 
         fn signature() -> &'static Signature<Self> {
-            panic!("Not implemented for test stub");
+            &TEST_SIGNATURE
         }
     }
 
-    impl Display for TestProtocolTypes {
+    impl fmt::Display for TestProtocolTypes {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
             write!(f, "")
         }
     }
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Eq)]
     pub struct TestProtocolBehavior;
 
     impl ProtocolBehavior for TestProtocolBehavior {
@@ -625,6 +611,13 @@ pub mod test_signature {
 
         fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
             panic!("Not implemented for test stub");
+        }
+
+        fn try_read_bytes(
+            _bitstring: &[u8],
+            _ty: TypeId,
+        ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
+            Err(Error::Term("try_read_bytes not implemented".to_owned()))
         }
     }
 
@@ -671,7 +664,8 @@ mod tests {
     use crate::algebra::atoms::Variable;
     use crate::algebra::dynamic_function::TypeShape;
     use crate::algebra::signature::Signature;
-    use crate::algebra::{AnyMatcher, Term};
+    use crate::algebra::term::TermType;
+    use crate::algebra::{AnyMatcher, DYTerm, Term};
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
     use crate::trace::{Source, Spawner, TraceContext};
@@ -730,7 +724,7 @@ mod tests {
 
         let data = "hello".as_bytes().to_vec();
 
-        //println!("TypeId of vec array {:?}", data.type_id());
+        // log::debug!("TypeId of vec array {:?}", data.type_id());
 
         let variable: Variable<TestProtocolTypes> = Signature::new_var(
             TypeShape::of::<Vec<u8>>(),
@@ -739,15 +733,15 @@ mod tests {
             0,
         );
 
-        let generated_term = Term::Application(
+        let generated_term = Term::from(DYTerm::Application(
             hmac256,
             vec![
-                Term::Application(hmac256_new_key, vec![]),
-                Term::Variable(variable),
+                Term::from(DYTerm::Application(hmac256_new_key, vec![])),
+                Term::from(DYTerm::Variable(variable)),
             ],
-        );
+        ));
 
-        //println!("{}", generated_term);
+        log::debug!("{}", generated_term);
 
         fn dummy_factory() -> Box<dyn Factory<TestProtocolBehavior>> {
             Box::new(TestFactory)
@@ -756,21 +750,22 @@ mod tests {
         let registry =
             PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
 
-        let spawner = Spawner::new(registry.clone());
+        let spawner = Spawner::new(registry);
         let mut context = TraceContext::new(spawner);
         context
             .knowledge_store
             .add_raw_knowledge(data, Source::Agent(AgentName::first()), None);
 
-        println!("{:?}", context.knowledge_store);
+        log::debug!("{:?}", context.knowledge_store);
 
         let _string = generated_term
-            .evaluate(&context)
+            .evaluate_dy(&context)
             .as_ref()
             .unwrap()
             .as_any()
-            .downcast_ref::<Vec<u8>>();
-        //println!("{:?}", string);
+            .downcast_ref::<Vec<u8>>()
+            .unwrap();
+        // log::debug!("{:?}", string);
     }
 
     #[test_log::test]
@@ -793,55 +788,70 @@ mod tests {
         let _string = Signature::new_function(&example_op_c).shape();
         //println!("{}", string);
 
-        let constructed_term = Term::<TestProtocolTypes>::Application(
+        let constructed_term = Term::<TestProtocolTypes>::from(DYTerm::Application(
             Signature::new_function(&example_op_c),
             vec![
-                Term::Application(
+                Term::from(DYTerm::Application(
                     Signature::new_function(&example_op_c),
                     vec![
-                        Term::Application(
+                        Term::from(DYTerm::Application(
                             Signature::new_function(&example_op_c),
                             vec![
-                                Term::Application(Signature::new_function(&example_op_c), vec![]),
-                                Term::Variable(
-                                    Signature::new_var_with_type::<SessionID, AnyMatcher>(
-                                        Some(Source::Agent(AgentName::first())),
-                                        None,
-                                        0,
-                                    ),
-                                ),
-                            ],
-                        ),
-                        Term::Variable(Signature::new_var_with_type::<SessionID, AnyMatcher>(
-                            Some(Source::Agent(AgentName::first())),
-                            None,
-                            0,
-                        )),
-                    ],
-                ),
-                Term::Application(
-                    Signature::new_function(&example_op_c),
-                    vec![
-                        Term::Application(
-                            Signature::new_function(&example_op_c),
-                            vec![
-                                Term::Variable(Signature::new_var_with_type::<SessionID, _>(
+                                Term::from(DYTerm::Application(
+                                    Signature::new_function(&example_op_c),
+                                    vec![],
+                                )),
+                                Term::from(DYTerm::Variable(Signature::new_var_with_type::<
+                                    SessionID,
+                                    AnyMatcher,
+                                >(
                                     Some(Source::Agent(AgentName::first())),
                                     None,
                                     0,
-                                )),
-                                Term::Application(Signature::new_function(&example_op_c), vec![]),
+                                ))),
                             ],
-                        ),
-                        Term::Variable(Signature::new_var_with_type::<SessionID, _>(
+                        )),
+                        Term::from(DYTerm::Variable(Signature::new_var_with_type::<
+                            SessionID,
+                            AnyMatcher,
+                        >(
                             Some(Source::Agent(AgentName::first())),
                             None,
                             0,
+                        ))),
+                    ],
+                )),
+                Term::from(DYTerm::Application(
+                    Signature::new_function(&example_op_c),
+                    vec![
+                        Term::from(DYTerm::Application(
+                            Signature::new_function(&example_op_c),
+                            vec![
+                                Term::from(DYTerm::Variable(Signature::new_var_with_type::<
+                                    SessionID,
+                                    _,
+                                >(
+                                    Some(Source::Agent(AgentName::first())),
+                                    None,
+                                    0,
+                                ))),
+                                Term::from(DYTerm::Application(
+                                    Signature::new_function(&example_op_c),
+                                    vec![],
+                                )),
+                            ],
+                        )),
+                        Term::from(DYTerm::Variable(
+                            Signature::new_var_with_type::<SessionID, _>(
+                                Some(Source::Agent(AgentName::first())),
+                                None,
+                                0,
+                            ),
                         )),
                     ],
-                ),
+                )),
             ],
-        );
+        ));
 
         //println!("{}", constructed_term);
         let _graph = constructed_term.dot_subgraph(true, 0, "test");

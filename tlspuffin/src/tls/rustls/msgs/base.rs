@@ -1,6 +1,12 @@
-use puffin::codec;
-use puffin::codec::{Codec, Reader};
+use std::fmt::Debug;
 
+use puffin::codec::{Codec, Reader};
+use puffin::error::Error;
+use puffin::protocol::{Extractable, ProtocolTypes};
+use puffin::trace::{Knowledge, Source};
+use puffin::{atom_extract_knowledge, codec};
+
+use crate::protocol::TLSProtocolTypes;
 use crate::tls::rustls::key;
 /// An externally length'd payload
 #[derive(Debug, Clone, PartialEq)]
@@ -131,3 +137,12 @@ impl Codec for PayloadU8 {
         Some(Self(body))
     }
 }
+
+// Make it VecCodecWoSize so that Vec<T>: Codec for free
+impl codec::VecCodecWoSize for PayloadU8 {}
+impl codec::VecCodecWoSize for PayloadU16 {}
+impl codec::VecCodecWoSize for PayloadU24 {}
+
+atom_extract_knowledge!(TLSProtocolTypes, PayloadU8);
+atom_extract_knowledge!(TLSProtocolTypes, PayloadU16);
+atom_extract_knowledge!(TLSProtocolTypes, PayloadU24);
