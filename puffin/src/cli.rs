@@ -116,6 +116,19 @@ where
     let without_dy_mutations = matches.get_flag("wo-dy");
     let target_put: Option<&String> = matches.get_one("put");
 
+    let mut put_registry = put_registry.clone();
+
+    if let Some(name) = target_put {
+        if let Err((available_puts, non_available_puts)) =
+            check_if_puts_exist(&put_registry, &[name])
+        {
+            log::error!("PUT not found : {}", non_available_puts.join(","));
+            log::error!("Available PUTs: {}", available_puts.join(","));
+            return ExitCode::FAILURE;
+        };
+        let _ = put_registry.set_default(name);
+    };
+
     log::info!("Version: {}", puffin::full_version());
     log::info!("Put Versions:");
     for (id, put) in put_registry.puts() {
@@ -124,6 +137,7 @@ where
             log::info!("    {}: {}", component, version);
         }
     }
+    log::info!("Default PUT: {}", put_registry.default_put_name());
 
     asan_info();
     setup_asan_env();
@@ -135,19 +149,7 @@ where
         options.push(("use_clear".to_string(), put_use_clear.to_string()));
     }
 
-    let default_put = match target_put {
-        Some(name) => {
-            if let Err((available_puts, non_available_puts)) =
-                check_if_puts_exist(&put_registry, &[name])
-            {
-                log::error!("PUT not found : {}", non_available_puts.join(","));
-                log::error!("Available PUTs: {}", available_puts.join(","));
-                return ExitCode::FAILURE;
-            };
-            PutDescriptor::new(name, options)
-        }
-        None => PutDescriptor::new(put_registry.default().name(), options),
-    };
+    let default_put = PutDescriptor::new(put_registry.default().name(), options);
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         if let Err(err) = seed(&put_registry, default_put) {
