@@ -34,7 +34,6 @@ postcard = { version = "*", features = ["alloc"] }
 
 # Logging
 log = { workspace = true }
-#features = ["release_max_level_off", "max_level_warn"]
 log4rs = { workspace = true }
 
 # Other Dependencies

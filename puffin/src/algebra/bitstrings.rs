@@ -44,7 +44,7 @@ pub struct EvalTree {
 }
 impl EvalTree {
     #[must_use]
-    pub const fn init() -> Self {
+    pub const fn empty() -> Self {
         Self {
             encode: None, /* will contain the bitstring encoding when sub-terms have payloads and
                            * when evaluation succeeds */
@@ -55,8 +55,8 @@ impl EvalTree {
     }
 
     #[must_use]
-    pub fn init_with_path(path: TermPath) -> Self {
-        let mut e_t = Self::init();
+    pub fn with_path(path: TermPath) -> Self {
+        let mut e_t = Self::empty();
         e_t.path = path;
         e_t
     }
@@ -64,18 +64,17 @@ impl EvalTree {
     #[allow(dead_code)]
     fn get(&self, path: &[usize]) -> Result<&Self, Error> {
         if path.is_empty() {
-            Ok(self)
-        } else {
-            let nb = path[0];
-            let path = &path[1..];
-            if self.args.len() <= nb {
-                Err(Error::Term(format!(
-                    "[replace_payloads] [get] Should never happen! EvalTree: {self:?}\n, path: {path:?}"
-                )))
-            } else {
-                self.args[nb].get(path)
-            }
+            return Ok(self);
         }
+
+        let nb = path[0];
+        let path = &path[1..];
+        if self.args.len() <= nb {
+            return Err(Error::Term(format!(
+                "[replace_payloads] [get] Should never happen! EvalTree: {self:?}\n, path: {path:?}"
+            )));
+        }
+        self.args[nb].get(path)
     }
 }
 
@@ -105,7 +104,6 @@ impl<PT: ProtocolTypes> Term<PT> {
     pub(crate) fn eval_until_opaque<PB>(
         &self,
         eval_tree: &mut EvalTree,
-        path: TermPath,
         ctx: &TraceContext<PB>,
         with_payloads: bool,
         sibling_has_payloads: bool,
@@ -126,7 +124,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 let p_c = vec![PayloadContext {
                     of_term: self,
                     payloads: payload,
-                    path,
+                    path: eval_tree.path.clone(),
                 }];
                 eval_tree.encode = Some(payload.payload_0.bytes().to_vec());
                 return Ok((di, p_c));
@@ -148,7 +146,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                         }
                     })
                     .ok_or_else(|| Error::Term(format!("Unable to find variable {variable}!")))?;
-                if with_payloads && (path.is_empty() || (self.payloads.is_some())) {
+                if with_payloads && (eval_tree.path.is_empty() || (self.payloads.is_some())) {
                     if let Some(payload) = &self.payloads {
                         log::trace!("        / We retrieve evaluation for eval_tree from payload.");
                         eval_tree.encode = Some(payload.payload_0.clone().into());
@@ -157,23 +155,26 @@ impl<PT: ProtocolTypes> Term<PT> {
                         log::trace!("        / No payload so we evaluated into: {eval:?}");
                         eval_tree.encode = Some(eval);
                     }
-                    if with_payloads && self.payloads.is_some() {
-                        log::trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {path:?}, payload is: {:?} and eval is: {:?}", self.payloads.as_ref().unwrap(), PB::any_get_encoding(d.as_ref()));
+                    if self.payloads.is_some() {
+                        log::trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {:?}, payload is: {:?} and eval is: {:?}", eval_tree.path, self.payloads.as_ref().unwrap(), PB::any_get_encoding(d.as_ref()));
                         return Ok((
                             d,
                             vec![PayloadContext {
                                 of_term: self,
                                 payloads: self.payloads.as_ref().unwrap(),
-                                path,
+                                path: eval_tree.path.clone(),
                             }],
                         ));
                     }
                 }
-                log::trace!("[eval_until_opaque] [Var] Did not add a payload for a leaf at path: {path:?} and eval is: {:?}", PB::any_get_encoding(d.as_ref()));
+                log::trace!("[eval_until_opaque] [Var] Did not add a payload for a leaf at path: {:?} and eval is: {:?}", eval_tree.path, PB::any_get_encoding(d.as_ref()));
                 Ok((d, vec![]))
             }
             DYTerm::Application(func, args) => {
-                log::trace!("[eval_until_opaque] [App]: Application from path={path:?}");
+                log::trace!(
+                    "[eval_until_opaque] [App]: Application from path={:?}",
+                    eval_tree.path
+                );
                 let mut dynamic_args: Vec<Box<dyn EvaluatedTerm<PT>>> = Vec::new(); // will contain all the arguments on which to call the function symbol
                                                                                     // implementation
                 let mut all_payloads = vec![]; // will collect all payloads contexts of arguments (except those under opaque
@@ -181,7 +182,10 @@ impl<PT: ProtocolTypes> Term<PT> {
                 let mut eval_tree_args = vec![]; // will collect the eval tree of the sub-terms, if `with_payloads`
                 let self_has_payloads_wo_root = self.has_payload_to_replace_wo_root();
                 for (i, ti) in args.iter().enumerate() {
-                    log::trace!("  + Treating argument # {i} from path {path:?}...");
+                    log::trace!(
+                        "  + Treating argument # {i} from path {:?}...",
+                        eval_tree.path
+                    );
                     if with_payloads && self.is_opaque() && ti.has_payload_to_replace() {
                         // Fully evaluate this sub-term and consume the payloads
                         log::trace!("    * [eval_until_opaque] Opaque and has payloads: Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
@@ -205,16 +209,15 @@ impl<PT: ProtocolTypes> Term<PT> {
                         dynamic_args.push(di); // no need to add payloads to all_p as they were
                                                // consumed (opaque function symbol)
                     } else {
-                        let mut path_i = path.clone();
+                        let mut path_i = eval_tree.path.clone();
                         path_i.push(i); // adding `i` for i-th argument
                         let mut eval_tree_i = if with_payloads {
-                            EvalTree::init_with_path(path_i.clone())
+                            EvalTree::with_path(path_i.clone())
                         } else {
-                            EvalTree::init_with_path(vec![]) // dummy eval_tree
+                            EvalTree::with_path(vec![]) // dummy eval_tree
                         };
                         let (di, mut p_s) = ti.eval_until_opaque(
                             &mut eval_tree_i,
-                            path_i,
                             ctx,
                             with_payloads,
                             self_has_payloads_wo_root,
@@ -225,7 +228,10 @@ impl<PT: ProtocolTypes> Term<PT> {
                             eval_tree_args.push(eval_tree_i);
                             all_payloads.append(p_s.as_mut()); // collect the payloads
                         }
-                        log::trace!("  + Ending treating argument # {i} from path {path:?}...");
+                        log::trace!(
+                            "  + Ending treating argument # {i} from path {:?}...",
+                            eval_tree.path
+                        );
                     }
                 }
                 log::trace!("[eval_until_opaque] Now calling the function symbol {} implementation and then updating payloads...", func.name());
@@ -236,7 +242,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                     all_payloads.push(PayloadContext {
                         of_term: self,
                         payloads: self.payloads.as_ref().unwrap(),
-                        path: path.clone(),
+                        path: eval_tree.path.clone(),
                     });
                 }
 

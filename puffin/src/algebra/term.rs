@@ -11,7 +11,6 @@ use super::atoms::{Function, Variable};
 use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::error::Error;
-use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::TraceContext;
 
@@ -315,15 +314,14 @@ impl<PT: ProtocolTypes> Term<PT> {
 pub fn has_payload_to_replace_rec<PT: ProtocolTypes>(term: &Term<PT>, include_root: bool) -> bool {
     if let (Some(_), true) = (&term.payloads, include_root) {
         return true;
-    } else {
-        match &term.term {
-            DYTerm::Variable(_) => {}
-            DYTerm::Application(_, args) => {
-                if !term.is_opaque() {
-                    for t in args {
-                        if has_payload_to_replace_rec(t, true) {
-                            return true;
-                        }
+    }
+    match &term.term {
+        DYTerm::Variable(_) => {}
+        DYTerm::Application(_, args) => {
+            if !term.is_opaque() {
+                for t in args {
+                    if has_payload_to_replace_rec(t, true) {
+                        return true;
                     }
                 }
             }
@@ -404,11 +402,9 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         log::debug!("[evaluate_config] About to evaluate {}\n===================================================================", &self);
-        let mut eval_tree = EvalTree::init();
-        let path = TermPath::new();
+        let mut eval_tree = EvalTree::empty();
         let (m, all_payloads) = self.eval_until_opaque(
             &mut eval_tree,
-            path,
             context,
             with_payloads,
             false,
