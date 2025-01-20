@@ -93,17 +93,17 @@ impl<C: Claim> ClaimList<C> {
     pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
         // Here we sort the claims. This is mostly a heuristic
         let mut self_claims: Vec<&C> = self.claims.iter().collect();
-        self_claims.sort_by_key(|x| x.inner().type_name());
-        // self_claims = self_claims
-        //     .into_iter()
-        //     .dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
-        //     .collect();
+        self_claims.sort_by_key(|x| (x.inner().type_name(), x.agent_name()));
+        self_claims = self_claims
+            .into_iter()
+            .dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
+            .collect();
         let mut other_claims: Vec<&C> = other.claims.iter().collect();
-        other_claims.sort_by_key(|x| x.inner().type_name());
-        // other_claims = other_claims
-        //     .into_iter()
-        //     .dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
-        //     .collect();
+        other_claims.sort_by_key(|x| (x.inner().type_name(), x.agent_name()));
+        other_claims = other_claims
+            .into_iter()
+            .dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
+            .collect();
 
         let diffs = self_claims.comparison(&other_claims);
         match diffs {
