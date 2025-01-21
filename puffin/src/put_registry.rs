@@ -22,6 +22,20 @@ pub struct PutRegistry<PB> {
     default_put: String,
 }
 
+impl<PB> PutRegistry<PB> {
+    pub fn set_default(&mut self, name: &str) -> Result<(), String> {
+        if self.factories.get(name).is_none() {
+            return Err(format!("PUT {} not found in registry", name));
+        }
+        self.default_put = String::from(name);
+        Ok(())
+    }
+
+    pub fn default_put_name(&self) -> &str {
+        &self.default_put
+    }
+}
+
 impl<PB: ProtocolBehavior> PartialEq for PutRegistry<PB> {
     fn eq(&self, other: &Self) -> bool {
         self.default_put == other.default_put

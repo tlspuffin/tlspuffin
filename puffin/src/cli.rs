@@ -31,6 +31,7 @@ where
         .version(puffin::version())
         .author(crate_authors!())
         .about(title.as_ref().to_owned())
+        .arg(arg!(-T --put <T> "The PUT to use"))
         .arg(arg!(-c --cores [spec] "Sets the cores to use during fuzzing"))
         .arg(arg!(-s --seed [n] "(experimental) provide a seed for all clients")
             .value_parser(value_parser!(u64)))
@@ -42,7 +43,7 @@ where
         .arg(arg!(--tui "Display fuzzing logs using the interactive terminal UI"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
-        .arg(arg!(--"wo-bit" "Disable bit-level mutations"))
+        .arg(arg!(--"with-bit" "Enable bit-level mutations"))
         .arg(arg!(--"wo-dy" "Disable DY mutations"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
@@ -111,8 +112,22 @@ where
     let tui = matches.get_flag("tui");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
-    let without_bit_level = matches.get_flag("wo-bit");
+    let without_bit_level = !matches.get_flag("with-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
+    let target_put: Option<&String> = matches.get_one("put");
+
+    let mut put_registry = put_registry.clone();
+
+    if let Some(name) = target_put {
+        if let Err((available_puts, non_available_puts)) =
+            check_if_puts_exist(&put_registry, &[name])
+        {
+            log::error!("PUT not found : {}", non_available_puts.join(","));
+            log::error!("Available PUTs: {}", available_puts.join(","));
+            return ExitCode::FAILURE;
+        };
+        put_registry.set_default(name).unwrap();
+    };
 
     log::info!("Version: {}", puffin::full_version());
     log::info!("Put Versions:");
@@ -122,6 +137,7 @@ where
             log::info!("    {}: {}", component, version);
         }
     }
+    log::info!("Default PUT: {}", put_registry.default_put_name());
 
     asan_info();
     setup_asan_env();
@@ -431,6 +447,11 @@ where
             no_launcher,
         };
 
+        if without_bit_level && without_dy_mutations {
+            log::error!("Both bit-level and DY mutations are disabled. This is not supported.");
+            return ExitCode::FAILURE;
+        }
+
         if without_bit_level {
             config.mutation_config.with_bit_level = false;
         }
@@ -552,4 +573,28 @@ fn binary_attack<PB: ProtocolBehavior>(
         }
     }
     Ok(())
+}
+
+fn check_if_puts_exist<'a, 'b, PB: ProtocolBehavior>(
+    put_registry: &'b PutRegistry<PB>,
+    put_list: &[&'a str],
+) -> Result<(), (Vec<&'b str>, Vec<&'a str>)> {
+    let available_puts: Vec<&str> = put_registry.puts().map(|(name, _)| name).collect();
+
+    let non_available_puts: Vec<&str> = put_list
+        .iter()
+        .filter_map(|name| {
+            if available_puts.iter().any(|x| x == name) {
+                None
+            } else {
+                Some(*name)
+            }
+        })
+        .collect();
+
+    if non_available_puts.is_empty() {
+        Ok(())
+    } else {
+        Err((available_puts, non_available_puts))
+    }
 }

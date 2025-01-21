@@ -11,7 +11,6 @@ use super::atoms::{Function, Variable};
 use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::error::Error;
-use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::TraceContext;
 
@@ -306,7 +305,7 @@ impl<PT: ProtocolTypes> Term<PT> {
     }
 
     /// Return whether there is at least one payload, except those under opaque terms and at the
-    /// root..
+    /// root.
     pub fn has_payload_to_replace_wo_root(&self) -> bool {
         has_payload_to_replace_rec(self, false)
     }
@@ -315,15 +314,14 @@ impl<PT: ProtocolTypes> Term<PT> {
 pub fn has_payload_to_replace_rec<PT: ProtocolTypes>(term: &Term<PT>, include_root: bool) -> bool {
     if let (Some(_), true) = (&term.payloads, include_root) {
         return true;
-    } else {
-        match &term.term {
-            DYTerm::Variable(_) => {}
-            DYTerm::Application(_, args) => {
-                if !term.is_opaque() {
-                    for t in args {
-                        if has_payload_to_replace_rec(t, true) {
-                            return true;
-                        }
+    }
+    match &term.term {
+        DYTerm::Variable(_) => {}
+        DYTerm::Application(_, args) => {
+            if !term.is_opaque() {
+                for t in args {
+                    if has_payload_to_replace_rec(t, true) {
+                        return true;
                     }
                 }
             }
@@ -404,11 +402,9 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         log::debug!("[evaluate_config] About to evaluate {}\n===================================================================", &self);
-        let mut eval_tree = EvalTree::init();
-        let path = TermPath::new();
+        let mut eval_tree = EvalTree::empty();
         let (m, all_payloads) = self.eval_until_opaque(
             &mut eval_tree,
-            path,
             context,
             with_payloads,
             false,
@@ -418,10 +414,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         if with_payloads && !all_payloads.is_empty() {
             log::debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",
                     self, &all_payloads);
-            Ok((
-                replace_payloads(self, &mut eval_tree, all_payloads, context)?,
-                m,
-            ))
+            Ok((replace_payloads(self, &mut eval_tree, all_payloads)?, m))
         } else {
             let eval = PB::any_get_encoding(m.as_ref());
             log::trace!("        / We successfully evaluated the root term into: {eval:?}");

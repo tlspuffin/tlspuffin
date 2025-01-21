@@ -289,19 +289,6 @@ impl<T: Debug + Codec> Codec for Option<T> {
     }
 }
 
-// TODO: remove if not required
-// impl<T: Debug + Codec, E: Debug> Codec for Result<T, E> {
-//     fn encode(&self, bytes: &mut Vec<u8>) {
-//         if let Ok(value) = self {
-//             value.encode(bytes);
-//         }
-//     }
-//
-//     fn read(r: &mut Reader) -> Option<Self> {
-//     // ???
-//     }
-// }
-
 impl Codec for bool {
     fn encode(&self, bytes: &mut Vec<u8>) {
         if *self {

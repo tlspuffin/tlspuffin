@@ -11,6 +11,10 @@ use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
+/// Constants governing heuristic for finding payloads in term evaluations
+const THRESHOLD_SIZE: usize = 4; // minimum size of a payload to be directly searched in root_eval
+const THRESHOLD_RATIO: usize = 30; // maximum ration for root_eval/too_search for a direct search
+
 /// `Term`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
 /// symbolic terms.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
@@ -44,7 +48,7 @@ pub struct EvalTree {
 }
 impl EvalTree {
     #[must_use]
-    pub const fn init() -> Self {
+    pub const fn empty() -> Self {
         Self {
             encode: None, /* will contain the bitstring encoding when sub-terms have payloads and
                            * when evaluation succeeds */
@@ -55,8 +59,8 @@ impl EvalTree {
     }
 
     #[must_use]
-    pub fn init_with_path(path: TermPath) -> Self {
-        let mut e_t = Self::init();
+    pub fn with_path(path: TermPath) -> Self {
+        let mut e_t = Self::empty();
         e_t.path = path;
         e_t
     }
@@ -64,31 +68,244 @@ impl EvalTree {
     #[allow(dead_code)]
     fn get(&self, path: &[usize]) -> Result<&Self, Error> {
         if path.is_empty() {
-            Ok(self)
-        } else {
-            let nb = path[0];
-            let path = &path[1..];
-            if self.args.len() <= nb {
-                Err(Error::Term(format!(
-                    "[replace_payloads] [get] Should never happen! EvalTree: {self:?}\n, path: {path:?}"
-                )))
-            } else {
-                self.args[nb].get(path)
-            }
+            return Ok(self);
+        }
+
+        let nb = path[0];
+        let path = &path[1..];
+        if self.args.len() <= nb {
+            return Err(Error::Term(format!(
+                "[replace_payloads] [get] Should never happen! EvalTree: {self:?}\n, path: {path:?}"
+            )));
+        }
+        self.args[nb].get(path)
+    }
+}
+
+/// Search and locate `to_search` (`eval_tree[path_to_search].encode`) in
+/// `root_eval:=eval_tree`[vec![]].encode (=`whole_term.encode(ctx)`) such that the match
+/// corresponds to `path_to_search` (when `to_search` occurs multiple times).
+// TODO: Investigate this other idea:
+// another option would be memoize the size of each encoding in eval_tree (instead of the encoding
+// itself and use only that information in `find_unique_match`. This could be memoized.
+pub fn find_unique_match<PT: ProtocolTypes>(
+    path_to_search: &[usize],
+    eval_tree: &EvalTree,
+    whole_term: &Term<PT>,
+) -> Result<usize, Error> {
+    match find_unique_match_rec(path_to_search, eval_tree) {
+        Ok(pos) => {
+            log::debug!("[find_unique_match] Success for path {path_to_search:?}");
+            Ok(pos)
+        }
+        Err(e) => {
+            log::error!(
+                "[find_unique_match] Failure. Did not find, error: {e}\n - whole_term:{whole_term}"
+            );
+            Err(e)
         }
     }
+}
+
+/// Goal: locate byte position of eval_tree.get(path_to_search).encode in eval_tree.encode by
+/// traversing eval_tree until reaching node at pat_to_search.
+/// Assumptions:
+/// - encoded arguments can be found in this same order in the evaluation of the father node
+/// - there can be headers of arbitrary length
+/// - no trailer (no bytes added after the last argument encoding)
+pub fn find_unique_match_rec(
+    path_to_search: &[usize],
+    eval_tree: &EvalTree,
+) -> Result<usize, Error> {
+    log::debug!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?}, eval_tree: {eval_tree:?}, to_search: {:?}", eval_tree.get(path_to_search)?.encode.as_ref().unwrap());
+    let mut path_to_search = path_to_search;
+    let mut eval_tree = eval_tree;
+    let mut start_pos = 0;
+    let eval_to_search = eval_tree
+        .get(path_to_search)?
+        .encode
+        .as_ref()
+        .expect("[find_unique_match_rec] path_to_search should exist in eval_tree");
+
+    // We traverse eval_tree towards reaching the node at path_to_search
+    while !path_to_search.is_empty() {
+        // Getting child information
+        let nb_children = eval_tree.args.len();
+        let child_arg = path_to_search[0];
+        log::debug!("[find_unique_match_rec] while step: {path_to_search:?}, nb_children: {nb_children}, child_arg: {child_arg}");
+        let eval_root = eval_tree
+            .encode
+            .as_ref()
+            .expect("[find_unique_match_rec] EvalTree should have been computed");
+        let children = &eval_tree.args;
+        eval_tree = eval_tree.get(&[child_arg])?; // we move to the next child for the future while iteration
+        path_to_search = &path_to_search[1..];
+        let eval_child = eval_tree
+            .encode
+            .as_ref()
+            .expect("[find_unique_match_rec] EvalTree should have been computed");
+
+        // We might directly search for eval_too_search in root_eva
+        if eval_to_search.len() > 0
+            && (eval_to_search.len() > THRESHOLD_SIZE
+                || eval_root.len() / eval_to_search.len() < THRESHOLD_RATIO)
+        {
+            let direct_matches = search_sub_vec_all(eval_root, eval_to_search);
+            if direct_matches.len() == 1 {
+                log::debug!(
+                    "[find_unique_match_rec] Directly found unique match in root: {}",
+                    direct_matches[0]
+                );
+                return Ok(start_pos + direct_matches[0]);
+            } else {
+                log::debug!("[find_unique_match_rec] Direct found is not unique!");
+            }
+        }
+
+        if eval_child.is_empty() {
+            // We are looking for an empty encoding, we will position relative to the siblings
+            // TODO: this assumes no trailer, we should make sure this is indeed the case
+            let mut eval_right_siblings = Vec::new();
+            for right_sibling in (child_arg + 1)..nb_children {
+                eval_right_siblings.extend_from_slice(
+                    children[right_sibling]
+                        .encode
+                        .as_ref()
+                        .expect("[find_unique_match_rec] EvalTree should have been computed"),
+                );
+            }
+            let pos_child = eval_root.len() - eval_right_siblings.len();
+            log::debug!("eval_child has an empty encoding, we use right siblings to position the child: pos = {pos_child}");
+
+            start_pos += pos_child;
+            continue;
+        }
+
+        // Searching for the (non-empty) child encoding in the root
+        let all_matches = search_sub_vec_all(eval_root, eval_child);
+
+        if all_matches.is_empty() {
+            let ft = format!(
+                "[find_unique_match_rec] Child {child_arg} encoding not found in root for path {path_to_search:?}. eval_root: {eval_root:?}, eval_child: {eval_child:?}"
+            );
+            log::error!("{}", ft);
+            return Err(Error::Term(ft));
+        }
+
+        // If matches is unique: we found the (unique) right position
+        if all_matches.len() == 1 {
+            // We found the child encoding in the root
+            start_pos += all_matches[0];
+            continue;
+        }
+
+        // Otherwise, we must find which matching position on the right siblings
+        log::debug!("Found child {child_arg} encoding in root but it is not unique: {all_matches:?}. For path {path_to_search:?}. eval_root: {eval_root:?}, eval_child: {eval_child:?}");
+
+        // We compute the number of matching eval_child in right siblings encoding
+        let mut eval_right_siblings = Vec::new();
+        for right_sibling in (child_arg + 1)..nb_children {
+            eval_right_siblings.extend_from_slice(
+                children[right_sibling]
+                    .encode
+                    .as_ref()
+                    .expect("[find_unique_match_rec] EvalTree should have been computed"),
+            );
+        }
+        let matches_right_siblings = search_sub_vec_all(&eval_right_siblings, eval_child);
+        log::debug!("matches_right_siblings: {matches_right_siblings:?} for eval_right_siblings: {eval_right_siblings:?}");
+        if !matches_right_siblings.len() < all_matches.len() {
+            let ft = format!("[find_unique_match_rec] Found too many matches in siblings than in root for path {path_to_search:?}. eval_root: {eval_root:?}, eval_child: {eval_child:?}");
+            log::error!("{}", ft);
+            return Err(Error::Term(ft));
+        }
+        let idx_matching = all_matches.len() - matches_right_siblings.len() - 1;
+        log::debug!("[find_unique_match_rec] Found {} matches on the right, so idx_matching = {idx_matching}, and position: {}", matches_right_siblings.len(), all_matches[idx_matching]);
+        start_pos += all_matches[idx_matching];
+        continue;
+    }
+
+    log::debug!("[find_unique_match_rec] End of while, returning {start_pos}");
+    Ok(start_pos)
 }
 
 /// Operate the payloads replacements in `eval_tree.encode`[vec![]] and returns the modified
 /// bitstring. `@payloads` follows this order: deeper terms first, left-to-right, assuming no
 /// overlap (no two terms one being a sub-term of the other).
-pub fn replace_payloads<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
-    _term: &Term<PT>,
-    _eval_tree: &mut EvalTree,
-    _payloads: Vec<PayloadContext<PT>>,
-    _ctx: &TraceContext<PB>,
+pub fn replace_payloads<PT: ProtocolTypes>(
+    term: &Term<PT>,
+    eval_tree: &mut EvalTree,
+    payloads: Vec<PayloadContext<PT>>,
 ) -> Result<ConcreteMessage, Error> {
-    todo!("Done in another PR (bit mutations/term-evaluation)");
+    log::trace!("[replace_payload] --------> START");
+    let mut shift = 0_isize; // Number of bytes we need to shift on the right to apply the
+                             // splicing, taking into account previous payloads replacements). We assume the aforementioned
+                             // invariant.
+    let mut to_modify: Vec<u8> = eval_tree.encode.as_ref().unwrap().clone(); //unwrap: eval_until_opaque returns an error if it cannot compute the encoding of the root
+                                                                             // having payloads
+    for payload_context in &payloads {
+        log::trace!("[replace_payload] --------> treating {:?} at path {:?} on message of length = {}. Shift = {shift}", payload_context.payloads, payload_context.path, to_modify.len());
+        let old_bitstring = payload_context.payloads.payload_0.bytes();
+        let path_payload = &payload_context.path;
+        //Goal: search `to_search` in to_modify[pos_start..pos_end]=eval(term[path]) for `path`
+        // between path vec![] and `path_payload`
+        let pos_start = find_unique_match(path_payload, eval_tree, term).map_err(|e| {
+            log::debug!(
+                "[replace_payloads] find_unique_match returned the Err: {}",
+                e
+            );
+            e
+        })?;
+
+        let old_bitstring_len = old_bitstring.len();
+        let new_bitstring = payload_context.payloads.payload.bytes();
+
+        let start = (pos_start as isize + shift) as usize; // taking previous replacements into account, we need to shift the start
+        let end = start + old_bitstring_len;
+
+        if (pos_start as isize + shift) < 0
+            || (pos_start as isize + shift + old_bitstring_len as isize) as usize > to_modify.len()
+        // TODO: check if it is > or >=
+        {
+            let ft = format!("[replace_payload] Impossible to splice for indices to_replace.len={}, range={start}..{end}. Payload: {payload_context:?}", to_modify.len());
+            log::error!("{}", ft);
+            return Err(Error::Term(ft));
+        }
+        log::debug!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}",
+                to_modify.len(), &to_modify[start..end]);
+
+        #[cfg(debug_assertions)]
+        if to_modify[start..end] != *old_bitstring {
+            let ft = format!(
+                "[replace_payloads] Payloads returned by eval_until_opaque were inconsistent!\n\
+                   - payload_path: {:?}\n\
+                   - payload: {:?}\n\
+                   - payload_0.bytes() != to_modify[{start}..{end}].to_vec()\n\
+                   - payload_0.bytes() = {:?}\n\
+                   - to_modify[{start}..{end}].to_vec() = {:?}\n\
+                   - term: {term}\n\
+                   - to_modify={to_modify:?}\n\
+                   - payload_context: {payload_context:?}",
+                payload_context.path,
+                payload_context.payloads,
+                old_bitstring,
+                to_modify[start..end].to_vec(),
+            );
+            log::error!("{}", ft);
+            return Err(Error::Term(ft));
+        }
+        let to_remove: Vec<u8> = to_modify
+            .splice(start..end, new_bitstring.to_vec())
+            .collect();
+        log::trace!(
+            "[replace_payload] Removed elements (len={}): {:?}",
+            to_remove.len(),
+            &to_remove
+        );
+        log::trace!("[replace_payload] Shift update!: New_b: {}, old_b_len: {old_bitstring_len}, old_shift: {shift}, new_shift:{} ", new_bitstring.len(), shift + (new_bitstring.len() as isize - old_bitstring_len as isize));
+        shift += new_bitstring.len() as isize - old_bitstring_len as isize;
+    }
+    Ok(to_modify)
 }
 
 impl<PT: ProtocolTypes> Term<PT> {
@@ -105,7 +322,6 @@ impl<PT: ProtocolTypes> Term<PT> {
     pub(crate) fn eval_until_opaque<PB>(
         &self,
         eval_tree: &mut EvalTree,
-        path: TermPath,
         ctx: &TraceContext<PB>,
         with_payloads: bool,
         sibling_has_payloads: bool,
@@ -117,7 +333,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         log::debug!("[eval_until_opaque] [START]: Eval term:\n {self}");
         if let (true, Some(payload)) = (with_payloads, &self.payloads) {
             // TODO: investigate whether this value could be incorrect due to modifications to the
-            // terms through mutations previously applied
+            // terms through mutations previously applied (+ this depends on reading being correct)
             log::trace!("[eval_until_opaque] Trying to read payload_0 to skip further computations...........");
             if let Ok(di) = PB::try_read_bytes(
                 payload.payload_0.bytes(),
@@ -126,7 +342,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 let p_c = vec![PayloadContext {
                     of_term: self,
                     payloads: payload,
-                    path,
+                    path: eval_tree.path.clone(),
                 }];
                 eval_tree.encode = Some(payload.payload_0.bytes().to_vec());
                 return Ok((di, p_c));
@@ -148,7 +364,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                         }
                     })
                     .ok_or_else(|| Error::Term(format!("Unable to find variable {variable}!")))?;
-                if with_payloads && (path.is_empty() || (self.payloads.is_some())) {
+                if with_payloads {
                     if let Some(payload) = &self.payloads {
                         log::trace!("        / We retrieve evaluation for eval_tree from payload.");
                         eval_tree.encode = Some(payload.payload_0.clone().into());
@@ -157,23 +373,26 @@ impl<PT: ProtocolTypes> Term<PT> {
                         log::trace!("        / No payload so we evaluated into: {eval:?}");
                         eval_tree.encode = Some(eval);
                     }
-                    if with_payloads && self.payloads.is_some() {
-                        log::trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {path:?}, payload is: {:?} and eval is: {:?}", self.payloads.as_ref().unwrap(), PB::any_get_encoding(d.as_ref()));
+                    if self.payloads.is_some() {
+                        log::trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {:?}, payload is: {:?} and eval is: {:?}", eval_tree.path, self.payloads.as_ref().unwrap(), PB::any_get_encoding(d.as_ref()));
                         return Ok((
                             d,
                             vec![PayloadContext {
                                 of_term: self,
                                 payloads: self.payloads.as_ref().unwrap(),
-                                path,
+                                path: eval_tree.path.clone(),
                             }],
                         ));
                     }
                 }
-                log::trace!("[eval_until_opaque] [Var] Did not add a payload for a leaf at path: {path:?} and eval is: {:?}", PB::any_get_encoding(d.as_ref()));
+                log::trace!("[eval_until_opaque] [Var] Did not add a payload for a leaf at path: {:?} and eval is: {:?}", eval_tree.path, PB::any_get_encoding(d.as_ref()));
                 Ok((d, vec![]))
             }
             DYTerm::Application(func, args) => {
-                log::trace!("[eval_until_opaque] [App]: Application from path={path:?}");
+                log::trace!(
+                    "[eval_until_opaque] [App]: Application from path={:?}",
+                    eval_tree.path
+                );
                 let mut dynamic_args: Vec<Box<dyn EvaluatedTerm<PT>>> = Vec::new(); // will contain all the arguments on which to call the function symbol
                                                                                     // implementation
                 let mut all_payloads = vec![]; // will collect all payloads contexts of arguments (except those under opaque
@@ -181,7 +400,10 @@ impl<PT: ProtocolTypes> Term<PT> {
                 let mut eval_tree_args = vec![]; // will collect the eval tree of the sub-terms, if `with_payloads`
                 let self_has_payloads_wo_root = self.has_payload_to_replace_wo_root();
                 for (i, ti) in args.iter().enumerate() {
-                    log::trace!("  + Treating argument # {i} from path {path:?}...");
+                    log::trace!(
+                        "  + Treating argument # {i} from path {:?}...",
+                        eval_tree.path
+                    );
                     if with_payloads && self.is_opaque() && ti.has_payload_to_replace() {
                         // Fully evaluate this sub-term and consume the payloads
                         log::trace!("    * [eval_until_opaque] Opaque and has payloads: Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
@@ -205,16 +427,15 @@ impl<PT: ProtocolTypes> Term<PT> {
                         dynamic_args.push(di); // no need to add payloads to all_p as they were
                                                // consumed (opaque function symbol)
                     } else {
-                        let mut path_i = path.clone();
+                        let mut path_i = eval_tree.path.clone();
                         path_i.push(i); // adding `i` for i-th argument
                         let mut eval_tree_i = if with_payloads {
-                            EvalTree::init_with_path(path_i.clone())
+                            EvalTree::with_path(path_i.clone())
                         } else {
-                            EvalTree::init_with_path(vec![]) // dummy eval_tree
+                            EvalTree::with_path(vec![]) // dummy eval_tree
                         };
                         let (di, mut p_s) = ti.eval_until_opaque(
                             &mut eval_tree_i,
-                            path_i,
                             ctx,
                             with_payloads,
                             self_has_payloads_wo_root,
@@ -225,7 +446,10 @@ impl<PT: ProtocolTypes> Term<PT> {
                             eval_tree_args.push(eval_tree_i);
                             all_payloads.append(p_s.as_mut()); // collect the payloads
                         }
-                        log::trace!("  + Ending treating argument # {i} from path {path:?}...");
+                        log::trace!(
+                            "  + Ending treating argument # {i} from path {:?}...",
+                            eval_tree.path
+                        );
                     }
                 }
                 log::trace!("[eval_until_opaque] Now calling the function symbol {} implementation and then updating payloads...", func.name());
@@ -236,7 +460,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                     all_payloads.push(PayloadContext {
                         of_term: self,
                         payloads: self.payloads.as_ref().unwrap(),
-                        path: path.clone(),
+                        path: eval_tree.path.clone(),
                     });
                 }
 
@@ -253,4 +477,22 @@ impl<PT: ProtocolTypes> Term<PT> {
             }
         }
     }
+}
+
+/// Return the first matching position and whether it is unique (true) or not (false)
+#[must_use]
+pub fn search_sub_vec_all(haystack: &[u8], needle: &[u8]) -> Vec<usize> {
+    let mut matches = Vec::new();
+    if haystack.len() < needle.len() {
+        // log::trace!("search_sub_vec_double: length");
+        return matches;
+    }
+    for i in 0..=(haystack.len() - needle.len()) {
+        if haystack[i..i + needle.len()] == needle[..] {
+            // log::trace!("search_sub_vec_double: found for i:{i}");
+            matches.push(i);
+        }
+    }
+    // log::trace!("search_sub_vec_double: not found");
+    matches
 }
