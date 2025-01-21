@@ -186,6 +186,10 @@ pub trait ProtocolTypes:
 
     fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>>;
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>>;
+
+    // Terms to evaluate and compare during differential fuzzing
+    // eg. decryption recipes
+    fn differential_fuzzing_terms_to_eval() -> Vec<crate::algebra::Term<Self>>;
 }
 
 /// Defines the protocol which is being tested.

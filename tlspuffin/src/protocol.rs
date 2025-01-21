@@ -830,6 +830,10 @@ impl ProtocolTypes for TLSProtocolTypes {
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
         Some(vec![TypeId::of::<MessagePayload>()])
     }
+
+    fn differential_fuzzing_terms_to_eval() -> Vec<puffin::algebra::Term<Self>> {
+        [].into()
+    }
 }
 
 impl std::fmt::Display for TLSProtocolTypes {

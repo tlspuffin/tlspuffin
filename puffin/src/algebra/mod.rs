@@ -605,6 +605,10 @@ pub mod test_signature {
         fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
             None
         }
+
+        fn differential_fuzzing_terms_to_eval() -> Vec<crate::algebra::Term<Self>> {
+            vec![]
+        }
     }
 
     impl fmt::Display for TestProtocolTypes {
