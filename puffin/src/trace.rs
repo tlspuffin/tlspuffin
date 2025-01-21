@@ -571,6 +571,32 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
         let mut res = vec![];
 
+        // Decrypting knowledges
+        let terms: Vec<Term<PB::ProtocolTypes>> =
+            PB::ProtocolTypes::differential_fuzzing_terms_to_eval();
+
+        let mut self_store = KnowledgeStore::new();
+        let mut other_store = KnowledgeStore::new();
+
+        for t in terms {
+            let self_eval = t.evaluate_dy(self);
+            let other_eval = t.evaluate_dy(other);
+            if let Ok(decrypted) = self_eval {
+                self_store.add_raw_boxed_knowledge(
+                    decrypted,
+                    Source::Label(Some("Decryption".into())),
+                    None,
+                );
+            }
+            if let Ok(decrypted) = other_eval {
+                other_store.add_raw_boxed_knowledge(
+                    decrypted,
+                    Source::Label(Some("Decryption".into())),
+                    None,
+                );
+            }
+        }
+
         // Comparing the claims
         res.extend(
             self.claims
@@ -586,6 +612,9 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
                 .err()
                 .map_or(vec![], |x| x),
         );
+
+        // Comparing the computed terms
+        res.extend(self_store.compare(&other_store).err().map_or(vec![], |x| x));
 
         if res.is_empty() {
             Ok(())
