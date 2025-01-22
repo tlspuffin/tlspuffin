@@ -72,6 +72,13 @@ cmake_builder(
     $<$<BOOL:${gcov}>:-O0>
 )
 
+set(tls12 yes)
+set(tls13 yes)
+set(tls12_session_resumption yes)
+set(tls13_session_resumption yes)
+set(transcript_extraction yes)
+set(client_authentication_transcript_extraction yes)
+
 list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E make_directory "<INSTALL_DIR>/${CMAKE_INSTALL_LIBDIR}/")
 list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E make_directory "<INSTALL_DIR>/${CMAKE_INSTALL_INCLUDEDIR}/")
 list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "<BINARY_DIR>/crypto/libcrypto.a" "<INSTALL_DIR>/${CMAKE_INSTALL_LIBDIR}/")

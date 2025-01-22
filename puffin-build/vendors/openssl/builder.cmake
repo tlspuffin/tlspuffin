@@ -53,6 +53,43 @@ set(CONFIGURE_FLAGS
   --libdir=lib  # force consistent libdir across platforms
 )
 
+string(REGEX MATCH "^([0-9]+\.[0-9]+\.[0-9]+)(.)" _match "${VENDOR_VERSION}")
+set(VERSION_LETTER "${CMAKE_MATCH_2}")
+
+# check for Heartbleed: CVE-2014-0160
+# see: https://www.openssl.org/news/vulnerabilities.html#y2014
+if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.0.1" AND VENDOR_VERSION VERSION_LESS "1.0.2")
+  set(VULN_LETTER "a;b;c;d;e;f")
+  if(NOT VERSION_LETTER OR VERSION_LETTER IN_LIST VULN_LETTER)
+    declare_vulnerability("CVE-2014-0160")
+  endif()
+endif()
+
+# check for FREAK: CVE-2015-0204
+# see: https://www.openssl.org/news/vulnerabilities.html#y2015
+if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.0.0" AND VENDOR_VERSION VERSION_LESS "1.0.1")
+  set(VULN_LETTER "a;b;c;d;e;f;g;h;i;j;k;l;m;n;o")
+  if(NOT VERSION_LETTER OR VERSION_LETTER IN_LIST VULN_LETTER)
+    declare_vulnerability("CVE-2015-0204")
+  endif()
+endif()
+
+if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.0.1" AND VENDOR_VERSION VERSION_LESS "1.0.2")
+  set(VULN_LETTER "a;b;c;d;e;f;g;h;i;j")
+  if(NOT VERSION_LETTER OR VERSION_LETTER IN_LIST VULN_LETTER)
+    declare_vulnerability("CVE-2015-0204")
+  endif()
+endif()
+
+# check for CVE-2021-3449
+# see: https://www.openssl.org/news/vulnerabilities.html#y2021
+if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.1.1" AND VENDOR_VERSION VERSION_LESS "1.1.2")
+  set(VULN_LETTER "a;b;c;d;e;f;g;h;i;j")
+  if(NOT VERSION_LETTER OR VERSION_LETTER IN_LIST VULN_LETTER)
+    declare_vulnerability("CVE-2021-3449")
+  endif()
+endif()
+
 set(CFLAGS
   -g
   -fPIC
@@ -93,7 +130,16 @@ list(APPEND CONFIGURE_COMMANDS COMMAND
 
 list(APPEND BUILD_COMMANDS
   COMMAND make -C "<SOURCE_DIR>" depend
-  COMMAND make -C "<SOURCE_DIR>" $<IF:$<VERSION_LESS_EQUAL:${VENDOR_VERSION},1.1.1>,-j1,-j>
+  COMMAND make -C "<SOURCE_DIR>" $<IF:$<VERSION_LESS_EQUAL:${VENDOR_VERSION},1.1.0>,-j1,-j>
 )
+
+set(tls12 yes)
+set(tls12_session_resumption yes)
+if(VENDOR_VERSION VERSION_GREATER_EQUAL "1.1.1")
+  set(tls13 yes)
+  set(tls13_session_resumption yes)
+endif()
+set(transcript_extraction yes)
+set(client_authentication_transcript_extraction yes)
 
 list(APPEND INSTALL_COMMANDS COMMAND make -C "<SOURCE_DIR>" install_sw "prefix=${CMAKE_INSTALL_PREFIX}")

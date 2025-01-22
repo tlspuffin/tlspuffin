@@ -4,13 +4,15 @@
 #rustflags = ["-Z", "sanitizer=address"]
 
 rustflags = [
-   # Required for LLVM ASAN
-   "-C", "linker=clang",
+    # Required for LLVM ASAN
+    "-C",
+    "linker=clang",
 ]
 
 rustdocflags = [
-   # Required for LLVM ASAN
-   "-C", "linker=clang",
+    # Required for LLVM ASAN
+    "-C",
+    "linker=clang",
 ]
 
 [env]
@@ -18,3 +20,19 @@ rustdocflags = [
 # Link order is important -> 1
 # We want to abort instead of exiting, else the children in our fuzzer fail to restart
 ASAN_OPTIONS = "verify_asan_link_order=1:detect_leaks=0:abort_on_error=1"
+
+[target.'cfg(trybuild)']
+# We set dummy cfg for trybuild tests in `tlspuffin-macros`.
+rustflags = [
+    "--cfg=cap_1=\"val1\"",
+    "--cfg=cap_2=\"val2\"",
+    "--cfg=cap_3=\"val3\"",
+    "--cfg=cap_all=\"val1\"",
+    "--cfg=cap_all=\"val2\"",
+    "--cfg=cap_all=\"val3\"",
+    "--cfg=cap_1_2=\"val1\"",
+    "--cfg=cap_1_2=\"val2\"",
+
+    "--cfg=cap_2_3=\"val2\"",
+    "--cfg=cap_2_3=\"val3\"",
+]

@@ -1,7 +1,5 @@
-use std::io;
-
 use clap::{arg, command, Parser, Subcommand};
-use puffin_build::vendor;
+use puffin_build::{library, vendor_dir};
 use regex::Regex;
 
 #[derive(Debug, Parser)]
@@ -50,23 +48,23 @@ pub fn main() -> std::process::ExitCode {
             name,
             force,
         } => {
-            let Some(config) = vendor::Config::preset(&vendor, &preset) else {
+            let Some(config) = library::Config::preset(&vendor, &preset) else {
                 log::error!("configuration preset '{preset}' not found");
                 return std::process::ExitCode::FAILURE;
             };
 
             let name = name.unwrap_or(preset);
 
-            if let Err(e) = vendor::dir().lock(&name).and_then(|config_dir| {
-                if !config_dir.is_empty()? && !force {
-                    return Err(io::Error::new(
-                        io::ErrorKind::AlreadyExists,
-                        format!("a config named '{}' already exists", &name),
-                    ));
-                }
+            if let Err(e) = vendor_dir::VendorDir::default()
+                .library_dir(&name)
+                .and_then(|library_dir| {
+                    if force {
+                        library_dir.remove()?
+                    }
 
-                config_dir.make(config)
-            }) {
+                    library_dir.make(config)
+                })
+            {
                 log::error!("Error while building vendor library '{name}': {e}");
                 return std::process::ExitCode::FAILURE;
             }

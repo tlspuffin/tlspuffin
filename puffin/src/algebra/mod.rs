@@ -96,6 +96,7 @@ pub mod test_signature {
     use std::fmt;
     use std::io::Read;
 
+    use puffin_build::puffin;
     use serde::{Deserialize, Serialize};
 
     use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
@@ -110,12 +111,12 @@ pub mod test_signature {
         ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
         ProtocolTypes,
     };
-    use crate::put::{Put, PutOptions};
-    use crate::put_registry::{Factory, PutKind};
+    use crate::put::{Put, PutDescriptor, PutOptions};
+    use crate::put_registry::Factory;
     use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace};
     use crate::{
         codec, define_signature, dummy_codec, dummy_extract_knowledge,
-        dummy_extract_knowledge_codec, term, VERSION_STR,
+        dummy_extract_knowledge_codec, term,
     };
 
     #[derive(Debug, Clone)]
@@ -406,7 +407,9 @@ pub mod test_signature {
         }
     }
 
-    impl Claim<TestProtocolTypes> for TestClaim {
+    impl Claim for TestClaim {
+        type PT = TestProtocolTypes;
+
         fn agent_name(&self) -> AgentName {
             panic!("Not implemented for test stub");
         }
@@ -493,7 +496,9 @@ pub mod test_signature {
     }
 
     pub struct TestSecurityViolationPolicy;
-    impl SecurityViolationPolicy<TestProtocolTypes, TestClaim> for TestSecurityViolationPolicy {
+    impl SecurityViolationPolicy for TestSecurityViolationPolicy {
+        type C = TestClaim;
+
         fn check_violation(_claims: &[TestClaim]) -> Option<&'static str> {
             panic!("Not implemented for test stub");
         }
@@ -609,7 +614,7 @@ pub mod test_signature {
         type ProtocolTypes = TestProtocolTypes;
         type SecurityViolationPolicy = TestSecurityViolationPolicy;
 
-        fn create_corpus() -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
+        fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
             panic!("Not implemented for test stub");
         }
 
@@ -627,17 +632,10 @@ pub mod test_signature {
         fn create(
             &self,
             _agent_descriptor: &AgentDescriptor,
-            _claims: &GlobalClaimList<
-                TestProtocolTypes,
-                <TestProtocolBehavior as ProtocolBehavior>::Claim,
-            >,
+            _claims: &GlobalClaimList<<TestProtocolBehavior as ProtocolBehavior>::Claim>,
             _options: &PutOptions,
         ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {
             panic!("Not implemented for test stub");
-        }
-
-        fn kind(&self) -> PutKind {
-            PutKind::Rust
         }
 
         fn name(&self) -> String {
@@ -647,8 +645,12 @@ pub mod test_signature {
         fn versions(&self) -> Vec<(String, String)> {
             vec![(
                 "harness".to_string(),
-                format!("{} ({})", self.name(), VERSION_STR),
+                format!("{} {}", self.name(), puffin::full_version()),
             )]
+        }
+
+        fn supports(&self, _capability: &str) -> bool {
+            false
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {

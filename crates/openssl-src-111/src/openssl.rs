@@ -4,7 +4,7 @@ use std::env;
 use std::fs::canonicalize;
 use std::path::{Path, PathBuf};
 
-use puffin_build::vendor;
+use puffin_build::{library, vendor_dir};
 
 const PRESET: &str = if cfg!(feature = "openssl101f") {
     "openssl101f"
@@ -90,26 +90,16 @@ impl Build {
         let suffix = if cfg!(feature = "asan") { "-asan" } else { "" };
         let name = format!("{PRESET}{suffix}");
 
-        let mut config = vendor::Config::preset("openssl", PRESET).unwrap();
+        let mut config = library::Config::preset("openssl", PRESET).unwrap();
 
         config.option("sancov", cfg!(feature = "sancov"));
         config.option("asan", cfg!(feature = "asan"));
         config.option("gcov", cfg!(feature = "gcov"));
         config.option("llvm_cov", cfg!(feature = "llvm_cov"));
 
-        let prefix = vendor::dir()
-            .lock(&name)
-            .and_then(|config_dir| {
-                if let Some(old_config) = config_dir.config()? {
-                    if old_config == config {
-                        return Ok(config_dir.path().to_path_buf());
-                    }
-
-                    eprintln!("found incompatible config '{name}' in VENDOR_DIR, rebuilding...");
-                }
-
-                config_dir.make(config)
-            })
+        let prefix = vendor_dir::from_env()
+            .library_dir(&name)
+            .and_then(|dir| dir.make(config))
             .unwrap();
 
         let openssl = Artifacts {
