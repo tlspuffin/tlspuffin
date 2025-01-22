@@ -62,23 +62,6 @@ static const CLAIMER_CB DEFAULT_CLAIMER_CB = {.context = NULL,
                                               .notify = default_claimer_notify,
                                               .destroy = default_claimer_destroy};
 
-// static C_PUT_INTERFACE OPENSSL_PUT = {
-//     .create = openssl_create,
-//     .destroy = openssl_destroy,
-
-//     .rng_reseed = rng_reseed,
-
-//     .progress = openssl_progress,
-//     .reset = openssl_reset,
-//     .describe_state = openssl_describe_state,
-//     .is_state_successful = openssl_is_successful,
-
-//     .register_claimer = openssl_register_claimer,
-
-//     .add_inbound = openssl_add_inbound,
-//     .take_outbound = openssl_take_outbound,
-// };
-
 static const TLS_PUT_INTERFACE OPENSSL_PUT = {
     .create = openssl_create,
     .rng_reseed = NULL,

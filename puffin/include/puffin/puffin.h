@@ -16,6 +16,9 @@ extern "C"
 
     typedef void *RESULT;
 
+    /*
+     * Result of an IO operation on an agent.
+     */
     typedef enum
     {
         RESULT_OK,
@@ -62,18 +65,14 @@ extern "C"
         /*
          * Produce a textual description of the current agent's state.
          *
-         * TODO: Remove this function? It seems
-         *         1. protocol and library specific
-         *         2. redundant with the idea of claims
+         * Note that this is exposed for debugging/testing purposes only. The
+         * actual description string depends on the underlying vendor library
+         * used by the agent.
          */
         const char *(*const describe_state)(AGENT agent);
 
         /*
-         * Checks whether the agent is in a good state.
-         *
-         * TODO: Remove this function? It is unclear what a "good state"
-         *       means and should be replaced with some way to query the
-         *       internal state of the agent.
+         * Check whether the agent is in a good state.
          */
         bool (*const is_state_successful)(AGENT agent);
 
@@ -103,6 +102,10 @@ extern "C"
         (AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
     } AGENT_INTERFACE;
 
+    /*
+     * The <PUFFIN_BINDINGS> struct provides helper functions to the C code,
+     * implemented in the Rust part of puffin.
+     */
     typedef struct
     {
         void (*const error)(const char *message);
@@ -111,6 +114,14 @@ extern "C"
         void (*const debug)(const char *message);
         void (*const trace)(const char *message);
 
+        /*
+         * Construct a <RESULT> object for an IO operation.
+         *
+         * The goal of this function is to allocate the structure holding the
+         * result code and the description from the Rust part of puffin. It
+         * avoids the need for low-level memory management in the Rust code
+         * performing IO operations on the agent.
+         */
         RESULT (*const make_result)(RESULT_CODE code, const char *description);
     } PUFFIN_BINDINGS;
 
