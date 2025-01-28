@@ -4,7 +4,7 @@ use std::io::ErrorKind;
 use std::ops::Deref;
 
 use foreign_types::ForeignType;
-use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
+use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::algebra::ConcreteMessage;
 use puffin::error::Error;
@@ -21,7 +21,10 @@ use crate::claims::{
     ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsClaim, TranscriptCertificate,
     TranscriptClientFinished, TranscriptServerFinished, TranscriptServerHello,
 };
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolTypes};
+use crate::protocol::{
+    AgentType, OpaqueMessageFlight, TLSPUTDescriptorConfig, TLSProtocolBehavior, TLSProtocolTypes,
+    TLSVersion,
+};
 use crate::put::TlsPutConfig;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 use crate::tls::rustls::msgs::enums::HandshakeType;
@@ -74,7 +77,7 @@ impl RustPut {
     fn new_agent(config: TlsPutConfig) -> Result<Self, WolfSSLErrorStack> {
         let agent_descriptor = &config.descriptor;
         #[allow(unused_mut)]
-        let mut ctx = match agent_descriptor.typ {
+        let mut ctx = match agent_descriptor.put_config.typ {
             AgentType::Server => Self::create_server_ctx(agent_descriptor)?,
             AgentType::Client => Self::create_client_ctx(agent_descriptor)?,
         };
@@ -100,7 +103,7 @@ impl RustPut {
         ctx.set_msg_callback(Self::create_msg_callback(config.descriptor.name, &config))
             .expect("Failed to set msg_callback to extract transcript");
 
-        let ssl = match config.descriptor.typ {
+        let ssl = match config.descriptor.put_config.typ {
             AgentType::Server => Self::create_server(ctx)?,
             AgentType::Client => Self::create_client(ctx)?,
         };
@@ -171,23 +174,23 @@ impl Put<TLSProtocolBehavior> for RustPut {
         panic!("Unsupported with WolfSSL PUT")
     }
 
-    fn descriptor(&self) -> &AgentDescriptor {
+    fn descriptor(&self) -> &AgentDescriptor<TLSPUTDescriptorConfig> {
         &self.config.descriptor
     }
 }
 
 impl RustPut {
     pub fn create_client_ctx(
-        descriptor: &AgentDescriptor,
+        descriptor: &AgentDescriptor<TLSPUTDescriptorConfig>,
     ) -> Result<SslContext, WolfSSLErrorStack> {
-        let mut ctx = match descriptor.tls_version {
+        let mut ctx = match descriptor.put_config.tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_client_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_client_12())?,
         };
 
         ctx.disable_session_cache()?;
 
-        if descriptor.client_authentication {
+        if descriptor.put_config.client_authentication {
             let cert = X509::from_pem(BOB_CERT.0.as_bytes())?;
             ctx.set_certificate(cert.as_ref())?;
 
@@ -203,7 +206,7 @@ impl RustPut {
             }
         }
 
-        if descriptor.server_authentication {
+        if descriptor.put_config.server_authentication {
             ctx.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
             ctx.load_verify_buffer(ALICE_CERT.0.as_bytes())?;
             ctx.load_verify_buffer(EVE_CERT.0.as_bytes())?;
@@ -229,9 +232,9 @@ impl RustPut {
     }
 
     pub fn create_server_ctx(
-        descriptor: &AgentDescriptor,
+        descriptor: &AgentDescriptor<TLSPUTDescriptorConfig>,
     ) -> Result<SslContext, WolfSSLErrorStack> {
-        let mut ctx = match descriptor.tls_version {
+        let mut ctx = match descriptor.put_config.tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_server_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_server_12())?,
         };
@@ -257,7 +260,7 @@ impl RustPut {
             ctx.set_private_key_pem(ALICE_PRIVATE_KEY.0.as_bytes())?;
         }
 
-        if descriptor.client_authentication {
+        if descriptor.put_config.client_authentication {
             ctx.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
             ctx.load_verify_buffer(BOB_CERT.0.as_bytes())?;
             ctx.load_verify_buffer(EVE_CERT.0.as_bytes())?;
@@ -309,8 +312,8 @@ impl RustPut {
                 if let Some(data) = data {
                     config.claims.deref_borrow_mut().claim_sized(TlsClaim {
                         agent_name: self.config.descriptor.name,
-                        origin: config.descriptor.typ,
-                        protocol_version: config.descriptor.tls_version,
+                        origin: config.descriptor.put_config.typ,
+                        protocol_version: config.descriptor.put_config.tls_version,
                         data,
                     });
                 }
@@ -324,8 +327,8 @@ impl RustPut {
 
             let agent_name = self.config.descriptor.name;
             let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.tls_version;
-            let origin = self.config.descriptor.typ;
+            let protocol_version = self.config.descriptor.put_config.tls_version;
+            let origin = self.config.descriptor.put_config.typ;
 
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
@@ -353,8 +356,8 @@ impl RustPut {
         agent_name: AgentName,
         config: &TlsPutConfig,
     ) -> impl Fn(&mut SslRef, i32, u8, bool) {
-        let origin = config.descriptor.typ;
-        let protocol_version = config.descriptor.tls_version;
+        let origin = config.descriptor.put_config.typ;
+        let protocol_version = config.descriptor.put_config.tls_version;
         let claims = config.claims.clone();
         let extract_transcript = config.extract_deferred.clone();
         let authenticate_peer = config.authenticate_peer;

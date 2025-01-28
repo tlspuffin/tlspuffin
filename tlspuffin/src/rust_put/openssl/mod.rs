@@ -4,14 +4,16 @@ use openssl::error::ErrorStack;
 use openssl::ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslStream, SslVerifyMode};
 use openssl::x509::store::X509StoreBuilder;
 use openssl::x509::X509;
-use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::ConcreteMessage;
 use puffin::error::Error;
 use puffin::put::Put;
 use puffin::stream::{MemoryStream, Stream};
 use util::{set_max_protocol_version, static_rsa_cert};
 
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::protocol::{
+    AgentType, OpaqueMessageFlight, TLSPUTDescriptorConfig, TLSProtocolBehavior,
+};
 use crate::put::TlsPutConfig;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 
@@ -77,7 +79,7 @@ impl Put<TLSProtocolBehavior> for RustPut {
         Ok(())
     }
 
-    fn descriptor(&self) -> &AgentDescriptor {
+    fn descriptor(&self) -> &AgentDescriptor<TLSPUTDescriptorConfig> {
         &self.config.descriptor
     }
 
@@ -113,7 +115,7 @@ impl RustPut {
     fn new_agent(config: TlsPutConfig) -> Result<RustPut, ErrorStack> {
         let agent_descriptor = &config.descriptor;
         #[allow(unused_mut)]
-        let mut ctx = match agent_descriptor.typ {
+        let mut ctx = match agent_descriptor.put_config.typ {
             AgentType::Server => Self::create_server_ctx(agent_descriptor)?,
             AgentType::Client => Self::create_client_ctx(agent_descriptor)?,
         };
@@ -136,7 +138,7 @@ impl RustPut {
         ctx: &SslContextRef,
         config: &TlsPutConfig,
     ) -> Result<SslStream<MemoryStream>, ErrorStack> {
-        let ssl = match config.descriptor.typ {
+        let ssl = match config.descriptor.put_config.typ {
             AgentType::Server => Self::create_server(ctx)?,
             AgentType::Client => Self::create_client(ctx)?,
         };
@@ -144,14 +146,16 @@ impl RustPut {
         Ok(SslStream::new(ssl, MemoryStream::new())?)
     }
 
-    fn create_server_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, ErrorStack> {
+    fn create_server_ctx(
+        descriptor: &AgentDescriptor<TLSPUTDescriptorConfig>,
+    ) -> Result<SslContext, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
 
         let (cert, key) = static_rsa_cert(ALICE_PRIVATE_KEY.0.as_bytes(), ALICE_CERT.0.as_bytes())?;
         ctx_builder.set_certificate(&cert)?;
         ctx_builder.set_private_key(&key)?;
 
-        if descriptor.client_authentication {
+        if descriptor.put_config.client_authentication {
             let mut store = X509StoreBuilder::new()?;
             store.add_cert(X509::from_pem(BOB_CERT.0.as_bytes())?)?;
             store.add_cert(X509::from_pem(EVE_CERT.0.as_bytes())?)?;
@@ -169,7 +173,7 @@ impl RustPut {
         #[cfg(feature = "openssl111-binding")]
         bindings::set_allow_no_dhe_kex(&mut ctx_builder);
 
-        set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
+        set_max_protocol_version(&mut ctx_builder, descriptor.put_config.tls_version)?;
 
         #[cfg(any(feature = "openssl101-binding", feature = "openssl102-binding"))]
         {
@@ -193,7 +197,9 @@ impl RustPut {
         Ok(ssl)
     }
 
-    fn create_client_ctx(descriptor: &AgentDescriptor) -> Result<SslContext, ErrorStack> {
+    fn create_client_ctx(
+        descriptor: &AgentDescriptor<TLSPUTDescriptorConfig>,
+    ) -> Result<SslContext, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
         // Not sure whether we want this disabled or enabled: https://github.com/tlspuffin/tlspuffin/issues/67
         // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
@@ -202,20 +208,20 @@ impl RustPut {
         #[cfg(feature = "openssl111-binding")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-        set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
+        set_max_protocol_version(&mut ctx_builder, descriptor.put_config.tls_version)?;
 
         // Disallow EXPORT in client
         ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
 
         ctx_builder.set_verify(SslVerifyMode::NONE);
 
-        if descriptor.client_authentication {
+        if descriptor.put_config.client_authentication {
             let (cert, key) = static_rsa_cert(BOB_PRIVATE_KEY.0.as_bytes(), BOB_CERT.0.as_bytes())?;
             ctx_builder.set_certificate(&cert)?;
             ctx_builder.set_private_key(&key)?;
         }
 
-        if descriptor.server_authentication {
+        if descriptor.put_config.server_authentication {
             ctx_builder.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
 
             let mut store = X509StoreBuilder::new()?;
@@ -246,8 +252,8 @@ impl RustPut {
 
             let agent_name = self.config.descriptor.name;
             let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.tls_version;
-            let origin = self.config.descriptor.typ;
+            let protocol_version = self.config.descriptor.put_config.tls_version;
+            let origin = self.config.descriptor.put_config.typ;
 
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),

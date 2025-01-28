@@ -1,13 +1,8 @@
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
-use puffin::protocol::{
-    EvaluatedTerm, Extractable, OpaqueProtocolMessage, ProtocolMessage, ProtocolTypes,
-};
+use puffin::protocol::{Extractable, OpaqueProtocolMessage, ProtocolMessage, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
-use puffin::{
-    atom_extract_knowledge, codec, dummy_codec, dummy_extract_knowledge,
-    dummy_extract_knowledge_codec,
-};
+use puffin::{atom_extract_knowledge, dummy_extract_knowledge};
 
 use crate::protocol::SshProtocolTypes;
 use crate::query::SshQueryMatcher;

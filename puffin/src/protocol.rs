@@ -5,6 +5,7 @@ use std::hash::Hash;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
+use crate::agent::ProtocolPUTDescriptorConfig;
 use crate::algebra::signature::Signature;
 use crate::algebra::Matcher;
 use crate::claims::{Claim, SecurityViolationPolicy};
@@ -123,6 +124,7 @@ pub trait ProtocolTypes:
     'static + Clone + Hash + Display + Debug + Serialize + DeserializeOwned
 {
     type Matcher: Matcher;
+    type PUTConfig: ProtocolPUTDescriptorConfig;
 
     /// Get the signature that is used in the protocol
     fn signature() -> &'static Signature<Self>;

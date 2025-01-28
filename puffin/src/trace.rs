@@ -279,7 +279,7 @@ impl<PB: ProtocolBehavior> Spawner<PB> {
     pub fn spawn(
         &self,
         claims: &GlobalClaimList<PB::Claim>,
-        descriptor: &AgentDescriptor,
+        descriptor: &AgentDescriptor<<PB::ProtocolTypes as ProtocolTypes>::PUTConfig>,
     ) -> Result<Agent<PB>, Error> {
         let put_descriptor = self
             .descriptors
@@ -440,7 +440,10 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         self.knowledge_store.find_variable(query_type_shape, query)
     }
 
-    pub fn spawn(&mut self, descriptor: &AgentDescriptor) -> Result<(), Error> {
+    pub fn spawn(
+        &mut self,
+        descriptor: &AgentDescriptor<<PB::ProtocolTypes as ProtocolTypes>::PUTConfig>,
+    ) -> Result<(), Error> {
         let agent = self.spawner.spawn(&self.claims, descriptor)?;
         self.agents.push(agent);
 
@@ -477,7 +480,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 #[derive(Clone, Deserialize, Serialize, Hash)]
 #[serde(bound = "PT: ProtocolTypes")]
 pub struct Trace<PT: ProtocolTypes> {
-    pub descriptors: Vec<AgentDescriptor>,
+    pub descriptors: Vec<AgentDescriptor<PT::PUTConfig>>,
     pub steps: Vec<Step<PT>>,
     pub prior_traces: Vec<Trace<PT>>,
 }
@@ -491,7 +494,10 @@ impl<PT: ProtocolTypes> Trace<PT> {
     pub fn spawn_agents<PB: ProtocolBehavior>(
         &self,
         ctx: &mut TraceContext<PB>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
         for descriptor in &self.descriptors {
             if let Some(reusable) = ctx
                 .agents
