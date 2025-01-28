@@ -2,6 +2,7 @@ use std::any::{Any, TypeId};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
+use comparable::Comparable;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -9,6 +10,7 @@ use crate::algebra::signature::Signature;
 use crate::algebra::Matcher;
 use crate::claims::{Claim, SecurityViolationPolicy};
 use crate::codec;
+use crate::differential::TraceDifference;
 use crate::error::Error;
 use crate::put::PutDescriptor;
 use crate::trace::{Knowledge, Source, Trace};
@@ -20,6 +22,60 @@ pub trait AsAny {
 impl<T: 'static> AsAny for T {
     fn as_any(&self) -> &dyn Any {
         self
+    }
+}
+
+pub trait AsBoxedTerm<PT> {
+    fn boxed(&self) -> Box<dyn EvaluatedTerm<PT>>;
+}
+
+impl<T, PT: ProtocolTypes> AsBoxedTerm<PT> for T
+where
+    T: Clone + Debug + EvaluatedTerm<PT> + 'static,
+{
+    fn boxed(&self) -> Box<dyn EvaluatedTerm<PT>> {
+        Box::new(self.clone())
+    }
+}
+
+pub trait CompareKnowledge<PT> {
+    fn find_differences(
+        &self,
+        other: &dyn EvaluatedTerm<PT>,
+        diffs: &mut Vec<TraceDifference>,
+        knowledge_num: usize,
+    );
+}
+
+impl<T, PT: ProtocolTypes> CompareKnowledge<PT> for T
+where
+    T: Clone + Debug + 'static + Comparable,
+{
+    fn find_differences(
+        &self,
+        other: &dyn EvaluatedTerm<PT>,
+        diffs: &mut Vec<TraceDifference>,
+        knowledge_num: usize,
+    ) {
+        match other.as_any().downcast_ref::<T>() {
+            Some(casted_other) => {
+                // For later
+                if let comparable::Changed::Changed(changes) = self.comparison(casted_other) {
+                    diffs.push(TraceDifference::Knowledges(format!(
+                        "knowledge[{}] ({}) : \n{:?}",
+                        knowledge_num,
+                        other.type_name(),
+                        changes
+                    )))
+                }
+            }
+            None => diffs.push(TraceDifference::Knowledges(format!(
+                "knowledge[{}]: {} != {}",
+                knowledge_num,
+                std::any::type_name::<Self>(),
+                other.type_name()
+            ))),
+        };
     }
 }
 
@@ -45,7 +101,7 @@ where
 /// `EvaluatedTerm`: have both Codec and a way to extract knowledge out of a Message/OpaqueMessage
 /// or any type that might be used in a precomputation
 pub trait EvaluatedTerm<PT: ProtocolTypes>:
-    codec::CodecP + Extractable<PT> + Debug + AsAny + 'static
+    codec::CodecP + Extractable<PT> + CompareKnowledge<PT> + Debug + AsAny + 'static
 where
     Self: 'static,
 {
@@ -59,9 +115,10 @@ where
 
     fn boxed(&self) -> Box<dyn EvaluatedTerm<PT>>;
 }
+
 impl<T, PT: ProtocolTypes> EvaluatedTerm<PT> for T
 where
-    T: codec::CodecP + Extractable<PT> + 'static + Clone,
+    T: codec::CodecP + Extractable<PT> + CompareKnowledge<PT> + 'static + Clone,
 {
     fn boxed(&self) -> Box<dyn EvaluatedTerm<PT>> {
         Box::new(self.clone())
@@ -126,6 +183,13 @@ pub trait ProtocolTypes:
 
     /// Get the signature that is used in the protocol
     fn signature() -> &'static Signature<Self>;
+
+    fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>>;
+    fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>>;
+
+    // Terms to evaluate and compare during differential fuzzing
+    // eg. decryption recipes
+    fn differential_fuzzing_terms_to_eval() -> Vec<crate::algebra::Term<Self>>;
 }
 
 /// Defines the protocol which is being tested.
@@ -170,6 +234,25 @@ pub trait ProtocolBehavior: 'static {
         bitstring: &[u8],
         ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error>;
+}
+
+impl<T: ProtocolTypes> Extractable<T> for () {
+    fn extract_knowledge<'a>(
+        &'a self,
+        _knowledges: &mut Vec<Knowledge<'a, T>>,
+        _matcher: Option<<T as ProtocolTypes>::Matcher>,
+        _source: &'a Source,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl codec::CodecP for () {
+    fn encode(&self, _bytes: &mut Vec<u8>) {}
+
+    fn read(&mut self, _r: &mut codec::Reader) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 // -- Macros --
@@ -237,6 +320,32 @@ macro_rules! atom_extract_knowledge {
                     data: self,
                 });
                 Ok(())
+            }
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! dummy_compare {
+    ($protocol_type:ty, $extract_type:ty) => {
+        impl $crate::protocol::CompareKnowledge<$protocol_type> for $extract_type {
+            fn find_differences(
+                &self,
+                other: &dyn EvaluatedTerm<$protocol_type>,
+                diffs: &mut Vec<$crate::differential::TraceDifference>,
+                knowledge_num: usize,
+            ) {
+                match other.as_any().downcast_ref::<$extract_type>() {
+                    Some(_) => {
+                        todo!("Comparable for {}", other.type_name());
+                    }
+                    None => diffs.push($crate::differential::TraceDifference::Knowledges(format!(
+                        "knowledge[{}]: {} != {}",
+                        knowledge_num,
+                        std::any::type_name::<Self>(),
+                        other.type_name()
+                    ))),
+                };
             }
         }
     };

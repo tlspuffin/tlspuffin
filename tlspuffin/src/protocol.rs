@@ -1,16 +1,17 @@
-use core::any::TypeId;
+use std::any::TypeId;
 
+use comparable::Comparable;
 use puffin::algebra::signature::Signature;
 use puffin::algebra::Matcher;
 use puffin::error::Error;
 use puffin::protocol::{
-    EvaluatedTerm, Extractable, OpaqueProtocolMessage, OpaqueProtocolMessageFlight,
-    ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
-    ProtocolTypes,
+    CompareKnowledge, EvaluatedTerm, Extractable, OpaqueProtocolMessage,
+    OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer,
+    ProtocolMessageFlight, ProtocolTypes,
 };
 use puffin::put::PutDescriptor;
 use puffin::trace::{Knowledge, Source, Trace};
-use puffin::{atom_extract_knowledge, codec, dummy_extract_knowledge};
+use puffin::{atom_extract_knowledge, codec, dummy_compare, dummy_extract_knowledge};
 use serde::{Deserialize, Serialize};
 
 use crate::claims::TlsClaim;
@@ -42,7 +43,7 @@ use crate::tls::rustls::msgs::{self};
 use crate::tls::violation::TlsSecurityViolationPolicy;
 use crate::tls::TLS_SIGNATURE;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct MessageFlight {
     pub messages: Vec<Message>,
 }
@@ -88,7 +89,7 @@ impl codec::Codec for MessageFlight {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct OpaqueMessageFlight {
     pub messages: Vec<OpaqueMessage>,
 }
@@ -751,10 +752,13 @@ atom_extract_knowledge!(TLSProtocolTypes, u64);
 atom_extract_knowledge!(TLSProtocolTypes, u8);
 dummy_extract_knowledge!(TLSProtocolTypes, bool);
 
-impl<T: EvaluatedTerm<TLSProtocolTypes> + Clone + codec::Codec + 'static>
+dummy_compare!(TLSProtocolTypes, HandshakeHash);
+dummy_compare!(TLSProtocolTypes, SessionID);
+
+impl<T: Extractable<TLSProtocolTypes> + Clone + codec::Codec + 'static>
     Extractable<TLSProtocolTypes> for Vec<T>
 where
-    Vec<T>: codec::Codec,
+    Vec<T>: codec::Codec + CompareKnowledge<TLSProtocolTypes>,
 {
     fn extract_knowledge<'a>(
         &'a self,
@@ -777,7 +781,7 @@ where
 
 impl<T: Extractable<TLSProtocolTypes> + Clone + 'static> Extractable<TLSProtocolTypes> for Option<T>
 where
-    Option<T>: codec::Codec,
+    Option<T>: codec::Codec + Comparable,
 {
     fn extract_knowledge<'a>(
         &'a self,
@@ -817,6 +821,18 @@ impl ProtocolTypes for TLSProtocolTypes {
 
     fn signature() -> &'static Signature<Self> {
         &TLS_SIGNATURE
+    }
+
+    fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>> {
+        None
+    }
+
+    fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
+        Some(vec![TypeId::of::<MessagePayload>()])
+    }
+
+    fn differential_fuzzing_terms_to_eval() -> Vec<puffin::algebra::Term<Self>> {
+        [].into()
     }
 }
 

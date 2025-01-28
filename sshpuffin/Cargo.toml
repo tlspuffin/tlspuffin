@@ -22,6 +22,7 @@ puffin = { path = "../puffin" }
 puffin-build = { path = "../puffin-build" }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+comparable = { workspace = true }
 
 # libssh
 foreign-types = { workspace = true }
