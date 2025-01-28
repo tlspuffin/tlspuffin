@@ -1,8 +1,8 @@
-use puffin::agent::TLSVersion;
 use puffin::execution::Runner;
 use puffin::put::PutDescriptor;
 use puffin::put_registry::TCP_PUT;
 use puffin::trace::Spawner;
+use tlspuffin::protocol::TLSVersion;
 #[allow(unused_imports)]
 use tlspuffin::{test_utils::prelude::*, tls::seeds::*, tls::vulnerabilities::*};
 

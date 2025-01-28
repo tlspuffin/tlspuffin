@@ -6,24 +6,20 @@
 //! Each [`Agent`] has an *inbound* and an *outbound* channel (see [`crate::stream`])
 
 use core::fmt;
+use std::fmt::Debug;
+use std::hash::Hash;
 
 use serde::{Deserialize, Serialize};
 
 use crate::algebra::ConcreteMessage;
 use crate::error::Error;
-use crate::protocol::ProtocolBehavior;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::Put;
 use crate::stream::Stream;
 
 /// Copyable reference to an [`Agent`]. It identifies exactly one agent.
 #[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct AgentName(u8);
-
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
-pub enum AgentType {
-    Server,
-    Client,
-}
 
 impl AgentName {
     #[must_use]
@@ -61,6 +57,12 @@ impl From<AgentName> for u8 {
     }
 }
 
+pub trait ProtocolPUTDescriptorConfig:
+    Default + Debug + Clone + Serialize + Hash + for<'a> Deserialize<'a>
+{
+    fn is_reusable_with(&self, other: &Self) -> bool;
+}
+
 /// [`AgentDescriptor`]s act like a blueprint to spawn [`Agent`]s with a corresponding server or
 /// client role and a specific TLs version. Essentially they are an [`Agent`] without a stream.
 ///
@@ -69,96 +71,39 @@ impl From<AgentName> for u8 {
 /// every invocation of the seed. Values in the [`crate::put::PutDescriptor`] are supposed to
 /// differ between invocations.
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
-pub struct AgentDescriptor {
+#[serde(bound = "C: ProtocolPUTDescriptorConfig")]
+pub struct AgentDescriptor<C: ProtocolPUTDescriptorConfig> {
     pub name: AgentName,
-    pub tls_version: TLSVersion,
-    /// Whether the agent which holds this descriptor is a server.
-    pub typ: AgentType,
-    /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
-    /// as openssl agents rotate ticket keys if they are recreated.
-    pub try_reuse: bool,
-    /// If agent is a server:
-    ///   Make client auth. a requirement.
-    /// If agent is a client:
-    ///   Send a static certificate.
-    ///
-    /// Default: false
-    pub client_authentication: bool,
-    /// If agent is a server:
-    ///   No effect, servers always send certificates in TLS.
-    /// If agent is a client:
-    ///   Make server auth. a requirement.
-    ///
-    /// Default: true
-    pub server_authentication: bool,
+
+    pub put_config: C,
 }
 
-impl Default for AgentDescriptor {
+impl<C: ProtocolPUTDescriptorConfig> AgentDescriptor<C> {
+    pub fn from_config(name: AgentName, put_config: C) -> Self {
+        Self { name, put_config }
+    }
+
+    pub fn from_name(name: AgentName) -> Self {
+        Self {
+            name,
+            put_config: C::default(),
+        }
+    }
+}
+
+impl<C: ProtocolPUTDescriptorConfig> Default for AgentDescriptor<C> {
     fn default() -> Self {
         Self {
             name: AgentName::first(),
-            tls_version: TLSVersion::V1_3,
-            typ: AgentType::Server,
-            try_reuse: false,
-            client_authentication: false,
-            server_authentication: true,
+            put_config: C::default(),
         }
     }
-}
-
-impl AgentDescriptor {
-    #[must_use]
-    pub fn new_reusable_server(name: AgentName, tls_version: TLSVersion) -> Self {
-        Self {
-            name,
-            tls_version,
-            typ: AgentType::Server,
-            try_reuse: true,
-            ..Self::default()
-        }
-    }
-
-    #[must_use]
-    pub fn new_reusable_client(name: AgentName, tls_version: TLSVersion) -> Self {
-        Self {
-            name,
-            tls_version,
-            typ: AgentType::Client,
-            try_reuse: true,
-            ..Self::default()
-        }
-    }
-
-    #[must_use]
-    pub fn new_server(name: AgentName, tls_version: TLSVersion) -> Self {
-        Self {
-            name,
-            tls_version,
-            typ: AgentType::Server,
-            ..Self::default()
-        }
-    }
-
-    #[must_use]
-    pub fn new_client(name: AgentName, tls_version: TLSVersion) -> Self {
-        Self {
-            name,
-            tls_version,
-            typ: AgentType::Client,
-            ..Self::default()
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
-pub enum TLSVersion {
-    V1_3,
-    V1_2,
 }
 
 /// An [`Agent`] holds a non-cloneable reference to a Stream.
 pub struct Agent<PB: ProtocolBehavior> {
-    descriptor: AgentDescriptor,
+    descriptor:
+        AgentDescriptor<<<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::PUTConfig>,
     put: Box<dyn Put<PB>>,
 }
 
@@ -180,7 +125,10 @@ impl<PB: ProtocolBehavior> PartialEq for Agent<PB> {
 
 impl<PB: ProtocolBehavior> Agent<PB> {
     #[must_use]
-    pub fn new(descriptor: AgentDescriptor, put: Box<dyn Put<PB>>) -> Self {
+    pub fn new(
+        descriptor: AgentDescriptor<<PB::ProtocolTypes as ProtocolTypes>::PUTConfig>,
+        put: Box<dyn Put<PB>>,
+    ) -> Self {
         Self { descriptor, put }
     }
 
@@ -206,8 +154,13 @@ impl<PB: ProtocolBehavior> Agent<PB> {
 
     /// Checks whether the agent is reusable with the descriptor.
     #[must_use]
-    pub fn is_reusable_with(&self, other: &AgentDescriptor) -> bool {
-        self.descriptor.typ == other.typ && self.descriptor.tls_version == other.tls_version
+    pub fn is_reusable_with(
+        &self,
+        other: &AgentDescriptor<<PB::ProtocolTypes as ProtocolTypes>::PUTConfig>,
+    ) -> bool {
+        self.descriptor
+            .put_config
+            .is_reusable_with(&other.put_config)
     }
 
     #[must_use]

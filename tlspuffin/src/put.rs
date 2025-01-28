@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::io::Read;
 use std::rc::Rc;
 
-use puffin::agent::{AgentDescriptor, AgentType};
+use puffin::agent::AgentDescriptor;
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::claims::GlobalClaimList;
 use puffin::error::Error;
@@ -15,7 +15,10 @@ use puffin::stream::Stream;
 use security_claims::Claim;
 
 use crate::claims::TlsClaim;
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior, TLSProtocolTypes};
+use crate::protocol::{
+    AgentType, OpaqueMessageFlight, TLSPUTDescriptorConfig, TLSProtocolBehavior, TLSProtocolTypes,
+    TLSVersion,
+};
 use crate::put_registry::bindings::{
     AGENT, CLAIMER_CB, PEM, TLS_AGENT_DESCRIPTOR, TLS_AGENT_ROLE, TLS_PUT_INTERFACE, TLS_VERSION,
 };
@@ -25,7 +28,7 @@ use crate::tls::rustls::msgs::deframer::MessageDeframer;
 /// Static configuration for creating a new agent state for the PUT
 #[derive(Clone, Debug)]
 pub struct TlsPutConfig {
-    pub descriptor: AgentDescriptor,
+    pub descriptor: AgentDescriptor<TLSPUTDescriptorConfig>,
     pub claims: GlobalClaimList<TlsClaim>,
     pub authenticate_peer: bool,
     pub extract_deferred: Rc<RefCell<Option<TypeShape<TLSProtocolTypes>>>>,
@@ -34,7 +37,7 @@ pub struct TlsPutConfig {
 
 impl TlsPutConfig {
     pub fn new(
-        agent_descriptor: &AgentDescriptor,
+        agent_descriptor: &AgentDescriptor<TLSPUTDescriptorConfig>,
         claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
         options: &PutOptions,
     ) -> TlsPutConfig {
@@ -46,10 +49,10 @@ impl TlsPutConfig {
         TlsPutConfig {
             descriptor: agent_descriptor.clone(),
             claims: claims.clone(),
-            authenticate_peer: agent_descriptor.typ == AgentType::Client
-                && agent_descriptor.server_authentication
-                || agent_descriptor.typ == AgentType::Server
-                    && agent_descriptor.client_authentication,
+            authenticate_peer: agent_descriptor.put_config.typ == AgentType::Client
+                && agent_descriptor.put_config.server_authentication
+                || agent_descriptor.put_config.typ == AgentType::Server
+                    && agent_descriptor.put_config.client_authentication,
             extract_deferred: Rc::new(RefCell::new(None)),
             use_clear,
         }
@@ -86,7 +89,7 @@ impl CPut {
 impl Factory<TLSProtocolBehavior> for CPut {
     fn create(
         &self,
-        agent_descriptor: &AgentDescriptor,
+        agent_descriptor: &AgentDescriptor<TLSPUTDescriptorConfig>,
         claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
         options: &PutOptions,
     ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
@@ -181,7 +184,7 @@ impl CAgent {
         let server_store = [&client_cert as *const _, &other_cert];
         let client_store = [&server_cert as *const _, &other_cert];
 
-        let descriptor = match config.descriptor.typ {
+        let descriptor = match config.descriptor.put_config.typ {
             AgentType::Server => {
                 make_descriptor(&config, &server_cert, &server_pkey, &server_store)
             }
@@ -212,8 +215,8 @@ impl CAgent {
             use crate::claims::claims_helpers;
 
             let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.tls_version;
-            let origin = self.config.descriptor.typ;
+            let protocol_version = self.config.descriptor.put_config.tls_version;
+            let origin = self.config.descriptor.put_config.typ;
             let agent_name = self.config.descriptor.name;
 
             let claimer = make_claimer(move |claim: Claim| {
@@ -250,7 +253,7 @@ impl Put<TLSProtocolBehavior> for CAgent {
         Ok(())
     }
 
-    fn descriptor(&self) -> &AgentDescriptor {
+    fn descriptor(&self) -> &AgentDescriptor<TLSPUTDescriptorConfig> {
         &self.config.descriptor
     }
 
@@ -349,16 +352,16 @@ fn make_descriptor(
 
     TLS_AGENT_DESCRIPTOR {
         name: config.descriptor.name.into(),
-        role: match config.descriptor.typ {
+        role: match config.descriptor.put_config.typ {
             AgentType::Client => TLS_AGENT_ROLE::CLIENT,
             AgentType::Server => TLS_AGENT_ROLE::SERVER,
         },
-        tls_version: match config.descriptor.tls_version {
-            puffin::agent::TLSVersion::V1_3 => TLS_VERSION::V1_3,
-            puffin::agent::TLSVersion::V1_2 => TLS_VERSION::V1_2,
+        tls_version: match config.descriptor.put_config.tls_version {
+            TLSVersion::V1_3 => TLS_VERSION::V1_3,
+            TLSVersion::V1_2 => TLS_VERSION::V1_2,
         },
-        client_authentication: config.descriptor.client_authentication,
-        server_authentication: config.descriptor.server_authentication,
+        client_authentication: config.descriptor.put_config.client_authentication,
+        server_authentication: config.descriptor.put_config.server_authentication,
 
         cert,
         pkey,

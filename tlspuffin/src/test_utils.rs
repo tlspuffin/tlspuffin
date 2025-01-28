@@ -52,10 +52,10 @@ pub fn expect_trace_crash(
 }
 
 pub mod tcp {
-    use puffin::agent::TLSVersion;
     use puffin::put::PutOptions;
     use tempfile::{tempdir, TempDir};
 
+    use crate::protocol::TLSVersion;
     use crate::tcp::{collect_output, execute_command};
 
     const OPENSSL_PROG: &str = "openssl";

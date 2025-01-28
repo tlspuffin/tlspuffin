@@ -8,7 +8,7 @@ use boring::x509::store::X509StoreBuilder;
 use boring::x509::X509;
 use boringssl_sys::ssl_st;
 use foreign_types::ForeignTypeRef;
-use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::error::Error;
 use puffin::put::Put;
 use puffin::stream::{MemoryStream, Stream};
@@ -18,7 +18,9 @@ use crate::claims::{
     ClaimData, ClaimDataTranscript, TlsClaim, TranscriptCertificate, TranscriptClientFinished,
     TranscriptServerFinished, TranscriptServerHello,
 };
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::protocol::{
+    AgentType, OpaqueMessageFlight, TLSPUTDescriptorConfig, TLSProtocolBehavior,
+};
 use crate::put::TlsPutConfig;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 
@@ -68,7 +70,7 @@ impl Put<TLSProtocolBehavior> for RustPut {
         result
     }
 
-    fn descriptor(&self) -> &AgentDescriptor {
+    fn descriptor(&self) -> &AgentDescriptor<TLSPUTDescriptorConfig> {
         &self.config.descriptor
     }
 
@@ -116,7 +118,7 @@ impl RustPut {
 
     fn new_agent(config: TlsPutConfig) -> Result<Self, ErrorStack> {
         let agent_descriptor = &config.descriptor;
-        let ssl = match agent_descriptor.typ {
+        let ssl = match agent_descriptor.put_config.typ {
             AgentType::Server => Self::create_server(agent_descriptor)?,
             AgentType::Client => Self::create_client(agent_descriptor)?,
         };
@@ -128,14 +130,16 @@ impl RustPut {
         Ok(boringssl)
     }
 
-    fn create_server(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
+    fn create_server(
+        descriptor: &AgentDescriptor<TLSPUTDescriptorConfig>,
+    ) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
 
         let (cert, key) = static_rsa_cert(ALICE_PRIVATE_KEY.0.as_bytes(), ALICE_CERT.0.as_bytes())?;
         ctx_builder.set_certificate(&cert)?;
         ctx_builder.set_private_key(&key)?;
 
-        if descriptor.client_authentication {
+        if descriptor.put_config.client_authentication {
             let mut store = X509StoreBuilder::new()?;
             store.add_cert(X509::from_pem(BOB_CERT.0.as_bytes())?)?;
             store.add_cert(X509::from_pem(EVE_CERT.0.as_bytes())?)?;
@@ -147,7 +151,7 @@ impl RustPut {
             ctx_builder.set_verify(SslVerifyMode::NONE);
         }
 
-        set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
+        set_max_protocol_version(&mut ctx_builder, descriptor.put_config.tls_version)?;
 
         // Allow EXPORT in server
         ctx_builder.set_cipher_list("ALL:EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
@@ -158,22 +162,24 @@ impl RustPut {
         Ok(ssl)
     }
 
-    fn create_client(descriptor: &AgentDescriptor) -> Result<Ssl, ErrorStack> {
+    fn create_client(
+        descriptor: &AgentDescriptor<TLSPUTDescriptorConfig>,
+    ) -> Result<Ssl, ErrorStack> {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
-        set_max_protocol_version(&mut ctx_builder, descriptor.tls_version)?;
+        set_max_protocol_version(&mut ctx_builder, descriptor.put_config.tls_version)?;
 
         // Disallow EXPORT in client
         ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
 
         ctx_builder.set_verify(SslVerifyMode::NONE);
 
-        if descriptor.client_authentication {
+        if descriptor.put_config.client_authentication {
             let (cert, key) = static_rsa_cert(BOB_PRIVATE_KEY.0.as_bytes(), BOB_CERT.0.as_bytes())?;
             ctx_builder.set_certificate(&cert)?;
             ctx_builder.set_private_key(&key)?;
         }
 
-        if descriptor.server_authentication {
+        if descriptor.put_config.server_authentication {
             ctx_builder.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
 
             let mut store = X509StoreBuilder::new()?;
@@ -224,8 +230,8 @@ impl RustPut {
     /// add it to the claims
     fn create_msg_callback(config: &TlsPutConfig) -> impl Fn(&mut SslRef, i32) {
         let agent_name = config.descriptor.name;
-        let origin = config.descriptor.typ;
-        let protocol_version = config.descriptor.tls_version;
+        let origin = config.descriptor.put_config.typ;
+        let protocol_version = config.descriptor.put_config.tls_version;
         let claims = config.claims.clone();
 
         move |ssl: &mut SslRef, info_type: i32| {

@@ -4,7 +4,7 @@ use std::fmt;
 use crate::agent::AgentDescriptor;
 use crate::claims::GlobalClaimList;
 use crate::error::Error;
-use crate::protocol::ProtocolBehavior;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::{Put, PutOptions};
 
 // FIXME TCP_PUT should be defined in the tlspuffin package
@@ -117,7 +117,9 @@ impl<PB: ProtocolBehavior> Clone for PutRegistry<PB> {
 pub trait Factory<PB: ProtocolBehavior> {
     fn create(
         &self,
-        agent_descriptor: &AgentDescriptor,
+        agent_descriptor: &AgentDescriptor<
+            <<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::PUTConfig,
+        >,
         claims: &GlobalClaimList<PB::Claim>,
         options: &PutOptions,
     ) -> Result<Box<dyn Put<PB>>, Error>;

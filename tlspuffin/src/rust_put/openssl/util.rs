@@ -2,7 +2,8 @@ use openssl::error::ErrorStack;
 use openssl::pkey::{PKey, Private};
 use openssl::ssl::SslContextBuilder;
 use openssl::x509::X509;
-use puffin::agent::TLSVersion;
+
+use crate::protocol::TLSVersion;
 
 pub fn static_rsa_cert(key: &[u8], cert: &[u8]) -> Result<(X509, PKey<Private>), ErrorStack> {
     let rsa = openssl::rsa::Rsa::private_key_from_pem(key)?;

@@ -99,7 +99,7 @@ pub mod test_signature {
     use puffin_build::puffin;
     use serde::{Deserialize, Serialize};
 
-    use crate::agent::{AgentDescriptor, AgentName, TLSVersion};
+    use crate::agent::{AgentDescriptor, AgentName, ProtocolPUTDescriptorConfig};
     use crate::algebra::dynamic_function::{FunctionAttributes, TypeShape};
     use crate::algebra::error::FnError;
     use crate::algebra::{AnyMatcher, Term};
@@ -337,7 +337,7 @@ pub mod test_signature {
 
         Trace {
             prior_traces: vec![],
-            descriptors: vec![AgentDescriptor::new_server(server, TLSVersion::V1_2)],
+            descriptors: vec![AgentDescriptor::from_name(server)],
             steps: vec![
                 Step {
                     agent: server,
@@ -590,9 +590,19 @@ pub mod test_signature {
 
     impl ProtocolTypes for TestProtocolTypes {
         type Matcher = AnyMatcher;
+        type PUTConfig = TestPUTConfig;
 
         fn signature() -> &'static Signature<Self> {
             &TEST_SIGNATURE
+        }
+    }
+
+    #[derive(Default, Clone, Debug, Hash, Serialize, Deserialize)]
+    pub struct TestPUTConfig;
+
+    impl ProtocolPUTDescriptorConfig for TestPUTConfig {
+        fn is_reusable_with(&self, _other: &Self) -> bool {
+            false
         }
     }
 
@@ -631,7 +641,7 @@ pub mod test_signature {
     impl Factory<TestProtocolBehavior> for TestFactory {
         fn create(
             &self,
-            _agent_descriptor: &AgentDescriptor,
+            _agent_descriptor: &AgentDescriptor<TestPUTConfig>,
             _claims: &GlobalClaimList<<TestProtocolBehavior as ProtocolBehavior>::Claim>,
             _options: &PutOptions,
         ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {

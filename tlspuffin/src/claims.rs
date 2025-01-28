@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use puffin::agent::{AgentName, AgentType, TLSVersion};
+use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::claims::Claim;
 use puffin::error::Error;
@@ -9,7 +9,7 @@ use puffin::trace::{Knowledge, Source};
 use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
 use smallvec::SmallVec;
 
-use crate::protocol::TLSProtocolTypes;
+use crate::protocol::{AgentType, TLSProtocolTypes, TLSVersion};
 
 #[derive(Debug, Clone)]
 pub struct TlsTranscript(pub [u8; 64], pub i32);
@@ -317,7 +317,6 @@ impl Extractable<TLSProtocolTypes> for TlsClaim {
 }
 
 pub mod claims_helpers {
-    use puffin::agent::TLSVersion;
     use smallvec::SmallVec;
 
     use crate::claims::{
@@ -325,6 +324,7 @@ pub mod claims_helpers {
         TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
         TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
     };
+    use crate::protocol::TLSVersion;
 
     pub fn to_claim_data(
         protocol_version: TLSVersion,

@@ -1,5 +1,6 @@
 use core::any::TypeId;
 
+use puffin::agent::{AgentDescriptor, AgentName, ProtocolPUTDescriptorConfig};
 use puffin::algebra::signature::Signature;
 use puffin::algebra::Matcher;
 use puffin::error::Error;
@@ -809,11 +810,88 @@ impl Matcher for msgs::enums::HandshakeType {
     }
 }
 
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
+pub enum AgentType {
+    Server,
+    Client,
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+pub enum TLSVersion {
+    V1_3,
+    V1_2,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+pub struct TLSPUTDescriptorConfig {
+    /// Whether the agent which holds this descriptor is a server.
+    pub typ: AgentType,
+    pub tls_version: TLSVersion,
+    /// If agent is a server:
+    ///   Make client auth. a requirement.
+    /// If agent is a client:
+    ///   Send a static certificate.
+    ///
+    /// Default: false
+    pub client_authentication: bool,
+    /// If agent is a server:
+    ///   No effect, servers always send certificates in TLS.
+    /// If agent is a client:
+    ///   Make server auth. a requirement.
+    ///
+    /// Default: true
+    pub server_authentication: bool,
+    /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
+    /// as openssl agents rotate ticket keys if they are recreated.
+    pub try_reuse: bool,
+}
+
+impl TLSPUTDescriptorConfig {
+    pub fn new_client(name: AgentName, tls_version: TLSVersion) -> AgentDescriptor<Self> {
+        let put_config = Self {
+            tls_version,
+            typ: AgentType::Client,
+            ..Self::default()
+        };
+
+        AgentDescriptor { name, put_config }
+    }
+
+    pub fn new_server(name: AgentName, tls_version: TLSVersion) -> AgentDescriptor<Self> {
+        let put_config = Self {
+            tls_version,
+            typ: AgentType::Server,
+            ..Self::default()
+        };
+
+        AgentDescriptor { name, put_config }
+    }
+}
+
+impl ProtocolPUTDescriptorConfig for TLSPUTDescriptorConfig {
+    fn is_reusable_with(&self, other: &Self) -> bool {
+        self.typ == other.typ && self.tls_version == other.tls_version
+    }
+}
+
+impl Default for TLSPUTDescriptorConfig {
+    fn default() -> Self {
+        Self {
+            tls_version: TLSVersion::V1_3,
+            client_authentication: false,
+            server_authentication: true,
+            try_reuse: false,
+            typ: AgentType::Server,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
 pub struct TLSProtocolTypes;
 
 impl ProtocolTypes for TLSProtocolTypes {
     type Matcher = TlsQueryMatcher;
+    type PUTConfig = TLSPUTDescriptorConfig;
 
     fn signature() -> &'static Signature<Self> {
         &TLS_SIGNATURE

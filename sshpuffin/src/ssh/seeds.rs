@@ -1,8 +1,8 @@
-use puffin::agent::{AgentDescriptor, AgentName, AgentType, TLSVersion};
+use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::term;
 use puffin::trace::{InputAction, OutputAction, Trace};
 
-use crate::protocol::SshProtocolTypes;
+use crate::protocol::{AgentType, SshPUTDescriptorConfig, SshProtocolTypes};
 use crate::ssh::fn_impl::*;
 use crate::ssh::message::*;
 
@@ -10,22 +10,20 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            AgentDescriptor {
-                name: client,
-                tls_version: TLSVersion::V1_3, // FIXME: Remove?
-                typ: AgentType::Client,
-                try_reuse: false,             // FIXME: Remove?
-                client_authentication: false, // FIXME: Remove?
-                server_authentication: false, // FIXME: Remove?
-            },
-            AgentDescriptor {
-                name: server,
-                tls_version: TLSVersion::V1_3, // FIXME: Remove?
-                typ: AgentType::Server,
-                try_reuse: false,             // FIXME: Remove?
-                client_authentication: false, // FIXME: Remove?
-                server_authentication: false, // FIXME: Remove?
-            },
+            AgentDescriptor::from_config(
+                client,
+                SshPUTDescriptorConfig {
+                    typ: AgentType::Client,
+                    try_reuse: false, // FIXME: Remove?
+                },
+            ),
+            AgentDescriptor::from_config(
+                server,
+                SshPUTDescriptorConfig {
+                    typ: AgentType::Server,
+                    try_reuse: false, // FIXME: Remove?
+                },
+            ),
         ],
         steps: vec![
             OutputAction::new_step(client),
