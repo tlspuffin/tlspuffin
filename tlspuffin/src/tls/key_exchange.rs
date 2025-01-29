@@ -1,11 +1,11 @@
 use puffin::algebra::error::FnError;
 use ring::test::rand::FixedByteRandom;
 
+use super::rustls::suites::SupportedCipherSuite;
 use crate::tls::rustls::conn::ConnectionRandoms;
 use crate::tls::rustls::kx::{KeyExchange, SupportedKxGroup, ALL_KX_GROUPS};
 use crate::tls::rustls::msgs::enums::NamedGroup;
 use crate::tls::rustls::msgs::handshake::Random;
-use crate::tls::rustls::tls12;
 use crate::tls::rustls::tls12::ConnectionSecrets;
 
 fn deterministic_key_exchange(skxg: &'static SupportedKxGroup) -> Result<KeyExchange, FnError> {
@@ -59,9 +59,9 @@ pub fn tls12_new_secrets(
     server_random: &Random,
     server_ecdh_pubkey: &[u8],
     group: &NamedGroup,
+    client_random: &Random,
+    suite: SupportedCipherSuite,
 ) -> Result<ConnectionSecrets, FnError> {
-    let suite = &tls12::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256; // todo https://github.com/tlspuffin/tlspuffin/issues/129
-
     let mut server_random_bytes = vec![0; 32];
 
     server_random.write_slice(&mut server_random_bytes);
@@ -70,7 +70,7 @@ pub fn tls12_new_secrets(
         .try_into()
         .map_err(|_| FnError::Unknown("Server random did not have length of 32".to_string()))?;
     let randoms = ConnectionRandoms {
-        client: [1; 32], // todo https://github.com/tlspuffin/tlspuffin/issues/129
+        client: client_random.0,
         server: server_random,
     };
     let kx = tls12_key_exchange(group)?;

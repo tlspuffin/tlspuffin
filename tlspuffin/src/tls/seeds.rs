@@ -631,7 +631,9 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                 (@server_hello_transcript),
                 (fn_get_client_key_share(((client, 0)), (@curve))),
                 (@curve),
-                fn_no_psk
+                fn_no_psk,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
             ))
         )
     };
@@ -661,7 +663,9 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_no_psk,
                             (@curve),
                             fn_false,
-                            fn_seq_0  // sequence 0
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -676,7 +680,9 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_no_psk,
                             (@curve),
                             fn_false,
-                            fn_seq_1  // sequence 1
+                            fn_seq_1,  // sequence 1
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -691,7 +697,9 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_no_psk,
                             (@curve),
                             fn_false,
-                            fn_seq_2  // sequence 2
+                            fn_seq_2,  // sequence 2
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -706,7 +714,9 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_no_psk,
                             (@curve),
                             fn_false,
-                            fn_seq_3  // sequence 3
+                            fn_seq_3,  // sequence 3
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -753,7 +763,9 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0  // sequence 0
+            fn_seq_0,  // sequence 0
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -795,7 +807,9 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
                 fn_no_psk,
-                fn_named_group_secp384r1
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
             ))
         )
     };
@@ -827,7 +841,9 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_no_psk,
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_0  // sequence 0
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -842,7 +858,9 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_no_psk,
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_1  // sequence 1
+                            fn_seq_1,  // sequence 1
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -857,7 +875,9 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_no_psk,
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_2  // sequence 2
+                            fn_seq_2,  // sequence 2
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -902,7 +922,9 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
                 fn_no_psk,
-                fn_named_group_secp384r1
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
             ))
         )
     };
@@ -928,7 +950,9 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_no_psk,
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_0  // sequence 0
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -1035,7 +1059,9 @@ pub fn _seed_client_attacker12(
                 ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript),
-            fn_named_group_secp384r1
+            fn_named_group_secp384r1,
+            fn_new_random,
+            fn_cipher_suite12
         )
     };
 
@@ -1069,7 +1095,9 @@ pub fn _seed_client_attacker12(
                             )),
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_0
+                            fn_seq_0,
+                            fn_new_random,
+                            fn_cipher_suite12
                         )
                     }
                 }),
@@ -1097,7 +1125,9 @@ pub fn seed_session_resumption_dhe(
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0  // sequence 0
+            fn_seq_0,  // sequence 0
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -1148,14 +1178,17 @@ pub fn seed_session_resumption_dhe(
             (fn_client_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             (fn_get_ticket_nonce((@new_ticket_message))),
-            fn_named_group_secp384r1
+            fn_named_group_secp384r1,
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
     let binder = term! {
         fn_derive_binder(
             (@client_hello),
-            (@psk)
+            (@psk),
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -1173,7 +1206,9 @@ pub fn seed_session_resumption_dhe(
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
                 (fn_psk((@psk))),
-                fn_named_group_secp384r1
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
             ))
         )
     };
@@ -1199,7 +1234,9 @@ pub fn seed_session_resumption_dhe(
                             (fn_psk((@psk))),
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_0  // sequence 0
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -1225,7 +1262,10 @@ pub fn seed_session_resumption_ke(
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0  // sequence 0
+            fn_seq_0,  // sequence 0
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
+
         )
     };
 
@@ -1276,14 +1316,17 @@ pub fn seed_session_resumption_ke(
             (fn_client_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             (fn_get_ticket_nonce((@new_ticket_message))),
-            fn_named_group_secp384r1
+            fn_named_group_secp384r1,
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
     let binder = term! {
         fn_derive_binder(
             (@client_hello),
-            (@psk)
+            (@psk),
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -1301,7 +1344,9 @@ pub fn seed_session_resumption_ke(
                 (fn_server_hello_transcript(((server, 0)))),
                 fn_no_key_share,
                 (fn_psk((@psk))),
-                fn_named_group_secp384r1
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
             ))
         )
     };
@@ -1327,7 +1372,9 @@ pub fn seed_session_resumption_ke(
                             (fn_psk((@psk))),
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_0  // sequence 0
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -1397,7 +1444,9 @@ pub fn _seed_client_attacker_full(
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0  // sequence 0
+            fn_seq_0,  // sequence 0
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -1452,8 +1501,10 @@ pub fn _seed_client_attacker_full(
                 (@server_hello_transcript),
                 (fn_get_server_key_share(((server, 0)))),
                 fn_no_psk,
-                fn_named_group_secp384r1
-            ))
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+             ))
         )
     };
 
@@ -1486,7 +1537,9 @@ pub fn _seed_client_attacker_full(
                             fn_no_psk,
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_0  // sequence 0
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -1578,7 +1631,9 @@ pub fn _seed_client_attacker_full_precomputation(
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0  // sequence 0
+            fn_seq_0,  // sequence 0
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -1642,7 +1697,9 @@ pub fn _seed_client_attacker_full_precomputation(
                 (@server_hello_transcript),
                 (fn_get_server_key_share(((server, 0)))),
                 fn_no_psk,
-                fn_named_group_secp384r1
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
             ))
         )
     };
@@ -1681,7 +1738,9 @@ pub fn _seed_client_attacker_full_precomputation(
                             fn_no_psk,
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_0  // sequence 0
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -1720,7 +1779,9 @@ pub fn seed_session_resumption_dhe_full(
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
+            fn_seq_0, // sequence restarts at 0 because we are decrypting now traffic
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -1769,14 +1830,17 @@ pub fn seed_session_resumption_dhe_full(
             (@client_finished_transcript),
             (fn_get_server_key_share(((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             (fn_get_ticket_nonce((@new_ticket_message))),
-            fn_named_group_secp384r1
+            fn_named_group_secp384r1,
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
     let binder = term! {
         fn_derive_binder(
             (@client_hello),
-            (@psk)
+            (@psk),
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -1805,7 +1869,9 @@ pub fn seed_session_resumption_dhe_full(
             (fn_psk((@psk))),
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0  // sequence 0
+            fn_seq_0,  // sequence 0
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -1838,7 +1904,9 @@ pub fn seed_session_resumption_dhe_full(
                 (@resumption_server_hello_transcript),
                 (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
                 (fn_psk((@psk))),
-                fn_named_group_secp384r1
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
             ))
         )
     };
@@ -1864,7 +1932,9 @@ pub fn seed_session_resumption_dhe_full(
                             (fn_psk((@psk))),
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_0  // sequence 0
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),

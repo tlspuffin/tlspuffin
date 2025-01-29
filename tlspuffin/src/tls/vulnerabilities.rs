@@ -50,7 +50,9 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0  // sequence 0
+            fn_seq_0,  // sequence 0
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -97,7 +99,9 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
                 fn_no_psk,
-                fn_named_group_secp384r1
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
             ))
         )
     };
@@ -129,7 +133,9 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_no_psk,
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_0  // sequence 0
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -144,7 +150,9 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_no_psk,
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_1  // sequence 1
+                            fn_seq_1,  // sequence 1
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -159,7 +167,9 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_no_psk,
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_2  // sequence 2
+                            fn_seq_2,  // sequence 2
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -206,7 +216,9 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0  // sequence 0
+            fn_seq_0,  // sequence 0
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -235,7 +247,9 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
                 fn_no_psk,
-                fn_named_group_secp384r1
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
             ))
         )
     };
@@ -267,7 +281,9 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_no_psk,
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_0  // sequence 0
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -282,7 +298,9 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_no_psk,
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_1  // sequence 1
+                            fn_seq_1,  // sequence 1
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -340,7 +358,9 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
                     )),
                     fn_named_group_secp384r1,
                     fn_true,
-                    fn_seq_1
+                    fn_seq_1,
+                    fn_new_random,
+                    fn_cipher_suite12
                 )
             }
         }),
@@ -546,7 +566,9 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
                 (fn_server_hello_transcript(((server, 0)))),
                 (fn_get_server_key_share(((server, 0)))),
                 fn_no_psk,
-                fn_named_group_secp384r1
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
             ))
         )
     };
@@ -578,7 +600,9 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
                             fn_no_psk,
                             fn_named_group_secp384r1,
                             fn_true,
-                            fn_seq_0  // sequence 0
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
                         )
                     }
                 }),
@@ -711,7 +735,9 @@ pub fn seed_cve_2022_39173(
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
+            fn_seq_0, // sequence restarts at 0 because we are decrypting now traffic
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -781,14 +807,17 @@ pub fn seed_cve_2022_39173(
             (fn_client_finished_transcript(((initial_server, 0)))),
             (fn_get_server_key_share(((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             (fn_get_ticket_nonce((@new_ticket_message))),
-            fn_named_group_secp384r1
+            fn_named_group_secp384r1,
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
     let binder = term! {
         fn_derive_binder(
             (@client_hello),
-            (@psk)
+            (@psk),
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -855,7 +884,9 @@ pub fn seed_cve_2022_39173_full(
             fn_no_psk,
             fn_named_group_secp384r1,
             fn_true,
-            fn_seq_0 // sequence restarts at 0 because we are decrypting now traffic
+            fn_seq_0, // sequence restarts at 0 because we are decrypting now traffic
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
@@ -918,14 +949,17 @@ pub fn seed_cve_2022_39173_full(
             (@client_finished_transcript),
             (fn_get_server_key_share(((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
             (fn_get_ticket_nonce((@new_ticket_message))),
-            fn_named_group_secp384r1
+            fn_named_group_secp384r1,
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
     let binder = term! {
         fn_derive_binder(
             (@client_hello),
-            (@psk)
+            (@psk),
+            fn_cipher_suite13_aes_128_gcm_sha256
         )
     };
 
