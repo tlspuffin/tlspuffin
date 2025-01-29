@@ -410,7 +410,11 @@ pub fn fn_derive_psk(
     Ok(psk)
 }
 
-pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+pub fn fn_derive_binder(
+    full_client_hello: &Message,
+    psk: &Vec<u8>,
+    suite: &CipherSuite,
+) -> Result<Vec<u8>, FnError> {
     let client_hello_payload: HandshakeMessagePayload = match full_client_hello.payload.clone() {
         MessagePayload::Handshake(payload) => Some(payload),
         _ => None,
@@ -419,12 +423,12 @@ pub fn fn_derive_binder(full_client_hello: &Message, psk: &Vec<u8>) -> Result<Ve
         FnError::Unknown("Only can fill binder in HandshakeMessagePayload".to_owned())
     })?;
 
-    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo allow other cipher suites: https://github.com/tlspuffin/tlspuffin/issues/129
-    let hkdf_alg = suite
+    let supported_suite = suite_as_supported_suite(suite)?;
+    let hkdf_alg = supported_suite
         .tls13()
         .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .hkdf_algorithm;
-    let suite_hash = suite.hash_algorithm();
+    let suite_hash = supported_suite.hash_algorithm();
 
     let transcript = HandshakeHash::new(suite_hash);
 
