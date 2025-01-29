@@ -12,14 +12,16 @@ use crate::tls::rustls::conn::Side;
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::Certificate;
 use crate::tls::rustls::msgs::base::PayloadU8;
-use crate::tls::rustls::msgs::enums::{HandshakeType, NamedGroup};
+use crate::tls::rustls::msgs::enums::{CipherSuite, HandshakeType, NamedGroup};
 use crate::tls::rustls::msgs::handshake::{
     CertificateEntries, CertificateEntry, CertificateExtension, CertificateExtensions,
     HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
 };
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
-use crate::tls::rustls::tls12;
+use crate::tls::rustls::suites::SupportedCipherSuite;
+use crate::tls::rustls::tls12::{self, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256};
 use crate::tls::rustls::tls13::key_schedule::KeyScheduleEarly;
+use crate::tls::rustls::tls13::{TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384};
 
 // ----
 // seed_client_attacker()
@@ -64,6 +66,17 @@ pub fn fn_append_opaque_flight(
     Ok(new_flight)
 }
 
+pub fn suite_as_supported_suite(suite: &CipherSuite) -> Result<SupportedCipherSuite, FnError> {
+    match suite {
+        CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 => {
+            Ok(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
+        }
+        CipherSuite::TLS13_AES_128_GCM_SHA256 => Ok(TLS13_AES_128_GCM_SHA256),
+        CipherSuite::TLS13_AES_256_GCM_SHA384 => Ok(TLS13_AES_256_GCM_SHA384),
+        _ => Err(FnError::Crypto("Unsupported ciphersuite".into())),
+    }
+}
+
 /// Decrypt a whole flight of handshake messages and return a Vec of decrypted messages
 pub fn fn_decrypt_handshake_flight(
     flight: &MessageFlight,
@@ -73,6 +86,8 @@ pub fn fn_decrypt_handshake_flight(
     group: &NamedGroup,
     client: &bool,
     sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
 ) -> Result<MessageFlight, FnError> {
     let mut sequence_number = *sequence;
 
@@ -88,6 +103,8 @@ pub fn fn_decrypt_handshake_flight(
                 group,
                 client,
                 &sequence_number,
+                client_random,
+                suite,
             )?;
 
             decrypted_flight.messages.extend(decrypted_msg);
@@ -108,15 +125,21 @@ pub fn fn_decrypt_multiple_handshake_messages(
     group: &NamedGroup,
     client: &bool,
     sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
 ) -> Result<Vec<Message>, FnError> {
-    let (suite, key, _) = tls13_handshake_traffic_secret(
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let (key, _) = tls13_handshake_traffic_secret(
         server_hello_transcript,
         server_key_share,
         psk,
         !*client,
         group,
+        client_random,
+        &supported_suite,
     )?;
-    let decrypter = suite
+    let decrypter = supported_suite
         .tls13()
         .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .derive_decrypter(&key);
@@ -225,6 +248,8 @@ pub fn fn_decrypt_application_flight(
     group: &NamedGroup,
     client: &bool,
     sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
 ) -> Result<MessageFlight, FnError> {
     let mut sequence_number = *sequence;
 
@@ -241,6 +266,8 @@ pub fn fn_decrypt_application_flight(
                 group,
                 client,
                 &sequence_number,
+                client_random,
+                suite,
             )?;
 
             decrypted_flight.push(decrypted_msg);
@@ -260,16 +287,22 @@ pub fn fn_decrypt_application(
     group: &NamedGroup,
     client: &bool,
     sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
 ) -> Result<Message, FnError> {
-    let (suite, key, _) = tls13_application_traffic_secret(
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let (key, _) = tls13_application_traffic_secret(
         server_hello_transcript,
         server_finished_transcript,
         server_key_share,
         psk,
         group,
         !*client,
+        client_random,
+        &supported_suite,
     )?;
-    let decrypter = suite
+    let decrypter = supported_suite
         .tls13()
         .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .derive_decrypter(&key);
@@ -293,10 +326,21 @@ pub fn fn_encrypt_handshake(
     group: &NamedGroup,
     client: &bool,
     sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
 ) -> Result<OpaqueMessage, FnError> {
-    let (suite, key, _) =
-        tls13_handshake_traffic_secret(server_hello, server_key_share, psk, *client, group)?;
-    let encrypter = suite
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let (key, _) = tls13_handshake_traffic_secret(
+        server_hello,
+        server_key_share,
+        psk,
+        *client,
+        group,
+        client_random,
+        &supported_suite,
+    )?;
+    let encrypter = supported_suite
         .tls13()
         .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .derive_encrypter(&key);
@@ -314,16 +358,22 @@ pub fn fn_encrypt_application(
     psk: &Option<Vec<u8>>,
     group: &NamedGroup,
     sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
 ) -> Result<OpaqueMessage, FnError> {
-    let (suite, key, _) = tls13_application_traffic_secret(
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let (key, _) = tls13_application_traffic_secret(
         server_hello_transcript,
         server_finished_transcript,
         server_key_share,
         psk,
         group,
         true,
+        client_random,
+        &supported_suite,
     )?;
-    let encrypter = suite
+    let encrypter = supported_suite
         .tls13()
         .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
         .derive_encrypter(&key);
@@ -342,7 +392,10 @@ pub fn fn_derive_psk(
     server_key_share: &Option<Vec<u8>>,
     new_ticket_nonce: &Vec<u8>,
     group: &NamedGroup,
+    client_random: &Random,
+    suite: &CipherSuite,
 ) -> Result<Vec<u8>, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
     let psk = tls13_derive_psk(
         server_hello,
         server_finished,
@@ -350,6 +403,8 @@ pub fn fn_derive_psk(
         server_key_share,
         new_ticket_nonce,
         group,
+        client_random,
+        &supported_suite,
     )?;
 
     Ok(psk)
@@ -485,8 +540,18 @@ pub fn fn_encrypt12(
     group: &NamedGroup,
     client: &bool,
     sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
 ) -> Result<OpaqueMessage, FnError> {
-    let secrets = tls12_new_secrets(server_random, server_ecdh_pubkey, group)?;
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let secrets = tls12_new_secrets(
+        server_random,
+        server_ecdh_pubkey,
+        group,
+        client_random,
+        supported_suite,
+    )?;
 
     let (_decrypter, encrypter) = secrets.make_cipher_pair(match *client {
         true => Side::Client,

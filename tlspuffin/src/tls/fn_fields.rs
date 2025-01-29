@@ -4,6 +4,7 @@
 use puffin::algebra::error::FnError;
 use puffin::codec::{Codec, Reader};
 
+use super::suite_as_supported_suite;
 use crate::tls::key_exchange::tls12_new_secrets;
 use crate::tls::key_schedule::dhe_key_schedule;
 use crate::tls::rustls::hash_hs::HandshakeHash;
@@ -184,8 +185,18 @@ pub fn fn_sign_transcript(
     server_ecdh_pubkey: &Vec<u8>,
     transcript: &HandshakeHash,
     group: &NamedGroup,
+    client_random: &Random,
+    suite: &CipherSuite,
 ) -> Result<Vec<u8>, FnError> {
-    let secrets = tls12_new_secrets(server_random, server_ecdh_pubkey, group)?;
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let secrets = tls12_new_secrets(
+        server_random,
+        server_ecdh_pubkey,
+        group,
+        client_random,
+        supported_suite,
+    )?;
 
     let vh = transcript.get_current_hash();
     Ok(secrets.client_verify_data(&vh))
