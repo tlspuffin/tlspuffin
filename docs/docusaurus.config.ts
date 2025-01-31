@@ -78,6 +78,10 @@ const config: Config = {
               label: 'Reference Manual',
               to: '/docs/overview',
             },
+            {
+              label: 'Developer Documentation',
+              to: '/docs/developer/overview'
+            }
           ],
         },
         {

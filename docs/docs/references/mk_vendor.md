@@ -8,4 +8,10 @@ This page is currently under development. Information presented here might be in
 
 :::
 
-# mk_vendor
+:::tip[What is it?]
+
+`mk_vendor` is a tool to build specific versions of *vendor libraries*, like OpenSSL, which can then be harnessed and bundled into a puffin fuzzer.
+
+For more details, check the puffin [build process](../developer/build#mk_vendor).
+
+:::
