@@ -426,6 +426,11 @@ impl SslRef {
         unsafe { wolf::wolfSSL_set_accept_state(self.as_ptr()) }
     }
 
+    /// Get the current cipher suite used by wolfssl
+    pub fn current_cipher(&self) -> i32 {
+        unsafe { wolf::wolfSSL_get_current_cipher_suite(self.as_ptr()) }
+    }
+
     pub fn use_session_ticket(&mut self) {
         unsafe {
             wolf::wolfSSL_UseSessionTicket(self.as_ptr());

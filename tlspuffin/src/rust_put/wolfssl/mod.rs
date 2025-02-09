@@ -396,10 +396,10 @@ impl RustPut {
                                     .map(|cert| SmallVec::from_vec(cert))
                                     .unwrap_or_else(|| SmallVec::new()),
                                 master_secret: Default::default(), // TODO
-                                chosen_cipher: 0,                  // TODO
+                                chosen_cipher: context.current_cipher() as u16,
                                 available_ciphers: Default::default(), // TODO
-                                signature_algorithm: 0,            // TODO
-                                peer_signature_algorithm: 0,       // TODO
+                                signature_algorithm: 0,                // TODO
+                                peer_signature_algorithm: 0,           // TODO
                             })),
                         });
 
