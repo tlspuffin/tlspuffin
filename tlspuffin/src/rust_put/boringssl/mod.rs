@@ -154,7 +154,7 @@ impl RustPut {
         set_max_protocol_version(&mut ctx_builder, descriptor.put_config.tls_version)?;
 
         // Allow EXPORT in server
-        ctx_builder.set_cipher_list("ALL:EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
+        ctx_builder.set_cipher_list(&descriptor.put_config.cipher_string)?;
 
         let mut ssl = Ssl::new(&ctx_builder.build())?;
         ssl.set_accept_state();
@@ -169,7 +169,7 @@ impl RustPut {
         set_max_protocol_version(&mut ctx_builder, descriptor.put_config.tls_version)?;
 
         // Disallow EXPORT in client
-        ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
+        ctx_builder.set_cipher_list(&descriptor.put_config.cipher_string)?;
 
         ctx_builder.set_verify(SslVerifyMode::NONE);
 

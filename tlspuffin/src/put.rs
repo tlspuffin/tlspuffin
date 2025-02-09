@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::ffi::CString;
 use std::io::Read;
 use std::rc::Rc;
 
@@ -183,13 +184,14 @@ impl CAgent {
 
         let server_store = [&client_cert as *const _, &other_cert];
         let client_store = [&server_cert as *const _, &other_cert];
+        let ciphers = CString::new(config.descriptor.put_config.cipher_string.clone()).unwrap();
 
         let descriptor = match config.descriptor.put_config.typ {
             AgentType::Server => {
-                make_descriptor(&config, &server_cert, &server_pkey, &server_store)
+                make_descriptor(&config, &server_cert, &server_pkey, &server_store, &ciphers)
             }
             AgentType::Client => {
-                make_descriptor(&config, &client_cert, &client_pkey, &client_store)
+                make_descriptor(&config, &client_cert, &client_pkey, &client_store, &ciphers)
             }
         };
 
@@ -343,6 +345,7 @@ fn make_descriptor(
     cert: *const PEM,
     pkey: *const PEM,
     store: &[*const PEM],
+    ciphers: &CString,
 ) -> TLS_AGENT_DESCRIPTOR {
     // eprintln!("{:?}", cert);
     // eprintln!("{:?}", pkey);
@@ -362,6 +365,7 @@ fn make_descriptor(
         },
         client_authentication: config.descriptor.put_config.client_authentication,
         server_authentication: config.descriptor.put_config.server_authentication,
+        cipher_string: ciphers.as_ptr(),
 
         cert,
         pkey,

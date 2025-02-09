@@ -216,7 +216,7 @@ impl RustPut {
         }
 
         // Disallow EXPORT in client
-        ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
+        ctx.set_cipher_list(&descriptor.put_config.cipher_string)?;
 
         Ok(ctx)
     }
@@ -244,7 +244,7 @@ impl RustPut {
         ctx.disable_session_cache()?;
 
         // Disallow EXPORT in server
-        ctx.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
+        ctx.set_cipher_list(&descriptor.put_config.cipher_string)?;
 
         let cert = X509::from_pem(ALICE_CERT.0.as_bytes())?;
         ctx.set_certificate(cert.as_ref())?;

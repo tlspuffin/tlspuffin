@@ -36,6 +36,8 @@ extern "C"
         TLS_VERSION tls_version;
         bool client_authentication;
         bool server_authentication;
+        const char *cipher_string;
+
         const PEM *cert;
         const PEM *pkey;
 

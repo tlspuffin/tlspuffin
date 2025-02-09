@@ -844,6 +844,8 @@ pub struct TLSPUTDescriptorConfig {
     /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
     /// as openssl agents rotate ticket keys if they are recreated.
     pub try_reuse: bool,
+    /// List of available TLS ciphers
+    pub cipher_string: String,
 }
 
 impl TLSPUTDescriptorConfig {
@@ -882,6 +884,7 @@ impl Default for TLSPUTDescriptorConfig {
             server_authentication: true,
             try_reuse: false,
             typ: AgentType::Server,
+            cipher_string: String::from("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2"),
         }
     }
 }
