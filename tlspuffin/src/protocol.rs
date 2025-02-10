@@ -1,6 +1,6 @@
 use core::any::TypeId;
 
-use puffin::agent::{AgentDescriptor, AgentName, ProtocolPUTDescriptorConfig};
+use puffin::agent::{AgentDescriptor, AgentName, ProtocolDescriptorConfig};
 use puffin::algebra::signature::Signature;
 use puffin::algebra::Matcher;
 use puffin::error::Error;
@@ -823,7 +823,7 @@ pub enum TLSVersion {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
-pub struct TLSPUTDescriptorConfig {
+pub struct TLSDescriptorConfig {
     /// Whether the agent which holds this descriptor is a server.
     pub typ: AgentType,
     pub tls_version: TLSVersion,
@@ -848,35 +848,41 @@ pub struct TLSPUTDescriptorConfig {
     pub cipher_string: String,
 }
 
-impl TLSPUTDescriptorConfig {
+impl TLSDescriptorConfig {
     pub fn new_client(name: AgentName, tls_version: TLSVersion) -> AgentDescriptor<Self> {
-        let put_config = Self {
+        let protocol_config = Self {
             tls_version,
             typ: AgentType::Client,
             ..Self::default()
         };
 
-        AgentDescriptor { name, put_config }
+        AgentDescriptor {
+            name,
+            protocol_config,
+        }
     }
 
     pub fn new_server(name: AgentName, tls_version: TLSVersion) -> AgentDescriptor<Self> {
-        let put_config = Self {
+        let protocol_config = Self {
             tls_version,
             typ: AgentType::Server,
             ..Self::default()
         };
 
-        AgentDescriptor { name, put_config }
+        AgentDescriptor {
+            name,
+            protocol_config,
+        }
     }
 }
 
-impl ProtocolPUTDescriptorConfig for TLSPUTDescriptorConfig {
+impl ProtocolDescriptorConfig for TLSDescriptorConfig {
     fn is_reusable_with(&self, other: &Self) -> bool {
         self.typ == other.typ && self.tls_version == other.tls_version
     }
 }
 
-impl Default for TLSPUTDescriptorConfig {
+impl Default for TLSDescriptorConfig {
     fn default() -> Self {
         Self {
             tls_version: TLSVersion::V1_3,
@@ -894,7 +900,7 @@ pub struct TLSProtocolTypes;
 
 impl ProtocolTypes for TLSProtocolTypes {
     type Matcher = TlsQueryMatcher;
-    type PUTConfig = TLSPUTDescriptorConfig;
+    type PUTConfig = TLSDescriptorConfig;
 
     fn signature() -> &'static Signature<Self> {
         &TLS_SIGNATURE

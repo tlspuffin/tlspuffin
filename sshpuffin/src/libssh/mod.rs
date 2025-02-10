@@ -27,9 +27,7 @@ use crate::libssh::ssh::{
     SessionOption, SessionState, SshAuthResult, SshBind, SshBindOption, SshKey, SshRequest,
     SshResult, SshSession,
 };
-use crate::protocol::{
-    AgentType, RawSshMessageFlight, SshPUTDescriptorConfig, SshProtocolBehavior,
-};
+use crate::protocol::{AgentType, RawSshMessageFlight, SshDescriptorConfig, SshProtocolBehavior};
 use crate::put_registry::LIBSSH_RUST_PUT;
 
 pub mod ssh;
@@ -79,7 +77,7 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
     impl Factory<SshProtocolBehavior> for LibSSLFactory {
         fn create(
             &self,
-            agent_descriptor: &AgentDescriptor<SshPUTDescriptorConfig>,
+            agent_descriptor: &AgentDescriptor<SshDescriptorConfig>,
             _claims: &GlobalClaimList<
                 <SshProtocolBehavior as puffin::protocol::ProtocolBehavior>::Claim,
             >,
@@ -112,7 +110,7 @@ pub fn new_libssh_factory() -> Box<dyn Factory<SshProtocolBehavior>> {
 
             let put_fd = put_stream.into_raw_fd();
 
-            match &agent_descriptor.put_config.typ {
+            match &agent_descriptor.protocol_config.typ {
                 AgentType::Server => {
                     let mut bind = SshBind::new().unwrap();
 
@@ -184,7 +182,7 @@ enum PutState {
 
 pub struct LibSSL {
     fuzz_stream: UnixStream,
-    agent_descriptor: AgentDescriptor<SshPUTDescriptorConfig>,
+    agent_descriptor: AgentDescriptor<SshDescriptorConfig>,
     session: SshSession,
 
     state: PutState,
@@ -209,7 +207,7 @@ impl Stream<SshProtocolBehavior> for LibSSL {
 impl Put<SshProtocolBehavior> for LibSSL {
     fn progress(&mut self) -> Result<(), Error> {
         let session = &mut self.session;
-        match &self.agent_descriptor.put_config.typ {
+        match &self.agent_descriptor.protocol_config.typ {
             AgentType::Server => match &self.state {
                 PutState::ExchangingKeys => match session.handle_key_exchange() {
                     Ok(kex) => {
@@ -268,7 +266,7 @@ impl Put<SshProtocolBehavior> for LibSSL {
         panic!("Not supported")
     }
 
-    fn descriptor(&self) -> &AgentDescriptor<SshPUTDescriptorConfig> {
+    fn descriptor(&self) -> &AgentDescriptor<SshDescriptorConfig> {
         &self.agent_descriptor
     }
 

@@ -1,6 +1,6 @@
 use std::any::TypeId;
 
-use puffin::agent::ProtocolPUTDescriptorConfig;
+use puffin::agent::ProtocolDescriptorConfig;
 use puffin::algebra::signature::Signature;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
@@ -187,20 +187,20 @@ pub enum AgentType {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
-pub struct SshPUTDescriptorConfig {
+pub struct SshDescriptorConfig {
     /// Whether the agent which holds this descriptor is a server.
     pub typ: AgentType,
     /// Whether we want to try to reuse a previous agent.
     pub try_reuse: bool,
 }
 
-impl ProtocolPUTDescriptorConfig for SshPUTDescriptorConfig {
+impl ProtocolDescriptorConfig for SshDescriptorConfig {
     fn is_reusable_with(&self, other: &Self) -> bool {
         self.typ == other.typ
     }
 }
 
-impl Default for SshPUTDescriptorConfig {
+impl Default for SshDescriptorConfig {
     fn default() -> Self {
         Self {
             typ: AgentType::Server,
@@ -213,7 +213,7 @@ impl Default for SshPUTDescriptorConfig {
 pub struct SshProtocolTypes;
 impl ProtocolTypes for SshProtocolTypes {
     type Matcher = SshQueryMatcher;
-    type PUTConfig = SshPUTDescriptorConfig;
+    type PUTConfig = SshDescriptorConfig;
 
     fn signature() -> &'static Signature<Self> {
         &SSH_SIGNATURE

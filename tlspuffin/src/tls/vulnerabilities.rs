@@ -6,7 +6,7 @@ use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 use puffin::{input_action, term};
 
 use crate::protocol::{
-    AgentType, MessageFlight, TLSPUTDescriptorConfig, TLSProtocolTypes, TLSVersion,
+    AgentType, MessageFlight, TLSDescriptorConfig, TLSProtocolTypes, TLSVersion,
 };
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::*;
@@ -108,11 +108,11 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor::from_config(
             server,
-            TLSPUTDescriptorConfig {
+            TLSDescriptorConfig {
                 tls_version: TLSVersion::V1_3,
                 typ: AgentType::Server,
                 client_authentication: true,
-                ..TLSPUTDescriptorConfig::default()
+                ..TLSDescriptorConfig::default()
             },
         )],
         steps: vec![
@@ -248,11 +248,11 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor::from_config(
             server,
-            TLSPUTDescriptorConfig {
+            TLSDescriptorConfig {
                 tls_version: TLSVersion::V1_3,
                 typ: AgentType::Server,
                 client_authentication: true,
-                ..TLSPUTDescriptorConfig::default()
+                ..TLSDescriptorConfig::default()
             },
         )],
         steps: vec![
@@ -402,8 +402,8 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TLSProtoco
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            TLSPUTDescriptorConfig::new_client(client, TLSVersion::V1_2),
-            TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_2),
+            TLSDescriptorConfig::new_client(client, TLSVersion::V1_2),
+            TLSDescriptorConfig::new_server(server, TLSVersion::V1_2),
         ],
         steps: vec![
             Step {
@@ -427,8 +427,8 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolType
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            TLSPUTDescriptorConfig::new_client(client, TLSVersion::V1_2),
-            TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_2),
+            TLSDescriptorConfig::new_client(client, TLSVersion::V1_2),
+            TLSDescriptorConfig::new_server(server, TLSVersion::V1_2),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -561,11 +561,11 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor::from_config(
             server,
-            TLSPUTDescriptorConfig {
+            TLSDescriptorConfig {
                 tls_version: TLSVersion::V1_3,
                 typ: AgentType::Server,
                 client_authentication: true,
-                ..TLSPUTDescriptorConfig::default()
+                ..TLSDescriptorConfig::default()
             },
         )],
         steps: vec![
@@ -599,8 +599,8 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            TLSPUTDescriptorConfig::new_client(client, TLSVersion::V1_2),
-            TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_2),
+            TLSDescriptorConfig::new_client(client, TLSVersion::V1_2),
+            TLSDescriptorConfig::new_server(server, TLSVersion::V1_2),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -811,7 +811,7 @@ pub fn seed_cve_2022_39173(
         // Step 1: Prior trace performs an initial TLS 1.3 session with a full handshake and
         // establishes a PSK, including Client Hello number 1 (`CH1`).
         prior_traces: vec![initial_handshake],
-        descriptors: vec![TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_3)],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             // Step 2: sends a Client Hello (CH2) with a missing support_group_extension that will
             // make the server enters the state `SERVER_HELLO_RETRY_REQUEST_COMPLETE`
@@ -946,7 +946,7 @@ pub fn seed_cve_2022_39173_full(
 
     Trace {
         prior_traces: vec![initial_handshake],
-        descriptors: vec![TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_3)],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -1050,7 +1050,7 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
     Trace {
         // No more need for a prior trace and a full handshake.
         prior_traces: vec![], // WAS [initial_handshake],
-        descriptors: vec![TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_3)],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,

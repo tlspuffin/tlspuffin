@@ -57,7 +57,7 @@ impl From<AgentName> for u8 {
     }
 }
 
-pub trait ProtocolPUTDescriptorConfig:
+pub trait ProtocolDescriptorConfig:
     Default + Debug + Clone + Serialize + Hash + for<'a> Deserialize<'a>
 {
     fn is_reusable_with(&self, other: &Self) -> bool;
@@ -71,31 +71,34 @@ pub trait ProtocolPUTDescriptorConfig:
 /// every invocation of the seed. Values in the [`crate::put::PutDescriptor`] are supposed to
 /// differ between invocations.
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
-#[serde(bound = "C: ProtocolPUTDescriptorConfig")]
-pub struct AgentDescriptor<C: ProtocolPUTDescriptorConfig> {
+#[serde(bound = "C: ProtocolDescriptorConfig")]
+pub struct AgentDescriptor<C: ProtocolDescriptorConfig> {
     pub name: AgentName,
 
-    pub put_config: C,
+    pub protocol_config: C,
 }
 
-impl<C: ProtocolPUTDescriptorConfig> AgentDescriptor<C> {
+impl<C: ProtocolDescriptorConfig> AgentDescriptor<C> {
     pub fn from_config(name: AgentName, put_config: C) -> Self {
-        Self { name, put_config }
+        Self {
+            name,
+            protocol_config: put_config,
+        }
     }
 
     pub fn from_name(name: AgentName) -> Self {
         Self {
             name,
-            put_config: C::default(),
+            protocol_config: C::default(),
         }
     }
 }
 
-impl<C: ProtocolPUTDescriptorConfig> Default for AgentDescriptor<C> {
+impl<C: ProtocolDescriptorConfig> Default for AgentDescriptor<C> {
     fn default() -> Self {
         Self {
             name: AgentName::first(),
-            put_config: C::default(),
+            protocol_config: C::default(),
         }
     }
 }
@@ -159,8 +162,8 @@ impl<PB: ProtocolBehavior> Agent<PB> {
         other: &AgentDescriptor<<PB::ProtocolTypes as ProtocolTypes>::PUTConfig>,
     ) -> bool {
         self.descriptor
-            .put_config
-            .is_reusable_with(&other.put_config)
+            .protocol_config
+            .is_reusable_with(&other.protocol_config)
     }
 
     #[must_use]

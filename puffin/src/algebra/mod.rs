@@ -99,7 +99,7 @@ pub mod test_signature {
     use puffin_build::puffin;
     use serde::{Deserialize, Serialize};
 
-    use crate::agent::{AgentDescriptor, AgentName, ProtocolPUTDescriptorConfig};
+    use crate::agent::{AgentDescriptor, AgentName, ProtocolDescriptorConfig};
     use crate::algebra::dynamic_function::{FunctionAttributes, TypeShape};
     use crate::algebra::error::FnError;
     use crate::algebra::{AnyMatcher, Term};
@@ -600,7 +600,7 @@ pub mod test_signature {
     #[derive(Default, Clone, Debug, Hash, Serialize, Deserialize)]
     pub struct TestPUTConfig;
 
-    impl ProtocolPUTDescriptorConfig for TestPUTConfig {
+    impl ProtocolDescriptorConfig for TestPUTConfig {
         fn is_reusable_with(&self, _other: &Self) -> bool {
             false
         }

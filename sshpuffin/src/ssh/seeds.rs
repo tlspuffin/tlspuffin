@@ -2,7 +2,7 @@ use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::term;
 use puffin::trace::{InputAction, OutputAction, Trace};
 
-use crate::protocol::{AgentType, SshPUTDescriptorConfig, SshProtocolTypes};
+use crate::protocol::{AgentType, SshDescriptorConfig, SshProtocolTypes};
 use crate::ssh::fn_impl::*;
 use crate::ssh::message::*;
 
@@ -12,14 +12,14 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
         descriptors: vec![
             AgentDescriptor::from_config(
                 client,
-                SshPUTDescriptorConfig {
+                SshDescriptorConfig {
                     typ: AgentType::Client,
                     try_reuse: false, // FIXME: Remove?
                 },
             ),
             AgentDescriptor::from_config(
                 server,
-                SshPUTDescriptorConfig {
+                SshDescriptorConfig {
                     typ: AgentType::Server,
                     try_reuse: false, // FIXME: Remove?
                 },

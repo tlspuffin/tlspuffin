@@ -9,7 +9,7 @@ use puffin::trace::{Action, InputAction, OutputAction, Precomputation, Step, Tra
 use puffin::{input_action, term};
 
 use crate::protocol::{
-    AgentType, MessageFlight, TLSPUTDescriptorConfig, TLSProtocolBehavior, TLSProtocolTypes,
+    AgentType, MessageFlight, TLSDescriptorConfig, TLSProtocolBehavior, TLSProtocolTypes,
     TLSVersion,
 };
 use crate::query::TlsQueryMatcher;
@@ -27,20 +27,20 @@ pub fn seed_successful_client_auth(
         descriptors: vec![
             AgentDescriptor::from_config(
                 client,
-                TLSPUTDescriptorConfig {
+                TLSDescriptorConfig {
                     tls_version: TLSVersion::V1_3,
                     typ: AgentType::Client,
                     client_authentication: true,
-                    ..TLSPUTDescriptorConfig::default()
+                    ..TLSDescriptorConfig::default()
                 },
             ),
             AgentDescriptor::from_config(
                 server,
-                TLSPUTDescriptorConfig {
+                TLSDescriptorConfig {
                     tls_version: TLSVersion::V1_3,
                     typ: AgentType::Server,
                     client_authentication: true,
-                    ..TLSPUTDescriptorConfig::default()
+                    ..TLSDescriptorConfig::default()
                 },
             ),
         ],
@@ -165,8 +165,8 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TLSProtoco
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            TLSPUTDescriptorConfig::new_client(client, TLSVersion::V1_3),
-            TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_3),
+            TLSDescriptorConfig::new_client(client, TLSVersion::V1_3),
+            TLSDescriptorConfig::new_server(server, TLSVersion::V1_3),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -204,8 +204,8 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TLSPr
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            TLSPUTDescriptorConfig::new_client(client, TLSVersion::V1_3),
-            TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_3),
+            TLSDescriptorConfig::new_client(client, TLSVersion::V1_3),
+            TLSDescriptorConfig::new_server(server, TLSVersion::V1_3),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -287,8 +287,8 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProto
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            TLSPUTDescriptorConfig::new_client(client, TLSVersion::V1_2),
-            TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_2),
+            TLSDescriptorConfig::new_client(client, TLSVersion::V1_2),
+            TLSDescriptorConfig::new_server(server, TLSVersion::V1_2),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -402,8 +402,8 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            TLSPUTDescriptorConfig::new_client(client, TLSVersion::V1_3),
-            TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_3),
+            TLSDescriptorConfig::new_client(client, TLSVersion::V1_3),
+            TLSDescriptorConfig::new_server(server, TLSVersion::V1_3),
         ],
         steps: vec![
             OutputAction::new_step(client),
@@ -647,10 +647,10 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor::from_config(
             client,
-            TLSPUTDescriptorConfig {
+            TLSDescriptorConfig {
                 tls_version: TLSVersion::V1_3,
                 typ: AgentType::Client,
-                ..TLSPUTDescriptorConfig::default()
+                ..TLSDescriptorConfig::default()
             },
         )],
         steps: vec![
@@ -813,11 +813,11 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor::from_config(
             server,
-            TLSPUTDescriptorConfig {
+            TLSDescriptorConfig {
                 tls_version: TLSVersion::V1_3,
                 typ: AgentType::Server,
                 client_authentication: true,
-                ..TLSPUTDescriptorConfig::default()
+                ..TLSDescriptorConfig::default()
             },
         )],
         steps: vec![
@@ -920,7 +920,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
 
     Trace {
         prior_traces: vec![],
-        descriptors: vec![TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_3)],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -1052,7 +1052,7 @@ pub fn _seed_client_attacker12(
 
     let trace = Trace {
         prior_traces: vec![],
-        descriptors: vec![TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_2)],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_2)],
         steps: vec![
             Step {
                 agent: server,
@@ -1191,7 +1191,7 @@ pub fn seed_session_resumption_dhe(
 
     Trace {
         prior_traces: vec![initial_handshake],
-        descriptors: vec![TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_3)],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -1319,7 +1319,7 @@ pub fn seed_session_resumption_ke(
 
     Trace {
         prior_traces: vec![initial_handshake],
-        descriptors: vec![TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_3)],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -1477,7 +1477,7 @@ pub fn _seed_client_attacker_full(
 
     let trace = Trace {
         prior_traces: vec![],
-        descriptors: vec![TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_3)],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -1667,7 +1667,7 @@ pub fn _seed_client_attacker_full_precomputation(
 
     let trace = Trace {
         prior_traces: vec![],
-        descriptors: vec![TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_3)],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
@@ -1856,7 +1856,7 @@ pub fn seed_session_resumption_dhe_full(
 
     Trace {
         prior_traces: vec![initial_handshake],
-        descriptors: vec![TLSPUTDescriptorConfig::new_server(server, TLSVersion::V1_3)],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_3)],
         steps: vec![
             Step {
                 agent: server,
