@@ -62,16 +62,9 @@ pub fn tls12_new_secrets(
     client_random: &Random,
     suite: SupportedCipherSuite,
 ) -> Result<ConnectionSecrets, FnError> {
-    let mut server_random_bytes = vec![0; 32];
-
-    server_random.write_slice(&mut server_random_bytes);
-
-    let server_random = server_random_bytes
-        .try_into()
-        .map_err(|_| FnError::Unknown("Server random did not have length of 32".to_string()))?;
     let randoms = ConnectionRandoms {
         client: client_random.0,
-        server: server_random,
+        server: server_random.0,
     };
     let kx = tls12_key_exchange(group)?;
     let suite = suite
