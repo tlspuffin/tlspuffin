@@ -33,7 +33,7 @@ const sidebars: SidebarsConfig = {
             'developer/overview',
             'developer/build',
             'developer/howto',
-        ],
+            'developer/benchmarks',],
     }
   ],
 };

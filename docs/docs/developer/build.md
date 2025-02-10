@@ -14,7 +14,7 @@ The different steps of the build process are implemented in the Rust crate `puff
 
 ```mermaid
 flowchart LR;
-    subgraph libs ["creating vendor libraries"]
+    subgraph libs ["creating PUTs (vendor libraries)"]
         direction LR
         mkv1[ ]:::hidden-->|mk_vendor|L1
         mkv2[ ]:::hidden-->|mk_vendor|L2
@@ -60,9 +60,9 @@ flowchart LR;
 
 
 
-## Creating vendor libraries
+## Creating PUTs (vendor libraries)
 
-- library are built from upstream sources (e.g. OpenSSL, BoringSSL, ...)
+- a vendor library is built from upstream sources (e.g. OpenSSL, BoringSSL, ...)
 - stored in **VENDOR_DIR** (defaults to `./vendor`)
 - **mk_vendor** is a binary from the `puffin-build` crate to build vendor libraries using **presets**
 - presets are located in `puffin-build/vendor/<library>/presets.toml`
@@ -73,8 +73,8 @@ The goal of `mk_vendor` is to automate the creation of vendor libraries by provi
 
 For example, building OpenSSL 3.1.2 and wolfSSL 5.3.0 with ASAN can be simply done with the two presets `openssl312` and `wolfssl530-asan`:
 ```sh
-./tools/mk_vendor openssl:openssl312
-./tools/mk_vendor wolfssl:wolfssl530-asan
+./tools/mk_vendor make openssl:openssl312
+./tools/mk_vendor make wolfssl:wolfssl530-asan
 ```
 
 :::tip[wrapper script]
@@ -109,12 +109,12 @@ The exact format can be found by looking at the deserialized Rust struct <a href
 
 ## Harnessing
 
-- the **harness** is responsible for creating a PUT from a compatible vendor library
-- library specific
+- the **harness** is responsible for creating a *target* from a compatible PUT (vendor library), and expose a common interface to the fuzzer
 - protocol specific
+- library specific (for example one harness for all OpenSSL and LibreSSL versions, which share a common API, hence a common harnessing)
 - stored in `<protocol>/harness/<library>` (e.g. `tlspuffin/harness/openssl`)
 - creates a **PUT**, an interface around the vendor library intended for the fuzzer to perform operations in a generic way (agent creation, inter-agent communication, ...)
-- several PUT are then bundled together for linking with the fuzzer. The bundle consists in:
+- several PUTs are then bundled together for linking with the fuzzer. The bundle consists in:
     - a static library containing all the PUT object files and can be linked with the final Rust fuzzer binary
     - a Rust bindings file which contains the necessary code for *registration* of the the linked PUTs into the final binary
 
