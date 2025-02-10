@@ -57,9 +57,12 @@ impl From<AgentName> for u8 {
     }
 }
 
+/// Contains the protocol specific configuration of an agent
 pub trait ProtocolDescriptorConfig:
     Default + Debug + Clone + Serialize + Hash + for<'a> Deserialize<'a>
 {
+    /// Indicates wheter a agent is reusable, ie. it's configuration is compatible with the new
+    /// agent to spawn
     fn is_reusable_with(&self, other: &Self) -> bool;
 }
 
@@ -75,6 +78,7 @@ pub trait ProtocolDescriptorConfig:
 pub struct AgentDescriptor<C: ProtocolDescriptorConfig> {
     pub name: AgentName,
 
+    /// Contains the protocol specific configuration of the Agent
     pub protocol_config: C,
 }
 
