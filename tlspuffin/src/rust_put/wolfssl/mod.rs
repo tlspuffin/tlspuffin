@@ -387,9 +387,9 @@ impl RustPut {
                             protocol_version,
                             data: ClaimData::Message(ClaimDataMessage::Finished(Finished {
                                 outbound,
-                                client_random: context.client_random().into(), // TODO
-                                server_random: context.server_random().into(), // TODO
-                                session_id: Default::default(),                // TODO
+                                client_random: context.client_random().into(),
+                                server_random: context.server_random().into(),
+                                session_id: Default::default(), // TODO
                                 authenticate_peer,
                                 peer_certificate: context
                                     .get_peer_certificate()
