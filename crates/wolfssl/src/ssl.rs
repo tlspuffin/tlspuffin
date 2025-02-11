@@ -431,6 +431,15 @@ impl SslRef {
         unsafe { wolf::wolfSSL_get_current_cipher_suite(self.as_ptr()) }
     }
 
+    /// Get the current client random
+    pub fn client_random(&self) -> Vec<u8> {
+        let mut data: [u8; 32] = [0; 32];
+        unsafe {
+            wolf::wolfSSL_get_client_random(self.as_ptr(), data.as_mut_ptr(), data.len() as u64);
+        }
+        Vec::from(data)
+    }
+
     pub fn use_session_ticket(&mut self) {
         unsafe {
             wolf::wolfSSL_UseSessionTicket(self.as_ptr());
