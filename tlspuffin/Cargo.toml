@@ -353,6 +353,7 @@ hex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 smallvec = { workspace = true }
 once_cell = { workspace = true }
+comparable = { workspace = true }
 
 ring = { version = "0.16.20", features = ["std"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }

@@ -23,6 +23,8 @@ use std::marker::PhantomData;
 use std::mem;
 use std::vec::IntoIter;
 
+use clap::error::Result;
+use comparable::Comparable;
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};
@@ -286,7 +288,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         let _ = std::iter::zip(first_store, second_store)
             .enumerate()
             .map(|(idx, (x, y))| {
-                log::trace!("{} == {}", x.data.type_name(), y.data.type_name());
+                log::trace!("{} | {}", x.data.type_name(), y.data.type_name());
                 x.data.find_differences(y.data, &mut differences, idx);
             })
             .count();
@@ -579,7 +581,7 @@ pub struct Trace<PT: ProtocolTypes> {
 }
 
 /// Identify a step and a (prior) trace
-#[derive(Clone, Debug, Deserialize, Serialize, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, PartialEq, Eq, Comparable)]
 pub struct StepNumber {
     /// identify the trace (allow to differentiate between prior traces)
     pub trace: usize,
