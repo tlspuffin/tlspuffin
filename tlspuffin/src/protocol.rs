@@ -878,7 +878,9 @@ impl TLSDescriptorConfig {
 
 impl ProtocolDescriptorConfig for TLSDescriptorConfig {
     fn is_reusable_with(&self, other: &Self) -> bool {
-        self.typ == other.typ && self.tls_version == other.tls_version
+        self.typ == other.typ
+            && self.tls_version == other.tls_version
+            && self.cipher_string == other.cipher_string
     }
 }
 
