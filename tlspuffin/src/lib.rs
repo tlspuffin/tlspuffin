@@ -12,7 +12,6 @@
 //! # Example
 //!
 //! ```rust
-//! use puffin::agent::TLSVersion::*;
 //! use puffin::agent::{AgentDescriptor, AgentName};
 //! use puffin::algebra::signature::Signature;
 //! use puffin::algebra::{DYTerm, Term};
@@ -20,7 +19,8 @@
 //! use puffin::trace::{
 //!     Action, InputAction, OutputAction, Query, Source, Step, Trace, TraceContext,
 //! };
-//! use tlspuffin::protocol::TLSProtocolTypes;
+//! use tlspuffin::protocol::TLSVersion::*;
+//! use tlspuffin::protocol::{TLSDescriptorConfig, TLSProtocolTypes};
 //! use tlspuffin::query::TlsQueryMatcher;
 //! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use tlspuffin::tls::rustls::msgs::enums::{
@@ -34,8 +34,8 @@
 //! let trace = Trace::<TLSProtocolTypes> {
 //!     prior_traces: vec![],
 //!     descriptors: vec![
-//!         AgentDescriptor::new_client(client, V1_3),
-//!         AgentDescriptor::new_server(server, V1_3),
+//!         TLSDescriptorConfig::new_client(client, V1_3),
+//!         TLSDescriptorConfig::new_server(server, V1_3),
 //!     ],
 //!     steps: vec![
 //!         OutputAction::new_step(client),

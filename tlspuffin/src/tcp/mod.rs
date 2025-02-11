@@ -8,7 +8,7 @@ use std::sync::mpsc::{self, channel};
 use std::thread;
 use std::time::Duration;
 
-use puffin::agent::{AgentDescriptor, AgentName, AgentType};
+use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::ConcreteMessage;
 use puffin::claims::GlobalClaimList;
 use puffin::codec::Codec;
@@ -18,14 +18,14 @@ use puffin::put::{Put, PutOptions};
 use puffin::put_registry::{Factory, TCP_PUT};
 use puffin::stream::Stream;
 
-use crate::protocol::{OpaqueMessageFlight, TLSProtocolBehavior};
+use crate::protocol::{AgentType, OpaqueMessageFlight, TLSDescriptorConfig, TLSProtocolBehavior};
 
 pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
     struct TCPFactory;
     impl Factory<TLSProtocolBehavior> for TCPFactory {
         fn create(
             &self,
-            agent_descriptor: &AgentDescriptor,
+            agent_descriptor: &AgentDescriptor<TLSDescriptorConfig>,
             _claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
             options: &PutOptions,
         ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
@@ -45,7 +45,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                     .get_option("cwd")
                     .map(|cwd| Some(cwd.to_owned()))
                     .unwrap_or_default();
-                if agent_descriptor.typ == AgentType::Client {
+                if agent_descriptor.protocol_config.typ == AgentType::Client {
                     let mut server = TcpServerPut::new(agent_descriptor, options)?;
                     server.set_process(TLSProcess::new(&prog, &args, cwd.as_ref()));
                     Ok(Box::new(server))
@@ -57,7 +57,7 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
                 }
             } else {
                 log::info!("Trace contains no TCP running information so we fall back to external TCP client and servers.");
-                if agent_descriptor.typ == AgentType::Client {
+                if agent_descriptor.protocol_config.typ == AgentType::Client {
                     let server = TcpServerPut::new(agent_descriptor, options)?;
                     Ok(Box::new(server))
                 } else {
@@ -104,7 +104,7 @@ trait TcpPut {
 /// ```
 pub struct TcpClientPut {
     stream: TcpStream,
-    agent_descriptor: AgentDescriptor,
+    agent_descriptor: AgentDescriptor<TLSDescriptorConfig>,
     process: Option<TLSProcess>,
 }
 
@@ -123,7 +123,10 @@ impl TcpPut for TcpClientPut {
 }
 
 impl TcpClientPut {
-    fn new(agent_descriptor: &AgentDescriptor, options: &PutOptions) -> Result<Self, Error> {
+    fn new(
+        agent_descriptor: &AgentDescriptor<TLSDescriptorConfig>,
+        options: &PutOptions,
+    ) -> Result<Self, Error> {
         let addr = addr_from_config(options).map_err(|err| Error::Put(err.to_string()))?;
         let stream = Self::new_stream(addr)?;
 
@@ -169,12 +172,15 @@ impl TcpClientPut {
 pub struct TcpServerPut {
     stream: Option<(TcpStream, TcpListener)>,
     stream_receiver: mpsc::Receiver<(TcpStream, TcpListener)>,
-    agent_descriptor: AgentDescriptor,
+    agent_descriptor: AgentDescriptor<TLSDescriptorConfig>,
     process: Option<TLSProcess>,
 }
 
 impl TcpServerPut {
-    fn new(agent_descriptor: &AgentDescriptor, options: &PutOptions) -> Result<Self, Error> {
+    fn new(
+        agent_descriptor: &AgentDescriptor<TLSDescriptorConfig>,
+        options: &PutOptions,
+    ) -> Result<Self, Error> {
         let (sender, stream_receiver) = channel();
         let addr = addr_from_config(options).map_err(|err| Error::Put(err.to_string()))?;
 
@@ -289,7 +295,7 @@ impl Put<TLSProtocolBehavior> for TcpServerPut {
         panic!("Not supported")
     }
 
-    fn descriptor(&self) -> &AgentDescriptor {
+    fn descriptor(&self) -> &AgentDescriptor<TLSDescriptorConfig> {
         &self.agent_descriptor
     }
 
@@ -325,7 +331,7 @@ impl Put<TLSProtocolBehavior> for TcpClientPut {
         Ok(())
     }
 
-    fn descriptor(&self) -> &AgentDescriptor {
+    fn descriptor(&self) -> &AgentDescriptor<TLSDescriptorConfig> {
         &self.agent_descriptor
     }
 
@@ -420,12 +426,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use puffin::agent::TLSVersion;
     use puffin::execution::{Runner, TraceRunner};
     use puffin::put::PutDescriptor;
     use puffin::put_registry::TCP_PUT;
     use puffin::trace::Spawner;
 
+    use crate::protocol::TLSVersion;
     #[allow(unused_imports)]
     use crate::{test_utils::prelude::*, tls::seeds::*};
 

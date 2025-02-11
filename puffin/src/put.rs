@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::agent::{AgentDescriptor, AgentName};
 use crate::error::Error;
-use crate::protocol::ProtocolBehavior;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::stream::Stream;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
@@ -76,7 +76,9 @@ pub trait Put<PB: ProtocolBehavior>: Stream<PB> + 'static {
     /// In-place reset of the state
     fn reset(&mut self, new_name: AgentName) -> Result<(), Error>;
 
-    fn descriptor(&self) -> &AgentDescriptor;
+    fn descriptor(
+        &self,
+    ) -> &AgentDescriptor<<<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::PUTConfig>;
 
     /// Returns a textual representation of the state in which self is
     fn describe_state(&self) -> String;

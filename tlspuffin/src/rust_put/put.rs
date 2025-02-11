@@ -7,7 +7,7 @@ use puffin::protocol::ProtocolBehavior;
 use puffin::put::{Put, PutOptions};
 use puffin::put_registry::Factory;
 
-use crate::protocol::TLSProtocolBehavior;
+use crate::protocol::{TLSDescriptorConfig, TLSProtocolBehavior};
 use crate::put::TlsPutConfig;
 use crate::rust_put::RustPut;
 
@@ -35,7 +35,7 @@ impl RustFactory {
 impl Factory<TLSProtocolBehavior> for RustFactory {
     fn create(
         &self,
-        agent_descriptor: &AgentDescriptor,
+        agent_descriptor: &AgentDescriptor<TLSDescriptorConfig>,
         claims: &GlobalClaimList<<TLSProtocolBehavior as ProtocolBehavior>::Claim>,
         options: &PutOptions,
     ) -> Result<Box<dyn Put<TLSProtocolBehavior>>, Error> {
