@@ -2178,6 +2178,7 @@ version = "0.1.0"
 dependencies = [
  "bindgen 0.69.1",
  "cmake",
+ "comparable",
  "env_logger",
  "extractable-macro",
  "foreign-types 0.5.0",
@@ -2343,6 +2344,7 @@ dependencies = [
  "bindgen 0.69.1",
  "boring",
  "boringssl-sys",
+ "comparable",
  "criterion",
  "env_logger",
  "extractable-macro",
