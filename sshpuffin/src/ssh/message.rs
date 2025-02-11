@@ -1,3 +1,4 @@
+use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
@@ -7,7 +8,7 @@ use puffin::{atom_extract_knowledge, dummy_extract_knowledge};
 
 use crate::protocol::SshProtocolTypes;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct OnWireData(pub Vec<u8>);
 
 impl Codec for OnWireData {
@@ -21,7 +22,7 @@ impl Codec for OnWireData {
     }
 }
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub enum RawSshMessage {
     #[extractable_no_recursion]
@@ -32,7 +33,7 @@ pub enum RawSshMessage {
     OnWire(OnWireData),
 }
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct BinaryPacket {
     payload: Vec<u8>,
@@ -68,7 +69,7 @@ impl Codec for BinaryPacket {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct NameList {
     names: Vec<String>,
 }
@@ -101,7 +102,7 @@ impl Codec for NameList {
 
 macro_rules! declare_name_list (
   ($name:ident) => {
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable, PartialEq)]
     pub struct $name(pub NameList);
 
     impl puffin::codec::Codec for $name {
@@ -116,7 +117,7 @@ macro_rules! declare_name_list (
   }
 );
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub enum SshMessage {
     KexInit(KexInitMessage),
@@ -131,7 +132,7 @@ declare_name_list!(EncryptionAlgorithms);
 declare_name_list!(MacAlgorithms);
 declare_name_list!(CompressionAlgorithms);
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct KexInitMessage {
     pub cookie: [u8; 16],
@@ -190,7 +191,7 @@ impl Codec for KexInitMessage {
     }
 }
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct KexEcdhInitMessage {
     #[extractable_no_recursion]
@@ -212,7 +213,7 @@ impl Codec for KexEcdhInitMessage {
     }
 }
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct KexEcdhReplyMessage {
     #[extractable_no_recursion]
