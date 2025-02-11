@@ -1,9 +1,10 @@
+use comparable::Comparable;
 use puffin::codec::{Codec, Reader};
 
 use crate::tls::rustls::msgs::base::PayloadU16;
 use crate::tls::rustls::msgs::enums::HeartbeatMessageType;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct HeartbeatPayload {
     pub typ: HeartbeatMessageType,
     pub payload: PayloadU16,

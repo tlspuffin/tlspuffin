@@ -2,6 +2,7 @@ use std::any::{Any, TypeId};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
+use comparable::Comparable;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -49,7 +50,7 @@ pub trait CompareKnowledge<PT> {
 
 impl<T, PT: ProtocolTypes> CompareKnowledge<PT> for T
 where
-    T: Clone + Debug + 'static, /* + Comparable */
+    T: Clone + Debug + 'static + Comparable,
 {
     fn find_differences(
         &self,
@@ -57,19 +58,21 @@ where
         diffs: &mut Vec<TraceDifference>,
         knowledge_num: usize,
     ) {
-        log::trace!("===========================================\n{:?}\n+++++++++++++++++++++++++++++++++++++++++++\n{:?}\n===========================================", self,other);
+        log::trace!("\n===================={knowledge_num}=======================\n{:?}\n+++++++++++++++++++++++++++++++++++++++++++\n{:?}\n===================={knowledge_num}=======================", self,other);
         match other.as_any().downcast_ref::<T>() {
-            Some(_casted_other) => {
+            Some(casted_other) => {
                 // For later
-                // if let comparable::Changed::Changed(changes) = self.comparison(casted_other) {
-                //     diffs.push(TraceDifference::Knowledges(format!(
-                //         "knowledge[{}]:\n{:?}",
-                //         knowledge_num, changes
-                //     )))
-                // }
+                if let comparable::Changed::Changed(changes) = self.comparison(casted_other) {
+                    diffs.push(TraceDifference::Knowledges(format!(
+                        "knowledge[{}] ({}) : \n{:?}",
+                        knowledge_num,
+                        other.type_name(),
+                        changes
+                    )))
+                }
             }
             None => diffs.push(TraceDifference::Knowledges(format!(
-                "knowledge[{}]: {}!={}",
+                "knowledge[{}]: {} != {}",
                 knowledge_num,
                 std::any::type_name::<Self>(),
                 other.type_name()
@@ -117,7 +120,7 @@ where
 
 impl<T, PT: ProtocolTypes> EvaluatedTerm<PT> for T
 where
-    T: codec::CodecP + Extractable<PT> + 'static + Clone,
+    T: codec::CodecP + Extractable<PT> + CompareKnowledge<PT> + 'static + Clone,
 {
     fn boxed(&self) -> Box<dyn EvaluatedTerm<PT>> {
         Box::new(self.clone())
@@ -312,12 +315,12 @@ macro_rules! dummy_compare {
                 diffs: &mut Vec<$crate::differential::TraceDifference>,
                 knowledge_num: usize,
             ) {
-                match other.as_any().downcast_ref::<&$extract_type>() {
+                match other.as_any().downcast_ref::<$extract_type>() {
                     Some(_) => {
-                        todo!()
+                        todo!("Comparable for {}", other.type_name());
                     }
                     None => diffs.push($crate::differential::TraceDifference::Knowledges(format!(
-                        "knowledge[{}]: {}!={}",
+                        "knowledge[{}]: {} != {}",
                         knowledge_num,
                         std::any::type_name::<Self>(),
                         other.type_name()

@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use comparable::Comparable;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{Extractable, ProtocolTypes};
@@ -9,8 +10,8 @@ use puffin::{atom_extract_knowledge, codec};
 use crate::protocol::TLSProtocolTypes;
 use crate::tls::rustls::key;
 /// An externally length'd payload
-#[derive(Debug, Clone, PartialEq)]
-pub struct Payload(pub Vec<u8>);
+#[derive(Debug, Clone, PartialEq, Comparable)]
+pub struct Payload(#[comparable_ignore] pub Vec<u8>);
 
 impl Codec for Payload {
     fn encode(&self, bytes: &mut Vec<u8>) {
@@ -51,7 +52,7 @@ impl Codec for key::Certificate {
 }
 
 /// An arbitrary, unknown-content, u24-length-prefixed payload
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Comparable)]
 pub struct PayloadU24(pub Vec<u8>);
 
 impl PayloadU24 {
@@ -75,7 +76,7 @@ impl Codec for PayloadU24 {
 }
 
 /// An arbitrary, unknown-content, u16-length-prefixed payload
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Comparable)]
 pub struct PayloadU16(pub Vec<u8>);
 
 impl PayloadU16 {
@@ -107,7 +108,7 @@ impl Codec for PayloadU16 {
 }
 
 /// An arbitrary, unknown-content, u8-length-prefixed payload
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Comparable)]
 pub struct PayloadU8(pub Vec<u8>);
 
 impl PayloadU8 {

@@ -1,6 +1,7 @@
+use comparable::Comparable;
 use puffin::codec::{Codec, Reader};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct ChangeCipherSpecPayload;
 
 impl Codec for ChangeCipherSpecPayload {

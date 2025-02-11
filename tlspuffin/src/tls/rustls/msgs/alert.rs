@@ -1,8 +1,9 @@
+use comparable::Comparable;
 use puffin::codec::{Codec, Reader};
 
 use crate::tls::rustls::msgs::enums::{AlertDescription, AlertLevel};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct AlertMessagePayload {
     pub level: AlertLevel,
     pub description: AlertDescription,

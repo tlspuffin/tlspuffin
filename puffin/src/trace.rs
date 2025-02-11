@@ -276,7 +276,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         let _ = std::iter::zip(first_store, second_store)
             .enumerate()
             .map(|(idx, (x, y))| {
-                log::trace!("{} == {}", x.data.type_name(), y.data.type_name());
+                log::trace!("{} | {}", x.data.type_name(), y.data.type_name());
                 x.data.find_differences(y.data, &mut differences, idx);
             })
             .count();

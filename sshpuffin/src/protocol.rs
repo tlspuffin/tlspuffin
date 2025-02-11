@@ -1,5 +1,6 @@
 use std::any::TypeId;
 
+use comparable::Comparable;
 use puffin::agent::ProtocolDescriptorConfig;
 use puffin::algebra::signature::Signature;
 use puffin::codec;
@@ -20,7 +21,7 @@ use crate::ssh::message::{RawSshMessage, SshMessage};
 use crate::ssh::SSH_SIGNATURE;
 use crate::violation::SshSecurityViolationPolicy;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct SshMessageFlight {
     pub messages: Vec<SshMessage>,
 }
@@ -86,7 +87,7 @@ impl Extractable<SshProtocolTypes> for SshMessageFlight {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct RawSshMessageFlight {
     pub messages: Vec<RawSshMessage>,
 }
