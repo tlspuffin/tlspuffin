@@ -440,6 +440,15 @@ impl SslRef {
         Vec::from(data)
     }
 
+    /// Get the current server random
+    pub fn server_random(&self) -> Vec<u8> {
+        let mut data: [u8; 32] = [0; 32];
+        unsafe {
+            wolf::wolfSSL_get_server_random(self.as_ptr(), data.as_mut_ptr(), data.len() as u64);
+        }
+        Vec::from(data)
+    }
+
     pub fn use_session_ticket(&mut self) {
         unsafe {
             wolf::wolfSSL_UseSessionTicket(self.as_ptr());

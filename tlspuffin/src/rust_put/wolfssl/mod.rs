@@ -388,7 +388,7 @@ impl RustPut {
                             data: ClaimData::Message(ClaimDataMessage::Finished(Finished {
                                 outbound,
                                 client_random: context.client_random().into(), // TODO
-                                server_random: Default::default(),             // TODO
+                                server_random: context.server_random().into(), // TODO
                                 session_id: Default::default(),                // TODO
                                 authenticate_peer,
                                 peer_certificate: context
