@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use comparable::Comparable;
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::claims::Claim;
@@ -11,7 +12,7 @@ use smallvec::SmallVec;
 
 use crate::protocol::{AgentType, TLSProtocolTypes, TLSVersion};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Comparable)]
 pub struct TlsTranscript(pub [u8; 64], pub i32);
 
 impl codec::Codec for TlsTranscript {
@@ -27,7 +28,7 @@ impl codec::Codec for TlsTranscript {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct TranscriptClientHello(pub TlsTranscript);
 impl Transcript for TranscriptClientHello {
     fn as_slice(&self) -> &[u8] {
@@ -48,7 +49,7 @@ impl codec::Codec for TranscriptClientHello {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptClientHello);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct TranscriptPartialClientHello(pub TlsTranscript);
 impl Transcript for TranscriptPartialClientHello {
     fn as_slice(&self) -> &[u8] {
@@ -69,7 +70,7 @@ impl codec::Codec for TranscriptPartialClientHello {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptPartialClientHello);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct TranscriptServerHello(pub TlsTranscript);
 impl Transcript for TranscriptServerHello {
     fn as_slice(&self) -> &[u8] {
@@ -90,7 +91,7 @@ impl codec::Codec for TranscriptServerHello {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptServerHello);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct TranscriptServerFinished(pub TlsTranscript);
 impl Transcript for TranscriptServerFinished {
     fn as_slice(&self) -> &[u8] {
@@ -111,7 +112,7 @@ impl codec::Codec for TranscriptServerFinished {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptServerFinished);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct TranscriptClientFinished(pub TlsTranscript);
 impl Transcript for TranscriptClientFinished {
     fn as_slice(&self) -> &[u8] {
@@ -132,7 +133,7 @@ impl codec::Codec for TranscriptClientFinished {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptClientFinished);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Comparable)]
 pub struct TranscriptCertificate(pub TlsTranscript);
 impl Transcript for TranscriptCertificate {
     fn as_slice(&self) -> &[u8] {
@@ -156,38 +157,46 @@ pub trait Transcript {
     fn as_slice(&self) -> &[u8];
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct ClientHello;
 // We do not expect to encode/read claims!
 dummy_extract_knowledge_codec!(TLSProtocolTypes, ClientHello);
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct ServerHello;
 dummy_extract_knowledge_codec!(TLSProtocolTypes, ServerHello);
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct Certificate;
 dummy_extract_knowledge_codec!(TLSProtocolTypes, Certificate);
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct CertificateVerify;
 dummy_extract_knowledge_codec!(TLSProtocolTypes, CertificateVerify);
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct Finished {
     pub outbound: bool,
 
+    #[comparable_ignore]
     pub client_random: SmallVec<[u8; 32]>,
+    #[comparable_ignore]
     pub server_random: SmallVec<[u8; 32]>,
+    #[comparable_ignore]
     pub session_id: SmallVec<[u8; 32]>,
 
     pub authenticate_peer: bool,
     /// DER encoded certificate. DER works, because:
     ///     DER is a subset of BER providing for exactly one way to encode an ASN.1 value.
     ///     (<https://en.wikipedia.org/wiki/X.690#DER_encoding>)
+    #[comparable_ignore]
     pub peer_certificate: SmallVec<[u8; 32]>,
 
+    #[comparable_ignore]
     pub early_secret: SmallVec<[u8; 32]>,
+    #[comparable_ignore]
     pub handshake_secret: SmallVec<[u8; 32]>,
+    #[comparable_ignore]
     pub master_secret: SmallVec<[u8; 32]>,
 
     pub chosen_cipher: u16,
+    #[comparable_ignore]
     pub available_ciphers: SmallVec<[u16; 20]>,
 
     pub signature_algorithm: i32,
@@ -244,11 +253,15 @@ pub enum ClaimData {
     Message(ClaimDataMessage),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct TlsClaim {
+    #[comparable_ignore]
     pub agent_name: AgentName,
+    #[comparable_ignore]
     pub origin: AgentType,
+    #[comparable_ignore]
     pub protocol_version: TLSVersion,
+    #[comparable_ignore]
     pub data: ClaimData,
     pub step: Option<StepNumber>,
 }
