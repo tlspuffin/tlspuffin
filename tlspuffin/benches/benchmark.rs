@@ -1,7 +1,8 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use puffin::algebra::dynamic_function::make_dynamic;
 use puffin::algebra::error::FnError;
-use puffin::algebra::Term;
+use puffin::algebra::{Term, TermType};
+use puffin::error::Error;
 use puffin::execution::{Runner, TraceRunner};
 use puffin::fuzzer::mutations::ReplaceReuseMutator;
 use puffin::fuzzer::utils::TermConstraints;
@@ -11,10 +12,11 @@ use puffin::libafl::state::StdState;
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 use puffin::protocol::EvaluatedTerm;
 use puffin::term;
-use puffin::trace::{Spawner, Trace};
+use puffin::trace::{Spawner, Trace, TraceContext};
 use puffin::trace_helper::TraceHelper;
-use tlspuffin::protocol::TLSProtocolTypes;
+use tlspuffin::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use tlspuffin::put_registry::tls_registry;
+use tlspuffin::test_utils::*;
 use tlspuffin::tls::fn_impl::*;
 use tlspuffin::tls::seeds::*;
 
@@ -162,11 +164,76 @@ fn benchmark_seeds(c: &mut Criterion) {
     group.finish()
 }
 
+fn benchmark_term_payloads_eval(c: &mut Criterion) {
+    let mut group = c.benchmark_group("mutations");
+
+    let mut success_count = 0;
+    let mut add_payload_fail = 0;
+    let mut eval_payload_fail = 0;
+    let mut rand = StdRand::with_seed(102);
+    let ignored_functions = ignore_add_payload(); // currently is the same as ignore_eval()
+    let mut closure = |term: &Term<TLSProtocolTypes>,
+                       ctx: &TraceContext<TLSProtocolBehavior>,
+                       rand2: &mut RomuDuoJrRand| {
+        term.evaluate(&ctx).map(|_eval| {
+            let mut term_with_payloads = term.clone();
+            add_payloads_randomly(&mut term_with_payloads, rand2, &ctx);
+            if term_with_payloads.all_payloads().len() == 0 {
+                log::warn!("Failed to add payloads, skipping... For:\n   {term_with_payloads}");
+                if !ignored_functions.contains(term.name()) {
+                    add_payload_fail += 1;
+                }
+                return Err(Error::Term("Failed to add payloads".to_string()));
+            } else {
+                log::debug!("Term with payloads: {term_with_payloads}");
+                // Sanity check:
+                test_pay(&term_with_payloads);
+                match &term_with_payloads.evaluate(&ctx) {
+                    Ok(_eval) => {
+                        log::debug!("Eval success!");
+                        success_count += 1;
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        log::error!("Eval FAILED with payloads: {term_with_payloads}.");
+                        if !ignored_functions.contains(term.name()) {
+                            eval_payload_fail += 1;
+                        }
+                        return Err(Error::Term("Failed to evaluate with payloads".to_string()));
+                    }
+                }
+            }
+        })?
+    };
+
+    let mut state = create_state();
+    let mut i = 0;
+    let mut rand = StdRand::with_seed(i as u64);
+
+    group.bench_function("test_term_payloads_eval", |b| {
+        b.iter(|| {
+            let res = zoo_test(
+                &mut closure,
+                rand,
+                17000,
+                true,
+                false,
+                None,
+                &ignored_functions,
+            );
+            log::error!("Step {i}");
+            i += 1;
+            assert!(res);
+        })
+    });
+}
+
 criterion_group!(
     benches,
     benchmark_dynamic,
     benchmark_trace,
     benchmark_mutations,
     benchmark_seeds,
+    benchmark_term_payloads_eval,
 );
 criterion_main!(benches);
