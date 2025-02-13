@@ -600,6 +600,12 @@ pub mod test_signature {
         fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
             None
         }
+
+        fn differential_fuzzing_uniformise_put_config(
+            agent: AgentDescriptor<Self::PUTConfig>,
+        ) -> AgentDescriptor<Self::PUTConfig> {
+            agent
+        }
     }
 
     #[derive(Default, Clone, Debug, Hash, Serialize, Deserialize)]
