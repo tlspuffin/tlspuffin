@@ -18,7 +18,7 @@ use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
 use crate::fuzzer::{start, FuzzerConfig, FuzzingTarget};
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
-use crate::protocol::ProtocolBehavior;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::{PutDescriptor, PutOptions};
 use crate::put_registry::{PutRegistry, TCP_PUT};
 use crate::trace::{Action, Spawner, Trace, TraceContext};
@@ -356,13 +356,24 @@ where
         let input: &String = matches.get_one("input").unwrap();
 
         let path = PathBuf::from(input);
-        let trace = match Trace::<PB::ProtocolTypes>::from_file(&path) {
+        let mut trace = match Trace::<PB::ProtocolTypes>::from_file(&path) {
             Ok(t) => t,
             Err(_) => {
                 log::error!("Invalid trace file {}", path.display());
                 return ExitCode::FAILURE;
             }
         };
+
+        // Uniformize the put configuration
+        trace.descriptors = trace
+            .descriptors
+            .into_iter()
+            .map(|agent| {
+                <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
+                    agent,
+                )
+            })
+            .collect();
 
         if let Err((available_puts, non_available_puts)) =
             check_if_puts_exist(&put_registry, &[first_put, second_put])
