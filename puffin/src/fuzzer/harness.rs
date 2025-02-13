@@ -7,7 +7,7 @@ use crate::execution::{DifferentialRunner, Runner, TraceRunner};
 use crate::fuzzer::stats_stage::{
     AGENT, CODEC, EXTRACTION, FN_ERROR, IO, PUT, STREAM, TERM, TERM_SIZE, TRACE_LENGTH,
 };
-use crate::protocol::ProtocolBehavior;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
 use crate::trace::{Action, Spawner, Trace};
@@ -62,15 +62,25 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
     second_put: &PutDescriptor,
     input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {
+    let mut input_trace = input.clone();
+    // Uniformize the put configuration
+    input_trace.descriptors = input_trace
+        .descriptors
+        .into_iter()
+        .map(|agent| {
+            <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(agent)
+        })
+        .collect();
+
     let runner = DifferentialRunner::new(
         put_registry.clone(),
         Spawner::new(put_registry.clone()).with_default(first_put.clone()),
         Spawner::new(put_registry.clone()).with_default(second_put.clone()),
     );
 
-    TRACE_LENGTH.update(input.steps.len());
+    TRACE_LENGTH.update(input_trace.steps.len());
 
-    for step in &input.steps {
+    for step in &input_trace.steps {
         match &step.action {
             Action::Input(input) => {
                 TERM_SIZE.update(input.recipe.size());
@@ -79,7 +89,7 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
         }
     }
 
-    if let Err(err) = runner.execute(input) {
+    if let Err(err) = runner.execute(input_trace) {
         match &err {
             Error::Fn(_) => FN_ERROR.increment(),
             Error::Term(_e) => TERM.increment(),
