@@ -6,7 +6,7 @@ use comparable::Comparable;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-use crate::agent::ProtocolDescriptorConfig;
+use crate::agent::{AgentDescriptor, ProtocolDescriptorConfig};
 use crate::algebra::signature::Signature;
 use crate::algebra::Matcher;
 use crate::claims::{Claim, SecurityViolationPolicy};
@@ -197,9 +197,15 @@ pub trait ProtocolTypes:
 
     /// Terms to evaluate and compare during differential fuzzing
     /// eg. decryption recipes
-    // Terms to evaluate and compare during differential fuzzing
-    // eg. decryption recipes
+    /// Terms to evaluate and compare during differential fuzzing
+    /// eg. decryption recipes
     fn differential_fuzzing_terms_to_eval() -> Vec<crate::algebra::Term<Self>>;
+
+    /// Replace some parameters from agent's protocol config with parameters
+    /// that unifomize the behavior of the PUTs
+    fn differential_fuzzing_uniformise_put_config(
+        agent: AgentDescriptor<Self::PUTConfig>,
+    ) -> AgentDescriptor<Self::PUTConfig>;
 }
 
 /// Defines the protocol which is being tested.

@@ -235,6 +235,12 @@ impl ProtocolTypes for SshProtocolTypes {
     fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
         None
     }
+
+    fn differential_fuzzing_uniformise_put_config(
+        agent: puffin::agent::AgentDescriptor<Self::PUTConfig>,
+    ) -> puffin::agent::AgentDescriptor<Self::PUTConfig> {
+        agent
+    }
 }
 
 impl std::fmt::Display for SshProtocolTypes {

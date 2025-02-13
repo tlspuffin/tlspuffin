@@ -937,6 +937,16 @@ impl ProtocolTypes for TLSProtocolTypes {
             TypeId::of::<TranscriptServerHello>(),
         ])
     }
+
+    fn differential_fuzzing_uniformise_put_config(
+        agent: AgentDescriptor<Self::PUTConfig>,
+    ) -> AgentDescriptor<Self::PUTConfig> {
+        let mut new = agent.clone();
+        new.protocol_config.cipher_string = String::from(
+            "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
+        );
+        new
+    }
 }
 
 impl std::fmt::Display for TLSProtocolTypes {
