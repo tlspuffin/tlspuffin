@@ -846,6 +846,8 @@ pub struct TLSDescriptorConfig {
     pub try_reuse: bool,
     /// List of available TLS ciphers
     pub cipher_string: String,
+    /// List of available TLS groups/curves
+    pub groups: Option<Vec<i32>>,
 }
 
 impl TLSDescriptorConfig {
@@ -893,6 +895,7 @@ impl Default for TLSDescriptorConfig {
             try_reuse: false,
             typ: AgentType::Server,
             cipher_string: String::from("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2"),
+            groups: None,
         }
     }
 }

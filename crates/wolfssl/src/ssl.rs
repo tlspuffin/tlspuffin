@@ -122,6 +122,18 @@ impl SslContextRef {
         }
     }
 
+    /// Sets the list of groups
+    pub fn set_groups(&mut self, group_list: &[i32]) -> Result<(), ErrorStack> {
+        unsafe {
+            cvt(wolf::wolfSSL_CTX_set_groups(
+                self.as_ptr(),
+                group_list.as_ptr() as *mut _,
+                group_list.len() as c_int,
+            ))
+            .map(|_| ())
+        }
+    }
+
     /// This function loads a certificate to use for verifying a peer when performing a TLS/SSL
     /// handshake. The peer certificate sent during the handshake is compared by using the SKID when
     /// available and the signature. If these two things do not match then any loaded CAs are used.
