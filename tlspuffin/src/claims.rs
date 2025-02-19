@@ -176,6 +176,7 @@ pub struct CertificateVerify;
 dummy_extract_knowledge_codec!(TLSProtocolTypes, CertificateVerify);
 #[derive(Debug, Clone, Comparable, PartialEq)]
 pub struct Finished {
+    #[comparable_ignore]
     pub outbound: bool,
 
     #[comparable_ignore]
@@ -185,16 +186,17 @@ pub struct Finished {
     #[comparable_ignore]
     pub session_id: SmallVec<[u8; 32]>,
 
+    #[comparable_ignore]
     pub authenticate_peer: bool,
     /// DER encoded certificate. DER works, because:
     ///     DER is a subset of BER providing for exactly one way to encode an ASN.1 value.
     ///     (<https://en.wikipedia.org/wiki/X.690#DER_encoding>)
     #[comparable_ignore]
     pub peer_certificate: SmallVec<[u8; 32]>,
-    #[comparable_synthetic {
-        // Since we cant compare SmallVec
-        let certificate_vec_u8 = |x: &Self| -> Vec<u8> { x.peer_certificate.as_slice().to_vec()  };
-    }]
+    // #[comparable_synthetic {
+    //     // Since we cant compare SmallVec
+    //     let certificate_vec_u8 = |x: &Self| -> Vec<u8> { x.peer_certificate.as_slice().to_vec()
+    // }; }]
     #[comparable_ignore]
     pub early_secret: SmallVec<[u8; 32]>,
     #[comparable_ignore]
@@ -206,7 +208,9 @@ pub struct Finished {
     #[comparable_ignore]
     pub available_ciphers: SmallVec<[u16; 20]>,
 
+    #[comparable_ignore]
     pub signature_algorithm: i32,
+    #[comparable_ignore]
     pub peer_signature_algorithm: i32,
     /* TODO: tmp_skey_type peer_tmp_skey_type
                    // TLS 1.2
