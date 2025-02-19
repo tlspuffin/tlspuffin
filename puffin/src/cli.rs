@@ -56,7 +56,8 @@ where
                 .arg(arg!(-t --title <t> "Title of the experiment"))
                 .arg(arg!(-d --description [d] "Description of the experiment"))
             ,
-            Command::new("seed").about("Generates seeds to ./seeds"),
+            Command::new("seed").about("Generates seeds to ./seeds")
+                .arg(arg!(--differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing")),
             Command::new("plot")
                 .about("Plots a trace stored in a file")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -238,8 +239,10 @@ where
 
     let default_put = PutDescriptor::new(put_registry.default().name(), options);
 
-    if let Some(_matches) = matches.subcommand_matches("seed") {
-        if let Err(err) = seed(&put_registry, default_put) {
+    if let Some(matches) = matches.subcommand_matches("seed") {
+        let is_differential = matches.get_flag("differential");
+
+        if let Err(err) = seed(&put_registry, default_put, is_differential) {
             log::error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -441,24 +444,13 @@ where
         let input: &String = matches.get_one("input").unwrap();
 
         let path = PathBuf::from(input);
-        let mut trace = match Trace::<PB::ProtocolTypes>::from_file(&path) {
+        let trace = match Trace::<PB::ProtocolTypes>::from_file(&path) {
             Ok(t) => t,
             Err(_) => {
                 log::error!("Invalid trace file {}", path.display());
                 return ExitCode::FAILURE;
             }
         };
-
-        // Uniformize the put configuration
-        trace.descriptors = trace
-            .descriptors
-            .into_iter()
-            .map(|agent| {
-                <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
-                    agent,
-                )
-            })
-            .collect();
 
         if let Err((available_puts, non_available_puts)) =
             check_if_puts_exist(&put_registry, &[first_put, second_put])
@@ -658,9 +650,22 @@ fn plot<PB: ProtocolBehavior>(
 fn seed<PB: ProtocolBehavior>(
     _put_registry: &PutRegistry<PB>,
     put: PutDescriptor,
+    differential_fuzzing: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
-    for (trace, name) in PB::create_corpus(put) {
+    for (mut trace, name) in PB::create_corpus(put) {
+        if differential_fuzzing {
+            trace.descriptors = trace
+            .descriptors
+            .into_iter()
+            .map(|agent| {
+                <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
+                    agent,
+                )
+            })
+            .collect();
+        }
+
         trace.to_file(format!("./seeds/{name}.trace"))?;
     }
 

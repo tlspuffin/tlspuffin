@@ -9,7 +9,7 @@ use crate::fuzzer::stats_stage::{
     HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
     TERM_SIZE, TRACE_LENGTH,
 };
-use crate::protocol::{ProtocolBehavior, ProtocolTypes};
+use crate::protocol::ProtocolBehavior;
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
 use crate::trace::{Action, Spawner, Trace};
@@ -69,16 +69,6 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
     second_put: &PutDescriptor,
     input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {
-    let mut input_trace = input.clone();
-    // Uniformize the put configuration
-    input_trace.descriptors = input_trace
-        .descriptors
-        .into_iter()
-        .map(|agent| {
-            <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(agent)
-        })
-        .collect();
-
     let runner = DifferentialRunner::new(
         put_registry.clone(),
         Spawner::new(put_registry.clone()).with_default(first_put.clone()),
