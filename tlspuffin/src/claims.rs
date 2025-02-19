@@ -270,6 +270,7 @@ pub struct TlsClaim {
     pub origin: AgentType,
     pub protocol_version: TLSVersion,
     pub data: ClaimData,
+    #[comparable_ignore]
     pub step: Option<StepNumber>,
 }
 

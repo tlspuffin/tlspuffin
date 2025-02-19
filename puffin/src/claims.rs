@@ -1,5 +1,6 @@
 use std::any::TypeId;
 use std::cell::{Ref, RefCell, RefMut};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::rc::Rc;
@@ -112,27 +113,54 @@ impl<C: Claim> ClaimList<C> {
     pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
         let blacklist = <C::PT as ProtocolTypes>::differential_fuzzing_claims_blacklist();
 
-        let self_claims_filtered: Vec<&C> = self
+        let mut self_claims_filtered = HashMap::<AgentName, Vec<&C>>::new();
+        self.claims
+            .iter()
+            .filter(|x| filter_claims(*x, &blacklist))
+            .map(|c| {
+                self_claims_filtered
+                    .entry(c.agent_name())
+                    .or_insert(vec![])
+                    .push(c)
+            })
+            .count();
+
+        let mut other_claims_filtered = HashMap::<AgentName, Vec<&C>>::new();
+        other
             .claims
             .iter()
             .filter(|x| filter_claims(*x, &blacklist))
+            .map(|c| {
+                other_claims_filtered
+                    .entry(c.agent_name())
+                    .or_insert(vec![])
+                    .push(c)
+            })
+            .count();
+
+        self_claims_filtered = self_claims_filtered
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    v.into_iter()
+                        .dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
+                        .collect(),
+                )
+            })
             .collect();
 
-        let other_claims_filtered: Vec<&C> = other
-            .claims
-            .iter()
-            .filter(|x| filter_claims(*x, &blacklist))
+        other_claims_filtered = other_claims_filtered
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    v.into_iter()
+                        .dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
+                        .collect(),
+                )
+            })
             .collect();
-
-        // // Here we sort the claims. This is mostly a heuristic
-        // let mut self_claims: Vec<&C> = self.claims.iter().collect();
-        // self_claims.sort_by_key(|x| (x.inner().type_name(), x.agent_name()));
-        // self_claims = self_claims
-        //     .into_iter()
-        //     .dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
-        //     .collect();
-        // let mut other_claims: Vec<&C> = other.claims.iter().collect();
-        // other_claims.sort_by_key(|x| (x.inner().type_name(), x.agent_name()));
 
         let diffs = self_claims_filtered.comparison(&other_claims_filtered);
         match diffs {
