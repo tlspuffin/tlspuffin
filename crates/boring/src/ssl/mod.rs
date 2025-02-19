@@ -606,7 +606,7 @@ impl SslSignatureAlgorithm {
 #[cfg(not(feature = "kx-safe-default"))]
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct SslCurve(c_int);
+pub struct SslCurve(pub c_int);
 
 #[cfg(not(feature = "kx-safe-default"))]
 impl SslCurve {
