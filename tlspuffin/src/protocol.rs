@@ -388,7 +388,7 @@ impl ProtocolTypes for TLSProtocolTypes {
     ) -> AgentDescriptor<Self::PUTConfig> {
         let mut new = agent.clone();
         new.protocol_config.cipher_string = String::from(
-            "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
+            "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256",
         );
         new.protocol_config.groups = Some(String::from("P-256:P-384"));
         new
