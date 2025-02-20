@@ -2145,6 +2145,10 @@ impl SslCipherRef {
             Some(Nid::from_raw(n))
         }
     }
+
+    pub fn cipher_id(&self) -> u32 {
+        unsafe { ffi::SSL_CIPHER_get_id(self.as_ptr()) }
+    }
 }
 
 foreign_type_and_impl_send_sync! {
