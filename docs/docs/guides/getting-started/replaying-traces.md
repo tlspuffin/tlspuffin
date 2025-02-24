@@ -16,9 +16,9 @@ Therefore, *tlspuffin* provides the ability to store all these steps in a `.trac
 
 Through the *tlspuffin* CLI, the `execute` command provides a simple way to execute a trace:
 ```sh
-./target/debug/tlspuffin execute 'seeds/tlspuffin::tls::seeds::seed_successful.trace'
+./target/release/tlspuffin execute 'seeds/tlspuffin::tls::seeds::seed_successful.trace'
 ```
-
+One can choose which fuzz target to execute by specifying the `--put` option, for example: `./target/release/tlspuffin --put openssl312-asan execute <path_trace>'`.
 :::note[Trace Validity]
 
 Not all traces are *valid* traces in the sense of the protocol under test.
@@ -27,10 +27,10 @@ When trying to execute an invalid trace, the `execute` command will signal wheth
 
 :::
 
-## Replaying Against a Real Entity
+## Replaying Against a Target in the Wild
 
-While it is useful to let *tlspuffin* spawn the agents involved in a trace, the communication between these agents is made through a harness interface wrapping the library under test.
-Using the CLI `tcp` command, it is also possible to replace the first agent of a trace with a real entity connected through TCP.
+While it is useful to let *tlspuffin* spawn the agents (clients, servers) involved in a trace, the communication between these agents is made through a harness interface wrapping the library under test.
+Using the CLI `tcp` command, it is also possible to replace the first agent of a trace (e.g., a server) with a real, running server connected through TCP.
 
 For example, one could start an OpenSSL server on port 44410:
 ```sh
@@ -39,5 +39,5 @@ openssl s_server -key tlspuffin/assets/alice-key.pem -cert tlspuffin/assets/alic
 
 And replay one of the seed traces against this server:
 ```sh
-./target/debug/tlspuffin tcp --port 44410 'seeds/tlspuffin::tls::seeds::seed_client_attacker_full.trace'
+./target/release/tlspuffin tcp --port 44410 'seeds/tlspuffin::tls::seeds::seed_client_attacker_full.trace'
 ```

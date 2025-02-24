@@ -27,3 +27,7 @@ ls -al ./vendor/openssl312-asan
 ```
 
 This folder is a standard install prefix containing, most notably, the `include` and `lib` folders that will allow *tlspuffin* to link against the fuzz target.
+Additional metadata about the fuzz target are displayed when executing the `vendorinfo.sh` script:
+```sh
+./vendor/openssl312-asan/build/vendorinfo.sh
+```

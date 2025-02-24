@@ -18,9 +18,13 @@ in a manner consistent across all presets using:
 
 As this is still work in progress, if a preset is marked with no *mk_vendor* support, you will need to build it through cargo:
 ```
-cargo build --release -p tlspuffin --features=<preset>
+cargo build --release -p tlspuffin --features=<preset>[,asan]
 ```
-
+In that case, you can enable or disable ASAN by using the feature flag `asan`, in addition to the `<preset>`. For example:
+```shell
+cargo build --release -p tlspuffin --features=wolfssl540,asan
+```
+will build `tlspuffin` for the WolfSSL540 PUT with ASAN enabled.
 :::
 
 <Tabs>

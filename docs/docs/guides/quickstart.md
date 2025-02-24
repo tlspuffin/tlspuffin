@@ -43,9 +43,9 @@ nix-shell
 
 ## Building the Fuzzer
 
-Build a fuzzer tailored to the OpenSSL target:
+Build a fuzzer for the target previously built with `mk_vendor`:
 ```sh
-cargo build --release --bin=tlspuffin --features=openssl312
+cargo build --release --bin=tlspuffin --features=cputs
 ```
 
 ## Running the Fuzzer
@@ -59,5 +59,5 @@ Launch the fuzzing process:
 ```sh
 ./target/release/tlspuffin --cores=0-3 --tui quick-experiment
 ```
-
 The fuzzer will create a folder `experiments/<id>/` containing the results of the fuzzing run.
+Stop the fuzzer by pressing `q` and then `Ctrl+C`.

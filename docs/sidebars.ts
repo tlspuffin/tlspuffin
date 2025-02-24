@@ -25,6 +25,16 @@ const sidebars: SidebarsConfig = {
         'references/mk_vendor',
       ],
     },
+    {
+        type: 'category',
+        label: 'Developer Documentation',
+        collapsed: false,
+        items: [
+            'developer/overview',
+            'developer/build',
+            'developer/howto',
+            'developer/benchmarks',],
+    }
   ],
 };
 
