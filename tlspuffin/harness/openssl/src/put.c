@@ -272,6 +272,12 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     // Disallow EXPORT in client
     SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string);
+
+    if (descriptor->group_list != NULL)
+    {
+        SSL_CTX_set1_groups(ssl_ctx, descriptor->group_list, descriptor->group_list_size);
+    }
+
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
 
     if (descriptor->client_authentication)
@@ -333,6 +339,12 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     // Allow EXPORT in server
     SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string);
+
+    if (descriptor->group_list != NULL)
+    {
+        SSL_CTX_set1_groups(ssl_ctx, descriptor->group_list, descriptor->group_list_size);
+    }
+
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
 
     ssl_ctx = set_cert(ssl_ctx, descriptor->cert);

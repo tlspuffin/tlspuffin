@@ -606,7 +606,7 @@ impl SslSignatureAlgorithm {
 #[cfg(not(feature = "kx-safe-default"))]
 #[repr(transparent)]
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub struct SslCurve(c_int);
+pub struct SslCurve(pub c_int);
 
 #[cfg(not(feature = "kx-safe-default"))]
 impl SslCurve {
@@ -1718,6 +1718,17 @@ impl SslContextBuilder {
     pub fn set_curves(&mut self, curves: &[SslCurve]) -> Result<(), ErrorStack> {
         unsafe {
             cvt_0i(ffi::SSL_CTX_set1_curves(
+                self.as_ptr(),
+                curves.as_ptr() as *const _,
+                curves.len(),
+            ))
+            .map(|_| ())
+        }
+    }
+
+    pub fn set_groups(&mut self, curves: &[u16]) -> Result<(), ErrorStack> {
+        unsafe {
+            cvt_0i(ffi::SSL_CTX_set1_group_ids(
                 self.as_ptr(),
                 curves.as_ptr() as *const _,
                 curves.len(),
