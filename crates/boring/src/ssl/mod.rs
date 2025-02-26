@@ -1726,6 +1726,17 @@ impl SslContextBuilder {
         }
     }
 
+    pub fn set_groups(&mut self, curves: &[u16]) -> Result<(), ErrorStack> {
+        unsafe {
+            cvt_0i(ffi::SSL_CTX_set1_group_ids(
+                self.as_ptr(),
+                curves.as_ptr() as *const _,
+                curves.len(),
+            ))
+            .map(|_| ())
+        }
+    }
+
     /// Consumes the builder, returning a new `SslContext`.
     pub fn build(self) -> SslContext {
         self.ctx
