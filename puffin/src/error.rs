@@ -41,8 +41,8 @@ impl fmt::Display for Error {
                 f,
                 "error encoding/reading an EvaluatedTerm/bitstring: {err}"
             ),
-            Self::Put(err) => write!(f, "error in openssl: {err}"),
-            Self::IO(err) => write!(f, "error in io of openssl (this should not happen): {err}"),
+            Self::Put(err) => write!(f, "error in PUT : {err}"),
+            Self::IO(err) => write!(f, "error in io of PUT (this should not happen): {err}"),
             Self::Agent(err) => write!(f, "error regarding an agent: {err}"),
             Self::Stream(err) => write!(f, "error in the stream: {err}"),
             Self::Extraction() => write!(f, "error while extracting variable",),
