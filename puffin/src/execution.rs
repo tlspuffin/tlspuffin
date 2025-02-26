@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -17,7 +17,7 @@ use crate::trace::{Spawner, Trace, TraceContext};
 pub trait TraceRunner {
     type PB: ProtocolBehavior;
     type R;
-    type E;
+    type E: Display;
 
     fn execute<T>(self, trace: T) -> Result<Self::R, Self::E>
     where
@@ -111,7 +111,10 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
             || {
                 let ret = match runner.execute_config(trace, with_reseed) {
                     Ok(_) => 0,
-                    Err(_) => 1,
+                    Err(err) => {
+                        println!("{}", err);
+                        1
+                    }
                 };
 
                 std::process::exit(ret);
