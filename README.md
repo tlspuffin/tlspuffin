@@ -1,50 +1,78 @@
-## TLS Protocol Under FuzzINg: A Dolev-Yao guided fuzzer for TLS
+# DY Fuzzing: Formal Dolev-Yao Models Meet Cryptographic Protocol Fuzz Testing
 
-![Stability Experimental](https://img.shields.io/badge/stability-experimental-orange.svg?style=flat-square)
-[![CI Status](https://img.shields.io/github/actions/workflow/status/tlspuffin/tlspuffin/on-pr-merged.yml?branch=main&style=flat-square&label=CI)](https://github.com/tlspuffin/tlspuffin/actions/workflows/on-pr-merged.yml)
+[![unstable](http://badges.github.io/stability-badges/dist/unstable.svg)](http://github.com/badges/stability-badges)[![CI Status](https://img.shields.io/github/actions/workflow/status/tlspuffin/tlspuffin/on-pr-merged.yml?branch=main&style=flat-square&label=CI)](https://github.com/tlspuffin/tlspuffin/actions/workflows/on-pr-merged.yml)
 
+## What is `puffin`?
 
-## Description
+The `puffin` fuzzer is the reference implementation for the [Dolev-Yao fuzzing approach](https://www.computer.org/csdl/pds/api/csdl/proceedings/download-article/1Ub234bjuWA/pdf) (eprint publicly accessible [here](https://eprint.iacr.org/2023/57)).
+It aims at fuzzing cryptographic protocol implementations. For now, it is shipped with harnesses for several TLS implementations (OpenSSL, BoringSSL, LibreSSL, and wolfSSL) and
+preliminary versions of a harness for OpenSSH. We built `puffin` so that new protocols and protocol implementations can be added.
+Internally, `puffin` uses the library [LibAFL](https://aflplus.plus/libafl-book/) to drive the fuzzing loop.
 
-Fuzzing implementations of cryptographic protocols is challenging.
-In contrast to traditional fuzzing of file formats, cryptographic protocols require a
-specific flow of cryptographic and mutually dependent messages to reach deep protocol states.
-The specification of the TLS protocol describes sound flows of messages and cryptographic
-operations.
+We sometimes use `tlspuffin` instead of `puffin` to name the fuzzer and this project. This is because the first protocol we implemented was TLS. However, `puffin` and DY fuzzing in general are not limited to the TLS protocol.
 
-Although the specification has been formally verified multiple times with significant
-results, a gap has emerged from the fact that implementations of the same protocol have
-not undergone the same logical analysis.
-Because the development of cryptographic protocols is error-prone, multiple security
-vulnerabilities have already been discovered in implementations in TLS which are not
-present in its specification.
+## Building and using `puffin`
+Please refer to the up-to-date [user manual](https://tlspuffin.github.io/docs/overview).
+We also provide a [quickstart guide](https://tlspuffin.github.io/docs/guides/quickstart) for a fast setup.
 
-Inspired by symbolic protocol verification, we present a reference implementation of a
-fuzzer named tlspuffin which employs a concrete semantic to execute TLS 1.2 and 1.3 symbolic traces.
-In fact attacks which mix \TLS versions are in scope of this implementation.
-This method allows us to utilize a genetic fuzzing algorithm to fuzz protocol flows,
-which is described by the following three stages.
+## License
 
-* By mutating traces we can deviate from the specification to test logical flaws.
-* Selection of interesting protocol flows advance the fuzzing procedure.
-* A security violation oracle supervises executions for the absence of vulnerabilities.
+Licensed under either of
 
+* Apache License, Version 2.0
+  ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+* MIT license
+  ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/blog/license/mit)
 
-The novel approach allows rediscovering known vulnerabilities, which are out-of-scope for
-classical bit-level fuzzers. This proves that it is capable of reaching critical protocol
-states.
-In contrast to the promising methodology no new vulnerabilities were found by tlspuffin.
-This can can be explained by the fact that the implementation effort of TLS protocol
-primitives and extensions is high and not all features of the specification have been
-implemented.
-Nonetheless, the innovating approach is promising in terms of quickly reaching high edge
-coverage, expressiveness of executable protocol traces and stable and extensible implementation.
+at your option.
+Note that tlspuffin also contains code/modification from external projects. See [THIRD_PARTY](THIRD_PARTY) for more details.
+
+## Contributing to `puffin`
+We welcome any external contributions through [pull requests](https://github.com/tlspuffin/tlspuffin/pulls), see for example the [list](https://github.com/tlspuffin/tlspuffin/issues?q=is%3Aissue%20state%3Aopen%20(label%3A%22help%20wanted%22%20OR%20label%3A%22good%20first%20issue%22%20)%20) of "good first issues".  
+Please refer to the up-to-date [developer documentation](https://tlspuffin.github.io/docs/overview).
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
 
 
-## Features
+## Background on DY Fuzzing
+Critical and widely used cryptographic protocols have repeatedly been found to contain flaws in their design and implementation. A prominent class of such vulnerabilities is **logical attacks**, e.g., attacks that exploit flawed protocol logic. Automated formal verification methods, based on the **Dolev-Yao (DY) attacker** (shown in green in the Figure below), formally define and excel at finding such flaws but operate only on abstract specification models. Fully automated verification of existing protocol implementations is today still out of reach. This leaves open whether such implementations are secure. Unfortunately, this blind spot hides numerous attacks, such as recent logical attacks on widely used TLS implementations introduced by implementation bugs.
 
+### Challenges in Detecting Implementation-Level Logical Attacks
+
+We are concerned with finding implementation-level logical attacks in large cryptographic protocol code bases. For this, we build on **fuzz testing**. However, state-of-the-art fuzzers (shown on the left in the Figure) cannot capture the class of logical attacks for two main reasons. First, they fail to effectively **capture the DY attacker**, particularly the ability of structural modifications on the term representation of messages in DY models (e.g., re-signing a message with some adversarial-controlled key), a prerequisite to capture logical attacks. We emphasize that logical attacks may trigger protocol or memory vulnerabilities. Second, they cannot detect **protocol vulnerabilities**, which are security violations at the protocol level, e.g., for the attacks that trigger protocol vulnerabilities, which are not memory-related, such as an authentication bypass.
+
+###  DY Model-Guided Fuzzing
+
+We answer in [1] by proposing a novel and effective technique called DY model-guided fuzzing, which precludes logical attacks against protocol implementations. The main idea is to consider as possible test cases the set of abstract DY executions of the DY attacker, and use a novel mutation-based fuzzer to explore this set (shown in the middle of the Figure). The DY fuzzer concretizes each abstract execution to test it on the program under test. This approach enables reasoning at a more structural and security-related level of messages represented as formal terms (e.g., decrypt a message and re-encrypt it with a different key) instead of random bit-level modifications that are much less likely to produce relevant logical adversarial behaviors.
+
+
+<center><img src="https://tlspuffin.github.io/assets/images/DYF_illustrations-7f3ce4e536a9e941373f30a7de1e1b94.png " width="900"></center>
+<center>The gap filled by DY fuzzing and tlspuffin (shown in the middle).</center>
+
+
+### Implementation
+
+[tlspuffin](https://github.com/tlspuffin/tlspuffin) is our reference implementation of such a DY fuzzer. It is built modularly so that new protocols and Programs Under Test (PUTs) can be integrated and tested. We have already integrated the TLS protocol and the OpenSSL, BoringSSL, WolfSSL, and LibreSSL PUTs. tlspuffin has already found 8 CVEs (see table below), including five new ones (including a critical one) that were all acknowledged and patched.
+Interestingly and as a witness to the claims above,
+those five newly found bugs are not currently found by state-of-the-art fuzzers [1].
+
+
+| CVE ID                                                             | CVSS | Type         | Novel                                   | Version   |
+|--------------------------------------------------------------------|-----|--------------|-----------------------------------------|---------|
+| [2021-3449](https://www.cve.org/CVERecord?id=CVE-2021-3449)        | 5.9 | Server DoS | ❌                                       | 1.1.1j   |
+| [2022-25638](https://www.cve.org/CVERecord?id=CVE-2022-25638)      | 6.5 | Auth. Bypass | ❌                                       | 5.1.0   |
+| [2022-25640](https://www.cve.org/CVERecord?id=CVE-2022-25640)      | ️7.5❗ | Auth. Bypass | ❌                                      | 5.1.0     |
+| [2022-38152](https://www.cve.org/CVERecord?id=CVE-2022-38152)      | 7.5❗ | Server DoS | ✅                                       | 5.4.0     |
+| [2022-38153](https://www.cve.org/CVERecord?id=CVE-2022-38153)      | 5.9 | Client DoS | ✅ | 5.3.0     |
+| [2022-39173](https://www.cve.org/CVERecord?id=CVE-2022-39173)      | 7.5❗ | Server DoS | ✅ | 5.5.0    |
+| [2022-42905](https://www.cve.org/CVERecord?id=CVE-2022-42905)      | 9.1❗ | Info. Leak | ✅ | 5.5.0   |
+| [2023-6936](https://www.cve.org/CVERecord?id=CVE-2023-6936)      | 5.3 | Info. Leak | ✅ | 5.6.6     |
+
+
+Some features:
 * Uses the [LibAFL fuzzing framework](https://github.com/AFLplusplus/LibAFL)
-* Fuzzer which is inspired by the [Dolev-Yao symbolic model](https://en.wikipedia.org/wiki/Dolev%E2%80%93Yao_model) used in protocol verification
+* Fuzzer which is inspired by the [Dolev-Yao models](https://en.wikipedia.org/wiki/Dolev%E2%80%93Yao_model) used in protocol verification
 * Domain specific mutators for Protocol Fuzzing!
 * Supported Libraries Under Test:
   * OpenSSL 1.0.1f, 1.0.2u, 1.1.1k
@@ -52,194 +80,25 @@ coverage, expressiveness of executable protocol traces and stable and extensible
   * wolfSSL 5.1.0 - 5.4.0
   * BoringSSL (last commit tested 368d0d87d0bd00f8227f74ce18e8e4384eaf6afa)
     - Disclaimer : there is a bug will building in debug mode with asan (set `lto=true` in `Cargo.toml` to circumvent)
-* Reproducible for each LUT. We use sources from forks this are in the [tlspuffin organisation](https://github.com/tlspuffin)
+* Reproducible for each LUT. We use sources from fresh git clone of vendor libraries.
 * 70% Test Coverage
-* Writtin in Rust!
+* Written in Rust!
 
 
-## Dependencies
 
-* build-essential (make, gcc)
-* clang
-* graphviz
+## Team
 
-WolfSSL:
-* autoconf
-* libtool
+- [Max Ammann](https://github.com/maxammann) - [Trails of Bits](https://www.trailofbits.com/)
+- [Tom Gouville](https://github.com/aeyno) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+- [Lucca Hirschi](https://members.loria.fr/LHirschi/) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+- [Steve Kremer](https://members.loria.fr/SKremer/) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+- [Michael Mera](https://github.com/michaelmera) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
 
-BoringSSL:
-* go
-* cmake
+This project is partially funded by the [ANR JCJC project ProtoFuzz](https://project.inria.fr/protofuzz/).
+We are still looking to hire motivated students/postdocs/engineers in Nancy, France as part of this project.
 
-For the python `tlspuffin-analyzer`:
-* libyajl-dev
-* `wheel` from Python pip
+## References
 
-## Building
+[1] [M. Ammann, L. Hirschi and S. Kremer, "DY Fuzzing: Formal Dolev-Yao Models Meet Cryptographic Protocol Fuzz Testing," in 2024 IEEE Symposium on Security and Privacy (SP), San Francisco, CA, USA, 2024 pp. 99-99.](https://www.computer.org/csdl/pds/api/csdl/proceedings/download-article/1Ub234bjuWA/pdf)
 
-Build the project:
-
-```bash
-git clone https://github.com/tlspuffin/tlspuffin.git
-cargo build
-```
-
-## Running
-
-Fuzz using three clients:
-
-```bash
-cargo run --bin tlspuffin -- --cores 0-3
-```
-
-Note: After switching the Library Under Test or its version do a clean rebuild (`cargo clean`).
-For example when switching from OpenSSL 1.0.1 to 1.1.1.
-
-## Testing
-
-```bash
-cargo test
-```
-
-## Command-line Interface
-
-The syntax for the command-line of is:
-
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;tlspuffin [⟨options] [⟨sub-commands⟩]
-
-#### Global Options
-
-Before we explain each sub-command, we first go over the options in the following.
-
-* **-c, --cores ⟨spec⟩**
-  > This option specifies on which cores the fuzzer should assign its worker processes. It can either be specified as a list by using commas "0,1,2,7" or as a range "0-7". By default, it runs just on core 0.
-
-* **-i, --max-iters ⟨i⟩**
-  > This option allows to bound the amount of iterations the fuzzer does. If omitted, then infinite iterations are done.
-
-* **-p, --port ⟨n⟩**
-  > As specified in [sec:design-multiprocessing] the initial communication between the fuzzer broker and workers happens over TCP/IP. Therefore, the broker requires a port allocation. The default port is 1337.
-
-* **-s, --seed ⟨n⟩**
-  > Defines an initial seed for the prng used for mutations. Note that this does not make the fuzzing deterministic, because of randomness introduced by the multiprocessing (see [sec:design-multiprocessing]).
-
-#### Sub-commands
-
-Now we will go over the sub-commands execute, plot, experiment, and seed.
-
-* **execute ⟨input⟩**
-  > This sub-command executes a single trace persisted in a file. The path to the file is provided by the ⟨input⟩ argument.
-* **plot ⟨input⟩ ⟨format⟩ ⟨output_prefix⟩**
-  > This sub-command plots the trace stored at ⟨input⟩ in the format specified by ⟨format⟩. The created graphics are stored at a path provided by ⟨output_prefix⟩. The option --multiple can be provided to create for each step in the trace a separate file. If the option --tree is given, then only a single graphic which contains all steps is produced.
-* **experiment**
-  > This sub-command initiates an experiment. Experiments are stored in a directory named experiments/ in the current working directory. An experiment consists of a directory which contains . The title and description of the experiment can be specified with --title ⟨t⟩ and --description ⟨d⟩ respectively. Both strings are persisted in the metadata of the experiment, together with the current commit hash of , the version and the current date and time.
-* **seed**
-  > This sub-command serializes the default seed corpus in a directory named seeds/ in the current working directory. The default corpus is defined in the source code using the trace dsl.
-
-
-## Rust Setup
-
-Install [rustup](https://rustup.rs/).
-
-The toolchain will be automatically downloaded when building this project. See [./rust-toolchain.toml](./rust-toolchain.toml) for more details about the toolchain.
-
-Make sure that you have the [clang](https://clang.llvm.org/) compiler installed. Optionally, also install `llvm` to have additional tools like `sancov` available.
-Also make sure that you have the usual tools for building it like `make`, `gcc` etc. installed. They may be needed to build OpenSSL.
-
-## Advanced Features
-
-### Running with ASAN
-
-```bash
-ASAN_OPTIONS=abort_on_error=1 \
-    cargo run --bin tlspuffin --features asan -- --cores 0-3
-```
-
-It is important to enable `abort_on_error`,
-else the fuzzer workers fail to restart on crashes.
-
-#### Compiling with ASAN using rustc
-
-```
-RUSTFLAGS=-Zsanitizer=address cargo +nightly build --target x86_64-unknown-linux-gnu --bin tlspuffin -p tlspuffin --release --features wolfssl530
-```
-
-### Generate Corpus Seeds
-
-```bash
-cargo run --bin tlspuffin -- seed
-```
-
-### Plot Symbolic Traces
-
-To plot SVGs do the following:
-
-```bash
-cargo run --bin tlspuffin -- plot corpus/seed_client_attacker12.trace svg ./plots/seed_client_attacker12
-```
-
-Note: This requires that the `dot` binary is in on your path.
-Note: The utility [tools/plot-corpus.sh](tools/plot-crashes.sh) plots a whole directory
-
-### Execute a Symbolic Trace (with ASAN)
-
-To analyze crashes you can also execute a trace which crashes the testing harness using ASAN:
-
-```bash
-cargo run --bin tlspuffin -- execute test.trace
-```
-
-To do the same with ASAN enabled:
-```bash
-ASAN_OPTIONS=detect_leaks=0 \
-      cargo run --bin tlspuffin --features asan -- execute test.trace
-```
-
-### Crash Deduplication
-
-Creates log files for each crash and parses ASAN crashes to group crashes together.
-
-```bash
-tools/analyze-crashes.sh
-```
-
-
-### Benchmarking
-
-There is a benchmark which compares the execution of the dynamic functions to directly executing them
-in [benchmark.rs](benches/benchmark.rs). You can run them using:
-
-```bash
-cargo bench
-xdg-open target/criterion/report/index.html
-```
-
-## Documentation
-
-This generates the documentation for this crate and opens the browser. This also includes the documentation of every
-dependency like LibAFL or rustls.
-
-```bash
-cargo doc --open
-```
-
-You can also view the up-to-date documentation [here](https://mammann.gitlabpages.inria.fr/tlspuffin/tlspuffin/).
-
-## License
-
-Licensed under either of
-
- * Apache License, Version 2.0
-   ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
- * MIT license
-   ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/blog/license/mit)
-
-at your option.
-
-Note that tlspuffin also contains code/modification from external projects. See [THIRD_PARTY](THIRD_PARTY) for more details.
-
-## Contribution
-
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
-dual licensed as above, without any additional terms or conditions.
+[2] [DY Fuzzing Poster](https://tlspuffin.github.io/assets/files/SP24_Poster-f90cdd5b2df492a64fa18089c98a7b2e.pdf)
