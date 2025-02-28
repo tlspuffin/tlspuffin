@@ -1,20 +1,24 @@
-use core::any::TypeId;
+use std::any::TypeId;
 
+use comparable::Comparable;
 use puffin::agent::{AgentDescriptor, AgentName, ProtocolDescriptorConfig};
 use puffin::algebra::signature::Signature;
 use puffin::algebra::Matcher;
 use puffin::error::Error;
 use puffin::protocol::{
-    EvaluatedTerm, Extractable, OpaqueProtocolMessage, OpaqueProtocolMessageFlight,
-    ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
-    ProtocolTypes,
+    CompareKnowledge, EvaluatedTerm, Extractable, OpaqueProtocolMessage,
+    OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer,
+    ProtocolMessageFlight, ProtocolTypes,
 };
 use puffin::put::PutDescriptor;
 use puffin::trace::{Knowledge, Source, Trace};
-use puffin::{atom_extract_knowledge, codec, dummy_extract_knowledge};
+use puffin::{atom_extract_knowledge, codec, dummy_compare, dummy_extract_knowledge};
 use serde::{Deserialize, Serialize};
 
-use crate::claims::TlsClaim;
+use crate::claims::{
+    TlsClaim, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
+    TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
+};
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
@@ -43,7 +47,7 @@ use crate::tls::rustls::msgs::{self};
 use crate::tls::violation::TlsSecurityViolationPolicy;
 use crate::tls::TLS_SIGNATURE;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct MessageFlight {
     pub messages: Vec<Message>,
 }
@@ -89,7 +93,7 @@ impl codec::Codec for MessageFlight {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct OpaqueMessageFlight {
     pub messages: Vec<OpaqueMessage>,
 }
@@ -752,10 +756,13 @@ atom_extract_knowledge!(TLSProtocolTypes, u64);
 atom_extract_knowledge!(TLSProtocolTypes, u8);
 dummy_extract_knowledge!(TLSProtocolTypes, bool);
 
-impl<T: EvaluatedTerm<TLSProtocolTypes> + Clone + codec::Codec + 'static>
+dummy_compare!(TLSProtocolTypes, HandshakeHash);
+dummy_compare!(TLSProtocolTypes, SessionID);
+
+impl<T: Extractable<TLSProtocolTypes> + Clone + codec::Codec + 'static>
     Extractable<TLSProtocolTypes> for Vec<T>
 where
-    Vec<T>: codec::Codec,
+    Vec<T>: codec::Codec + CompareKnowledge<TLSProtocolTypes>,
 {
     fn extract_knowledge<'a>(
         &'a self,
@@ -778,7 +785,7 @@ where
 
 impl<T: Extractable<TLSProtocolTypes> + Clone + 'static> Extractable<TLSProtocolTypes> for Option<T>
 where
-    Option<T>: codec::Codec,
+    Option<T>: codec::Codec + Comparable,
 {
     fn extract_knowledge<'a>(
         &'a self,
@@ -810,13 +817,13 @@ impl Matcher for msgs::enums::HandshakeType {
     }
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash, Comparable)]
 pub enum AgentType {
     Server,
     Client,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Comparable)]
 pub enum TLSVersion {
     V1_3,
     V1_2,
@@ -846,6 +853,8 @@ pub struct TLSDescriptorConfig {
     pub try_reuse: bool,
     /// List of available TLS ciphers
     pub cipher_string: String,
+    /// List of available TLS groups/curves
+    pub groups: Option<Vec<i32>>,
 }
 
 impl TLSDescriptorConfig {
@@ -893,6 +902,7 @@ impl Default for TLSDescriptorConfig {
             try_reuse: false,
             typ: AgentType::Server,
             cipher_string: String::from("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2"),
+            groups: None,
         }
     }
 }
@@ -906,6 +916,44 @@ impl ProtocolTypes for TLSProtocolTypes {
 
     fn signature() -> &'static Signature<Self> {
         &TLS_SIGNATURE
+    }
+
+    fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>> {
+        None
+    }
+
+    fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
+        Some(vec![TypeId::of::<MessagePayload>()])
+    }
+
+    fn differential_fuzzing_terms_to_eval() -> Vec<puffin::algebra::Term<Self>> {
+        [].into()
+    }
+
+    fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
+        Some(vec![
+            TypeId::of::<TranscriptCertificate>(),
+            TypeId::of::<TranscriptClientFinished>(),
+            TypeId::of::<TranscriptClientHello>(),
+            TypeId::of::<TranscriptPartialClientHello>(),
+            TypeId::of::<TranscriptServerFinished>(),
+            TypeId::of::<TranscriptServerHello>(),
+        ])
+    }
+
+    fn differential_fuzzing_uniformise_put_config(
+        agent: AgentDescriptor<Self::PUTConfig>,
+    ) -> AgentDescriptor<Self::PUTConfig> {
+        let mut new = agent.clone();
+        new.protocol_config.cipher_string = String::from(
+            "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256",
+        );
+        new.protocol_config.groups = Some(vec![
+            29, // X25519
+            24, // secp384r1
+            23, // secp256r1
+        ]);
+        new
     }
 }
 
