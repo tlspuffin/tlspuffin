@@ -67,7 +67,11 @@ macro_rules! declare_u16_vec (
       }
 
       fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
-        Some($name(puffin::codec::read_vec_u16::<$itemtype>(r)?))
+          if r.any_left() {
+              Some($name(puffin::codec::read_vec_u16::<$itemtype>(r)?))
+          } else {
+              Some($name(vec!()))
+          }
       }
     }
   }
@@ -88,11 +92,16 @@ macro_rules! declare_u16_vec_empty (
       }
 
       fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
-        Some($name(puffin::codec::read_vec_u16::<$itemtype>(r)?)) // we still try to read even though we might
-          // mis-interpret a ['0'] as being the empty list, which is must however must be serialized as [] (empty bittstring).
-          // This is a trade-off we accept to be able to correctly read in most cases (non-empty lists).
-          // Moroever, when reading a struct containing $name as a field, we shall first check that there is remaining
-          // bytes to read!
+          log::trace!("Starting declare_u16_vec_empty of base type {}...", std::any::type_name::<$name>());
+          if r.any_left() {
+              Some($name(puffin::codec::read_vec_u16::<$itemtype>(r)?)) // we still try to read even though we might
+                // mis-interpret a ['0'] as being the empty list, which is must however must be serialized as [] (empty bittstring).
+                // This is a trade-off we accept to be able to correctly read in most cases (non-empty lists).
+                // Moroever, when reading a struct containing $name as a field, we shall first check that there is remaining
+                // bytes to read!
+          } else {
+              Some($name(vec!()))
+         }
       }
     }
   }
@@ -111,7 +120,11 @@ macro_rules! declare_u24_vec_limited (
       }
 
       fn read(r: &mut puffin::codec::Reader) -> Option<Self> {
-        Some($name(puffin::codec::read_vec_u24_limited::<$itemtype>(r, 0x10000)?))
+          if r.any_left() {
+              Some($name(puffin::codec::read_vec_u24_limited::<$itemtype>(r, 0x10000)?))
+          } else {
+              Some($name(vec!()))
+          }
       }
     }
   }

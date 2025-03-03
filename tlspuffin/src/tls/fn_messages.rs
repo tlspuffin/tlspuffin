@@ -100,22 +100,30 @@ pub fn fn_application_data(data: &Vec<u8>) -> Result<Message, FnError> {
     ))?)?)
 }*/
 
-pub fn fn_heartbeat_fake_length(
-    payload: &PayloadU16,
-    fake_length: &u64,
-) -> Result<Message, FnError> {
+// This is now subsumed by bit-level mutations
+// pub fn fn_heartbeat_fake_length(
+//     payload: &PayloadU16,
+//     fake_length: &u64,
+// ) -> Result<Message, FnError> {
+//     Ok(Message {
+//         version: ProtocolVersion::TLSv1_2,
+//         payload: MessagePayload::Heartbeat(HeartbeatPayload {
+//             typ: HeartbeatMessageType::Request,
+//             payload: payload.clone(),
+//             fake_length: Some(*fake_length as u16),
+//         }),
+//     })
+// }
+
+pub fn fn_heartbeat(payload: &PayloadU16) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Heartbeat(HeartbeatPayload {
             typ: HeartbeatMessageType::Request,
             payload: payload.clone(),
-            fake_length: Some(*fake_length as u16),
+            fake_length: Some(payload.0.len() as u16),
         }),
     })
-}
-
-pub fn fn_heartbeat(payload: &PayloadU16) -> Result<Message, FnError> {
-    fn_heartbeat_fake_length(payload, &(payload.0.len() as u64))
 }
 
 // ----
