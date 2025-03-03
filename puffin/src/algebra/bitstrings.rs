@@ -100,7 +100,7 @@ pub fn find_unique_match<PT: ProtocolTypes>(
         }
         Err(e) => {
             log::error!(
-                "[find_unique_match] Failure. Did not find, error: {e}\n - whole_term:{whole_term}"
+                "[find_unique_match] Failure. Did not find, error: {e}\n - path_to_search:{path_to_search:?}\n - whole_term:\n{whole_term}\n - eval_tree:\n{eval_tree:?}",
             );
             Err(e)
         }
@@ -162,8 +162,8 @@ pub fn find_unique_match_rec(
             }
         }
 
+        // We are looking for an empty encoding, we will position relative to the siblings
         if eval_child.is_empty() {
-            // We are looking for an empty encoding, we will position relative to the siblings
             // TODO: this assumes no trailer, we should make sure this is indeed the case
             let mut eval_right_siblings = Vec::new();
             for right_sibling in (child_arg + 1)..nb_children {
@@ -186,7 +186,7 @@ pub fn find_unique_match_rec(
 
         if all_matches.is_empty() {
             let ft = format!(
-                "[find_unique_match_rec] Child {child_arg} encoding not found in root for path {path_to_search:?}. eval_root: {eval_root:?}, eval_child: {eval_child:?}"
+                "[find_unique_match_rec] Child {child_arg} encoding not found in root for path {path_to_search:?}\n - eval_root:\n  {eval_root:?}\n  - eval_child:\n  {eval_child:?}",
             );
             log::error!("{}", ft);
             return Err(Error::Term(ft));
@@ -331,24 +331,28 @@ impl<PT: ProtocolTypes> Term<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         log::debug!("[eval_until_opaque] [START]: Eval term:\n {self}");
-        if let (true, Some(payload)) = (with_payloads, &self.payloads) {
-            // TODO: investigate whether this value could be incorrect due to modifications to the
-            // terms through mutations previously applied (+ this depends on reading being correct)
-            log::trace!("[eval_until_opaque] Trying to read payload_0 to skip further computations...........");
-            if let Ok(di) = PB::try_read_bytes(
-                payload.payload_0.bytes(),
-                <TypeShape<PT> as Clone>::clone(type_term).into(),
-            ) {
-                let p_c = vec![PayloadContext {
-                    of_term: self,
-                    payloads: payload,
-                    path: eval_tree.path.clone(),
-                }];
-                eval_tree.encode = Some(payload.payload_0.bytes().to_vec());
-                return Ok((di, p_c));
-            }
-            log::trace!("[eval_until_opaque] Attempt to skip evaluation failed, fall back to normal evaluation...");
-        }
+        // We optimize here by bypassing evaluation and directly read over the payload
+        // if let (true, Some(payload)) = (with_payloads, &self.payloads) {
+        //     // TODO: investigate whether this value could be incorrect due to modifications to the
+        //     // terms through mutations previously applied (+ this depends on reading being correct)
+        //     // Experiments show that this is actually the case. For example for PayloadU8 that
+        //     // for which Codec::read will first read the length (u8) and then the payload for that length.
+        //     // In case of bit-level mutations tampering with the size or the payload, we get a different value.
+        //     log::trace!("[eval_until_opaque] Trying to read payload_0 to skip further computations...........");
+        //     if let Ok(di) = PB::try_read_bytes(
+        //         payload.payload_0.bytes(),
+        //         <TypeShape<PT> as Clone>::clone(type_term).into(),
+        //     ) {
+        //         let p_c = vec![PayloadContext {
+        //             of_term: self,
+        //             payloads: payload,
+        //             path: eval_tree.path.clone(),
+        //         }];
+        //         eval_tree.encode = Some(payload.payload_0.bytes().to_vec());
+        //         return Ok((di, p_c));
+        //     }
+        //     log::trace!("[eval_until_opaque] Attempt to skip evaluation failed, fall back to normal evaluation...");
+        // }
 
         match &self.term {
             DYTerm::Variable(variable) => {
