@@ -101,7 +101,7 @@ define_signature!(
     fn_encrypted_extensions // Just a wrapper, not encrypting per se
     fn_finished
     fn_heartbeat
-    fn_heartbeat_fake_length // TODO: Was [get] but that was an error. TO TEST
+    // fn_heartbeat_fake_length // Now subsumed by bit-level mutations
     fn_hello_request
     fn_hello_retry_request
     fn_hello_retry_request_random
@@ -154,7 +154,7 @@ define_signature!(
     fn_new_preshared_key_identity
     fn_empty_preshared_keys_identity_vec
     fn_append_preshared_keys_identity [list]
-    fn_preshared_keys_extension_empty_binder
+    fn_preshared_keys_extension_empty_binder [opaque]
     fn_preshared_keys_server_extension
     fn_early_data_extension
     fn_early_data_new_session_ticket_extension
@@ -171,9 +171,9 @@ define_signature!(
     fn_psk_exchange_mode_ke_extension
     fn_certificate_authorities_extension
     fn_signature_algorithm_cert_extension
-    fn_key_share_deterministic_extension [opaque] // TODO: why?
+    fn_key_share_deterministic_extension
     fn_key_share_extension
-    fn_key_share_deterministic_server_extension [opaque] // TODO: why?
+    fn_key_share_deterministic_server_extension
     fn_key_share_server_extension
     fn_key_share_hello_retry_extension
     fn_transport_parameters_extension
@@ -204,7 +204,7 @@ define_signature!(
     fn_get_any_client_curve [get]
     fn_verify_data [opaque]
     fn_verify_data_server [opaque]
-    fn_sign_transcript
+    fn_sign_transcript [opaque]
     fn_cipher_suites_make
     fn_new_cipher_suites
     fn_append_cipher_suite [list]
@@ -253,7 +253,8 @@ define_signature!(
     fn_append_certificate_entry [list]
     fn_named_group_secp384r1
     fn_named_group_x25519
-    fn_u64_to_u32
+    fn_u64_to_u32 [get]
+    fn_u32_to_u16 [get]
     fn_payload_u8
     fn_payload_u16
     fn_payload_u24
@@ -264,10 +265,10 @@ define_signature!(
     fn_empty_payload_u8_vec
     fn_append_payload_u8_vec [list]
     // transcript functions
-    fn_server_hello_transcript
-    fn_client_finished_transcript
-    fn_server_finished_transcript
-    fn_certificate_transcript
+    fn_server_hello_transcript [opaque]
+    fn_client_finished_transcript [opaque]
+    fn_server_finished_transcript [opaque]
+    fn_certificate_transcript [opaque]
     // certificate functions
     fn_bob_cert
     fn_bob_key
@@ -285,8 +286,8 @@ define_signature!(
     fn_eve_pkcs1_signature
     fn_rsa_sign_client [opaque]
     fn_rsa_sign_server [opaque]
-    fn_ecdsa_sign_client
-    fn_ecdsa_sign_server
+    fn_ecdsa_sign_client [opaque]
+    fn_ecdsa_sign_server [opaque]
     fn_rsa_pss_signature_algorithm
     fn_rsa_pkcs1_signature_algorithm
     fn_invalid_signature_algorithm
