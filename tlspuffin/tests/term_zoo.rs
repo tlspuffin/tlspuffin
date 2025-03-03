@@ -2,6 +2,7 @@ use std::any::TypeId;
 use std::cmp::max;
 use std::collections::HashSet;
 
+use anyhow::anyhow;
 use itertools::Itertools;
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::{DescribableFunction, TypeShape};
@@ -130,15 +131,15 @@ fn test_term_read_encode() {
                             if !ignored_functions.contains(term.name()) {
                                 read_wrong += 1;
                             }
-                            Err(Error::Term("Not the same read".to_string()))
+                            Err(anyhow!(Error::Term("Not the same read".to_string())))
                         }
                     }
-                    Err(_e) => {
+                    Err(e) => {
                         log::error!("Failed to read for term {}!\n  and encoding: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval1, term.get_type_shape(), type_id);
                         if !ignored_functions.contains(term.name()) {
                             read_fail += 1;
                         }
-                        Err(Error::Fn(FnError::Unknown("Failed to read: {_e}".to_string())))
+                        Err(anyhow!(Error::Fn(FnError::Codec(format!("Failed to read: {e}")))))
                     }
                 }
             })?
@@ -149,7 +150,7 @@ fn test_term_read_encode() {
         let res = zoo_test(
             &mut closure,
             rand,
-            1600,
+            1800,
             true,
             false,
             None,
@@ -188,7 +189,7 @@ fn test_term_payloads_eval() {
                 if !ignored_functions.contains(term.name()) {
                     add_payload_fail += 1;
                 }
-                return Err(Error::Term("Failed to add payloads".to_string()));
+                return Err(anyhow!(Error::Term("Failed to add payloads".to_string())));
             } else {
                 log::debug!("Term with payloads: {term_with_payloads}");
                 // Sanity check:
@@ -204,7 +205,9 @@ fn test_term_payloads_eval() {
                         if !ignored_functions.contains(term.name()) {
                             eval_payload_fail += 1;
                         }
-                        return Err(Error::Term("Failed to evaluate with payloads".to_string()));
+                        return Err(anyhow!(Error::Term(
+                            "Failed to evaluate with payloads".to_string()
+                        )));
                     }
                 }
             }
