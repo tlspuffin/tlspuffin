@@ -149,7 +149,7 @@ fn test_term_read_encode() {
         let res = zoo_test(
             &mut closure,
             rand,
-            1600,
+            1800,
             true,
             false,
             None,

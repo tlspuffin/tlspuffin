@@ -100,7 +100,7 @@ pub fn find_unique_match<PT: ProtocolTypes>(
         }
         Err(e) => {
             log::error!(
-                "[find_unique_match] Failure. Did not find, error: {e}\n - whole_term:{whole_term}"
+                "[find_unique_match] Failure. Did not find, error: {e}\n - path_to_search:{path_to_search:?}\n - whole_term:\n{whole_term}\n - eval_tree:\n{eval_tree:?}",
             );
             Err(e)
         }
@@ -162,8 +162,8 @@ pub fn find_unique_match_rec(
             }
         }
 
+        // We are looking for an empty encoding, we will position relative to the siblings
         if eval_child.is_empty() {
-            // We are looking for an empty encoding, we will position relative to the siblings
             // TODO: this assumes no trailer, we should make sure this is indeed the case
             let mut eval_right_siblings = Vec::new();
             for right_sibling in (child_arg + 1)..nb_children {
@@ -186,7 +186,7 @@ pub fn find_unique_match_rec(
 
         if all_matches.is_empty() {
             let ft = format!(
-                "[find_unique_match_rec] Child {child_arg} encoding not found in root for path {path_to_search:?}. eval_root: {eval_root:?}, eval_child: {eval_child:?}"
+                "[find_unique_match_rec] Child {child_arg} encoding not found in root for path {path_to_search:?}\n - eval_root:\n  {eval_root:?}\n  - eval_child:\n  {eval_child:?}",
             );
             log::error!("{}", ft);
             return Err(Error::Term(ft));
@@ -267,7 +267,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
             || (pos_start as isize + shift + old_bitstring_len as isize) as usize > to_modify.len()
         // TODO: check if it is > or >=
         {
-            let ft = format!("[replace_payload] Impossible to splice for indices to_replace.len={}, range={start}..{end}. Payload: {payload_context:?}", to_modify.len());
+            let ft = format!("[replace_payload] Impossible to splice for indices to_modify.len={}, range={start}..{end}, shift={shift}. Path_payload: {path_payload:?}\n - Term: {}\n  - Payload: {payload_context:?}", to_modify.len(), payload_context.of_term);
             log::error!("{}", ft);
             return Err(Error::Term(ft));
         }
@@ -331,24 +331,31 @@ impl<PT: ProtocolTypes> Term<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         log::debug!("[eval_until_opaque] [START]: Eval term:\n {self}");
-        if let (true, Some(payload)) = (with_payloads, &self.payloads) {
-            // TODO: investigate whether this value could be incorrect due to modifications to the
-            // terms through mutations previously applied (+ this depends on reading being correct)
-            log::trace!("[eval_until_opaque] Trying to read payload_0 to skip further computations...........");
-            if let Ok(di) = PB::try_read_bytes(
-                payload.payload_0.bytes(),
-                <TypeShape<PT> as Clone>::clone(type_term).into(),
-            ) {
-                let p_c = vec![PayloadContext {
-                    of_term: self,
-                    payloads: payload,
-                    path: eval_tree.path.clone(),
-                }];
-                eval_tree.encode = Some(payload.payload_0.bytes().to_vec());
-                return Ok((di, p_c));
-            }
-            log::trace!("[eval_until_opaque] Attempt to skip evaluation failed, fall back to normal evaluation...");
-        }
+        // We optimize here by bypassing evaluation and directly read over the payload
+        // if let (true, Some(payload)) = (with_payloads, &self.payloads) {
+        //   TODO: investigate whether this value could be incorrect due to modifications to
+        //   the terms through mutations previously applied (+ this depends on reading
+        // being correct)
+        //    Experiments show that this is actually the case. For example for PayloadU8 that for
+        // which Codec::read will first read the length (u8) and then the payload for that length.
+        // In case of bit-level mutations tampering with the size or the payload, we get a different
+        // value.
+        // log::trace!("[eval_until_opaque] Trying to read payload_0 to skip further
+        // computations...........");
+        //     if let Ok(di) = PB::try_read_bytes(
+        //         payload.payload_0.bytes(),
+        //         <TypeShape<PT> as Clone>::clone(type_term).into(),
+        //     ) {
+        //         let p_c = vec![PayloadContext {
+        //             of_term: self,
+        //             payloads: payload,
+        //             path: eval_tree.path.clone(),
+        //         }];
+        //         eval_tree.encode = Some(payload.payload_0.bytes().to_vec());
+        //         return Ok((di, p_c));
+        //     }
+        //     log::trace!("[eval_until_opaque] Attempt to skip evaluation failed, fall back to
+        // normal evaluation..."); }
 
         match &self.term {
             DYTerm::Variable(variable) => {
@@ -365,14 +372,19 @@ impl<PT: ProtocolTypes> Term<PT> {
                     })
                     .ok_or_else(|| Error::Term(format!("Unable to find variable {variable}!")))?;
                 if with_payloads {
-                    if let Some(payload) = &self.payloads {
-                        log::trace!("        / We retrieve evaluation for eval_tree from payload.");
-                        eval_tree.encode = Some(payload.payload_0.clone().into());
-                    } else {
-                        let eval = PB::any_get_encoding(d.as_ref());
-                        log::trace!("        / No payload so we evaluated into: {eval:?}");
-                        eval_tree.encode = Some(eval);
-                    }
+                    // Retrieving payload_0 would save us a PB::any_get_encoding as shown below.
+                    // However, a pre-requisite for this is full reproducibility in a sense that
+                    // the actual value for that knowledge must not be different since MakeMessage
+                    // has been executed on this variable. This is unlikely when other mutations
+                    // are performed before...
+                    // if let Some(payload) = &self.payloads {
+                    //     log::trace!("        / We retrieve evaluation for eval_tree from
+                    // payload.");     eval_tree.encode =
+                    // Some(payload.payload_0.clone().into()); } else {
+                    let eval = PB::any_get_encoding(d.as_ref());
+                    log::trace!("        / No payload so we evaluated into: {eval:?}");
+                    eval_tree.encode = Some(eval);
+                    // }
                     if self.payloads.is_some() {
                         log::trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {:?}, payload is: {:?} and eval is: {:?}", eval_tree.path, self.payloads.as_ref().unwrap(), PB::any_get_encoding(d.as_ref()));
                         return Ok((
@@ -411,16 +423,14 @@ impl<PT: ProtocolTypes> Term<PT> {
                         let typei = func.shape().argument_types[i].clone();
                         let di = PB::try_read_bytes(&bi, typei.clone().into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
                             .with_context(|| {
-                                log::warn!("[Eval_until_opaque] Try Read bytes failed for typeid: {}, typeid: {:?} on term (arg: {i}):\n {}",
-                                        typei, TypeId::from(typei.clone()), &self);
-                                format!("[Eval_until_opaque] Try Read bytes failed for typeid: {}, typeid: {:?} on term (arg: {i}):\n {}",
+                                format!("[Eval_until_opaque] Try Read bytes failed for type shape: {}, typeid: {:?} on term (arg: {i}) {ti}:\n {}",
                                         typei, TypeId::from(typei.clone()), &self)
                             })
                             .map_err(|e| {
                                 if !ti.is_symbolic() {
                                     log::warn!("[eval_until_opaque] [Argument has payload, might explain why] Warn: {}", e);
                                 } else {
-                                    log::warn!("[eval_until_opaque] [Argument is symbolic!] Err: {}", e);
+                                    log::error!("[eval_until_opaque] [Argument is symbolic!] Err: {}", e);
                                 }
                                 e
                             })?;
