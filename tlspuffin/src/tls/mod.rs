@@ -204,7 +204,7 @@ define_signature!(
     fn_get_any_client_curve [get]
     fn_verify_data [opaque]
     fn_verify_data_server [opaque]
-    fn_sign_transcript
+    fn_sign_transcript [opaque]
     fn_cipher_suites_make
     fn_new_cipher_suites
     fn_append_cipher_suite [list]
@@ -264,10 +264,10 @@ define_signature!(
     fn_empty_payload_u8_vec
     fn_append_payload_u8_vec [list]
     // transcript functions
-    fn_server_hello_transcript
-    fn_client_finished_transcript
-    fn_server_finished_transcript
-    fn_certificate_transcript
+    fn_server_hello_transcript [opaque]
+    fn_client_finished_transcript [opaque]
+    fn_server_finished_transcript [opaque]
+    fn_certificate_transcript [opaque]
     // certificate functions
     fn_bob_cert
     fn_bob_key
