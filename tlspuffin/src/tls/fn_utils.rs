@@ -643,3 +643,7 @@ pub fn fn_named_group_x25519() -> Result<NamedGroup, FnError> {
 pub fn fn_u64_to_u32(input: &u64) -> Result<u32, FnError> {
     Ok(*input as u32)
 }
+
+pub fn fn_u32_to_u16(input: &u32) -> Result<u16, FnError> {
+    Ok(*input as u16)
+}

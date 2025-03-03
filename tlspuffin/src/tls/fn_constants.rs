@@ -74,5 +74,5 @@ pub fn fn_empty_bytes_vec() -> Result<Vec<u8>, FnError> {
 }
 
 pub fn fn_large_bytes_vec() -> Result<Vec<u8>, FnError> {
-    Ok(vec![42; 700])
+    Ok(vec![42; 50])
 }
