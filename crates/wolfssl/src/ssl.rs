@@ -123,15 +123,32 @@ impl SslContextRef {
     }
 
     /// Sets the list of groups
-    pub fn set_groups(&mut self, group_list: &[i32]) -> Result<(), ErrorStack> {
+    #[cfg(not(feature = "wolfssl430"))]
+    pub fn set_groups(&mut self, group_list: &str) -> Result<(), ErrorStack> {
+        let grp = CString::new(group_list).unwrap();
         unsafe {
-            cvt(wolf::wolfSSL_CTX_set_groups(
+            cvt(wolf::wolfSSL_CTX_set1_groups_list(
                 self.as_ptr(),
-                group_list.as_ptr() as *mut _,
-                group_list.len() as c_int,
+                grp.as_ptr() as *mut i8,
             ))
             .map(|_| ())
         }
+    }
+
+    /// Sets the list of groups
+    #[cfg(feature = "wolfssl430")]
+    pub fn set_groups(&mut self, _group_list: &str) -> Result<(), ErrorStack> {
+        panic!("Setting curves with WolfSSL430 is not working!");
+        // wolfSSL_CTX_set1_curves_list doesn't seem to have any effects
+        // see https://github.com/tlspuffin/tlspuffin/issues/375
+        // let grp = CString::new(group_list).unwrap();
+        // unsafe {
+        //     cvt(wolf::wolfSSL_CTX_set1_curves_list(
+        //         self.as_ptr(),
+        //         grp.as_ptr() as *mut i8,
+        //     ))
+        //     .map(|_| ())
+        // }
     }
 
     /// This function loads a certificate to use for verifying a peer when performing a TLS/SSL

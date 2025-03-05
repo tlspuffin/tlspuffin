@@ -3,7 +3,7 @@ use std::io::ErrorKind;
 
 use boring::error::ErrorStack;
 use boring::ex_data::Index;
-use boring::ssl::{Ssl, SslContext, SslCurve, SslMethod, SslRef, SslStream, SslVerifyMode};
+use boring::ssl::{Ssl, SslContext, SslMethod, SslOptions, SslRef, SslStream, SslVerifyMode};
 use boring::x509::store::X509StoreBuilder;
 use boring::x509::X509;
 use boringssl_sys::ssl_st;
@@ -153,8 +153,7 @@ impl RustPut {
         // ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string)?;
 
         if let Some(groups) = &descriptor.protocol_config.groups {
-            let curves: Vec<u16> = groups.iter().map(|x| *x as u16).collect();
-            ctx_builder.set_groups(&curves)?;
+            ctx_builder.set_groups(groups)?;
         }
 
         let mut ssl = Ssl::new(&ctx_builder.build())?;
@@ -171,8 +170,7 @@ impl RustPut {
         // ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string)?;
 
         if let Some(groups) = &descriptor.protocol_config.groups {
-            let curves: Vec<u16> = groups.iter().map(|x| *x as u16).collect();
-            ctx_builder.set_groups(&curves)?;
+            ctx_builder.set_groups(groups)?;
         }
 
         ctx_builder.set_verify(SslVerifyMode::NONE);
