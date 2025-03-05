@@ -11,7 +11,7 @@ use puffin::protocol::{
 };
 use puffin::put::PutDescriptor;
 use puffin::trace::{Knowledge, Source, Trace};
-use puffin::{atom_extract_knowledge, codec, dummy_extract_knowledge};
+use puffin::{atom_extract_knowledge, codec, dummy_codec, dummy_extract_knowledge};
 use serde::{Deserialize, Serialize};
 
 use crate::claims::TlsClaim;
@@ -31,11 +31,12 @@ use crate::tls::rustls::msgs::enums::{
 use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayload,
     CertificatePayloadTLS13, CertificateRequestPayload, CertificateRequestPayloadTLS13,
-    CertificateStatus, ClientExtension, ClientHelloPayload, DigitallySignedStruct,
-    ECDHEServerKeyExchange, HandshakeMessagePayload, HandshakePayload, HelloRetryExtension,
-    NewSessionTicketExtension, NewSessionTicketPayload, NewSessionTicketPayloadTLS13,
-    PresharedKeyIdentity, Random, ServerExtension, ServerHelloPayload, ServerKeyExchangePayload,
-    SessionID,
+    CertificateStatus, CertificateStatusRequest, ClientExtension, ClientHelloPayload,
+    ClientSessionTicket, DigitallySignedStruct, ECDHEServerKeyExchange, HandshakeMessagePayload,
+    HandshakePayload, HelloRetryExtension, KeyShareEntry, NewSessionTicketExtension,
+    NewSessionTicketPayload, NewSessionTicketPayloadTLS13, PresharedKeyIdentity, PresharedKeyOffer,
+    Random, ServerExtension, ServerHelloPayload, ServerKeyExchangePayload, ServerName, SessionID,
+    UnknownExtension,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 use crate::tls::rustls::msgs::message::{try_read_bytes, Message, MessagePayload, OpaqueMessage};
@@ -579,11 +580,9 @@ impl Extractable<TLSProtocolTypes> for ClientHelloPayload {
             matcher,
             data: &self.cipher_suites.0,
         });
-        knowledges.extend(self.extensions.0.iter().map(|extension| Knowledge {
-            source,
-            matcher,
-            data: extension,
-        }));
+        for ext in &self.extensions.0 {
+            ext.extract_knowledge(knowledges, matcher, source)?;
+        }
         knowledges.extend(
             self.compression_methods
                 .0
@@ -599,6 +598,79 @@ impl Extractable<TLSProtocolTypes> for ClientHelloPayload {
             matcher,
             data: cipher_suite,
         }));
+        Ok(())
+    }
+}
+
+impl Extractable<TLSProtocolTypes> for ClientExtension {
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
+        matcher: Option<<TLSProtocolTypes as ProtocolTypes>::Matcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+
+        match self {
+            ClientExtension::ECPointFormats(ecpoint_format_list) => {
+                ecpoint_format_list.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::NamedGroups(named_groups) => {
+                named_groups.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::SignatureAlgorithms(supported_signature_schemes) => {
+                supported_signature_schemes.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::ServerName(server_name_request) => {
+                server_name_request.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::SessionTicket(client_session_ticket) => {
+                client_session_ticket.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::Protocols(vec_u16_of_payload_u8) => {
+                vec_u16_of_payload_u8.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::SupportedVersions(protocol_versions) => {
+                protocol_versions.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::KeyShare(key_share_entries) => {
+                key_share_entries.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::PresharedKeyModes(pskkey_exchange_modes) => {
+                pskkey_exchange_modes.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::PresharedKey(preshared_key_offer) => {
+                preshared_key_offer.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::Cookie(payload_u16) => {
+                payload_u16.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::ExtendedMasterSecretRequest => (),
+            ClientExtension::CertificateStatusRequest(certificate_status_request) => {
+                certificate_status_request.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::SignedCertificateTimestampRequest => (),
+            ClientExtension::TransportParameters(items) => {
+                items.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::TransportParametersDraft(items) => {
+                items.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::EarlyData => (),
+            ClientExtension::RenegotiationInfo(payload_u8) => {
+                payload_u8.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::SignatureAlgorithmsCert(supported_signature_schemes) => {
+                supported_signature_schemes.extract_knowledge(knowledges, matcher, source)?;
+            }
+            ClientExtension::Unknown(unknown_extension) => {
+                unknown_extension.extract_knowledge(knowledges, matcher, source)?;
+            }
+        }
         Ok(())
     }
 }
@@ -731,8 +803,11 @@ atom_extract_knowledge!(TLSProtocolTypes, CertificateRequestPayload);
 atom_extract_knowledge!(TLSProtocolTypes, CertificateRequestPayloadTLS13);
 atom_extract_knowledge!(TLSProtocolTypes, CertificateStatus);
 atom_extract_knowledge!(TLSProtocolTypes, CipherSuite);
-atom_extract_knowledge!(TLSProtocolTypes, ClientExtension);
 atom_extract_knowledge!(TLSProtocolTypes, Compression);
+atom_extract_knowledge!(TLSProtocolTypes, ClientSessionTicket);
+atom_extract_knowledge!(TLSProtocolTypes, CertificateStatusRequest);
+atom_extract_knowledge!(TLSProtocolTypes, UnknownExtension);
+atom_extract_knowledge!(TLSProtocolTypes, PresharedKeyOffer);
 atom_extract_knowledge!(TLSProtocolTypes, DigitallySignedStruct);
 atom_extract_knowledge!(TLSProtocolTypes, HandshakeHash);
 atom_extract_knowledge!(TLSProtocolTypes, HandshakeType);
@@ -747,10 +822,14 @@ atom_extract_knowledge!(TLSProtocolTypes, Random);
 atom_extract_knowledge!(TLSProtocolTypes, ServerExtension);
 atom_extract_knowledge!(TLSProtocolTypes, SessionID);
 atom_extract_knowledge!(TLSProtocolTypes, SignatureScheme);
+atom_extract_knowledge!(TLSProtocolTypes, ServerName);
+atom_extract_knowledge!(TLSProtocolTypes, KeyShareEntry);
 atom_extract_knowledge!(TLSProtocolTypes, u32);
 atom_extract_knowledge!(TLSProtocolTypes, u64);
 atom_extract_knowledge!(TLSProtocolTypes, u8);
 dummy_extract_knowledge!(TLSProtocolTypes, bool);
+dummy_codec!(TLSProtocolTypes, UnknownExtension);
+dummy_codec!(TLSProtocolTypes, ClientSessionTicket);
 
 impl<T: EvaluatedTerm<TLSProtocolTypes> + Clone + codec::Codec + 'static>
     Extractable<TLSProtocolTypes> for Vec<T>
@@ -847,7 +926,7 @@ pub struct TLSDescriptorConfig {
     /// List of available TLS ciphers
     pub cipher_string: String,
     /// List of available TLS groups/curves
-    pub groups: Option<Vec<i32>>,
+    pub groups: Option<String>,
 }
 
 impl TLSDescriptorConfig {
@@ -883,6 +962,7 @@ impl ProtocolDescriptorConfig for TLSDescriptorConfig {
         self.typ == other.typ
             && self.tls_version == other.tls_version
             && self.cipher_string == other.cipher_string
+            && self.groups == other.groups
     }
 }
 

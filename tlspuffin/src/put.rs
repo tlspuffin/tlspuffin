@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 use std::collections::HashSet;
-use std::ffi::{c_int, CString};
+use std::ffi::CString;
 use std::io::Read;
 use std::rc::Rc;
 
@@ -191,7 +191,7 @@ impl CAgent {
             .protocol_config
             .groups
             .clone()
-            .map_or(vec![], |x| x);
+            .map_or(None, |x| Some(CString::new(x.clone()).unwrap()));
 
         let descriptor = match config.descriptor.protocol_config.typ {
             AgentType::Server => make_descriptor(
@@ -363,7 +363,7 @@ fn make_descriptor(
     pkey: *const PEM,
     store: &[*const PEM],
     ciphers: &CString,
-    groups: &[c_int],
+    groups: &Option<CString>,
 ) -> TLS_AGENT_DESCRIPTOR {
     // eprintln!("{:?}", cert);
     // eprintln!("{:?}", pkey);
@@ -384,12 +384,11 @@ fn make_descriptor(
         client_authentication: config.descriptor.protocol_config.client_authentication,
         server_authentication: config.descriptor.protocol_config.server_authentication,
         cipher_string: ciphers.as_ptr(),
-        group_list: if groups.len() > 0 {
-            groups.as_ptr()
+        group_list: if let Some(group_list) = groups {
+            group_list.as_ref().as_ptr()
         } else {
             std::ptr::null()
         },
-        group_list_size: groups.len() as c_int,
 
         cert,
         pkey,

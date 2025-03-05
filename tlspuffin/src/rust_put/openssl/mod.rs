@@ -153,6 +153,11 @@ impl RustPut {
         ctx_builder.set_certificate(&cert)?;
         ctx_builder.set_private_key(&key)?;
 
+        #[cfg(any(feature = "openssl111-binding", feature = "libressl-binding"))]
+        if let Some(groups) = &descriptor.protocol_config.groups {
+            ctx_builder.set_groups_list(groups)?;
+        }
+
         if descriptor.protocol_config.client_authentication {
             let mut store = X509StoreBuilder::new()?;
             store.add_cert(X509::from_pem(BOB_CERT.0.as_bytes())?)?;
@@ -207,6 +212,11 @@ impl RustPut {
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
         set_max_protocol_version(&mut ctx_builder, descriptor.protocol_config.tls_version)?;
+
+        #[cfg(any(feature = "openssl111-binding", feature = "libressl-binding"))]
+        if let Some(groups) = &descriptor.protocol_config.groups {
+            ctx_builder.set_groups_list(groups)?;
+        }
 
         // Disallow EXPORT in client
         ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;

@@ -246,7 +246,7 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->group_list != NULL)
     {
-        SSL_CTX_set1_groups(ssl_ctx, descriptor->group_list, descriptor->group_list_size);
+        SSL_CTX_set1_groups_list(ssl_ctx, descriptor->group_list);
     }
 
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
@@ -314,7 +314,7 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->group_list != NULL)
     {
-        SSL_CTX_set1_groups(ssl_ctx, descriptor->group_list, descriptor->group_list_size);
+        SSL_CTX_set1_groups_list(ssl_ctx, descriptor->group_list);
     }
 
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
