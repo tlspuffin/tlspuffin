@@ -219,7 +219,7 @@ impl RustPut {
         ctx.set_cipher_list(&descriptor.protocol_config.cipher_string)?;
 
         if let Some(groups) = &descriptor.protocol_config.groups {
-            ctx.set_groups(groups.as_slice())?;
+            ctx.set_groups(groups)?;
         }
 
         Ok(ctx)
@@ -251,7 +251,7 @@ impl RustPut {
         ctx.set_cipher_list(&descriptor.protocol_config.cipher_string)?;
 
         if let Some(groups) = &descriptor.protocol_config.groups {
-            ctx.set_groups(groups.as_slice())?;
+            ctx.set_groups(groups)?;
         }
 
         let cert = X509::from_pem(ALICE_CERT.0.as_bytes())?;

@@ -1726,12 +1726,12 @@ impl SslContextBuilder {
         }
     }
 
-    pub fn set_groups(&mut self, curves: &[u16]) -> Result<(), ErrorStack> {
+    pub fn set_groups(&mut self, groups: &str) -> Result<(), ErrorStack> {
+        let grp = CString::new(groups).unwrap();
         unsafe {
-            cvt_0i(ffi::SSL_CTX_set1_group_ids(
+            cvt_0i(ffi::SSL_CTX_set1_groups_list(
                 self.as_ptr(),
-                curves.as_ptr() as *const _,
-                curves.len(),
+                grp.as_ptr() as *const _,
             ))
             .map(|_| ())
         }
