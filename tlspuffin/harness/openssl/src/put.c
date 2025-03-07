@@ -375,18 +375,38 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block)
         break;
     case SSL_ERROR_WANT_CONNECT:
         error_type = strdup("SSL_ERROR_WANT_CONNECT");
+        if (!allow_would_block)
+        {
+            res = RESULT_IO_WOULD_BLOCK;
+        }
         break;
     case SSL_ERROR_WANT_ACCEPT:
         error_type = strdup("SSL_ERROR_WANT_ACCEPT");
+        if (!allow_would_block)
+        {
+            res = RESULT_IO_WOULD_BLOCK;
+        }
         break;
     case SSL_ERROR_WANT_X509_LOOKUP:
         error_type = strdup("SSL_ERROR_WANT_X509_LOOKUP");
+        if (!allow_would_block)
+        {
+            res = RESULT_IO_WOULD_BLOCK;
+        }
         break;
     case SSL_ERROR_WANT_ASYNC:
         error_type = strdup("SSL_ERROR_WANT_ASYNC");
+        if (!allow_would_block)
+        {
+            res = RESULT_IO_WOULD_BLOCK;
+        }
         break;
     case SSL_ERROR_WANT_ASYNC_JOB:
         error_type = strdup("SSL_ERROR_WANT_ASYNC_JOB");
+        if (!allow_would_block)
+        {
+            res = RESULT_IO_WOULD_BLOCK;
+        }
         break;
     case SSL_ERROR_WANT_CLIENT_HELLO_CB:
         error_type = strdup("SSL_ERROR_WANT_CLIENT_HELLO_CB");
