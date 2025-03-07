@@ -37,6 +37,7 @@ extern "C"
         bool client_authentication;
         bool server_authentication;
         const char *cipher_string;
+        const char *group_list;
 
         const PEM *cert;
         const PEM *pkey;

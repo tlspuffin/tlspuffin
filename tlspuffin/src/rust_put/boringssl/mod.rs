@@ -3,7 +3,7 @@ use std::io::ErrorKind;
 
 use boring::error::ErrorStack;
 use boring::ex_data::Index;
-use boring::ssl::{Ssl, SslContext, SslMethod, SslRef, SslStream, SslVerifyMode};
+use boring::ssl::{Ssl, SslContext, SslMethod, SslOptions, SslRef, SslStream, SslVerifyMode};
 use boring::x509::store::X509StoreBuilder;
 use boring::x509::X509;
 use boringssl_sys::ssl_st;
@@ -150,7 +150,11 @@ impl RustPut {
         set_max_protocol_version(&mut ctx_builder, descriptor.protocol_config.tls_version)?;
 
         // Allow EXPORT in server
-        ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string)?;
+        // ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string)?;
+
+        if let Some(groups) = &descriptor.protocol_config.groups {
+            ctx_builder.set_groups(groups)?;
+        }
 
         let mut ssl = Ssl::new(&ctx_builder.build())?;
         ssl.set_accept_state();
@@ -163,7 +167,11 @@ impl RustPut {
         set_max_protocol_version(&mut ctx_builder, descriptor.protocol_config.tls_version)?;
 
         // Disallow EXPORT in client
-        ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string)?;
+        // ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string)?;
+
+        if let Some(groups) = &descriptor.protocol_config.groups {
+            ctx_builder.set_groups(groups)?;
+        }
 
         ctx_builder.set_verify(SslVerifyMode::NONE);
 
