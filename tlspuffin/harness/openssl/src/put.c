@@ -415,13 +415,18 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block)
     char *msg;
     if (strlen(reason) > 0)
     {
-        msg = malloc((strlen(error_type) + strlen(reason) + 3) * sizeof(char));
-        snprintf(msg, strlen(error_type) + strlen(reason) + 3, "%s: %s", error_type, reason);
+        msg = malloc((strlen(error_type) + strlen(reason) + 9) * sizeof(char));
+        snprintf(msg,
+                 strlen(error_type) + strlen(reason) + 9,
+                 "%s (%d): %s",
+                 error_type,
+                 ssl_ecode,
+                 reason);
     }
     else
     {
-        msg = malloc((strlen(error_type) + 13) * sizeof(char));
-        snprintf(msg, strlen(error_type) + 13, "%s: no message", error_type);
+        msg = malloc((strlen(error_type) + 19) * sizeof(char));
+        snprintf(msg, strlen(error_type) + 19, "%s (%d): no message", error_type, ssl_ecode);
     }
     RESULT result = PUFFIN.make_result(res, msg);
     free(reason);
