@@ -1,0 +1,15 @@
+[package]
+name = "extractable-macro"
+version = "0.0.1"
+authors = ["Tom Gouville"]
+edition = "2021"
+include = ["src/*.rs"]
+
+[lib]
+proc-macro = true
+path = "src/lib.rs"
+
+[dependencies]
+quote = { workspace = true }
+syn = { workspace = true, features = ["full"] }
+proc-macro2 = { workspace = true }
