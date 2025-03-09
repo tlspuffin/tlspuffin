@@ -1,5 +1,6 @@
 use std::any::TypeId;
 
+use extractable_macro::Extractable;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
 use puffin::error::Error::Term;
@@ -27,7 +28,8 @@ use crate::tls::rustls::msgs::handshake::{
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Extractable)]
+#[extractable(TLSProtocolTypes)]
 pub enum MessagePayload {
     Alert(AlertMessagePayload),
     Handshake(HandshakeMessagePayload),
@@ -143,12 +145,18 @@ impl MessagePayload {
 /// This type owns all memory for its interior parts. It is used to read/write from/to I/O
 /// buffers as well as for fragmenting, joining and encryption/decryption. It can be converted
 /// into a `Message` by decoding the payload.
-#[derive(Clone, Debug)]
+#[derive(Debug, Clone, Extractable)]
+#[extractable(TLSProtocolTypes)]
 pub struct OpaqueMessage {
+    #[extractable_ignore]
     pub typ: ContentType,
+    #[extractable_ignore]
     pub version: ProtocolVersion,
+    #[extractable_ignore]
     pub payload: Payload,
 }
+
+impl codec::VecCodecWoSize for OpaqueMessage {}
 
 impl Codec for OpaqueMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
