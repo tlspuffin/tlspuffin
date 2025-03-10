@@ -65,7 +65,7 @@ fn generate_impl(
             ) -> Result<(), puffin::error::Error> {
                 knowledges.push(puffin::trace::Knowledge {
                     source,
-                    matcher,
+                    matcher: matcher.clone(),
                     data: self,
                 });
 
@@ -93,13 +93,13 @@ fn extract_fields<'a>(
             let field_name = f(idx, field.ident.clone());
             if has_attr(&field.attrs, "extractable_no_recursion").is_none() {
                 result.push(quote! {
-                    puffin::protocol::Extractable::<#protocol_types>::extract_knowledge(#field_name, knowledges, matcher, source)?;
+                    puffin::protocol::Extractable::<#protocol_types>::extract_knowledge(#field_name, knowledges, matcher.clone(), source)?;
                 })
             } else {
                 result.push(quote! {
                     knowledges.push(puffin::trace::Knowledge {
                         source,
-                        matcher,
+                        matcher: matcher.clone(),
                         data: #field_name,
                     });
                 })
