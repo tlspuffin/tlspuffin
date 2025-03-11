@@ -54,7 +54,7 @@ coverage, expressiveness of executable protocol traces and stable and extensible
     - Disclaimer : there is a bug will building in debug mode with asan (set `lto=true` in `Cargo.toml` to circumvent)
 * Reproducible for each LUT. We use sources from forks this are in the [tlspuffin organisation](https://github.com/tlspuffin)
 * 70% Test Coverage
-* Writtin in Rust!
+* Written in Rust!
 
 
 ## Dependencies
