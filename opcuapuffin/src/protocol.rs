@@ -22,11 +22,11 @@ use crate::opcua::OPCUA_SIGNATURE;
 
 
 #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
-pub struct OPCProtocolTypes;
+pub struct OPCUAProtocolTypes;
 
-impl ProtocolTypes for OPCProtocolTypes {
-    //type Matcher = OPCQueryMatcher;
-    //type PUTConfig = OPCDescriptorConfig;
+impl ProtocolTypes for OPCUAProtocolTypes {
+    //type Matcher = OPCUAQueryMatcher;
+    //type PUTConfig = OPCUADescriptorConfig;
 
     fn signature() -> &'static Signature<Self> {
         &OPCUA_SIGNATURE
@@ -34,16 +34,16 @@ impl ProtocolTypes for OPCProtocolTypes {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct OPCProtocolBehavior;
+pub struct OPCUAProtocolBehavior;
 
-impl ProtocolBehavior for OPCProtocolBehavior {
+impl ProtocolBehavior for OPCUAProtocolBehavior {
     //type Claim = TlsClaim;
     //type OpaqueProtocolMessage = OpaqueMessage;
     type OpaqueProtocolMessageFlight = OpaqueMessageFlight;
     type ProtocolMessage = Message;
     type ProtocolMessageFlight = MessageFlight;
-    type ProtocolTypes = OPCProtocolTypes;
-    //type SecurityViolationPolicy = OPCSecurityViolationPolicy;
+    type ProtocolTypes = OPCUAProtocolTypes;
+    //type SecurityViolationPolicy = OPCUASecurityViolationPolicy;
 
     fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
         crate::opcua::seeds::create_corpus(
