@@ -12,10 +12,14 @@ readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[features]
+rust-put = []
+
 [dependencies]
 puffin = { path = "../puffin" }
 puffin-macros = { path = "../puffin-macros" }
 
+log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 
 

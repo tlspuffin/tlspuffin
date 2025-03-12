@@ -5,11 +5,15 @@
 //! the fuzzing.
 
 use puffin::algebra::dynamic_function::FunctionAttributes;
-//use puffin::algebra::error::FnError;
+use puffin::algebra::error::FnError;
 use puffin::define_signature; //puffin/algebra/signature.rs
 //use puffin::error::Error;
 
-use crate::protocol::OPCUAProtocolTypes;
+use crate::protocol::OpcuaProtocolTypes;
+
+//pub mod claims;
+pub mod rustopcua;
+pub mod seeds;
 
 pub mod fn_constants;
 pub use fn_constants::*;
@@ -18,14 +22,14 @@ pub struct MSG_type {
     payload: Vec<u8>,
 }
 
-pub fn fn_open_channel_request() -> Result<MSG_type, FnError> {
-    Ok(MSG)
-}
+// pub fn fn_open_channel_request() -> Result<MSG_type, FnError> {
+//     Ok(MSG)
+// }
 
 define_signature!{
-    OPCUA_SIGNATURE<OPCUAProtocolTypes>,
+    OPCUA_SIGNATURE<OpcuaProtocolTypes>,
     // constants
     fn_true
     fn_false
-    fn_open_channel_request
+    //fn_open_channel_request
 }

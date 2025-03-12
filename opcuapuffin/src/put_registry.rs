@@ -1,15 +1,7 @@
 use puffin::put_registry::PutRegistry;
 
-use crate::protocol::OPCUAProtocolBehavior;
+use crate::protocol::OpcuaProtocolBehavior;
 
-pub fn opc_registry() -> PutRegistry<OPCUAProtocolBehavior> {
-    let puts: Vec<_> = registration::all()
-        .into_iter()
-        //.chain(std::iter::once(crate::tcp::new_tcp_factory()))
-        .map(|f| (f.name(), f))
-        .collect();
-
-    let default = puts.first().unwrap().0.clone();
-
-    PutRegistry::new(puts, default)
+pub fn opcua_registry() -> PutRegistry<OpcuaProtocolBehavior> {
+    panic!("Not implemented yet for OPC UA");
 }
