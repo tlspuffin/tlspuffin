@@ -1475,6 +1475,7 @@ version = "0.1.0"
 dependencies = [
  "bindgen 0.69.1",
  "itertools 0.13.0",
+ "log",
  "puffin",
  "puffin-build",
  "puffin-macros",

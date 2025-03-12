@@ -5,13 +5,14 @@
 //! cryptographic operations specific for OPC UA.
 
 
-//#[cfg(feature = "rust-put")]
+#[cfg(feature = "rust-put")]
 mod rust_put;
 
-//pub mod claims;
+pub mod claims;
 //pub mod debug;
 pub mod protocol;
 pub mod put;
+
 pub mod put_registry;
 //pub mod query;
 //pub mod static_certs;
