@@ -1,0 +1,30 @@
+[package]
+name = "opcpuffin"
+description = "OPC UA protocol implementation for fuzzing with puffin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+license.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+puffin = { path = "../puffin" }
+puffin-macros = { path = "../puffin-macros" }
+
+serde = { workspace = true, features = ["derive"] }
+
+
+[build-dependencies]
+# It is essential that this dependency be listed as build-dependencies! Because it is one. Else features get resolved wrong.
+puffin-build = { path = "../puffin-build" }
+itertools = { workspace = true }
+bindgen = { workspace = true }
+
+[[bin]]
+name = "opcpuffin"
+path = "src/main.rs"
