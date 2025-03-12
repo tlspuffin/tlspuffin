@@ -1,6 +1,6 @@
 use std::process::ExitCode;
 
-use crate::put_registry::opcua_registry;
+use opcuapuffin::put_registry::opcua_registry;
 
 pub fn main() -> ExitCode {
     puffin::cli::main(

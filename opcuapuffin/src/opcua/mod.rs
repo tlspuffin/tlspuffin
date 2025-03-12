@@ -5,7 +5,7 @@
 //! the fuzzing.
 
 use puffin::algebra::dynamic_function::FunctionAttributes;
-use puffin::algebra::error::FnError;
+//use puffin::algebra::error::FnError;
 use puffin::define_signature; //puffin/algebra/signature.rs
 //use puffin::error::Error;
 
@@ -18,9 +18,9 @@ pub mod seeds;
 pub mod fn_constants;
 pub use fn_constants::*;
 
-pub struct MSG_type {
-    payload: Vec<u8>,
-}
+// pub struct MSG_type {
+//     payload: Vec<u8>,
+// }
 
 // pub fn fn_open_channel_request() -> Result<MSG_type, FnError> {
 //     Ok(MSG)
@@ -29,7 +29,8 @@ pub struct MSG_type {
 define_signature!{
     OPCUA_SIGNATURE<OpcuaProtocolTypes>,
     // constants
-    fn_true
-    fn_false
+    // fn_true
+    // fn_false
+    fn_seq_0
     //fn_open_channel_request
 }

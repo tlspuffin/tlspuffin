@@ -1,7 +1,12 @@
-use puffin::put_registry::PutRegistry;
+use std::collections::HashMap;
+
+use puffin::put_registry::{PutRegistry, Factory};
 
 use crate::protocol::OpcuaProtocolBehavior;
 
 pub fn opcua_registry() -> PutRegistry<OpcuaProtocolBehavior> {
-    panic!("Not implemented yet for OPC UA");
+    let puts: HashMap<String, Box<dyn Factory<OpcuaProtocolBehavior>>> = HashMap::new();
+    let default = String::from("");
+    PutRegistry::new(puts, default)
+    //panic!("Not implemented yet for OPC UA");
 }
