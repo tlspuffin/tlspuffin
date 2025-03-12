@@ -88,11 +88,11 @@ Some features:
 
 ## Team
 
-- [Max Ammann](https://github.com/maxammann) - [Trails of Bits](https://www.trailofbits.com/)
 - [Tom Gouville](https://github.com/aeyno) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
 - [Lucca Hirschi](https://members.loria.fr/LHirschi/) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
 - [Steve Kremer](https://members.loria.fr/SKremer/) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
 - [Michael Mera](https://github.com/michaelmera) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+- [Max Ammann](https://github.com/maxammann)
 
 This project is partially funded by the [ANR JCJC project ProtoFuzz](https://project.inria.fr/protofuzz/).
 We are still looking to hire motivated students/postdocs/engineers in Nancy, France as part of this project.
