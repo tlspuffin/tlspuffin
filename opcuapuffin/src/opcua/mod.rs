@@ -9,14 +9,23 @@ use puffin::algebra::dynamic_function::FunctionAttributes;
 use puffin::define_signature; //puffin/algebra/signature.rs
 //use puffin::error::Error;
 
-use crate::protocol::OPCProtocolTypes;
+use crate::protocol::OPCUAProtocolTypes;
 
 pub mod fn_constants;
 pub use fn_constants::*;
 
+pub struct MSG_type {
+    payload: Vec<u8>,
+}
+
+pub fn fn_open_channel_request() -> Result<MSG_type, FnError> {
+    Ok(MSG)
+}
+
 define_signature!{
-    OPCUA_SIGNATURE<OPCProtocolTypes>,
+    OPCUA_SIGNATURE<OPCUAProtocolTypes>,
     // constants
     fn_true
     fn_false
+    fn_open_channel_request
 }

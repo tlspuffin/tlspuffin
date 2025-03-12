@@ -1,5 +1,5 @@
 [package]
-name = "opcpuffin"
+name = "opcuapuffin"
 description = "OPC UA protocol implementation for fuzzing with puffin"
 version.workspace = true
 edition.workspace = true
@@ -26,5 +26,5 @@ itertools = { workspace = true }
 bindgen = { workspace = true }
 
 [[bin]]
-name = "opcpuffin"
+name = "opcuapuffin"
 path = "src/main.rs"

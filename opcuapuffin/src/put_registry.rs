@@ -1,8 +1,8 @@
 use puffin::put_registry::PutRegistry;
 
-use crate::protocol::OPCProtocolBehavior;
+use crate::protocol::OPCUAProtocolBehavior;
 
-pub fn opc_registry() -> PutRegistry<OPCProtocolBehavior> {
+pub fn opc_registry() -> PutRegistry<OPCUAProtocolBehavior> {
     let puts: Vec<_> = registration::all()
         .into_iter()
         //.chain(std::iter::once(crate::tcp::new_tcp_factory()))
