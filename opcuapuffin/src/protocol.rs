@@ -16,9 +16,9 @@ use puffin::protocol::{
 
 use puffin::claims::SecurityViolationPolicy;
 use puffin::codec::{Codec, CodecP, Reader};
-use puffin::{dummy_extract_knowledge, dummy_extract_knowledge_codec, dummy_codec};
+use puffin::{codec, dummy_extract_knowledge, dummy_extract_knowledge_codec, dummy_codec};
 use puffin::put::PutDescriptor;
-use puffin::trace::Trace; // {Knowledge, Source, Trace};
+use puffin::trace::{Knowledge, Source, Trace};
 
 use serde::{Deserialize, Serialize};
 
