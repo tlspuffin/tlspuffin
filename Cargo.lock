@@ -759,8 +759,11 @@ dependencies = [
 name = "extractable-macro"
 version = "0.0.1"
 dependencies = [
+ "log",
  "proc-macro2",
+ "puffin",
  "quote",
+ "serde",
  "syn 2.0.87",
 ]
 

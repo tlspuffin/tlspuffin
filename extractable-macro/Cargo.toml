@@ -13,3 +13,8 @@ path = "src/lib.rs"
 quote = { workspace = true }
 syn = { workspace = true, features = ["full"] }
 proc-macro2 = { workspace = true }
+
+[dev-dependencies]
+puffin = { path = "../puffin" }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
