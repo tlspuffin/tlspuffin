@@ -47,7 +47,7 @@ We are concerned with finding implementation-level logical attacks in large cryp
 We answer in [1] by proposing a novel and effective technique called DY model-guided fuzzing, which precludes logical attacks against protocol implementations. The main idea is to consider as possible test cases the set of abstract DY executions of the DY attacker, and use a novel mutation-based fuzzer to explore this set (shown in the middle of the Figure). The DY fuzzer concretizes each abstract execution to test it on the program under test. This approach enables reasoning at a more structural and security-related level of messages represented as formal terms (e.g., decrypt a message and re-encrypt it with a different key) instead of random bit-level modifications that are much less likely to produce relevant logical adversarial behaviors.
 
 
-<center><img src="https://tlspuffin.github.io/assets/images/DYF_illustrations-7f3ce4e536a9e941373f30a7de1e1b94.png " width="900"></center>
+<center><img src="https://tlspuffin.github.io/assets/images/DYF_illustrations-7f3ce4e536a9e941373f30a7de1e1b94.png" width="900"></center>
 <center>The gap filled by DY fuzzing and tlspuffin (shown in the middle).</center>
 
 
