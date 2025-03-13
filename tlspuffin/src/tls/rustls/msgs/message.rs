@@ -435,7 +435,7 @@ macro_rules! try_read {
             <$T>::read_bytes($bitstring).ok_or(Term(format!(
                 "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
-                & $bitstring
+                &$bitstring
             )).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
         } else {
                 log::error!("Failed to find a suitable type with typeID {:?} to read the bitstring {:?}", $ti, &$bitstring);
@@ -524,6 +524,7 @@ pub fn try_read_bytes(
         Option<Vec<u8>>,
         Vec<Vec<u8>>,
         bool,
+        NamedGroup
         // Option<Vec<Vec<u8>>>,
         // Result<Option<Vec<u8>>, FnError>,
         // Result<Vec<u8>, FnError>,
@@ -535,6 +536,5 @@ pub fn try_read_bytes(
         // Result<Message FnError>,
         // MessagePayload,
         // ExtensionType,
-        NamedGroup
     )
 }
