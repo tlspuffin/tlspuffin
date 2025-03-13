@@ -44,7 +44,7 @@ RESULT openssl_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, siz
 RESULT openssl_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 void openssl_register_claimer(AGENT agent, const CLAIMER_CB *claimer);
 
-static RESULT_CODE result_code(AGENT agent, int retcode);
+static RESULT get_result(AGENT agent, int retcode, bool allow_would_block);
 
 static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor);
 
@@ -141,17 +141,7 @@ RESULT openssl_progress(AGENT agent)
         // not connected yet -> do handshake
         int ret = SSL_do_handshake(agent->ssl);
 
-        RESULT_CODE ecode = result_code(agent, ret);
-        if (ecode == RESULT_IO_WOULD_BLOCK)
-        {
-            ecode = RESULT_OK;
-        }
-
-        char *reason = get_error_reason();
-        RESULT result = PUFFIN.make_result(ecode, reason);
-        free(reason);
-
-        return result;
+        return get_result(agent, ret, true);
     }
 
     // trigger another read
@@ -159,20 +149,10 @@ RESULT openssl_progress(AGENT agent)
     int ret = SSL_read(agent->ssl, &buf, 128);
     if (ret > 0)
     {
-        return PUFFIN.make_result(RESULT_OK, NULL);
+        return get_result(agent, SSL_ERROR_NONE, false);
     }
 
-    RESULT_CODE ecode = result_code(agent, ret);
-    if (ecode == RESULT_IO_WOULD_BLOCK)
-    {
-        ecode = RESULT_OK;
-    }
-
-    char *reason = get_error_reason();
-    RESULT result = PUFFIN.make_result(ecode, reason);
-    free(reason);
-
-    return result;
+    return get_result(agent, ret, true);
 }
 
 RESULT openssl_reset(AGENT agent, uint8_t new_name)
@@ -184,10 +164,10 @@ RESULT openssl_reset(AGENT agent, uint8_t new_name)
     int ret = SSL_clear(agent->ssl);
     if (ret == 0)
     {
-        return PUFFIN.make_result(RESULT_ERROR_OTHER, get_error_reason());
+        return get_result(agent, SSL_ERROR_SSL, false);
     }
 
-    return PUFFIN.make_result(RESULT_OK, NULL);
+    return get_result(agent, SSL_ERROR_NONE, false);
 }
 
 const char *openssl_describe_state(AGENT agent)
@@ -234,24 +214,14 @@ RESULT openssl_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, siz
 {
     int ret = BIO_write_ex(agent->in, bytes, length, written);
 
-    RESULT_CODE ecode = result_code(agent, ret);
-    char *reason = get_error_reason();
-    RESULT result = PUFFIN.make_result(ecode, reason);
-    free(reason);
-
-    return result;
+    return get_result(agent, ret, false);
 }
 
 RESULT openssl_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes)
 {
     int ret = BIO_read_ex(agent->out, bytes, max_length, readbytes);
 
-    RESULT_CODE ecode = result_code(agent, ret);
-    char *reason = get_error_reason();
-    RESULT result = PUFFIN.make_result(ecode, reason);
-    free(reason);
-
-    return result;
+    return get_result(agent, ret, false);
 }
 
 AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
@@ -272,6 +242,8 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     // Disallow EXPORT in client
     SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string);
+    SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string);
+
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
 
     if (descriptor->client_authentication)
@@ -333,6 +305,8 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     // Allow EXPORT in server
     SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string);
+    SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string);
+
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
 
     ssl_ctx = set_cert(ssl_ctx, descriptor->cert);
@@ -383,18 +357,100 @@ static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor
     return agent;
 }
 
-static RESULT_CODE result_code(AGENT agent, int retcode)
+static RESULT get_result(AGENT agent, int retcode, bool allow_would_block)
 {
     int ssl_ecode = SSL_get_error(agent->ssl, retcode);
+
+    char *reason = get_error_reason();
+    char *error_type;
+    RESULT_CODE res = RESULT_OK;
+
     switch (ssl_ecode)
     {
     case SSL_ERROR_NONE:
-        return RESULT_OK;
-
+        error_type = strdup("no error");
+        break;
+    case SSL_ERROR_ZERO_RETURN:
+        error_type = strdup("SSL_ERROR_ZERO_RETURN");
+        break;
+    case SSL_ERROR_WANT_CONNECT:
+        error_type = strdup("SSL_ERROR_WANT_CONNECT");
+        if (!allow_would_block)
+        {
+            res = RESULT_IO_WOULD_BLOCK;
+        }
+        break;
+    case SSL_ERROR_WANT_ACCEPT:
+        error_type = strdup("SSL_ERROR_WANT_ACCEPT");
+        if (!allow_would_block)
+        {
+            res = RESULT_IO_WOULD_BLOCK;
+        }
+        break;
+    case SSL_ERROR_WANT_X509_LOOKUP:
+        error_type = strdup("SSL_ERROR_WANT_X509_LOOKUP");
+        if (!allow_would_block)
+        {
+            res = RESULT_IO_WOULD_BLOCK;
+        }
+        break;
+    case SSL_ERROR_WANT_ASYNC:
+        error_type = strdup("SSL_ERROR_WANT_ASYNC");
+        if (!allow_would_block)
+        {
+            res = RESULT_IO_WOULD_BLOCK;
+        }
+        break;
+    case SSL_ERROR_WANT_ASYNC_JOB:
+        error_type = strdup("SSL_ERROR_WANT_ASYNC_JOB");
+        if (!allow_would_block)
+        {
+            res = RESULT_IO_WOULD_BLOCK;
+        }
+        break;
+    case SSL_ERROR_WANT_CLIENT_HELLO_CB:
+        error_type = strdup("SSL_ERROR_WANT_CLIENT_HELLO_CB");
+        break;
+    case SSL_ERROR_SYSCALL:
+        error_type = strdup("SSL_ERROR_SYSCALL");
+        break;
+    case SSL_ERROR_SSL:
+        error_type = strdup("SSL_ERROR_SSL");
+        res = RESULT_ERROR_OTHER;
+        break;
     case SSL_ERROR_WANT_READ:
     case SSL_ERROR_WANT_WRITE:
-        return RESULT_IO_WOULD_BLOCK;
+        error_type = strdup("IO_WOULD_BLOCK");
+        if (!allow_would_block)
+        {
+            res = RESULT_IO_WOULD_BLOCK;
+        }
+        break;
     default:
-        return RESULT_ERROR_OTHER;
+        error_type = malloc(32 * sizeof(char));
+        snprintf(error_type, sizeof(error_type), "UNKNOWN SSL ERROR %d", ssl_ecode);
+        res = RESULT_ERROR_OTHER;
     }
+
+    char *msg;
+    if (strlen(reason) > 0)
+    {
+        msg = malloc((strlen(error_type) + strlen(reason) + 9) * sizeof(char));
+        snprintf(msg,
+                 strlen(error_type) + strlen(reason) + 9,
+                 "%s (%d): %s",
+                 error_type,
+                 ssl_ecode,
+                 reason);
+    }
+    else
+    {
+        msg = malloc((strlen(error_type) + 19) * sizeof(char));
+        snprintf(msg, strlen(error_type) + 19, "%s (%d): no message", error_type, ssl_ecode);
+    }
+    RESULT result = PUFFIN.make_result(res, msg);
+    free(reason);
+    free(msg);
+    free(error_type);
+    return result;
 }
