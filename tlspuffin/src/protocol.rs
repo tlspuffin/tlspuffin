@@ -926,6 +926,7 @@ pub struct TLSDescriptorConfig {
     /// List of available TLS ciphers
     pub cipher_string: String,
     /// List of available TLS groups/curves
+    /// If `None`, use the default PUT groups
     pub groups: Option<String>,
 }
 
