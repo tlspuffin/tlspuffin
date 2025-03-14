@@ -1,4 +1,4 @@
-//! Extracted from lib `opcua`, the OPCUARust library, an "OPC UA client and server API".
+//! Extracted from lib `opcua`, the OPCUA Rust library, an "OPC UA client and server API".
 //!
 //! version = "0.13.0" # OPCUARustVersion
 //! authors = ["Adam Lock <locka99@gmail.com>"]
@@ -9,4 +9,7 @@
 //! Upstreaming this fork is becoming unfeasible and there are no benefits in keeping up with the
 //! latest version. If we want to support fuzzing new features of upcomping OPC UA versions
 //! then we have to manually integrate them.
+//! 
+//! This module contains primitives required to perform TLS 1.4 handshakes.
 
+pub mod types;
