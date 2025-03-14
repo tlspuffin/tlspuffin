@@ -3,6 +3,112 @@ use quote::{format_ident, quote};
 use syn::punctuated::Punctuated;
 use syn::{Token, Type};
 
+/// Implements Extractable trait for structs, enums and unions
+///
+/// # Types requirements
+///
+/// All types must implement Clone, Debug and Codec
+///
+/// # Struct
+///
+/// Extractable can be used on struct with named or unnamed fields
+///
+/// ```ignore
+/// # use extractable_macro::Extractable;
+/// #[derive(Clone, Debug, Extractable)]
+/// #[extractable(TestProtocolTypes)]
+/// struct TestStruct {
+///     a: u8,
+///     b: f64,
+/// }
+/// ```
+///
+/// ## Ignore a field
+///
+/// The `#[extractable_ignore]` annotation allows to skip a field when extracting knowledges
+///
+/// ```ignore
+/// # use extractable_macro::Extractable;
+/// #[derive(Clone, Debug, Extractable)]
+/// #[extractable(TestProtocolTypes)]
+/// struct TestStruct {
+///     a: u8,
+///     #[extractable_ignore]
+///     b: String, // this field won't be added to the knowledges
+///     c: f64,
+/// }
+/// ```
+///
+/// ## Extract a field that doesn't implement Extractable
+///
+/// The `#[extractable_no_recursion]` annotation will add a field to the knowledge but won't call
+/// `.extract_knowledge(...)` on this field. Use this on types that do no implement Extractable
+///
+/// ```ignore
+/// #[derive(Clone, Debug, Extractable)]
+/// #[extractable(TestProtocolTypes)]
+/// struct TestStruct {
+///     a: u8,
+///     #[extractable_no_recursion]
+///     b: CustomType,
+/// }
+/// ```
+///
+/// # Enums
+///
+/// Extractable can be used on enums with variant containing named or unnamed fields
+///
+/// ```ignore
+/// #[derive(Clone, Debug, Extractable)]
+/// #[extractable(TestProtocolTypes)]
+/// enum TestEnum {
+///     A,
+///     B(String),
+///     C{x: u8, y: u8},
+/// }
+/// ```
+///
+/// ## Ignore a field
+///
+/// The `#[extractable_ignore]` annotation allows to skip a field when extracting knowledges
+///
+/// ```ignore
+/// #[derive(Clone, Debug, Extractable)]
+/// #[extractable(TestProtocolTypes)]
+/// enum TestEnum {
+///     A,
+///     B(#[extractable_ignore] String),
+///     C{x: u8, y: u8},
+/// }
+/// ```
+///
+/// ## Extract a field that doesn't implement Extractable
+///
+/// The `#[extractable_no_recursion]` annotation will add a field to the knowledge but won't call
+/// `.extract_knowledge(...)` on this field. Use this on types that do no implement Extractable
+///
+/// ```ignore
+/// #[derive(Clone, Debug, Extractable)]
+/// #[extractable(TestProtocolTypes)]
+/// enum TestEnum {
+///     A,
+///     B(String),
+///     C{x: u8,#[extractable_no_recursion] y: u8},
+/// }
+/// ```
+///
+/// # Unions
+///
+/// Union types can only extract `self` and do not support annotations
+///
+/// ```ignore
+/// #[derive(Clone, Copy, Extractable)]
+/// #[extractable(TestProtocolTypes)]
+/// union TestUnion {
+///     x: u8,
+///     y: char,
+/// }
+/// ```
 #[proc_macro_derive(
     Extractable,
     attributes(extractable, extractable_ignore, extractable_no_recursion,)

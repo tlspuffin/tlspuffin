@@ -4,6 +4,7 @@ version = "0.0.1"
 authors = ["Tom Gouville"]
 edition = "2021"
 include = ["src/*.rs"]
+description = "This crate provide the Extractable derive macro, that implements the Extractable trait for structs, enum and unions"
 
 [lib]
 proc-macro = true
