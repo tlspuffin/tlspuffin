@@ -40,7 +40,25 @@ macro_rules! declare_u16_vec (
     #[derive(Debug, Clone)]
     pub struct $name(pub Vec<$itemtype>);
 
-    atom_extract_knowledge!(TLSProtocolTypes, $name);
+    impl Extractable<TLSProtocolTypes> for $name {
+        fn extract_knowledge<'a>(
+            &'a self,
+            knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
+            matcher: Option<<TLSProtocolTypes as ProtocolTypes>::Matcher>,
+            source: &'a Source,
+        ) -> Result<(), Error> {
+            knowledges.push(Knowledge {
+                source,
+                matcher,
+                data: self,
+            });
+
+            for x in &self.0 {
+                x.extract_knowledge(knowledges, matcher, source)?;
+            }
+            Ok(())
+        }
+    }
 
     impl puffin::codec::Codec for $name {
       fn encode(&self, bytes: &mut Vec<u8>) {
