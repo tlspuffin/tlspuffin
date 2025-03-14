@@ -1,4 +1,5 @@
-//! The *opcua* module provides concrete implementations for the functions used in the term.
+//! The *opcua* module provides concrete implementations for the functions used in the term,
+//! based on the rustopcua implementation.
 //!
 //! The module offers a variety of
 //! [`DynamicFunction`](puffin::algebra::dynamic_function::DynamicFunction)s which can be used in
@@ -20,28 +21,19 @@ use puffin::error::Error;
 
 use crate::protocol::OpcuaProtocolTypes;
 
-//pub mod claims;
 pub mod rustopcua;
 pub mod seeds;
 
 pub mod fn_constants;
 pub use fn_constants::*;
 
-#[derive(Debug,Clone)]
-pub struct OPN_channel_request {
-    payload: Vec<u8>,
-}
+// UA Secure Channel (Part 6)
+pub mod channel;
+pub use channel::*; 
 
-dummy_extract_knowledge_codec!(
-    OpcuaProtocolTypes,
-    OPN_channel_request
-);
-
-pub fn fn_open_channel_request() -> Result<OPN_channel_request, FnError> {
-    Ok(OPN_channel_request {
-        payload: vec![0x01, 0x02, 0x03, 0x04],
-    })
-}
+// Services (Part 4)
+// pub mod services;
+// pub use services::*;
 
 define_signature!{
     OPCUA_SIGNATURE<OpcuaProtocolTypes>,
@@ -50,5 +42,6 @@ define_signature!{
     // fn_false
     // fn_seq_0
     fn_open_channel_request
+    fn_message_chunk
     //fn_open_channel_request
 }

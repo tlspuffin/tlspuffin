@@ -146,6 +146,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "base64"
+version = "0.21.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
+
+[[package]]
 name = "basic-toml"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -334,6 +340,7 @@ dependencies = [
  "js-sys",
  "num-integer",
  "num-traits",
+ "serde",
  "time",
  "wasm-bindgen",
  "winapi",
@@ -1461,13 +1468,18 @@ checksum = "0ab1bc2a289d34bd04a330323ac98a1b4bc82c9d9fcb1e66b63caa84da26b575"
 name = "opcuapuffin"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "bindgen 0.69.1",
+ "bitflags 2.6.0",
+ "byteorder",
+ "chrono",
  "itertools 0.13.0",
  "log",
  "puffin",
  "puffin-build",
  "puffin-macros",
  "serde",
+ "uuid",
 ]
 
 [[package]]
