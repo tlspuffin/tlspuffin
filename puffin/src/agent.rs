@@ -61,7 +61,7 @@ impl From<AgentName> for u8 {
 pub trait ProtocolDescriptorConfig:
     Default + Debug + Clone + Serialize + Hash + for<'a> Deserialize<'a>
 {
-    /// Indicates wheter a agent is reusable, ie. it's configuration is compatible with the new
+    /// Indicates whether an agent is reusable, ie. it's configuration is compatible with the new
     /// agent to spawn
     fn is_reusable_with(&self, other: &Self) -> bool;
 }
