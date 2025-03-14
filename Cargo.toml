@@ -9,6 +9,7 @@ members = [
     "tlspuffin-claims",
     "puffin-build",
     "puffin-macros",
+    "extractable-macro",
 ]
 
 exclude = [

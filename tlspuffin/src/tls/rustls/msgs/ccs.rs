@@ -1,6 +1,10 @@
+use extractable_macro::Extractable;
 use puffin::codec::{Codec, Reader};
 
-#[derive(Debug, Clone)]
+use crate::protocol::TLSProtocolTypes;
+
+#[derive(Debug, Clone, Extractable)]
+#[extractable(TLSProtocolTypes)]
 pub struct ChangeCipherSpecPayload;
 
 impl Codec for ChangeCipherSpecPayload {
