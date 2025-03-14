@@ -135,7 +135,7 @@ fn extract_variants<'a>(
                     .collect::<Vec<_>>();
 
                 result.push(quote! {
-                    #name::#variant_name(#(#fields),*) => { #(#field_extractions)* }
+                    #name::#variant_name{#(#fields),*} => { #(#field_extractions)* }
                 });
             }
             syn::Fields::Unnamed(unnamed) => {
