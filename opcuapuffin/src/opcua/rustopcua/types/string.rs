@@ -9,9 +9,10 @@ use std::{
     io::{Read, Write},
 };
 
+use log::{error, trace};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::types::{
+use super::{
     encoding::{
         process_decode_io_result, process_encode_io_result, write_i32, BinaryEncoder,
         DecodingOptions, EncodingResult,

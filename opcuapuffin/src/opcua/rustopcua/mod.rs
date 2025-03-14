@@ -10,6 +10,7 @@
 //! latest version. If we want to support fuzzing new features of upcomping OPC UA versions
 //! then we have to manually integrate them.
 //! 
-//! This module contains primitives required to perform TLS 1.4 handshakes.
+//! This module contains primitives required to perform OPC UA communications.
 
+pub mod core;
 pub mod types;
