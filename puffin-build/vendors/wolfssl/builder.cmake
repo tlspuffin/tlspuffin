@@ -53,6 +53,7 @@ autotools_builder(
     --enable-secure-renegotiation
     --enable-psk # FIXME only 4.3.0
     --disable-examples
+    --enable-cryptocb
 
     $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-context-extra-user-data>
     $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-dtls-mtu>
@@ -91,6 +92,11 @@ autotools_builder(
     $<$<BOOL:${gcov}>:-ftest-coverage>
     $<$<BOOL:${gcov}>:-fprofile-arcs>
     $<$<BOOL:${gcov}>:-O0>
+)
+
+# Extract internal.h from source to install include location
+list(APPEND INSTALL_COMMANDS
+  COMMAND ${CMAKE_COMMAND} -E copy "<SOURCE_DIR>/wolfssl/internal.h" "<INSTALL_DIR>/include/wolfssl/"
 )
 
 set(tls12 yes)

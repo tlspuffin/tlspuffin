@@ -1,6 +1,6 @@
 use tlspuffin::test_utils::prelude::*;
 
-#[apply(test_puts, filter = all(tls13, boringssl))]
+#[apply(test_puts, filter = all(tls13))]
 fn test_attacker_full_det_recreate(put: &str) {
     use tlspuffin::tls::seeds::seed_client_attacker_full;
 
