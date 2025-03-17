@@ -20,7 +20,7 @@ endif()
 
 set(PUT "put-${PUT_ID}")
 
-file(GLOB HARNESS_SOURCES ${HARNESS}/src/*.c)
+file(GLOB HARNESS_SOURCES ${HARNESS}/src/*.c ${HARNESS}/src/*.cxx)
 add_library(${PUT} STATIC ${HARNESS_SOURCES})
 
 include(CheckPIESupported)
