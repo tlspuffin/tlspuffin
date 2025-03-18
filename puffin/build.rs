@@ -1,4 +1,6 @@
 fn main() {
+    println!("cargo:rustc-link-lib=dylib=stdc++");
+
     let out_dir = std::env::var("OUT_DIR").unwrap();
 
     let bindings_path = std::path::PathBuf::from(&out_dir).join("bindings.rs");
