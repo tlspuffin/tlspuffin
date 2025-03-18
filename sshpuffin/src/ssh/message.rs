@@ -1,3 +1,4 @@
+use extractable_macro::Extractable;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::protocol::{Extractable, OpaqueProtocolMessage, ProtocolMessage, ProtocolTypes};
@@ -5,7 +6,6 @@ use puffin::trace::{Knowledge, Source};
 use puffin::{atom_extract_knowledge, dummy_extract_knowledge};
 
 use crate::protocol::SshProtocolTypes;
-use crate::query::SshQueryMatcher;
 
 #[derive(Clone, Debug)]
 pub struct OnWireData(pub Vec<u8>);
@@ -21,14 +21,19 @@ impl Codec for OnWireData {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Extractable)]
+#[extractable(SshProtocolTypes)]
 pub enum RawSshMessage {
+    #[extractable_no_recursion]
     Banner(String),
+    #[extractable_no_recursion]
     Packet(BinaryPacket),
+    #[extractable_no_recursion]
     OnWire(OnWireData),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Extractable)]
+#[extractable(SshProtocolTypes)]
 pub struct BinaryPacket {
     payload: Vec<u8>,
     random_padding: Vec<u8>,
@@ -111,7 +116,8 @@ macro_rules! declare_name_list (
   }
 );
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Extractable)]
+#[extractable(SshProtocolTypes)]
 pub enum SshMessage {
     KexInit(KexInitMessage),
     KexEcdhInit(KexEcdhInitMessage),
@@ -125,7 +131,8 @@ declare_name_list!(EncryptionAlgorithms);
 declare_name_list!(MacAlgorithms);
 declare_name_list!(CompressionAlgorithms);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Extractable)]
+#[extractable(SshProtocolTypes)]
 pub struct KexInitMessage {
     pub cookie: [u8; 16],
     pub kex_algorithms: KexAlgorithms,
@@ -182,8 +189,11 @@ impl Codec for KexInitMessage {
         Some(message)
     }
 }
-#[derive(Clone, Debug)]
+
+#[derive(Clone, Debug, Extractable)]
+#[extractable(SshProtocolTypes)]
 pub struct KexEcdhInitMessage {
+    #[extractable_no_recursion]
     pub ephemeral_public_key: Vec<u8>,
 }
 
@@ -202,10 +212,14 @@ impl Codec for KexEcdhInitMessage {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Extractable)]
+#[extractable(SshProtocolTypes)]
 pub struct KexEcdhReplyMessage {
+    #[extractable_no_recursion]
     pub public_host_key: Vec<u8>,
+    #[extractable_no_recursion]
     pub ephemeral_public_key: Vec<u8>,
+    #[extractable_no_recursion]
     pub signature: Vec<u8>,
 }
 
@@ -312,167 +326,9 @@ impl TryFrom<RawSshMessage> for SshMessage {
     }
 }
 
-impl Extractable<SshProtocolTypes> for SshMessage {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
-        matcher: Option<SshQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        match &self {
-            SshMessage::KexInit(KexInitMessage {
-                cookie,
-                kex_algorithms,
-                server_host_key_algorithms,
-                encryption_algorithms_server_to_client,
-                encryption_algorithms_client_to_server,
-                mac_algorithms_client_to_server,
-                mac_algorithms_server_to_client,
-                compression_algorithms_client_to_server,
-                compression_algorithms_server_to_client,
-                languages_client_to_server,
-                languages_server_to_client,
-                first_kex_packet_follows,
-            }) => {
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: cookie,
-                });
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: kex_algorithms,
-                });
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: server_host_key_algorithms,
-                });
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: encryption_algorithms_server_to_client,
-                });
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: encryption_algorithms_client_to_server,
-                });
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: mac_algorithms_client_to_server,
-                });
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: mac_algorithms_server_to_client,
-                });
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: compression_algorithms_client_to_server,
-                });
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: compression_algorithms_server_to_client,
-                });
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: languages_client_to_server,
-                });
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: languages_server_to_client,
-                });
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: first_kex_packet_follows,
-                });
-            }
-            SshMessage::KexEcdhInit(KexEcdhInitMessage {
-                ephemeral_public_key,
-            }) => {
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: ephemeral_public_key,
-                });
-            }
-            SshMessage::KexEcdhReply(KexEcdhReplyMessage {
-                public_host_key,
-                ephemeral_public_key,
-                signature,
-            }) => {
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: public_host_key,
-                });
-
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: ephemeral_public_key,
-                });
-
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: signature,
-                });
-            }
-
-            SshMessage::NewKeys => {}
-        };
-
-        Ok(())
-    }
-}
-
 impl OpaqueProtocolMessage<SshProtocolTypes> for RawSshMessage {
     fn debug(&self, info: &str) {
         log::debug!("{}: {:?}", info, self)
-    }
-}
-
-dummy_extract_knowledge!(SshProtocolTypes, Vec<u8>);
-
-impl Extractable<SshProtocolTypes> for RawSshMessage {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
-        matcher: Option<SshQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        match &self {
-            RawSshMessage::Banner(banner) => {
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: banner,
-                });
-            }
-            RawSshMessage::Packet(_) => {}
-            RawSshMessage::OnWire(onwire) => {
-                knowledges.push(Knowledge {
-                    source,
-                    matcher,
-                    data: onwire,
-                });
-            }
-        };
-        Ok(())
     }
 }
 

@@ -164,26 +164,6 @@ pub mod test_signature {
     dummy_extract_knowledge!(TestProtocolTypes, u32);
     dummy_extract_knowledge!(TestProtocolTypes, u64);
 
-    impl<T: std::fmt::Debug + Clone + 'static + CodecP> Extractable<TestProtocolTypes> for Vec<T>
-    where
-        Vec<T>: CodecP,
-    {
-        fn extract_knowledge<'a>(
-            &'a self,
-            knowledges: &mut Vec<Knowledge<'a, TestProtocolTypes>>,
-            matcher: Option<<TestProtocolTypes as ProtocolTypes>::Matcher>,
-            source: &'a Source,
-        ) -> Result<(), Error> {
-            knowledges.push(Knowledge {
-                source,
-                matcher,
-                data: self,
-            });
-
-            Ok(())
-        }
-    }
-
     pub fn fn_hmac256_new_key() -> Result<HmacKey, FnError> {
         Ok(HmacKey)
     }

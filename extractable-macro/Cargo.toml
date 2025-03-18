@@ -1,0 +1,21 @@
+[package]
+name = "extractable-macro"
+version = "0.0.1"
+authors = ["Tom Gouville"]
+edition = "2021"
+include = ["src/*.rs"]
+description = "This crate provide the Extractable derive macro, that implements the Extractable trait for structs, enum and unions"
+
+[lib]
+proc-macro = true
+path = "src/lib.rs"
+
+[dependencies]
+quote = { workspace = true }
+syn = { workspace = true, features = ["full"] }
+proc-macro2 = { workspace = true }
+
+[dev-dependencies]
+puffin = { path = "../puffin" }
+log = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
