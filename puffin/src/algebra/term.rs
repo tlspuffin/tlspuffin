@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use super::atoms::{Function, Variable};
 use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
 use crate::algebra::dynamic_function::TypeShape;
+use crate::algebra::error::FnError;
 use crate::error::Error;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::TraceContext;
@@ -62,6 +63,54 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>;
 
+    /// Wrap [`evaluate_config`] with logging information
+    fn evaluate_config_wrap<PB: ProtocolBehavior>(
+        &self,
+        context: &TraceContext<PB>,
+        with_payloads: bool,
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        self.evaluate_config(context, with_payloads)
+            .map_err(|e| match &e {
+                Error::TermBug(te) => {
+                    log::error!("[evaluate_config_wrap] TermBug Error on\n{}\nCauses: {}", &self, te);
+                    e
+                }
+                Error::Term(te) => {
+                    log::info!("[evaluate_config_wrap] Term Error {}", te);
+                    e
+                }
+                Error::Fn(fe) => match &fe {
+                    FnError::Unknown(fne) => {
+                        log::error!("[evaluate_config_wrap]  FnError::Unknown Error on\n{}\nCauses: {}", &self, fne);
+                        e
+                    }
+                    _ => {
+                        log::info!("[evaluate_config_wrap]  FnError::* Error on\n{}\nCauses: {}", &self, fe);
+                        e
+                    }
+                },
+                Error::SecurityClaim(se) => {
+                    log::error!("[evaluate_config_wrap] SecurityClaim Error on\n{}\nCauses: {}", &self, se);
+                    e
+                }
+                Error::Extraction() => {
+                    log::error!("[evaluate_config_wrap] Extraction Error on\n{}", &self);
+                    e
+                }
+                _ => {
+                    log::debug!("[evaluate_config_wrap] Other Error on\n{}\nCauses: {}", &self, e);
+                    e
+                } /* Error::Codec(_) => {}
+                   * Error::Put(_) => {}
+                   * Error::IO(_) => {}
+                   * Error::Agent(_) => {}
+                   * Error::Stream(_) => {} */
+            })
+    }
+
     /// Evaluate terms into `ConcreteMessage` (considering Payloads)
     fn evaluate<PB: ProtocolBehavior>(
         &self,
@@ -70,7 +119,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config(ctx, true)?.0)
+        Ok(self.evaluate_config_wrap(ctx, true)?.0)
     }
 
     /// Evaluate terms into `ConcreteMessage` considering all sub-terms as symbolic (even those with
@@ -82,7 +131,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config(ctx, false)?.0)
+        Ok(self.evaluate_config_wrap(ctx, false)?.0)
     }
 
     /// Evaluate terms into `EvaluatedTerm`  considering all sub-terms as symbolic (even those with
@@ -94,7 +143,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config(ctx, false)?.1)
+        Ok(self.evaluate_config_wrap(ctx, false)?.1)
     }
 }
 

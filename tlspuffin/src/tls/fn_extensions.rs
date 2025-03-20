@@ -146,7 +146,7 @@ pub fn fn_server_name_extension() -> Result<ClientExtension, FnError> {
             payload: ServerNamePayload::HostName((
                 PayloadU16(dns_name.to_string().into_bytes()),
                 DnsNameRef::try_from_ascii_str(dns_name)
-                    .map_err(|err| FnError::Unknown(err.to_string()))?
+                    .map_err(|err| FnError::Codec(err.to_string()))?
                     .to_owned(),
             )),
         },

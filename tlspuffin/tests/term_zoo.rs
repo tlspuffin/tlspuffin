@@ -138,7 +138,7 @@ fn test_term_read_encode() {
                         if !ignored_functions.contains(term.name()) {
                             read_fail += 1;
                         }
-                        Err(Error::Fn(FnError::Unknown("Failed to read: {_e}".to_string())))
+                        Err(Error::Fn(FnError::Codec("Failed to read: {_e}".to_string())))
                     }
                 }
             })?
