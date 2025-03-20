@@ -140,7 +140,7 @@ impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S>
             // TODO: balance out this trade-off
             rand,
         ) {
-            log::debug!("[Mutation-bit] Mutate {} on term\n{}", self.name(), &to_mutate);
+            log::debug!("[Mutation-bit] [macro] Mutate {} on term\n{}", self.name(), &to_mutate);
             if let Some(payloads) = &mut to_mutate.payloads {
                 libafl::mutators::mutations::$mutation.mutate(state, &mut payloads.payload, stage_idx)
             } else {

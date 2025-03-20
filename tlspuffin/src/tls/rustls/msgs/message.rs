@@ -1,9 +1,10 @@
 use std::any::TypeId;
 
+use anyhow::{anyhow, Result};
 use extractable_macro::Extractable;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
-use puffin::error::Error::Term;
+use puffin::error::Error::{Term, TermBug};
 use puffin::protocol::{EvaluatedTerm, ProtocolMessage};
 
 use crate::protocol::{MessageFlight, OpaqueMessageFlight, TLSProtocolTypes};
@@ -46,7 +47,7 @@ impl codec::CodecP for MessagePayload {
     }
 
     fn read(&mut self, _: &mut Reader) -> Result<(), puffin::error::Error> {
-        Err(puffin::error::Error::Term(format!(
+        Err(puffin::error::Error::Codec(format!(
             "Failed to read for type {:?}",
             std::any::type_name::<MessagePayload>()
         )))
@@ -425,11 +426,16 @@ macro_rules! try_read {
       {
       if $ti == TypeId::of::<$T>() {
         log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
-        <$T>::read_bytes($bitstring).ok_or(Term(format!(
+        <$T>::read_bytes($bitstring).ok_or({
+            //     log::debug!("[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
+            //     core::any::type_name::<$T>(),
+            //     & $bitstring
+            // );
+            anyhow!(Term(format!(
                 "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
                 & $bitstring
-            )).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
+            )))}).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
       } else {
         try_read!($bitstring, $ti, $($Ts),+)
       }
@@ -440,18 +446,18 @@ macro_rules! try_read {
       {
         if $ti == TypeId::of::<$T>() {
             log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
-            <$T>::read_bytes($bitstring).ok_or(Term(format!(
+            <$T>::read_bytes($bitstring).ok_or(anyhow!(TermBug(format!(
                 "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
                 &$bitstring
-            )).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
+            ))).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
         } else {
-                log::error!("Failed to find a suitable type with typeID {:?} to read the bitstring {:?}", $ti, &$bitstring);
-                Err(Term(format!(
+                // log::debug!("Failed to find a suitable type with typeID {:?} to read the bitstring {:?}", $ti, &$bitstring);
+                Err(anyhow!(TermBug(format!(
                     "[try_read_bytes] Failed to find a suitable type with typeID {:?} to read the bitstring {:?}",
                     $ti,
                     &$bitstring
-                )).into())
+                ))))
         }
       }
   };
@@ -466,7 +472,7 @@ macro_rules! try_read {
 pub fn try_read_bytes(
     bitstring: &[u8],
     ty: TypeId,
-) -> Result<Box<dyn EvaluatedTerm<TLSProtocolTypes>>, puffin::error::Error> {
+) -> Result<Box<dyn EvaluatedTerm<TLSProtocolTypes>>> {
     log::trace!("Trying read...");
     try_read!(
         bitstring,

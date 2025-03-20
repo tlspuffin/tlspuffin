@@ -96,6 +96,7 @@ pub mod test_signature {
     use std::fmt;
     use std::io::Read;
 
+    use anyhow::{bail, Result};
     use puffin_build::puffin;
     use serde::{Deserialize, Serialize};
 
@@ -617,8 +618,8 @@ pub mod test_signature {
         fn try_read_bytes(
             _bitstring: &[u8],
             _ty: TypeId,
-        ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
-            Err(Error::Term("try_read_bytes not implemented".to_owned()))
+        ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>> {
+            bail!(Error::Codec("try_read_bytes not implemented".to_owned()))
         }
     }
 

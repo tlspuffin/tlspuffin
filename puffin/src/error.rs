@@ -8,6 +8,8 @@ pub enum Error {
     Fn(FnError),
     /// Error while evaluating a term
     Term(String),
+    /// Error while evaluating a term due to a bug (for debugging)
+    TermBug(String),
     /// Error while encoding/reading EvaluatedTerm ->/<- bitstring
     Codec(String),
     /// PUT reported an error
@@ -37,6 +39,7 @@ impl fmt::Display for Error {
         match self {
             Self::Fn(err) => write!(f, "error executing a function symbol: {err}"),
             Self::Term(err) => write!(f, "error evaluating a term: {err}"),
+            Self::TermBug(err) => write!(f, "critical error evaluating a term due to a bug: {err}"),
             Error::Codec(err) => write!(
                 f,
                 "error encoding/reading an EvaluatedTerm/bitstring: {err}"
