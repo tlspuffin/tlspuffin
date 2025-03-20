@@ -278,7 +278,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                  - end = start + old_bitstring_len > to_modify.len(): {end} = ({pos_start} + {shift} + {old_bitstring_len}) as usize > {}\n\
                  - payload_context: {payload_context}",
                 to_modify.len());
-                bail!(Error::TermBug(ft));
+            bail!(Error::TermBug(ft));
         }
 
         log::debug!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}",
