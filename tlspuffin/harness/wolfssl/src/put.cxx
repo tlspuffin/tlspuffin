@@ -13,12 +13,18 @@
 #include <stdexcept>
 #include <map>
 #include <string>
+#ifndef USE_CUSTOM_PRNG
+#include <sys/time.h>
+#endif
 #ifdef RESEED_ALLAGENTS
 #include <set>
 #endif
 
 static uint8_t * rng_reseed_buffer = nullptr;
 static size_t rng_reseed_buffer_length = 0;
+#ifdef USE_CUSTOM_PRNG
+static word32 clock_value = 1742309173;
+#endif
 #ifdef RESEED_ALLAGENTS
 static std::set<AGENT> agents;
 #endif
@@ -509,6 +515,7 @@ static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor) {
 }
 
 static void wolfssl_rng_reseed(uint8_t const *buffer, size_t length) {
+#ifdef USE_CUSTOM_PRNG
   if ((buffer != nullptr) && (length > 0)) {
     if (rng_reseed_buffer == nullptr) {
       rng_reseed_buffer = (uint8_t*)malloc(length);
@@ -533,7 +540,7 @@ static void wolfssl_rng_reseed(uint8_t const *buffer, size_t length) {
     wc_InitRng_ex(rng, rng->heap, rng->devId);
   }
 #endif
-
+#endif
 }
 
 static TLS_PUT_INTERFACE const WOLFSSL_PUT = {
@@ -554,15 +561,47 @@ static TLS_PUT_INTERFACE const WOLFSSL_PUT = {
   },
 };
 
+#ifdef USE_CUSTOM_PRNG
+time_t time_cb(time_t* t) {
+  if (t != nullptr) {
+    *t = clock_value;
+  }
+  return clock_value++;
+}
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+word32 LowResTimer(void) {
+#ifdef USE_CUSTOM_PRNG
+  return clock_value++;
+#else
+  return (word32)time(NULL);
+#endif
+}
+
+word32 TimeNowInMilliseconds(void) {
+#ifdef USE_CUSTOM_PRNG
+  return 1000 * clock_value++;
+#else
+  struct timeval now;
+  if (gettimeofday(&now, nullptr) < 0)
+    return (word32)GETTIME_ERROR;
+  return (word32)(now.tv_sec * 1000 + now.tv_usec / 1000);
+#endif
+}
 
 TLS_PUT_INTERFACE const * REGISTER () {
   /* ToDo needed ? where it should be set ?
   if (debug) {
     wolfSSL_Debugging_ON();
   }*/
+
+#ifdef USE_CUSTOM_PRNG
+  wc_SetTimeCb(time_cb);
+#endif
 
   _log(PUFFIN.info, "wolfssl version %s", LIBWOLFSSL_VERSION_STRING);
   int int_retval = wolfSSL_Init();
