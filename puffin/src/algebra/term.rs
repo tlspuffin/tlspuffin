@@ -65,7 +65,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>;
 
-    /// Wrap [`evaluate_config`] with error handling and logging information
+    /// Wrap `evaluate_config` with error handling and logging information
     fn evaluate_config_wrap<PB: ProtocolBehavior>(
         &self,
         context: &TraceContext<PB>,
