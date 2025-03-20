@@ -276,7 +276,8 @@ sancov = [
     "wolfssl-sys?/sancov",
     "boringssl-sys?/sancov",
 ]
-
+# Debug mode and panic when internal errors occur, instead of logging and skipping
+debug = ["puffin/debug"]
 # Enables ASAN
 asan = ["openssl-src?/asan", "wolfssl-sys?/asan", "boringssl-sys?/asan"]
 gcov = ["openssl-src?/gcov", "wolfssl-sys?/gcov", "boringssl-sys?/gcov"]
@@ -345,6 +346,7 @@ extractable-macro = { path = "../extractable-macro" }
 
 log = { workspace = true }
 #features = ["release_max_level_off", "max_level_warn"]
+anyhow = { workspace = true }
 itertools = { workspace = true }
 libc = { workspace = true }
 hex = { workspace = true }
