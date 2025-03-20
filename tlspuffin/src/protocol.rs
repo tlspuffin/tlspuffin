@@ -1,5 +1,6 @@
 use core::any::TypeId;
 
+use anyhow::Result;
 use extractable_macro::Extractable;
 use puffin::agent::{AgentDescriptor, AgentName, ProtocolDescriptorConfig};
 use puffin::algebra::signature::Signature;
@@ -386,7 +387,7 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     fn try_read_bytes(
         bitstring: &[u8],
         ty: TypeId,
-    ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
+    ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>> {
         try_read_bytes(bitstring, ty)
     }
 }

@@ -220,7 +220,7 @@ define_signature!(
     fn_new_opaque_flight
     fn_append_opaque_flight [list]
     fn_new_transcript
-    fn_append_transcript [opaque] [list] // this one is opaque and not list since it returns the hash of all elements added to the list so far
+    fn_append_transcript [opaque] // this one is opaque and not list since it returns the hash of all elements added to the list so far
     fn_decrypt_handshake_flight [opaque]
     fn_decrypt_multiple_handshake_messages [opaque]
     fn_decrypt_application_flight [opaque]

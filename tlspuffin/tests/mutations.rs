@@ -330,33 +330,35 @@ fn test_byte_remove_payloads() {
     }
     assert_ne!(i, MAX); // success condition
 
-    i = 0;
-    while i < MAX {
-        i += 1;
-        mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
-
-        if let Some(first) = trace.steps.get(0) {
-            match &first.action {
-                Action::Input(input) => {
-                    if let DYTerm::Application(fd, args) = &input.recipe.term {
-                        if args.len() > 5 && !input.recipe.is_symbolic() {
-                            if args[5].payloads_to_replace().is_empty()
-                                && input.recipe.payloads_to_replace().len() == 1
-                            {
-                                log::debug!("MakeMessage created new payloads at step {i} in the client hello {} and removed payloads in the strict sub-terms. New paylaod: {:?}", &input.recipe, input.recipe.payloads.as_ref().unwrap());
-                                break;
-                            } else {
-                                log::debug!("Failed to remove payloads in strict sub-terms when adding a payload at top level");
-                                log::debug!("Should never happen");
-                            }
-                        }
-                    }
-                }
-                Action::Output(_) => {}
-            }
-        }
-    }
-    assert_ne!(i, MAX); // success condition
+    // This further test only applies when we allow MakeMessage with no_payload_in_subterm: false,
+    // which is not longer the case i = 0;
+    // while i < MAX {
+    //     i += 1;
+    //     mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
+    //
+    //     if let Some(first) = trace.steps.get(0) {
+    //         match &first.action {
+    //             Action::Input(input) => {
+    //                 if let DYTerm::Application(fd, args) = &input.recipe.term {
+    //                     if args.len() > 5 && !input.recipe.is_symbolic() {
+    //                         if args[5].payloads_to_replace().is_empty()
+    //                             && input.recipe.payloads_to_replace().len() == 1
+    //                         {
+    //                             log::debug!("MakeMessage created new payloads at step {i} in the
+    // client hello {} and removed payloads in the strict sub-terms. New paylaod: {:?}",
+    // &input.recipe, input.recipe.payloads.as_ref().unwrap());
+    // break;                         } else {
+    //                             log::debug!("Failed to remove payloads in strict sub-terms when
+    // adding a payload at top level");                             log::debug!("Should never
+    // happen");                         }
+    //                     }
+    //                 }
+    //             }
+    //             Action::Output(_) => {}
+    //         }
+    //     }
+    // }
+    // assert_ne!(i, MAX); // success condition
 }
 
 #[cfg(all(feature = "tls13"))] // require version which supports TLS 1.3
