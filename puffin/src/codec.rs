@@ -122,7 +122,7 @@ impl<T: Codec> CodecP for T {
 
     fn read(&mut self, r: &mut Reader) -> Result<(), Error> {
         match T::read(r) {
-            None => Err(Error::Term(format!(
+            None => Err(Error::Codec(format!(
                 "Failed to read for type {}",
                 std::any::type_name::<T>()
             ))),

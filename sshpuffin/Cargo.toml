@@ -23,6 +23,7 @@ puffin-build = { path = "../puffin-build" }
 extractable-macro = { path = "../extractable-macro" }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+anyhow = { workspace = true }
 
 # libssh
 foreign-types = { workspace = true }

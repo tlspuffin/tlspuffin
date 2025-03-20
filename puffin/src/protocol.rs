@@ -2,6 +2,7 @@ use std::any::{Any, TypeId};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
+use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -221,7 +222,7 @@ pub trait ProtocolBehavior: 'static {
     fn try_read_bytes(
         bitstring: &[u8],
         ty: TypeId,
-    ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error>;
+    ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>>;
 }
 
 // -- Macros --
@@ -282,7 +283,7 @@ macro_rules! atom_extract_knowledge {
                 matcher: Option<<$protocol_type as ProtocolTypes>::Matcher>,
                 source: &'a Source,
             ) -> Result<(), Error> {
-                log::debug!("Extract atom: {}", stringify!($extract_type));
+                log::trace!("Extract atom: {}", stringify!($extract_type));
                 knowledges.push(Knowledge {
                     source,
                     matcher,
