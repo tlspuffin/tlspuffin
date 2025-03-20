@@ -22,7 +22,6 @@ use std::hash::Hash;
 use std::marker::PhantomData;
 use std::vec::IntoIter;
 
-use clap::error::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};

@@ -1,8 +1,10 @@
 //! This module provides[`DYTerm`]sas well as iterators over them.
 
 use std::fmt;
+use std::fmt::Debug;
 use std::hash::Hash;
 
+use anyhow::{Context, Result};
 use itertools::Itertools;
 use libafl::inputs::BytesInput;
 use serde::{Deserialize, Serialize};
@@ -10,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::atoms::{Function, Variable};
 use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
 use crate::algebra::dynamic_function::TypeShape;
+use crate::algebra::error::FnError;
 use crate::error::Error;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::TraceContext;
@@ -58,19 +61,72 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>)>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>;
 
-    /// Evaluate terms into `ConcreteMessage` (considering Payloads)
-    fn evaluate<PB: ProtocolBehavior>(
+    /// Wrap [`evaluate_config`] with error handling and logging information
+    fn evaluate_config_wrap<PB: ProtocolBehavior>(
         &self,
-        ctx: &TraceContext<PB>,
-    ) -> Result<ConcreteMessage, Error>
+        context: &TraceContext<PB>,
+        with_payloads: bool,
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>)>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config(ctx, true)?.0)
+        self.evaluate_config(context, with_payloads)
+            .map_err(|e| {
+                match e.downcast_ref() {
+                    Some(Error::TermBug(_te)) => {
+                        #[cfg(
+                            not(test)
+                        )] // We do not want to pollute the test logs at ERROR level, especially for zoo_test
+                        {
+                            log::error!("[evaluate_config_wrap] TermBug Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                        }
+                        #[cfg(test)]
+                        {
+                            log::debug!("[evaluate_config_wrap] TermBug Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                        }
+                        if cfg!(feature = "debug") { // we panic in debug mode
+                            panic!("[evaluate_config_wrap] Panic! {}", e);
+                        }
+                    }
+                    Some(Error::Term(te)) => {
+                        log::info!("[evaluate_config_wrap] Term Error {}", te);
+                    }
+                    Some(Error::Fn(fe)) => match &fe {
+                        FnError::Unknown(_fne) => {
+                            log::error!("[evaluate_config_wrap]  FnError::Unknown Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                        }
+                        _ => {
+                            log::info!("[evaluate_config_wrap]  FnError::* Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                        }
+                    },
+                    Some(Error::SecurityClaim(_se)) => {
+                        log::error!("[evaluate_config_wrap] SecurityClaim Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                    }
+                    Some(Error::Extraction()) => {
+                        log::error!("[evaluate_config_wrap] Extraction Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                    }
+                    _ => {
+                        log::debug!("[evaluate_config_wrap] Other Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                    } /* Error::Codec(_) => {}
+                   * Error::Put(_) => {}
+                   * Error::IO(_) => {}
+                   * Error::Agent(_) => {}
+                   * Error::Stream(_) => {} */
+                };
+                e
+            })
+    }
+
+    /// Evaluate terms into `ConcreteMessage` (considering Payloads)
+    fn evaluate<PB: ProtocolBehavior>(&self, ctx: &TraceContext<PB>) -> Result<ConcreteMessage>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        Ok(self.evaluate_config_wrap(ctx, true)?.0)
     }
 
     /// Evaluate terms into `ConcreteMessage` considering all sub-terms as symbolic (even those with
@@ -78,11 +134,11 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn evaluate_symbolic<PB: ProtocolBehavior>(
         &self,
         ctx: &TraceContext<PB>,
-    ) -> Result<ConcreteMessage, Error>
+    ) -> Result<ConcreteMessage>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config(ctx, false)?.0)
+        Ok(self.evaluate_config_wrap(ctx, false)?.0)
     }
 
     /// Evaluate terms into `EvaluatedTerm`  considering all sub-terms as symbolic (even those with
@@ -90,11 +146,11 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn evaluate_dy<PB: ProtocolBehavior>(
         &self,
         ctx: &TraceContext<PB>,
-    ) -> Result<Box<dyn EvaluatedTerm<PT>>, Error>
+    ) -> Result<Box<dyn EvaluatedTerm<PT>>>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config(ctx, false)?.1)
+        Ok(self.evaluate_config_wrap(ctx, false)?.1)
     }
 }
 
@@ -202,6 +258,14 @@ impl<PT: ProtocolTypes> Term<PT> {
         match &self.term {
             DYTerm::Variable(_) => false,
             DYTerm::Application(fd, _) => fd.is_opaque(),
+        }
+    }
+
+    /// When the term has a variable as sub-term
+    pub fn has_variable(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => true,
+            DYTerm::Application(_, args) => args.iter().any(|arg| arg.has_variable()),
         }
     }
 
@@ -397,27 +461,42 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>)>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        log::debug!("[evaluate_config] About to evaluate {}\n===================================================================", &self);
+        log::debug!("[evaluate_config] About to evaluate term (with_payloads: {with_payloads}):\n{}\n===================================================================", &self);
         let mut eval_tree = EvalTree::empty();
-        let (m, all_payloads) = self.eval_until_opaque(
-            &mut eval_tree,
-            context,
-            with_payloads,
-            false,
-            self.get_type_shape(),
-        )?;
+        let (m, all_payloads) = self
+            .eval_until_opaque(
+                &mut eval_tree,
+                context,
+                with_payloads,
+                false,
+                self.get_type_shape(),
+            )
+            .with_context(|| format!("--> [evaluate_config] eval_until_opaque failed"))?;
         // if let Some(mut e) = eval {
         if with_payloads && !all_payloads.is_empty() {
-            log::debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",
-                    self, &all_payloads);
-            Ok((replace_payloads(self, &mut eval_tree, all_payloads)?, m))
+            let ft = format!("[evaluate_config] About to replace for a term {}\n payloads with contexts: {}\n-------------------------------------------------------------------",
+                    self, all_payloads.iter().format(","));
+            log::debug!("{}", ft);
+            let res = replace_payloads(self, &mut eval_tree, all_payloads).with_context(|| {
+                format!(
+                    "[eval_until_opaque] replace_payloads failed with:\n\
+                      - eval_tree: {:?}\n Call: {ft}",
+                    &eval_tree
+                )
+            })?;
+            log::debug!(
+                "        / [payload]    We successfully evaluated the root term into: {res:?}"
+            );
+            Ok((res, m))
         } else {
             let eval = PB::any_get_encoding(m.as_ref());
-            log::trace!("        / We successfully evaluated the root term into: {eval:?}");
+            log::debug!(
+                "        / [no_payload] We successfully evaluated the root term into: {eval:?}"
+            );
             Ok((eval, m))
         }
     }

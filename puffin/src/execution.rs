@@ -32,7 +32,7 @@ pub trait TraceRunner {
 
 #[derive(Debug, Clone)]
 pub struct Runner<PB: ProtocolBehavior> {
-    registry: PutRegistry<PB>,
+    pub registry: PutRegistry<PB>,
     spawner: Spawner<PB>,
 }
 
