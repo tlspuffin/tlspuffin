@@ -148,13 +148,13 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
                     // suitable sub-terms
                 }
 
-                let mut stack: Vec<(&Term<PT>, TracePath, bool, usize)> =
-                    vec![(term, (step_index, TermPath::new()), false, 0)]; // bool is true for terms inside a list (e.g., fn_append)
-                                                                           // usize is for depth
+                let mut stack: Vec<(&Term<PT>, TracePath, usize)> =
+                    vec![(term, (step_index, TermPath::new()), 0)]; // bool is true for terms inside a list (e.g., fn_append)
+                                                                    // usize is for depth
 
                 // DFS Algo: the version with if_weighted implements the reservoir sampling
                 // algorithm at each depth, independently
-                while let Some((term, path, is_inside_list, depth)) = stack.pop() {
+                while let Some((term, path, depth)) = stack.pop() {
                     // push next terms onto stack
 
                     if term.is_symbolic() && !constraints.must_be_root {
@@ -168,9 +168,7 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
                                 for (path_index, subterm) in subterms.iter().enumerate() {
                                     let mut new_path = path.clone();
                                     new_path.1.push(path_index);
-                                    let is_inside_list_sub =
-                                        constraints.not_inside_list && fd.is_list();
-                                    stack.push((subterm, new_path, is_inside_list_sub, depth + 1));
+                                    stack.push((subterm, new_path, depth + 1));
                                 }
                             }
                         }
@@ -182,7 +180,7 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
                         && (!constraints.no_payload_in_subterm // TODO: currently not used!
                             || (term.is_symbolic() && term.payloads_to_replace().is_empty())
                             || (!term.is_symbolic() && term.payloads_to_replace().len() == 1))
-                        && (!constraints.not_inside_list || !(is_inside_list && term.is_list()))
+                        && (!constraints.not_inside_list || !term.is_list())
                     {
                         let level = if if_weighted {
                             // if weighted, we reason per-depth, otherwise, we reason globally
