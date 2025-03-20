@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use criterion::{criterion_group, criterion_main, Criterion};
 use puffin::algebra::dynamic_function::make_dynamic;
 use puffin::algebra::error::FnError;
@@ -183,7 +184,7 @@ fn benchmark_term_payloads_eval(c: &mut Criterion) {
                 if !ignored_functions.contains(term.name()) {
                     add_payload_fail += 1;
                 }
-                return Err(Error::Term("Failed to add payloads".to_string()));
+                return Err(anyhow!(Error::Term("Failed to add payloads".to_string())));
             } else {
                 log::debug!("Term with payloads: {term_with_payloads}");
                 // Sanity check:
@@ -199,16 +200,16 @@ fn benchmark_term_payloads_eval(c: &mut Criterion) {
                         if !ignored_functions.contains(term.name()) {
                             eval_payload_fail += 1;
                         }
-                        return Err(Error::Term("Failed to evaluate with payloads".to_string()));
+                        return Err(anyhow!(Error::Term(
+                            "Failed to evaluate with payloads".to_string()
+                        )));
                     }
                 }
             }
         })?
     };
 
-    let mut state = create_state();
     let mut i = 0;
-    let mut rand = StdRand::with_seed(i as u64);
 
     group.bench_function("test_term_payloads_eval", |b| {
         b.iter(|| {

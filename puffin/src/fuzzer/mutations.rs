@@ -756,7 +756,7 @@ where
 {
     // Only execute shorter trace: trace[0..step_index])
     // execute the PUT on the first step_index steps and store the resulting trace context
-    tr.execute_until_step(ctx, path.0).err().map(|e| {
+    tr.execute_until_step(ctx, path.0, &mut 0).err().map(|e| {
         // 20% to 50% MakeMessage mutations fail, so this is a bit costly :(
         // TODO: we could memoize the recipe evaluation in a Option<ConcreteMessage> and use that
         log::debug!("mutation::MakeMessage trace is not executable until step {},\
