@@ -9,6 +9,8 @@ pub enum FnError {
     Crypto(String),
     /// Error which happens because the term is malformed (e.g. a field is missing)
     Malformed(String),
+    /// Error which happens because of Codec needs to be used and failed (most likely read failed)
+    Codec(String),
 }
 
 impl std::error::Error for FnError {}
@@ -25,6 +27,10 @@ impl fmt::Display for FnError {
             Self::Unknown(msg) => write!(f, "[!!UNKNOWN!!] error in fn: {msg}"),
             Self::Crypto(msg) => write!(f, "[Crypto] error in fn from rustls: {msg}"),
             Self::Malformed(msg) => write!(f, "[Malformed] error in fn from rustls: {msg}"),
+            Self::Codec(msg) => write!(
+                f,
+                "[Codec] error in fn from rustls due to a Codec usage: {msg}"
+            ),
         }
     }
 }

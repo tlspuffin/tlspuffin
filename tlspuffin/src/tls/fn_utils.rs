@@ -172,7 +172,7 @@ pub fn fn_find_server_certificate(flight: &MessageFlight) -> Result<Message, FnE
             }
         }
     }
-    Err(FnError::Unknown("no server certificate".to_owned()))
+    Err(FnError::Malformed("no server certificate".to_owned()))
 }
 
 pub fn fn_find_server_ticket(flight: &MessageFlight) -> Result<Message, FnError> {
@@ -183,7 +183,7 @@ pub fn fn_find_server_ticket(flight: &MessageFlight) -> Result<Message, FnError>
             }
         }
     }
-    Err(FnError::Unknown("no server tickets".to_owned()))
+    Err(FnError::Malformed("no server tickets".to_owned()))
 }
 
 pub fn fn_find_server_certificate_request(flight: &MessageFlight) -> Result<Message, FnError> {
@@ -194,7 +194,7 @@ pub fn fn_find_server_certificate_request(flight: &MessageFlight) -> Result<Mess
             }
         }
     }
-    Err(FnError::Unknown("no server tickets".to_owned()))
+    Err(FnError::Malformed("no server tickets".to_owned()))
 }
 
 pub fn fn_find_encrypted_extensions(flight: &MessageFlight) -> Result<Message, FnError> {
@@ -205,7 +205,7 @@ pub fn fn_find_encrypted_extensions(flight: &MessageFlight) -> Result<Message, F
             }
         }
     }
-    Err(FnError::Unknown("no encrypted extensions".to_owned()))
+    Err(FnError::Malformed("no encrypted extensions".to_owned()))
 }
 
 pub fn fn_find_server_certificate_verify(flight: &MessageFlight) -> Result<Message, FnError> {
@@ -216,7 +216,7 @@ pub fn fn_find_server_certificate_verify(flight: &MessageFlight) -> Result<Messa
             }
         }
     }
-    Err(FnError::Unknown("no certificate verify".to_owned()))
+    Err(FnError::Malformed("no certificate verify".to_owned()))
 }
 
 pub fn fn_find_server_finished(flight: &MessageFlight) -> Result<Message, FnError> {
@@ -227,7 +227,7 @@ pub fn fn_find_server_finished(flight: &MessageFlight) -> Result<Message, FnErro
             }
         }
     }
-    Err(FnError::Unknown("no finished".to_owned()))
+    Err(FnError::Malformed("no finished".to_owned()))
 }
 
 pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {
@@ -420,7 +420,7 @@ pub fn fn_derive_binder(
         _ => None,
     }
     .ok_or_else(|| {
-        FnError::Unknown("Only can fill binder in HandshakeMessagePayload".to_owned())
+        FnError::Malformed("Only can fill binder in HandshakeMessagePayload".to_owned())
     })?;
 
     let supported_suite = suite_as_supported_suite(suite)?;
@@ -520,7 +520,7 @@ pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
 pub fn fn_decode_ecdh_pubkey(data: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     let mut rd = Reader::init(data.as_slice());
     let params = ServerECDHParams::read(&mut rd)
-        .ok_or_else(|| FnError::Unknown("Failed to parse ecdh public key".to_string()))?;
+        .ok_or_else(|| FnError::Codec("Failed to parse ecdh public key".to_string()))?;
     Ok(params.public.0)
 }
 
@@ -590,7 +590,7 @@ pub fn fn_new_certificate() -> Result<Certificate, FnError> {
     56bef671e44bc3aceb6e15590befb11b76efb6ee89c69820b91e1ba9d11d0324e961e9b0cb98e38ea2414ae94",
     );
     Ok(Certificate(der_cert.map_err(|_err| {
-        FnError::Unknown("Failed to load DER certificate".to_string())
+        FnError::Codec("Failed to load DER certificate".to_string())
     })?))
 }
 

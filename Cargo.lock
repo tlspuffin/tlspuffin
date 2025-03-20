@@ -1660,6 +1660,7 @@ dependencies = [
  "log4rs",
  "nix 0.29.0",
  "once_cell",
+ "paste",
  "postcard",
  "puffin-build",
  "rand",
