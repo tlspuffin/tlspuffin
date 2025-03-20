@@ -367,7 +367,7 @@ where
                 );
                 let terms_f = zoo_f.terms();
                 if terms_f.len() != how_many {
-                    log::error!(
+                    log::warn!(
                         "Failed to generate {bucket_size_step} terms (only {}) for function {}.",
                         terms_f.len(),
                         f.0.name
