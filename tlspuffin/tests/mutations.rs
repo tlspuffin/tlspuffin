@@ -1,5 +1,5 @@
 use puffin::agent::AgentName;
-use puffin::algebra::dynamic_function::DescribableFunction;
+use puffin::algebra::dynamic_function::{DescribableFunction, TypeShape};
 use puffin::algebra::{DYTerm, TermType};
 use puffin::execution::{run_in_subprocess, TraceRunner};
 use puffin::fuzzer::bit_mutations::{ByteFlipMutatorDY, ByteInterestingMutatorDY};
@@ -19,9 +19,11 @@ use puffin::put_registry::PutRegistry;
 use puffin::test_utils::AssertExecution;
 use puffin::trace::{Action, Spawner, Step, Trace, TraceContext};
 use puffin::trace_helper::TraceHelper;
+use puffin_macros::apply;
 use tlspuffin::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use tlspuffin::put_registry::tls_registry;
 use tlspuffin::test_utils::default_runner_for;
+use tlspuffin::test_utils::prelude::*;
 use tlspuffin::tls::fn_impl::{
     fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
     fn_support_group_extension,
@@ -73,7 +75,6 @@ fn test_mutations(
 }
 
 /// Test that all mutations can be successfully applied on all traces from the corpus
-#[test_log::test]
 fn test_mutators() {
     let with_dy = true;
     let with_bit_level = true;
@@ -231,10 +232,10 @@ fn test_mutators() {
     }
 }
 
-#[cfg(feature = "tls13")] // require version which supports TLS 1.3
-#[test_log::test]
-fn test_make_message() {
-    let tls_registry = tls_registry();
+#[apply(test_puts, filter = all(tls13))]
+fn test_make_message(put: &str) {
+    let runner = default_runner_for(put);
+    let tls_registry = runner.registry;
     let mut state = create_state();
     let mut mutator: MakeMessage<
         StdState<
@@ -271,12 +272,12 @@ fn test_make_message() {
 
 /// Test that MakeMessage can be applied on a strict sub-term and them on a whole term, erasing all
 /// payloads of strict sub-terms
-#[cfg(all(feature = "tls13"))]
 // require version which supports TLS 1.3, removed boringssl-binding as seed_client_attacker_full
 // cannot be executed with boringssl
-#[test_log::test]
-fn test_byte_remove_payloads() {
-    let tls_registry = tls_registry();
+#[apply(test_puts, filter = all(tls13))]
+fn test_byte_remove_payloads(put: &str) {
+    let runner = default_runner_for(put);
+    let tls_registry = runner.registry;
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
@@ -330,6 +331,8 @@ fn test_byte_remove_payloads() {
     }
     assert_ne!(i, MAX); // success condition
 
+    // This further test only applies when we allow MakeMessage with no_payload_in_subterm: false,
+    // which is currently the case
     i = 0;
     while i < MAX {
         i += 1;
@@ -343,11 +346,22 @@ fn test_byte_remove_payloads() {
                             if args[5].payloads_to_replace().is_empty()
                                 && input.recipe.payloads_to_replace().len() == 1
                             {
-                                log::debug!("MakeMessage created new payloads at step {i} in the client hello {} and removed payloads in the strict sub-terms. New paylaod: {:?}", &input.recipe, input.recipe.payloads.as_ref().unwrap());
+                                log::debug!(
+                                    "MakeMessage created new payloads at step {i} in the
+    client hello {} and removed payloads in the strict sub-terms. New paylaod: {:?}",
+                                    &input.recipe,
+                                    input.recipe.payloads.as_ref().unwrap()
+                                );
                                 break;
                             } else {
-                                log::debug!("Failed to remove payloads in strict sub-terms when adding a payload at top level");
-                                log::debug!("Should never happen");
+                                log::debug!(
+                                    "Failed to remove payloads in strict sub-terms when
+    adding a payload at top level"
+                                );
+                                log::debug!(
+                                    "Should never
+    happen"
+                                );
                             }
                         }
                     }
@@ -359,10 +373,10 @@ fn test_byte_remove_payloads() {
     assert_ne!(i, MAX); // success condition
 }
 
-#[cfg(all(feature = "tls13"))] // require version which supports TLS 1.3
-#[test_log::test]
-fn test_byte_simple() {
-    let tls_registry = tls_registry();
+#[apply(test_puts, filter = all(tls13))] // require version which supports TLS 1.3
+fn test_byte_simple(put: &str) {
+    let runner = default_runner_for(put);
+    let tls_registry = runner.registry;
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
         StdState<
@@ -443,10 +457,10 @@ fn test_byte_simple() {
     assert_ne!(i, MAX);
 }
 
-#[cfg(all(feature = "tls13"))] // require version which supports TLS 1.3
-#[test_log::test]
-fn test_byte_interesting() {
-    let tls_registry = tls_registry();
+#[apply(test_puts, filter = all(tls13))] // require version which supports TLS 1.3
+fn test_byte_interesting(put: &str) {
+    let runner = default_runner_for(put);
+    let tls_registry = runner.registry;
     let spawner = Spawner::new(tls_registry.clone());
     let mut state = create_state();
     let mut mutator_make: MakeMessage<
@@ -509,6 +523,8 @@ fn test_byte_interesting() {
     assert_ne!(i, MAX);
     i = 0;
 
+    // This second while loop may always fail because we might have chosen a MakeMessage on som
+    // sub-term that cannot be meaningfully mutated (e.g., NamedGroup under encryption)
     while i < MAX {
         i += 1;
         log::error!("Test attempt {i}");
@@ -532,14 +548,27 @@ fn test_byte_interesting() {
                     }
                     if found {
                         log::debug!("[test_byte_interesting] We found different payload. Now evaluating e1\n {t}....",);
-                        let e1 = t.evaluate(&ctx).unwrap();
-                        log::debug!("[test_byte_interesting] Now symbolically evaluating....",);
-                        let e2 = t.evaluate_symbolic(&ctx).unwrap();
-                        if e1 != e2 {
-                            log::debug!("[test_byte_interesting] Evaluation differed, good...");
-                            break;
+                        if let Ok(e1) = t.evaluate(&ctx) {
+                            log::debug!("[test_byte_interesting] Now symbolically evaluating....",);
+                            if let Ok(e2) = t.evaluate_symbolic(&ctx) {
+                                if e1 != e2 {
+                                    log::debug!(
+                                        "[test_byte_interesting] Evaluation differed, good..."
+                                    );
+                                    break;
+                                } else {
+                                    log::error!("[test_byte_interesting] Should never happen!");
+                                }
+                            } else {
+                                log::error!("[test_byte_interesting] e2 failed while e1 succeeded: should not happen");
+                                continue;
+                            }
                         } else {
-                            log::debug!("[test_byte_interesting] Should never happen!");
+                            log::warn!(
+                                "Evaluating e1 failed for term:\n {t}\n and payloads: {:?}",
+                                t.all_payloads()
+                            );
+                            continue;
                         }
                     }
                 }
@@ -550,187 +579,241 @@ fn test_byte_interesting() {
     assert_ne!(i, MAX);
 }
 
-#[test_log::test]
-#[ignore]
-fn test_mutate_seed_cve_2021_3449() {
-    let runner = default_runner_for(tls_registry().default().name());
-    let mut state = create_state();
+fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtocolTypes>> {
+    let loop_tries = 1000;
+    let mut attempts = 0;
+    let (mut trace, _) = _seed_client_attacker12(AgentName::first());
+    let mut success = false;
 
-    run_in_subprocess(
-        move || {
-            for _i in 0..5 {
-                let mut attempts = 0;
+    // Check if we can append another encrypted message
+    let mut mutator = RepeatMutator::new(15, true);
 
-                let (mut trace, _) = _seed_client_attacker12(AgentName::first());
+    fn check_is_encrypt12(step: &Step<TLSProtocolTypes>) -> bool {
+        if let Action::Input(input) = &step.action {
+            if input.recipe.name() == fn_encrypt12.name() {
+                return true;
+            }
+        }
+        false
+    }
+    log::error!("Start, initial length: {}", trace.steps.len());
+    for _i in 0..loop_tries {
+        attempts += 1;
+        let mut mutate = trace.clone();
+        mutator.mutate(state, &mut mutate, 0).unwrap();
 
-                // Check if we can append another encrypted message
+        let length = mutate.steps.len();
+        if length > 5 {
+            continue;
+        }
+        if let Some(last) = mutate.steps.get(length - 1) {
+            if check_is_encrypt12(last) {
+                if let Some(step) = mutate.steps.get(length - 2) {
+                    if check_is_encrypt12(step) {
+                        trace = mutate;
+                        success = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    if !success {
+        return None;
+    }
+    success = false;
+    log::error!("attempts 1: {}. Length: {}", attempts, trace.steps.len());
+    attempts = 0;
 
-                let mut mutator = RepeatMutator::new(15, true);
+    // Check if we have a client hello in last encrypted one
+    let constraints = TermConstraints::default();
+    let mut mutator = ReplaceReuseMutator::new(constraints, true);
 
-                fn check_is_encrypt12(step: &Step<TLSProtocolTypes>) -> bool {
-                    if let Action::Input(input) = &step.action {
-                        if input.recipe.name() == fn_encrypt12.name() {
-                            return true;
+    for _i in 0..loop_tries {
+        attempts += 1;
+        let mut mutate = trace.clone();
+        mutator.mutate(state, &mut mutate, 0).unwrap();
+
+        if let Some(last) = mutate.steps.iter().last() {
+            match &last.action {
+                Action::Input(input) => match &input.recipe.term {
+                    DYTerm::Variable(_) => {}
+                    DYTerm::Application(_, subterms) => {
+                        if let Some(first_subterm) = subterms.iter().next() {
+                            if first_subterm.name() == fn_client_hello.name() {
+                                trace = mutate;
+                                success = true;
+                                break;
+                            }
                         }
                     }
-                    false
-                }
+                },
+                Action::Output(_) => {}
+            }
+        }
+    }
+    if !success {
+        return None;
+    }
+    success = false;
+    log::error!(
+        "attempts 2: {}\n Term: {}",
+        attempts,
+        trace.steps.iter().last().unwrap().action
+    );
+    attempts = 0;
 
-                loop {
-                    attempts += 1;
-                    let mut mutate = trace.clone();
-                    mutator.mutate(&mut state, &mut mutate, 0).unwrap();
+    // Test if we can replace the sequence number
+    let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE, true);
 
-                    let length = mutate.steps.len();
-                    if let Some(last) = mutate.steps.get(length - 1) {
-                        if check_is_encrypt12(last) {
-                            if let Some(step) = mutate.steps.get(length - 2) {
-                                if check_is_encrypt12(step) {
+    for _i in 0..loop_tries {
+        attempts += 1;
+        let mut mutate = trace.clone();
+        mutator.mutate(state, &mut mutate, 0).unwrap();
+
+        if let Some(last) = mutate.steps.iter().last() {
+            match &last.action {
+                Action::Input(input) => match &input.recipe.term {
+                    DYTerm::Variable(_) => {}
+                    DYTerm::Application(_, subterms) => {
+                        if let Some(last_subterm) = subterms
+                            .iter()
+                            .filter(|sb| *sb.get_type_shape() == TypeShape::of::<u64>())
+                            .last()
+                        {
+                            log::warn!("mutational result last subterm: {}", last_subterm);
+                            if last_subterm.name() == fn_seq_1.name() {
+                                trace = mutate;
+                                success = true;
+                                break;
+                            }
+                        }
+                    }
+                },
+                Action::Output(_) => {}
+            }
+        }
+    }
+    if !success {
+        return None;
+    }
+    success = false;
+    log::error!(
+        "attempts 3: {}\n Term: {}",
+        attempts,
+        trace.steps.iter().last().unwrap().action
+    );
+    attempts = 0;
+
+    // Remove sig algo
+    let mut mutator = RemoveAndLiftMutator::new(constraints, true);
+
+    for _i in 0..loop_tries {
+        attempts += 1;
+        let mut mutate = trace.clone();
+        let result = mutator.mutate(state, &mut mutate, 0).unwrap();
+        if let MutationResult::Mutated = result {
+            if let Some(last) = mutate.steps.iter().last() {
+                match &last.action {
+                    Action::Input(input) => match &input.recipe.term {
+                        DYTerm::Variable(_) => {}
+                        DYTerm::Application(_, subterms) => {
+                            if let Some(first_subterm) = subterms.iter().next() {
+                                log::warn!("mutational result: {:?}", first_subterm);
+                                let sig_alg_extensions = first_subterm.count_functions_by_name(
+                                    fn_signature_algorithm_extension.name(),
+                                );
+                                let support_groups_extensions = first_subterm
+                                    .count_functions_by_name(fn_support_group_extension.name());
+                                if sig_alg_extensions == 0 && support_groups_extensions == 1 {
                                     trace = mutate;
+                                    success = true;
                                     break;
                                 }
                             }
                         }
-                    }
+                    },
+                    Action::Output(_) => {}
                 }
-                println!("attempts 1: {}", attempts);
-                attempts = 0;
+            }
+        }
+    }
+    if !success {
+        return None;
+    }
+    success = false;
+    log::error!(
+        "attempts 4: {}\n Term: {}",
+        attempts,
+        trace.steps.iter().last().unwrap().action
+    );
+    attempts = 0;
 
-                // Check if we have a client hello in last encrypted one
+    // Sucessfully renegotiate
 
-                let constraints = TermConstraints::default();
-                let mut mutator = ReplaceReuseMutator::new(constraints, true);
+    let mut mutator = ReplaceReuseMutator::new(constraints, true);
 
-                loop {
-                    attempts += 1;
-                    let mut mutate = trace.clone();
-                    mutator.mutate(&mut state, &mut mutate, 0).unwrap();
+    for _i in 0..loop_tries {
+        attempts += 1;
+        let mut mutate = trace.clone();
+        mutator.mutate(state, &mut mutate, 0).unwrap();
 
-                    if let Some(last) = mutate.steps.iter().last() {
-                        match &last.action {
-                            Action::Input(input) => match &input.recipe.term {
-                                DYTerm::Variable(_) => {}
-                                DYTerm::Application(_, subterms) => {
-                                    if let Some(first_subterm) = subterms.iter().next() {
-                                        if first_subterm.name() == fn_client_hello.name() {
-                                            trace = mutate;
-                                            break;
-                                        }
-                                    }
-                                }
-                            },
-                            Action::Output(_) => {}
-                        }
-                    }
-                }
-                println!("attempts 2: {}", attempts);
-                attempts = 0;
-
-                // Test if we can replace the sequence number
-
-                let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE, true);
-
-                loop {
-                    attempts += 1;
-                    let mut mutate = trace.clone();
-                    mutator.mutate(&mut state, &mut mutate, 0).unwrap();
-
-                    if let Some(last) = mutate.steps.iter().last() {
-                        match &last.action {
-                            Action::Input(input) => match &input.recipe.term {
-                                DYTerm::Variable(_) => {}
-                                DYTerm::Application(_, subterms) => {
-                                    if let Some(last_subterm) = subterms.iter().last() {
-                                        if last_subterm.name() == fn_seq_1.name() {
-                                            trace = mutate;
-                                            break;
-                                        }
-                                    }
-                                }
-                            },
-                            Action::Output(_) => {}
-                        }
-                    }
-                }
-                println!("attempts 3: {}", attempts);
-                attempts = 0;
-
-                // Remove sig algo
-
-                let mut mutator = RemoveAndLiftMutator::new(constraints, true);
-
-                loop {
-                    attempts += 1;
-                    let mut mutate = trace.clone();
-                    let result = mutator.mutate(&mut state, &mut mutate, 0).unwrap();
-
-                    if let MutationResult::Mutated = result {
-                        if let Some(last) = mutate.steps.iter().last() {
-                            match &last.action {
-                                Action::Input(input) => match &input.recipe.term {
-                                    DYTerm::Variable(_) => {}
-                                    DYTerm::Application(_, subterms) => {
-                                        if let Some(first_subterm) = subterms.iter().next() {
-                                            let sig_alg_extensions = first_subterm
-                                                .count_functions_by_name(
-                                                    fn_signature_algorithm_extension.name(),
-                                                );
-                                            let support_groups_extensions = first_subterm
-                                                .count_functions_by_name(
-                                                    fn_support_group_extension.name(),
-                                                );
-                                            if sig_alg_extensions == 0
-                                                && support_groups_extensions == 1
-                                            {
-                                                trace = mutate;
-                                                break;
-                                            }
-                                        }
-                                    }
-                                },
-                                Action::Output(_) => {}
+        if let Some(last) = mutate.steps.iter().last() {
+            match &last.action {
+                Action::Input(input) => match &input.recipe.term {
+                    DYTerm::Variable(_) => {}
+                    DYTerm::Application(_, subterms) => {
+                        if let Some(first_subterm) = subterms.iter().next() {
+                            let signatures =
+                                first_subterm.count_functions_by_name(fn_sign_transcript.name());
+                            if signatures == 1 {
+                                trace = mutate;
+                                success = true;
+                                break;
                             }
                         }
                     }
+                },
+                Action::Output(_) => {}
+            }
+        }
+    }
+    if !success {
+        return None;
+    }
+    log::error!(
+        "attempts 5: {}\n Term: {}",
+        attempts,
+        trace.steps.iter().last().unwrap().action
+    );
+    Some(trace)
+}
+
+#[test_log::test]
+fn test_mutate_seed_cve_2021_3449() {
+    let mut state = create_state();
+    let trace = search_for_seed_cve_2021_3449(&mut state);
+    assert!(trace.is_some());
+}
+
+// The test below succeeds when executed in isolation but fails when run with others :( TODO:
+// investigate why
+// #[apply(test_puts, filter = all(CVE_2021_3449, tls12))]
+fn test_mutate_and_execute_seed_cve_2021_3449(put: &str) {
+    let runner = default_runner_for(put);
+    let mut state = create_state();
+    run_in_subprocess(
+        move || {
+            log::error!("start in subprocess");
+            if let Some(trace) = search_for_seed_cve_2021_3449(&mut state) {
+                // In case we get None, the other test `test_mutate_seed_cve_2021_3449` will fail
+                log::error!("try");
+                for _i in 0..50 {
+                    let _ = runner.execute(&trace);
                 }
-                println!("attempts 4: {}", attempts);
-                attempts = 0;
-
-                // Sucessfully renegotiate
-
-                let mut mutator = ReplaceReuseMutator::new(constraints, true);
-
-                loop {
-                    attempts += 1;
-                    let mut mutate = trace.clone();
-                    mutator.mutate(&mut state, &mut mutate, 0).unwrap();
-
-                    if let Some(last) = mutate.steps.iter().last() {
-                        match &last.action {
-                            Action::Input(input) => match &input.recipe.term {
-                                DYTerm::Variable(_) => {}
-                                DYTerm::Application(_, subterms) => {
-                                    if let Some(first_subterm) = subterms.iter().next() {
-                                        let signatures = first_subterm
-                                            .count_functions_by_name(fn_sign_transcript.name());
-                                        if signatures == 1 {
-                                            trace = mutate;
-                                            break;
-                                        }
-                                    }
-                                }
-                            },
-                            Action::Output(_) => {}
-                        }
-                    }
-                }
-                println!("attempts 5: {}", attempts);
-
-                let _ = runner.execute(trace);
-                println!("try");
             }
         },
-        std::time::Duration::from_secs(30),
+        std::time::Duration::from_secs(100),
     )
     .expect_crash();
 }
