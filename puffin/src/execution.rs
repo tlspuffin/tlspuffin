@@ -194,15 +194,39 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
         match (&first_trace_status, &second_trace_status) {
             (Err(put1_status), Ok(_)) => {
                 return Err(Error::Difference(vec![TraceDifference::Status(
-                    put1_status.to_string(),
+                    format!(
+                        "(step {}/{}) {}",
+                        first_ctx.executed_until,
+                        trace.as_ref().steps.len(),
+                        put1_status.to_string()
+                    ),
                     "Success".into(),
                 )]))
             }
             (Ok(_), Err(put2_status)) => {
                 return Err(Error::Difference(vec![TraceDifference::Status(
                     "Success".into(),
-                    put2_status.to_string(),
+                    format!(
+                        "(step {}/{}) {}",
+                        second_ctx.executed_until,
+                        trace.as_ref().steps.len(),
+                        put2_status.to_string()
+                    ),
                 )]))
+            }
+            (Err(put1_error), Err(put2_error)) => {
+                println!(
+                    "Both PUT failed :\n(step {}/{}) {}\n(step {}/{}) {}",
+                    first_ctx.executed_until,
+                    trace.as_ref().steps.len(),
+                    put1_error.to_string(),
+                    second_ctx.executed_until,
+                    trace.as_ref().steps.len(),
+                    put2_error.to_string()
+                );
+                if first_ctx.executed_until == second_ctx.executed_until {
+                    return Ok(first_ctx);
+                }
             }
             _ => (),
         }
@@ -213,7 +237,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
 
         if let Err(diff) = is_diff {
             println!(
-                "Difference between the PUTs, {}",
+                "Difference between the PUTs, {}\n",
                 format!("{:#?}", diff).replace("\\n", "\n\t\t")
             );
             return Err(Error::Difference(diff));
