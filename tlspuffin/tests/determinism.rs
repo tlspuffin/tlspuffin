@@ -1,4 +1,5 @@
 use tlspuffin::test_utils::prelude::*;
+use std::{thread, time::Duration};
 
 #[apply(test_puts, filter = all(tls13))]
 fn test_attacker_full_det_recreate(put: &str) {
@@ -9,6 +10,7 @@ fn test_attacker_full_det_recreate(put: &str) {
 
     let ctx_1 = runner.execute(&trace);
 
+    thread::sleep(Duration::from_secs(2));
     for i in 0..200 {
         println!("Attempt #{i}...");
         let ctx_2 = runner.execute(&trace);
