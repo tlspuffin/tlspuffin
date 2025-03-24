@@ -20,6 +20,7 @@ base64 = "0.21"
 bitflags = "2.4"
 byteorder = "1.4"
 chrono = { version = "0.4.38", features = ["serde"] }
+lazy_static = "1.5.0"
 puffin = { path = "../puffin" }
 puffin-macros = { path = "../puffin-macros" }
 uuid = { version = "1.2", features = ["v4"] }

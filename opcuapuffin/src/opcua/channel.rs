@@ -1,0 +1,130 @@
+use puffin::protocol::EvaluatedTerm;
+use puffin::codec;
+use puffin::trace::Source;
+use puffin::protocol::ProtocolTypes;
+use puffin::trace::Knowledge;
+use puffin::protocol::Extractable;
+use puffin::dummy_codec;
+use puffin::dummy_extract_knowledge;
+use puffin::dummy_extract_knowledge_codec;
+use puffin::algebra::dynamic_function::FunctionAttributes;
+use puffin::algebra::error::FnError;
+use puffin::error::Error;
+
+use crate::protocol::{OpcuaProtocolTypes, ChannelMode};
+
+// We modelize as a term algebra the messages as we did in the paper.
+// We use then the PUT harness for implementation details.
+
+
+// Open Secure Channel
+
+#[derive(Debug, Clone)]
+pub struct ChannelID{
+    id: u32
+}
+dummy_extract_knowledge_codec!(OpcuaProtocolTypes, ChannelID);
+
+pub fn fn_new_channel_id() -> Result<ChannelID, FnError> {
+    Ok(ChannelID{id: 0})  // 0 for a new channel request.
+}
+pub fn fn_channel_id(id: u32) -> Result<ChannelID, FnError> {
+    Ok(ChannelID{id})
+}
+
+
+#[derive(Debug, Clone)]
+pub struct RequestID;
+
+dummy_extract_knowledge_codec!(OpcuaProtocolTypes, RequestID);
+
+pub fn fn_new_request_id() -> Result<RequestID, FnError> {
+    Ok(RequestID)
+}
+
+#[derive(Debug, Clone)]
+pub struct Certificate;
+
+dummy_extract_knowledge_codec!(OpcuaProtocolTypes, Certificate);
+
+pub fn fn_new_certificate() -> Result<Certificate, FnError> {
+    Ok(Certificate)
+}
+
+
+dummy_extract_knowledge_codec!(OpcuaProtocolTypes, ChannelMode);
+
+pub fn fn_mode(m: ChannelMode) -> Result<ChannelMode, FnError> {
+    Ok(m)
+}
+
+#[derive(Debug,Clone)]
+pub struct OpenChannelRequest {
+    sc_id: ChannelID,
+    mode: ChannelMode,
+    payload: Vec<u8>,
+}
+
+dummy_extract_knowledge_codec!(
+    OpcuaProtocolTypes,
+    OpenChannelRequest
+);
+
+pub fn fn_open_channel_request(
+    mode: ChannelMode
+) -> Result<OpenChannelRequest, FnError> {
+    Ok(OpenChannelRequest {
+        sc_id: fn_new_channel_id().unwrap(),
+        mode: fn_mode(mode).unwrap(),
+        payload: vec![0x01, 0x02, 0x03, 0x04],
+    })
+}
+
+
+#[derive(Debug, Clone)]
+pub struct ChannelToken;
+
+dummy_extract_knowledge_codec!(OpcuaProtocolTypes, ChannelToken);
+
+pub fn fn_new_channel_token() -> Result<ChannelToken, FnError> {
+    Ok(ChannelToken)
+}
+
+
+
+
+#[derive(Debug, Clone)]
+pub struct MessageHeader {
+    msg_type: [u8; 3],
+    // is_final: u8,
+    // msg_size: u32,
+    sc_id: ChannelID
+}
+
+
+
+
+
+
+#[derive(Debug, Clone)]
+pub struct MessageChunk {
+    msg_header: MessageHeader,
+    //sec_header: SecurityHeader,
+    payload: Vec<u8>,
+}
+
+dummy_extract_knowledge_codec!(
+    OpcuaProtocolTypes,
+    MessageChunk
+);
+
+pub fn fn_message_chunk() -> Result<MessageChunk, FnError> {
+    Ok(MessageChunk {
+        msg_header: MessageHeader{
+            msg_type: *(b"OPN"),
+            // is_final: b'F',
+            // msg_size: 0x15,
+            sc_id: fn_new_channel_id().unwrap() },
+        payload: vec![0x01, 0x02, 0x03, 0x04],
+    })
+}

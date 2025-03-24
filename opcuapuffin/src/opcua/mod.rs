@@ -41,7 +41,6 @@ define_signature!{
     // fn_true
     // fn_false
     // fn_seq_0
-    fn_open_channel_request
+    // fn_open_channel_request
     fn_message_chunk
-    //fn_open_channel_request
 }

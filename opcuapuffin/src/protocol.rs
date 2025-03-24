@@ -354,8 +354,8 @@ impl ProtocolBehavior for OpcuaProtocolBehavior {
     }
 
     fn try_read_bytes(
-        bitstring: &[u8],
-        ty: TypeId,
+        _bitstring: &[u8],
+        _ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
         //try_read_bytes(bitstring, ty)
         Err(Error::Term("try_read_bytes not implemented yet for OPC UA".to_owned()))
