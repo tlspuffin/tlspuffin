@@ -13,17 +13,18 @@
 #include <stdexcept>
 #include <map>
 #include <string>
-#ifndef USE_CUSTOM_PRNG
 #include <sys/time.h>
-#endif
 #ifdef RESEED_ALLAGENTS
 #include <set>
 #endif
 
+#define USE_CUSTOM_PRNG
+#define CLOCKVALUE_DEFAULT 1742309173;
+
 static uint8_t * rng_reseed_buffer = nullptr;
 static size_t rng_reseed_buffer_length = 0;
 #ifdef USE_CUSTOM_PRNG
-static word32 clock_value = 1742309173;
+static word32 clock_value = 0;
 #endif
 #ifdef RESEED_ALLAGENTS
 static std::set<AGENT> agents;
@@ -115,7 +116,6 @@ static RESULT wolfssl_take_outbound(AGENT agent, uint8_t *bytes, size_t max_leng
       ret >= 0 ? WOLFSSL_SUCCESS : WOLFSSL_FAILURE, &result_code);
   RESULT result = PUFFIN.make_result(result_code, reason);
   free(reason);
-
   return result;
 }
 
@@ -131,7 +131,6 @@ static RESULT wolfssl_add_inbound(AGENT agent, const uint8_t *bytes, size_t leng
       ret >= 0 ? WOLFSSL_SUCCESS : WOLFSSL_FAILURE, &result_code);
   RESULT result = PUFFIN.make_result(result_code, reason);
   free(reason);
-
   return result;
 }
 
@@ -517,6 +516,8 @@ static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor) {
 static void wolfssl_rng_reseed(uint8_t const *buffer, size_t length) {
 #ifdef USE_CUSTOM_PRNG
   if ((buffer != nullptr) && (length > 0)) {
+    clock_value = CLOCKVALUE_DEFAULT;
+
     if (rng_reseed_buffer == nullptr) {
       rng_reseed_buffer = (uint8_t*)malloc(length);
     } else if (rng_reseed_buffer_length != length) {
@@ -524,6 +525,8 @@ static void wolfssl_rng_reseed(uint8_t const *buffer, size_t length) {
     }
     memcpy(rng_reseed_buffer, buffer, length);
   } else {
+    clock_value = 0;
+
     if (rng_reseed_buffer != nullptr) {
       free(rng_reseed_buffer);
       rng_reseed_buffer = nullptr;
@@ -563,10 +566,17 @@ static TLS_PUT_INTERFACE const WOLFSSL_PUT = {
 
 #ifdef USE_CUSTOM_PRNG
 time_t time_cb(time_t* t) {
-  if (t != nullptr) {
-    *t = clock_value;
+  if (clock_value != 0) {
+    if (t != nullptr) {
+      *t = clock_value;
+    }
+#ifdef TIME_CHANGE
+    return clock_value++;
+#else
+    return clock_value;
+#endif
   }
-  return clock_value++;
+  return time(t);
 }
 #endif
 
@@ -576,21 +586,31 @@ extern "C" {
 
 word32 LowResTimer(void) {
 #ifdef USE_CUSTOM_PRNG
-  return clock_value++;
+  if (clock_value != 0) {
+#ifdef TIME_CHANGE
+    return clock_value++;
 #else
-  return (word32)time(NULL);
+    return clock_value;
 #endif
+  }
+#endif
+  return (word32)time(NULL);
 }
 
 word32 TimeNowInMilliseconds(void) {
 #ifdef USE_CUSTOM_PRNG
-  return 1000 * clock_value++;
+  if (clock_value != 0) {
+#ifdef TIME_CHANGE
+    return 1000 * clock_value++;
 #else
+    return 1000 * clock_value;
+#endif
+  }
+#endif
   struct timeval now;
   if (gettimeofday(&now, nullptr) < 0)
     return (word32)GETTIME_ERROR;
   return (word32)(now.tv_sec * 1000 + now.tv_usec / 1000);
-#endif
 }
 
 TLS_PUT_INTERFACE const * REGISTER () {
