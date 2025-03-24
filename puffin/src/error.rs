@@ -52,7 +52,7 @@ impl fmt::Display for Error {
             Error::Difference(diffs) => {
                 write!(
                     f,
-                    "difference between two PUTs : {}",
+                    "difference between two PUTs :\n{}",
                     diffs
                         .iter()
                         .map(|x| x.to_string())
