@@ -12,7 +12,7 @@ impl fmt::Display for TraceDifference {
         match self {
             TraceDifference::Status(a, b) => writeln!(
                 f,
-                "Execution status difference\n\tfirst put : {}\n\tsecond put: {}}}",
+                "Execution status difference\n\tfirst put : {}\n\tsecond put: {}",
                 a, b
             ),
             TraceDifference::Knowledges(diff) => {

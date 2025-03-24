@@ -299,6 +299,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             }))
         }
 
+        log::trace!("Comparing knowledge stores");
         let _ = std::iter::zip(first_store, second_store)
             .enumerate()
             .map(|(idx, (x, y))| {
