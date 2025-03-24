@@ -186,14 +186,30 @@ impl CAgent {
         let client_store = [&server_cert as *const _, &other_cert];
         let ciphers =
             CString::new(config.descriptor.protocol_config.cipher_string.clone()).unwrap();
+        let groups = config
+            .descriptor
+            .protocol_config
+            .groups
+            .clone()
+            .map_or(None, |x| Some(CString::new(x.clone()).unwrap()));
 
         let descriptor = match config.descriptor.protocol_config.typ {
-            AgentType::Server => {
-                make_descriptor(&config, &server_cert, &server_pkey, &server_store, &ciphers)
-            }
-            AgentType::Client => {
-                make_descriptor(&config, &client_cert, &client_pkey, &client_store, &ciphers)
-            }
+            AgentType::Server => make_descriptor(
+                &config,
+                &server_cert,
+                &server_pkey,
+                &server_store,
+                &ciphers,
+                &groups,
+            ),
+            AgentType::Client => make_descriptor(
+                &config,
+                &client_cert,
+                &client_pkey,
+                &client_store,
+                &ciphers,
+                &groups,
+            ),
         };
 
         let c_agent = unsafe { (put.interface.create.unwrap())(&descriptor as *const _) };
@@ -347,6 +363,7 @@ fn make_descriptor(
     pkey: *const PEM,
     store: &[*const PEM],
     ciphers: &CString,
+    groups: &Option<CString>,
 ) -> TLS_AGENT_DESCRIPTOR {
     // eprintln!("{:?}", cert);
     // eprintln!("{:?}", pkey);
@@ -367,6 +384,11 @@ fn make_descriptor(
         client_authentication: config.descriptor.protocol_config.client_authentication,
         server_authentication: config.descriptor.protocol_config.server_authentication,
         cipher_string: ciphers.as_ptr(),
+        group_list: if let Some(group_list) = groups {
+            group_list.as_ref().as_ptr()
+        } else {
+            std::ptr::null()
+        },
 
         cert,
         pkey,

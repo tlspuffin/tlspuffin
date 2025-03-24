@@ -43,6 +43,56 @@ where
     ) -> Result<(), Error>;
 }
 
+/// Implement Extractable for all Vec of types implementing Extractable
+impl<PT: ProtocolTypes, T: EvaluatedTerm<PT> + Clone + codec::Codec + 'static> Extractable<PT>
+    for Vec<T>
+where
+    Vec<T>: codec::Codec,
+{
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, PT>>,
+        matcher: Option<<PT as ProtocolTypes>::Matcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher: matcher.clone(),
+            data: self,
+        });
+
+        for k in self {
+            k.extract_knowledge(knowledges, matcher.clone(), source)?;
+        }
+        Ok(())
+    }
+}
+
+/// Implement Extractable for all Option of types implementing Extractable
+impl<PT: ProtocolTypes, T: Extractable<PT> + Clone + 'static> Extractable<PT> for Option<T>
+where
+    Option<T>: codec::Codec,
+{
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, PT>>,
+        matcher: Option<<PT as ProtocolTypes>::Matcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher: matcher.clone(),
+            data: self,
+        });
+
+        match self {
+            Some(x) => x.extract_knowledge(knowledges, matcher, source)?,
+            None => (),
+        }
+        Ok(())
+    }
+}
+
 /// `EvaluatedTerm`: have both Codec and a way to extract knowledge out of a Message/OpaqueMessage
 /// or any type that might be used in a precomputation
 pub trait EvaluatedTerm<PT: ProtocolTypes>:

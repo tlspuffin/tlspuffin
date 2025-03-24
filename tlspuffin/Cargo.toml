@@ -299,6 +299,7 @@ test-utils = ["tempfile"]
 
 puffin = { path = "../puffin" }
 puffin-macros = { path = "../puffin-macros" }
+extractable-macro = { path = "../extractable-macro" }
 
 log = { workspace = true }
 #features = ["release_max_level_off", "max_level_warn"]

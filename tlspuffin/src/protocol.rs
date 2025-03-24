@@ -1,5 +1,6 @@
 use core::any::TypeId;
 
+use extractable_macro::Extractable;
 use puffin::agent::{AgentDescriptor, AgentName, ProtocolDescriptorConfig};
 use puffin::algebra::signature::Signature;
 use puffin::algebra::Matcher;
@@ -11,7 +12,7 @@ use puffin::protocol::{
 };
 use puffin::put::PutDescriptor;
 use puffin::trace::{Knowledge, Source, Trace};
-use puffin::{atom_extract_knowledge, codec, dummy_extract_knowledge};
+use puffin::{atom_extract_knowledge, codec, dummy_codec, dummy_extract_knowledge};
 use serde::{Deserialize, Serialize};
 
 use crate::claims::TlsClaim;
@@ -19,31 +20,21 @@ use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
 use crate::tls::rustls::hash_hs::HandshakeHash;
-use crate::tls::rustls::key::Certificate;
-use crate::tls::rustls::msgs::alert::AlertMessagePayload;
-use crate::tls::rustls::msgs::base::Payload;
-use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
-use crate::tls::rustls::msgs::enums::{
-    AlertDescription, AlertLevel, CipherSuite, Compression, HandshakeType, KeyUpdateRequest,
-    NamedGroup, ProtocolVersion, SignatureScheme,
-};
 use crate::tls::rustls::msgs::handshake::{
-    CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayload,
-    CertificatePayloadTLS13, CertificateRequestPayload, CertificateRequestPayloadTLS13,
-    CertificateStatus, ClientExtension, ClientHelloPayload, DigitallySignedStruct,
-    ECDHEServerKeyExchange, HandshakeMessagePayload, HandshakePayload, HelloRetryExtension,
-    NewSessionTicketExtension, NewSessionTicketPayload, NewSessionTicketPayloadTLS13,
-    PresharedKeyIdentity, Random, ServerExtension, ServerHelloPayload, ServerKeyExchangePayload,
-    SessionID,
+    CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayloadTLS13,
+    CertificateRequestPayload, CertificateRequestPayloadTLS13, CertificateStatus,
+    ClientSessionTicket, DigitallySignedStruct, HelloRetryExtension, NewSessionTicketExtension,
+    NewSessionTicketPayloadTLS13, PresharedKeyIdentity, Random, ServerExtension, SessionID,
+    UnknownExtension,
 };
-use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 use crate::tls::rustls::msgs::message::{try_read_bytes, Message, MessagePayload, OpaqueMessage};
 use crate::tls::rustls::msgs::{self};
 use crate::tls::violation::TlsSecurityViolationPolicy;
 use crate::tls::TLS_SIGNATURE;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Extractable)]
+#[extractable(TLSProtocolTypes)]
 pub struct MessageFlight {
     pub messages: Vec<Message>,
 }
@@ -89,7 +80,8 @@ impl codec::Codec for MessageFlight {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Extractable)]
+#[extractable(TLSProtocolTypes)]
 pub struct OpaqueMessageFlight {
     pub messages: Vec<OpaqueMessage>,
 }
@@ -176,45 +168,6 @@ impl ProtocolMessage<TLSProtocolTypes, OpaqueMessage> for Message {
     }
 }
 
-impl Extractable<TLSProtocolTypes> for MessageFlight {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-
-        for msg in &self.messages {
-            msg.extract_knowledge(knowledges, matcher, source)?;
-        }
-        Ok(())
-    }
-}
-
-impl Extractable<TLSProtocolTypes> for OpaqueMessageFlight {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        for msg in &self.messages {
-            msg.extract_knowledge(knowledges, matcher, source)?;
-        }
-        Ok(())
-    }
-}
-
 impl Extractable<TLSProtocolTypes> for Message {
     /// Extracts knowledge from a [`crate::tls::rustls::msgs::message::Message`].
     /// Only plaintext messages yield more knowledge than their binary payload.
@@ -248,444 +201,6 @@ impl Extractable<TLSProtocolTypes> for Message {
     }
 }
 
-impl Extractable<TLSProtocolTypes> for MessagePayload {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        match &self {
-            MessagePayload::Alert(alert) => alert.extract_knowledge(knowledges, matcher, source)?,
-            MessagePayload::Handshake(hs) => hs.extract_knowledge(knowledges, matcher, source)?,
-            MessagePayload::ChangeCipherSpec(ccs) => {
-                ccs.extract_knowledge(knowledges, matcher, source)?
-            }
-            MessagePayload::ApplicationData(opaque) => {
-                opaque.extract_knowledge(knowledges, matcher, source)?
-            }
-            MessagePayload::Heartbeat(h) => h.extract_knowledge(knowledges, matcher, source)?,
-            MessagePayload::TLS12EncryptedHandshake(tls12encrypted) => {
-                tls12encrypted.extract_knowledge(knowledges, matcher, source)?
-            }
-        }
-        Ok(())
-    }
-}
-
-impl Extractable<TLSProtocolTypes> for ChangeCipherSpecPayload {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-
-        Ok(())
-    }
-}
-
-impl Extractable<TLSProtocolTypes> for HeartbeatPayload {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.payload.0,
-        });
-        Ok(())
-    }
-}
-
-impl Extractable<TLSProtocolTypes> for AlertMessagePayload {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.description,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.level,
-        });
-        Ok(())
-    }
-}
-
-impl Extractable<TLSProtocolTypes> for HandshakeMessagePayload {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.typ,
-        });
-        self.payload
-            .extract_knowledge(knowledges, matcher, source)?;
-        Ok(())
-    }
-}
-
-impl Extractable<TLSProtocolTypes> for HandshakePayload {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        match &self {
-            HandshakePayload::HelloRequest | HandshakePayload::HelloRetryRequest(_) => {}
-            HandshakePayload::ClientHello(ch) => {
-                ch.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::ServerHello(sh) => {
-                sh.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::Certificate(c) => {
-                c.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::ServerKeyExchange(ske) => {
-                ske.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::ServerHelloDone => {}
-            HandshakePayload::ClientKeyExchange(cke) => {
-                cke.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::NewSessionTicket(ticket) => {
-                ticket.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::EncryptedExtensions(ext) => {
-                ext.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::CertificateTLS13(c) => {
-                c.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::CertificateRequest(c) => {
-                c.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::CertificateRequestTLS13(c) => {
-                c.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::CertificateVerify(c) => {
-                c.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::EndOfEarlyData => {}
-            HandshakePayload::NewSessionTicketTLS13(t) => {
-                t.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::KeyUpdate(k) => {
-                k.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::Finished(payload) => {
-                payload.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::CertificateStatus(certificate_status) => {
-                certificate_status.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::MessageHash(payload) => {
-                payload.extract_knowledge(knowledges, matcher, source)?;
-            }
-            HandshakePayload::Unknown(payload) => {
-                payload.extract_knowledge(knowledges, matcher, source)?;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl Extractable<TLSProtocolTypes> for CertificatePayload {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.0,
-        });
-        Ok(())
-    }
-}
-
-impl Extractable<TLSProtocolTypes> for ServerKeyExchangePayload {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        match self {
-            ServerKeyExchangePayload::ECDHE(ecdhe) => {
-                // this path wont be taken because we do not know the key exchange algorithm
-                // in advance
-                ecdhe.extract_knowledge(knowledges, matcher, source)?;
-            }
-            ServerKeyExchangePayload::Unknown(unknown) => {
-                unknown.extract_knowledge(knowledges, matcher, source)?;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl Extractable<TLSProtocolTypes> for ECDHEServerKeyExchange {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        Ok(())
-    }
-}
-
-impl Extractable<TLSProtocolTypes> for Payload {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.0,
-        });
-        Ok(())
-    }
-}
-
-impl Extractable<TLSProtocolTypes> for ClientHelloPayload {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.random,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.session_id,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.client_version,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.extensions,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.compression_methods,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.cipher_suites,
-        });
-        // we add both the Vec<T> and below the Wrapper(T) too
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.extensions.0,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.compression_methods.0,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.cipher_suites.0,
-        });
-        knowledges.extend(self.extensions.0.iter().map(|extension| Knowledge {
-            source,
-            matcher,
-            data: extension,
-        }));
-        knowledges.extend(
-            self.compression_methods
-                .0
-                .iter()
-                .map(|compression| Knowledge {
-                    source,
-                    matcher,
-                    data: compression,
-                }),
-        );
-        knowledges.extend(self.cipher_suites.0.iter().map(|cipher_suite| Knowledge {
-            source,
-            matcher,
-            data: cipher_suite,
-        }));
-        Ok(())
-    }
-}
-
-impl Extractable<TLSProtocolTypes> for NewSessionTicketPayload {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.lifetime_hint,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.ticket.0,
-        });
-        Ok(())
-    }
-}
-
-impl Extractable<TLSProtocolTypes> for ServerHelloPayload {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.random,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.session_id,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.cipher_suite,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.compression_method,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.legacy_version,
-        });
-        // we add both the Vec<T> and below the Wrapper(T) too
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.extensions.0,
-        });
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: &self.extensions,
-        });
-        knowledges.extend(self.extensions.0.iter().map(|extension| Knowledge {
-            source,
-            matcher,
-            data: extension,
-        }));
-        Ok(())
-    }
-}
-
 impl ProtocolMessageDeframer<TLSProtocolTypes> for MessageDeframer {
     type OpaqueProtocolMessage = OpaqueMessage;
 
@@ -704,101 +219,29 @@ impl OpaqueProtocolMessage<TLSProtocolTypes> for OpaqueMessage {
     }
 }
 
-impl Extractable<TLSProtocolTypes> for OpaqueMessage {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<TlsQueryMatcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        Ok(())
-    }
-}
-
-atom_extract_knowledge!(TLSProtocolTypes, AlertDescription);
-atom_extract_knowledge!(TLSProtocolTypes, AlertLevel);
 atom_extract_knowledge!(TLSProtocolTypes, CertReqExtension);
-atom_extract_knowledge!(TLSProtocolTypes, Certificate);
 atom_extract_knowledge!(TLSProtocolTypes, CertificateEntry);
 atom_extract_knowledge!(TLSProtocolTypes, CertificateExtension);
 atom_extract_knowledge!(TLSProtocolTypes, CertificatePayloadTLS13);
 atom_extract_knowledge!(TLSProtocolTypes, CertificateRequestPayload);
 atom_extract_knowledge!(TLSProtocolTypes, CertificateRequestPayloadTLS13);
 atom_extract_knowledge!(TLSProtocolTypes, CertificateStatus);
-atom_extract_knowledge!(TLSProtocolTypes, CipherSuite);
-atom_extract_knowledge!(TLSProtocolTypes, ClientExtension);
-atom_extract_knowledge!(TLSProtocolTypes, Compression);
 atom_extract_knowledge!(TLSProtocolTypes, DigitallySignedStruct);
 atom_extract_knowledge!(TLSProtocolTypes, HandshakeHash);
-atom_extract_knowledge!(TLSProtocolTypes, HandshakeType);
 atom_extract_knowledge!(TLSProtocolTypes, HelloRetryExtension);
-atom_extract_knowledge!(TLSProtocolTypes, KeyUpdateRequest);
-atom_extract_knowledge!(TLSProtocolTypes, NamedGroup);
 atom_extract_knowledge!(TLSProtocolTypes, NewSessionTicketExtension);
 atom_extract_knowledge!(TLSProtocolTypes, NewSessionTicketPayloadTLS13);
 atom_extract_knowledge!(TLSProtocolTypes, PresharedKeyIdentity);
-atom_extract_knowledge!(TLSProtocolTypes, ProtocolVersion);
 atom_extract_knowledge!(TLSProtocolTypes, Random);
 atom_extract_knowledge!(TLSProtocolTypes, ServerExtension);
 atom_extract_knowledge!(TLSProtocolTypes, SessionID);
-atom_extract_knowledge!(TLSProtocolTypes, SignatureScheme);
 atom_extract_knowledge!(TLSProtocolTypes, u32);
 atom_extract_knowledge!(TLSProtocolTypes, u64);
+atom_extract_knowledge!(TLSProtocolTypes, u16);
 atom_extract_knowledge!(TLSProtocolTypes, u8);
 dummy_extract_knowledge!(TLSProtocolTypes, bool);
-
-impl<T: EvaluatedTerm<TLSProtocolTypes> + Clone + codec::Codec + 'static>
-    Extractable<TLSProtocolTypes> for Vec<T>
-where
-    Vec<T>: codec::Codec,
-{
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<<TLSProtocolTypes as ProtocolTypes>::Matcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-
-        for k in self {
-            k.extract_knowledge(knowledges, matcher, source)?;
-        }
-        Ok(())
-    }
-}
-
-impl<T: Extractable<TLSProtocolTypes> + Clone + 'static> Extractable<TLSProtocolTypes> for Option<T>
-where
-    Option<T>: codec::Codec,
-{
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
-        matcher: Option<<TLSProtocolTypes as ProtocolTypes>::Matcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-
-        match self {
-            Some(x) => x.extract_knowledge(knowledges, matcher, source)?,
-            None => (),
-        }
-        Ok(())
-    }
-}
+dummy_codec!(TLSProtocolTypes, UnknownExtension);
+dummy_codec!(TLSProtocolTypes, ClientSessionTicket);
 
 impl Matcher for msgs::enums::HandshakeType {
     fn matches(&self, matcher: &Self) -> bool {
@@ -846,6 +289,9 @@ pub struct TLSDescriptorConfig {
     pub try_reuse: bool,
     /// List of available TLS ciphers
     pub cipher_string: String,
+    /// List of available TLS groups/curves
+    /// If `None`, use the default PUT groups
+    pub groups: Option<String>,
 }
 
 impl TLSDescriptorConfig {
@@ -881,6 +327,7 @@ impl ProtocolDescriptorConfig for TLSDescriptorConfig {
         self.typ == other.typ
             && self.tls_version == other.tls_version
             && self.cipher_string == other.cipher_string
+            && self.groups == other.groups
     }
 }
 
@@ -893,6 +340,7 @@ impl Default for TLSDescriptorConfig {
             try_reuse: false,
             typ: AgentType::Server,
             cipher_string: String::from("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2"),
+            groups: None,
         }
     }
 }

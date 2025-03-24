@@ -20,6 +20,7 @@ claims = []
 libssh-sys = { path = "../crates/libssh-sys", features = ["libssh0104"] }
 puffin = { path = "../puffin" }
 puffin-build = { path = "../puffin-build" }
+extractable-macro = { path = "../extractable-macro" }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 
