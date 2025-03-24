@@ -287,6 +287,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             }))
         }
 
+        log::trace!("Comparing knowledge stores");
         let _ = std::iter::zip(first_store, second_store)
             .enumerate()
             .map(|(idx, (x, y))| {
@@ -429,6 +430,8 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     spawner: Spawner<PB>,
 
     phantom: PhantomData<PB>,
+    /// The number of steps that have been successfully executed
+    pub executed_until: usize,
 }
 
 impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
@@ -468,6 +471,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             claims,
             spawner,
             phantom: Default::default(),
+            executed_until: 0,
         }
     }
 
@@ -681,6 +685,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
             step.execute(ctx)?;
 
             ctx.verify_security_violations()?;
+            ctx.executed_until = i;
         }
 
         Ok(())
