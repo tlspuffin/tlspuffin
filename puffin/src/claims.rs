@@ -154,6 +154,7 @@ impl<C: Claim> ClaimList<C> {
             })
             .collect();
 
+        log::trace!("Comparing claim lists");
         let diffs = self_claims_filtered.comparison(&other_claims_filtered);
         match diffs {
             comparable::Changed::Unchanged => Ok(()),
