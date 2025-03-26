@@ -723,7 +723,7 @@ dependencies = [
  "puffin",
  "quote",
  "serde",
- "syn 2.0.87",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -2111,7 +2111,7 @@ version = "0.1.0"
 dependencies = [
  "bindgen 0.69.5",
  "cmake",
- "env_logger",
+ "env_logger 0.10.2",
  "extractable-macro",
  "foreign-types 0.5.0",
  "libssh-sys",
@@ -2280,7 +2280,7 @@ dependencies = [
  "boring",
  "boringssl-sys",
  "criterion",
- "env_logger",
+ "env_logger 0.10.2",
  "extractable-macro",
  "foreign-types 0.3.2",
  "foreign-types 0.5.0",
