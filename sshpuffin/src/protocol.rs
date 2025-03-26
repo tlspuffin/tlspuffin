@@ -1,16 +1,17 @@
 use std::any::TypeId;
 
+use extractable_macro::Extractable;
 use puffin::agent::ProtocolDescriptorConfig;
 use puffin::algebra::signature::Signature;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
 use puffin::error::Error;
 use puffin::protocol::{
-    EvaluatedTerm, Extractable, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
+    EvaluatedTerm, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
     ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
 use puffin::put::PutDescriptor;
-use puffin::trace::{Knowledge, Source, Trace};
+use puffin::trace::Trace;
 use serde::{Deserialize, Serialize};
 
 use crate::claim::SshClaim;
@@ -20,7 +21,8 @@ use crate::ssh::message::{RawSshMessage, SshMessage};
 use crate::ssh::SSH_SIGNATURE;
 use crate::violation::SshSecurityViolationPolicy;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Extractable)]
+#[extractable(SshProtocolTypes)]
 pub struct SshMessageFlight {
     pub messages: Vec<SshMessage>,
 }
@@ -67,29 +69,13 @@ impl From<SshMessage> for SshMessageFlight {
     }
 }
 
-impl Extractable<SshProtocolTypes> for SshMessageFlight {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
-        matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        for msg in &self.messages {
-            msg.extract_knowledge(knowledges, matcher, source)?;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Extractable)]
+#[extractable(SshProtocolTypes)]
 pub struct RawSshMessageFlight {
     pub messages: Vec<RawSshMessage>,
 }
+
+impl VecCodecWoSize for RawSshMessage {}
 
 impl OpaqueProtocolMessageFlight<SshProtocolTypes, RawSshMessage> for RawSshMessageFlight {
     fn new() -> Self {
@@ -102,25 +88,6 @@ impl OpaqueProtocolMessageFlight<SshProtocolTypes, RawSshMessage> for RawSshMess
 
     fn debug(&self, info: &str) {
         log::debug!("{}: {:?}", info, self);
-    }
-}
-
-impl Extractable<SshProtocolTypes> for RawSshMessageFlight {
-    fn extract_knowledge<'a>(
-        &'a self,
-        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
-        matcher: Option<<SshProtocolTypes as ProtocolTypes>::Matcher>,
-        source: &'a Source,
-    ) -> Result<(), Error> {
-        knowledges.push(Knowledge {
-            source,
-            matcher,
-            data: self,
-        });
-        for msg in &self.messages {
-            msg.extract_knowledge(knowledges, matcher, source)?;
-        }
-        Ok(())
     }
 }
 

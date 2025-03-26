@@ -4,6 +4,7 @@
 use puffin::algebra::error::FnError;
 use puffin::codec::{Codec, Reader};
 
+use super::suite_as_supported_suite;
 use crate::tls::key_exchange::tls12_new_secrets;
 use crate::tls::key_schedule::dhe_key_schedule;
 use crate::tls::rustls::hash_hs::HandshakeHash;
@@ -128,23 +129,24 @@ pub fn fn_verify_data(
     server_key_share: &Option<Vec<u8>>,
     psk: &Option<Vec<u8>>,
     group: &NamedGroup,
+    client_random: &Random,
+    suite: &CipherSuite,
 ) -> Result<Vec<u8>, FnError> {
-    let client_random = &[1u8; 32]; // todo see op_random() https://github.com/tlspuffin/tlspuffin/issues/129
-    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
+    let supported_suite = suite_as_supported_suite(suite)?;
 
-    let key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
+    let key_schedule = dhe_key_schedule(&supported_suite, group, server_key_share, psk)?;
 
     let (hs, _client_secret, _server_secret) = key_schedule.derive_handshake_secrets(
         &server_hello.get_current_hash_raw(),
         &NoKeyLog,
-        client_random,
+        &client_random.0,
     );
 
     let (pending, _client_secret, _server_secret) = hs
         .into_traffic_with_client_finished_pending_raw(
             &server_hello.get_current_hash_raw(),
             &NoKeyLog,
-            client_random,
+            &client_random.0,
         );
 
     let (_traffic, tag, _client_secret) =
@@ -158,16 +160,17 @@ pub fn fn_verify_data_server(
     server_key_share: &Option<Vec<u8>>,
     group: &NamedGroup,
     psk: &Option<Vec<u8>>,
+    client_random: &Random,
+    suite: &CipherSuite,
 ) -> Result<Vec<u8>, FnError> {
-    let client_random = &[1u8; 32]; // todo see op_random() https://github.com/tlspuffin/tlspuffin/issues/129
-    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256; // todo see op_cipher_suites()
+    let supported_suite = suite_as_supported_suite(suite)?;
 
-    let key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
+    let key_schedule = dhe_key_schedule(&supported_suite, group, server_key_share, psk)?;
 
     let (hs, _client_secret, _server_secret) = key_schedule.derive_handshake_secrets(
         &server_hello.get_current_hash_raw(),
         &NoKeyLog,
-        client_random,
+        &client_random.0,
     );
 
     let tag = hs.sign_server_finish_raw(&server_finished.get_current_hash_raw());
@@ -184,8 +187,18 @@ pub fn fn_sign_transcript(
     server_ecdh_pubkey: &Vec<u8>,
     transcript: &HandshakeHash,
     group: &NamedGroup,
+    client_random: &Random,
+    suite: &CipherSuite,
 ) -> Result<Vec<u8>, FnError> {
-    let secrets = tls12_new_secrets(server_random, server_ecdh_pubkey, group)?;
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let secrets = tls12_new_secrets(
+        server_random,
+        server_ecdh_pubkey,
+        group,
+        client_random,
+        supported_suite,
+    )?;
 
     let vh = transcript.get_current_hash();
     Ok(secrets.client_verify_data(&vh))

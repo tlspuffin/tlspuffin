@@ -1,10 +1,14 @@
+use extractable_macro::Extractable;
 use puffin::codec::{Codec, Reader};
 
+use crate::protocol::TLSProtocolTypes;
 use crate::tls::rustls::msgs::base::PayloadU16;
 use crate::tls::rustls::msgs::enums::HeartbeatMessageType;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Extractable)]
+#[extractable(TLSProtocolTypes)]
 pub struct HeartbeatPayload {
+    #[extractable_ignore]
     pub typ: HeartbeatMessageType,
     pub payload: PayloadU16,
     pub fake_length: Option<u16>,

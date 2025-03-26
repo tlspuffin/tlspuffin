@@ -7,10 +7,11 @@ macro_rules! enum_builder {
         EnumVal { $( $enum_var: ident => $enum_val: expr ),* }
     ) => {
         $(#[$comment])*
-        #[derive(Debug, PartialEq, Eq, Clone, Copy, serde::Deserialize, serde::Serialize, Hash)]
+        #[derive(Debug, PartialEq, Eq, Clone, Copy, serde::Deserialize, serde::Serialize, Hash, Extractable)]
+        #[extractable(TLSProtocolTypes)]
         pub enum $enum_name {
             $( $enum_var),*
-            ,Unknown(u8)
+            ,Unknown(#[extractable_ignore] u8)
         }
         impl $enum_name {
             pub fn get_u8(&self) -> u8 {
@@ -46,10 +47,11 @@ macro_rules! enum_builder {
         EnumVal { $( $enum_var: ident => $enum_val: expr ),* }
     ) => {
         $(#[$comment])*
-        #[derive(Debug, PartialEq, Eq, Clone, Copy, serde::Deserialize, serde::Serialize, Hash)]
+        #[derive(Debug, PartialEq, Eq, Clone, Copy, serde::Deserialize, serde::Serialize, Hash, Extractable)]
+        #[extractable(TLSProtocolTypes)]
         pub enum $enum_name {
             $( $enum_var),*
-            ,Unknown(u16)
+            ,Unknown(#[extractable_ignore] u16)
         }
         impl $enum_name {
             pub fn get_u16(&self) -> u16 {

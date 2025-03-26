@@ -1,16 +1,16 @@
 use std::fmt::Debug;
 
+use extractable_macro::Extractable;
+use puffin::codec;
 use puffin::codec::{Codec, Reader};
-use puffin::error::Error;
-use puffin::protocol::{Extractable, ProtocolTypes};
-use puffin::trace::{Knowledge, Source};
-use puffin::{atom_extract_knowledge, codec};
 
 use crate::protocol::TLSProtocolTypes;
 use crate::tls::rustls::key;
+
 /// An externally length'd payload
-#[derive(Debug, Clone, PartialEq)]
-pub struct Payload(pub Vec<u8>);
+#[derive(Debug, Clone, PartialEq, Extractable)]
+#[extractable(TLSProtocolTypes)]
+pub struct Payload(#[extractable_no_recursion] pub Vec<u8>);
 
 impl Codec for Payload {
     fn encode(&self, bytes: &mut Vec<u8>) {
@@ -51,7 +51,8 @@ impl Codec for key::Certificate {
 }
 
 /// An arbitrary, unknown-content, u24-length-prefixed payload
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Extractable)]
+#[extractable(TLSProtocolTypes)]
 pub struct PayloadU24(pub Vec<u8>);
 
 impl PayloadU24 {
@@ -75,8 +76,9 @@ impl Codec for PayloadU24 {
 }
 
 /// An arbitrary, unknown-content, u16-length-prefixed payload
-#[derive(Debug, Clone, PartialEq)]
-pub struct PayloadU16(pub Vec<u8>);
+#[derive(Debug, Clone, PartialEq, Extractable)]
+#[extractable(TLSProtocolTypes)]
+pub struct PayloadU16(#[extractable_no_recursion] pub Vec<u8>);
 
 impl PayloadU16 {
     pub fn new(bytes: Vec<u8>) -> Self {
@@ -107,7 +109,8 @@ impl Codec for PayloadU16 {
 }
 
 /// An arbitrary, unknown-content, u8-length-prefixed payload
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Extractable)]
+#[extractable(TLSProtocolTypes)]
 pub struct PayloadU8(pub Vec<u8>);
 
 impl PayloadU8 {
@@ -142,7 +145,3 @@ impl Codec for PayloadU8 {
 impl codec::VecCodecWoSize for PayloadU8 {}
 impl codec::VecCodecWoSize for PayloadU16 {}
 impl codec::VecCodecWoSize for PayloadU24 {}
-
-atom_extract_knowledge!(TLSProtocolTypes, PayloadU8);
-atom_extract_knowledge!(TLSProtocolTypes, PayloadU16);
-atom_extract_knowledge!(TLSProtocolTypes, PayloadU24);

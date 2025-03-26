@@ -70,6 +70,7 @@ unsafe extern "C" fn make_result(code: RESULT_CODE, description: *const c_char) 
         }),
     });
 
+    log::trace!("PUT error log: {:?}", &result);
     Box::into_raw(result) as *mut _
 }
 
