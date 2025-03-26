@@ -1,16 +1,21 @@
+use std::any::TypeId;
 use std::cell::{Ref, RefCell, RefMut};
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::rc::Rc;
 use std::slice::Iter;
 
+use anyhow::Result;
+use comparable::Comparable;
 use itertools::Itertools;
 
 use crate::agent::AgentName;
 use crate::algebra::dynamic_function::TypeShape;
+use crate::differential::TraceDifference;
 use crate::protocol::{EvaluatedTerm, ProtocolTypes};
 
-pub trait Claim: EvaluatedTerm<Self::PT> + Debug {
+pub trait Claim: EvaluatedTerm<Self::PT> + Debug + Comparable + PartialEq {
     type PT: ProtocolTypes;
 
     fn agent_name(&self) -> AgentName;
@@ -77,6 +82,16 @@ impl<C: Claim> From<Vec<C>> for ClaimList<C> {
     }
 }
 
+fn filter_claims<C: Claim>(claim: &C, blacklist: &Option<Vec<TypeId>>) -> bool {
+    if let Some(b) = blacklist {
+        if b.iter().any(|x| *x == claim.id().into()) {
+            return false;
+        }
+    }
+
+    true
+}
+
 impl<C: Claim> ClaimList<C> {
     #[must_use]
     pub const fn new() -> Self {
@@ -85,6 +100,68 @@ impl<C: Claim> ClaimList<C> {
 
     pub fn claim_sized(&mut self, claim: C) {
         self.claims.push(claim);
+    }
+
+    pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
+        let blacklist = <C::PT as ProtocolTypes>::differential_fuzzing_claims_blacklist();
+
+        let mut self_claims_filtered = HashMap::<AgentName, Vec<&C>>::new();
+        self.claims
+            .iter()
+            .filter(|x| filter_claims(*x, &blacklist))
+            .map(|c| {
+                self_claims_filtered
+                    .entry(c.agent_name())
+                    .or_insert(vec![])
+                    .push(c)
+            })
+            .count();
+
+        let mut other_claims_filtered = HashMap::<AgentName, Vec<&C>>::new();
+        other
+            .claims
+            .iter()
+            .filter(|x| filter_claims(*x, &blacklist))
+            .map(|c| {
+                other_claims_filtered
+                    .entry(c.agent_name())
+                    .or_insert(vec![])
+                    .push(c)
+            })
+            .count();
+
+        self_claims_filtered = self_claims_filtered
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    v.into_iter()
+                        .dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
+                        .collect(),
+                )
+            })
+            .collect();
+
+        other_claims_filtered = other_claims_filtered
+            .into_iter()
+            .map(|(k, v)| {
+                (
+                    k,
+                    v.into_iter()
+                        .dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
+                        .collect(),
+                )
+            })
+            .collect();
+
+        log::trace!("Comparing claim lists");
+        let diffs = self_claims_filtered.comparison(&other_claims_filtered);
+        match diffs {
+            comparable::Changed::Unchanged => Ok(()),
+            comparable::Changed::Changed(changes) => {
+                Err(vec![TraceDifference::Claims(format!("{:#?}", changes))])
+            }
+        }
     }
 }
 
@@ -109,5 +186,9 @@ impl<C: Claim> GlobalClaimList<C> {
     #[must_use]
     pub fn deref_borrow_mut(&self) -> RefMut<'_, ClaimList<C>> {
         self.claims.deref().borrow_mut()
+    }
+
+    pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
+        self.claims.borrow().compare(&other.claims.borrow())
     }
 }
