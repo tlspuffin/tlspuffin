@@ -138,6 +138,14 @@ pub fn proba_mutations(with_bit_level: bool, with_dy: bool, nb_executions: usize
     normalize_proba(&mut probabilities_dy);
     assert_eq!(probabilities_dy.len(), 36);
     probabilities_dy
+    // vec![
+    //     0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    // ]
+    // vec![
+    //     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.4, 0.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    //     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+    // ]
 }
 
 #[must_use]
@@ -480,7 +488,6 @@ where
             if let Some(to_replace) = choose_term_filtered_mut(
                 trace,
                 |term: &Term<PT>| term.get_type_shape() == replacement.get_type_shape(),
-                // TODO-bitlevel: maybe also check that both are .is_symbolic()
                 self.constraints,
                 rand,
             ) {
@@ -770,7 +777,7 @@ where
     // We get payload_0 by symbolically evaluating the term! (and not full eval with potential
     // payloads in sub-terms). This because, doing differently would dramatically complexify the
     // computation of replace_payloads. See terms.rs. Also, one could argue the mutations of the
-    // strict sub-terms could have been done on the larger term in thje first place.
+    // strict sub-terms could have been done on the larger term in the first place.
     t.make_payload(ctx)?;
     Ok(())
 }
@@ -797,8 +804,6 @@ where
                                      * with MakeMessage */
             no_payload_in_subterm: false, /* change to true to exclude picking a term with a
                                            * payload in a sub-term */
-            // Currently sets to false, we would need to measure efficiency improvement before
-            // setting to true TODO
             not_inside_list: true, /* true means we are not picking terms inside list (like
                                     * fn_append in the middle) */
             // we set it to true since it would otherwise be redundant with picking each of the item
@@ -819,10 +824,13 @@ where
         {
             log::debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
             let spawner = Spawner::new(self.put_registry.clone());
+            // log::trace!("Using self.put_registry {:?} to compute ctx",
+            // self.put_registry.default().name());
             let mut ctx = TraceContext::new(spawner);
             match make_message_term(trace, &(step_index, term_path), &mut ctx) {
                 // TODO: possibly we would need to make sure the mutated trace can be executed (if
-                // not directly dropped by the feedback loop once executed)
+                // not directly dropped by the feedback loop once executed).
+                // TODO: maybe check we get the same by reading /encoding
                 Ok(()) => {
                     log::debug!("mutation::MakeMessage successful!");
                     Ok(MutationResult::Mutated)
