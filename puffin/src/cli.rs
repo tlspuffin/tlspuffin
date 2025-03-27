@@ -43,7 +43,7 @@ where
         .arg(arg!(--tui "Display fuzzing logs using the interactive terminal UI"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
-        .arg(arg!(--"wo-bit" "Disable bit-level mutations"))
+        .arg(arg!(--"with-bit" "Enable bit-level mutations"))
         .arg(arg!(--"wo-dy" "Disable DY mutations"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
@@ -112,7 +112,7 @@ where
     let tui = matches.get_flag("tui");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
-    let without_bit_level = matches.get_flag("wo-bit");
+    let without_bit_level = !matches.get_flag("with-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
     let target_put: Option<&String> = matches.get_one("put");
 
@@ -447,11 +447,17 @@ where
             no_launcher,
         };
 
+        if without_bit_level && without_dy_mutations {
+            log::error!("Both bit-level and DY mutations are disabled. This is not supported.");
+            return ExitCode::FAILURE;
+        }
+
         if without_bit_level {
             config.mutation_config.with_bit_level = false;
         }
         if without_dy_mutations {
             config.mutation_config.with_dy = false;
+            config.mutation_config.term_constraints.must_be_root = true;
         }
 
         if let Err(err) = start::<PB>(&put_registry, default_put, config, handle) {
