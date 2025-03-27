@@ -457,6 +457,7 @@ where
         }
         if without_dy_mutations {
             config.mutation_config.with_dy = false;
+            config.mutation_config.term_constraints.must_be_root = true;
         }
 
         if let Err(err) = start::<PB>(&put_registry, default_put, config, handle) {
