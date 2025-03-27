@@ -256,6 +256,14 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
+    /// When the term starts with an opaque function symbol (like encryption)
+    pub fn is_get(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(fd, _) => fd.is_get(),
+        }
+    }
+
     /// When the term has a variable as sub-term
     pub fn has_variable(&self) -> bool {
         match &self.term {
@@ -293,11 +301,11 @@ impl<PT: ProtocolTypes> Term<PT> {
 
     /// Make and Add a payload at the root position, erase payloads in strict sub-terms not under
     /// opaque
-    pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) -> Result<(), Error>
+    pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) -> Result<()>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        let eval = self.evaluate_symbolic(ctx)?;
+        let eval = self.evaluate(ctx)?;
         self.add_payload(eval);
         Ok(())
     }

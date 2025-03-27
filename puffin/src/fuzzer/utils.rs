@@ -99,7 +99,7 @@ pub type TermPath = Vec<usize>;
 pub type TracePath = (StepIndex, TermPath);
 
 // RULE: never choose a term for a DY or bit-level mutation which is a sub-term of a not
-// is_symbolic() term Indeed, this latter term is considered atomic/leaf and is treated as a
+// is_symbolic() term. Indeed, this latter term is considered atomic/leaf and is treated as a
 // bitstring.
 /// <https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm>
 fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
@@ -178,8 +178,8 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
                     if filter(term)
                         && (!constraints.must_be_symbolic || term.is_symbolic())
                         && (!constraints.no_payload_in_subterm // TODO: currently not used!
-                            || (term.is_symbolic() && term.payloads_to_replace().is_empty())
-                            || (!term.is_symbolic() && term.payloads_to_replace().len() == 1))
+                            || (term.is_symbolic() && !term.has_payload_to_replace())
+                            || (!term.is_symbolic() && !term.has_payload_to_replace_wo_root()))
                         && (!constraints.not_inside_list || !term.is_list())
                     {
                         let level = if if_weighted {
