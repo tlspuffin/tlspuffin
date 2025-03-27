@@ -19,9 +19,10 @@ use puffin::algebra::error::FnError;
 use puffin::define_signature; //puffin/algebra/signature.rs
 use puffin::error::Error;
 
+use opcua_core::*;
+
 use crate::protocol::OpcuaProtocolTypes;
 
-pub mod rustopcua;
 pub mod seeds;
 
 pub mod fn_constants;

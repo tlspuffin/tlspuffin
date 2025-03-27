@@ -1,0 +1,3 @@
+[submodule "opcuapuffin/src/opcua/rustopcua"]
+	path = opcuapuffin/src/opcua/rustopcua
+	url = git@github.com:tlspuffin/async-opcua.git
