@@ -117,7 +117,8 @@ impl<PT: ProtocolTypes> Function<PT> {
                                                            // mutations currently
                                                            // interpret `get`
                                                            // symbols as
-                                                           // `opaque` symbols
+                                                           // `opaque` symbols //TODO
+                                                           // TODO
     }
 
     pub fn is_list(&self) -> bool {
