@@ -13,8 +13,26 @@ use puffin::error::Error;
 
 use crate::protocol::{OpcuaProtocolTypes, ChannelMode};
 
+use opcua_types::{MessageSecurityMode, OpenSecureChannelRequest};
+
 // We modelize as a term algebra the messages as we did in the paper.
 // We use then the PUT harness for implementation details.
+
+
+// MessageSecurityMode
+impl Extractable<OpcuaProtocolTypes> for MessageSecurityMode {
+   fn extract_knowledge<'a>(
+           &'a self,
+           knowledges: &mut Vec<Knowledge<'a, OpcuaProtocolTypes>>,
+           matcher: Option<<OpcuaProtocolTypes as ProtocolTypes>::Matcher>,
+           source: &'a Source,
+       ) -> Result<(), Error> {
+
+    Ok(())
+   }
+
+}
+// dummy_extract_knowledge_codec!(OpcuaProtocolTypes, MessageSecurityMode);
 
 
 // Open Secure Channel
@@ -72,12 +90,17 @@ dummy_extract_knowledge_codec!(
 
 pub fn fn_open_channel_request(
     mode: ChannelMode
-) -> Result<OpenChannelRequest, FnError> {
-    Ok(OpenChannelRequest {
-        sc_id: fn_new_channel_id().unwrap(),
-        mode: fn_mode(mode).unwrap(),
-        payload: vec![0x01, 0x02, 0x03, 0x04],
-    })
+) -> Result<OpenSecureChannelRequest, FnError> {
+    let local_nonce: Vec<u8> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+    Ok(OpenSecureChannelRequest {
+        request_header: opcua_types::RequestHeader::dummy(),
+        client_protocol_version: 1,
+        request_type: opcua_types::SecurityTokenRequestType::Issue,
+        security_mode: opcua_types::MessageSecurityMode::Sign,
+        client_nonce: opcua_types::ByteString { value: Some(local_nonce)},
+        requested_lifetime: 777
+       }
+    )
 }
 
 

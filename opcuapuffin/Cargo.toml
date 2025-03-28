@@ -16,20 +16,20 @@ categories.workspace = true
 rust-put = []
 
 [dependencies]
+async-opcua-core = {path = "../crates/rustopcua/async-opcua-core", version = "0.14.0"}
+async-opcua-types = {path = "../crates/rustopcua/async-opcua-types", version = "0.14.0"}
 base64 = "0.21"
 bitflags = "2.4"
 byteorder = "1.4"
 chrono = { version = "0.4.38", features = ["serde"] }
 hashbrown = "^0.15"
 lazy_static = "1.5.0"
+log = { workspace = true }
 puffin = { path = "../puffin" }
 puffin-macros = { path = "../puffin-macros" }
+serde = { workspace = true, features = ["derive"] }
 uuid = { version = "1.2", features = ["v4"] }
 
-log = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-
-async-opcua-core = {path = "src/opcua/rustopcua/async-opcua-core", version = "0.14.0"}
 
 [build-dependencies]
 # It is essential that this dependency be listed as build-dependencies! Because it is one. Else features get resolved wrong.

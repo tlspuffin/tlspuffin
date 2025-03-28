@@ -19,8 +19,6 @@ use puffin::algebra::error::FnError;
 use puffin::define_signature; //puffin/algebra/signature.rs
 use puffin::error::Error;
 
-use opcua_core::*;
-
 use crate::protocol::OpcuaProtocolTypes;
 
 pub mod seeds;
@@ -42,6 +40,6 @@ define_signature!{
     // fn_true
     // fn_false
     // fn_seq_0
-    // fn_open_channel_request
+    //fn_open_channel_request
     fn_message_chunk
 }
