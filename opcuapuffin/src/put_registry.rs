@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use puffin::put_registry::{PutRegistry, Factory};
+use puffin::put_registry::{Factory, PutRegistry};
 
 use crate::protocol::OpcuaProtocolBehavior;
 

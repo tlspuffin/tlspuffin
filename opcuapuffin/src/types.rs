@@ -7,24 +7,26 @@ use std::io::Read;
 use puffin::agent::{AgentDescriptor, AgentName, ProtocolDescriptorConfig};
 use puffin::algebra::signature::Signature;
 use puffin::algebra::Matcher;
+use puffin::claims::SecurityViolationPolicy;
+use puffin::codec::{Codec, CodecP, Reader};
 use puffin::error::Error;
 use puffin::protocol::{
     EvaluatedTerm, Extractable, OpaqueProtocolMessage, OpaqueProtocolMessageFlight,
     ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
     ProtocolTypes,
 };
-use crate::messages::OpcuaSecurityViolationPolicy;
-use puffin::claims::SecurityViolationPolicy;
-use puffin::codec::{Codec, CodecP, Reader};
-use puffin::{codec, dummy_extract_knowledge, dummy_extract_knowledge_codec, dummy_codec};
 use puffin::put::PutDescriptor;
 use puffin::trace::{Knowledge, Source, Trace};
-
+use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
 use serde::{Deserialize, Serialize};
-use crate::messages::{TestMessage, TestMessageFlight, TestOpaqueMessage, TestOpaqueMessageFlight};
+
 use crate::claims::OpcuaClaim;
-use crate::put_registry::opcua_registry;
+use crate::messages::{
+    OpcuaSecurityViolationPolicy, TestMessage, TestMessageFlight, TestOpaqueMessage,
+    TestOpaqueMessageFlight,
+};
 use crate::opcua::OPCUA_SIGNATURE;
+use crate::put_registry::opcua_registry;
 
 // Types: we will eventually want to move this to the opcua-mapper package
 
@@ -44,9 +46,9 @@ pub enum OpcuaVersion {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub enum ChannelMode {
-    None,   // unsecure channel
-    Sign,   // sign-only
-    Encrypt,// sign and encrypt
+    None,    // unsecure channel
+    Sign,    // sign-only
+    Encrypt, // sign and encrypt
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
@@ -69,14 +71,19 @@ pub struct OpcuaDescriptorConfig {
     pub kind: AgentType,
     pub version: OpcuaVersion,
     pub mode: ChannelMode,
-    pub check: SessionSecurity, /// Default: SSec.
+    pub check: SessionSecurity,
+    /// Default: SSec.
     pub login: UserToken,
     /// List of available OPC UA ciphers
     pub cipher_string: String,
 }
 
 impl OpcuaDescriptorConfig {
-    pub fn new_client(name: AgentName, mode: ChannelMode, login: UserToken) -> AgentDescriptor<Self> {
+    pub fn new_client(
+        name: AgentName,
+        mode: ChannelMode,
+        login: UserToken,
+    ) -> AgentDescriptor<Self> {
         let protocol_config = Self {
             kind: AgentType::Client,
             mode,
@@ -90,7 +97,11 @@ impl OpcuaDescriptorConfig {
         }
     }
 
-    pub fn new_server(name: AgentName, mode: ChannelMode, login: UserToken) -> AgentDescriptor<Self> {
+    pub fn new_server(
+        name: AgentName,
+        mode: ChannelMode,
+        login: UserToken,
+    ) -> AgentDescriptor<Self> {
         let protocol_config = Self {
             kind: AgentType::Server,
             mode,
@@ -106,7 +117,9 @@ impl OpcuaDescriptorConfig {
 }
 
 impl ProtocolDescriptorConfig for OpcuaDescriptorConfig {
-    fn is_reusable_with(&self, _other: &Self) -> bool {false}
+    fn is_reusable_with(&self, _other: &Self) -> bool {
+        false
+    }
 }
 
 impl Default for OpcuaDescriptorConfig {
@@ -121,7 +134,6 @@ impl Default for OpcuaDescriptorConfig {
         }
     }
 }
-
 
 // Query Matcher:
 
@@ -146,7 +158,6 @@ impl Matcher for OpcuaQueryMatcher {
         }
     }
 }
-
 
 // Protocol Types:
 

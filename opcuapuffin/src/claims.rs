@@ -1,7 +1,6 @@
 /// OPC UA claims are for the security properties AgrS and AgrC.
 ///
 /// /!\ not implemented yet /!\
-
 use std::fmt::Debug;
 
 use puffin::agent::AgentName;
@@ -38,9 +37,9 @@ impl Claim for OpcuaClaim {
         panic!("Not implemented yet for OPC UA");
     }
 }
- 
+
 dummy_extract_knowledge_codec!(OpcuaProtocolTypes, OpcuaClaim);
- 
+
 // impl Extractable<OpcuaProtocolTypes> for OpcuaClaim {
 //     fn extract_knowledge(
 //         &self,

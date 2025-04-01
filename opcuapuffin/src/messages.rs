@@ -1,25 +1,19 @@
-use puffin::trace::Source;
-use crate::claims::OpcuaClaim;
-use puffin::claims::SecurityViolationPolicy;
-use puffin::protocol::ProtocolMessageDeframer;
-use puffin::codec;
-use puffin::protocol::ProtocolMessage;
-use puffin::protocol::ProtocolTypes;
-use puffin::trace::Knowledge;
-use puffin::protocol::Extractable;
-use puffin::codec::{CodecP, Reader};
-use puffin::dummy_codec;
-use puffin::dummy_extract_knowledge;
 use std::convert::TryFrom;
 use std::fmt;
 use std::io::Read;
-use puffin::dummy_extract_knowledge_codec;
+
+use puffin::claims::SecurityViolationPolicy;
+use puffin::codec::{Codec, CodecP, Reader};
 use puffin::error::Error;
-use puffin::protocol::OpaqueProtocolMessage;
+use puffin::protocol::{
+    Extractable, OpaqueProtocolMessage, OpaqueProtocolMessageFlight, ProtocolMessage,
+    ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
+};
+use puffin::trace::{Knowledge, Source};
+use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
+
+use crate::claims::OpcuaClaim;
 use crate::types::OpcuaProtocolTypes;
-use puffin::protocol::ProtocolMessageFlight;
-use puffin::protocol::OpaqueProtocolMessageFlight;
-use puffin::codec::Codec;
 
 // Messages: we might eventually want to move this to the opcua-mapper package
 pub struct TestOpaqueMessage;
@@ -107,12 +101,12 @@ impl SecurityViolationPolicy for OpcuaSecurityViolationPolicy {
 pub struct TestMessageFlight;
 
 impl
-ProtocolMessageFlight<
-    OpcuaProtocolTypes,
-    TestMessage,
-    TestOpaqueMessage,
-    TestOpaqueMessageFlight,
-> for TestMessageFlight
+    ProtocolMessageFlight<
+        OpcuaProtocolTypes,
+        TestMessage,
+        TestOpaqueMessage,
+        TestOpaqueMessageFlight,
+    > for TestMessageFlight
 {
     fn new() -> Self {
         Self {}
@@ -146,7 +140,9 @@ impl From<TestMessage> for TestMessageFlight {
 #[derive(Debug, Clone, Default)]
 pub struct TestOpaqueMessageFlight;
 
-impl OpaqueProtocolMessageFlight<OpcuaProtocolTypes, TestOpaqueMessage> for TestOpaqueMessageFlight {
+impl OpaqueProtocolMessageFlight<OpcuaProtocolTypes, TestOpaqueMessage>
+    for TestOpaqueMessageFlight
+{
     fn new() -> Self {
         Self {}
     }

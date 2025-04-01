@@ -5,9 +5,8 @@
 
 use puffin::trace::Trace;
 
-use crate::types::OpcuaProtocolTypes;
 use crate::protocol::OpcuaProtocolBehavior;
-
+use crate::types::OpcuaProtocolTypes;
 
 // This macro, copied from TLSPuffin, should be in Puffin??
 macro_rules! corpus {
@@ -36,7 +35,7 @@ pub fn create_corpus(
 ) -> Vec<(Trace<OpcuaProtocolTypes>, &'static str)> {
     corpus!(
         // Full Handshakes
-   
+
         // Client Attacks
 
         // Server Attacks
