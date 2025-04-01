@@ -207,6 +207,7 @@ dependencies = [
  "hashbrown 0.15.2",
  "log",
  "percent-encoding-rfc3986",
+ "puffin",
  "regex",
  "thiserror",
  "uuid",

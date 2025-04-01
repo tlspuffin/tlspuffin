@@ -1,5 +1,6 @@
-use puffin::protocol::EvaluatedTerm;
 use puffin::codec;
+use puffin::codec::CodecP;
+use puffin::protocol::EvaluatedTerm;
 use puffin::trace::Source;
 use puffin::protocol::ProtocolTypes;
 use puffin::trace::Knowledge;
@@ -19,7 +20,24 @@ use opcua_types::{MessageSecurityMode, OpenSecureChannelRequest};
 // We use then the PUT harness for implementation details.
 
 
-// MessageSecurityMode
+// // MessageSecurityMode
+// impl CodecP for MessageSecurityMode {
+//         /// Encode yourself by appending onto `bytes`.
+//         fn encode(&self, bytes: &mut Vec<u8>){
+//             let ctx_f = ContextOwned::default();
+//             let ctx = ctx_f.context();
+//             BinaryEncodable::encode(&self, &mut stream, &ctx).expect("Encoding failed")
+//         };
+
+//         /// Decode yourself by fiddling with the `Reader`.
+//         /// Return Some if it worked, None if not.
+//         fn read(_: &mut Reader) -> Option<Self>{
+//             let ctx_f = ContextOwned::default();
+//             let ctx = ctx_f.context();
+//             Self::decode(&mut Reader, &ctx)
+//         };
+// }
+
 impl Extractable<OpcuaProtocolTypes> for MessageSecurityMode {
    fn extract_knowledge<'a>(
            &'a self,
@@ -27,10 +45,13 @@ impl Extractable<OpcuaProtocolTypes> for MessageSecurityMode {
            matcher: Option<<OpcuaProtocolTypes as ProtocolTypes>::Matcher>,
            source: &'a Source,
        ) -> Result<(), Error> {
-
-    Ok(())
+      knowledges.push(Knowledge {
+         source,
+         matcher,
+         data: self,
+      });
+      Ok(())
    }
-
 }
 // dummy_extract_knowledge_codec!(OpcuaProtocolTypes, MessageSecurityMode);
 
