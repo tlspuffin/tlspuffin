@@ -14,7 +14,7 @@ use puffin::error::Error;
 
 use crate::protocol::{OpcuaProtocolTypes, ChannelMode};
 
-use opcua_types::{MessageSecurityMode, OpenSecureChannelRequest};
+use opcua::types::OpenSecureChannelRequest;
 
 // We modelize as a term algebra the messages as we did in the paper.
 // We use then the PUT harness for implementation details.
@@ -38,20 +38,20 @@ use opcua_types::{MessageSecurityMode, OpenSecureChannelRequest};
 //         };
 // }
 
-impl Extractable<OpcuaProtocolTypes> for MessageSecurityMode {
-   fn extract_knowledge<'a>(
-           &'a self,
-           knowledges: &mut Vec<Knowledge<'a, OpcuaProtocolTypes>>,
-           matcher: Option<<OpcuaProtocolTypes as ProtocolTypes>::Matcher>,
-           source: &'a Source,
-       ) -> Result<(), Error> {
-      knowledges.push(Knowledge {
-         source,
-         matcher,
-         data: self,
-      });
-      Ok(())
-   }
+impl Extractable<OpcuaProtocolTypes> for OpenSecureChannelRequest {
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, OpcuaProtocolTypes>>,
+        matcher: Option<<OpcuaProtocolTypes as ProtocolTypes>::Matcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+        Ok(())
+    }
 }
 // dummy_extract_knowledge_codec!(OpcuaProtocolTypes, MessageSecurityMode);
 
@@ -109,20 +109,20 @@ dummy_extract_knowledge_codec!(
     OpenChannelRequest
 );
 
-pub fn fn_open_channel_request(
-    mode: ChannelMode
-) -> Result<OpenSecureChannelRequest, FnError> {
-    let local_nonce: Vec<u8> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-    Ok(OpenSecureChannelRequest {
-        request_header: opcua_types::RequestHeader::dummy(),
-        client_protocol_version: 1,
-        request_type: opcua_types::SecurityTokenRequestType::Issue,
-        security_mode: opcua_types::MessageSecurityMode::Sign,
-        client_nonce: opcua_types::ByteString { value: Some(local_nonce)},
-        requested_lifetime: 777
-       }
-    )
-}
+// pub fn fn_open_channel_request(
+//     mode: ChannelMode
+// ) -> Result<OpenSecureChannelRequest, FnError> {
+//     let local_nonce: Vec<u8> = vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+//     Ok(OpenSecureChannelRequest {
+//         request_header: opcua_types::RequestHeader::dummy(),
+//         client_protocol_version: 1,
+//         request_type: opcua_types::SecurityTokenRequestType::Issue,
+//         security_mode: opcua_types::MessageSecurityMode::Sign,
+//         client_nonce: opcua_types::ByteString { value: Some(local_nonce)},
+//         requested_lifetime: 777
+//        }
+//     )
+// }
 
 
 #[derive(Debug, Clone)]

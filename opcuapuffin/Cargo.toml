@@ -16,8 +16,7 @@ categories.workspace = true
 rust-put = []
 
 [dependencies]
-async-opcua-core = {path = "../crates/rustopcua/async-opcua-core", version = "0.14.0"}
-async-opcua-types = {path = "../crates/rustopcua/async-opcua-types", version = "0.14.0"}
+opcua = {path = "../crates/opcua-mapper/lib"}
 base64 = "0.21"
 bitflags = "2.4"
 byteorder = "1.4"
