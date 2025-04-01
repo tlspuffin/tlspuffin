@@ -2,6 +2,7 @@ use std::convert::TryFrom;
 use std::fmt;
 use std::io::Read;
 
+use opcua::puffin::types::OpcuaProtocolTypes;
 use puffin::claims::SecurityViolationPolicy;
 use puffin::codec::{Codec, CodecP, Reader};
 use puffin::error::Error;
@@ -13,7 +14,6 @@ use puffin::trace::{Knowledge, Source};
 use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
 
 use crate::claims::OpcuaClaim;
-use crate::types::OpcuaProtocolTypes;
 
 // Messages: we might eventually want to move this to the opcua-mapper package
 pub struct TestOpaqueMessage;

@@ -2280,6 +2280,7 @@ dependencies = [
  "chrono",
  "derivative",
  "env_logger 0.10.2",
+ "extractable-macro",
  "foreign-types 0.3.2",
  "futures",
  "gethostname",

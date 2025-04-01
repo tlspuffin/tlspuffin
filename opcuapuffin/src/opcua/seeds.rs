@@ -3,10 +3,10 @@
 //! or the execution of a known attack.
 #![allow(dead_code)]
 
+use opcua::puffin::types::OpcuaProtocolTypes;
 use puffin::trace::Trace;
 
 use crate::protocol::OpcuaProtocolBehavior;
-use crate::types::OpcuaProtocolTypes;
 
 // This macro, copied from TLSPuffin, should be in Puffin??
 macro_rules! corpus {
