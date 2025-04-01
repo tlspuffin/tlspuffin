@@ -12,7 +12,7 @@ use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
 use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
 
-use crate::protocol::{AgentType, OpcuaProtocolTypes, OpcuaVersion};
+use crate::types::{AgentType, OpcuaProtocolTypes, OpcuaVersion};
 
 #[derive(Debug, Clone)]
 pub struct OpcuaClaim {

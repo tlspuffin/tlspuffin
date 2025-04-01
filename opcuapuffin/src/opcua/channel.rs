@@ -12,7 +12,7 @@ use puffin::algebra::dynamic_function::FunctionAttributes;
 use puffin::algebra::error::FnError;
 use puffin::error::Error;
 
-use crate::protocol::{OpcuaProtocolTypes, ChannelMode};
+use crate::types::{OpcuaProtocolTypes, ChannelMode};
 
 use opcua::types::OpenSecureChannelRequest;
 

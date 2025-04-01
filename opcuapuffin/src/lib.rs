@@ -10,6 +10,7 @@ mod rust_put;
 
 pub mod claims;
 //pub mod debug;
+pub mod types;
 pub mod protocol;
 pub mod put;
 
@@ -18,4 +19,5 @@ pub mod put_registry;
 //pub mod static_certs;
 //pub mod tcp;
 
+pub mod messages;
 pub mod opcua;

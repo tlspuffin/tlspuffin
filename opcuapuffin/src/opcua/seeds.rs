@@ -5,9 +5,8 @@
 
 use puffin::trace::Trace;
 
-use crate::protocol::{
-    OpcuaProtocolBehavior, OpcuaProtocolTypes
-};
+use crate::types::OpcuaProtocolTypes;
+use crate::protocol::OpcuaProtocolBehavior;
 
 
 // This macro, copied from TLSPuffin, should be in Puffin??

@@ -19,7 +19,7 @@ use puffin::algebra::error::FnError;
 use puffin::define_signature; //puffin/algebra/signature.rs
 use puffin::error::Error;
 
-use crate::protocol::OpcuaProtocolTypes;
+use crate::types::OpcuaProtocolTypes;
 
 pub mod seeds;
 
