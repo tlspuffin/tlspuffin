@@ -24,7 +24,7 @@ file(GLOB HARNESS_SOURCES ${HARNESS}/src/*.c ${HARNESS}/src/*.cxx)
 add_library(${PUT} STATIC ${HARNESS_SOURCES})
 
 include(CheckPIESupported)
-check_pie_supported(OUTPUT_VARIABLE output LANGUAGES C)
+check_pie_supported(OUTPUT_VARIABLE output LANGUAGES C CXX)
 set_property(TARGET ${PUT} PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 if(NOT CMAKE_C_LINK_PIE_SUPPORTED)
   message(WARNING "No support for PIE at link time. PIE link options will be ignored.")
