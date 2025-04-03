@@ -9,9 +9,6 @@ use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 
 pub mod seeds;
 
-pub mod fn_constants;
-pub use fn_constants::*;
-
 // UA Secure Channel (Part 6)
 pub mod channel;
 pub use channel::*;
