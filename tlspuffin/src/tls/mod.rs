@@ -234,6 +234,8 @@ define_signature!(
     fn_psk
     fn_decrypt_application [opaque] [no_gen]
     fn_encrypt_handshake [opaque]
+    fn_encrypt_handshake [opaque]
+    fn_encrypt_handshake [opaque]
     fn_encrypt_application [opaque]
     fn_derive_psk [opaque]
     fn_derive_binder [opaque]
@@ -265,10 +267,10 @@ define_signature!(
     fn_empty_payload_u8_vec
     fn_append_payload_u8_vec [list]
     // transcript functions
-    fn_server_hello_transcript [opaque]
-    fn_client_finished_transcript [opaque]
-    fn_server_finished_transcript [opaque]
-    fn_certificate_transcript [opaque]
+    fn_server_hello_transcript [opaque] [no_gen]
+    fn_client_finished_transcript [opaque] [no_gen]
+    fn_server_finished_transcript [opaque] [no_gen]
+    fn_certificate_transcript [opaque] [no_gen]
     // certificate functions
     fn_bob_cert
     fn_bob_key

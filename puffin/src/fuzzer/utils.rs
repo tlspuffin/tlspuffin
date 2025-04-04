@@ -21,6 +21,8 @@ pub struct TermConstraints {
     pub weighted_depth: bool,
     // only select root terms
     pub must_be_root: bool,
+    // Number of terms to generate for each type
+    pub zoo_gen_how_many: usize,
 }
 
 /// Default values which represent no constraint
@@ -35,6 +37,10 @@ impl Default for TermConstraints {
             not_inside_list: false,
             weighted_depth: false,
             must_be_root: false,
+            zoo_gen_how_many: 10, /* Over-approximates 1/10 of the threshold obtained from
+                                   * `test_term_payloads_eval`, making sure we successfully
+                                   * generate, MakeMessage,
+                                   * and evaluate after 10 expansions of TermZoo. Was 1 initially */
         }
     }
 }

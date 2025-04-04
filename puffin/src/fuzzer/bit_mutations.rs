@@ -389,7 +389,7 @@ where
 
 /// Randomly choose a payload and its index (nth) in a trace (mutable reference), if there is any
 /// and if it has at least 2 bytes
-fn choose_payload_mut<'a, PT, S>(
+pub fn choose_payload_mut<'a, PT, S>(
     trace: &'a mut Trace<PT>,
     state: &mut S,
 ) -> Option<(&'a mut Vec<u8>, usize)>
