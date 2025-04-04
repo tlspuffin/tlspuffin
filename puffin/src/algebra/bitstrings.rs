@@ -116,7 +116,7 @@ pub fn find_unique_match<PT: ProtocolTypes>(
     eval_tree: &EvalTree,
     whole_term: &Term<PT>,
 ) -> Result<usize> {
-    Ok(find_unique_match_rec(path_to_search, eval_tree)
+    Ok(find_unique_match_rec(path_to_search, eval_tree, whole_term)
         .with_context(||
     format!(" --> [find_unique_match] Failure. Did not find! - path_to_search:{path_to_search:?}\n - whole_term:\n{whole_term}\n - eval_tree:\n{eval_tree:?}")
         )?)
@@ -128,10 +128,15 @@ pub fn find_unique_match<PT: ProtocolTypes>(
 /// - encoded arguments can be found in this same order in the evaluation of the father node
 /// - there can be headers of arbitrary length
 /// - no trailer (no bytes added after the last argument encoding)
-pub fn find_unique_match_rec(path_to_search: &[usize], eval_tree: &EvalTree) -> Result<usize> {
+pub fn find_unique_match_rec<PT: ProtocolTypes>(
+    path_to_search: &[usize],
+    eval_tree: &EvalTree,
+    whole_term: &Term<PT>,
+) -> Result<usize> {
     log::debug!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?},\n - eval_tree: {eval_tree:?},\n - to_search: {:?}", eval_tree.get(path_to_search)?.encode.as_ref().unwrap());
     let mut path_to_search = path_to_search;
     let mut eval_tree = eval_tree;
+    let mut term = whole_term;
     let mut start_pos = 0;
     let eval_to_search = eval_tree
         .get(path_to_search)?
@@ -149,9 +154,14 @@ pub fn find_unique_match_rec(path_to_search: &[usize], eval_tree: &EvalTree) -> 
             .encode
             .as_ref()
             .expect("[find_unique_match_rec] EvalTree should have been computed");
+        let root_is_get = term.is_get();
+
         let children = &eval_tree.args;
         eval_tree = eval_tree.get(&[child_arg])?; // we move to the next child for the future while iteration
         path_to_search = &path_to_search[1..];
+        term = term
+            .get(&[child_arg])
+            .expect("[find_unique_match_rec] term does not match eval_tree");
         let eval_child = eval_tree
             .encode
             .as_ref()
@@ -162,13 +172,11 @@ pub fn find_unique_match_rec(path_to_search: &[usize], eval_tree: &EvalTree) -> 
             && (eval_to_search.len() > THRESHOLD_SIZE
                 || eval_root.len() / eval_to_search.len() < THRESHOLD_RATIO)
         {
-            let direct_matches = search_sub_vec_all(eval_root, eval_to_search);
-            if direct_matches.len() == 1 {
+            if let Some(unique_pos) = search_sub_vec_unique(eval_root, eval_to_search) {
                 log::debug!(
-                    "[find_unique_match_rec] Directly found unique match in root: {}",
-                    direct_matches[0]
+                    "[find_unique_match_rec] Directly found unique match in root: {unique_pos}"
                 );
-                return Ok(start_pos + direct_matches[0]);
+                return Ok(start_pos + unique_pos);
             } else {
                 log::debug!("[find_unique_match_rec] Direct found is not unique!");
             }
@@ -176,7 +184,8 @@ pub fn find_unique_match_rec(path_to_search: &[usize], eval_tree: &EvalTree) -> 
 
         // We are looking for an empty encoding, we will position relative to the siblings
         if eval_child.is_empty() {
-            // TODO: this assumes no trailer, we should make sure this is indeed the case
+            // TODO: this assumes no trailer and no intermediate header, we should make sure this is
+            // indeed the case
             let mut eval_right_siblings = Vec::new();
             for right_sibling in (child_arg + 1)..nb_children {
                 eval_right_siblings.extend_from_slice(
@@ -200,7 +209,21 @@ pub fn find_unique_match_rec(path_to_search: &[usize], eval_tree: &EvalTree) -> 
             let ft = format!(
                 "--> [find_unique_match_rec] Child {child_arg} encoding not found in root for path {path_to_search:?}\n - eval_root:\n  {eval_root:?}\n  - eval_child:\n  {eval_child:?}",
             );
-            return Err(anyhow!(Error::TermBug(ft)));
+            if root_is_get {
+                // This case is to be expected: we are looking for a child encoding that might just
+                // not been present in the encoding because the function symbol is a `get` symbol.
+                // No relevant payload replacement is possible --> We returns a simple error in that
+                // case.
+                return Err(anyhow!(Error::Term(format!(
+                    "{}\n--> [symbol above was a get symbol so this is not a critical error]",
+                    ft
+                ))));
+            } else {
+                return Err(anyhow!(Error::TermBug(format!(
+                    "{}\n--> [symbol above was not a get symbol so this is a critical error]",
+                    ft
+                ))));
+            }
         }
 
         // If matches is unique: we found the (unique) right position
@@ -259,7 +282,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
         log::trace!("[replace_payload] --------> treating {} at path {:?} on message of length = {}. Shift = {shift}", payload_context.payloads, payload_context.path, to_modify.len());
         let old_bitstring = if term.has_variable() {
             // We prefer looking for the payload in the term evaluation in case it has changed since
-            // MakeMessage because of variables (that might contain different values)
+            // MakeMessage because of variables (that might contain different values now)
             eval_tree
                 .get(path_payload)
                 .with_context(|| format!("[replace_payloads] Should never happen"))?
@@ -350,7 +373,8 @@ impl<PT: ProtocolTypes> Term<PT> {
     {
         log::debug!("[eval_until_opaque] [START]: Eval term:\n {self}");
         // We optimize here by bypassing evaluation and directly read over the payload when the term
-        // has no variable. Indeed, variables may contain different values since we did MakeMessage
+        // has no variable. Indeed, variables may contain different values since when we ran
+        // MakeMessage
         if let (true, false, Some(payload)) = (with_payloads, self.has_variable(), &self.payloads) {
             log::trace!(
                 "[eval_until_opaque] Trying to read payload_0 to skip further computations... payload_0: {:?}",
@@ -457,9 +481,9 @@ impl<PT: ProtocolTypes> Term<PT> {
                         })?; // payloads in ti are consumed here!
                         let di = PB::try_read_bytes(&bi, typei.clone().into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
                             .with_context(|| format!("--> [eval_until_opaque] [argument is symbolic: {}] Try Read bytes failed for type shape: {}, typeid: {:?} on term argument (arg: {i})\n\
-                            {}\n\
-                            - eval_tree:\n {eval_tree:?}\n\
-                            - all its payloads:{}.\n {}",
+                                {}\n\
+                                - eval_tree:\n {eval_tree:?}\n\
+                                - all its payloads:{}.\n {}",
                                                      ti.is_symbolic(), typei, TypeId::from(typei.clone()), &ti, &ti.all_payloads().iter().format(","),
                                                      if !ti.is_symbolic() {
                                                          format!("[eval_until_opaque] Sanity check for Read:\n - new_eval  : {bi:?}\n - payload_0 :  {:?} ", ti.payloads.as_ref().unwrap().payload_0.bytes())
@@ -554,7 +578,7 @@ impl<PT: ProtocolTypes> Term<PT> {
     }
 }
 
-/// Return the first matching position and whether it is unique (true) or not (false)
+/// Return all the matching positions
 #[must_use]
 pub fn search_sub_vec_all(haystack: &[u8], needle: &[u8]) -> Vec<usize> {
     let mut matches = Vec::new();
@@ -570,4 +594,32 @@ pub fn search_sub_vec_all(haystack: &[u8], needle: &[u8]) -> Vec<usize> {
     }
     // log::trace!("search_sub_vec_double: not found");
     matches
+}
+
+/// Return the first matching position when it us unique, and None otherwise
+pub fn search_sub_vec_unique(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if haystack.len() < needle.len() {
+        // log::trace!("search_sub_vec_double: length");
+        return None;
+    }
+    let mut first_found = false;
+    let mut pos = 0;
+    for i in 0..=(haystack.len() - needle.len()) {
+        if haystack[i..i + needle.len()] == needle[..] {
+            // log::trace!("search_sub_vec_double: found for i:{i}");
+            if !first_found {
+                pos = i;
+                first_found = true;
+            } else {
+                // Double matches
+                return None;
+            }
+        }
+    }
+    // log::trace!("search_sub_vec_double: not found");
+    if first_found {
+        Some(pos)
+    } else {
+        None
+    }
 }
