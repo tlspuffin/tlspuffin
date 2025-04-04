@@ -15,7 +15,7 @@ categories.workspace = true
 [features]
 default = ["sancov", "introspection"]
 
-cputs = []
+cputs = ["deterministic", "claims"]
 rust-put = []
 
 openssl111 = ["openssl111k"]
