@@ -112,13 +112,7 @@ impl<PT: ProtocolTypes> Function<PT> {
     }
 
     pub fn is_opaque(&self) -> bool {
-        self.fn_container.attrs.is_opaque || self.is_get() // Added this
-                                                           // as bit-level
-                                                           // mutations currently
-                                                           // interpret `get`
-                                                           // symbols as
-                                                           // `opaque` symbols //TODO
-                                                           // TODO
+        self.fn_container.attrs.is_opaque
     }
 
     pub fn is_list(&self) -> bool {
