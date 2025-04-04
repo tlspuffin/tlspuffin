@@ -80,6 +80,9 @@ pub struct FunctionAttributes {
     /// Incidentally, its concretization does not contain all the conretizations of its arguments.
     /// Examples: `fn_get_server_key_share`.
     pub is_get: bool,
+    /// Whether we usually fail and thus prevent from trying to generate terms with that function
+    /// symbols at top-level. This will reduce the scope of the GenerateMutator.
+    pub no_gen: bool,
 }
 // TODO: add a uni test for making sure the given attributes are correct
 
@@ -89,6 +92,7 @@ impl Default for FunctionAttributes {
             is_opaque: false,
             is_list: false,
             is_get: false,
+            no_gen: false,
         }
     }
 }
