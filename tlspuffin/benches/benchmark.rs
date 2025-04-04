@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use anyhow::anyhow;
 use criterion::{criterion_group, criterion_main, Criterion};
 use puffin::algebra::dynamic_function::make_dynamic;
@@ -6,20 +8,24 @@ use puffin::algebra::{Term, TermType};
 use puffin::error::Error;
 use puffin::execution::{Runner, TraceRunner};
 use puffin::fuzzer::mutations::ReplaceReuseMutator;
+use puffin::fuzzer::term_zoo::TermZoo;
 use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::InMemoryCorpus;
-use puffin::libafl::mutators::Mutator;
+use puffin::libafl::mutators::{MutationResult, Mutator};
+use puffin::libafl::prelude::HasRand;
 use puffin::libafl::state::StdState;
+use puffin::libafl_bolts::prelude::Rand;
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 use puffin::protocol::EvaluatedTerm;
-use puffin::term;
 use puffin::trace::{Spawner, Trace, TraceContext};
 use puffin::trace_helper::TraceHelper;
+use puffin::{libafl, term};
 use tlspuffin::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use tlspuffin::put_registry::tls_registry;
 use tlspuffin::test_utils::*;
 use tlspuffin::tls::fn_impl::*;
 use tlspuffin::tls::seeds::*;
+use tlspuffin::tls::TLS_SIGNATURE;
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
     Ok(*a * *a)
@@ -165,13 +171,33 @@ fn benchmark_seeds(c: &mut Criterion) {
     group.finish()
 }
 
+fn compute_zoo_in_generate_mutator(c: &mut Criterion) {
+    let mut group = c.benchmark_group("mutations");
+    let tls_registry = tls_registry();
+    let spawner = Spawner::new(tls_registry.clone());
+    let ctx = TraceContext::new(spawner);
+    let mut i = 0;
+
+    group.bench_function("compute_zoo_in_generate_mutator", |b| {
+        b.iter(|| {
+            let _ = TermZoo::<TLSProtocolBehavior>::generate(
+                &ctx,
+                &TLS_SIGNATURE,
+                &mut StdRand::with_seed(i),
+                TermConstraints::default().zoo_gen_how_many,
+            );
+            i = i + 1;
+        })
+    });
+}
+
+// Ignored as it is redundant with benchmark_test_term_payloads_mutate_eval
 fn benchmark_term_payloads_eval(c: &mut Criterion) {
     let mut group = c.benchmark_group("mutations");
 
     let mut success_count = 0;
     let mut add_payload_fail = 0;
     let mut eval_payload_fail = 0;
-    let mut rand = StdRand::with_seed(102);
     let ignored_functions = ignore_add_payload(); // currently is the same as ignore_eval()
     let mut closure = |term: &Term<TLSProtocolTypes>,
                        ctx: &TraceContext<TLSProtocolBehavior>,
@@ -215,15 +241,109 @@ fn benchmark_term_payloads_eval(c: &mut Criterion) {
         b.iter(|| {
             let res = zoo_test(
                 &mut closure,
-                rand,
-                17000,
+                StdRand::with_seed(i),
+                100,
                 true,
                 false,
+                true,
+                true,
                 None,
                 &ignored_functions,
             );
             log::error!("Step {i}");
             i += 1;
+            assert!(res);
+        })
+    });
+}
+
+fn benchmark_test_term_payloads_mutate_eval(c: &mut Criterion) {
+    let mut group = c.benchmark_group("mutations");
+
+    let mut success_count = 0;
+    let mut add_payload_fail = 0;
+    let mut mutate_fail = 0;
+    let mut mutate_eval_fail = 0;
+    let ignored_functions = ignore_add_payload_mutate(); // currently is the same as ignore_eval()
+
+    let mut closure = |term: &Term<TLSProtocolTypes>,
+                       ctx: &TraceContext<TLSProtocolBehavior>,
+                       rand2: &mut RomuDuoJrRand| {
+        let mut state = create_state();
+        let mut term_with_payloads = term.clone();
+        add_payloads_randomly(&mut term_with_payloads, rand2, &ctx);
+        if term_with_payloads.all_payloads().len() == 0 {
+            log::warn!("Failed to add payloads, skipping... For:\n   {term_with_payloads}");
+            if !ignored_functions.contains(term.name()) {
+                add_payload_fail += 1;
+            }
+            return Err(anyhow!(Error::Term("Failed to add payloads".to_string())));
+        } else {
+            log::debug!("Term with payloads: {term_with_payloads}");
+            // Sanity check:
+            test_pay(&term_with_payloads);
+            let mut tries = 0;
+            while tries < 1_000 {
+                let mut mutant = term_with_payloads.clone();
+                tries += 1;
+                let mut all_payloads = mutant.all_payloads_mut();
+                let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
+                let payload_to_mutate = all_payloads.remove(idx);
+                let payload_to_mutate_orig = payload_to_mutate.payload_0.clone();
+                let payload_to_mutate = &mut payload_to_mutate.payload;
+                match libafl::mutators::mutations::BitFlipMutator
+                    .mutate(&mut state, payload_to_mutate, 0)
+                    .unwrap()
+                {
+                    MutationResult::Mutated => {
+                        if payload_to_mutate_orig == *payload_to_mutate {
+                            log::warn!("Mutated payload is the same as original: {payload_to_mutate_orig:?} == {payload_to_mutate:?}");
+                            mutate_fail += 1;
+                            continue;
+                        }
+                        log::debug!("Success MakeMessage: adding to new inputs");
+                        match &mutant.evaluate(&ctx) {
+                            Ok(_eval) => {
+                                log::debug!("Eval mutant success!");
+                                success_count += 1;
+                                return Ok(());
+                            }
+                            Err(e) => {
+                                log::warn!("Eval FAILED with payloads: {term_with_payloads} and error {e}.");
+                                if !ignored_functions.contains(term.name()) {
+                                    mutate_eval_fail += 1;
+                                }
+                                continue;
+                            }
+                        }
+                    }
+                    MutationResult::Skipped => {
+                        mutate_fail += 1;
+                    }
+                }
+            }
+            return Err(anyhow!(Error::Term(format!(
+                "Failed to find a way to mutate {term_with_payloads}!"
+            ))));
+        }
+    };
+
+    let mut i = 0;
+
+    group.bench_function("test_term_payloads_mutate_eval", |b| {
+        b.iter(|| {
+            let res = zoo_test(
+                &mut closure,
+                StdRand::with_seed(i),
+                100,
+                true,
+                false,
+                true,
+                true,
+                None,
+                &ignored_functions,
+            );
+            log::error!("Step {i}");
             assert!(res);
         })
     });
@@ -235,6 +355,13 @@ criterion_group!(
     benchmark_trace,
     benchmark_mutations,
     benchmark_seeds,
-    benchmark_term_payloads_eval,
 );
-criterion_main!(benches);
+criterion_group! {
+    name = long_benches;
+    config = Criterion::default().measurement_time(Duration::from_secs(20)).sample_size(10);
+    targets =
+    compute_zoo_in_generate_mutator,
+//    benchmark_term_payloads_eval, subsumed by benchmark_test_term_payloads_mutate_eval
+    benchmark_test_term_payloads_mutate_eval
+}
+criterion_main!(benches, long_benches);
