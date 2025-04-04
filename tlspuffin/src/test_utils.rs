@@ -1,4 +1,4 @@
-use std::cmp::max;
+use std::cmp::{max, min};
 use std::collections::HashSet;
 use std::time::Duration;
 
@@ -10,13 +10,19 @@ use puffin::algebra::signature::FunctionDefinition;
 use puffin::algebra::{DYTerm, Term, TermType};
 use puffin::error::Error;
 use puffin::execution::{ExecutionStatus, ForkedRunner, Runner, TraceRunner};
+use puffin::fuzzer::mutations::{trace_mutations, MutationConfig};
 use puffin::fuzzer::term_zoo::TermZoo;
 use puffin::fuzzer::utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints};
-use puffin::libafl_bolts::bolts_prelude::{Rand, RomuDuoJrRand};
+use puffin::libafl::corpus::{Corpus, InMemoryCorpus, Testcase};
+use puffin::libafl::mutators::MutatorsTuple;
+use puffin::libafl::prelude::StdState;
+use puffin::libafl_bolts::bolts_prelude::{Rand, RomuDuoJrRand, StdRand};
 use puffin::protocol::{ProtocolBehavior, ProtocolTypes};
 use puffin::put::PutDescriptor;
+use puffin::put_registry::PutRegistry;
 use puffin::trace::Action::Input;
 use puffin::trace::{InputAction, Spawner, Step, Trace, TraceContext};
+use puffin::trace_helper::TraceHelper;
 
 use crate::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put_registry::tls_registry;
@@ -25,6 +31,7 @@ use crate::tls::fn_impl::{
     fn_decrypt_multiple_handshake_messages, fn_server_finished_transcript,
     fn_server_hello_transcript,
 };
+use crate::tls::seeds::seed_successful;
 use crate::tls::TLS_SIGNATURE;
 
 pub fn default_runner_for(put: impl Into<PutDescriptor>) -> Runner<TLSProtocolBehavior> {
@@ -303,14 +310,22 @@ pub fn ignore_eval() -> HashSet<String> {
     ignore_gen
 }
 
-/// Functions that are known to fail to be adversarially generated
+/// Functions that are flagged to fail to be adversarially generated and evaluated according to the
+/// signature attribute [no_gen]
+pub fn ignore_eval_attribute() -> HashSet<String> {
+    TLS_SIGNATURE
+        .functions
+        .iter()
+        .filter(|f| TLS_SIGNATURE.attrs_by_name.get(f.0.name).unwrap().no_gen)
+        .map(|f| f.0.name.to_string())
+        .collect::<HashSet<String>>()
+}
+
+/// Functions that are known to fail to be adversarially generated, MakeMessage, evaluated
 pub fn ignore_add_payload() -> HashSet<String> {
     let mut ignore_eval = ignore_eval();
     let ignore_pay: HashSet<String> = [
         // No additional failures
-        // fn_find_server_certificate_verify.name(),
-        // fn_find_server_certificate_verify.name(),
-        // fn_find_server_finished.name(),
     ]
     .iter()
     .map(|fn_name: &&str| fn_name.to_string())
@@ -318,6 +333,20 @@ pub fn ignore_add_payload() -> HashSet<String> {
     ignore_eval.extend(ignore_pay);
     ignore_eval
 }
+
+/// Functions that are known to fail to be adversarially generated, MakeMessage, mutated, evaluated
+pub fn ignore_add_payload_mutate() -> HashSet<String> {
+    let mut ignore_add_payload = ignore_add_payload();
+    let ignore_mutate: HashSet<String> = [
+        // No additional failures
+    ]
+    .iter()
+    .map(|fn_name: &&str| fn_name.to_string())
+    .collect::<HashSet<String>>();
+    ignore_add_payload.extend(ignore_mutate);
+    ignore_add_payload
+}
+
 /// Parametric test for testing operations on terms (closure `test_map`, e.g., evaluation) through
 /// the generation of a zoo of terms
 pub fn zoo_test<Ft>(
@@ -328,6 +357,8 @@ pub fn zoo_test<Ft>(
                       * already positively tested */
     stop_on_error: bool, /* for each function, stop testing further terms if an error is
                           * encountered */
+    filter_executable: bool,
+    filter_no_gen: bool,
     filter: Option<&FunctionDefinition<TLSProtocolTypes>>,
     ignored_functions: &HashSet<String>,
 ) -> bool
@@ -353,17 +384,24 @@ where
     let bucket_size = 200;
     for f in &all_functions_shape {
         if filter.is_none() || (filter.is_some() && filter.unwrap().0.name == f.0.name) {
-            'outer: for i in 0..(how_many / bucket_size) {
-                let bucket_size_step = if i < how_many / bucket_size - 1 {
-                    bucket_size
+            'outer: for i in 0..max(1, how_many / bucket_size) {
+                let bucket_size_step = if how_many < bucket_size || i < how_many / bucket_size - 1 {
+                    min(how_many, bucket_size)
                 } else {
-                    how_many - bucket_size * (how_many / bucket_size - 1)
+                    min(
+                        how_many,
+                        how_many - bucket_size * (how_many / bucket_size - 1),
+                    )
                 };
-                let zoo_f = TermZoo::<TLSProtocolTypes>::generate_many(
+                log::error!("Call generate_many with bucket_size_step={bucket_size_step} and function {} and filter_executable: {filter_executable}", f.0.name);
+                let zoo_f = TermZoo::<TLSProtocolBehavior>::generate_many(
+                    &ctx,
                     &TLS_SIGNATURE,
                     &mut rand,
                     bucket_size_step,
                     Some(&f),
+                    filter_executable,
+                    filter_no_gen,
                 );
                 let terms_f = zoo_f.terms();
                 if terms_f.len() != how_many {
@@ -572,4 +610,45 @@ pub fn add_one_payload_randomly<
             "[add_one_payload_randomly] Unable to choose a suitable sub-term".to_string(),
         ))
     }
+}
+
+pub type TLSState = StdState<
+    Trace<TLSProtocolTypes>,
+    InMemoryCorpus<Trace<TLSProtocolTypes>>,
+    RomuDuoJrRand,
+    InMemoryCorpus<Trace<TLSProtocolTypes>>,
+>;
+
+pub fn create_state() -> TLSState {
+    let rand = StdRand::with_seed(1235);
+    let mut corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();
+    corpus.add(Testcase::new(seed_successful.build_trace()));
+    StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
+}
+
+pub fn test_mutations(
+    registry: &PutRegistry<TLSProtocolBehavior>,
+    with_bit_level: bool,
+    with_dy: bool,
+) -> impl MutatorsTuple<Trace<TLSProtocolTypes>, TLSState> + '_ {
+    let MutationConfig {
+        fresh_zoo_after,
+        max_trace_length,
+        min_trace_length,
+        term_constraints,
+        with_bit_level: _,
+        with_dy: _,
+        ..
+    } = MutationConfig::default();
+
+    trace_mutations::<TLSState, TLSProtocolTypes, TLSProtocolBehavior>(
+        min_trace_length,
+        max_trace_length,
+        term_constraints,
+        fresh_zoo_after,
+        with_bit_level,
+        with_dy,
+        TLSProtocolTypes::signature(),
+        registry,
+    )
 }

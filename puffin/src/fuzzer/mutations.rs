@@ -57,7 +57,7 @@ pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
     ReplaceReuseMutator<S>,
     ReplaceMatchMutator<S, PT>,
     RemoveAndLiftMutator<S>,
-    GenerateMutator<S, PT>,
+    GenerateMutator<'harness, S, PB>,
     SwapMutator<S>,
 // MakeMessage
     MakeMessage<'harness, S,PB>,
@@ -161,7 +161,7 @@ pub fn trace_mutations<'harness, S, PT: ProtocolTypes, PB>(
 ) -> DyMutations<'harness, PT, PB, S>
 where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
-    PB: ProtocolBehavior,
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
     tuple_list!(
         RepeatMutator::new(max_trace_length, with_dy),
@@ -169,7 +169,15 @@ where
         ReplaceReuseMutator::new(constraints, with_dy),
         ReplaceMatchMutator::new(constraints, signature, with_dy),
         RemoveAndLiftMutator::new(constraints, with_dy),
-        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature, with_dy), // Refresh zoo after 100000M mutations
+        GenerateMutator::new(
+            0,
+            fresh_zoo_after,
+            constraints,
+            None,
+            signature,
+            put_registry,
+            with_dy
+        ), // Refresh zoo after 100000M mutations
         SwapMutator::new(constraints, with_dy),
         MakeMessage::new(constraints, put_registry, with_bit_level, with_dy),
     )
@@ -633,19 +641,20 @@ where
 }
 
 /// GENERATE: Generates a previously-unseen term using a term zoo
-pub struct GenerateMutator<S, PT: ProtocolTypes>
+pub struct GenerateMutator<'a, S, PB: ProtocolBehavior>
 where
     S: HasRand,
 {
     mutation_counter: u64,
     refresh_zoo_after: u64,
     constraints: TermConstraints,
-    zoo: Option<TermZoo<PT>>,
-    signature: &'static Signature<PT>,
+    zoo: Option<TermZoo<PB>>,
+    signature: &'static Signature<PB::ProtocolTypes>,
+    put_registry: &'a PutRegistry<PB>,
     phantom_s: std::marker::PhantomData<S>,
     with_dy: bool,
 }
-impl<S, PT: ProtocolTypes> GenerateMutator<S, PT>
+impl<'a, S, PB: ProtocolBehavior> GenerateMutator<'a, S, PB>
 where
     S: HasRand,
 {
@@ -654,8 +663,9 @@ where
         mutation_counter: u64,
         refresh_zoo_after: u64,
         constraints: TermConstraints,
-        zoo: Option<TermZoo<PT>>,
-        signature: &'static Signature<PT>,
+        zoo: Option<TermZoo<PB>>,
+        signature: &'static Signature<PB::ProtocolTypes>,
+        put_registry: &'a PutRegistry<PB>,
         with_dy: bool,
     ) -> Self {
         Self {
@@ -664,19 +674,21 @@ where
             constraints,
             zoo,
             signature,
+            put_registry,
             phantom_s: std::marker::PhantomData,
             with_dy,
         }
     }
 }
-impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for GenerateMutator<S, PT>
+impl<'a, S, PB: ProtocolBehavior> Mutator<Trace<PB::ProtocolTypes>, S>
+    for GenerateMutator<'a, S, PB>
 where
     S: HasRand,
 {
     fn mutate(
         &mut self,
         state: &mut S,
-        trace: &mut Trace<PT>,
+        trace: &mut Trace<PB::ProtocolTypes>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         if !self.with_dy {
@@ -687,10 +699,29 @@ where
             log::debug!("[Mutation] Mutate GenerateMutator on term\n{}", to_mutate);
             self.mutation_counter += 1;
             let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
-                self.zoo.insert(TermZoo::generate(self.signature, rand))
+                log::debug!("[Mutation] Mutate GenerateMutator: refresh zoo");
+                let spawner = Spawner::new(self.put_registry.clone());
+                let ctx = TraceContext::new(spawner);
+                // TODO: ? Maybe remove some that cannot be evaluated!
+                // TODO: we should quantify whether this would be costly or not --> Maybe don't do
+                // it!
+                self.zoo.insert(TermZoo::generate(
+                    &ctx,
+                    self.signature,
+                    rand,
+                    self.constraints.zoo_gen_how_many,
+                ))
             } else {
-                self.zoo
-                    .get_or_insert_with(|| TermZoo::generate(self.signature, rand))
+                self.zoo.get_or_insert_with(|| {
+                    let spawner = Spawner::new(self.put_registry.clone());
+                    let ctx = TraceContext::new(spawner);
+                    TermZoo::generate(
+                        &ctx,
+                        self.signature,
+                        rand,
+                        self.constraints.zoo_gen_how_many,
+                    )
+                })
             };
             if let Some(term) = zoo.choose_filtered(
                 |term| to_mutate.get_type_shape() == term.get_type_shape(),
@@ -707,7 +738,7 @@ where
     }
 }
 
-impl<S, PT: ProtocolTypes> Named for GenerateMutator<S, PT>
+impl<'a, S, PB: ProtocolBehavior> Named for GenerateMutator<'a, S, PB>
 where
     S: HasRand,
 {
