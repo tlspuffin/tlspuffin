@@ -22,8 +22,8 @@ use puffin::trace_helper::TraceHelper;
 use puffin_macros::apply;
 use tlspuffin::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use tlspuffin::put_registry::tls_registry;
-use tlspuffin::test_utils::default_runner_for;
 use tlspuffin::test_utils::prelude::*;
+use tlspuffin::test_utils::{create_state, default_runner_for, test_mutations, TLSState};
 use tlspuffin::tls::fn_impl::{
     fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
     fn_support_group_extension,
@@ -32,47 +32,6 @@ use tlspuffin::tls::seeds::{
     _seed_client_attacker12, create_corpus, seed_client_attacker_full, seed_successful,
 };
 use tlspuffin::tls::TLS_SIGNATURE;
-
-pub type TLSState = StdState<
-    Trace<TLSProtocolTypes>,
-    InMemoryCorpus<Trace<TLSProtocolTypes>>,
-    RomuDuoJrRand,
-    InMemoryCorpus<Trace<TLSProtocolTypes>>,
->;
-
-fn create_state() -> TLSState {
-    let rand = StdRand::with_seed(1235);
-    let mut corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();
-    corpus.add(Testcase::new(seed_successful.build_trace()));
-    StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
-}
-
-fn test_mutations(
-    registry: &PutRegistry<TLSProtocolBehavior>,
-    with_bit_level: bool,
-    with_dy: bool,
-) -> impl MutatorsTuple<Trace<TLSProtocolTypes>, TLSState> + '_ {
-    let MutationConfig {
-        fresh_zoo_after,
-        max_trace_length,
-        min_trace_length,
-        term_constraints,
-        with_bit_level: _,
-        with_dy: _,
-        ..
-    } = MutationConfig::default();
-
-    trace_mutations::<TLSState, TLSProtocolTypes, TLSProtocolBehavior>(
-        min_trace_length,
-        max_trace_length,
-        term_constraints,
-        fresh_zoo_after,
-        with_bit_level,
-        with_dy,
-        TLSProtocolTypes::signature(),
-        registry,
-    )
-}
 
 /// Test that all mutations can be successfully applied on all traces from the corpus
 fn test_mutators() {
