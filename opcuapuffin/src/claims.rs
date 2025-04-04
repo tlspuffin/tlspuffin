@@ -28,7 +28,7 @@ impl Claim for OpcuaClaim {
     }
 
     fn id(&self) -> TypeShape<OpcuaProtocolTypes> {
-        type Type = TypeShape<OpcuaProtocolTypes>;
+        //type Type = TypeShape<OpcuaProtocolTypes>;
         panic!("Not implemented yet for OPC UA");
     }
 

@@ -5,13 +5,13 @@
 //! [`DynamicFunction`](puffin::algebra::dynamic_function::DynamicFunction)s which can be used in
 //! the fuzzing.
 
-use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
+//use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 
 pub mod seeds;
 
 // UA Secure Channel (Part 6)
 pub mod channel;
-pub use channel::*;
+//pub use channel::*;
 
 // Services (Part 4)
 // pub mod services;
