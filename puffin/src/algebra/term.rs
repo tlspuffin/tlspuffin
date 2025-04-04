@@ -294,15 +294,21 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
-    /// Add a payload at the root position, erase payloads in strict sub-terms not under opaque
-    pub fn add_payload(&mut self, payload: Vec<u8>) {
+    /// Add a payload at the root position and start with a new payload.payload possibly different
+    /// from payload.payload_0, erase payloads in strict sub-terms not under opaque
+    pub fn add_payload_with_new(&mut self, payload_0: Vec<u8>, payload_new: Vec<u8>) {
         self.payloads = Option::from({
             Payloads {
-                payload_0: BytesInput::new(payload.clone()),
-                payload: BytesInput::new(payload),
+                payload_0: payload_0.into(),
+                payload: payload_new.into(),
             }
         });
         self.erase_payloads_subterms(false);
+    }
+
+    /// Add a payload at the root position, erase payloads in strict sub-terms not under opaque
+    pub fn add_payload(&mut self, payload_0: Vec<u8>) {
+        self.add_payload_with_new(payload_0.clone(), payload_0)
     }
 
     /// Make and Add a payload at the root position, erase payloads in strict sub-terms not under
@@ -311,9 +317,17 @@ impl<PT: ProtocolTypes> Term<PT> {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        let eval = self.evaluate_symbolic(ctx)?; // we compute the original encoding, without payloads!
-        self.add_payload(eval);
-        Ok(())
+        let eval_0 = self.evaluate_symbolic(ctx)?; // we compute the original encoding, without payloads!
+        if self.has_payload_to_replace() {
+            // specific case: we will directly put the evaluation (with existing payloads in
+            // payload.payload)
+            let eval = self.evaluate(ctx)?; // we compute the original encoding, without payloads!
+            self.add_payload_with_new(eval_0, eval);
+            Ok(())
+        } else {
+            self.add_payload(eval_0);
+            Ok(())
+        }
     }
 
     /// Return all payloads contains in a term, even under opaque terms.
