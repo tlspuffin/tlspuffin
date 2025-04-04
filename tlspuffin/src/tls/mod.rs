@@ -222,7 +222,7 @@ define_signature!(
     fn_new_transcript
     fn_append_transcript [opaque] // this one is opaque and not list since it returns the hash of all elements added to the list so far
     fn_decrypt_handshake_flight [opaque]
-    fn_decrypt_multiple_handshake_messages [opaque]
+    fn_decrypt_multiple_handshake_messages [opaque] [no_gen]
     fn_decrypt_application_flight [opaque]
     fn_find_server_certificate [get]
     fn_find_server_certificate_request [get]
@@ -232,7 +232,7 @@ define_signature!(
     fn_find_server_finished [get]
     fn_no_psk
     fn_psk
-    fn_decrypt_application [opaque]
+    fn_decrypt_application [opaque] [no_gen]
     fn_encrypt_handshake [opaque]
     fn_encrypt_application [opaque]
     fn_derive_psk [opaque]

@@ -129,6 +129,10 @@ impl<PT: ProtocolTypes> Function<PT> {
         self.fn_container.attrs.is_get
     }
 
+    pub fn no_gen(&self) -> bool {
+        self.fn_container.attrs.no_gen
+    }
+
     #[must_use]
     pub fn new(shape: DynamicFunctionShape<PT>, dynamic_fn: Box<dyn DynamicFunction<PT>>) -> Self {
         let attrs = PT::signature()
