@@ -3,7 +3,7 @@ use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
 use super::utils::{
-    choose, choose_iter, choose_term, choose_term_filtered_mut, choose_term_mut,
+    choose, choose_filtered, choose_iter, choose_term, choose_term_filtered_mut, choose_term_mut,
     choose_term_path_filtered, find_term_mut, Choosable, TermConstraints, TracePath,
 };
 use crate::algebra::atoms::Function;
@@ -851,7 +851,7 @@ where
         }
         // choose a random sub term
         if let Some((chosen_term, (step_index, term_path))) =
-            choose(trace, constraints_make_message, rand)
+            choose_filtered(trace, constraints_make_message, |t| !t.is_no_bit(), rand)
         {
             log::debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
             let spawner = Spawner::new(self.put_registry.clone());

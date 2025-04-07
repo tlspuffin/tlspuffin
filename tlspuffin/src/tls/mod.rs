@@ -84,7 +84,7 @@ define_signature!(
     fn_seq_16
     fn_large_length
     fn_empty_bytes_vec
-    fn_large_bytes_vec
+    fn_large_bytes_vec [no_bit] // exclude MakeMessage and thus bit-level mutations
     // messages
     fn_alert_close_notify
     fn_application_data
