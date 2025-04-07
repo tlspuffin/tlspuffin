@@ -343,6 +343,15 @@ pub fn choose<'a, R: Rand, PT: ProtocolTypes>(
     reservoir_sample(trace, |_| true, constraints, rand)
 }
 
+pub fn choose_filtered<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+    trace: &'a Trace<PT>,
+    constraints: TermConstraints,
+    filter: P,
+    rand: &mut R,
+) -> Option<(&'a Term<PT>, (usize, TermPath))> {
+    reservoir_sample(trace, filter, constraints, rand)
+}
+
 pub fn choose_mut<'a, R: Rand, PT: ProtocolTypes>(
     trace: &'a mut Trace<PT>,
     constraints: TermConstraints,

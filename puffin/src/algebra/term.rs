@@ -270,6 +270,15 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
+    /// When the term starts with a `no_bit` function symbol. We will never MakeMessage on, thus
+    /// disabling applying any of the bit-level mutations.
+    pub fn is_no_bit(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(fd, _) => fd.no_bit(),
+        }
+    }
+
     /// When the term has a variable as sub-term
     pub fn has_variable(&self) -> bool {
         match &self.term {
