@@ -83,6 +83,9 @@ pub struct FunctionAttributes {
     /// Whether we usually fail and thus prevent from trying to generate terms with that function
     /// symbols at top-level. This will reduce the scope of the GenerateMutator.
     pub no_gen: bool,
+    /// Symbols we will never MakeMessage on, thus disabling applying any of the bit-level
+    /// mutations.
+    pub no_bit: bool,
 }
 // TODO: add a uni test for making sure the given attributes are correct
 
@@ -93,6 +96,7 @@ impl Default for FunctionAttributes {
             is_list: false,
             is_get: false,
             no_gen: false,
+            no_bit: false,
         }
     }
 }
