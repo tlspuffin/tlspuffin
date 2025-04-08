@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use puffin::agent::{AgentDescriptor, AgentName};
+use puffin::algebra::bitstrings::Payloads;
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 use puffin::{input_action, term};
@@ -723,6 +724,122 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
                         )
                     }
                 }),
+            },
+        ],
+    }
+}
+
+// Same as seed_cve_2022_38153 without the final fn_large_bytes_vec, to check whether we refind it
+// through bit-level mutations
+pub fn seed_cve_simple_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
+    let new_session_ticket_payload = term! {
+        fn_payload_u16(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>))
+    };
+
+    let last_term = term! {
+        fn_new_session_ticket(
+            ((server, 0)/u32),
+            (@new_session_ticket_payload)
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            TLSDescriptorConfig::new_client(client, TLSVersion::V1_2),
+            TLSDescriptorConfig::new_server(server, TLSVersion::V1_2),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            // Client Hello, Client -> Server
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_client_hello(
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0))
+                    )
+                },
+            ),
+            // Server Hello, Server -> Client
+            InputAction::new_step(
+                client,
+                term! {
+                        fn_server_hello(
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((client, 0)),
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((server, 0))
+                        )
+                },
+            ),
+            // Server Certificate, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_certificate(
+                            ((server, 0))
+                        )
+                    }
+                }),
+            },
+            // Server Key Exchange, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_server_key_exchange(
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                        )
+                    }
+                }),
+            },
+            // Server Hello Done, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_server_hello_done
+                    }
+                }),
+            },
+            // Client Key Exchange, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_client_key_exchange(
+                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
+                        )
+                    }
+                }),
+            },
+            // Client Change Cipher Spec, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_change_cipher_spec
+                    }
+                }),
+            },
+            // Client Handshake Finished, Client -> Server
+            // IMPORTANT: We are using here OpaqueMessage as the parsing code in src/io.rs does
+            // not know that the Handshake record message is encrypted. The parsed message from the
+            // could be a HelloRequest if the encrypted data starts with a 0.
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                           (client, 3)[None] > TypeShape::of::<OpaqueMessage>()
+                    }
+                }),
+            },
+            // NewSessionTicket, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { last_term }),
             },
         ],
     }
