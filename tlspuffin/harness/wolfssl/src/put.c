@@ -30,45 +30,11 @@ struct AGENT_TYPE {
   WOLFSSL_BIO *in;
   WOLFSSL_BIO *out;
 
-  bool handshake_done;
-
   CLAIMER_CB const claimer;
+
+  bool handshake_done;
+  enum ClaimType transcriptType;
 };
-
-static void extract_current_transcript(AGENT agent) {
-  HS_Hashes* hashes = agent->ssl->hsHashes;
-  if (hashes == NULL) {
-    return;
-  }
-  wc_Sha256 sha = hashes->hashSha256;
-  byte hash[WC_SHA256_DIGEST_SIZE] = {};
-  if (wc_Sha256GetHash(&sha, hash) != 0) {
-    _log(PUFFIN.warn, "wc_Sha256GetHash failed");
-    return;
-  }
-}
-
-/*pub fn extract_current_transcript(ssl: &SslRef) -> Option<TlsTranscript> {
-  unsafe {
-      let ssl = ssl.as_ptr();
-      let hashes = (*ssl).hsHashes;
-
-      if hashes.is_null() {
-          return None;
-      }
-
-      let mut sha256 = (*hashes).hashSha256;
-
-      let mut hash: [u8; 32] = [0; 32];
-      wolf::wc_Sha256GetHash(&mut sha256 as *mut wolf::wc_Sha256, hash.as_mut_ptr());
-
-      let mut target: [u8; 64] = [0; 64];
-      target[..32].clone_from_slice(&hash);
-
-      Some(TlsTranscript(target, 32))
-  }
-}*/
-
 
 static ClaimKeyType map_keysum_claimkeytype(enum Key_Sum key) {
   switch(key) {
@@ -97,204 +63,197 @@ static ClaimKeyType map_keysum_claimkeytype(enum Key_Sum key) {
   }
 }
 
-static void manage_claim(AGENT agent, int32_t content_type, uint8_t *first_byte, size_t len, 
-    bool outbound) {
-  char const* error_msg = "no error";
-  struct Claim claim = {};
-  claim.typ = CLAIM_UNKNOWN;
+static int extract_current_transcript(AGENT agent, unsigned char* buffer, int bufferSize) {
+  if (agent == NULL) {
+    _log(PUFFIN.warn, "agent is NULL");
+    return 0;
+  }
+  if (agent->ssl == NULL) {
+    _log(PUFFIN.warn, "agent->ssl is NULL");
+    return 0;
+  }
+  if (agent->ssl->hsHashes == NULL) {
+    _log(PUFFIN.warn, "agent->ssl->hsHashes is NULL");
+    return 0;
+  }
+  if (bufferSize < WC_SHA256_DIGEST_SIZE) {
+    _log(PUFFIN.warn, "buffer size for SHA256 digest is too small");
+    return 0;
+  }
 
-  uint8_t type = 0;
-  if (content_type == 22) {
-    type = *first_byte;
+  if (wc_Sha256GetHash(&agent->ssl->hsHashes->hashSha256, buffer) == 0) {
+    return WC_SHA256_DIGEST_SIZE;
+  } else {
+    _log(PUFFIN.warn, "wc_Sha256GetHash failed");
+    return 0;
   }
-  if (!outbound) {
-    switch (type) {
-      case 0x0b: // Certificate
-        break;
-      case 0x0f: // CertificateVerify
-        break;
-      case 0x14: // Finished
-        claim.typ = CLAIM_FINISHED;
-        break;
-      default:
-        break;
-    }
-  }
+}
+
+static void fill_claim(AGENT agent, struct Claim* claim) { 
+  char* error_msg = "no error";
 
   if (agent->ssl->version.major != SSLv3_MAJOR) {
-    error_msg = "not a tls";
-    goto ERROR__manage_claim;
+    _log(PUFFIN.warn, "not a tls ssl object");
+    return;
   }
   switch (agent->ssl->version.minor) {
     case TLSv1_2_MINOR:
-      claim.version.data = CLAIM_TLS_VERSION_V1_2;
+      claim->version.data = CLAIM_TLS_VERSION_V1_2;
       break;
     case TLSv1_3_MINOR:
-      claim.version.data = CLAIM_TLS_VERSION_V1_3;
+      claim->version.data = CLAIM_TLS_VERSION_V1_3;
       break;
     default:
-      error_msg = "unsupported tls version";
-      goto ERROR__manage_claim;
+      _log(PUFFIN.warn, "unsupported tls version");
+      return;
   }
 
-  claim.server = agent->ssl->options.side;
+  claim->server = agent->ssl->options.side == WOLFSSL_SERVER_END;
 
 #if LIBWOLFSSL_VERSION_HEX >= 0x05003000
   WOLFSSL_SESSION* session = agent->ssl->session;
 #else
   WOLFSSL_SESSION* session = &(agent->ssl->session);
 #endif
-  if (session->sessionIDSz > CLAIM_SESSION_ID_LENGTH) {
-    error_msg = "session ID too big";
-    goto ERROR__manage_claim;
+  byte session_size = session->sessionIDSz;
+  if (session_size > CLAIM_SESSION_ID_LENGTH) {
+    session_size = CLAIM_SESSION_ID_LENGTH;
+    _log(PUFFIN.warn, "not enough space in session buffer in claim");
   }
   // Working ?
-  claim.session_id.length = session->sessionIDSz;
-  memcpy(claim.session_id.data, session->sessionID, 
-      claim.session_id.length);
+  claim->session_id.length = session_size;
+  memcpy(claim->session_id.data, session->sessionID, 
+      claim->session_id.length);
 
   int buffer_size = wolfSSL_get_client_random(agent->ssl, NULL, 0);
-  if (buffer_size == 0) {
-    error_msg = "unable to get client random buffer";
-    goto ERROR__manage_claim;
-  } else if (buffer_size > CLAIM_SESSION_ID_LENGTH) {
-    _log(PUFFIN.warn, "not enough space in client random buffer in claim");
+  if (buffer_size > 0) {
+    if (buffer_size > CLAIM_SESSION_ID_LENGTH) {
     buffer_size = CLAIM_SESSION_ID_LENGTH;
+      _log(PUFFIN.warn, "not enough space in client random buffer in claim");
   }
-  int int_retval = wolfSSL_get_client_random(agent->ssl, claim.client_random.data, 
+    wolfSSL_get_client_random(agent->ssl, claim->client_random.data, 
       buffer_size);
-  if (int_retval != buffer_size) {
-    error_msg = "wolfSSL_get_client_random return wrong value";
-    goto ERROR__manage_claim;
+  } else {
+    _log(PUFFIN.warn, "unable to get client random buffer");
   }
 
   buffer_size = wolfSSL_get_server_random(agent->ssl, NULL, 0);
-  if (buffer_size == 0) {
-    error_msg = "unable to get server random buffer";
-    goto ERROR__manage_claim;
-  } else if (buffer_size > CLAIM_SESSION_ID_LENGTH) {
-    _log(PUFFIN.warn, "not enough space in server random buffer in claim");
+  if (buffer_size > 0) {
+    if (buffer_size > CLAIM_SESSION_ID_LENGTH) {
     buffer_size = CLAIM_SESSION_ID_LENGTH;
+      _log(PUFFIN.warn, "not enough space in server random buffer in claim");
   }
-  int_retval = wolfSSL_get_server_random(agent->ssl, claim.server_random.data, 
+    wolfSSL_get_server_random(agent->ssl, claim->server_random.data, 
       buffer_size);
-  if (int_retval != buffer_size) {
-    error_msg = "wolfSSL_get_server_random return wrong value";
-    goto ERROR__manage_claim;
+  } else {
+    _log(PUFFIN.warn, "unable to get server random buffer");
   }
 
-  memset(&claim.available_ciphers, 0, sizeof(ClaimCiphers));
   STACK_OF(SSL_CIPHER) *ciphers = wolfSSL_get_ciphers_compat(agent->ssl);
-  if (ciphers == NULL) {
-    error_msg = "wolfSSL_get_ciphers_compat return NULL";
-    goto ERROR__manage_claim;
-  }
+  if (ciphers != NULL) {
   int available_ciphers_len = wolfSSL_sk_SSL_CIPHER_num(ciphers);
-  if (available_ciphers_len == WOLFSSL_FATAL_ERROR) {
-    error_msg = "sk_SSL_CIPHER_num return WOLFSSL_FATAL_ERROR";
-    goto ERROR__manage_claim;
-  } else if (available_ciphers_len > CLAIM_MAX_AVAILABLE_CIPHERS) {
+    if (available_ciphers_len != WOLFSSL_FATAL_ERROR) {
+      if (available_ciphers_len > CLAIM_MAX_AVAILABLE_CIPHERS) {
+        available_ciphers_len = CLAIM_MAX_AVAILABLE_CIPHERS;
     _log(PUFFIN.warn, "not enough space in ciphers list in claim");
   }
-  claim.available_ciphers.length = available_ciphers_len;
+  claim->available_ciphers.length = available_ciphers_len;
   for (int i=0; i<available_ciphers_len; ++i) {
     SSL_CIPHER const *cipher = wolfSSL_sk_SSL_CIPHER_value(ciphers, i);
-    if (cipher == NULL) {
-      error_msg = "wolfSSL_sk_SSL_CIPHER_value return NULL";
-      goto ERROR__manage_claim;
-    }
-    if (i < CLAIM_MAX_AVAILABLE_CIPHERS) {
-      claim.available_ciphers.ciphers[i].data = 
+        if (cipher != NULL) {
+      claim->available_ciphers.ciphers[i].data = 
           (unsigned short)((((short)cipher->cipherSuite0) << 8) + cipher->cipherSuite);
+        } else {
+          _log(PUFFIN.warn, "wolfSSL_sk_SSL_CIPHER_value return a NULL value");
     }
+  }
+    } else {
+      _log(PUFFIN.warn, "sk_SSL_CIPHER_num return WOLFSSL_FATAL_ERROR");
+    }
+  } else {
+    _log(PUFFIN.warn, "wolfSSL_get_ciphers_compat return NULL");
   }
 
   // cert
-  memset(&claim.cert, 0, sizeof(ClaimCertData));
   WOLFSSL_X509 *cert = wolfSSL_get_certificate(agent->ssl);
   if (cert != NULL) {
     int key_type = wolfSSL_X509_get_pubkey_type(cert);
     if (key_type != WOLFSSL_FAILURE) {
       WOLFSSL_EVP_PKEY const *cert_pkey = wolfSSL_X509_get_pubkey(cert);
       if (cert_pkey != NULL) {
-        claim.cert.key_length = wolfSSL_EVP_PKEY_bits(cert_pkey);
-        if (claim.cert.key_length != 0) {
-          claim.cert.key_type = map_keysum_claimkeytype((enum Key_Sum)key_type);
+        claim->cert.key_length = wolfSSL_EVP_PKEY_bits(cert_pkey);
+        if (claim->cert.key_length != 0) {
+          claim->cert.key_type = map_keysum_claimkeytype((enum Key_Sum)key_type);
         }
+      } else {
+        _log(PUFFIN.warn, "wolfSSL_X509_get_pubkey return NULL");
       }
     }
+  } else {
+    _log(PUFFIN.warn, "wolfSSL_get_certificate return NULL");
   }
 
   // peer cert
-  memset(&claim.peer_cert, 0, sizeof(ClaimCertData));
   WOLFSSL_X509 *peer_cert = wolfSSL_get_peer_certificate(agent->ssl);
   if (peer_cert != NULL) {
     int key_type = wolfSSL_X509_get_pubkey_type(cert);
     if (key_type != WOLFSSL_FAILURE) {
       WOLFSSL_EVP_PKEY const *peer_cert_pkey = wolfSSL_X509_get_pubkey(peer_cert);
       if (peer_cert_pkey != NULL) {
-        claim.peer_cert.key_length = wolfSSL_EVP_PKEY_bits(peer_cert_pkey);
-        if (claim.peer_cert.key_length == 0) {
-          claim.peer_cert.key_type = map_keysum_claimkeytype((enum Key_Sum)key_type);
+        claim->peer_cert.key_length = wolfSSL_EVP_PKEY_bits(peer_cert_pkey);
+        if (claim->peer_cert.key_length == 0) {
+          claim->peer_cert.key_type = map_keysum_claimkeytype((enum Key_Sum)key_type);
         }
+      } else {
+        _log(PUFFIN.warn, "wolfSSL_X509_get_pubkey return NULL");
       }
     }
+  } else {
+    _log(PUFFIN.warn, "wolfSSL_get_peer_certificate return NULL");
   }
 
-  /*// tls 1.3 secrets
-  memcpy(claim.early_secret.secret, sc->early_secret, EVP_MAX_MD_SIZE);
-  memcpy(claim.handshake_secret.secret, sc->handshake_secret, EVP_MAX_MD_SIZE);
-  memcpy(claim.master_secret.secret, sc->master_secret, EVP_MAX_MD_SIZE);
-  memcpy(claim.resumption_master_secret.secret, sc->resumption_master_secret, EVP_MAX_MD_SIZE);
-  memcpy(claim.client_finished_secret.secret, sc->client_finished_secret, EVP_MAX_MD_SIZE);
-  memcpy(claim.server_finished_secret.secret, sc->server_finished_secret, EVP_MAX_MD_SIZE);
-  memcpy(claim.server_finished_hash.secret, sc->server_finished_hash, EVP_MAX_MD_SIZE);
-  memcpy(claim.handshake_traffic_hash.secret, sc->handshake_traffic_hash, EVP_MAX_MD_SIZE);
-  memcpy(claim.client_app_traffic_secret.secret, sc->client_app_traffic_secret, EVP_MAX_MD_SIZE);
-  memcpy(claim.server_app_traffic_secret.secret, sc->server_app_traffic_secret, EVP_MAX_MD_SIZE);
-  memcpy(claim.exporter_master_secret.secret, sc->exporter_master_secret, EVP_MAX_MD_SIZE);
-  memcpy(claim.early_exporter_master_secret.secret, sc->early_exporter_master_secret, EVP_MAX_MD_SIZE);*/
-  memset(claim.early_secret.secret, 0, EVP_MAX_MD_SIZE);
-  memset(claim.handshake_secret.secret, 0, EVP_MAX_MD_SIZE);
-  memset(claim.master_secret.secret, 0, EVP_MAX_MD_SIZE);
-  memset(claim.resumption_master_secret.secret, 0, EVP_MAX_MD_SIZE);
-  memset(claim.client_finished_secret.secret, 0, EVP_MAX_MD_SIZE);
-  memset(claim.server_finished_secret.secret, 0, EVP_MAX_MD_SIZE);
-  memset(claim.server_finished_hash.secret, 0, EVP_MAX_MD_SIZE);
-  memset(claim.handshake_traffic_hash.secret, 0, EVP_MAX_MD_SIZE);
-  memset(claim.client_app_traffic_secret.secret, 0, EVP_MAX_MD_SIZE);
-  memset(claim.server_app_traffic_secret.secret, 0, EVP_MAX_MD_SIZE);
-  memset(claim.exporter_master_secret.secret, 0, EVP_MAX_MD_SIZE);
-  memset(claim.early_exporter_master_secret.secret, 0, EVP_MAX_MD_SIZE);
+  if (agent->ssl->arrays != NULL) {
+    /*if (claim->version.data == CLAIM_TLS_VERSION_V1_2) {
+      memcpy(claim->master_secret_12.secret, agent->ssl->arrays->masterSecret, 
+        MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
+    } else {
+      memcpy(claim->master_secret.secret, agent->ssl->arrays->masterSecret, 
+          MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
+    }*/
+    memcpy(claim->handshake_secret.secret, agent->ssl->arrays->secret, 
+        MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
+    /*memcpy(claim->handshake_secret.secret, agent->ssl->arrays->exporterSecret, 
+        MIN(WC_MAX_DIGEST_SIZE, CLAIM_MAX_SECRET_SIZE));*/
+  } else {
+    _log(PUFFIN.warn, "ssl->arrays is NULL");
+  }
 
-  /*if (sc->session != 0 && sc->version == TLS1_2_VERSION) {
-    if (sc->session->master_key_length > CLAIM_MAX_SECRET_SIZE) {
-    }
-    memcpy(claim.master_secret_12.secret, sc->session->master_key, sc->session->master_key_length);
-  }*/
-  memset(claim.master_secret_12.secret, 0, EVP_MAX_MD_SIZE);
-
-  claim.chosen_cipher.data = wolfSSL_get_current_cipher_suite(agent->ssl);
-  if (claim.chosen_cipher.data == 0) {
+  claim->chosen_cipher.data = wolfSSL_get_current_cipher_suite(agent->ssl);
+  if (claim->chosen_cipher.data == 0) {
     _log(PUFFIN.warn, "wolfSSL_get_current_cipher returned NULL");
   }
 
-  int nid = -1;
-  int_retval = wolfSSL_get_signature_nid(agent->ssl, &nid);
+  /*int nid = -1;
+  int int_retval = wolfSSL_get_signature_nid(agent->ssl, &nid);
   if (int_retval == WOLFSSL_SUCCESS) {
-    claim.signature_algorithm = nid;
+    claim->signature_algorithm = nid;
   } else {
-    claim.signature_algorithm = 0;
+    claim->signature_algorithm = 0;
     _log(PUFFIN.warn, "wolfSSL_get_signature_nid failed");
-  }
+  }*/
 
-  claim.peer_signature_algorithm = 0;
+  /*int_retval = wolfSSL_get_peer_signature_nid(agent->ssl, &nid);
+  if (int_retval == WOLFSSL_SUCCESS) {
+    claim->peer_signature_algorithm = nid;
+  } else {
+    claim->peer_signature_algorithm = 0;
+    _log(PUFFIN.warn, "wolfSSL_get_peer_signature_nid failed");
+  }*/
 
-  claim.transcript.length = 0;
+  claim->transcript.length = 0;
   if (agent->ssl->hsHashes != NULL) {
-    memset(claim.transcript.data, 0, CLAIM_MAX_SECRET_SIZE);
-    if (wc_Sha256GetHash(&agent->ssl->hsHashes->hashSha256, claim.transcript.data) == 0) {
-      claim.transcript.length = WC_SHA256_DIGEST_SIZE;
+    if (wc_Sha256GetHash(&agent->ssl->hsHashes->hashSha256, claim->transcript.data) == 0) {
+      claim->transcript.length = WC_SHA256_DIGEST_SIZE;
     } else {
       _log(PUFFIN.warn, "wc_Sha256GetHash failed");
     }
@@ -302,9 +261,6 @@ static void manage_claim(AGENT agent, int32_t content_type, uint8_t *first_byte,
     _log(PUFFIN.warn, "agent->ssl->hsHashes is NULL");
   }
 
-  return;
-
-ERROR__manage_claim:
   return;
 }
 
@@ -385,35 +341,56 @@ static void wolfssl_message_callback(int write_p, int version, int content_type,
     return;
   }
 
-  manage_claim(agent, content_type, (uint8_t*)buf, len, write_p == 1);
+  struct Claim claim = {};
+  claim.typ = CLAIM_UNKNOWN;
+  uint8_t type = 0;
+  if (content_type == 22) {
+    type = *((uint8_t*)buf);
+  }
+  if (write_p != 1) {
+    switch (type) {
+      case 0x0b:
+        agent->transcriptType = CLAIM_TRANSCRIPT_CH_CERT;
+        break;
+      case 0x0f:
+        agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
+        break;
+      case 0x14:
+        agent->transcriptType = CLAIM_TRANSCRIPT_CH_CLIENT_FIN;
+        {
+          struct Claim claim = {};
+          claim.typ = CLAIM_FINISHED;
+          fill_claim(agent, &claim);
+          agent->claimer.notify(agent->claimer.context, &claim);
+        }
+        break;
+      default:
+        break;
+    }
+  }
 
-  //std::cout << "\t" << content_type << std::endl;
-
-  agent->claimer.notify(agent->claimer.context, NULL);
+  unsigned char buffer[WC_SHA256_DIGEST_SIZE] = {};
+  int transcript_lenght = extract_current_transcript(agent, buffer, WC_SHA256_DIGEST_SIZE);
+  if (transcript_lenght == 0) {
+    return;
+  }
+  if (agent->ssl->options.serverState == SERVER_HELLO_COMPLETE) {
+    agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
+    struct Claim claim = {};
+    claim.typ = CLAIM_TRANSCRIPT_CH_SH;
+    fill_claim(agent, &claim);
+    agent->claimer.notify(agent->claimer.context, &claim);
+  }
 }
 
 static void wolfssl_register_claimer(AGENT agent, const CLAIMER_CB *claimer) {
-  return;
   if (agent->claimer.destroy != NULL) {
     agent->claimer.destroy(agent->claimer.context);
-    memset((void*)&agent->claimer, 0, sizeof(CLAIMER_CB));
   }
-
-  int ret = wolfSSL_set_msg_callback(
-      agent->ssl, claimer != NULL ? wolfssl_message_callback : NULL);
-  if (ret != WOLFSSL_SUCCESS) {
-    _log(PUFFIN.error, "fatal error in wolfssl_register_claimer, unable to register callback");
-    return;
-  }
-  ret = wolfSSL_set_msg_callback_arg(agent->ssl, claimer != NULL ? agent : NULL);
-  if (ret != WOLFSSL_SUCCESS) {
-    _log(PUFFIN.error, "fatal error in wolfssl_register_claimer, unable to register arg callback");
-    wolfSSL_set_msg_callback(agent->ssl, NULL);
-    return;
-  }
-
   if (claimer != NULL) {
     memcpy((void*)&agent->claimer, claimer, sizeof(CLAIMER_CB));
+  } else {
+    memset((void*)&agent->claimer, 0, sizeof(CLAIMER_CB));
   }
 }
 
@@ -458,23 +435,21 @@ char const* map_state_statestr(enum states state) {
   }
 }
 
+static enum states wolfssl_query_state(AGENT agent) {
+  if (wolfSSL_is_server(agent->ssl)) {
+    return (enum states)agent->ssl->options.serverState;
+  } else {
+    return (enum states)agent->ssl->options.clientState;
+  }
+}
+
 static const char *wolfssl_describe_state(AGENT agent) {
 #if 0
   char const* state = wolfSSL_state_string_long(agent->ssl);
-  //printf("state = %s\n", state);
   return state;
 #else
-  /*printf("state c= %d s= %d side= %c\n", agent->ssl->options.clientState, agent->ssl->options.serverState, 
-      agent->ssl->options.side == WOLFSSL_SERVER_END ? 's' : 'c');*/
-  enum states state = NULL_STATE;
-  if (wolfSSL_is_server(agent->ssl)) {
-  //if (agent->ssl->options.side == WOLFSSL_SERVER_END) {
-    state = (enum states)agent->ssl->options.serverState;
-  } else {
-    state = (enum states)agent->ssl->options.clientState;
-  }
+  enum states state = wolfssl_query_state(agent);
   char const * state_string = map_state_statestr(state);
-  //printf("state %s\n", state_string);
   return state_string;
 #endif
 }
@@ -496,73 +471,89 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name) {
 }
 
 static inline bool wolfssl_is_successful(AGENT agent) {
-  wolfssl_describe_state(agent);
-  return agent->handshake_done;
+  return wolfSSL_get_state(agent->ssl) == HANDSHAKE_DONE;
 }
 
 static RESULT wolfssl_progress(AGENT agent) {
   RESULT_CODE result_code = RESULT_ERROR_OTHER;
+  RESULT result = NULL;
 
   if (!wolfssl_is_successful(agent)) {
     // not connected yet -> do handshake
     int ret = wolfSSL_SSL_do_handshake(agent->ssl);
     if (ret == WOLFSSL_SUCCESS) {
-      //printf("Handshake done = %s\n", wolfssl_describe_state(agent));
       agent->handshake_done = true;
-      return PUFFIN.make_result(RESULT_OK, "handshake done"); 
+      result = PUFFIN.make_result(RESULT_OK, "handshake done"); 
     } else {
-      //printf("More data....\n"); 
-    }
-    char* reason = get_result_information(agent->ssl, ret, &result_code);
-    RESULT result = PUFFIN.make_result(result_code == RESULT_IO_WOULD_BLOCK ? RESULT_OK : result_code, 
+      char* reason = get_result_information(agent->ssl, ret, &result_code);
+      result = PUFFIN.make_result(result_code == RESULT_IO_WOULD_BLOCK ? RESULT_OK : result_code, 
         reason);
-    free(reason);
-
-    return result;
+      free(reason);
   }
-
+  } else {
   // trigger another read
   uint8_t buf[128];
   int ret = wolfSSL_read(agent->ssl, &buf, 128);
   if (ret > 0) {
     buf[ret] = 0;
     printf("Got: %s\n", buf);
-    return PUFFIN.make_result(RESULT_OK, NULL);
+      result = PUFFIN.make_result(RESULT_OK, NULL);
+    } else {
+      char* reason = get_result_information(agent->ssl, ret, &result_code);
+      result = PUFFIN.make_result(
+          result_code == RESULT_IO_WOULD_BLOCK ? RESULT_OK : result_code, reason);
+      free(reason);
+    }
   }
 
-  char* reason = get_result_information(agent->ssl, ret, &result_code);
-  RESULT result = PUFFIN.make_result(result_code == RESULT_IO_WOULD_BLOCK ? RESULT_OK : result_code, 
-      reason);
-  free(reason);
+  //deferred_transcript_extraction
+  if ((agent->claimer.notify != NULL) && (agent->transcriptType != CLAIM_NOT_SET)) {
+    struct Claim claim = {};
+    claim.typ = agent->transcriptType;
+    fill_claim(agent, &claim);
+    agent->claimer.notify(agent->claimer.context, &claim);
+  }
 
   return result;
 }
 
 static void wolfssl_destroy(AGENT agent) {
+  if (agent == NULL) {
+    return;
+  }
   wolfssl_register_claimer(agent, NULL);
+  if (agent->ssl != NULL) {
   wolfSSL_free(agent->ssl);
+    agent->ssl = NULL;
+  }
   free(agent);
+  agent = NULL;
 }
 
-static AGENT make_agent(WOLFSSL_CTX *ctx, TLS_AGENT_DESCRIPTOR const *descriptor) {
+static AGENT make_agent(AGENT agent, WOLFSSL_CTX *ctx, TLS_AGENT_DESCRIPTOR const *descriptor) {
   char error_msg[128] = {};
   snprintf(error_msg, sizeof(error_msg), "no error");
-  WOLFSSL *ssl = NULL;
-  AGENT agent = NULL;
+  int int_retval = 0;
 
-  ssl = wolfSSL_new(ctx);
-  if (ssl == NULL) {
+  agent->ssl = wolfSSL_new(ctx);
+  if (agent->ssl == NULL) {
     strncpy(error_msg, "wolfSSL_new returned NULL", 128);
     goto ERROR__make_agent;
   }
 
-  agent = (AGENT)calloc(1, sizeof(struct AGENT_TYPE));
-  if (agent == NULL) {
-    strncpy(error_msg, "calloc returned NULL", 128);
+  agent->name = descriptor->name;
+
+  int_retval = wolfSSL_set_msg_callback(agent->ssl, wolfssl_message_callback);
+  if (int_retval != WOLFSSL_SUCCESS) {
+    strncpy(error_msg, "fatal error in wolfssl_register_claimer, unable to register callback", 128);
     goto ERROR__make_agent;
   }
-  agent->name = descriptor->name;
-  agent->ssl = ssl;
+  int_retval = wolfSSL_set_msg_callback_arg(agent->ssl, agent);
+  if (int_retval != WOLFSSL_SUCCESS) {
+    strncpy(error_msg, "fatal error in wolfssl_register_claimer, unable to register arg callback", 128);
+    goto ERROR__make_agent;
+  }
+
   agent->in = wolfSSL_BIO_new(wolfSSL_BIO_s_mem());
   if (agent->in == NULL) {
     strncpy(error_msg, "wolfSSL_BIO_new returned NULL", 128);
@@ -575,6 +566,7 @@ static AGENT make_agent(WOLFSSL_CTX *ctx, TLS_AGENT_DESCRIPTOR const *descriptor
   }
 
   agent->handshake_done = false;
+  agent->transcriptType = CLAIM_NOT_SET;
 
   memset((void*)&agent->claimer, 0, sizeof(CLAIMER_CB));
   wolfssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
@@ -586,22 +578,7 @@ static AGENT make_agent(WOLFSSL_CTX *ctx, TLS_AGENT_DESCRIPTOR const *descriptor
 
 ERROR__make_agent:
   _log(PUFFIN.error, "fatal error in make_agent: %s", error_msg);
-  if (agent != NULL) {
-    if (agent->out != NULL) {
-      wolfSSL_BIO_free_all(agent->out);
-      agent->out = NULL;
-    }
-    if (agent->in != NULL) {
-      wolfSSL_BIO_free_all(agent->in);
-      agent->in = NULL;
-    }
-    free(agent);
-    agent = NULL;
-  }
-  if (ssl != NULL) {
-    wolfSSL_free(ssl);
-    ssl = NULL;
-  }
+  wolfssl_destroy(agent);
   return NULL;
 }
 
@@ -638,6 +615,12 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
   int int_retval = WOLFSSL_FAILURE;
   AGENT agent = NULL;
 
+  agent = (AGENT)calloc(1, sizeof(struct AGENT_TYPE));
+  if (agent == NULL) {
+    strncpy(error_msg, "calloc returned NULL", 128);
+    goto ERROR__wolfssl_create_agent;
+  }
+
   if (tls_method == NULL) {
     strncpy(error_msg, "retrieving wolfssl method failed", 128);
     goto ERROR__wolfssl_create_agent;
@@ -645,6 +628,17 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
   ctx = wolfSSL_CTX_new(tls_method);
   if (ctx == NULL) {
     strncpy(error_msg, "wolfssl create context failed", 128);
+    goto ERROR__wolfssl_create_agent;
+  }
+
+  int_retval = wolfSSL_CTX_set_msg_callback(ctx, wolfssl_message_callback);
+  if (int_retval != WOLFSSL_SUCCESS) {
+    strncpy(error_msg, "wolfSSL_CTX_set_msg_callback failed", 128);
+    goto ERROR__wolfssl_create_agent;
+  }
+  int_retval = wolfSSL_CTX_set_msg_callback_arg(ctx, agent);
+  if (int_retval != WOLFSSL_SUCCESS) {
+    strncpy(error_msg, "wolfSSL_CTX_set_msg_callback_arg failed", 128);
     goto ERROR__wolfssl_create_agent;
   }
 
@@ -713,7 +707,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
     wolfSSL_CTX_set_num_tickets(ctx, 2);
   }
 
-  agent = make_agent(ctx, descriptor);
+  agent = make_agent(agent, ctx, descriptor);
   if (agent == NULL) {
     strncpy(error_msg, "creating wolfssl agent failed", 128);
     goto ERROR__wolfssl_create_agent;
@@ -727,7 +721,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
 
 ERROR__wolfssl_create_agent:
   _log(PUFFIN.error, "fatal error in wolfssl_create_agent: %s", error_msg);
-
+  wolfssl_destroy(agent);
   if (ctx != NULL) {
       wolfSSL_CTX_free(ctx);
   }
