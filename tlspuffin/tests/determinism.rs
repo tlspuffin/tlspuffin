@@ -1,5 +1,7 @@
+use std::thread;
+use std::time::Duration;
+
 use tlspuffin::test_utils::prelude::*;
-use std::{thread, time::Duration};
 
 #[apply(test_puts, filter = all(tls13, any(boringssl, wolfssl)))]
 fn test_attacker_full_det_recreate(put: &str) {

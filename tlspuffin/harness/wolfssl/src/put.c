@@ -669,6 +669,14 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
     goto ERROR__wolfssl_create_agent;
   }
 
+  if (descriptor->group_list != NULL) {
+    int_retval = wolfSSL_CTX_set1_groups_list(ctx, descriptor->group_list);
+    if (int_retval != WOLFSSL_SUCCESS) {
+      snprintf(error_msg, 128, "wolfssl set group list %s failed", descriptor->group_list);
+      goto ERROR__wolfssl_create_agent;
+    }
+}
+
   if (peer_authentication) {
     wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
