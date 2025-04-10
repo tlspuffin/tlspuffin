@@ -7,6 +7,7 @@ use puffin::codec::{Codec, Reader, VecCodecWoSize};
 use puffin::error::Error::{Term, TermBug};
 use puffin::protocol::{EvaluatedTerm, ProtocolMessage};
 
+use crate::claims::*;
 use crate::protocol::{MessageFlight, OpaqueMessageFlight, TLSProtocolTypes};
 use crate::tls::rustls::error::Error;
 use crate::tls::rustls::hash_hs::HandshakeHash;
@@ -446,7 +447,7 @@ macro_rules! try_read {
       {
         if $ti == TypeId::of::<$T>() {
             log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
-            <$T>::read_bytes($bitstring).ok_or(anyhow!(TermBug(format!(
+            <$T>::read_bytes($bitstring).ok_or(anyhow!(Term(format!(
                 "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
                 &$bitstring
@@ -522,6 +523,12 @@ pub fn try_read_bytes(
         SignatureScheme,
         ProtocolVersion,
         HandshakeHash,
+        TranscriptServerFinished,
+        TlsTranscript,
+        TranscriptPartialClientHello,
+        TranscriptServerHello,
+        TranscriptServerFinished,
+        TranscriptCertificate,
         u64,
         u32,
         u16,
