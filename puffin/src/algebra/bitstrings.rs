@@ -556,7 +556,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                                          self.has_variable(), self, &payload.payload_0.bytes());
                         if self.has_variable() {
                             // Some mismatches are to be expected when there are variables
-                            log::warn!("[term has variables --> only a warning] {}", ft);
+                            log::debug!("[term has variables --> only a debug] {}", ft);
                         } else {
                             bail!(Error::TermBug(ft));
                         }
