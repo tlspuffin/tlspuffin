@@ -14,7 +14,6 @@ pub mod put;
 pub mod types;
 
 pub mod put_registry;
-pub mod query;
 //pub mod static_certs;
 //pub mod tcp;
 

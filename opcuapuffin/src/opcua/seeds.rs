@@ -4,6 +4,8 @@
 #![allow(dead_code)]
 
 use opcua::puffin::types::OpcuaProtocolTypes;
+use opcua::puffin::query::OpcuaQueryMatcher;
+
 use puffin::trace::Trace;
 
 use crate::protocol::OpcuaProtocolBehavior;
