@@ -185,6 +185,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
         if (claim->cert.key_length != 0) {
           claim->cert.key_type = map_keysum_claimkeytype((enum Key_Sum)key_type);
         }
+        wolfSSL_EVP_PKEY_free(cert_pkey);
       } else {
         _log(PUFFIN.warn, "wolfSSL_X509_get_pubkey return NULL");
       }
@@ -208,6 +209,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
         _log(PUFFIN.warn, "wolfSSL_X509_get_pubkey return NULL");
       }
     }
+    wolfSSL_X509_free(peer_cert);
   } else {
     _log(PUFFIN.warn, "wolfSSL_get_peer_certificate return NULL");
   }
