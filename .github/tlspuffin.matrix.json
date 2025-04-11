@@ -217,7 +217,7 @@
       "preset": "wolfssl520"
     },
     "cargo": {
-      "name": "wolfssl520",
+      "name": "",
       "features": ["cputs"]
     }
   },
@@ -229,7 +229,7 @@
       "preset": "wolfssl520-asan"
     },
     "cargo": {
-      "name": "wolfssl520",
+      "name": "",
       "features": [
         "cputs",
         "asan"
@@ -246,7 +246,7 @@
       "preset": "wolfssl530"
     },
     "cargo": {
-      "name": "wolfssl530",
+      "name": "",
       "features": ["cputs"]
     }
   },
@@ -260,7 +260,7 @@
       "preset": "wolfssl530-asan"
     },
     "cargo": {
-      "name": "wolfssl530",
+      "name": "",
       "features": [
         "cputs",
         "asan"
@@ -277,7 +277,7 @@
       "preset": "wolfssl540"
     },
     "cargo": {
-      "name": "wolfssl540",
+      "name": "",
       "features": ["cputs"]
     }
   },
@@ -289,7 +289,7 @@
       "preset": "wolfssl540-sdos2"
     },
     "cargo": {
-      "name": "wolfssl540",
+      "name": "",
       "features": [
         "cputs",
         "wolfssl-disable-postauth",
@@ -305,7 +305,7 @@
       "preset": "wolfssl530-cdos"
     },
     "cargo": {
-      "name": "wolfssl530",
+      "name": "",
       "features": [
         "cputs",
         "fix-CVE-2022-39173"
@@ -320,7 +320,7 @@
       "preset": "wolfssl540-asan"
     },
     "cargo": {
-      "name": "wolfssl540",
+      "name": "",
       "features": [
         "cputs",
         "asan"
@@ -335,7 +335,7 @@
       "preset": "wolfssl540-buf"
     },
     "cargo": {
-      "name": "wolfssl540",
+      "name": "",
       "features": [
         "cputs",
         "fix-CVE-2022-42905"
@@ -350,7 +350,7 @@
       "preset": "wolfssl540-heap"
     },
     "cargo": {
-      "name": "wolfssl540",
+      "name": "",
       "features": [
         "cputs",
         "asan",
@@ -366,7 +366,7 @@
       "preset": "wolfssl540-asan-perf"
     },
     "cargo": {
-      "name": "wolfssl540",
+      "name": "",
       "features": [
         "cputs",
         "asan",
@@ -383,7 +383,7 @@
       "preset": "wolfssl540-perf"
     },
     "cargo": {
-      "name": "wolfssl540",
+      "name": "",
       "features": [
         "cputs",
         "fix-CVE-2022-39173",
