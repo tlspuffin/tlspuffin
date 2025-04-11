@@ -457,7 +457,9 @@ static const char *wolfssl_describe_state(AGENT agent) {
 static RESULT wolfssl_reset(AGENT agent, uint8_t new_name) {
   agent->name = new_name;
 
-  wolfssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
+  CLAIMER_CB current_claimer_cb = {};
+  memcpy(&current_claimer_cb, (void*)&agent->claimer, sizeof(CLAIMER_CB));
+  memset((void*)&agent->claimer, 0, sizeof(CLAIMER_CB));
 
   int ret = wolfSSL_clear(agent->ssl);
   if (ret != WOLFSSL_SUCCESS) {
@@ -465,6 +467,10 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name) {
     RESULT result = PUFFIN.make_result(RESULT_ERROR_OTHER, reason);
     free(reason);
     return result;
+  }
+
+  if (current_claimer_cb.notify != NULL) {
+    memcpy((void*)&agent->claimer, &current_claimer_cb, sizeof(CLAIMER_CB));
   }
 
   return PUFFIN.make_result(RESULT_OK, NULL);
@@ -572,7 +578,6 @@ static AGENT make_agent(AGENT agent, WOLFSSL_CTX *ctx, TLS_AGENT_DESCRIPTOR cons
   wolfssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
 
   wolfSSL_set_bio(agent->ssl, agent->in, agent->out);
-  wolfSSL_CTX_free(ctx);
 
   return agent;
 
@@ -712,7 +717,11 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
   }
 
   if (is_server) {
-    wolfSSL_CTX_set_num_tickets(ctx, 2);
+    int_retval = wolfSSL_CTX_set_num_tickets(ctx, 2);
+    if (int_retval != WOLFSSL_SUCCESS) {
+      snprintf(error_msg, 128, "wolfSSL_CTX_set_num_tickets");
+      goto ERROR__wolfssl_create_agent;
+    }
   }
 
   agent = make_agent(agent, ctx, descriptor);
@@ -722,8 +731,20 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
   }
 
   if (!is_server) {
-    wolfSSL_UseSessionTicket(agent->ssl);
+    int_retval = wolfSSL_UseSessionTicket(agent->ssl);
+    if (int_retval != WOLFSSL_SUCCESS) {
+      snprintf(error_msg, 128, "wolfSSL_UseSessionTicket failed");
+      goto ERROR__wolfssl_create_agent;
+    }
   }
+
+  if (is_server) {
+    wolfSSL_set_accept_state(agent->ssl);
+  } else {
+    wolfSSL_set_connect_state(agent->ssl);
+  }
+
+  wolfSSL_CTX_free(ctx);
 
   return agent;
 
