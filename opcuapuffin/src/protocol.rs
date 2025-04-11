@@ -1,4 +1,4 @@
-// The OPC UA protocol
+// The OPC UA protocol.
 
 use core::any::TypeId;
 
