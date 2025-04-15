@@ -73,7 +73,7 @@ static int extract_current_transcript(AGENT agent, unsigned char* buffer, int bu
     return 0;
   }
   if (agent->ssl->hsHashes == NULL) {
-    _log(PUFFIN.warn, "agent->ssl->hsHashes is NULL");
+    //_log(PUFFIN.warn, "agent->ssl->hsHashes is NULL");
     return 0;
   }
   if (bufferSize < WC_SHA256_DIGEST_SIZE) {
@@ -179,7 +179,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
   if (cert != NULL) {
     int key_type = wolfSSL_X509_get_pubkey_type(cert);
     if (key_type != WOLFSSL_FAILURE) {
-      WOLFSSL_EVP_PKEY const *cert_pkey = wolfSSL_X509_get_pubkey(cert);
+      WOLFSSL_EVP_PKEY *cert_pkey = wolfSSL_X509_get_pubkey(cert);
       if (cert_pkey != NULL) {
         claim->cert.key_length = wolfSSL_EVP_PKEY_bits(cert_pkey);
         if (claim->cert.key_length != 0) {
@@ -187,11 +187,11 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
         }
         wolfSSL_EVP_PKEY_free(cert_pkey);
       } else {
-        _log(PUFFIN.warn, "wolfSSL_X509_get_pubkey return NULL");
+        //_log(PUFFIN.warn, "wolfSSL_X509_get_pubkey return NULL");
       }
     }
   } else {
-    _log(PUFFIN.warn, "wolfSSL_get_certificate return NULL");
+    //_log(PUFFIN.warn, "wolfSSL_get_certificate return NULL");
   }
 
   // peer cert
@@ -206,12 +206,12 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
           claim->peer_cert.key_type = map_keysum_claimkeytype((enum Key_Sum)key_type);
         }
       } else {
-        _log(PUFFIN.warn, "wolfSSL_X509_get_pubkey return NULL");
+        //_log(PUFFIN.warn, "wolfSSL_X509_get_pubkey return NULL");
       }
     }
     wolfSSL_X509_free(peer_cert);
   } else {
-    _log(PUFFIN.warn, "wolfSSL_get_peer_certificate return NULL");
+    //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate return NULL");
   }
 
   if (agent->ssl->arrays != NULL) {
@@ -227,7 +227,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
     /*memcpy(claim->handshake_secret.secret, agent->ssl->arrays->exporterSecret, 
         MIN(WC_MAX_DIGEST_SIZE, CLAIM_MAX_SECRET_SIZE));*/
   } else {
-    _log(PUFFIN.warn, "ssl->arrays is NULL");
+    //_log(PUFFIN.warn, "ssl->arrays is NULL");
   }
 
   claim->chosen_cipher.data = wolfSSL_get_current_cipher_suite(agent->ssl);
@@ -595,7 +595,7 @@ static int myCryptoCb_Func(int devId, wc_CryptoInfo* info, void* ctx) {
     return CRYPTOCB_UNAVAILABLE;
   }
   if (info->seed.sz > rng_reseed_buffer_length) {
-    _log(PUFFIN.warn, "wolfssl, provided seed buffer smaller than expected, filling missing part");
+    //_log(PUFFIN.warn, "wolfssl, provided seed buffer smaller than expected, filling missing part");
     uint8_t buf[255] = {};
     for(int i=0; i<rng_reseed_buffer_length; ++i) {
       ++buf[rng_reseed_buffer[i]];
@@ -677,7 +677,11 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
   }
 
   if (descriptor->group_list != NULL) {
+#if LIBWOLFSSL_VERSION_HEX >= 0x05002000
     int_retval = wolfSSL_CTX_set1_groups_list(ctx, descriptor->group_list);
+#else
+    int_retval = wolfSSL_CTX_set1_groups_list(ctx, (char *)(descriptor->group_list));
+#endif
     if (int_retval != WOLFSSL_SUCCESS) {
       snprintf(error_msg, 128, "wolfssl set group list %s failed", descriptor->group_list);
       goto ERROR__wolfssl_create_agent;
@@ -848,8 +852,8 @@ static TLS_PUT_INTERFACE const WOLFSSL_PUT = {
   },
 };
 
-#ifdef USE_CUSTOM_PRNG
 time_t time_cb(time_t* t) {
+#ifdef USE_CUSTOM_PRNG
   if (clock_value != 0) {
     if (t != NULL) {
       *t = clock_value;
@@ -862,9 +866,9 @@ time_t time_cb(time_t* t) {
     return 0;
 #endif
   }
+#endif
   return time(t);
 }
-#endif
 
 #ifdef USE_CUSTOM_PRNG
 word32 LowResTimer(void) {
@@ -901,8 +905,10 @@ TLS_PUT_INTERFACE const * REGISTER () {
     wolfSSL_Debugging_ON();
   }*/
 
+#if LIBWOLFSSL_VERSION_HEX >= 0x05002000
 #ifdef USE_CUSTOM_PRNG
   wc_SetTimeCb(time_cb);
+#endif
 #endif
 
   _log(PUFFIN.info, "wolfssl version %s", LIBWOLFSSL_VERSION_STRING);

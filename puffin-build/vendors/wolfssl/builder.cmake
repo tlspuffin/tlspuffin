@@ -54,7 +54,7 @@ autotools_builder(
     --enable-psk # FIXME only 4.3.0
     --disable-examples
     --disable-crypttests # to be able to build with -DUSER_TICKS
-    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.2.0>:--enable-cryptocb>
+    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-cryptocb>
 
     $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-context-extra-user-data>
     $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-dtls-mtu>
@@ -74,7 +74,8 @@ autotools_builder(
     -DHAVE_EX_DATA                # FIXME only 4.3.0
     -DWOLFSSL_CALLBACKS           # FIXME else some msg callbacks are not called
     -DHAVE_CURVE25519
-    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.2.0>:-DUSER_TICKS> # to ensure deterministic behaviour
+    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:-DUSER_TICKS> # to ensure deterministic behaviour
+    $<$<VERSION_LESS:${VENDOR_VERSION},5.2.0>:-DXTIME=time_cb> # to ensure deterministic behaviour with version < 5.2.0
     # FIXME broken: -DHAVE_EX_DATA_CLEANUP_HOOKS  # required for cleanup of ex data
     # FIXME broken: -DWC_RNG_SEED_CB              # makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism
     # FIXME broken: -DWOLFSSL_GENSEED_FORTEST     # makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism
