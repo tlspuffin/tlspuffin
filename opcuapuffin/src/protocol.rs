@@ -2,17 +2,16 @@
 
 use core::any::TypeId;
 
+use opcua::puffin::claims::OpcuaClaim;
+use opcua::puffin::messages::{Message, MessageFlight, UatcpMessage, UatcpMessageFlight};
 use opcua::puffin::types::OpcuaProtocolTypes;
+use opcua::puffin::violations::OpcuaSecurityViolationPolicy;
+
 use puffin::error::Error;
 use puffin::protocol::{EvaluatedTerm, ProtocolBehavior};
 use puffin::put::PutDescriptor;
 use puffin::trace::Trace;
 
-use crate::claims::OpcuaClaim;
-use crate::messages::{
-    OpcuaSecurityViolationPolicy, TestMessage, TestMessageFlight, TestOpaqueMessage,
-    TestOpaqueMessageFlight,
-};
 use crate::put_registry::opcua_registry;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -20,10 +19,10 @@ pub struct OpcuaProtocolBehavior;
 
 impl ProtocolBehavior for OpcuaProtocolBehavior {
     type Claim = OpcuaClaim;
-    type OpaqueProtocolMessage = TestOpaqueMessage;
-    type OpaqueProtocolMessageFlight = TestOpaqueMessageFlight;
-    type ProtocolMessage = TestMessage;
-    type ProtocolMessageFlight = TestMessageFlight;
+    type OpaqueProtocolMessage = UatcpMessage;
+    type OpaqueProtocolMessageFlight = UatcpMessageFlight;
+    type ProtocolMessage = Message;
+    type ProtocolMessageFlight = MessageFlight;
     type ProtocolTypes = OpcuaProtocolTypes;
     type SecurityViolationPolicy = OpcuaSecurityViolationPolicy;
 

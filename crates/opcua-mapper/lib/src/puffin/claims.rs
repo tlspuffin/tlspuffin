@@ -3,7 +3,8 @@
 /// /!\ not implemented yet /!\
 use std::fmt::Debug;
 
-use opcua::puffin::types::{AgentType, OpcuaProtocolTypes, OpcuaVersion};
+use crate::puffin::types::{AgentType, OpcuaProtocolTypes, OpcuaVersion};
+
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::claims::Claim;
