@@ -3,7 +3,7 @@
 //! or the execution of a known attack.
 #![allow(dead_code)]
 
-use opcua::puffin::query::OpcuaQueryMatcher;
+//use opcua::puffin::query::OpcuaQueryMatcher;
 use opcua::puffin::types::OpcuaProtocolTypes;
 use puffin::trace::Trace;
 

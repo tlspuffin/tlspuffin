@@ -17,8 +17,8 @@ use std::io::Read;
 
 /// This enum type defines all [`OpaqueProtocolMessage`], i.e. UA Connection Protocol messages,
 /// and chunks of UA Secure Channel messages that are Signed and/or Encrypted.
-/// These messages are opaque in the sense that they may need to be decrypted, but knowledge
-/// can be learned from them, especially if they are not encrypted.
+/// These messages are opaque in the sense that chunks may be encrypted, but knowledge
+/// can be learned from them if they are not encrypted.
 /// The [`OpaqueProtocolMessageFlight`] is used for exchanges with the PUT.
 #[derive(Debug, Clone, Extractable)]
 #[extractable(OpcuaProtocolTypes)]
@@ -37,7 +37,7 @@ impl CodecP for UatcpMessage {
             UatcpMessage::Acknowledge(ref a) => a.encode(bytes),
             UatcpMessage::Error(ref e) => e.encode(bytes),
             UatcpMessage::Reverse(ref r) => r.encode(bytes),
-            UatcpMessage::Chunk(ref c) => c.encode(bytes),
+            UatcpMessage::Chunk(ref c) => bytes.extend_from_slice(&c.data) //c.encode(bytes) will panic!
         }
     }
 
@@ -135,6 +135,16 @@ impl From<Message> for MessageFlight {
 #[derive(Debug, Clone, Default)]
 pub struct UatcpMessageFlight {
     messages: Vec<UatcpMessage>,
+}
+
+impl UatcpMessageFlight {
+    // Creates a flight of messages from the encoded chunks of a message issued by a secure channel.
+    fn from_sc_message(&mut self, chunks: &Vec<MessageChunk>) {
+        self.messages.clear();
+        for msg_chunk in chunks {
+            self.messages.push(UatcpMessage::Chunk(msg_chunk.clone()))
+        }
+    }
 }
 
 impl OpaqueProtocolMessageFlight<OpcuaProtocolTypes, UatcpMessage> for UatcpMessageFlight {

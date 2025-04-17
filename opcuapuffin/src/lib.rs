@@ -8,12 +8,15 @@
 mod rust_put;
 
 //pub mod debug;
+pub mod opcua;
 pub mod protocol;
 pub mod put;
+pub mod put_registry;
 pub mod types;
 
-pub mod put_registry;
 //pub mod static_certs;
-//pub mod tcp;
 
-pub mod opcua;
+
+//#[cfg(feature = "test-utils")]
+#[cfg(test)]
+pub mod tests;
