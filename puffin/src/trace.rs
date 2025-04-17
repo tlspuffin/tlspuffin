@@ -551,35 +551,54 @@ impl<PT: ProtocolTypes> Trace<PT> {
         show_terms: bool,
         show_knowledges: bool,
         only_step: Option<usize>,
+        show_prior: bool,
+        depth: usize,
     ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        println!("==== Executing prior traces ====");
-        for trace in &self.prior_traces {
-            trace.execute(ctx)?;
+        let tabs = "\t".repeat(depth);
+        let mut knowledge_counter = ctx.knowledge_store.raw_knowledge.len();
+
+        for (i, trace) in self.prior_traces.iter().enumerate() {
+            println!("{tabs}==== Executing prior trace #{} ====", i);
+            if show_prior {
+                trace.display_trace_execution(
+                    ctx,
+                    trace.steps.len(),
+                    show_terms,
+                    show_knowledges,
+                    None,
+                    false,
+                    depth + 1,
+                )?;
+            } else {
+                trace.execute(ctx)?;
+            }
         }
+
+        knowledge_counter = ctx.knowledge_store.raw_knowledge.len();
 
         self.spawn_agents(ctx)?;
         let steps = &self.steps[0..max_steps];
         for (i, step) in steps.iter().enumerate() {
-            println!("==== Executing step #{} ====", i);
+            println!("{tabs}==== Executing step #{} ====", i);
             step.execute(i, ctx)?;
             match &step.action {
                 Action::Input(input) => {
-                    println!("Action: Input (attacker -> agent.{})", step.agent);
+                    println!("{tabs}Action: Input (attacker -> agent.{})", step.agent);
                     if show_terms && (only_step.is_none() || only_step == Some(i)) {
-                        println!("Term: {}", input.recipe.term);
+                        println!("{tabs}Term: {}", input.recipe.term);
                     }
                 }
                 Action::Output(_) => {
-                    println!("Action: Output (agent.{} -> attacker)", step.agent);
+                    println!("{tabs}Action: Output (agent.{} -> attacker)", step.agent);
                 }
             }
             if show_knowledges && (only_step.is_none() || only_step == Some(i)) {
-                for k in &ctx.knowledge_store.raw_knowledge {
+                for k in &ctx.knowledge_store.raw_knowledge[knowledge_counter..] {
                     if k.step == Some(i) {
-                        println!(">>> {:?}", k.data);
+                        println!("{tabs}>>> {:?}", k.data);
                     }
                 }
             }
