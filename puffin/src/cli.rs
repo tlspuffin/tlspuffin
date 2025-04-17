@@ -65,6 +65,13 @@ where
                 .arg(arg!(-n --number <n> "Amount of files to execute starting at index.").value_parser(value_parser!(usize)))
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
                 .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing")),
+            Command::new("display-execute")
+                .about("Executes a trace stored in a file and display informations")
+                .arg(arg!(<input> "The file which stores a trace"))
+                .arg(arg!(-s --max_step <n> "The step to stop to").value_parser(value_parser!(usize)))
+                .arg(arg!(-S --only_step <n> "Show only the specified step").value_parser(value_parser!(usize)))
+                .arg(arg!(-t --show_terms "Show the terms computed at each input step").value_parser(value_parser!(bool)))
+                .arg(arg!(-k --show_knowledges "Show the knowledges gathered at each output step").value_parser(value_parser!(bool))),
             Command::new("execute-traces")
                 .about("Executes traces stored in files.")
                 .arg(arg!(<inputs> "The file which stores a trace").num_args(1..)),
@@ -291,6 +298,38 @@ where
         }
 
         return ExitCode::SUCCESS;
+    } else if let Some(matches) = matches.subcommand_matches("display-execute") {
+        let input: &String = matches.get_one("input").unwrap();
+        let max_step: Option<&usize> = matches.get_one("max_step");
+        let only_step: Option<&usize> = matches.get_one("only_step");
+        let show_terms: &bool = matches.get_one("show_terms").unwrap();
+        let show_knowledges: &bool = matches.get_one("show_knowledges").unwrap();
+
+        let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
+            t
+        } else {
+            log::error!("Invalid trace file {}", input);
+
+            return ExitCode::FAILURE;
+        };
+
+        log::info!("Agents: {:?}", &trace.descriptors);
+
+        let mut ctx = TraceContext::new(Spawner::new(put_registry).with_default(default_put));
+
+        return match trace.display_trace_execution(
+            &mut ctx,
+            *max_step.unwrap_or(&trace.steps.len()),
+            *show_terms,
+            *show_knowledges,
+            only_step.map(|x| *x),
+        ) {
+            Ok(_) => ExitCode::SUCCESS,
+            Err(e) => {
+                println!("Execution error : {}", e);
+                ExitCode::FAILURE
+            }
+        };
     } else if let Some(matches) = matches.subcommand_matches("binary-attack") {
         let input: &String = matches.get_one("input").unwrap();
         let output: &String = matches.get_one("output").unwrap();
@@ -540,6 +579,23 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) 
         Err(reason) => panic!("failed to execute trace: {reason}"),
     }
 }
+
+// fn execute_display<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) {
+//     let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
+//         t
+//     } else {
+//         log::error!("Invalid trace file {}", input.as_ref().display());
+//         return;
+//     };
+
+//     log::info!("Agents: {:?}", &trace.descriptors);
+
+//     let mut ctx = TraceContext::new(spawner);
+//     trace.display_trace_execution(ctx, nb_steps, true, true, None);
+
+//     let store = ctx.knowledge_store;
+//
+// }
 
 fn binary_attack<PB: ProtocolBehavior>(
     input: &str,
