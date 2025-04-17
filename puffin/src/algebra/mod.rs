@@ -744,9 +744,12 @@ mod tests {
 
         let spawner = Spawner::new(registry);
         let mut context = TraceContext::new(spawner);
-        context
-            .knowledge_store
-            .add_raw_knowledge(data, Source::Agent(AgentName::first()), None);
+        context.knowledge_store.add_raw_knowledge(
+            data,
+            Some(0),
+            Source::Agent(AgentName::first()),
+            None,
+        );
 
         log::debug!("{:?}", context.knowledge_store);
 
