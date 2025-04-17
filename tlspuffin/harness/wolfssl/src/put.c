@@ -677,11 +677,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
   }
 
   if (descriptor->group_list != NULL) {
-#if LIBWOLFSSL_VERSION_HEX >= 0x05002000
-    int_retval = wolfSSL_CTX_set1_groups_list(ctx, descriptor->group_list);
-#else
     int_retval = wolfSSL_CTX_set1_groups_list(ctx, (char *)(descriptor->group_list));
-#endif
     if (int_retval != WOLFSSL_SUCCESS) {
       snprintf(error_msg, 128, "wolfssl set group list %s failed", descriptor->group_list);
       goto ERROR__wolfssl_create_agent;
