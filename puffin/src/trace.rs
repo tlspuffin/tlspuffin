@@ -86,6 +86,7 @@ pub struct Knowledge<'a, PT: ProtocolTypes> {
 #[derive(Debug)]
 pub struct RawKnowledge<PT: ProtocolTypes> {
     pub source: Source,
+    pub step: Option<usize>,
     pub matcher: Option<PT::Matcher>,
     pub associated_term: Option<Term<PT>>,
     pub data: Box<dyn EvaluatedTerm<PT>>,
@@ -154,6 +155,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
     pub fn add_raw_knowledge<T: EvaluatedTerm<PT> + 'static>(
         &mut self,
         data: T,
+        step: Option<usize>,
         source: Source,
         term: Option<Term<PT>>,
     ) {
@@ -164,12 +166,14 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             matcher: None,
             data: Box::new(data),
             associated_term: term,
+            step,
         });
     }
 
     pub fn add_raw_boxed_knowledge(
         &mut self,
         data: Box<dyn EvaluatedTerm<PT>>,
+        step: Option<usize>,
         source: Source,
         term: Option<Term<PT>>,
     ) {
@@ -180,6 +184,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             matcher: None,
             data,
             associated_term: term,
+            step,
         });
     }
 
@@ -531,7 +536,54 @@ impl<PT: ProtocolTypes> Trace<PT> {
         let steps = &self.steps[0..nb_steps];
         for (i, step) in steps.iter().enumerate() {
             log::debug!("Executing step #{}", i);
-            step.execute(ctx)?;
+            step.execute(i, ctx)?;
+
+            ctx.verify_security_violations()?;
+        }
+
+        Ok(())
+    }
+
+    pub fn display_trace_execution<PB>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+        max_steps: usize,
+        show_terms: bool,
+        show_knowledges: bool,
+        only_step: Option<usize>,
+    ) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        println!("==== Executing prior traces ====");
+        for trace in &self.prior_traces {
+            trace.execute(ctx)?;
+        }
+
+        self.spawn_agents(ctx)?;
+        let steps = &self.steps[0..max_steps];
+        for (i, step) in steps.iter().enumerate() {
+            println!("==== Executing step #{} ====", i);
+            step.execute(i, ctx)?;
+            match &step.action {
+                Action::Input(input) => {
+                    println!("Action: Input (attacker -> agent.{})", step.agent);
+                    if show_terms && (only_step.is_none() || only_step == Some(i)) {
+                        println!("Term: {}", input.recipe.term);
+                    }
+                }
+                Action::Output(_) => {
+                    println!("Action: Output (agent.{} -> attacker)", step.agent);
+                }
+            }
+            if show_knowledges && (only_step.is_none() || only_step == Some(i)) {
+                for k in &ctx.knowledge_store.raw_knowledge {
+                    if k.step == Some(i) {
+                        println!(">>> {:?}", k.data);
+                    }
+                }
+            }
+            println!("");
 
             ctx.verify_security_violations()?;
         }
@@ -616,7 +668,7 @@ pub struct Step<PT: ProtocolTypes> {
 }
 
 impl<PT: ProtocolTypes> Step<PT> {
-    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    pub fn execute<PB>(&self, step_number: usize, ctx: &mut TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -626,9 +678,9 @@ impl<PT: ProtocolTypes> Step<PT> {
                 (OutputAction {
                     phantom: Default::default(),
                 })
-                .execute(self.agent, ctx)
+                .execute(self.agent, step_number, ctx)
             }),
-            Action::Output(output) => output.execute(self.agent, ctx),
+            Action::Output(output) => output.execute(self.agent, step_number, ctx),
         }
     }
 }
@@ -680,7 +732,12 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
         }
     }
 
-    fn execute<PB>(&self, agent_name: AgentName, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    fn execute<PB>(
+        &self,
+        agent_name: AgentName,
+        step: usize,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -690,11 +747,16 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
         agent.progress()?;
 
         if let Some(opaque_flight) = agent.take_message_from_outbound()? {
-            ctx.knowledge_store
-                .add_raw_knowledge(opaque_flight.clone(), source.clone(), None);
+            ctx.knowledge_store.add_raw_knowledge(
+                opaque_flight.clone(),
+                Some(step),
+                source.clone(),
+                None,
+            );
 
             if let Ok(flight) = TryInto::<PB::ProtocolMessageFlight>::try_into(opaque_flight) {
-                ctx.knowledge_store.add_raw_knowledge(flight, source, None);
+                ctx.knowledge_store
+                    .add_raw_knowledge(flight, Some(step), source, None);
             }
         }
 
@@ -748,6 +810,7 @@ impl<PT: ProtocolTypes> InputAction<PT> {
             let eval = precomputation.recipe.evaluate_dy(ctx)?; // We do not accept payloads in precomputation recipes
             ctx.knowledge_store.add_raw_boxed_knowledge(
                 eval,
+                None,
                 Source::Label(precomputation.label.clone()),
                 Some(precomputation.recipe.clone()),
             );
