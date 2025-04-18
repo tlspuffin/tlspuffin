@@ -583,7 +583,6 @@ impl<PT: ProtocolTypes> Trace<PT> {
         let steps = &self.steps[0..max_steps];
         for (i, step) in steps.iter().enumerate() {
             println!("{tabs}==== Executing step #{} ====", i);
-            step.execute(i, ctx)?;
             match &step.action {
                 Action::Input(input) => {
                     println!("{tabs}Action: Input (attacker -> agent.{})", step.agent);
@@ -595,6 +594,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
                     println!("{tabs}Action: Output (agent.{} -> attacker)", step.agent);
                 }
             }
+            step.execute(i, ctx)?;
             if show_knowledges && (only_step.is_none() || only_step == Some(i)) {
                 for k in &ctx.knowledge_store.raw_knowledge[knowledge_counter..] {
                     if k.step == Some(i) {
@@ -602,7 +602,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
                     }
                 }
             }
-            println!("");
+            println!();
 
             ctx.verify_security_violations()?;
         }
