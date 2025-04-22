@@ -14,8 +14,8 @@ use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
 /// Constants governing heuristic for finding payloads in term evaluations
-const THRESHOLD_SIZE: usize = 4; // minimum size of a payload to be directly searched in root_eval
-const THRESHOLD_RATIO: usize = 30; // maximum ratio for root_eval/too_search for a direct search
+const THRESHOLD_SIZE: usize = 3; // minimum size of a payload to be directly searched in root_eval
+const THRESHOLD_RATIO: usize = 100; // maximum ratio for root_eval/too_search for a direct search
 
 /// `Term`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
 /// symbolic terms.
@@ -134,6 +134,8 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
     whole_term: &Term<PT>,
 ) -> Result<usize> {
     log::debug!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?},\n - eval_tree: {eval_tree:?},\n - to_search: {:?}", eval_tree.get(path_to_search)?.encode.as_ref().unwrap());
+    // We will traverse the eval_tree and update the followings until we reach the node at
+    // path_to_search
     let mut path_to_search = path_to_search;
     let mut eval_tree = eval_tree;
     let mut term = whole_term;
@@ -144,118 +146,163 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         .as_ref()
         .expect("[find_unique_match_rec] path_to_search should exist in eval_tree");
 
-    // We traverse eval_tree towards reaching the node at path_to_search
+    // [WHILE LOOP TRAVERSAL] We traverse eval_tree towards reaching the node at path_to_search
     while !path_to_search.is_empty() {
         // Getting child information
+        let parent_is_get = term.is_get();
         let nb_children = eval_tree.args.len();
-        let child_arg = path_to_search[0];
-        log::debug!("[find_unique_match_rec] while step: {path_to_search:?}, nb_children: {nb_children}, child_arg: {child_arg}");
-        let eval_root = eval_tree
+        let child_arg_number = path_to_search[0];
+        log::debug!("[find_unique_match_rec] while step: {path_to_search:?}, nb_children: {nb_children}, child_arg: {child_arg_number}");
+        let eval_parent = eval_tree
             .encode
             .as_ref()
             .expect("[find_unique_match_rec] EvalTree should have been computed");
-        let root_is_get = term.is_get();
-
         let children = &eval_tree.args;
-        eval_tree = eval_tree.get(&[child_arg])?; // we move to the next child for the future while iteration
-        path_to_search = &path_to_search[1..];
-        term = term
-            .get(&[child_arg])
-            .expect("[find_unique_match_rec] term does not match eval_tree");
+
+        // Updating the term, eval_tree, path_to_search to the child
+        eval_tree = eval_tree.get(&[child_arg_number])?; // we move to the next child for the future while iteration
         let eval_child = eval_tree
             .encode
             .as_ref()
             .expect("[find_unique_match_rec] EvalTree should have been computed");
+        log::trace!("[find_unique_match_rec] --- [Rec call] with path_to_search (from parent):{path_to_search:?}, start_pos: {start_pos},\n - term_parent: {term}\n - eval_parent: {eval_parent:?}\n - eval_child: {eval_child:?}\n - eval_to_search: {eval_to_search:?}");
+        path_to_search = &path_to_search[1..];
+        term = term
+            .get(&[child_arg_number])
+            .expect("[find_unique_match_rec] term does not match eval_tree");
 
-        // We might directly search for eval_too_search in root_eva
+        // [STEP 1: DIRECT SEARCH] Directly search for eval_too_search in root_eval
         if eval_to_search.len() > 0
             && (eval_to_search.len() > THRESHOLD_SIZE
-                || eval_root.len() / eval_to_search.len() < THRESHOLD_RATIO)
+                || eval_parent.len() / eval_to_search.len() < THRESHOLD_RATIO)
         {
-            if let Some(unique_pos) = search_sub_vec_unique(eval_root, eval_to_search) {
+            if let Some(unique_pos) = search_sub_vec_unique(eval_parent, eval_to_search) {
                 log::debug!(
-                    "[find_unique_match_rec] Directly found unique match in root: {unique_pos}"
+                    "[find_unique_match_rec] [S1] Directly found unique match in root: {unique_pos}"
                 );
                 return Ok(start_pos + unique_pos);
             } else {
-                log::debug!("[find_unique_match_rec] Direct found is not unique!");
+                log::debug!("[find_unique_match_rec] [S1] Direct found is not unique!");
             }
         }
 
-        // We are looking for an empty encoding, we will position relative to the siblings
+        // [STEP 2: SEARCH CHILD IN PARENT] Searching for the child encoding in the parent
+        // [2:1] [CASE EMPTY] Child encoding is empty, we will position relatively to the siblings
         if eval_child.is_empty() {
             // TODO: this assumes no trailer and no intermediate header, we should make sure this is
             // indeed the case
             let mut eval_right_siblings = Vec::new();
-            for right_sibling in (child_arg + 1)..nb_children {
+            for right_sibling in (child_arg_number + 1)..nb_children {
                 eval_right_siblings.extend_from_slice(
-                    children[right_sibling]
-                        .encode
-                        .as_ref()
-                        .expect("[find_unique_match_rec] EvalTree should have been computed"),
+                    children[right_sibling].encode.as_ref().expect(
+                        "[find_unique_match_rec] [S2:1] EvalTree should have been computed",
+                    ),
                 );
             }
-            let pos_child = eval_root.len() - eval_right_siblings.len();
-            log::debug!("eval_child has an empty encoding, we use right siblings to position the child: pos = {pos_child}");
+            let pos_child = eval_parent.len() - eval_right_siblings.len();
+            log::debug!("[S2:1] eval_child has an empty encoding, we use right siblings to position the child: pos = {pos_child}");
 
             start_pos += pos_child;
             continue;
         }
 
-        // Searching for the (non-empty) child encoding in the root
-        let all_matches = search_sub_vec_all(eval_root, eval_child);
+        // [2:2] [CASE NON-EMPTY] We compute all matching positions of child in parent
+        let all_matches = search_sub_vec_all(eval_parent, eval_child);
+        log::debug!("[S2:2] Searched child #{child_arg_number} encoding in parent and found positions: {all_matches:?}. (for path {path_to_search:?})");
 
+        //   - If match is unique: we found the (unique) right position
+        if all_matches.len() == 1 {
+            // We found the child encoding in the root
+            log::debug!(
+                "[S2:2] Found position is unique: {}. Continue...",
+                all_matches[0]
+            );
+            start_pos += all_matches[0];
+            continue;
+        }
+        //   - No matching case: either parent is a `get` symbol --> could happen, or critical error
         if all_matches.is_empty() {
             let ft = format!(
-                "--> [find_unique_match_rec] Child {child_arg} encoding not found in root for path {path_to_search:?}\n - eval_root:\n  {eval_root:?}\n  - eval_child:\n  {eval_child:?}",
+                "--> [find_unique_match_rec] [S2:2] Child {child_arg_number} encoding not found in root for path {path_to_search:?}\n - eval_parent:\n  {eval_parent:?}\n  - eval_child:\n  {eval_child:?}",
             );
-            if root_is_get {
+            return if parent_is_get {
                 // This case is to be expected: we are looking for a child encoding that might just
                 // not been present in the encoding because the function symbol is a `get` symbol.
                 // No relevant payload replacement is possible --> We returns a simple error in that
                 // case.
-                return Err(anyhow!(Error::Term(format!(
-                    "{}\n--> [symbol above was a get symbol so this is not a critical error]",
+                Err(anyhow!(Error::Term(format!(
+                    "{}\n--> [S2:2] [symbol above was a get symbol so this is not a critical error]",
                     ft
-                ))));
+                ))))
             } else {
-                return Err(anyhow!(Error::TermBug(format!(
-                    "{}\n--> [symbol above was not a get symbol so this is a critical error]",
+                Err(anyhow!(Error::TermBug(format!(
+                    "{}\n--> [S2:2] [symbol above was not a get symbol so this is a critical error]",
                     ft
-                ))));
-            }
+                ))))
+            };
         }
 
-        // If matches is unique: we found the (unique) right position
-        if all_matches.len() == 1 {
-            // We found the child encoding in the root
-            start_pos += all_matches[0];
-            continue;
-        }
+        // [STEP 2:2: POSITION CHILD RELATIVELY TO SIBLINGS] Otherwise, we must find which matching
+        // position of child relatively to the position of the evaluation of all right siblings.
 
-        // Otherwise, we must find which matching position on the right siblings
-        log::debug!("Found child {child_arg} encoding in root but it is not unique: {all_matches:?}. For path {path_to_search:?}. eval_root: {eval_root:?}, eval_child: {eval_child:?}");
-
-        // We compute the number of matching eval_child in right siblings encoding
+        // We first compute evaluation of all right siblings
         let mut eval_right_siblings = Vec::new();
-        for right_sibling in (child_arg + 1)..nb_children {
+        for right_sibling in (child_arg_number + 1)..nb_children {
             eval_right_siblings.extend_from_slice(
                 children[right_sibling]
                     .encode
                     .as_ref()
-                    .expect("[find_unique_match_rec] EvalTree should have been computed"),
+                    .expect("[find_unique_match_rec] [S2:2] EvalTree should have been computed"),
             );
         }
-        let matches_right_siblings = search_sub_vec_all(&eval_right_siblings, eval_child);
-        log::debug!("matches_right_siblings: {matches_right_siblings:?} for eval_right_siblings: {eval_right_siblings:?}");
-        if !matches_right_siblings.len() < all_matches.len() {
-            let ft = format!("--> [find_unique_match_rec] Found too many matches in siblings than in root for path {path_to_search:?}. eval_root: {eval_root:?}, eval_child: {eval_child:?}");
+
+        let matches_right_siblings_in_root = search_sub_vec_all(eval_parent, &eval_right_siblings);
+        if let Some(pos_right_siblings) = matches_right_siblings_in_root.last() {
+            //   - We found at least some match. We assume the real match is the last one:
+            //     pos_right_siblings
+            // We assume the right child position is the last match (idx) for which the end of the
+            // match would not overlap with the right siblings:
+            // all_matches[idx] + eval_child.len() <= pos_right_siblings
+            log::debug!("[find_unique_match_rec] [S2:2] [sib] Found last matching position of eval_right_siblings in eval_parent: pos_right_siblings= {pos_right_siblings}");
+            if let Some(pos_child) = all_matches
+                .iter()
+                .rev()
+                .find(|p| **p + eval_child.len() <= *pos_right_siblings)
+            {
+                log::debug!("[find_unique_match_rec] [S2:2] Found pos_child: {pos_child} by comparing with pos_right_siblings: {pos_right_siblings}. Continue....");
+                start_pos += pos_child;
+                continue;
+            } else {
+                let ft = format!("[find_unique_match_rec] [S2:2] [sib] Could not find at least one appropriate idx for all_matches: {all_matches:?} and eval_child.len: {}, eval_parent.len(): {}, pos_right_siblings: {pos_right_siblings}. Continue....\n\
+                  - eval_right_siblings: {eval_right_siblings:?}\n\
+                  - eval_parent: {eval_parent:?}", eval_child.len(), eval_parent.len());
+                return Err(anyhow!(Error::TermBug(ft)));
+            }
+        } else {
+            // right_sibling could not be found --> warning
+            let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
+            log::error!("{ft}");
+            #[cfg(any(debug_assertions, feature = "debug"))]
+            {
+                // Ungraceful error in debug mode
+                return Err(anyhow!(Error::TermBug(ft)));
+            }
+        }
+        //       - Otherwise, we assume the right position is the maximal idx for which the end of
+        //         the match would not overlap with the siblings position extrapolated to be exactly
+        //         at the end of eval_parent (no trailer): eval_parent.len() -
+        //         eval_right_siblings.len()
+        if let Some(pos_child) = all_matches.iter().rev().find(|p| {
+            **p + eval_child.len()
+                <= core::cmp::max(0, eval_parent.len() - eval_right_siblings.len())
+        }) {
+            log::debug!("[find_unique_match_rec] [S2:2] [not-sib] Found pos_child: {pos_child} by comparing with end of eval_parent.len(): {} and eval_right_siblings.len(): {}. Continue....", eval_parent.len(), eval_right_siblings.len());
+            start_pos += pos_child;
+            continue;
+        } else {
+            let ft = format!("--> [find_unique_match_rec] [S2:2] [not-sib-not] Could not find at least one appropriate idx for all_matches: {all_matches:?}, eval_child.len: {}, eval_parent.len: {}, eval_right_siblings.len: {}", eval_child.len(), eval_parent.len(), eval_right_siblings.len());
             return Err(anyhow!(Error::TermBug(ft)));
         }
-        let idx_matching = all_matches.len() - matches_right_siblings.len() - 1;
-        log::debug!("[find_unique_match_rec] Found {} matches on the right, so idx_matching = {idx_matching}, and position: {}", matches_right_siblings.len(), all_matches[idx_matching]);
-        start_pos += all_matches[idx_matching];
-        continue;
     }
 
     log::debug!("[find_unique_match_rec] End of while, returning {start_pos}");
@@ -388,7 +435,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 // are not inverse of each other. Otherwise, later payload replacements will fail.
                 if &di.get_encoding()[..] != &payload.payload_0.bytes()[..] {
                     log::warn!(
-                                "--> [eval_until_opaque] [argument is symbolic: {}] Failed consistency check for read.encode a type {}:\n\
+                                "--> [eval_until_opaque] [argument is symbolic: {}] [Skipping eval bypass] Failed consistency check for read.encode a type {}:\n\
                                 - bi (first eval)  : {:?}\n\
                                 - read.encode:     : {:?}",
                                 self.is_symbolic(),
@@ -494,7 +541,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                                  // Otherwise, later payload replacements will fail.
                         if &di.get_encoding()[..] != &bi[..] {
                             bail!(Error::Term(format!(
-                                "--> [eval_until_opaque] [argument is symbolic: {}] Failed consistency check for read.encode a type {}:\n\
+                                "--> [eval_until_opaque] [argument is symbolic: {}] [1] Failed consistency check for read.encode a type {}:\n\
                                 - bi (first eval)  : {bi:?}\n\
                                 - read.encode:     : {:?}",
                                 ti.is_symbolic(),
