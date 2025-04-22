@@ -79,17 +79,11 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
             .map_err(|e| {
                 match e.downcast_ref() {
                     Some(Error::TermBug(_te)) => {
-                        #[cfg(
-                            not(test)
-                        )] // We do not want to pollute the test logs at ERROR level, especially for zoo_test
                         {
                             log::error!("[evaluate_config_wrap] TermBug Error on\n{}\n[==>] Causes: {:?}", &self, &e);
                         }
-                        #[cfg(test)]
-                        {
-                            log::debug!("[evaluate_config_wrap] TermBug Error on\n{}\n[==>] Causes: {:?}", &self, &e);
-                        }
-                        if cfg!(feature = "debug") { // we panic in debug mode
+                        #[cfg(any(debug_assertions, feature = "debug"))]
+                        { // we panic in debug or test mode
                             panic!("[evaluate_config_wrap] Panic! {}", e);
                         }
                     }
