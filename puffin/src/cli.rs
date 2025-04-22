@@ -73,9 +73,6 @@ where
                 .arg(arg!(-t --show_terms "Show the terms computed at each input step").value_parser(value_parser!(bool)))
                 .arg(arg!(-k --show_knowledges "Show the knowledges gathered at each output step").value_parser(value_parser!(bool)))
                 .arg(arg!(-p --show_prior "Show infos for prior traces").value_parser(value_parser!(bool))),
-            Command::new("execute-traces")
-                .about("Executes traces stored in files.")
-                .arg(arg!(<inputs> "The file which stores a trace").num_args(1..)),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -254,51 +251,10 @@ where
         }
 
         if end_reached {
-            return ExitCode::FAILURE;
-        } else {
             return ExitCode::SUCCESS;
+        } else {
+            return ExitCode::FAILURE;
         }
-    } else if let Some(matches) = matches.subcommand_matches("execute-traces") {
-        let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
-
-        let mut paths = inputs
-            .flat_map(|input| {
-                let input = PathBuf::from(input);
-
-                if input.is_dir() {
-                    fs::read_dir(input)
-                        .expect("failed to read directory")
-                        .map(|entry| entry.expect("failed to read path in directory").path())
-                        .filter(|path| {
-                            !path.file_name().unwrap().to_str().unwrap().starts_with('.')
-                        })
-                        .collect()
-                } else {
-                    vec![input]
-                }
-            })
-            .collect::<Vec<_>>();
-
-        paths.sort_by_key(|path| {
-            fs::metadata(path)
-                .unwrap_or_else(|_| panic!("missing trace file {}", path.display()))
-                .modified()
-                .unwrap()
-        });
-
-        log::info!("execute: found {} inputs", paths.len());
-
-        let runner = Runner::new(
-            put_registry.clone(),
-            Spawner::new(put_registry).with_default(default_put),
-        );
-
-        for path in paths {
-            log::info!("Executing: {}", path.display());
-            execute(&runner, path);
-        }
-
-        return ExitCode::SUCCESS;
     } else if let Some(matches) = matches.subcommand_matches("display-execute") {
         let input: &String = matches.get_one("input").unwrap();
         let max_step: Option<&usize> = matches.get_one("max_step");
