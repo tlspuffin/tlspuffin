@@ -288,7 +288,8 @@ pub struct TLSDescriptorConfig {
     /// as openssl agents rotate ticket keys if they are recreated.
     pub try_reuse: bool,
     /// List of available TLS ciphers
-    pub cipher_string: String,
+    pub cipher_string_tls13: String,
+    pub cipher_string_tls12: String,
     /// List of available TLS groups/curves
     /// If `None`, use the default PUT groups
     pub groups: Option<String>,
@@ -326,7 +327,8 @@ impl ProtocolDescriptorConfig for TLSDescriptorConfig {
     fn is_reusable_with(&self, other: &Self) -> bool {
         self.typ == other.typ
             && self.tls_version == other.tls_version
-            && self.cipher_string == other.cipher_string
+            && self.cipher_string_tls13 == other.cipher_string_tls13
+            && self.cipher_string_tls12 == other.cipher_string_tls12
             && self.groups == other.groups
     }
 }
@@ -339,7 +341,8 @@ impl Default for TLSDescriptorConfig {
             server_authentication: true,
             try_reuse: false,
             typ: AgentType::Server,
-            cipher_string: String::from("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2"),
+            cipher_string_tls13: String::from("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2"),
+            cipher_string_tls12: String::from("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2"),
             groups: None,
         }
     }

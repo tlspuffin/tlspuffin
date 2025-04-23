@@ -240,9 +240,14 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_set_max_proto_version(ssl_ctx, tls_version[descriptor->tls_version]);
 #endif
 
-    // Disallow EXPORT in client
-    SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string);
-    SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string);
+    if (descriptor->tls_version == V1_3)
+    {
+        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+    }
+    else
+    {
+        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
+    }
 
     if (descriptor->group_list != NULL)
     {
@@ -308,9 +313,14 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_set_tmp_rsa(ssl_ctx, rsa);
 #endif
 
-    // Allow EXPORT in server
-    SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string);
-    SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string);
+    if (descriptor->tls_version == V1_3)
+    {
+        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+    }
+    else
+    {
+        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
+    }
 
     if (descriptor->group_list != NULL)
     {
