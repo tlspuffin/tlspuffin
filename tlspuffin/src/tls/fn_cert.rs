@@ -2,6 +2,7 @@
 
 use std::sync::Arc;
 
+use itertools::Itertools;
 use puffin::algebra::error::FnError;
 use ring::signature::{RsaKeyPair, ECDSA_P256_SHA256_ASN1_SIGNING};
 
@@ -64,9 +65,9 @@ pub fn fn_chain_append_certificate_entry(
     cert: &CertificateEntry,
     chain: &Vec<CertificateEntry>,
 ) -> Result<Vec<CertificateEntry>, FnError> {
-    let mut chain = chain.clone();
-    chain.push(cert.clone());
-    Ok(chain)
+    let mut res = vec![cert.clone()];
+    res.append(&mut chain.clone());
+    Ok(res)
 }
 
 pub fn fn_get_context(certificate_request: &Message) -> Result<Vec<u8>, FnError> {

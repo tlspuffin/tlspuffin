@@ -79,9 +79,8 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
             .map_err(|e| {
                 match e.downcast_ref() {
                     Some(Error::TermBug(_te)) => {
-                        {
-                            log::error!("[evaluate_config_wrap] TermBug Error on\n{}\n[==>] Causes: {:?}", &self, &e);
-                        }
+                        log::error!("[evaluate_config_wrap] TermBug Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+
                         #[cfg(any(debug_assertions, feature = "debug"))]
                         { // we panic in debug or test mode
                             panic!("[evaluate_config_wrap] Panic! {}", e);
