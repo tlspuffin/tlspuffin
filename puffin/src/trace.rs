@@ -29,7 +29,7 @@ use crate::agent::{Agent, AgentDescriptor, AgentName};
 use crate::algebra::bitstrings::Payloads;
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{remove_prefix, Matcher, Term, TermType};
-use crate::claims::{GlobalClaimList, SecurityViolationPolicy};
+use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
 use crate::error::Error;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
@@ -550,6 +550,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
         max_steps: usize,
         show_terms: bool,
         show_knowledges: bool,
+        show_claims: bool,
         only_step: Option<usize>,
         show_prior: bool,
         depth: usize,
@@ -568,6 +569,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
                     trace.steps.len(),
                     show_terms,
                     show_knowledges,
+                    show_claims,
                     None,
                     false,
                     depth + 1,
@@ -578,6 +580,8 @@ impl<PT: ProtocolTypes> Trace<PT> {
         }
 
         knowledge_counter = ctx.knowledge_store.raw_knowledge.len();
+
+        let mut claims_counter = 0;
 
         self.spawn_agents(ctx)?;
         let steps = &self.steps[0..max_steps];
@@ -602,6 +606,12 @@ impl<PT: ProtocolTypes> Trace<PT> {
                     }
                 }
             }
+            if show_claims && (only_step.is_none() || only_step == Some(i)) {
+                for c in &ctx.claims.deref_borrow().slice()[claims_counter..] {
+                    println!("{tabs}+++ {:?}", c.inner());
+                }
+            }
+            claims_counter = ctx.claims.deref_borrow().slice().len();
             println!();
 
             ctx.verify_security_violations()?;

@@ -71,6 +71,7 @@ where
                 .arg(arg!(-s --max_step <n> "The step to stop to").value_parser(value_parser!(usize)))
                 .arg(arg!(-S --only_step <n> "Show only the specified step").value_parser(value_parser!(usize)))
                 .arg(arg!(-t --show_terms "Show the terms computed at each input step").value_parser(value_parser!(bool)))
+                .arg(arg!(-c --show_claims "Show the claims emitted at each input step").value_parser(value_parser!(bool)))
                 .arg(arg!(-k --show_knowledges "Show the knowledges gathered at each output step").value_parser(value_parser!(bool)))
                 .arg(arg!(-p --show_prior "Show infos for prior traces").value_parser(value_parser!(bool))),
             Command::new("binary-attack")
@@ -261,6 +262,7 @@ where
         let only_step: Option<&usize> = matches.get_one("only_step");
         let show_terms: &bool = matches.get_one("show_terms").unwrap();
         let show_knowledges: &bool = matches.get_one("show_knowledges").unwrap();
+        let show_claims: &bool = matches.get_one("show_claims").unwrap();
         let show_prior: &bool = matches.get_one("show_prior").unwrap();
 
         let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
@@ -280,6 +282,7 @@ where
             *max_step.unwrap_or(&trace.steps.len()),
             *show_terms,
             *show_knowledges,
+            *show_claims,
             only_step.map(|x| *x),
             *show_prior,
             0,
