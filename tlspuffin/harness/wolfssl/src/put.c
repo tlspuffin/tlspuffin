@@ -34,6 +34,7 @@ struct AGENT_TYPE {
 
   bool handshake_done;
   enum ClaimType transcriptType;
+  bool peer_authentication;
 };
 
 static ClaimKeyType map_keysum_claimkeytype(enum Key_Sum key) {
@@ -109,6 +110,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
   }
 
   claim->server = agent->ssl->options.side == WOLFSSL_SERVER_END;
+  claim->peer_authentication = agent->peer_authentication;
 
 #if LIBWOLFSSL_VERSION_HEX >= 0x05003000
   WOLFSSL_SESSION* session = agent->ssl->session;
@@ -175,8 +177,23 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
   }
 
   // cert
+  claim->cert.key_length = 0;
+  claim->cert.data_length = 0;
   WOLFSSL_X509 *cert = wolfSSL_get_certificate(agent->ssl);
   if (cert != NULL) {
+    int cert_lenght = wolfSSL_i2d_X509(cert, NULL);
+    if (cert_lenght > 0) {
+      uint8_t* data = calloc(1, cert_lenght);
+      cert_lenght = wolfSSL_i2d_X509(cert, data);
+      if (cert_lenght > 0) {
+        memcpy(claim->cert.data, data, MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT));
+        claim->cert.data_length = cert_lenght;
+      } else {
+        _log(PUFFIN.error, "wolfSSL_i2d_X509 returned two differents values");
+      }
+    } else {
+      //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate returned an error a ask for a too big buffer");
+    }
     int key_type = wolfSSL_X509_get_pubkey_type(cert);
     if (key_type != WOLFSSL_FAILURE) {
       WOLFSSL_EVP_PKEY *cert_pkey = wolfSSL_X509_get_pubkey(cert);
@@ -195,8 +212,24 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
   }
 
   // peer cert
+  claim->peer_cert.key_length = 0;
+  claim->peer_cert.data_length = 0;
   WOLFSSL_X509 *peer_cert = wolfSSL_get_peer_certificate(agent->ssl);
   if (peer_cert != NULL) {
+    int cert_lenght = wolfSSL_i2d_X509(peer_cert, NULL);
+    if (cert_lenght > 0) {
+      uint8_t* data = calloc(1, cert_lenght);
+      cert_lenght = wolfSSL_i2d_X509(peer_cert, &data);
+      if (cert_lenght > 0) {
+        memcpy(claim->peer_cert.data, data, MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT));
+        claim->peer_cert.data_length = cert_lenght;
+      } else {
+        _log(PUFFIN.error, "wolfSSL_i2d_X509 returned two differents values");
+      }
+      free(data);
+    } else {
+      //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate returned an error a ask for a too big buffer");
+    }
     int key_type = wolfSSL_X509_get_pubkey_type(cert);
     if (key_type != WOLFSSL_FAILURE) {
       WOLFSSL_EVP_PKEY const *peer_cert_pkey = wolfSSL_X509_get_pubkey(peer_cert);
@@ -575,6 +608,8 @@ static AGENT make_agent(AGENT agent, WOLFSSL_CTX *ctx, TLS_AGENT_DESCRIPTOR cons
 
   agent->handshake_done = false;
   agent->transcriptType = CLAIM_NOT_SET;
+  agent->peer_authentication = 
+      descriptor->role == CLIENT ? descriptor->server_authentication : descriptor->client_authentication;
 
   memset((void*)&agent->claimer, 0, sizeof(CLAIMER_CB));
   wolfssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
