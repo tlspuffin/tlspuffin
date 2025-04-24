@@ -202,7 +202,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
       WOLFSSL_EVP_PKEY const *peer_cert_pkey = wolfSSL_X509_get_pubkey(peer_cert);
       if (peer_cert_pkey != NULL) {
         claim->peer_cert.key_length = wolfSSL_EVP_PKEY_bits(peer_cert_pkey);
-        if (claim->peer_cert.key_length == 0) {
+        if (claim->peer_cert.key_length != 0) {
           claim->peer_cert.key_type = map_keysum_claimkeytype((enum Key_Sum)key_type);
         }
       } else {
@@ -260,7 +260,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
       _log(PUFFIN.warn, "wc_Sha256GetHash failed");
     }
   } else {
-    _log(PUFFIN.warn, "agent->ssl->hsHashes is NULL");
+    //_log(PUFFIN.warn, "agent->ssl->hsHashes is NULL");
   }
 
   return;
@@ -459,8 +459,8 @@ static const char *wolfssl_describe_state(AGENT agent) {
 static RESULT wolfssl_reset(AGENT agent, uint8_t new_name) {
   agent->name = new_name;
 
-  CLAIMER_CB current_claimer_cb = {};
-  memcpy(&current_claimer_cb, (void*)&agent->claimer, sizeof(CLAIMER_CB));
+  //CLAIMER_CB current_claimer_cb = {};
+  //memcpy(&current_claimer_cb, (void*)&agent->claimer, sizeof(CLAIMER_CB));
   memset((void*)&agent->claimer, 0, sizeof(CLAIMER_CB));
 
   int ret = wolfSSL_clear(agent->ssl);
@@ -471,9 +471,9 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name) {
     return result;
   }
 
-  if (current_claimer_cb.notify != NULL) {
+  /*if (current_claimer_cb.notify != NULL) {
     memcpy((void*)&agent->claimer, &current_claimer_cb, sizeof(CLAIMER_CB));
-  }
+  }*/
 
   return PUFFIN.make_result(RESULT_OK, NULL);
 }
