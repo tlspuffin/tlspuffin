@@ -397,6 +397,8 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProto
     }
 }
 
+/// This seed performs a TLS 1.2 handshake between a client and a server by only
+/// forwarding messages between the agents
 pub fn seed_successful12_forward(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {
         prior_traces: vec![],

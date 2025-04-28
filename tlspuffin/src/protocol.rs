@@ -333,6 +333,8 @@ impl ProtocolDescriptorConfig for TLSDescriptorConfig {
     }
 }
 
+const TLS_DEFAULT_CIPHER: &str = "ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2";
+
 impl Default for TLSDescriptorConfig {
     fn default() -> Self {
         Self {
@@ -341,8 +343,8 @@ impl Default for TLSDescriptorConfig {
             server_authentication: true,
             try_reuse: false,
             typ: AgentType::Server,
-            cipher_string_tls13: String::from("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2"),
-            cipher_string_tls12: String::from("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2"),
+            cipher_string_tls13: TLS_DEFAULT_CIPHER.into(),
+            cipher_string_tls12: TLS_DEFAULT_CIPHER.into(),
             groups: None,
         }
     }

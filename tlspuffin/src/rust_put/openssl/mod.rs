@@ -192,6 +192,8 @@ impl RustPut {
         // Allow EXPORT in server
         match descriptor.protocol_config.tls_version {
             TLSVersion::V1_3 => {
+                // TLS 1.3 should use `set_ciphersuites` API but some versions
+                // of OpenSSL and LibreSSL still use `set_cipher_list`
                 #[cfg(any(
                     feature = "openssl101-binding",
                     feature = "openssl102-binding",
