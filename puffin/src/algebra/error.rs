@@ -23,8 +23,8 @@ impl fmt::Display for FnError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::Unknown(msg) => write!(f, "[!!UNKNOWN!!] error in fn: {msg}"),
-            Self::Crypto(msg) => write!(f, "[Crypto] error in fn from rustls: {msg}"),
-            Self::Malformed(msg) => write!(f, "[Malformed] error in fn from rustls: {msg}"),
+            Self::Crypto(msg) => write!(f, "[Crypto] error in fn: {msg}"),
+            Self::Malformed(msg) => write!(f, "[Malformed] error in fn: {msg}"),
         }
     }
 }
