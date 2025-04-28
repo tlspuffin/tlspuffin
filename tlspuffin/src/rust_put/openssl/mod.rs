@@ -11,7 +11,9 @@ use puffin::put::Put;
 use puffin::stream::{MemoryStream, Stream};
 use util::{set_max_protocol_version, static_rsa_cert};
 
-use crate::protocol::{AgentType, OpaqueMessageFlight, TLSDescriptorConfig, TLSProtocolBehavior};
+use crate::protocol::{
+    AgentType, OpaqueMessageFlight, TLSDescriptorConfig, TLSProtocolBehavior, TLSVersion,
+};
 use crate::put::TlsPutConfig;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 
@@ -188,7 +190,29 @@ impl RustPut {
         }
 
         // Allow EXPORT in server
-        ctx_builder.set_cipher_list("ALL:EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
+        match descriptor.protocol_config.tls_version {
+            TLSVersion::V1_3 => {
+                // TLS 1.3 should use `set_ciphersuites` API but some versions
+                // of OpenSSL and LibreSSL still use `set_cipher_list`
+                #[cfg(any(
+                    feature = "openssl101-binding",
+                    feature = "openssl102-binding",
+                    feature = "openssl111-binding",
+                    feature = "libressl-binding"
+                ))]
+                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
+                #[cfg(not(any(
+                    feature = "openssl101-binding",
+                    feature = "openssl102-binding",
+                    feature = "openssl111-binding",
+                    feature = "libressl-binding"
+                )))]
+                ctx_builder.set_ciphersuites(&descriptor.protocol_config.cipher_string_tls13)?;
+            }
+            TLSVersion::V1_2 => {
+                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?;
+            }
+        }
 
         Ok(ctx_builder.build())
     }
@@ -218,8 +242,27 @@ impl RustPut {
             ctx_builder.set_groups_list(groups)?;
         }
 
-        // Disallow EXPORT in client
-        ctx_builder.set_cipher_list("ALL:!EXPORT:!LOW:!aNULL:!eNULL:!SSLv2")?;
+        match descriptor.protocol_config.tls_version {
+            TLSVersion::V1_3 => {
+                #[cfg(any(
+                    feature = "openssl101-binding",
+                    feature = "openssl102-binding",
+                    feature = "openssl111-binding",
+                    feature = "libressl-binding"
+                ))]
+                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
+                #[cfg(not(any(
+                    feature = "openssl101-binding",
+                    feature = "openssl102-binding",
+                    feature = "openssl111-binding",
+                    feature = "libressl-binding"
+                )))]
+                ctx_builder.set_ciphersuites(&descriptor.protocol_config.cipher_string_tls13)?;
+            }
+            TLSVersion::V1_2 => {
+                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?;
+            }
+        }
 
         ctx_builder.set_verify(SslVerifyMode::NONE);
 

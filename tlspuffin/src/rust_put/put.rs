@@ -85,6 +85,10 @@ impl Factory<TLSProtocolBehavior> for RustFactory {
             "transcript_extraction",
             #[cfg(feature = "client-authentication-transcript-extraction")]
             "client_authentication_transcript_extraction",
+            #[cfg(feature = "allow-setting-tls12-ciphers")]
+            "allow_setting_tls12_ciphers",
+            #[cfg(feature = "allow-setting-tls13-ciphers")]
+            "allow_setting_tls13_ciphers",
         ]
         .into_iter()
         .collect();

@@ -33,6 +33,8 @@ declare -a CAPABILITIES=(
     $<$<BOOL:@tls13@>:tls13>
     $<$<BOOL:@tls12_session_resumption@>:tls12_session_resumption>
     $<$<BOOL:@tls13_session_resumption@>:tls13_session_resumption>
+    $<$<BOOL:@allow_setting_tls12_ciphers@>:allow_setting_tls12_ciphers>
+    $<$<BOOL:@allow_setting_tls13_ciphers@>:allow_setting_tls13_ciphers>
     $<$<BOOL:@transcript_extraction@>:transcript_extraction>
     $<$<BOOL:@client_authentication_transcript_extraction@>:client_authentication_transcript_extraction>
     $<$<BOOL:@disable_postauth@>:disable_postauth>
