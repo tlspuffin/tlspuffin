@@ -1,5 +1,6 @@
+use crate::core::comms::tcp_codec::Message;
 use crate::puffin::types::OpcuaProtocolTypes;
-use crate::types::{AcknowledgeMessage, ErrorMessage, HelloMessage, ReverseHelloMessage, MessageChunk};
+use crate::types::{OpenSecureChannelRequest, OpenSecureChannelResponse};
 
 use extractable_macro::Extractable;
 use puffin::codec::{Codec, CodecP, Reader};
@@ -12,32 +13,23 @@ use puffin::trace::{Knowledge, Source};
 use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
 
 use std::convert::TryFrom;
-use std::fmt;
+//use std::fmt;
 use std::io::Read;
 
-/// This enum type defines all [`OpaqueProtocolMessage`], i.e. UA Connection Protocol messages,
+/// The enum type [`crate::core::comms::tcp_codec::Message`] defines
+/// all [`OpaqueProtocolMessage`], i.e. UA Connection Protocol messages,
 /// and chunks of UA Secure Channel messages that are Signed and/or Encrypted.
-/// These messages are opaque in the sense that chunks may be encrypted, but knowledge
-/// can be learned from them if they are not encrypted.
+/// These messages are opaque in the sense that chunks may be encrypted.
+/// Yet, knowledge can be learned from them if they are not encrypted.
 /// The [`OpaqueProtocolMessageFlight`] is used for exchanges with the PUT.
-#[derive(Debug, Clone, Extractable)]
-#[extractable(OpcuaProtocolTypes)]
-pub enum UatcpMessage {
-    Hello(HelloMessage),
-    Acknowledge(AcknowledgeMessage),
-    Error(ErrorMessage),
-    Reverse(ReverseHelloMessage),
-    Chunk(#[extractable_ignore] MessageChunk),
-}
-
-impl CodecP for UatcpMessage {
+impl CodecP for Message {
     fn encode(&self, bytes: &mut Vec<u8>) {
         match *self {
-            UatcpMessage::Hello(ref h) => h.encode(bytes),
-            UatcpMessage::Acknowledge(ref a) => a.encode(bytes),
-            UatcpMessage::Error(ref e) => e.encode(bytes),
-            UatcpMessage::Reverse(ref r) => r.encode(bytes),
-            UatcpMessage::Chunk(ref c) => bytes.extend_from_slice(&c.data) //c.encode(bytes) will panic!
+            Message::Hello(ref h) => h.encode(bytes),
+            Message::Acknowledge(ref a) => a.encode(bytes),
+            Message::Error(ref e) => e.encode(bytes),
+            Message::Reverse(ref r) => r.encode(bytes),
+            Message::Chunk(ref c) => bytes.extend_from_slice(&c.data) //c.encode(bytes) will panic!
         }
     }
 
@@ -46,30 +38,46 @@ impl CodecP for UatcpMessage {
     }
 }
 
-impl OpaqueProtocolMessage<OpcuaProtocolTypes> for UatcpMessage {
+impl OpaqueProtocolMessage<OpcuaProtocolTypes> for Message {
     fn debug(&self, _info: &str) {
         panic!("Not implemented for test stub");
     }
 }
 
-/// This enum type defines all [`ProtocolMessage`],
-/// i.e. all possible OPC UA services before security is applied to them
-pub enum Message {}
+/**
+The enum type [`crate::core::supported_message::SupportedMessage`] defines all [`ProtocolMessage`],
+i.e. all possible OPC UA service requests before security is applied to them,
+and all possible responses after security has been removed from them.
+/!\ We use here a simplified enum type, for a first try, called a [`ServiceMessage`]
+*/
+#[derive(Debug, PartialEq, Clone, Extractable)]
+#[extractable(OpcuaProtocolTypes)]
+pub enum ServiceMessage {
+    // /!\ The trait is not implemented for Box<...>!
+    // /!\ We may have to add the SecureChannel data.
+    OpenSecureChannelRequest(OpenSecureChannelRequest),
+    OpenSecureChannelResponse(OpenSecureChannelResponse),
+}
 
-impl Clone for Message {
-    fn clone(&self) -> Self {
+impl CodecP for ServiceMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        match *self {
+            ServiceMessage::OpenSecureChannelRequest(ref r) =>
+               r.encode(bytes),
+            ServiceMessage::OpenSecureChannelResponse(ref r) =>
+               r.encode(bytes),
+        }
+    }
+
+    fn read(&mut self, _: &mut Reader) -> Result<(), Error> {
         panic!("Not implemented for test stub");
     }
 }
 
-impl fmt::Debug for Message {
-    fn fmt(&self, _f: &mut fmt::Formatter<'_>) -> std::fmt::Result {
-        panic!("Not implemented for test stub");
-    }
-}
-
-impl ProtocolMessage<OpcuaProtocolTypes, UatcpMessage> for Message {
-    fn create_opaque(&self) -> UatcpMessage {
+// /!\ a ServiceMessage may be encoded as a MessageFlight and not
+//     only as a single message.
+impl ProtocolMessage<OpcuaProtocolTypes, Message> for ServiceMessage {
+    fn create_opaque(&self) -> Message {
         panic!("Not implemented for test stub");
     }
 
@@ -77,15 +85,13 @@ impl ProtocolMessage<OpcuaProtocolTypes, UatcpMessage> for Message {
         panic!("Not implemented for test stub");
     }
 }
-
-dummy_extract_knowledge_codec!(OpcuaProtocolTypes, Message);
 
 pub struct MessageDeframer;
 
 impl ProtocolMessageDeframer<OpcuaProtocolTypes> for MessageDeframer {
-    type OpaqueProtocolMessage = UatcpMessage;
+    type OpaqueProtocolMessage = Message;
 
-    fn pop_frame(&mut self) -> Option<UatcpMessage> {
+    fn pop_frame(&mut self) -> Option<Message> {
         panic!("Not implemented for test stub");
     }
 
@@ -96,17 +102,19 @@ impl ProtocolMessageDeframer<OpcuaProtocolTypes> for MessageDeframer {
 
 // Should not be useful...
 #[derive(Debug, Clone)]
-pub struct MessageFlight;
+pub struct ServiceMessageFlight {
+   pub messages: Vec<ServiceMessage>
+}
 
-impl ProtocolMessageFlight<OpcuaProtocolTypes, Message, UatcpMessage, UatcpMessageFlight>
-    for MessageFlight
+impl ProtocolMessageFlight<OpcuaProtocolTypes, ServiceMessage, Message, MessageFlight>
+    for ServiceMessageFlight
 {
     fn new() -> Self {
-        Self {}
+        Self { messages: vec![]}
     }
 
-    fn push(&mut self, _msg: Message) {
-        panic!("Not implemented for test stub");
+    fn push(&mut self, msg: ServiceMessage) {
+        self.messages.push(msg);
     }
 
     fn debug(&self, _info: &str) {
@@ -114,45 +122,45 @@ impl ProtocolMessageFlight<OpcuaProtocolTypes, Message, UatcpMessage, UatcpMessa
     }
 }
 
-impl TryFrom<UatcpMessageFlight> for MessageFlight {
+impl TryFrom<MessageFlight> for ServiceMessageFlight {
     type Error = ();
 
-    fn try_from(_value: UatcpMessageFlight) -> Result<Self, Self::Error> {
-        Ok(Self)
+    fn try_from(_value: MessageFlight) -> Result<Self, Self::Error> {
+        Ok(Self{ messages: vec![]})
     }
 }
 
-dummy_extract_knowledge_codec!(OpcuaProtocolTypes, MessageFlight);
+dummy_extract_knowledge_codec!(OpcuaProtocolTypes, ServiceMessageFlight);
 
-impl From<Message> for MessageFlight {
-    fn from(_value: Message) -> Self {
-        Self {}
+impl From<ServiceMessage> for ServiceMessageFlight {
+    fn from(value: ServiceMessage) -> Self {
+        Self{ messages: vec![value] }
     }
 }
 
 /// All chunks of a complete UA TCP message are grouped into an [`OpaqueProtocolMessageFlight`]
 /// that can be exchanged with the target (PUT)
 #[derive(Debug, Clone, Default)]
-pub struct UatcpMessageFlight {
-    messages: Vec<UatcpMessage>,
+pub struct MessageFlight {
+    messages: Vec<Message>,
 }
 
-impl UatcpMessageFlight {
+impl MessageFlight {
     // Creates a flight of messages from the encoded chunks of a message issued by a secure channel.
-    fn from_sc_message(&mut self, chunks: &Vec<MessageChunk>) {
-        self.messages.clear();
-        for msg_chunk in chunks {
-            self.messages.push(UatcpMessage::Chunk(msg_chunk.clone()))
-        }
-    }
+    // fn from_sc_message(&mut self, chunks: &Vec<MessageChunk>) {
+    //     self.messages.clear();
+    //     for msg_chunk in chunks {
+    //         self.messages.push(Message::Chunk(msg_chunk.clone()))
+    //     }
+    // }
 }
 
-impl OpaqueProtocolMessageFlight<OpcuaProtocolTypes, UatcpMessage> for UatcpMessageFlight {
+impl OpaqueProtocolMessageFlight<OpcuaProtocolTypes, Message> for MessageFlight {
     fn new() -> Self {
         Self { messages: vec![] }
     }
 
-    fn push(&mut self, msg: UatcpMessage) {
+    fn push(&mut self, msg: Message) {
         self.messages.push(msg);
     }
 
@@ -161,17 +169,17 @@ impl OpaqueProtocolMessageFlight<OpcuaProtocolTypes, UatcpMessage> for UatcpMess
     }
 }
 
-dummy_extract_knowledge!(OpcuaProtocolTypes, UatcpMessageFlight);
+dummy_extract_knowledge!(OpcuaProtocolTypes, MessageFlight);
 
-impl From<UatcpMessage> for UatcpMessageFlight {
-    fn from(value: UatcpMessage) -> Self {
+impl From<Message> for MessageFlight {
+    fn from(value: Message) -> Self {
         Self {
             messages: vec![value],
         }
     }
 }
 
-impl Codec for UatcpMessageFlight {
+impl Codec for MessageFlight {
     fn encode(&self, bytes: &mut Vec<u8>) {
         for msg in &self.messages {
             msg.encode(bytes)
@@ -183,8 +191,8 @@ impl Codec for UatcpMessageFlight {
     }
 }
 
-impl From<MessageFlight> for UatcpMessageFlight {
-    fn from(_value: MessageFlight) -> Self {
+impl From<ServiceMessageFlight> for MessageFlight {
+    fn from(_value: ServiceMessageFlight) -> Self {
         panic!("Not implemented for test stub");
     }
 }

@@ -1,5 +1,5 @@
 use opcua::puffin::signature::{fn_hello, fn_acknowledge, fn_reverse_hello};
-use opcua::types::{AcknowledgeMessage, HelloMessage, ReverseHelloMessage, UAString};
+use opcua::types::{AcknowledgeMessage, HelloMessage, ReverseHelloMessage};
 
 use puffin::codec::CodecP;
 
@@ -10,7 +10,7 @@ pub fn client() {
     let mut send_buffer: Vec<u8> = Vec::with_capacity(max_size);
 
     let hello_message: HelloMessage = fn_hello(
-        &UAString::from("opc.tcp://PenDuick:53530/OPCUA/SimulationServer"),
+        &String::from("opc.tcp://PenDuick:53530/OPCUA/SimulationServer"),
         &max_size,  &max_size).unwrap();
     hello_message.encode(&mut send_buffer);
     let hel_msg : Vec<u8> = vec![
@@ -29,8 +29,8 @@ pub fn server() {
     let mut send_buffer: Vec<u8> = Vec::with_capacity(max_size);
 
     let reverse_message: ReverseHelloMessage = fn_reverse_hello(
-        &"opc.tcp://Penduick:53530",
-        &"opc.tcp://PenDuick:53530/OPCUA/SimulationServer").unwrap();
+        &String::from("opc.tcp://Penduick:53530"),
+        &String::from("opc.tcp://PenDuick:53530/OPCUA/SimulationServer")).unwrap();
     reverse_message.encode(&mut send_buffer);
     let rev_hel_msg : Vec<u8> = vec![
     0x52, 0x48, 0x45, 0x46, 0x57, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x6f, 0x70, 0x63, 0x2e,

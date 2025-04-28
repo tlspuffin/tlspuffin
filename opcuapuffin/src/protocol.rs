@@ -3,7 +3,8 @@
 use core::any::TypeId;
 
 use opcua::puffin::claims::OpcuaClaim;
-use opcua::puffin::messages::{Message, MessageFlight, UatcpMessage, UatcpMessageFlight};
+use opcua::core::comms::tcp_codec::Message;
+use opcua::puffin::messages::{MessageFlight, ServiceMessage, ServiceMessageFlight};
 use opcua::puffin::types::OpcuaProtocolTypes;
 use opcua::puffin::violations::OpcuaSecurityViolationPolicy;
 
@@ -19,10 +20,10 @@ pub struct OpcuaProtocolBehavior;
 
 impl ProtocolBehavior for OpcuaProtocolBehavior {
     type Claim = OpcuaClaim;
-    type OpaqueProtocolMessage = UatcpMessage;
-    type OpaqueProtocolMessageFlight = UatcpMessageFlight;
-    type ProtocolMessage = Message;
-    type ProtocolMessageFlight = MessageFlight;
+    type OpaqueProtocolMessage = Message;
+    type OpaqueProtocolMessageFlight = MessageFlight;
+    type ProtocolMessage = ServiceMessage;
+    type ProtocolMessageFlight = ServiceMessageFlight;
     type ProtocolTypes = OpcuaProtocolTypes;
     type SecurityViolationPolicy = OpcuaSecurityViolationPolicy;
 
