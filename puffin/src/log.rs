@@ -55,7 +55,7 @@ where
     let fixed_window_roller = FixedWindowRoller::builder()
         .build("log{}", window_size)
         .unwrap();
-    let size_limit = 100 * 1024 * 1024; // 5MB as max log file size to roll
+    let size_limit = 100 * 1024 * 1024; // 100MB as max log file size to roll
     let size_trigger = SizeTrigger::new(size_limit);
     let compound_policy =
         CompoundPolicy::new(Box::new(size_trigger), Box::new(fixed_window_roller));
