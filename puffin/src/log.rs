@@ -4,51 +4,29 @@ use std::str::FromStr;
 
 use log::LevelFilter;
 use log4rs::append::console::ConsoleAppender;
-use log4rs::append::file::FileAppender;
-use log4rs::config::{Appender, Logger, Root};
+use log4rs::append::rolling_file::policy::compound::roll::fixed_window::FixedWindowRoller;
+use log4rs::append::rolling_file::policy::compound::trigger::size::SizeTrigger;
+use log4rs::append::rolling_file::policy::compound::CompoundPolicy;
+use log4rs::append::rolling_file::RollingFileAppender;
+use log4rs::config::{load_config_file, Appender, Root};
 use log4rs::encode::pattern::PatternEncoder;
-use log4rs::{self, Config};
+use log4rs::Config;
 
-#[must_use]
-pub fn config_default() -> log4rs::Config {
+pub fn config_default() -> Config {
     Config::builder()
         .appender(appender_stderr("stderr"))
-        .build(Root::builder().appender("stderr").build(log_level()))
-        .unwrap()
-}
-
-pub fn config_fuzzing<P>(path: P) -> log4rs::Config
-where
-    P: AsRef<Path>,
-{
-    Config::builder()
-        .appender(appender_stderr("stderr"))
-        .appender(appender_tofile("tofile", path))
-        .logger(
-            Logger::builder()
+        .appender(appender_tofile("tofile", "log/stderr.log"))
+        .build(
+            Root::builder()
+                .appender("stderr")
                 .appender("tofile")
-                .additive(false)
-                .build("libafl", log_level()),
+                .build(log_level()),
         )
-        .build(Root::builder().appender("stderr").build(log_level()))
         .unwrap()
 }
 
-pub fn config_fuzzing_client<P>(path: P) -> log4rs::Config
-where
-    P: AsRef<Path>,
-{
-    let level = if log_level() > log::LevelFilter::Warn {
-        log::LevelFilter::Warn
-    } else {
-        log_level()
-    };
-
-    Config::builder()
-        .appender(appender_stderr("stderr"))
-        .appender(appender_tofile("tofile", path))
-        .build(Root::builder().appender("tofile").build(level))
-        .unwrap()
+pub fn load_fuzzing_client() -> Config {
+    load_config_file("client_log_config.yml", Default::default()).unwrap()
 }
 
 fn appender_stderr<S>(name: S) -> Appender
@@ -73,12 +51,21 @@ where
     S: AsRef<str>,
     P: AsRef<Path>,
 {
+    let window_size = 20; // log0, log1, log2, .., log19
+    let fixed_window_roller = FixedWindowRoller::builder()
+        .build("log{}", window_size)
+        .unwrap();
+    let size_limit = 100 * 1024 * 1024; // 5MB as max log file size to roll
+    let size_trigger = SizeTrigger::new(size_limit);
+    let compound_policy =
+        CompoundPolicy::new(Box::new(size_trigger), Box::new(fixed_window_roller));
+
     Appender::builder().build(
         name.as_ref(),
         Box::new(
-            FileAppender::builder()
+            RollingFileAppender::builder()
                 .encoder(Box::new(PatternEncoder::new("{d}\t{l}\t{m}{n}")))
-                .build(log_path)
+                .build(log_path, Box::new(compound_policy))
                 .unwrap(),
         ),
     )
@@ -96,5 +83,5 @@ fn log_level() -> LevelFilter {
     env::var("RUST_LOG")
         .ok()
         .and_then(|level| LevelFilter::from_str(&level).ok())
-        .unwrap_or(LevelFilter::Info)
+        .unwrap_or(LevelFilter::Warn)
 }
