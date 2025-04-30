@@ -2,7 +2,6 @@
 
 use std::sync::Arc;
 
-use itertools::Itertools;
 use puffin::algebra::error::FnError;
 use ring::signature::{RsaKeyPair, ECDSA_P256_SHA256_ASN1_SIGNING};
 

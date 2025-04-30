@@ -113,13 +113,13 @@ impl Factory<TLSProtocolBehavior> for CPut {
 
     fn rng_reseed(&self) {
         if self.interface.rng_reseed.is_none() {
-            log::debug!("[RNG] reseed failed ({}): not supported", self.name());
+            log::info!("[RNG] reseed failed ({}): not supported", self.name());
             return;
         }
 
         const DEFAULT_SEED: [u8; 8] = 42u64.to_le().to_ne_bytes();
 
-        log::debug!("[RNG] reseed ({})", self.name());
+        log::info!("[RNG] reseed ({})", self.name());
         unsafe {
             (self.interface.rng_reseed.unwrap())(DEFAULT_SEED.as_ptr(), DEFAULT_SEED.len());
         }
