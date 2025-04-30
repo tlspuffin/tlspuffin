@@ -180,6 +180,33 @@ wolfssl540 = [
     # FIXME: support "claims", "deterministic"
 ]
 
+wolfssl552 = [
+    "wolfssl-sys/wolfssl552",
+    "tls12",
+    "tls13",
+    "wolfssl-binding",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "transcript-extraction",
+    "client-authentication-transcript-extraction",
+    "allow-setting-tls12-ciphers",
+    "allow-setting-tls13-ciphers",
+    # FIXME: support "claims", "deterministic"
+]
+
+wolfssl572 = [
+    "wolfssl-sys/wolfssl572",
+    "tls12",
+    "tls13",
+    "wolfssl-binding",
+    "tls12-session-resumption",
+    "tls13-session-resumption",
+    "transcript-extraction",
+    "client-authentication-transcript-extraction",
+    "allow-setting-tls12-ciphers",
+    "allow-setting-tls13-ciphers",
+    # FIXME: support "claims", "deterministic"
+]
 fix-CVE-2022-25638 = ["wolfssl-sys?/fix-CVE-2022-25638"]
 fix-CVE-2022-25640 = ["wolfssl-sys?/fix-CVE-2022-25640"]
 fix-CVE-2022-39173 = ["wolfssl-sys?/fix-CVE-2022-39173"]
