@@ -10,7 +10,8 @@ use puffin::algebra::signature::FunctionDefinition;
 use puffin::algebra::{DYTerm, Term, TermType};
 use puffin::error::Error;
 use puffin::execution::{ExecutionStatus, ForkedRunner, Runner, TraceRunner};
-use puffin::fuzzer::mutations::{trace_mutations, MutationConfig};
+use puffin::fuzzer::bit_mutations::all_mutations;
+use puffin::fuzzer::mutations::MutationConfig;
 use puffin::fuzzer::term_zoo::TermZoo;
 use puffin::fuzzer::utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints};
 use puffin::libafl::corpus::{Corpus, InMemoryCorpus, Testcase};
@@ -631,23 +632,8 @@ pub fn test_mutations(
     with_bit_level: bool,
     with_dy: bool,
 ) -> impl MutatorsTuple<Trace<TLSProtocolTypes>, TLSState> + '_ {
-    let MutationConfig {
-        fresh_zoo_after,
-        max_trace_length,
-        min_trace_length,
-        term_constraints,
-        with_bit_level: _,
-        with_dy: _,
-        ..
-    } = MutationConfig::default();
-
-    trace_mutations::<TLSState, TLSProtocolTypes, TLSProtocolBehavior>(
-        min_trace_length,
-        max_trace_length,
-        term_constraints,
-        fresh_zoo_after,
-        with_bit_level,
-        with_dy,
+    all_mutations::<TLSState, TLSProtocolTypes, TLSProtocolBehavior>(
+        MutationConfig::default(),
         TLSProtocolTypes::signature(),
         registry,
     )

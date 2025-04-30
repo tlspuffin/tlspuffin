@@ -1,4 +1,5 @@
 use anyhow::Result;
+use itertools::Itertools;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
@@ -9,15 +10,6 @@ use super::utils::{
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::Signature;
 use crate::algebra::{DYTerm, Subterms, Term, TermType};
-use crate::fuzzer::bit_mutations::{
-    havoc_mutations_dy, BitFlipMutatorDY, ByteAddMutatorDY, ByteDecMutatorDY, ByteFlipMutatorDY,
-    ByteIncMutatorDY, ByteInterestingMutatorDY, ByteNegMutatorDY, ByteRandMutatorDY,
-    BytesCopyMutatorDY, BytesDeleteMutatorDY, BytesExpandMutatorDY, BytesInsertCopyMutatorDY,
-    BytesInsertMutatorDY, BytesRandInsertMutatorDY, BytesRandSetMutatorDY, BytesSetMutatorDY,
-    BytesSwapMutatorDY, CrossoverInsertMutatorDY, CrossoverReplaceMutatorDY, DwordAddMutatorDY,
-    DwordInterestingMutatorDY, QwordAddMutatorDY, SpliceMutatorDY, WordAddMutatorDY,
-    WordInterestingMutatorDY,
-};
 use crate::fuzzer::term_zoo::TermZoo;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
@@ -59,38 +51,6 @@ pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
     RemoveAndLiftMutator<S>,
     GenerateMutator<'harness, S, PB>,
     SwapMutator<S>,
-// MakeMessage
-    MakeMessage<'harness, S,PB>,
-// Bit-level mutations
-// -> Type of the mutations that compose the Havoc mutator (copied and pasted from above)
-    BitFlipMutatorDY<S>,
-    ByteFlipMutatorDY<S>,
-    ByteIncMutatorDY<S>,
-    ByteDecMutatorDY<S>,
-    ByteNegMutatorDY<S>,
-    ByteRandMutatorDY<S>,
-    ByteAddMutatorDY<S>,
-    WordAddMutatorDY<S>,
-    DwordAddMutatorDY<S>,
-    QwordAddMutatorDY<S>,
-    ByteInterestingMutatorDY<S>,
-    WordInterestingMutatorDY<S>,
-    DwordInterestingMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesExpandMutatorDY<S>,
-    BytesInsertMutatorDY<S>,
-    BytesRandInsertMutatorDY<S>,
-    BytesSetMutatorDY<S>,
-    BytesRandSetMutatorDY<S>,
-    BytesCopyMutatorDY<S>,
-    BytesInsertCopyMutatorDY<S>,
-    BytesSwapMutatorDY<S>,
-    CrossoverInsertMutatorDY<S>,
-    CrossoverReplaceMutatorDY<S>,
-    SpliceMutatorDY<S>,
 );
 
 pub(crate) fn remove_prefix_and_type(str: &str) -> &str {
@@ -157,13 +117,8 @@ pub fn proba_mutations(with_bit_level: bool, with_dy: bool, nb_executions: usize
 }
 
 #[must_use]
-pub fn trace_mutations<'harness, S, PT: ProtocolTypes, PB>(
-    min_trace_length: usize,
-    max_trace_length: usize,
-    constraints: TermConstraints,
-    fresh_zoo_after: u64,
-    with_bit_level: bool,
-    with_dy: bool,
+pub fn dy_mutations<'harness, S, PT: ProtocolTypes, PB>(
+    mutation_config: MutationConfig,
     signature: &'static Signature<PT>,
     put_registry: &'harness PutRegistry<PB>,
 ) -> DyMutations<'harness, PT, PB, S>
@@ -171,25 +126,32 @@ where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
     PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
+    let MutationConfig {
+        fresh_zoo_after,
+        max_trace_length,
+        min_trace_length,
+        term_constraints,
+        with_dy,
+        ..
+    } = mutation_config;
+
     tuple_list!(
         RepeatMutator::new(max_trace_length, with_dy),
         SkipMutator::new(min_trace_length, with_dy),
-        ReplaceReuseMutator::new(constraints, with_dy),
-        ReplaceMatchMutator::new(constraints, signature, with_dy),
-        RemoveAndLiftMutator::new(constraints, with_dy),
+        ReplaceReuseMutator::new(term_constraints, with_dy),
+        ReplaceMatchMutator::new(term_constraints, signature, with_dy),
+        RemoveAndLiftMutator::new(term_constraints, with_dy),
         GenerateMutator::new(
             0,
             fresh_zoo_after,
-            constraints,
+            term_constraints,
             None,
             signature,
             put_registry,
             with_dy
         ), // Refresh zoo after 100000M mutations
-        SwapMutator::new(constraints, with_dy),
-        MakeMessage::new(constraints, put_registry, with_bit_level, with_dy),
+        SwapMutator::new(term_constraints, with_dy),
     )
-    .merge(havoc_mutations_dy(with_bit_level))
 }
 
 /// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
@@ -782,34 +744,21 @@ where
 // ***** Start bit-level Mutations
 
 /// MAKE MESSAGE : transforms a sub term into a message which can then be mutated using havoc
-pub struct MakeMessage<'a, S, PB>
-where
-    S: HasRand,
-{
+pub struct MakeMessage<'a, PB> {
     with_bit_level: bool,
     constraints: TermConstraints,
-    phantom_s: (std::marker::PhantomData<S>, std::marker::PhantomData<PB>),
     put_registry: &'a PutRegistry<PB>,
     with_dy: bool,
 }
 
-impl<'a, S, PB> MakeMessage<'a, S, PB>
-where
-    S: HasRand,
-{
+impl<'a, PB> MakeMessage<'a, PB> {
     #[must_use]
-    pub const fn new(
-        constraints: TermConstraints,
-        put_registry: &'a PutRegistry<PB>,
-        with_bit_level: bool,
-        with_dy: bool,
-    ) -> Self {
+    pub const fn new(mutation_config: MutationConfig, put_registry: &'a PutRegistry<PB>) -> Self {
         Self {
-            with_bit_level,
-            constraints,
-            phantom_s: (std::marker::PhantomData, std::marker::PhantomData),
+            with_bit_level: mutation_config.with_bit_level,
+            constraints: mutation_config.term_constraints,
             put_registry,
-            with_dy,
+            with_dy: mutation_config.with_dy,
         }
     }
 }
@@ -846,7 +795,7 @@ where
 }
 
 impl<'a, S, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>> Mutator<Trace<PT>, S>
-    for MakeMessage<'a, S, PB>
+    for MakeMessage<'a, PB>
 where
     S: HasRand,
     PB: ProtocolBehavior<ProtocolTypes = PT>,
@@ -927,10 +876,9 @@ where
     }
 }
 
-impl<'a, S, PB> Named for MakeMessage<'a, S, PB>
+impl<'a, PB> Named for MakeMessage<'a, PB>
 where
     PB: ProtocolBehavior,
-    S: HasRand,
 {
     fn name(&self) -> &str {
         remove_prefix_and_type(std::any::type_name::<Self>())

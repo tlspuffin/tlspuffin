@@ -4,8 +4,8 @@ use puffin::algebra::{DYTerm, TermType};
 use puffin::execution::{run_in_subprocess, TraceRunner};
 use puffin::fuzzer::bit_mutations::{ByteFlipMutatorDY, ByteInterestingMutatorDY};
 use puffin::fuzzer::mutations::{
-    trace_mutations, MakeMessage, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
-    ReplaceMatchMutator, ReplaceReuseMutator,
+    MakeMessage, MutationConfig, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator,
+    ReplaceReuseMutator,
 };
 use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::{Corpus, InMemoryCorpus, Testcase};
@@ -196,15 +196,7 @@ fn test_make_message(put: &str) {
     let runner = default_runner_for(put);
     let tls_registry = runner.registry;
     let mut state = create_state();
-    let mut mutator: MakeMessage<
-        StdState<
-            Trace<TLSProtocolTypes>,
-            InMemoryCorpus<Trace<TLSProtocolTypes>>,
-            RomuDuoJrRand,
-            InMemoryCorpus<Trace<TLSProtocolTypes>>,
-        >,
-        TLSProtocolBehavior,
-    > = MakeMessage::new(TermConstraints::default(), &tls_registry, true, true);
+    let mut mutator = MakeMessage::new(MutationConfig::default(), &tls_registry);
 
     let mut trace = seed_client_attacker_full.build_trace();
 
@@ -238,23 +230,9 @@ fn test_byte_remove_payloads(put: &str) {
     let runner = default_runner_for(put);
     let tls_registry = runner.registry;
     let mut state = create_state();
-    let mut mutator_make: MakeMessage<
-        StdState<
-            Trace<TLSProtocolTypes>,
-            InMemoryCorpus<Trace<TLSProtocolTypes>>,
-            RomuDuoJrRand,
-            InMemoryCorpus<Trace<TLSProtocolTypes>>,
-        >,
-        TLSProtocolBehavior,
-    > = MakeMessage::new(
-        TermConstraints {
-            must_be_symbolic: true,
-            ..TermConstraints::default()
-        },
-        &tls_registry,
-        true,
-        true,
-    );
+    let mut mutator_config = MutationConfig::default();
+    mutator_config.term_constraints.must_be_symbolic = true;
+    let mut mutator_make = MakeMessage::new(mutator_config, &tls_registry);
 
     let mut trace = seed_client_attacker_full.build_trace();
     let mut i = 0;
@@ -337,23 +315,9 @@ fn test_byte_simple(put: &str) {
     let runner = default_runner_for(put);
     let tls_registry = runner.registry;
     let mut state = create_state();
-    let mut mutator_make: MakeMessage<
-        StdState<
-            Trace<TLSProtocolTypes>,
-            InMemoryCorpus<Trace<TLSProtocolTypes>>,
-            RomuDuoJrRand,
-            InMemoryCorpus<Trace<TLSProtocolTypes>>,
-        >,
-        TLSProtocolBehavior,
-    > = MakeMessage::new(
-        TermConstraints {
-            must_be_symbolic: true,
-            ..TermConstraints::default()
-        },
-        &tls_registry,
-        true,
-        true,
-    );
+    let mut mutator_config = MutationConfig::default();
+    mutator_config.term_constraints.must_be_symbolic = true;
+    let mut mutator_make = MakeMessage::new(mutator_config, &tls_registry);
     let mut mutator_byte = ByteFlipMutatorDY::new(true);
 
     let mut trace = seed_client_attacker_full.build_trace();
@@ -422,23 +386,7 @@ fn test_byte_interesting(put: &str) {
     let tls_registry = runner.registry;
     let spawner = Spawner::new(tls_registry.clone());
     let mut state = create_state();
-    let mut mutator_make: MakeMessage<
-        StdState<
-            Trace<TLSProtocolTypes>,
-            InMemoryCorpus<Trace<TLSProtocolTypes>>,
-            RomuDuoJrRand,
-            InMemoryCorpus<Trace<TLSProtocolTypes>>,
-        >,
-        TLSProtocolBehavior,
-    > = MakeMessage::new(
-        TermConstraints {
-            must_be_symbolic: true,
-            ..TermConstraints::default()
-        },
-        &tls_registry,
-        true,
-        true,
-    );
+    let mut mutator_make = MakeMessage::new(MutationConfig::default(), &tls_registry);
     let mut mutator_byte_interesting = ByteInterestingMutatorDY::new(true);
 
     let ctx = TraceContext::new(spawner);
