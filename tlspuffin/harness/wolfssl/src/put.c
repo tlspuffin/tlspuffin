@@ -22,9 +22,14 @@ static size_t rng_reseed_buffer_length = 0;
 static word32 clock_value = 0;
 #endif
 
+static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor);
+
 struct AGENT_TYPE {
   uint8_t name;
 
+  TLS_AGENT_DESCRIPTOR descriptor;
+
+  WOLFSSL_CTX *ctx;
   WOLFSSL *ssl;
 
   WOLFSSL_BIO *in;
@@ -184,13 +189,14 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
     int cert_lenght = wolfSSL_i2d_X509(cert, NULL);
     if (cert_lenght > 0) {
       uint8_t* data = calloc(1, cert_lenght);
-      cert_lenght = wolfSSL_i2d_X509(cert, data);
+      cert_lenght = wolfSSL_i2d_X509(cert, &data);
       if (cert_lenght > 0) {
-        memcpy(claim->cert.data, data, MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT));
-        claim->cert.data_length = cert_lenght;
+        claim->cert.data_length = MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT);
+        memcpy(claim->cert.data, data, claim->cert.data_length);
       } else {
         _log(PUFFIN.error, "wolfSSL_i2d_X509 returned two differents values");
       }
+      free(data);
     } else {
       //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate returned an error a ask for a too big buffer");
     }
@@ -221,8 +227,8 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
       uint8_t* data = calloc(1, cert_lenght);
       cert_lenght = wolfSSL_i2d_X509(peer_cert, &data);
       if (cert_lenght > 0) {
-        memcpy(claim->peer_cert.data, data, MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT));
-        claim->peer_cert.data_length = cert_lenght;
+        claim->peer_cert.data_length = MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT);
+        memcpy(claim->peer_cert.data, data, claim->peer_cert.data_length);
       } else {
         _log(PUFFIN.error, "wolfSSL_i2d_X509 returned two differents values");
       }
@@ -494,15 +500,20 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name) {
 
   //CLAIMER_CB current_claimer_cb = {};
   //memcpy(&current_claimer_cb, (void*)&agent->claimer, sizeof(CLAIMER_CB));
-  memset((void*)&agent->claimer, 0, sizeof(CLAIMER_CB));
 
+#ifdef USE_CLEAR
   int ret = wolfSSL_clear(agent->ssl);
+  memset((void*)&agent->claimer, 0, sizeof(CLAIMER_CB));
   if (ret != WOLFSSL_SUCCESS) {
     char* reason = get_result_information(agent->ssl, ret, NULL);
     RESULT result = PUFFIN.make_result(RESULT_ERROR_OTHER, reason);
     free(reason);
     return result;
   }
+#else
+  wolfSSL_free(agent->ssl);
+  agent = make_agent(agent, &(agent->descriptor));
+#endif
 
   /*if (current_claimer_cb.notify != NULL) {
     memcpy((void*)&agent->claimer, &current_claimer_cb, sizeof(CLAIMER_CB));
@@ -519,12 +530,13 @@ static RESULT wolfssl_progress(AGENT agent) {
   RESULT_CODE result_code = RESULT_ERROR_OTHER;
   RESULT result = NULL;
 
+#if 0
   if (!wolfssl_is_successful(agent)) {
     // not connected yet -> do handshake
     int ret = wolfSSL_SSL_do_handshake(agent->ssl);
     if (ret == WOLFSSL_SUCCESS) {
       agent->handshake_done = true;
-      result = PUFFIN.make_result(RESULT_OK, "handshake done"); 
+      result = PUFFIN.make_result(RESULT_OK, "handshake done");
     } else {
       char* reason = get_result_information(agent->ssl, ret, &result_code);
       result = PUFFIN.make_result(result_code == RESULT_IO_WOULD_BLOCK ? RESULT_OK : result_code, 
@@ -546,6 +558,32 @@ static RESULT wolfssl_progress(AGENT agent) {
       free(reason);
     }
   }
+#else
+  if (wolfSSL_is_init_finished(agent->ssl)) {
+    uint8_t buf[128];
+    int ret = wolfSSL_read(agent->ssl, &buf, 128);
+    if (ret > 0) {
+      buf[ret] = 0;
+      result = PUFFIN.make_result(RESULT_OK, NULL);
+    } else {
+      char* reason = get_result_information(agent->ssl, ret, &result_code);
+      result = PUFFIN.make_result(
+          result_code == RESULT_IO_WOULD_BLOCK ? RESULT_OK : result_code, reason);
+      free(reason);
+    }
+  } else {
+    int ret = wolfSSL_accept(agent->ssl);
+    if (ret == WOLFSSL_SUCCESS) {
+      agent->handshake_done = true;
+      result = PUFFIN.make_result(RESULT_OK, "handshake done");
+    } else {
+      char* reason = get_result_information(agent->ssl, ret, &result_code);
+      result = PUFFIN.make_result(result_code == RESULT_IO_WOULD_BLOCK ? RESULT_OK : result_code, 
+        reason);
+      free(reason);
+    }
+  }
+#endif
 
   //deferred_transcript_extraction
   if ((agent->claimer.notify != NULL) && (agent->transcriptType != CLAIM_NOT_SET)) {
@@ -564,25 +602,38 @@ static void wolfssl_destroy(AGENT agent) {
   }
   wolfssl_register_claimer(agent, NULL);
   if (agent->ssl != NULL) {
-  wolfSSL_free(agent->ssl);
+    wolfSSL_free(agent->ssl);
     agent->ssl = NULL;
+  }
+  if (agent->ctx != NULL) {
+    wolfSSL_CTX_free(agent->ctx);
+    agent->ctx = NULL;
   }
   free(agent);
   agent = NULL;
 }
 
-static AGENT make_agent(AGENT agent, WOLFSSL_CTX *ctx, TLS_AGENT_DESCRIPTOR const *descriptor) {
+static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor) {
   char error_msg[128] = {};
   snprintf(error_msg, sizeof(error_msg), "no error");
   int int_retval = 0;
+  bool is_server = descriptor->role == SERVER;
 
-  agent->ssl = wolfSSL_new(ctx);
+  agent->ssl = wolfSSL_new(agent->ctx);
   if (agent->ssl == NULL) {
     strncpy(error_msg, "wolfSSL_new returned NULL", 128);
     goto ERROR__make_agent;
   }
 
   agent->name = descriptor->name;
+
+  if (!is_server) {
+    int_retval = wolfSSL_UseSessionTicket(agent->ssl);
+    if (int_retval != WOLFSSL_SUCCESS) {
+      strncpy(error_msg, "fatal error in wolfssl_register_claimer, wolfSSL_UseSessionTicket failed", 128);
+      goto ERROR__make_agent;
+    }
+  }
 
   int_retval = wolfSSL_set_msg_callback(agent->ssl, wolfssl_message_callback);
   if (int_retval != WOLFSSL_SUCCESS) {
@@ -615,6 +666,14 @@ static AGENT make_agent(AGENT agent, WOLFSSL_CTX *ctx, TLS_AGENT_DESCRIPTOR cons
   wolfssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
 
   wolfSSL_set_bio(agent->ssl, agent->in, agent->out);
+
+  if (is_server) {
+    wolfSSL_set_accept_state(agent->ssl);
+  } else {
+    wolfSSL_set_connect_state(agent->ssl);
+  }
+
+  memcpy(&(agent->descriptor), descriptor, sizeof(TLS_AGENT_DESCRIPTOR));
 
   return agent;
 
@@ -649,13 +708,13 @@ static int myCryptoCb_Func(int devId, wc_CryptoInfo* info, void* ctx) {
 }
 #endif
 
-static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSSL_METHOD* tls_method, 
-    bool is_server, bool peer_authentication) {
+static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, 
+    WOLFSSL_METHOD* tls_method, bool peer_authentication) {
   char error_msg[128] = {};
   snprintf(error_msg, sizeof(error_msg), "no error");
-  WOLFSSL_CTX* ctx = NULL;
   int int_retval = WOLFSSL_FAILURE;
   AGENT agent = NULL;
+  bool is_server = descriptor->role == SERVER;
 
   agent = (AGENT)calloc(1, sizeof(struct AGENT_TYPE));
   if (agent == NULL) {
@@ -667,37 +726,37 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
     strncpy(error_msg, "retrieving wolfssl method failed", 128);
     goto ERROR__wolfssl_create_agent;
   }
-  ctx = wolfSSL_CTX_new(tls_method);
-  if (ctx == NULL) {
+  agent->ctx = wolfSSL_CTX_new(tls_method);
+  if (agent->ctx == NULL) {
     strncpy(error_msg, "wolfssl create context failed", 128);
     goto ERROR__wolfssl_create_agent;
   }
 
-  int_retval = wolfSSL_CTX_set_msg_callback(ctx, wolfssl_message_callback);
+  int_retval = wolfSSL_CTX_set_msg_callback(agent->ctx, wolfssl_message_callback);
   if (int_retval != WOLFSSL_SUCCESS) {
     strncpy(error_msg, "wolfSSL_CTX_set_msg_callback failed", 128);
     goto ERROR__wolfssl_create_agent;
   }
-  int_retval = wolfSSL_CTX_set_msg_callback_arg(ctx, agent);
+  int_retval = wolfSSL_CTX_set_msg_callback_arg(agent->ctx, agent);
   if (int_retval != WOLFSSL_SUCCESS) {
     strncpy(error_msg, "wolfSSL_CTX_set_msg_callback_arg failed", 128);
     goto ERROR__wolfssl_create_agent;
   }
 
 #ifdef USE_CUSTOM_PRNG
-  int_retval = wc_CryptoCb_RegisterDevice(1, myCryptoCb_Func, ctx);
+  int_retval = wc_CryptoCb_RegisterDevice(1, myCryptoCb_Func, agent->ctx);
   if (int_retval != 0) {
     strncpy(error_msg, "wolfssl register device failed", 128);
     goto ERROR__wolfssl_create_agent;
   }
-  int_retval = wolfSSL_CTX_SetDevId(ctx, 1);
+  int_retval = wolfSSL_CTX_SetDevId(agent->ctx, 1);
   if (int_retval != WOLFSSL_SUCCESS) {
     strncpy(error_msg, "wolfssl set device failed", 128);
     goto ERROR__wolfssl_create_agent;
   }
 #endif
 
-  int_retval = wolfSSL_CTX_set_session_cache_mode(ctx, SSL_SESS_CACHE_OFF);
+  int_retval = wolfSSL_CTX_set_session_cache_mode(agent->ctx, SSL_SESS_CACHE_OFF);
   if (int_retval != WOLFSSL_SUCCESS) {
     strncpy(error_msg, "wolfssl set session cache mode failed", 128);
     goto ERROR__wolfssl_create_agent;
@@ -705,14 +764,14 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
 
   // Allow EXPORT in server
   // Disallow EXPORT in client
-  int_retval = wolfSSL_CTX_set_cipher_list(ctx, descriptor->cipher_string);
+  int_retval = wolfSSL_CTX_set_cipher_list(agent->ctx, descriptor->cipher_string);
   if (int_retval != WOLFSSL_SUCCESS) {
     snprintf(error_msg, 128, "wolfssl set cipher list %s failed", descriptor->cipher_string);
     goto ERROR__wolfssl_create_agent;
   }
 
   if (descriptor->group_list != NULL) {
-    int_retval = wolfSSL_CTX_set1_groups_list(ctx, (char *)(descriptor->group_list));
+    int_retval = wolfSSL_CTX_set1_groups_list(agent->ctx, (char *)(descriptor->group_list));
     if (int_retval != WOLFSSL_SUCCESS) {
       snprintf(error_msg, 128, "wolfssl set group list %s failed", descriptor->group_list);
       goto ERROR__wolfssl_create_agent;
@@ -720,10 +779,10 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
 }
 
   if (peer_authentication) {
-    wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
+    wolfSSL_CTX_set_verify(agent->ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
     for (size_t i=0; i<descriptor->store_length; ++i) {
-      int_retval = wolfSSL_CTX_load_verify_buffer(ctx, 
+      int_retval = wolfSSL_CTX_load_verify_buffer(agent->ctx, 
           descriptor->store[i]->bytes, descriptor->store[i]->length, 
           SSL_FILETYPE_PEM);
       if (int_retval != WOLFSSL_SUCCESS) {
@@ -735,17 +794,23 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
       goto ERROR__wolfssl_create_agent;
     }
   } else {
-    wolfSSL_CTX_set_verify(ctx, SSL_VERIFY_NONE, NULL);
+    wolfSSL_CTX_set_verify(agent->ctx, SSL_VERIFY_NONE, NULL);
   }
 
   if (is_server || descriptor->client_authentication) {
-    int_retval = wolfSSL_CTX_use_certificate_buffer(ctx, 
-        descriptor->cert->bytes, descriptor->cert->length, SSL_FILETYPE_PEM);
+    WOLFSSL_BIO* bio = wolfSSL_BIO_new(wolfSSL_BIO_s_mem());;
+    int ret = wolfSSL_BIO_write(bio, descriptor->cert->bytes, descriptor->cert->length);
+    WOLFSSL_X509* x509 = NULL;
+    x509 = wolfSSL_PEM_read_bio_X509(bio, NULL, NULL, NULL);
+    wolfSSL_BIO_free(bio);
+    /*int_retval = wolfSSL_CTX_use_certificate(agent->ctx, x509);
+    int_retval = wolfSSL_CTX_use_certificate_buffer(agent->ctx, 
+        descriptor->cert->bytes, descriptor->cert->length, SSL_FILETYPE_PEM);*/
     if (int_retval != WOLFSSL_SUCCESS) {
       snprintf(error_msg, 128, "wolfssl use certificat failed: %d", int_retval);
       goto ERROR__wolfssl_create_agent;
     }
-    int_retval = wolfSSL_CTX_use_PrivateKey_buffer(ctx, 
+    int_retval = wolfSSL_CTX_use_PrivateKey_buffer(agent->ctx, 
         descriptor->pkey->bytes, descriptor->pkey->length, SSL_FILETYPE_PEM);
     if (int_retval != WOLFSSL_SUCCESS) {
       snprintf(error_msg, 128, "wolfssl use private key failed: %d", int_retval);
@@ -754,43 +819,24 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, WOLFSS
   }
 
   if (is_server) {
-    int_retval = wolfSSL_CTX_set_num_tickets(ctx, 2);
+    int_retval = wolfSSL_CTX_set_num_tickets(agent->ctx, 2);
     if (int_retval != WOLFSSL_SUCCESS) {
       snprintf(error_msg, 128, "wolfSSL_CTX_set_num_tickets");
       goto ERROR__wolfssl_create_agent;
     }
   }
 
-  agent = make_agent(agent, ctx, descriptor);
+  agent = make_agent(agent, descriptor);
   if (agent == NULL) {
     strncpy(error_msg, "creating wolfssl agent failed", 128);
     goto ERROR__wolfssl_create_agent;
   }
-
-  if (!is_server) {
-    int_retval = wolfSSL_UseSessionTicket(agent->ssl);
-    if (int_retval != WOLFSSL_SUCCESS) {
-      snprintf(error_msg, 128, "wolfSSL_UseSessionTicket failed");
-      goto ERROR__wolfssl_create_agent;
-    }
-  }
-
-  if (is_server) {
-    wolfSSL_set_accept_state(agent->ssl);
-  } else {
-    wolfSSL_set_connect_state(agent->ssl);
-  }
-
-  wolfSSL_CTX_free(ctx);
 
   return agent;
 
 ERROR__wolfssl_create_agent:
   _log(PUFFIN.error, "fatal error in wolfssl_create_agent: %s", error_msg);
   wolfssl_destroy(agent);
-  if (ctx != NULL) {
-      wolfSSL_CTX_free(ctx);
-  }
   return NULL;
 }
 
@@ -822,14 +868,14 @@ static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor) {
           "descriptor %u version: %s type: client",
           descriptor->name,
           tls_version_str);
-      return wolfssl_create_agent(descriptor, tls_methods[0](), false, 
+      return wolfssl_create_agent(descriptor, tls_methods[0](), 
           descriptor->server_authentication);
       break;
     case SERVER:
       _log(PUFFIN.info,
           "descriptor %u version: %s type: server",
           descriptor->name, tls_version_str);
-      return wolfssl_create_agent(descriptor, tls_methods[1](), true, 
+      return wolfssl_create_agent(descriptor, tls_methods[1](), 
           descriptor->client_authentication);
       break;
     default:
@@ -883,58 +929,53 @@ static TLS_PUT_INTERFACE const WOLFSSL_PUT = {
   },
 };
 
-time_t time_cb(time_t* t) {
 #ifdef USE_CUSTOM_PRNG
+time_t time_cb(time_t* t) {
   if (clock_value != 0) {
+#ifdef TIME_CHANGE
+    ++clock_value;
+#endif
     if (t != NULL) {
       *t = clock_value;
       *t = 0;
     }
-#ifdef TIME_CHANGE
-    return clock_value++;
-#else
     return clock_value;
-    return 0;
-#endif
   }
-#endif
   return time(t);
 }
+#endif
 
-#ifdef USE_CUSTOM_PRNG
 word32 LowResTimer(void) {
+#ifdef USE_CUSTOM_PRNG
   if (clock_value != 0) {
 #ifdef TIME_CHANGE
-    return clock_value++;
-#else
-    return clock_value;
+    ++clock_value;
 #endif
+    return clock_value;
   }
+#endif
   return (word32)time(NULL);
 }
-#endif
 
-#ifdef USE_CUSTOM_PRNG
 word32 TimeNowInMilliseconds(void) {
+#ifdef USE_CUSTOM_PRNG
   if (clock_value != 0) {
 #ifdef TIME_CHANGE
-    return 1000 * clock_value++;
-#else
-    return 1000 * clock_value;
+    ++clock_value;
 #endif
+    return 1000 * clock_value;
   }
+#endif
   struct timeval now;
   if (gettimeofday(&now, NULL) < 0)
     return (word32)GETTIME_ERROR;
   return (word32)(now.tv_sec * 1000 + now.tv_usec / 1000);
 }
-#endif
 
 TLS_PUT_INTERFACE const * REGISTER () {
-  /* ToDo needed ? where it should be set ?
-  if (debug) {
+  if (getenv("RUST_LOG") != NULL) {
     wolfSSL_Debugging_ON();
-  }*/
+  }
 
 #if LIBWOLFSSL_VERSION_HEX >= 0x05002000
 #ifdef USE_CUSTOM_PRNG
