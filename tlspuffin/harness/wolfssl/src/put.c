@@ -691,12 +691,13 @@ static int myCryptoCb_Func(int devId, wc_CryptoInfo* info, void* ctx) {
 #endif
 
 static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor, 
-    WOLFSSL_METHOD* tls_method, bool peer_authentication) {
+    WOLFSSL_METHOD* tls_method, char const* tls_version_str, bool peer_authentication) {
   char error_msg[128] = {};
   snprintf(error_msg, sizeof(error_msg), "no error");
   int int_retval = WOLFSSL_FAILURE;
   AGENT agent = NULL;
   bool is_server = descriptor->role == SERVER;
+  const char *cipher_list = NULL;
 
   agent = (AGENT)calloc(1, sizeof(struct AGENT_TYPE));
   if (agent == NULL) {
@@ -744,11 +745,19 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     goto ERROR__wolfssl_create_agent;
   }
 
+  if (strcmp(tls_version_str, "V1_2") == 0) {
+    cipher_list = descriptor->cipher_string_tls12;
+  } else if (strcmp(tls_version_str, "V1_3") == 0) {
+    cipher_list = descriptor->cipher_string_tls13;
+  } else {
+    snprintf(error_msg, 128, "wolfssl create agent, unknown TLS version '%s'", tls_version_str);
+    goto ERROR__wolfssl_create_agent;
+  }
   // Allow EXPORT in server
   // Disallow EXPORT in client
-  int_retval = wolfSSL_CTX_set_cipher_list(agent->ctx, descriptor->cipher_string);
+  int_retval = wolfSSL_CTX_set_cipher_list(agent->ctx, cipher_list);
   if (int_retval != WOLFSSL_SUCCESS) {
-    snprintf(error_msg, 128, "wolfssl set cipher list %s failed", descriptor->cipher_string);
+    snprintf(error_msg, 128, "wolfssl set cipher list %s failed", cipher_list);
     goto ERROR__wolfssl_create_agent;
   }
 
@@ -866,14 +875,14 @@ static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor) {
           descriptor->name,
           tls_version_str);
       return wolfssl_create_agent(descriptor, tls_methods[0](), 
-          descriptor->server_authentication);
+          tls_version_str, descriptor->server_authentication);
       break;
     case SERVER:
       _log(PUFFIN.info,
           "descriptor %u version: %s type: server",
           descriptor->name, tls_version_str);
       return wolfssl_create_agent(descriptor, tls_methods[1](), 
-          descriptor->client_authentication);
+          tls_version_str, descriptor->client_authentication);
       break;
     default:
       _log(PUFFIN.error,
