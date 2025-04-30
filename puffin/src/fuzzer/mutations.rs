@@ -862,12 +862,23 @@ where
             log::debug!("[Mutation-bit] Mutate MakeMessage skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
         }
+        let nb_payloads = trace.all_payloads().len();
+        let nb_terms = trace.steps.len();
+        let no_more_new_payloads = nb_payloads / std::cmp::max(1, nb_terms)
+            > self.constraints.threshold_max_payloads_per_term;
+        if no_more_new_payloads {
+            log::debug!("[MakeMessage] on a trace with too many payloads: {trace}")
+        } else {
+            log::debug!("[MakeMessage] Do a regular MakeMessage")
+        }
         let rand = state.rand_mut();
         let mut constraints_make_message = TermConstraints {
             must_be_symbolic: true, /* we exclude non-symbolic terms, which were already mutated
                                      * with MakeMessage */
             no_payload_in_subterm: false, /* change to true to exclude picking a term with a
                                            * payload in a sub-term */
+            must_payload_in_subterm: no_more_new_payloads, /* change to true when there are too
+                                                            * many payloads already */
             not_inside_list: true, /* true means we are not picking terms inside list (like
                                     * fn_append in the middle) */
             // we set it to true since it would otherwise be redundant with picking each of the item

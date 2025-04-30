@@ -13,6 +13,8 @@ pub struct TermConstraints {
     pub must_be_symbolic: bool,
     // when true: only look for terms with no payload in sub-terms
     pub no_payload_in_subterm: bool,
+    // when true: only look for terms with at least one payload in sub-terms
+    pub must_payload_in_subterm: bool,
     // when true: we do not choose terms that have a list symbol and whose parent also has a list
     // symbol those terms are thus "inside a list", like t in fn_append(t,t3) for t =
     // fn(append(t1,t2)
@@ -23,6 +25,8 @@ pub struct TermConstraints {
     pub must_be_root: bool,
     // Number of terms to generate for each type
     pub zoo_gen_how_many: usize,
+    // Max number of paylaods per term (limiting further MakeMessage)
+    pub threshold_max_payloads_per_term: usize,
 }
 
 /// Default values which represent no constraint
@@ -34,6 +38,7 @@ impl Default for TermConstraints {
                                  * instantiating the fuzzer */
             must_be_symbolic: false,
             no_payload_in_subterm: false,
+            must_payload_in_subterm: false,
             not_inside_list: false,
             weighted_depth: false,
             must_be_root: false,
@@ -41,6 +46,7 @@ impl Default for TermConstraints {
                                    * `test_term_payloads_eval`, making sure we successfully
                                    * generate, MakeMessage,
                                    * and evaluate after 10 expansions of TermZoo. Was 1 initially */
+            threshold_max_payloads_per_term: 10,
         }
     }
 }
@@ -169,7 +175,7 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
                             DYTerm::Variable(_) => {
                                 // reached leaf
                             }
-                            DYTerm::Application(fd, subterms) => {
+                            DYTerm::Application(_fd, subterms) => {
                                 // inner node, recursively continue
                                 for (path_index, subterm) in subterms.iter().enumerate() {
                                     let mut new_path = path.clone();
