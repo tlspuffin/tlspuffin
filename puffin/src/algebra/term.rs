@@ -6,7 +6,6 @@ use std::hash::Hash;
 
 use anyhow::{anyhow, Context, Result};
 use itertools::Itertools;
-use libafl::inputs::BytesInput;
 use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
@@ -87,14 +86,14 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
                         }
                     }
                     Some(Error::Term(te)) => {
-                        log::info!("[evaluate_config_wrap] Term Error {}", te);
+                        log::debug!("[evaluate_config_wrap] Term Error {}", te);
                     }
                     Some(Error::Fn(fe)) => match &fe {
                         FnError::Unknown(_fne) => {
                             log::error!("[evaluate_config_wrap]  FnError::Unknown Error on\n{}\n[==>] Causes: {:?}", &self, &e);
                         }
                         _ => {
-                            log::info!("[evaluate_config_wrap]  FnError::* Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                            log::debug!("[evaluate_config_wrap]  FnError::* Error on\n{}\n[==>] Causes: {:?}", &self, &e);
                         }
                     },
                     Some(Error::SecurityClaim(_se)) => {
@@ -490,7 +489,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        log::debug!("[evaluate_config] About to evaluate term (with_payloads: {with_payloads}):\n{}\n===================================================================", &self);
+        log::trace!("[evaluate_config] About to evaluate term (with_payloads: {with_payloads}):\n{}\n===================================================================", &self);
         let mut eval_tree = EvalTree::empty();
         let (m, all_payloads) = self
             .eval_until_opaque(
@@ -505,7 +504,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         if with_payloads && !all_payloads.is_empty() {
             let ft = format!("[evaluate_config] About to replace for a term {}\n payloads with contexts: {}\n-------------------------------------------------------------------",
                     self, all_payloads.iter().format(","));
-            log::debug!("{}", ft);
+            log::trace!("{}", ft);
             let res = replace_payloads(self, &mut eval_tree, all_payloads).with_context(|| {
                 format!(
                     "[eval_until_opaque] replace_payloads failed with:\n\
@@ -513,13 +512,13 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
                     &eval_tree
                 )
             })?;
-            log::debug!(
+            log::trace!(
                 "        / [payload]    We successfully evaluated the root term into: {res:?}"
             );
             Ok((res, m))
         } else {
             let eval = PB::any_get_encoding(m.as_ref());
-            log::debug!(
+            log::trace!(
                 "        / [no_payload] We successfully evaluated the root term into: {eval:?}"
             );
             Ok((eval, m))

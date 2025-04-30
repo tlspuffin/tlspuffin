@@ -95,7 +95,7 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
     }
 
     pub fn determinism_reseed_all_factories(&self) {
-        log::debug!("[RNG] reseed all PUT factories");
+        log::info!("[RNG] reseed all PUT factories");
         for factory in self.factories.values() {
             factory.rng_reseed();
         }
@@ -132,6 +132,6 @@ pub trait Factory<PB: ProtocolBehavior> {
     fn clone_factory(&self) -> Box<dyn Factory<PB>>;
 
     fn rng_reseed(&self) {
-        log::debug!("[RNG] reseed failed ({}): not supported", self.name());
+        log::warn!("[RNG] reseed failed ({}): not supported", self.name());
     }
 }

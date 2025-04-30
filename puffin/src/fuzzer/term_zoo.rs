@@ -7,7 +7,7 @@ use crate::algebra::atoms::Function;
 use crate::algebra::signature::{FunctionDefinition, Signature};
 use crate::algebra::{DYTerm, Term, TermType};
 use crate::fuzzer::utils::Choosable;
-use crate::protocol::{ProtocolBehavior, ProtocolTypes};
+use crate::protocol::ProtocolBehavior;
 use crate::trace::TraceContext;
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
