@@ -734,7 +734,7 @@ mod tests {
             ],
         ));
 
-        log::debug!("{}", generated_term);
+        log::debug!("Generated term: {}", generated_term);
 
         fn dummy_factory() -> Box<dyn Factory<TestProtocolBehavior>> {
             Box::new(TestFactory)
@@ -749,7 +749,7 @@ mod tests {
             .knowledge_store
             .add_raw_knowledge(data, Source::Agent(AgentName::first()), None);
 
-        log::debug!("{:?}", context.knowledge_store);
+        log::trace!("New knowledge: {:?}", context.knowledge_store);
 
         let _string = generated_term
             .evaluate_dy(&context)
