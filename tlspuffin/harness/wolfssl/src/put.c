@@ -496,28 +496,35 @@ static const char *wolfssl_describe_state(AGENT agent) {
 }
 
 static RESULT wolfssl_reset(AGENT agent, uint8_t new_name) {
-  agent->name = new_name;
-
-  //CLAIMER_CB current_claimer_cb = {};
-  //memcpy(&current_claimer_cb, (void*)&agent->claimer, sizeof(CLAIMER_CB));
+  if (agent == NULL) {
+    _log(PUFFIN.error, "fatal error wolfssl_reset called with agent == NULL");
+    return PUFFIN.make_result(RESULT_ERROR_OTHER, "fatal error wolfssl_reset called with agent == NULL");
+  }
 
 #ifdef USE_CLEAR
+  //CLAIMER_CB current_claimer_cb = {};
+  //memcpy(&current_claimer_cb, (void*)&agent->claimer, sizeof(CLAIMER_CB));
   int ret = wolfSSL_clear(agent->ssl);
   memset((void*)&agent->claimer, 0, sizeof(CLAIMER_CB));
+  agent->name = new_name;
   if (ret != WOLFSSL_SUCCESS) {
     char* reason = get_result_information(agent->ssl, ret, NULL);
     RESULT result = PUFFIN.make_result(RESULT_ERROR_OTHER, reason);
     free(reason);
     return result;
   }
-#else
-  wolfSSL_free(agent->ssl);
-  agent = make_agent(agent, &(agent->descriptor));
-#endif
-
   /*if (current_claimer_cb.notify != NULL) {
     memcpy((void*)&agent->claimer, &current_claimer_cb, sizeof(CLAIMER_CB));
   }*/
+#else
+  wolfSSL_free(agent->ssl);
+  agent->descriptor.name = new_name;
+  agent = make_agent(agent, &(agent->descriptor));
+  if (agent == NULL) {
+    _log(PUFFIN.error, "fatal error in wolfssl_reset, make_agent returned NULL");
+    return PUFFIN.make_result(RESULT_ERROR_OTHER, "fatal error in wolfssl_reset, make_agent returned NULL");
+  }
+#endif
 
   return PUFFIN.make_result(RESULT_OK, NULL);
 }
@@ -530,40 +537,11 @@ static RESULT wolfssl_progress(AGENT agent) {
   RESULT_CODE result_code = RESULT_ERROR_OTHER;
   RESULT result = NULL;
 
-#if 0
-  if (!wolfssl_is_successful(agent)) {
-    // not connected yet -> do handshake
-    int ret = wolfSSL_SSL_do_handshake(agent->ssl);
-    if (ret == WOLFSSL_SUCCESS) {
-      agent->handshake_done = true;
-      result = PUFFIN.make_result(RESULT_OK, "handshake done");
-    } else {
-      char* reason = get_result_information(agent->ssl, ret, &result_code);
-      result = PUFFIN.make_result(result_code == RESULT_IO_WOULD_BLOCK ? RESULT_OK : result_code, 
-        reason);
-      free(reason);
-  }
-  } else {
-  // trigger another read
-  uint8_t buf[128];
-  int ret = wolfSSL_read(agent->ssl, &buf, 128);
-  if (ret > 0) {
-    buf[ret] = 0;
-    printf("Got: %s\n", buf);
-      result = PUFFIN.make_result(RESULT_OK, NULL);
-    } else {
-      char* reason = get_result_information(agent->ssl, ret, &result_code);
-      result = PUFFIN.make_result(
-          result_code == RESULT_IO_WOULD_BLOCK ? RESULT_OK : result_code, reason);
-      free(reason);
-    }
-  }
-#else
   if (wolfSSL_is_init_finished(agent->ssl)) {
+    // trigger another read
     uint8_t buf[128];
     int ret = wolfSSL_read(agent->ssl, &buf, 128);
     if (ret > 0) {
-      buf[ret] = 0;
       result = PUFFIN.make_result(RESULT_OK, NULL);
     } else {
       char* reason = get_result_information(agent->ssl, ret, &result_code);
@@ -572,7 +550,12 @@ static RESULT wolfssl_progress(AGENT agent) {
       free(reason);
     }
   } else {
+    // not connected yet -> do handshake
+#if 1
+    int ret = wolfSSL_SSL_do_handshake(agent->ssl);
+#else
     int ret = wolfSSL_accept(agent->ssl);
+#endif
     if (ret == WOLFSSL_SUCCESS) {
       agent->handshake_done = true;
       result = PUFFIN.make_result(RESULT_OK, "handshake done");
@@ -583,7 +566,6 @@ static RESULT wolfssl_progress(AGENT agent) {
       free(reason);
     }
   }
-#endif
 
   //deferred_transcript_extraction
   if ((agent->claimer.notify != NULL) && (agent->transcriptType != CLAIM_NOT_SET)) {
@@ -798,14 +780,29 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
   }
 
   if (is_server || descriptor->client_authentication) {
-    WOLFSSL_BIO* bio = wolfSSL_BIO_new(wolfSSL_BIO_s_mem());;
-    int ret = wolfSSL_BIO_write(bio, descriptor->cert->bytes, descriptor->cert->length);
+#if 1
     WOLFSSL_X509* x509 = NULL;
+    WOLFSSL_BIO *bio = wolfSSL_BIO_new(wolfSSL_BIO_s_mem());
+    if (bio == NULL) {
+      snprintf(error_msg, 128, "wolfssl use certificat failed: %d", int_retval);
+      goto ERROR__wolfssl_create_agent;
+    }
+    int_retval = wolfSSL_BIO_write(bio, descriptor->cert->bytes, descriptor->cert->length);
+    if (int_retval != descriptor->cert->length) {
+      snprintf(error_msg, 128, "wolfSSL_BIO_write failed to write descriptor->cert: %d", int_retval);
+      goto ERROR__wolfssl_create_agent;
+    }
     x509 = wolfSSL_PEM_read_bio_X509(bio, NULL, NULL, NULL);
+    if (x509 == NULL) {
+      snprintf(error_msg, 128, "wolfSSL_PEM_read_bio_X509 failed to create certificat");
+      goto ERROR__wolfssl_create_agent;
+    }
     wolfSSL_BIO_free(bio);
-    /*int_retval = wolfSSL_CTX_use_certificate(agent->ctx, x509);
+    int_retval = wolfSSL_CTX_use_certificate(agent->ctx, x509);
+#else
     int_retval = wolfSSL_CTX_use_certificate_buffer(agent->ctx, 
         descriptor->cert->bytes, descriptor->cert->length, SSL_FILETYPE_PEM);*/
+#endif
     if (int_retval != WOLFSSL_SUCCESS) {
       snprintf(error_msg, 128, "wolfssl use certificat failed: %d", int_retval);
       goto ERROR__wolfssl_create_agent;
@@ -929,8 +926,8 @@ static TLS_PUT_INTERFACE const WOLFSSL_PUT = {
   },
 };
 
-#ifdef USE_CUSTOM_PRNG
 time_t time_cb(time_t* t) {
+#ifdef USE_CUSTOM_PRNG
   if (clock_value != 0) {
 #ifdef TIME_CHANGE
     ++clock_value;
@@ -941,9 +938,9 @@ time_t time_cb(time_t* t) {
     }
     return clock_value;
   }
+#endif
   return time(t);
 }
-#endif
 
 word32 LowResTimer(void) {
 #ifdef USE_CUSTOM_PRNG

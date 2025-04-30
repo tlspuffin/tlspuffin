@@ -383,7 +383,9 @@ pub mod claims_helpers {
                         &claim.session_id.data[..claim.session_id.length as usize],
                     ),
                     authenticate_peer: claim.peer_authentication == 1,
-                    peer_certificate: SmallVec::from_slice(&claim.peer_cert.data[..claim.peer_cert.data_length as usize]),
+                    peer_certificate: SmallVec::from_slice(
+                        &claim.peer_cert.data[..claim.peer_cert.data_length as usize],
+                    ),
                     master_secret: match protocol_version {
                         TLSVersion::V1_3 => SmallVec::from_slice(&claim.master_secret.secret),
                         TLSVersion::V1_2 => SmallVec::from_slice(&claim.master_secret_12.secret),
