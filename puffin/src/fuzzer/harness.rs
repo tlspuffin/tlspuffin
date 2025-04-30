@@ -40,7 +40,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
             Error::Stream(_) => STREAM.increment(),
             Error::Extraction() => EXTRACTION.increment(),
             Error::SecurityClaim(msg) => {
-                log::warn!("{}", msg);
+                log::error!("{}", msg);
                 std::process::abort()
             }
         }
