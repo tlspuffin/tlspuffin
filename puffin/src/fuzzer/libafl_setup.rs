@@ -1,15 +1,16 @@
 use core::time::Duration;
 use std::fmt;
+use std::marker::PhantomData;
 use std::path::PathBuf;
 
-use itertools::Itertools;
 use libafl::corpus::ondisk::OnDiskMetadataFormat;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 use log4rs::Handle;
 
 use super::harness;
-use crate::fuzzer::mutations::{normalize_proba, proba_mutations, trace_mutations, MutationConfig};
+use crate::fuzzer::bit_mutations::havoc_mutations_dy;
+use crate::fuzzer::mutations::{dy_mutations, MakeMessage, MutationConfig};
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::log::load_fuzzing_client;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
@@ -19,6 +20,8 @@ use crate::trace::Trace;
 
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
+const MIN_BIT_EXECS: usize = 5_000; // one 1 core
+const MIN_BIT_CORPUS: usize = 200; // on 1 core
 
 type ConcreteExecutor<'harness, H, OT, S> = TimeoutExecutor<InProcessExecutor<'harness, H, OT, S>>;
 
@@ -64,14 +67,14 @@ impl Default for MutationStageConfig {
     }
 }
 
-struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
+struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PT>
 where
-    I: Input,
+    PT: ProtocolTypes + 'static,
 {
     config: FuzzerConfig,
 
     harness_fn: &'harness mut H,
-    existing_state: Option<ConcreteState<C, R, SC, I>>,
+    existing_state: Option<ConcreteState<C, R, SC, Trace<PT>>>,
     rand: Option<R>,
     objective_corpus: Option<SC>,
     corpus: Option<C>,
@@ -80,37 +83,38 @@ where
     observers: Option<OT>,
     feedback: Option<F>,
     objective: Option<OF>,
-    initial_inputs: Option<Vec<(I, &'static str)>>,
-    mutations: Option<MT>,
+    initial_inputs: Option<Vec<(Trace<PT>, &'static str)>>,
+    phantom_data: PhantomData<PT>,
 }
 
-impl<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
-    RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
+impl<'harness, H, C, R, SC, EM, F, OF, OT, CS, PT>
+    RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PT>
 where
-    ConcreteState<C, R, SC, I>: UsesInput<Input = I>,
-    I: Input + HasLen,
-    C: Corpus + UsesInput<Input = I>,
+    ConcreteState<C, R, SC, Trace<PT>>: UsesInput<Input = Trace<PT>>,
+    C: Corpus + UsesInput<Input = Trace<PT>>,
     R: Rand,
-    SC: Corpus + UsesInput<Input = I>,
-    H: FnMut(&I) -> ExitKind,
-    CS: Scheduler + UsesState<State = ConcreteState<C, R, SC, I>>,
-    F: Feedback<ConcreteState<C, R, SC, I>>,
-    OF: Feedback<ConcreteState<C, R, SC, I>>,
-    OT: ObserversTuple<ConcreteState<C, R, SC, I>> + serde::Serialize + serde::de::DeserializeOwned,
+    SC: Corpus + UsesInput<Input = Trace<PT>>,
+    H: FnMut(&Trace<PT>) -> ExitKind,
+    CS: Scheduler + UsesState<State = ConcreteState<C, R, SC, Trace<PT>>>,
+    F: Feedback<ConcreteState<C, R, SC, Trace<PT>>>,
+    OF: Feedback<ConcreteState<C, R, SC, Trace<PT>>>,
+    OT: ObserversTuple<ConcreteState<C, R, SC, Trace<PT>>>
+        + serde::Serialize
+        + serde::de::DeserializeOwned,
     EM: EventFirer
         + EventRestarter
         + EventManager<
-            ConcreteExecutor<'harness, H, OT, ConcreteState<C, R, SC, I>>,
+            ConcreteExecutor<'harness, H, OT, ConcreteState<C, R, SC, Trace<PT>>>,
             StdFuzzer<CS, F, OF, OT>,
         > + ProgressReporter
-        + UsesState<State = ConcreteState<C, R, SC, I>>,
-    MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
+        + UsesState<State = ConcreteState<C, R, SC, Trace<PT>>>,
     <EM as UsesState>::State: HasClientPerfMonitor + HasMetadata + HasExecutions,
+    PT: ProtocolTypes + 'static,
 {
     fn new(
         config: FuzzerConfig,
         harness_fn: &'harness mut H,
-        existing_state: Option<ConcreteState<C, R, SC, I>>,
+        existing_state: Option<ConcreteState<C, R, SC, Trace<PT>>>,
         event_manager: EM,
     ) -> Self {
         Self {
@@ -126,7 +130,7 @@ where
             feedback: None,
             objective: None,
             initial_inputs: None,
-            mutations: None,
+            phantom_data: Default::default(),
         }
     }
 
@@ -165,17 +169,15 @@ where
         self
     }
 
-    fn with_initial_inputs(mut self, initial_inputs: Vec<(I, &'static str)>) -> Self {
+    fn with_initial_inputs(mut self, initial_inputs: Vec<(Trace<PT>, &'static str)>) -> Self {
         self.initial_inputs = Some(initial_inputs);
         self
     }
 
-    fn with_mutations(mut self, mutations: MT) -> Self {
-        self.mutations = Some(mutations);
-        self
-    }
-
-    fn run_client(mut self) -> Result<(), Error> {
+    fn run_client<PB>(mut self, put_registry: &'harness PutRegistry<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT> + 'static,
+    {
         let mut feedback = self.feedback.unwrap();
         let mut objective = self.objective.unwrap();
 
@@ -194,69 +196,86 @@ where
         let FuzzerConfig {
             initial_corpus_dir,
             max_iters,
-            mutation_stage_config:
-                MutationStageConfig {
-                    max_iterations_per_stage,
-                    max_mutations_per_iteration,
-                },
-            mutation_config:
-                MutationConfig {
-                    with_bit_level,
-                    with_dy,
-                    ..
-                },
+            mutation_config,
             ..
         } = self.config;
 
-        // Main mutational stage
-        let mutator = TuneableScheduledMutator::new(&mut state, self.mutations.unwrap());
+        /*
+        Standard AFL-like configuration:
+        A: Main mutator with StdScheduledMutator
+            1. Compute the number of iterations im used to apply stacked mutations: 1 << (1 + rand(0<= r <= 7))
+            2. For each time (0..im) : Apply randomly a mutation from the given list (here havoc)
+          ==> let mutator = StdScheduledMutator::new(havoc_mutations());
+        B: Main mutational stage with StdMutationalStage:
+            1. Take the scheduled input from the corpus
+            2. Pick a random iterations is between 1 and 128 (default)
+            3. For each 0..is: clone input, mutate using mutator, execute
+          ==> let mut stages = tuple_list!(StdMutationalStage::new(mutator));
+        C: We provide a list of stages: all of them are run one after the other, on the same scheduled testcase though. We might want to add more stages in the future, in particular https://docs.rs/libafl/0.15.0/libafl/stages/tmin/struct.StdTMinMutationalStage.html; see https://docs.rs/libafl/0.15.0/libafl/stages/index.html#modules
 
-        // Set the probability to mutate n times for 1 <= n <= max_mutations_per_iteration to be
-        // (2/n)/N (N: to normalize).
-        let mut proba_iter = (1..(1 + (max_mutations_per_iteration as f32).log2().ceil() as usize))
-            .map(|n| 2.0f32 / n as f32)
-            .collect_vec();
-        normalize_proba(&mut proba_iter);
-        log::error!(
-            "[TuneableScheduledMutator] set_iter_probabilities_pow: {:?}",
-            proba_iter
-        );
-        TuneableScheduledMutator::set_iter_probabilities_pow(&mut state, proba_iter)
-            .expect("[TuneableScheduledMutator::set_iter_probabilities_pow] panic");
-        // Fine-tune the probability for each mutation
-        let proba_mutator = proba_mutations(with_bit_level, with_dy, *state.executions());
-        log::error!(
-            "[TuneableScheduledMutator] set_mutation_probabilities: {:?}",
-            proba_mutator
-        );
-        TuneableScheduledMutator::set_mutation_probabilities(&mut state, proba_mutator)
-            .expect("[TuneableScheduledMutator::set_mutation_probabilities] panic ");
+        Note: A minimization+queue policy to get test cases from the corpus
+          ==> let scheduler = IndexesLenTimeMinimizerScheduler::new(&edges_observer, QueueScheduler::new());
+        Warning: To achieve this, the fuzzer maintains a state that describes which test cases are short and take a short time to execute. Internally, LibAFL attaches metadata to the fuzzer state ( TopRatedsMetadata) and test cases ( IsFavoredMetadata and MapIndexesMetadata). The important part to note here is that this specific scheduler depends on having an observer who can track indices. This is true for our edges_observer because we used the track_indices function when setting it up. For more information, refer to the source code.
+        ------------
+        We adapt this to our specific setup:
+           ==> let mut stages = tuple_list!(stage_dy, stage_bit);
+        where:
+         - stage_dy is a StdScheduledMutator stage over DY mutations, enabled when DY mutations are
+         - stage_bit is a StdScheduledMutator with only 1 run stage over bit-level mutations, enabled when bit mutations are enabled and when sufficiently many executions and corpus testcases have been done/found
+        */
 
-        // Put together the mutational stage and stage for updating mutation probabilities
-        let mut stages = tuple_list!(
-            StdMutationalStage::with_max_iterations(mutator, max_iterations_per_stage),
-            // Update the mutation probabilities every 100 executions
-            IfStage::new(
-                |_, _, state: &mut ConcreteState<C, R, SC, I>, _, _| Ok(
-                    *state.executions() % 100 == 0
-                ),
-                tuple_list!(ClosureStage::new(
-                    |_, _, state: &mut ConcreteState<C, R, SC, I>, _, _| {
-                        // Update the mutation probabilities
-                        let proba_mutator =
-                            proba_mutations(with_bit_level, with_dy, *state.executions());
-                        log::error!(
-                            "[TuneableScheduledMutator] update set_mutation_probabilities (#executions={}): {:?}",
-                            state.executions(),
-                            proba_mutator
-                        );
-                        TuneableScheduledMutator::set_mutation_probabilities(state, proba_mutator)
-                            .expect("[TuneableScheduledMutator::set_mutation_probabilities] panic");
-                        Ok(())
-                    }
-                ))
-            )
+        // ==== DY mutational stage
+        let mutator_dy = StdScheduledMutator::new(dy_mutations(
+            mutation_config,
+            <PT>::signature(),
+            put_registry,
+        ));
+        // Always run DY mutations (if enabled)
+        let cb_dy =
+            |_: &mut _, _: &mut _, _: &mut _, _: &mut _, _idx: CorpusId| -> Result<bool, Error> {
+                if mutation_config.with_dy {
+                    log::info!("[*] DY StdMutationalStage");
+                    return Ok(true);
+                } else {
+                    return Ok(false);
+                }
+            };
+        let stage_dy = IfStage::new(cb_dy, tuple_list!(StdMutationalStage::new(mutator_dy)));
+
+        // ==== Bit-level mutational stage
+        let mutator_bit = StdScheduledMutator::new(havoc_mutations_dy::<
+            StdState<Trace<PT>, C, R, SC>,
+            PB,
+        >(mutation_config, put_registry));
+        // Run bit-levlel muts. if bit-level enabled, already advanced (to
+        // save a bit of time)
+        let cb_bit_level = |_: &mut _,
+                            _: &mut _,
+                            state: &mut ConcreteState<C, R, SC, Trace<PT>>,
+                            _: &mut _,
+                            idx: CorpusId|
+         -> Result<bool, Error> {
+            if !mutation_config.with_bit_level {
+                return Ok(false);
+            }
+            // Return false if the campaign is not advanced enough (per client/core), except if no
+            // DY
+            if !mutation_config.with_dy
+                || (*state.executions() > MIN_BIT_EXECS && state.corpus().count() > MIN_BIT_CORPUS)
+            {
+                log::info!("[*] BIT StdMutationalStage");
+                return Ok(true);
+            } else {
+                return Ok(false);
+            }
+        };
+        let stage_bit = IfStage::new(
+            cb_bit_level,
+            tuple_list!(StdMutationalStage::new(mutator_bit)),
         );
+
+        // ==== All stages put together
+        let mut stages = tuple_list!(stage_dy, stage_bit);
 
         let mut fuzzer: StdFuzzer<CS, F, OF, OT> =
             StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);
@@ -343,7 +362,7 @@ type ConcreteFeedback<'a, S> = CombinedFeedback<
     S,
 >;
 
-impl<'harness, 'a, H, SC, C, R, EM, OF, CS, MT, I>
+impl<'harness, 'a, H, SC, C, R, EM, OF, CS, PT>
     RunClientBuilder<
         'harness,
         H,
@@ -351,41 +370,44 @@ impl<'harness, 'a, H, SC, C, R, EM, OF, CS, MT, I>
         R,
         SC,
         EM,
-        ConcreteFeedback<'a, ConcreteState<C, R, SC, I>>,
+        ConcreteFeedback<'a, ConcreteState<C, R, SC, Trace<PT>>>,
         OF,
         ConcreteObservers<'a>,
         CS,
-        MT,
-        I,
+        PT,
     >
 where
-    ConcreteState<C, R, SC, I>: UsesInput<Input = I>,
-    I: Input + HasLen,
-    C: Corpus + UsesInput<Input = I> + fmt::Debug,
+    ConcreteState<C, R, SC, Trace<PT>>: UsesInput<Input = Trace<PT>>,
+    C: Corpus + UsesInput<Input = Trace<PT>> + fmt::Debug,
     R: Rand,
-    SC: Corpus + UsesInput<Input = I> + fmt::Debug,
-    H: FnMut(&I) -> ExitKind,
-    OF: Feedback<ConcreteState<C, R, SC, I>>,
-    CS: Scheduler + UsesState<State = ConcreteState<C, R, SC, I>>,
+    SC: Corpus + UsesInput<Input = Trace<PT>> + fmt::Debug,
+    H: FnMut(&Trace<PT>) -> ExitKind,
+    OF: Feedback<ConcreteState<C, R, SC, Trace<PT>>>,
+    CS: Scheduler + UsesState<State = ConcreteState<C, R, SC, Trace<PT>>>,
     EM: EventFirer
         + EventRestarter
         + EventManager<
-            ConcreteExecutor<'harness, H, ConcreteObservers<'a>, ConcreteState<C, R, SC, I>>,
+            ConcreteExecutor<
+                'harness,
+                H,
+                ConcreteObservers<'a>,
+                ConcreteState<C, R, SC, Trace<PT>>,
+            >,
             StdFuzzer<
-                ConcreteMinimizer<ConcreteState<C, R, SC, I>>,
-                ConcreteFeedback<'a, ConcreteState<C, R, SC, I>>,
+                ConcreteMinimizer<ConcreteState<C, R, SC, Trace<PT>>>,
+                ConcreteFeedback<'a, ConcreteState<C, R, SC, Trace<PT>>>,
                 OF,
                 ConcreteObservers<'a>,
             >,
         > + ProgressReporter
-        + UsesState<State = ConcreteState<C, R, SC, I>>,
-    MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
+        + UsesState<State = ConcreteState<C, R, SC, Trace<PT>>>,
     <EM as UsesState>::State: HasClientPerfMonitor + HasMetadata + HasExecutions,
+    PT: ProtocolTypes + 'static,
 {
     fn create_feedback_observers(
         &self,
     ) -> (
-        ConcreteFeedback<'a, ConcreteState<C, R, SC, I>>,
+        ConcreteFeedback<'a, ConcreteState<C, R, SC, Trace<PT>>>,
         ConcreteObservers<'a>,
     ) {
         #[cfg(not(test))]
@@ -430,8 +452,8 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start<PB>(
-    put_registry: &PutRegistry<PB>,
+pub fn start<'harness, PB>(
+    put_registry: &'harness PutRegistry<PB>,
     put: PutDescriptor,
     config: FuzzerConfig,
     log_handle: Handle,
@@ -449,15 +471,6 @@ where
         broker_port,
         tui,
         no_launcher,
-        mutation_config:
-            MutationConfig {
-                fresh_zoo_after,
-                max_trace_length,
-                min_trace_length,
-                term_constraints,
-                with_bit_level,
-                with_dy,
-            },
         ..
     } = &config;
 
@@ -474,16 +487,6 @@ where
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder
-            .with_mutations(trace_mutations::<_, _, PB>(
-                *min_trace_length,
-                *max_trace_length,
-                *term_constraints,
-                *fresh_zoo_after,
-                *with_bit_level,
-                *with_dy,
-                <PB::ProtocolTypes as ProtocolTypes>::signature(),
-                put_registry,
-            ))
             .with_initial_inputs(PB::create_corpus(put.clone()))
             .with_rand(StdRand::new())
             .with_corpus(
@@ -529,7 +532,7 @@ where
                 .with_scheduler(RandScheduler::new());
         } // TODO:EVAL investigate using QueueScheduler instead (see https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L190)
 
-        builder.run_client()
+        builder.run_client(put_registry)
     };
 
     if *no_launcher {
