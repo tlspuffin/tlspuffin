@@ -4,6 +4,8 @@
     feature = "wolfssl520",
     feature = "wolfssl510",
     feature = "wolfssl430",
+    feature = "wolfssl552",
+    feature = "wolfssl572",
     feature = "master",
 )))]
 compile_error!(concat!(
@@ -13,6 +15,8 @@ compile_error!(concat!(
     "'wolfssl520', ",
     "'wolfssl530', ",
     "'wolfssl540', ",
+    "'wolfssl552', ",
+    "'wolfssl572', ",
     "'master'",
     "]"
 ));
@@ -61,6 +65,10 @@ const PRESET: &str = if cfg!(feature = "wolfssl540") {
     "wolfssl510"
 } else if cfg!(feature = "wolfssl430") {
     "wolfssl430"
+} else if cfg!(feature = "wolfssl552") {
+    "wolfssl552"
+} else if cfg!(feature = "wolfssl572") {
+    "wolfssl572"
 } else if cfg!(feature = "master") {
     "wolfsslmaster"
 } else {
