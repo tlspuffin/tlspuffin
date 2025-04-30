@@ -133,7 +133,8 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
     eval_tree: &EvalTree,
     whole_term: &Term<PT>,
 ) -> Result<usize> {
-    log::debug!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?},\n - eval_tree: {eval_tree:?},\n - to_search: {:?}", eval_tree.get(path_to_search)?.encode.as_ref().unwrap());
+    log::debug!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?}");
+    log::trace!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?},\n - eval_tree: {eval_tree:?},\n - to_search: {:?}", eval_tree.get(path_to_search)?.encode.as_ref().unwrap());
     // We will traverse the eval_tree and update the followings until we reach the node at
     // path_to_search
     let mut path_to_search = path_to_search;
@@ -360,7 +361,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
             bail!(Error::TermBug(ft));
         }
 
-        log::debug!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}",
+        log::trace!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}",
                 to_modify.len(), &to_modify[start..end]);
 
         #[cfg(any(debug_assertions, feature = "debug"))]
@@ -418,7 +419,7 @@ impl<PT: ProtocolTypes> Term<PT> {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        log::debug!("[eval_until_opaque] [START]: Eval term:\n {self}");
+        log::trace!("[eval_until_opaque] [START]: Eval term:\n {self}");
         // We optimize here by bypassing evaluation and directly read over the payload when the term
         // has no variable. Indeed, variables may contain different values since when we ran
         // MakeMessage
@@ -603,7 +604,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                                          self.has_variable(), self, &payload.payload_0.bytes());
                         if self.has_variable() {
                             // Some mismatches are to be expected when there are variables
-                            log::debug!("[term has variables --> only a debug] {}", ft);
+                            log::trace!("[term has variables --> only a log::trace] {}", ft);
                         } else {
                             bail!(Error::TermBug(ft));
                         }
@@ -615,7 +616,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 if with_payloads && (!all_payloads.is_empty() || sibling_has_payloads) {
                     eval_tree.args = eval_tree_args;
                     let eval = PB::any_get_encoding(result.as_ref());
-                    log::debug!("        / We successfully evaluated the term into: {eval:?}");
+                    log::trace!("        / We successfully evaluated the term into: {eval:?}");
                     eval_tree.encode = Some(eval);
                 }
 
