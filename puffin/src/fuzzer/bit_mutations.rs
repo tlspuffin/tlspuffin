@@ -2,6 +2,7 @@ use std::cmp::min;
 use std::ops::Not;
 
 use libafl::prelude::*;
+use libafl_bolts::bolts_prelude::Merge;
 use libafl_bolts::prelude::{tuple_list, tuple_list_type};
 use libafl_bolts::rands::Rand;
 use libafl_bolts::Named;
@@ -9,10 +10,10 @@ use libafl_bolts::Named;
 use super::utils::TermConstraints;
 use crate::algebra::TermType;
 use crate::fuzzer::utils::choose_term_filtered_mut;
-use crate::protocol::ProtocolTypes;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::trace::Trace;
-
-pub type HavocMutationsTypeDY<S> = tuple_list_type!(
+pub type HavocMutationsTypeDY<'a, S, PB> = tuple_list_type!(
+    MakeMessage<'a, PB>,
     BitFlipMutatorDY<S>,
     ByteFlipMutatorDY<S>,
     ByteIncMutatorDY<S>,
@@ -43,11 +44,47 @@ pub type HavocMutationsTypeDY<S> = tuple_list_type!(
     SpliceMutatorDY<S>,
 );
 
+/* List from: https://docs.rs/libafl/latest/src/libafl/mutators/havoc_mutations.rs.html#60
+    BitFlipMutator,
+    ByteFlipMutator,
+    ByteIncMutator,
+    ByteDecMutator,
+    ByteNegMutator,
+    ByteRandMutator,
+    ByteAddMutator,
+    WordAddMutator,
+    DwordAddMutator,
+    QwordAddMutator,
+    ByteInterestingMutator,
+    WordInterestingMutator,
+    DwordInterestingMutator,
+    BytesDeleteMutator,
+    BytesDeleteMutator,
+    BytesDeleteMutator,
+    BytesDeleteMutator,
+    BytesExpandMutator,
+    BytesInsertMutator,
+    BytesRandInsertMutator,
+    BytesSetMutator,
+    BytesRandSetMutator,
+    BytesCopyMutator,
+    BytesInsertCopyMutator,
+    BytesSwapMutator,
+    CrossoverInsertMutator,
+    CrossoverReplaceMutator,
+*/
+
 #[must_use]
-pub fn havoc_mutations_dy<S: HasRand + HasMaxSize + HasCorpus>(
-    with_bit_level: bool,
-) -> HavocMutationsTypeDY<S> {
+pub fn havoc_mutations_dy<'a, S: HasRand + HasMaxSize + HasCorpus, PB>(
+    mutation_config: MutationConfig,
+    put_registry: &'a PutRegistry<PB>,
+) -> HavocMutationsTypeDY<'a, S, PB>
+where
+    PB: ProtocolBehavior,
+{
+    let with_bit_level = mutation_config.with_bit_level;
     tuple_list!(
+        MakeMessage::new(mutation_config, put_registry),
         BitFlipMutatorDY::new(with_bit_level),
         ByteFlipMutatorDY::new(with_bit_level),
         ByteIncMutatorDY::new(with_bit_level),
@@ -79,6 +116,58 @@ pub fn havoc_mutations_dy<S: HasRand + HasMaxSize + HasCorpus>(
     )
 }
 
+pub type AllMutations<'harness, PT, PB, S> = tuple_list_type!(
+    RepeatMutator<S>,
+    SkipMutator<S>,
+    ReplaceReuseMutator<S>,
+    ReplaceMatchMutator<S, PT>,
+    RemoveAndLiftMutator<S>,
+    GenerateMutator<'harness, S, PB>,
+    SwapMutator<S>,
+    MakeMessage<'harness, PB>,
+    BitFlipMutatorDY<S>,
+    ByteFlipMutatorDY<S>,
+    ByteIncMutatorDY<S>,
+    ByteDecMutatorDY<S>,
+    ByteNegMutatorDY<S>,
+    ByteRandMutatorDY<S>,
+    ByteAddMutatorDY<S>,
+    WordAddMutatorDY<S>,
+    DwordAddMutatorDY<S>,
+    QwordAddMutatorDY<S>,
+    ByteInterestingMutatorDY<S>,
+    WordInterestingMutatorDY<S>,
+    DwordInterestingMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesExpandMutatorDY<S>,
+    BytesInsertMutatorDY<S>,
+    BytesRandInsertMutatorDY<S>,
+    BytesSetMutatorDY<S>,
+    BytesRandSetMutatorDY<S>,
+    BytesCopyMutatorDY<S>,
+    BytesInsertCopyMutatorDY<S>,
+    BytesSwapMutatorDY<S>,
+    CrossoverInsertMutatorDY<S>,
+    CrossoverReplaceMutatorDY<S>,
+    SpliceMutatorDY<S>,
+);
+
+pub fn all_mutations<'harness, S, PT: ProtocolTypes, PB>(
+    mutation_config: MutationConfig,
+    signature: &'static Signature<PT>,
+    put_registry: &'harness PutRegistry<PB>,
+) -> AllMutations<'harness, PT, PB, S>
+where
+    S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
+{
+    dy_mutations(mutation_config, signature, put_registry)
+        .merge(havoc_mutations_dy(mutation_config, put_registry))
+}
+
 // --------------------------------------------------------------------------------------------------
 // Term-level bit-level mutations
 // --------------------------------------------------------------------------------------------------
@@ -86,7 +175,13 @@ pub fn havoc_mutations_dy<S: HasRand + HasMaxSize + HasCorpus>(
 use paste::paste;
 
 use crate::algebra::bitstrings::Payloads;
-use crate::fuzzer::mutations::remove_prefix_and_type;
+use crate::algebra::signature::Signature;
+use crate::fuzzer::mutations::{
+    dy_mutations, remove_prefix_and_type, DyMutations, GenerateMutator, MakeMessage,
+    MutationConfig, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
+    SkipMutator, SwapMutator,
+};
+use crate::put_registry::PutRegistry;
 
 macro_rules! expand_mutation {
     ($mutation:ident) => {
@@ -115,7 +210,7 @@ impl<S> [<$mutation  DY>]<S>
 
 impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S>
     where
-        S: HasRand + HasMaxSize + 'static,
+        S: HasRand + HasMaxSize,
         PT: ProtocolTypes,
 {
     fn mutate(
@@ -237,7 +332,7 @@ where
 
 impl<S, PT> Mutator<Trace<PT>, S> for BytesSwapMutatorDY<S>
 where
-    S: HasRand + HasMaxSize + 'static,
+    S: HasRand + HasMaxSize,
     PT: ProtocolTypes,
 {
     fn mutate(
@@ -316,7 +411,7 @@ where
 
 impl<S, PT> Mutator<Trace<PT>, S> for BytesInsertCopyMutatorDY<S>
 where
-    S: HasRand + HasMaxSize + 'static,
+    S: HasRand + HasMaxSize,
     PT: ProtocolTypes,
 {
     fn mutate(
@@ -506,7 +601,7 @@ where
 
 impl<S, PT> Mutator<Trace<PT>, S> for CrossoverInsertMutatorDY<S>
 where
-    S: HasCorpus + HasRand + HasMaxSize + 'static,
+    S: HasCorpus + HasRand + HasMaxSize,
     S: libafl::inputs::UsesInput<Input = Trace<PT>>,
     PT: ProtocolTypes,
 {
@@ -640,7 +735,7 @@ where
 
 impl<S, PT> Mutator<Trace<PT>, S> for CrossoverReplaceMutatorDY<S>
 where
-    S: HasCorpus + HasRand + HasMaxSize + 'static,
+    S: HasCorpus + HasRand + HasMaxSize,
     S: libafl::inputs::UsesInput<Input = Trace<PT>>,
     PT: ProtocolTypes,
 {
@@ -766,7 +861,7 @@ where
 
 impl<S, PT> Mutator<Trace<PT>, S> for SpliceMutatorDY<S>
 where
-    S: HasCorpus + HasRand + HasMaxSize + 'static,
+    S: HasCorpus + HasRand + HasMaxSize,
     //        <S as libafl::inputs::UsesInput>::Input = BytesInput,
     S: libafl::inputs::UsesInput<Input = Trace<PT>>,
     PT: ProtocolTypes,
