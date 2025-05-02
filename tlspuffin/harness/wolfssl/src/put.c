@@ -495,36 +495,36 @@ static const char *wolfssl_describe_state(AGENT agent) {
 #endif
 }
 
-static RESULT wolfssl_reset(AGENT agent, uint8_t new_name) {
+static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear) {
   if (agent == NULL) {
     _log(PUFFIN.error, "fatal error wolfssl_reset called with agent == NULL");
     return PUFFIN.make_result(RESULT_ERROR_OTHER, "fatal error wolfssl_reset called with agent == NULL");
   }
 
-#ifdef USE_CLEAR
-  //CLAIMER_CB current_claimer_cb = {};
-  //memcpy(&current_claimer_cb, (void*)&agent->claimer, sizeof(CLAIMER_CB));
-  int ret = wolfSSL_clear(agent->ssl);
-  memset((void*)&agent->claimer, 0, sizeof(CLAIMER_CB));
-  agent->name = new_name;
-  if (ret != WOLFSSL_SUCCESS) {
-    char* reason = get_result_information(agent->ssl, ret, NULL);
-    RESULT result = PUFFIN.make_result(RESULT_ERROR_OTHER, reason);
-    free(reason);
-    return result;
+  if (use_clear) {
+    //CLAIMER_CB current_claimer_cb = {};
+    //memcpy(&current_claimer_cb, (void*)&agent->claimer, sizeof(CLAIMER_CB));
+    int ret = wolfSSL_clear(agent->ssl);
+    memset((void*)&agent->claimer, 0, sizeof(CLAIMER_CB));
+    agent->name = new_name;
+    if (ret != WOLFSSL_SUCCESS) {
+      char* reason = get_result_information(agent->ssl, ret, NULL);
+      RESULT result = PUFFIN.make_result(RESULT_ERROR_OTHER, reason);
+      free(reason);
+      return result;
+    }
+    /*if (current_claimer_cb.notify != NULL) {
+      memcpy((void*)&agent->claimer, &current_claimer_cb, sizeof(CLAIMER_CB));
+    }*/
+  } else {
+    wolfSSL_free(agent->ssl);
+    agent->descriptor.name = new_name;
+    agent = make_agent(agent, &(agent->descriptor));
+    if (agent == NULL) {
+      _log(PUFFIN.error, "fatal error in wolfssl_reset, make_agent returned NULL");
+      return PUFFIN.make_result(RESULT_ERROR_OTHER, "fatal error in wolfssl_reset, make_agent returned NULL");
+    }
   }
-  /*if (current_claimer_cb.notify != NULL) {
-    memcpy((void*)&agent->claimer, &current_claimer_cb, sizeof(CLAIMER_CB));
-  }*/
-#else
-  wolfSSL_free(agent->ssl);
-  agent->descriptor.name = new_name;
-  agent = make_agent(agent, &(agent->descriptor));
-  if (agent == NULL) {
-    _log(PUFFIN.error, "fatal error in wolfssl_reset, make_agent returned NULL");
-    return PUFFIN.make_result(RESULT_ERROR_OTHER, "fatal error in wolfssl_reset, make_agent returned NULL");
-  }
-#endif
 
   return PUFFIN.make_result(RESULT_OK, NULL);
 }
@@ -808,6 +808,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     }
     wolfSSL_BIO_free(bio);
     int_retval = wolfSSL_CTX_use_certificate(agent->ctx, x509);
+    wolfSSL_X509_free(x509);
 #else
     int_retval = wolfSSL_CTX_use_certificate_buffer(agent->ctx, 
         descriptor->cert->bytes, descriptor->cert->length, SSL_FILETYPE_PEM);*/
