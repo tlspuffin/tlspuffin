@@ -114,20 +114,21 @@ define_signature!(
     fn_server_hello_done
     fn_server_key_exchange
     // extensions
-    fn_client_extensions_new
+    fn_client_extensions_new [list]
     fn_client_extensions_append [list]
     fn_client_extensions_make
-    fn_server_extensions_new
+    fn_server_extensions_new [list]
     fn_server_extensions_make
     fn_server_extensions_append [list]
     fn_hello_retry_extensions_make
-    fn_hello_retry_extensions_new
+    fn_hello_retry_extensions_new [list]
     fn_hello_retry_extensions_append [list]
-    fn_cert_req_extensions_new
+    fn_cert_req_extensions_new [list]
     fn_cert_req_extensions_append [list]
-    fn_cert_extensions_new
+    fn_cert_extensions_make
+    fn_cert_extensions_new [list]
     fn_cert_extensions_append [list]
-    fn_new_session_ticket_extensions_new
+    fn_new_session_ticket_extensions_new [list]
     fn_new_session_ticket_extensions_append [list]
     fn_server_name_extension
     fn_server_name_server_extension
@@ -215,9 +216,9 @@ define_signature!(
     fn_weak_export_cipher_suite
     fn_secure_rsa_cipher_suite12
     // utils
-    fn_new_flight
+    fn_new_flight [list]
     fn_append_flight [list]
-    fn_new_opaque_flight
+    fn_new_opaque_flight [list]
     fn_append_opaque_flight [list]
     fn_new_transcript
     fn_append_transcript [opaque] // this one is opaque and not list since it returns the hash of all elements added to the list so far
@@ -249,10 +250,8 @@ define_signature!(
     fn_new_pubkey12 [opaque]
     fn_encrypt12 [opaque]
     fn_new_certificate
-    fn_new_certificates
+    fn_new_certificates [list]
     fn_append_certificate [list]
-    fn_new_certificate_entries
-    fn_append_certificate_entry [list]
     fn_named_group_secp384r1
     fn_named_group_x25519
     fn_u64_to_u32 [get]
@@ -279,9 +278,10 @@ define_signature!(
     fn_eve_cert
     fn_random_ec_cert
     fn_random_ec_key
-    fn_certificate_entry
+    fn_certificate_entry_extensions
     fn_empty_certificate_chain
-    fn_append_certificate_entry [list]
+    fn_new_certificate_entries [list]
+    fn_append_certificate_entries [list]
     fn_certificate_entries_make
     fn_chain_append_certificate_entry [list]
     fn_get_context [get]
