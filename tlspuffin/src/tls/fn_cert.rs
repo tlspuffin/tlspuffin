@@ -49,10 +49,13 @@ pub fn fn_random_ec_key() -> Result<Vec<u8>, FnError> {
     Ok(RANDOM_EC_PRIVATE_KEY_PKCS8.1.into())
 }
 
-pub fn fn_certificate_entry(cert: &Vec<u8>) -> Result<CertificateEntry, FnError> {
+pub fn fn_certificate_entry_extensions(
+    cert: &Vec<u8>,
+    extensions: &CertificateExtensions,
+) -> Result<CertificateEntry, FnError> {
     Ok(CertificateEntry {
         cert: Certificate(cert.clone()),
-        exts: CertificateExtensions(vec![]),
+        exts: extensions.clone(),
     })
 }
 
@@ -61,11 +64,11 @@ pub fn fn_empty_certificate_chain() -> Result<Vec<CertificateEntry>, FnError> {
 }
 
 pub fn fn_chain_append_certificate_entry(
-    cert: &CertificateEntry,
     chain: &Vec<CertificateEntry>,
+    cert: &CertificateEntry,
 ) -> Result<Vec<CertificateEntry>, FnError> {
-    let mut res = vec![cert.clone()];
-    res.append(&mut chain.clone());
+    let mut res = chain.clone();
+    res.push(cert.clone());
     Ok(res)
 }
 
