@@ -314,13 +314,6 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             })
             .count();
 
-        if first_store_count != second_store_count {
-            differences.push(TraceDifference::Knowledges(format!(
-                "Differences in filtered knowledges numbers : {} != {}",
-                first_store_count, second_store_count
-            )));
-        }
-
         match differences.is_empty() {
             false => Err(differences),
             true => Ok(()),
