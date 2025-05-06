@@ -22,11 +22,11 @@ use crate::tls::rustls::msgs::enums::{
     ProtocolVersion, SignatureScheme,
 };
 use crate::tls::rustls::msgs::handshake::{
-    CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension, CipherSuites,
-    ClientExtension, ClientExtensions, Compressions, HandshakeMessagePayload, HelloRetryExtension,
-    HelloRetryExtensions, NewSessionTicketExtension, NewSessionTicketExtensions,
-    PresharedKeyIdentity, Random, ServerExtension, ServerExtensions, SessionID, VecU16OfPayloadU16,
-    VecU16OfPayloadU8,
+    CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension,
+    CertificateExtensions, CipherSuites, ClientExtension, ClientExtensions, Compressions,
+    HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions, NewSessionTicketExtension,
+    NewSessionTicketExtensions, PresharedKeyIdentity, Random, ServerExtension, ServerExtensions,
+    SessionID, VecU16OfPayloadU16, VecU16OfPayloadU8,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 
@@ -479,7 +479,7 @@ pub fn try_read_bytes(
         bitstring,
         ty,
         // We list all the types that have the Codec trait and that can be the type of a rustls
-        // message
+        // messagefn_key_share_extension
         // The uni-test `term_zoo::test_term_read_encode` tests this is exhaustive for the TLS
         // signature at least
         Message,
@@ -504,6 +504,7 @@ pub fn try_read_bytes(
         CertReqExtension,
         Vec<CertificateExtension>,
         CertificateExtension,
+        CertificateExtensions,
         Vec<NewSessionTicketExtension>,
         NewSessionTicketExtension,
         NewSessionTicketExtensions,
