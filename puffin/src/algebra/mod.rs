@@ -401,6 +401,12 @@ pub mod test_signature {
         fn inner(&self) -> Box<dyn EvaluatedTerm<TestProtocolTypes>> {
             panic!("Not implemented for test stub");
         }
+
+        fn set_step(&mut self, _step: Option<usize>) {}
+
+        fn get_step(&self) -> Option<usize> {
+            None
+        }
     }
 
     pub struct TestOpaqueMessage;

@@ -16,6 +16,7 @@ dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 pub struct SshClaim {
     agent_name: AgentName,
     inner: Box<SshClaimInner>,
+    step: Option<usize>,
 }
 
 dummy_extract_knowledge_codec!(SshProtocolTypes, SshClaim);
@@ -33,5 +34,13 @@ impl Claim for SshClaim {
 
     fn inner(&self) -> Box<dyn EvaluatedTerm<SshProtocolTypes>> {
         Box::new(self.inner.clone())
+    }
+
+    fn set_step(&mut self, step: Option<usize>) {
+        self.step = step;
+    }
+
+    fn get_step(&self) -> Option<usize> {
+        self.step
     }
 }

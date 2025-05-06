@@ -17,13 +17,14 @@
 use core::fmt;
 use std::any::TypeId;
 use std::collections::HashMap;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::marker::PhantomData;
+use std::mem;
 use std::vec::IntoIter;
 
 use clap::error::Result;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Serialize, Serializer};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};
 use crate::algebra::bitstrings::Payloads;
@@ -490,6 +491,251 @@ pub struct Trace<PT: ProtocolTypes> {
     pub prior_traces: Vec<Trace<PT>>,
 }
 
+/// Store the result of a trace execution for displaying or serializing
+#[derive(Serialize)]
+#[serde(bound = "PT: ProtocolTypes")]
+pub struct ExecutionResult<PT: ProtocolTypes> {
+    put: String,
+    success: bool,
+    error: Option<String>,
+    execution: TraceExecution<PT>,
+}
+
+impl<PT: ProtocolTypes> ExecutionResult<PT> {
+    pub fn from<PB>(
+        put: String,
+        success: bool,
+        error: Option<String>,
+        trace: &Trace<PT>,
+        ctx: TraceContext<PB>,
+        export_terms: bool,
+        export_knowledges: bool,
+        export_claims: bool,
+    ) -> Self
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        let mut ctx = ctx;
+        Self {
+            put,
+            success,
+            error,
+            execution: TraceExecution::from(
+                trace,
+                &mut ctx,
+                export_terms,
+                export_knowledges,
+                export_claims,
+            ),
+        }
+    }
+}
+
+impl<PT: ProtocolTypes> Display for ExecutionResult<PT> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Trace execution")?;
+        writeln!(f, "PUT: {}\n", self.put)?;
+
+        self.execution.print(f, 0)?;
+
+        match self.success {
+            true => writeln!(f, "Success"),
+            false => writeln!(f, "Error : {}", self.error.clone().unwrap_or("".into())),
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(bound = "PT: ProtocolTypes")]
+pub struct TraceExecution<PT: ProtocolTypes> {
+    prior_traces: Vec<TraceExecution<PT>>,
+    agents: Vec<AgentDescriptor<PT::PUTConfig>>,
+    number_of_steps: usize,
+    steps: Vec<StepExecution<PT>>,
+}
+
+impl<PT: ProtocolTypes> TraceExecution<PT> {
+    pub fn from<PB>(
+        trace: &Trace<PT>,
+        ctx: &mut TraceContext<PB>,
+        export_terms: bool,
+        export_knowledges: bool,
+        export_claims: bool,
+    ) -> Self
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        let mut steps = Vec::with_capacity(trace.steps.len());
+
+        for (idx, step) in trace.steps.iter().enumerate() {
+            let knowledges = if export_knowledges {
+                let mut step_knowledges = Vec::new();
+                let mut old_knowledges = Vec::new();
+
+                mem::swap(&mut old_knowledges, &mut ctx.knowledge_store.raw_knowledge);
+
+                for k in old_knowledges {
+                    if k.step == Some(idx) {
+                        step_knowledges.push(k.data);
+                    } else {
+                        ctx.knowledge_store.raw_knowledge.push(k);
+                    }
+                }
+                Some(step_knowledges)
+            } else {
+                None
+            };
+
+            let claims = if export_claims {
+                let mut step_claims = Vec::new();
+
+                for c in ctx.claims.deref_borrow().iter() {
+                    if c.get_step() == Some(idx) {
+                        step_claims.push(c.inner());
+                    }
+                }
+                Some(step_claims)
+            } else {
+                None
+            };
+
+            steps.push(StepExecution {
+                step_number: idx,
+                action: ActionType::from(step.action.clone(), export_terms),
+                agent: step.agent.into(),
+                knowledges,
+                claims,
+            });
+        }
+
+        Self {
+            agents: trace.descriptors.clone(),
+            number_of_steps: trace.steps.len(),
+            steps,
+            // right now we exclude prior traces
+            prior_traces: Vec::new(),
+        }
+    }
+
+    pub fn print(&self, f: &mut std::fmt::Formatter<'_>, depth: usize) -> std::fmt::Result {
+        let tabs = "\t".repeat(depth);
+
+        for (idx, p) in self.prior_traces.iter().enumerate() {
+            writeln!(f, "{tabs}==== Executing prior trace #{} ====", idx)?;
+            p.print(f, depth + 1)?;
+        }
+
+        writeln!(f, "{tabs}Agents:")?;
+        for (idx, agent) in self.agents.iter().enumerate() {
+            writeln!(f, "{tabs}\t {}: {:?}", idx, agent)?;
+        }
+
+        writeln!(f)?;
+
+        for s in &self.steps {
+            s.print(f, depth)?;
+        }
+
+        writeln!(f, "")
+    }
+}
+
+#[derive(Serialize)]
+#[serde(bound = "PT: ProtocolTypes")]
+pub struct StepExecution<PT: ProtocolTypes> {
+    step_number: usize,
+    action: ActionType,
+    agent: u8,
+    knowledges: Option<Vec<Box<dyn EvaluatedTerm<PT>>>>,
+    claims: Option<Vec<Box<dyn EvaluatedTerm<PT>>>>,
+}
+
+#[derive(Serialize)]
+enum ActionType {
+    Input {
+        recipe: Option<String>,
+        precomputations: Option<Vec<(String, String)>>,
+    },
+    Output,
+}
+
+impl ActionType {
+    fn from<PT: ProtocolTypes>(value: Action<PT>, export_terms: bool) -> Self {
+        match value {
+            Input(input_action) => ActionType::Input {
+                recipe: match export_terms {
+                    true => Some(input_action.recipe.to_string()),
+                    false => None,
+                },
+                precomputations: match export_terms {
+                    true => Some(
+                        input_action
+                            .precomputations
+                            .iter()
+                            .map(|p| (p.label.clone().unwrap_or("".into()), p.recipe.to_string()))
+                            .collect(),
+                    ),
+                    false => None,
+                },
+            },
+            Action::Output(_) => ActionType::Output,
+        }
+    }
+}
+
+/// Allow serializing Box<dyn EvaluatedTerm<_>>
+impl<PT: ProtocolTypes> Serialize for Box<dyn EvaluatedTerm<PT>> {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&format!("{:?}", self))
+    }
+}
+
+impl<PT: ProtocolTypes> StepExecution<PT> {
+    pub fn print(&self, f: &mut std::fmt::Formatter<'_>, depth: usize) -> std::fmt::Result {
+        let tabs = "\t".repeat(depth);
+        writeln!(f, "{tabs}==== Executing step #{} ====", self.step_number)?;
+
+        match &self.action {
+            ActionType::Input {
+                recipe,
+                precomputations,
+            } => {
+                println!("{tabs}Action: Input (attacker -> agent.{})", self.agent);
+                if let Some(p) = precomputations {
+                    for (precomputation_name, precomputation_recipe) in p {
+                        println!(
+                            "{tabs}Precomputation {}: {}",
+                            precomputation_name, precomputation_recipe
+                        );
+                    }
+                }
+                if let Some(r) = recipe {
+                    println!("{tabs}Term: {}", r);
+                }
+            }
+            ActionType::Output => {
+                println!("{tabs}Action: Output (agent.{} -> attacker)", self.agent);
+            }
+        }
+
+        if let Some(knowledges) = &self.knowledges {
+            for k in knowledges {
+                println!("{tabs}>>> {:?}", k);
+            }
+        }
+        if let Some(claims) = &self.claims {
+            for c in claims {
+                println!("{tabs}+++ {:?}", c);
+            }
+        }
+
+        writeln!(f, "")
+    }
+}
+
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an
 /// [`InputAction`]. Each [`Step`]s references an [`Agent`] by name. Furthermore, a trace also has a
 /// list of *`AgentDescriptors`* which act like a blueprint to spawn [`Agent`]s with a corresponding
@@ -537,82 +783,6 @@ impl<PT: ProtocolTypes> Trace<PT> {
         for (i, step) in steps.iter().enumerate() {
             log::debug!("Executing step #{}", i);
             step.execute(i, ctx)?;
-
-            ctx.verify_security_violations()?;
-        }
-
-        Ok(())
-    }
-
-    pub fn display_trace_execution<PB>(
-        &self,
-        ctx: &mut TraceContext<PB>,
-        max_steps: usize,
-        show_terms: bool,
-        show_knowledges: bool,
-        show_claims: bool,
-        only_step: Option<usize>,
-        show_prior: bool,
-        depth: usize,
-    ) -> Result<(), Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>,
-    {
-        let tabs = "\t".repeat(depth);
-        let mut knowledge_counter = ctx.knowledge_store.raw_knowledge.len();
-
-        for (i, trace) in self.prior_traces.iter().enumerate() {
-            println!("{tabs}==== Executing prior trace #{} ====", i);
-            if show_prior {
-                trace.display_trace_execution(
-                    ctx,
-                    trace.steps.len(),
-                    show_terms,
-                    show_knowledges,
-                    show_claims,
-                    None,
-                    false,
-                    depth + 1,
-                )?;
-            } else {
-                trace.execute(ctx)?;
-            }
-        }
-
-        knowledge_counter = ctx.knowledge_store.raw_knowledge.len();
-
-        let mut claims_counter = 0;
-
-        self.spawn_agents(ctx)?;
-        let steps = &self.steps[0..max_steps];
-        for (i, step) in steps.iter().enumerate() {
-            println!("{tabs}==== Executing step #{} ====", i);
-            match &step.action {
-                Action::Input(input) => {
-                    println!("{tabs}Action: Input (attacker -> agent.{})", step.agent);
-                    if show_terms && (only_step.is_none() || only_step == Some(i)) {
-                        println!("{tabs}Term: {}", input.recipe.term);
-                    }
-                }
-                Action::Output(_) => {
-                    println!("{tabs}Action: Output (agent.{} -> attacker)", step.agent);
-                }
-            }
-            step.execute(i, ctx)?;
-            if show_knowledges && (only_step.is_none() || only_step == Some(i)) {
-                for k in &ctx.knowledge_store.raw_knowledge[knowledge_counter..] {
-                    if k.step == Some(i) {
-                        println!("{tabs}>>> {:?}", k.data);
-                    }
-                }
-            }
-            if show_claims && (only_step.is_none() || only_step == Some(i)) {
-                for c in &ctx.claims.deref_borrow().slice()[claims_counter..] {
-                    println!("{tabs}+++ {:?}", c.inner());
-                }
-            }
-            claims_counter = ctx.claims.deref_borrow().slice().len();
-            println!();
 
             ctx.verify_security_violations()?;
         }
@@ -778,7 +948,7 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
         if let Some(opaque_flight) = agent.take_message_from_outbound()? {
             ctx.knowledge_store.add_raw_knowledge(
                 opaque_flight.clone(),
-                Some(step),
+                Some(step.clone()),
                 source.clone(),
                 None,
             );
@@ -786,6 +956,14 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
             if let Ok(flight) = TryInto::<PB::ProtocolMessageFlight>::try_into(opaque_flight) {
                 ctx.knowledge_store
                     .add_raw_knowledge(flight, Some(step), source, None);
+            }
+        }
+
+        for claim in ctx.claims.deref_borrow_mut().iter_mut().rev() {
+            if claim.get_step().is_none() {
+                claim.set_step(Some(step));
+            } else {
+                break;
             }
         }
 
