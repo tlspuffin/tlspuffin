@@ -326,8 +326,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
             );
         }
 
-        let matches_right_siblings_in_root = search_sub_vec_all(eval_parent, &eval_right_siblings);
-        if let Some(pos_right_siblings) = matches_right_siblings_in_root.last() {
+        if let Some(pos_right_siblings) = last_sub_vec(eval_parent, &eval_right_siblings) {
             //   - We found at least some match. We assume the real match is the last one:
             //     pos_right_siblings
             // We assume the right child position is the last match (idx) for which the end of the
@@ -718,6 +717,34 @@ pub fn search_sub_vec_all(haystack: &[u8], needle: &[u8]) -> Vec<usize> {
     }
     // log::trace!("search_sub_vec_double: not found");
     matches
+}
+
+/// Return the last matching positions, if any
+#[must_use]
+pub fn last_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if haystack.len() < needle.len() {
+        return None;
+    }
+    for i in (0..=(haystack.len() - needle.len())).rev() {
+        if haystack[i..i + needle.len()] == needle[..] {
+            return Some(i);
+        }
+    }
+    None
+}
+
+/// Return the first matching positions, if any
+#[must_use]
+pub fn search_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+    if haystack.len() < needle.len() {
+        return None;
+    }
+    for i in (0..=(haystack.len() - needle.len())).rev() {
+        if haystack[i..i + needle.len()] == needle[..] {
+            return Some(i);
+        }
+    }
+    None
 }
 
 /// Return the first matching position when it us unique, and None otherwise
