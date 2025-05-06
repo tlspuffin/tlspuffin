@@ -534,7 +534,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
 
     // Check if we have a client hello in last encrypted one
     let constraints = TermConstraints::default();
-    let mut mutator = ReplaceReuseMutator::new(constraints, true);
+    let mut mutator = ReplaceReuseMutator::new(constraints, true, true);
 
     for _i in 0..loop_tries {
         attempts += 1;
@@ -658,7 +658,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
 
     // Sucessfully renegotiate
 
-    let mut mutator = ReplaceReuseMutator::new(constraints, true);
+    let mut mutator = ReplaceReuseMutator::new(constraints, true, true);
 
     for _i in 0..loop_tries {
         attempts += 1;

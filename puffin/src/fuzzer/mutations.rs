@@ -1,3 +1,5 @@
+use std::ptr::replace;
+
 use anyhow::Result;
 use itertools::Itertools;
 use libafl::prelude::*;
@@ -132,13 +134,14 @@ where
         min_trace_length,
         term_constraints,
         with_dy,
+        with_bit_level,
         ..
     } = mutation_config;
 
     tuple_list!(
         RepeatMutator::new(max_trace_length, with_dy),
         SkipMutator::new(min_trace_length, with_dy),
-        ReplaceReuseMutator::new(term_constraints, with_dy),
+        ReplaceReuseMutator::new(term_constraints, with_dy, with_bit_level),
         ReplaceMatchMutator::new(term_constraints, signature, with_dy),
         RemoveAndLiftMutator::new(term_constraints, with_dy),
         GenerateMutator::new(
@@ -434,7 +437,6 @@ where
 }
 
 /// REPLACE-REUSE: Replaces a sub-term with a different sub-term which is part of the trace
-
 /// (such that types match). The new sub-term could come from another step which has a different
 /// recipe term.
 pub struct ReplaceReuseMutator<S>
@@ -444,6 +446,7 @@ where
     constraints: TermConstraints,
     phantom_s: std::marker::PhantomData<S>,
     with_dy: bool,
+    with_bit: bool,
 }
 
 impl<S> ReplaceReuseMutator<S>
@@ -451,11 +454,12 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub const fn new(constraints: TermConstraints, with_dy: bool) -> Self {
+    pub const fn new(constraints: TermConstraints, with_dy: bool, with_bit: bool) -> Self {
         Self {
             constraints,
             phantom_s: std::marker::PhantomData,
             with_dy,
+            with_bit,
         }
     }
 }
@@ -475,6 +479,11 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
+        let (trace_nb_payloads, nb_terms) = if self.with_bit {
+            (trace.all_payloads().len(), trace.steps.len())
+        } else {
+            (0, 0)
+        };
         if let Some(replacement) = choose_term(trace, self.constraints, rand).cloned() {
             if let Some(to_replace) = choose_term_filtered_mut(
                 trace,
@@ -482,6 +491,17 @@ where
                 self.constraints,
                 rand,
             ) {
+                if self.with_bit {
+                    let nb_payloads = trace_nb_payloads + replacement.all_payloads().len()
+                        - to_replace.all_payloads().len();
+                    let no_more_new_payloads = nb_payloads / std::cmp::max(1, nb_terms)
+                        > self.constraints.threshold_max_payloads_per_term;
+                    if no_more_new_payloads {
+                        log::debug!("[ReplaceReuseMutator] Skipped as the chosen replacement would yield too many payloads.");
+                        log::info!("       Skipped {}", self.name());
+                        return Ok(MutationResult::Skipped);
+                    }
+                }
                 log::debug!(
                     "[Mutation] Mutate ReplaceReuseMutator on terms\n {} and\n{}",
                     to_replace,
@@ -1009,7 +1029,7 @@ mod tests {
     fn test_replace_reuse_mutator() {
         let mut state = create_state();
         let _server = AgentName::first();
-        let mut mutator = ReplaceReuseMutator::new(TermConstraints::default(), true);
+        let mut mutator = ReplaceReuseMutator::new(TermConstraints::default(), true, true);
 
         fn count_client_hello(trace: &TestTrace) -> usize {
             trace.count_functions_by_name(fn_client_hello.name())
