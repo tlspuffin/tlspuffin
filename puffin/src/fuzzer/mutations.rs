@@ -13,7 +13,7 @@ use crate::algebra::{DYTerm, Subterms, Term, TermType};
 use crate::fuzzer::term_zoo::TermZoo;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
-use crate::trace::{Spawner, Trace, TraceContext};
+use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 
 #[derive(Clone, Copy, Debug)]
 pub struct MutationConfig {
@@ -692,10 +692,10 @@ where
             let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
                 log::debug!("[Mutation] Mutate GenerateMutator: refresh zoo");
                 let spawner = Spawner::new(self.put_registry.clone());
-                let ctx = TraceContext::new(spawner);
-                // TODO: ? Maybe remove some that cannot be evaluated!
-                // TODO: we should quantify whether this would be costly or not --> Maybe don't do
-                // it!
+                let ctx = TraceContext::new(spawner); // zoo generate symbolic terms
+                                                      // TODO: ? Maybe remove some that cannot be evaluated!
+                                                      // TODO: we should quantify whether this would be costly or not --> Maybe don't do
+                                                      // it!
                 self.zoo.insert(TermZoo::generate(
                     &ctx,
                     self.signature,
@@ -705,7 +705,7 @@ where
             } else {
                 self.zoo.get_or_insert_with(|| {
                     let spawner = Spawner::new(self.put_registry.clone());
-                    let ctx = TraceContext::new(spawner);
+                    let ctx = TraceContext::new(spawner); // zoo generate symbolic terms
                     TermZoo::generate(
                         &ctx,
                         self.signature,
@@ -850,7 +850,13 @@ where
             let spawner = Spawner::new(self.put_registry.clone());
             // log::trace!("Using self.put_registry {:?} to compute ctx",
             // self.put_registry.default().name());
-            let mut ctx = TraceContext::new(spawner);
+            let mut ctx = TraceContext::new_config(
+                spawner,
+                ConfigTrace {
+                    with_bit_level: self.with_bit_level,
+                    ..Default::default()
+                },
+            );
             match make_message_term(trace, &(step_index, term_path), &mut ctx) {
                 // TODO: possibly we would need to make sure the mutated trace can be executed (if
                 // not directly dropped by the feedback loop once executed).
