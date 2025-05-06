@@ -261,6 +261,7 @@ impl CAgent {
                         origin,
                         protocol_version,
                         data,
+                        step: None,
                     })
                 }
             });

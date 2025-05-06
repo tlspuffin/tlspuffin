@@ -21,7 +21,7 @@ use crate::log::config_default;
 use crate::protocol::ProtocolBehavior;
 use crate::put::PutDescriptor;
 use crate::put_registry::{PutRegistry, TCP_PUT};
-use crate::trace::{Action, Spawner, Trace, TraceContext};
+use crate::trace::{Action, ExecutionResult, Spawner, Trace, TraceContext};
 
 fn create_app<S>(title: S) -> Command
 where
@@ -73,7 +73,8 @@ where
                 .arg(arg!(-t --show_terms "Show the terms computed at each input step").value_parser(value_parser!(bool)))
                 .arg(arg!(-c --show_claims "Show the claims emitted at each input step").value_parser(value_parser!(bool)))
                 .arg(arg!(-k --show_knowledges "Show the knowledges gathered at each output step").value_parser(value_parser!(bool)))
-                .arg(arg!(-p --show_prior "Show infos for prior traces").value_parser(value_parser!(bool))),
+                .arg(arg!(-p --show_prior "Show infos for prior traces").value_parser(value_parser!(bool)))
+                .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool))),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -259,11 +260,12 @@ where
     } else if let Some(matches) = matches.subcommand_matches("display-execute") {
         let input: &String = matches.get_one("input").unwrap();
         let max_step: Option<&usize> = matches.get_one("max_step");
-        let only_step: Option<&usize> = matches.get_one("only_step");
+        // let only_step: Option<&usize> = matches.get_one("only_step");
         let show_terms: &bool = matches.get_one("show_terms").unwrap();
         let show_knowledges: &bool = matches.get_one("show_knowledges").unwrap();
         let show_claims: &bool = matches.get_one("show_claims").unwrap();
-        let show_prior: &bool = matches.get_one("show_prior").unwrap();
+        // let show_prior: &bool = matches.get_one("show_prior").unwrap();
+        let export_json: &bool = matches.get_one("json").unwrap();
 
         let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
             t
@@ -275,24 +277,37 @@ where
 
         log::info!("Agents: {:?}", &trace.descriptors);
 
+        let put_name = put_registry.default_put_name().into();
         let mut ctx = TraceContext::new(Spawner::new(put_registry).with_default(default_put));
+        let (res, err) =
+            match trace.execute_until_step(&mut ctx, *max_step.unwrap_or(&trace.steps.len())) {
+                Ok(_) => (ExitCode::SUCCESS, None),
+                Err(e) => {
+                    println!("Execution error : {}", e);
+                    (ExitCode::FAILURE, Some(e.to_string()))
+                }
+            };
 
-        return match trace.display_trace_execution(
-            &mut ctx,
-            *max_step.unwrap_or(&trace.steps.len()),
+        let exec = ExecutionResult::from(
+            put_name,
+            true,
+            err,
+            &trace,
+            ctx,
             *show_terms,
             *show_knowledges,
             *show_claims,
-            only_step.map(|x| *x),
-            *show_prior,
-            0,
-        ) {
-            Ok(_) => ExitCode::SUCCESS,
-            Err(e) => {
-                println!("Execution error : {}", e);
-                ExitCode::FAILURE
-            }
-        };
+        );
+
+        if *export_json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&exec).unwrap_or("".into())
+            );
+        } else {
+            println!("{}", exec);
+        }
+        return res;
     } else if let Some(matches) = matches.subcommand_matches("binary-attack") {
         let input: &String = matches.get_one("input").unwrap();
         let output: &String = matches.get_one("output").unwrap();
