@@ -633,7 +633,11 @@ pub fn test_mutations(
     with_dy: bool,
 ) -> impl MutatorsTuple<Trace<TLSProtocolTypes>, TLSState> + '_ {
     all_mutations::<TLSState, TLSProtocolTypes, TLSProtocolBehavior>(
-        MutationConfig::default(),
+        MutationConfig {
+            with_bit_level,
+            with_dy,
+            ..MutationConfig::default()
+        },
         TLSProtocolTypes::signature(),
         registry,
     )

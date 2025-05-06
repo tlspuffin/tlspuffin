@@ -21,7 +21,7 @@ use crate::log::config_default;
 use crate::protocol::ProtocolBehavior;
 use crate::put::PutDescriptor;
 use crate::put_registry::{PutRegistry, TCP_PUT};
-use crate::trace::{Action, ExecutionResult, Spawner, Trace, TraceContext};
+use crate::trace::{Action, ConfigTrace, ExecutionResult, Spawner, Trace, TraceContext};
 
 fn create_app<S>(title: S) -> Command
 where
@@ -64,6 +64,7 @@ where
                 .arg(arg!(<inputs> "The file which stores a trace").num_args(1..))
                 .arg(arg!(-n --number <n> "Amount of files to execute starting at index.").value_parser(value_parser!(usize)))
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
+                .arg(arg!(--"wo-bit" "Disable evaluating payloads created through bit-level mutations"))
                 .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing")),
             Command::new("display-execute")
                 .about("Executes a trace stored in a file and display information")
@@ -117,7 +118,7 @@ where
     let tui = matches.get_flag("tui");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
-    let without_bit_level = !matches.get_flag("with-bit");
+    let with_bit_level = !matches.get_flag("with-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
     let target_put: Option<&String> = matches.get_one("put");
 
@@ -176,6 +177,7 @@ where
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
+        let without_bit_level = matches.get_flag("wo-bit");
 
         let mut paths = inputs
             .flat_map(|input| {
@@ -232,9 +234,16 @@ where
             Spawner::new(put_registry).with_default(default_put),
         );
 
+        let config_trace = ConfigTrace {
+            with_bit_level: !without_bit_level,
+            ..Default::default()
+        };
+        if without_bit_level {
+            log::info!("Execution without payload evaluations...");
+        }
         for path in lookup_paths {
             log::info!("Executing: {}", path.display());
-            execute(&runner, path);
+            execute(&runner, path, config_trace);
         }
 
         if !lookup_paths.is_empty() {
@@ -361,7 +370,7 @@ where
                 Some(title),
                 None,
                 &put_registry,
-                without_bit_level,
+                with_bit_level,
                 without_dy_mutations,
                 put_use_clear,
                 minimizer,
@@ -396,7 +405,7 @@ where
                 None,
                 None,
                 &put_registry,
-                without_bit_level,
+                with_bit_level,
                 without_dy_mutations,
                 put_use_clear,
                 minimizer,
@@ -411,7 +420,7 @@ where
                     None,
                     Some(i),
                     &put_registry,
-                    without_bit_level,
+                    with_bit_level,
                     without_dy_mutations,
                     put_use_clear,
                     minimizer,
@@ -459,12 +468,12 @@ where
             no_launcher,
         };
 
-        if without_bit_level && without_dy_mutations {
+        if with_bit_level && without_dy_mutations {
             log::error!("Both bit-level and DY mutations are disabled. This is not supported.");
             return ExitCode::FAILURE;
         }
 
-        if without_bit_level {
+        if with_bit_level {
             config.mutation_config.with_bit_level = false;
         }
         if without_dy_mutations {
@@ -538,7 +547,11 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) {
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
+    runner: &Runner<PB>,
+    input: P,
+    config_trace: ConfigTrace,
+) {
     let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
         t
     } else {
@@ -551,7 +564,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) 
     // When generating coverage a crash means that no coverage is stored
     // By executing in a fork, even when that process crashes, the other executed code will still
     // yield coverage
-    let status = ForkedRunner::new(runner).execute(trace);
+    let status = ForkedRunner::new(runner).execute_config(trace, config_trace);
 
     match status {
         Ok(s) => log::info!("execution finished with status {s:?}"),
