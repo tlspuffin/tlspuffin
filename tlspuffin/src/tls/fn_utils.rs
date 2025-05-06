@@ -618,16 +618,12 @@ pub fn fn_certificate_entries_make(
     Ok(CertificateEntries(entries.clone()))
 }
 
-pub fn fn_append_certificate_entry(
+pub fn fn_append_certificate_entries(
     certs: &Vec<CertificateEntry>,
-    cert: &Certificate,
-    extensions: &Vec<CertificateExtension>,
+    cert_entry: &CertificateEntry,
 ) -> Result<Vec<CertificateEntry>, FnError> {
     let mut new_certs = certs.clone();
-    new_certs.push(CertificateEntry {
-        cert: cert.clone(),
-        exts: CertificateExtensions(extensions.clone()),
-    });
+    new_certs.push(cert_entry.clone());
 
     Ok(new_certs)
 }
