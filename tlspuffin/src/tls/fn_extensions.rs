@@ -106,6 +106,12 @@ pub fn fn_cert_extensions_append(
     Ok(new_extensions)
 }
 
+pub fn fn_cert_extensions_make(
+    extensions: &Vec<CertificateExtension>,
+) -> Result<CertificateExtensions, FnError> {
+    Ok(CertificateExtensions(extensions.clone()))
+}
+
 pub fn fn_new_session_ticket_extensions_new() -> Result<Vec<NewSessionTicketExtension>, FnError> {
     Ok(vec![])
 }
@@ -521,11 +527,11 @@ pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnErro
 pub fn fn_key_share_deterministic_extension(
     group: &NamedGroup,
 ) -> Result<ClientExtension, FnError> {
-    fn_key_share_extension(&PayloadU16::new(deterministic_key_share(group)?), group)
+    fn_key_share_extension(group, &PayloadU16::new(deterministic_key_share(group)?))
 }
 pub fn fn_key_share_extension(
-    key_share: &PayloadU16,
     group: &NamedGroup,
+    key_share: &PayloadU16,
 ) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::KeyShare(KeyShareEntries(vec![
         KeyShareEntry {
@@ -537,11 +543,11 @@ pub fn fn_key_share_extension(
 pub fn fn_key_share_deterministic_server_extension(
     group: &NamedGroup,
 ) -> Result<ServerExtension, FnError> {
-    fn_key_share_server_extension(&PayloadU16::new(deterministic_key_share(group)?), group)
+    fn_key_share_server_extension(group, &PayloadU16::new(deterministic_key_share(group)?))
 }
 pub fn fn_key_share_server_extension(
-    key_share: &PayloadU16,
     group: &NamedGroup,
+    key_share: &PayloadU16,
 ) -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::KeyShare(KeyShareEntry {
         group: *group,

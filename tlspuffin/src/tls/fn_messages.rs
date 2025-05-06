@@ -396,11 +396,11 @@ pub fn fn_empty_payload_u16_vec() -> Result<Vec<PayloadU16>, FnError> {
 }
 
 pub fn fn_append_payload_u16_vec(
-    p: &PayloadU16,
     vec: &Vec<PayloadU16>,
+    p: &PayloadU16,
 ) -> Result<Vec<PayloadU16>, FnError> {
-    let mut res = vec![p.clone()];
-    res.append(&mut vec.clone());
+    let mut res = vec.clone();
+    res.push(p.clone());
     Ok(res)
 }
 
@@ -413,11 +413,11 @@ pub fn fn_empty_payload_u8_vec() -> Result<Vec<PayloadU8>, FnError> {
 }
 
 pub fn fn_append_payload_u8_vec(
-    p: &PayloadU8,
     vec: &Vec<PayloadU8>,
+    p: &PayloadU8,
 ) -> Result<Vec<PayloadU8>, FnError> {
-    let mut res = vec![p.clone()];
-    res.append(&mut vec.clone());
+    let mut res = vec.clone();
+    res.push(p.clone());
     Ok(res)
 }
 
