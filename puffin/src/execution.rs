@@ -194,38 +194,39 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
         match (&first_trace_status, &second_trace_status) {
             (Err(put1_status), Ok(_)) => {
                 return Err(Error::Difference(vec![TraceDifference::Status(
-                    format!(
-                        "(step {}/{}) {}",
-                        first_ctx.executed_until,
-                        trace.as_ref().steps.len(),
-                        put1_status.to_string()
-                    ),
-                    "Success".into(),
+                    crate::differential::StatusDiff {
+                        first_executed_steps: first_ctx.executed_until,
+                        first_status: put1_status.to_string(),
+                        second_executed_steps: second_ctx.executed_until,
+                        second_status: "Success".into(),
+                        total_step: trace.as_ref().steps.len(),
+                    },
                 )]))
             }
             (Ok(_), Err(put2_status)) => {
                 return Err(Error::Difference(vec![TraceDifference::Status(
-                    "Success".into(),
-                    format!(
-                        "(step {}/{}) {}",
-                        second_ctx.executed_until,
-                        trace.as_ref().steps.len(),
-                        put2_status.to_string()
-                    ),
+                    crate::differential::StatusDiff {
+                        first_executed_steps: first_ctx.executed_until,
+                        first_status: "Success".into(),
+                        second_executed_steps: second_ctx.executed_until,
+                        second_status: put2_status.to_string(),
+                        total_step: trace.as_ref().steps.len(),
+                    },
                 )]))
             }
             (Err(put1_error), Err(put2_error)) => {
-                println!(
-                    "Both PUT failed :\n(step {}/{}) {}\n(step {}/{}) {}",
-                    first_ctx.executed_until,
-                    trace.as_ref().steps.len(),
-                    put1_error.to_string(),
-                    second_ctx.executed_until,
-                    trace.as_ref().steps.len(),
-                    put2_error.to_string()
-                );
                 if first_ctx.executed_until == second_ctx.executed_until {
                     return Ok(first_ctx);
+                } else {
+                    return Err(Error::Difference(vec![TraceDifference::Status(
+                        crate::differential::StatusDiff {
+                            first_executed_steps: first_ctx.executed_until,
+                            first_status: put1_error.to_string(),
+                            second_executed_steps: second_ctx.executed_until,
+                            second_status: put2_error.to_string(),
+                            total_step: trace.as_ref().steps.len(),
+                        },
+                    )]));
                 }
             }
             _ => (),
@@ -236,10 +237,6 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
         let is_diff = first_ctx.compare(&second_ctx);
 
         if let Err(diff) = is_diff {
-            println!(
-                "Difference between the PUTs, {}\n",
-                format!("{:#?}", diff).replace("\\n", "\n\t\t")
-            );
             return Err(Error::Difference(diff));
         }
 

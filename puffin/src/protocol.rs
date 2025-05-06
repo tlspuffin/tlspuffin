@@ -62,20 +62,22 @@ where
             Some(casted_other) => {
                 // For later
                 if let comparable::Changed::Changed(changes) = self.comparison(casted_other) {
-                    diffs.push(TraceDifference::Knowledges(format!(
-                        "knowledge[{}] ({}) : \n{:?}",
-                        knowledge_num,
-                        other.type_name(),
-                        changes
-                    )))
+                    diffs.push(TraceDifference::Knowledges(
+                        crate::differential::KnowledgeDiff::InnerDifference {
+                            index: knowledge_num,
+                            type_name: other.type_name().into(),
+                            diff: format!("{:?}", changes),
+                        },
+                    ))
                 }
             }
-            None => diffs.push(TraceDifference::Knowledges(format!(
-                "knowledge[{}]: {} != {}",
-                knowledge_num,
-                std::any::type_name::<Self>(),
-                other.type_name()
-            ))),
+            None => diffs.push(TraceDifference::Knowledges(
+                crate::differential::KnowledgeDiff::DifferentTypes {
+                    index: knowledge_num,
+                    first_type: std::any::type_name::<Self>().into(),
+                    second_type: other.type_name().into(),
+                },
+            )),
         };
     }
 }
