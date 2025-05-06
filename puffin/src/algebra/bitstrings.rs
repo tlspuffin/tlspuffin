@@ -115,8 +115,9 @@ pub fn find_unique_match<PT: ProtocolTypes>(
     path_to_search: &[usize],
     eval_tree: &EvalTree,
     whole_term: &Term<PT>,
+    is_to_search_in_list: bool,
 ) -> Result<usize> {
-    Ok(find_unique_match_rec(path_to_search, eval_tree, whole_term)
+    Ok(find_unique_match_rec(path_to_search, eval_tree, whole_term, is_to_search_in_list)
         .with_context(||
     format!(" --> [find_unique_match] Failure. Did not find! - path_to_search:{path_to_search:?}\n - whole_term:\n{whole_term}\n - eval_tree:\n{eval_tree:?}")
         )?)
@@ -132,6 +133,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
     path_to_search: &[usize],
     eval_tree: &EvalTree,
     whole_term: &Term<PT>,
+    is_to_search_in_list: bool,
 ) -> Result<usize> {
     log::debug!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?}");
     log::trace!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?},\n - eval_tree: {eval_tree:?},\n - to_search: {:?}", eval_tree.get(path_to_search)?.encode.as_ref().unwrap());
@@ -150,7 +152,9 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
     // [WHILE LOOP TRAVERSAL] We traverse eval_tree towards reaching the node at path_to_search
     while !path_to_search.is_empty() {
         // Getting child information
+        let parent_tp = term.get_type_shape();
         let parent_is_get = term.is_get();
+        let parent_is_list = term.is_list();
         let nb_children = eval_tree.args.len();
         let child_arg_number = path_to_search[0];
         log::debug!("[find_unique_match_rec] while step: {path_to_search:?}, nb_children: {nb_children}, child_arg: {child_arg_number}");
@@ -181,7 +185,8 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 log::debug!(
                     "[find_unique_match_rec] [S1] Directly found unique match in root: {unique_pos}"
                 );
-                return Ok(start_pos + unique_pos);
+                start_pos = start_pos + unique_pos;
+                break;
             } else {
                 log::debug!("[find_unique_match_rec] [S1] Direct found is not unique!");
             }
@@ -205,6 +210,70 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
 
             start_pos += pos_child;
             continue;
+        }
+
+        // [2:special-list] If the marent and the target is a list symbol, we use a dedicated
+        // heuristic to avoid paying the cost of searching the right position of the target in the
+        // list. This could be extremely costly when the list is long, e.g., same element is
+        // repeated many times. We assume there is no nested list of same type: that is if to_search
+        // and parents are in a list of the same type, it should be the same list.
+        if parent_is_list && is_to_search_in_list {
+            if child_arg_number == 0 && path_to_search.iter().all(|x| *x == 0) {
+                log::debug!("[find_unique_match_rec] [S2:special-list] [Nil*] Child is the NIL starting the list, pos is 0!");
+                break;
+            }
+            log::debug!("[S2:special-list] Child is a list, we use a special heuristic to find the position of the target in the parent");
+            if path_to_search.is_empty() {
+                // Based on last two conditions: we know child_arg_number == 1
+                #[cfg(any(debug_assertions, feature = "debug"))]
+                {
+                    assert_eq!(child_arg_number, 1);
+                }
+                // We know the target is the last element of the parent list
+                let pos = eval_parent.len() - eval_to_search.len();
+                log::debug!(
+                    "[find_unique_match_rec] [S2:special-list] [pos=1] Found position: {pos}"
+                );
+                start_pos = start_pos + pos;
+                break;
+            }
+
+            // Since MakeMessage cannot be applied to is_list symbols, we know the target is a
+            // "leaf" (single element stored in the list). Therefore, we can locate the position
+            // of the target by computing the length of the parent of the target: we know this is
+            // located at the beginning of the parent encoding and we know the target is at the end
+            // of this encoding. This works because list elements are neither prefxed nor suffixed
+            // with headers or trailers.
+            let eval_parent_to_search = eval_tree
+                .get(&path_to_search[..path_to_search.len() - 1])?
+                .encode
+                .as_ref()
+                .expect(
+                    "[find_unique_match_rec] path_to_search[0..len-1] should exist in eval_tree",
+                );
+            let parent_to_search_tp = term
+                .get(&path_to_search[..path_to_search.len() - 1])
+                .expect("[find_unique_match_rec] path_to_search[0..len-1] should exist in term")
+                .get_type_shape();
+            if parent_tp != parent_to_search_tp {
+                log::debug!(
+                    "[S2:special-list] [S2:1] Parent and target are not the same type, we cannot use the special heuristic. Continue..."
+                );
+            } else {
+                log::debug!(
+                    "[S2:special-list] Searching encoding of parent of target (at {:?}) in parent...",
+                    path_to_search[0..path_to_search.len() - 1].to_vec()
+                );
+                log::debug!(
+                    "[S2:special-list] AWE: \n  - eval_parent_to_search:{eval_parent_to_search:?}\n -eval_to_search: {eval_to_search:?}"
+                );
+                let pos = eval_parent_to_search.len() - eval_to_search.len();
+                log::debug!(
+                    "[find_unique_match_rec] [S2:special-list] [skip] Found position: {pos}"
+                );
+                start_pos = start_pos + pos;
+                break;
+            }
         }
 
         // [2:2] [CASE NON-EMPTY] We compute all matching positions of child in parent
@@ -268,7 +337,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
             if let Some(pos_child) = all_matches
                 .iter()
                 .rev()
-                .find(|p| **p + eval_child.len() <= *pos_right_siblings)
+                .find(|p| **p + eval_child.len() <= pos_right_siblings)
             {
                 log::debug!("[find_unique_match_rec] [S2:2] Found pos_child: {pos_child} by comparing with pos_right_siblings: {pos_right_siblings}. Continue....");
                 start_pos += pos_child;
@@ -342,7 +411,15 @@ pub fn replace_payloads<PT: ProtocolTypes>(
         };
         // Goal: search `to_search` in to_modify[start..end]=eval(term[path]) for `path`
         // between path vec![] and `path_payload`
-        let pos_start = find_unique_match(path_payload, eval_tree, term)
+        let is_to_search_in_list = if path_payload.is_empty() {
+            false
+        } else {
+            let path_parent = &path_payload[0..path_payload.len() - 1];
+            term.get(path_parent)
+                .expect("[replace_payload] Should never happen")
+                .is_list()
+        };
+        let pos_start = find_unique_match(path_payload, eval_tree, term, is_to_search_in_list)
             .with_context(|| format!("--> [replace_payloads] find_unique_match failed for path_payload: {path_payload:?}"))?;
 
         let old_bitstring_len = old_bitstring.len();
@@ -361,9 +438,8 @@ pub fn replace_payloads<PT: ProtocolTypes>(
             bail!(Error::TermBug(ft));
         }
 
-        log::trace!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}",
+        log::trace!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}\n  - to_modify={to_modify:?}",
                 to_modify.len(), &to_modify[start..end]);
-
         #[cfg(any(debug_assertions, feature = "debug"))]
         if to_modify[start..end] != *old_bitstring {
             let ft = format!(
