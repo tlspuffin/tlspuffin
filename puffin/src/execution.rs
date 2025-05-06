@@ -111,8 +111,8 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
             || {
                 let ret = match runner.execute_config(trace, with_reseed) {
                     Ok(_) => 0,
-                    Err(err) => {
-                        println!("{}", err);
+                    Err(e) => {
+                        log::info!("{}", e);
                         1
                     }
                 };

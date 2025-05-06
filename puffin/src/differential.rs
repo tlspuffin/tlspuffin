@@ -1,6 +1,8 @@
 use core::fmt;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+use serde::Serialize;
+
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub enum TraceDifference {
     Status(StatusDiff),
     Knowledges(KnowledgeDiff),
@@ -19,7 +21,7 @@ impl fmt::Display for TraceDifference {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub struct StatusDiff {
     pub first_executed_steps: usize,
     pub first_status: String,
@@ -43,7 +45,7 @@ impl fmt::Display for StatusDiff {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub enum KnowledgeDiff {
     DifferentTypes {
         index: usize,
@@ -74,7 +76,7 @@ impl fmt::Display for KnowledgeDiff {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub enum ClaimDiff {
     DifferentTypes {
         agent: u8,
