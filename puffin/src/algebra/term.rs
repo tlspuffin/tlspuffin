@@ -119,7 +119,9 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config_wrap(ctx, true)?.0)
+        Ok(self
+            .evaluate_config_wrap(ctx, ctx.config_trace.with_bit_level)?
+            .0)
     }
 
     /// Evaluate terms into `ConcreteMessage` considering all sub-terms as symbolic (even those with
