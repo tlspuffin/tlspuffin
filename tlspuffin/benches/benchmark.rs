@@ -75,6 +75,7 @@ fn benchmark_mutations(c: &mut Criterion) {
                 ..TermConstraints::default()
             },
             true,
+            true,
         );
         let mut trace = seed_client_attacker12.build_trace();
 
