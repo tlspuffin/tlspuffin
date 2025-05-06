@@ -1,5 +1,6 @@
 use std::any::TypeId;
 
+use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
@@ -28,7 +29,7 @@ use crate::tls::rustls::msgs::handshake::{
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub enum MessagePayload {
     Alert(AlertMessagePayload),
@@ -52,6 +53,24 @@ impl codec::CodecP for MessagePayload {
         )))
     }
 }
+
+impl PartialEq for MessagePayload {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (MessagePayload::Alert(_), MessagePayload::Alert(_)) => true,
+            (MessagePayload::Handshake(_), MessagePayload::Handshake(_)) => true,
+            (
+                MessagePayload::TLS12EncryptedHandshake(_),
+                MessagePayload::TLS12EncryptedHandshake(_),
+            ) => true,
+            (MessagePayload::ChangeCipherSpec(_), MessagePayload::ChangeCipherSpec(_)) => true,
+            (MessagePayload::ApplicationData(_), MessagePayload::ApplicationData(_)) => true,
+            (MessagePayload::Heartbeat(_), MessagePayload::Heartbeat(_)) => true,
+            (_, _) => false,
+        }
+    }
+}
+
 impl MessagePayload {
     pub fn encode(&self, bytes: &mut Vec<u8>) {
         match *self {
@@ -145,7 +164,7 @@ impl MessagePayload {
 /// This type owns all memory for its interior parts. It is used to read/write from/to I/O
 /// buffers as well as for fragmenting, joining and encryption/decryption. It can be converted
 /// into a `Message` by decoding the payload.
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable, PartialEq)]
 #[extractable(TLSProtocolTypes)]
 pub struct OpaqueMessage {
     #[extractable_ignore]
@@ -153,6 +172,7 @@ pub struct OpaqueMessage {
     #[extractable_ignore]
     pub version: ProtocolVersion,
     #[extractable_ignore]
+    #[comparable_ignore]
     pub payload: Payload,
 }
 
@@ -298,7 +318,7 @@ impl PlainMessage {
 }
 
 /// A message with decoded payload
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable, PartialEq)]
 pub struct Message {
     pub version: ProtocolVersion,
     pub payload: MessagePayload,
