@@ -12,7 +12,7 @@ use itertools::Itertools;
 
 use crate::agent::AgentName;
 use crate::algebra::dynamic_function::TypeShape;
-use crate::differential::TraceDifference;
+use crate::differential::{ClaimDiff, TraceDifference};
 use crate::protocol::{EvaluatedTerm, ProtocolTypes};
 use crate::trace::StepNumber;
 
@@ -113,62 +113,85 @@ impl<C: Claim> ClaimList<C> {
     pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
         let blacklist = <C::PT as ProtocolTypes>::differential_fuzzing_claims_blacklist();
 
-        let mut self_claims_filtered = HashMap::<AgentName, Vec<&C>>::new();
-        self.claims
-            .iter()
-            .filter(|x| filter_claims(*x, &blacklist))
-            .map(|c| {
-                self_claims_filtered
-                    .entry(c.agent_name())
-                    .or_insert(vec![])
-                    .push(c)
-            })
-            .count();
-
-        let mut other_claims_filtered = HashMap::<AgentName, Vec<&C>>::new();
-        other
+        let mut self_claims_filtered: HashMap<AgentName, Vec<&C>> = self
             .claims
             .iter()
             .filter(|x| filter_claims(*x, &blacklist))
-            .map(|c| {
-                other_claims_filtered
-                    .entry(c.agent_name())
-                    .or_insert(vec![])
-                    .push(c)
-            })
-            .count();
+            .fold(HashMap::new(), |mut acc, c| {
+                acc.entry(c.agent_name()).or_insert(vec![]).push(c);
+                acc
+            });
 
-        self_claims_filtered = self_claims_filtered
-            .into_iter()
-            .map(|(k, v)| {
-                (
-                    k,
-                    v.into_iter()
-                        .dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
-                        .collect(),
-                )
-            })
-            .collect();
+        let mut other_claims_filtered: HashMap<AgentName, Vec<&C>> = other
+            .claims
+            .iter()
+            .filter(|x| filter_claims(*x, &blacklist))
+            .fold(HashMap::new(), |mut acc, c| {
+                acc.entry(c.agent_name()).or_insert(vec![]).push(c);
+                acc
+            });
 
-        other_claims_filtered = other_claims_filtered
-            .into_iter()
-            .map(|(k, v)| {
-                (
-                    k,
-                    v.into_iter()
-                        .dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
-                        .collect(),
-                )
-            })
-            .collect();
+        self_claims_filtered.iter_mut().for_each(|(_, v)| {
+            v.dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
+        });
+
+        other_claims_filtered.iter_mut().for_each(|(_, v)| {
+            v.dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
+        });
 
         log::trace!("Comparing claim lists");
-        let diffs = self_claims_filtered.comparison(&other_claims_filtered);
-        match diffs {
-            comparable::Changed::Unchanged => Ok(()),
-            comparable::Changed::Changed(changes) => {
-                Err(vec![TraceDifference::Claims(format!("{:#?}", changes))])
+
+        let mut keys: Vec<_> = self_claims_filtered
+            .keys()
+            .into_iter()
+            .chain(other_claims_filtered.keys().into_iter())
+            .collect();
+        keys.sort();
+
+        let mut diffs = vec![];
+
+        for k in keys.iter().dedup() {
+            let empty = vec![];
+            let s = self_claims_filtered.get(k).unwrap_or(&empty);
+            let o = other_claims_filtered.get(k).unwrap_or(&empty);
+
+            for i in 0..usize::max(s.len(), o.len()) {
+                match (s.get(i), o.get(i)) {
+                    (None, Some(b)) => {
+                        diffs.push(TraceDifference::Claims(ClaimDiff::DifferentTypes {
+                            agent: b.agent_name().into(),
+                            index: i,
+                            first_type: "()".into(),
+                            second_type: b.inner().type_name().into(),
+                        }))
+                    }
+                    (Some(a), None) => {
+                        diffs.push(TraceDifference::Claims(ClaimDiff::DifferentTypes {
+                            agent: a.agent_name().into(),
+                            index: i,
+                            first_type: a.inner().type_name().into(),
+                            second_type: "()".into(),
+                        }))
+                    }
+                    (Some(a), Some(b)) => match a.comparison(b) {
+                        comparable::Changed::Changed(changes) => {
+                            diffs.push(TraceDifference::Claims(ClaimDiff::InnerDifference {
+                                agent: a.agent_name().into(),
+                                index: i,
+                                diff: format!("{:?}", changes),
+                            }))
+                        }
+                        comparable::Changed::Unchanged => (),
+                    },
+                    _ => (),
+                }
             }
+        }
+
+        if diffs.len() > 0 {
+            Err(diffs)
+        } else {
+            Ok(())
         }
     }
 }
