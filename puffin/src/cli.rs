@@ -97,7 +97,8 @@ where
                 .about("Execute a trace on multiple targets")
                 .arg(arg!(<first_target> "The first target to fuzz"))
                 .arg(arg!(<second_target> "The second target to fuzz"))
-                .arg(arg!(<input> "Input trace")),
+                .arg(arg!(<input> "Input trace"))
+                .arg(arg!(-j --json "Export differences as JSON").value_parser(value_parser!(bool))),
             Command::new("differential")
                 .about("Start a differential fuzzing campaign")
                 .arg(arg!(<first_target> "The first target to fuzz"))
@@ -442,6 +443,7 @@ where
         let first_put: &String = matches.get_one("first_target").unwrap();
         let second_put: &String = matches.get_one("second_target").unwrap();
         let input: &String = matches.get_one("input").unwrap();
+        let export_json: &bool = matches.get_one("json").unwrap();
 
         let path = PathBuf::from(input);
         let trace = match Trace::<PB::ProtocolTypes>::from_file(&path) {
@@ -468,11 +470,33 @@ where
                 .with_default(PutDescriptor::new(second_put, PutOptions::default())),
         );
 
-        let status = ForkedRunner::new(&runner).execute(trace, &mut 0);
+        return match runner.execute(trace, &mut 0) {
+            Ok(_) => {
+                if *export_json {
+                    println!("[]");
+                } else {
+                    println!("No differences")
+                }
 
-        println!("{:?}", status);
-
-        return ExitCode::SUCCESS;
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                if let crate::error::Error::Difference(trace_differences) = e {
+                    if *export_json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&trace_differences).unwrap()
+                        );
+                    } else {
+                        println!("Differences between the PUTs:\n");
+                        for diff in trace_differences {
+                            println!("{}\n", diff);
+                        }
+                    }
+                }
+                ExitCode::FAILURE
+            }
+        };
     } else {
         let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
             let git_ref = "_".to_string();
