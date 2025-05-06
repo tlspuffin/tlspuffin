@@ -248,6 +248,7 @@ pub struct TlsClaim {
     pub origin: AgentType,
     pub protocol_version: TLSVersion,
     pub data: ClaimData,
+    pub step: Option<usize>,
 }
 
 dummy_codec!(TLSProtocolTypes, TlsClaim);
@@ -302,6 +303,14 @@ impl Claim for TlsClaim {
                 Transcript::Certificate(claim) => claim.boxed(),
             },
         }
+    }
+
+    fn set_step(&mut self, step: Option<usize>) {
+        self.step = step;
+    }
+
+    fn get_step(&self) -> Option<usize> {
+        self.step
     }
 }
 
