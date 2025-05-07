@@ -13,8 +13,13 @@
 #include <string.h>
 #include <sys/time.h>
 
+//#define TIME_CHANGE
 #define USE_CUSTOM_PRNG
 #define CLOCKVALUE_DEFAULT 1742309173;
+
+static int file = -1;
+#define ENTER() fprintf(stderr, "Entering %s\n", __func__)
+//#define ENTER() { char buf[128] = {}; int s = snprintf(buf, 128, "Entering %s\n", __func__); write(file, buf, s); }
 
 static uint8_t * rng_reseed_buffer = NULL;
 static size_t rng_reseed_buffer_length = 0;
@@ -496,6 +501,7 @@ static const char *wolfssl_describe_state(AGENT agent) {
 }
 
 static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear) {
+  ENTER();
   if (agent == NULL) {
     _log(PUFFIN.error, "fatal error wolfssl_reset called with agent == NULL");
     return PUFFIN.make_result(RESULT_ERROR_OTHER, "fatal error wolfssl_reset called with agent == NULL");
@@ -587,12 +593,12 @@ static void wolfssl_destroy(AGENT agent) {
     wolfSSL_free(agent->ssl);
     agent->ssl = NULL;
   }
-  if (agent->ctx != NULL) {
+  /*if (agent->ctx != NULL) {
     wolfSSL_CTX_free(agent->ctx);
     agent->ctx = NULL;
   }
   free(agent);
-  agent = NULL;
+  agent = NULL;*/
 }
 
 static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor) {
@@ -670,22 +676,99 @@ static int myCryptoCb_Func(int devId, wc_CryptoInfo* info, void* ctx) {
   if ((rng_reseed_buffer == NULL) || (info->algo_type != WC_ALGO_TYPE_SEED)) {
     return CRYPTOCB_UNAVAILABLE;
   }
+
+  /*int fd = open("/dev/urandom", O_RDONLY);
+  uint8_t seen[256] = {};
+  for(size_t i=0; i<info->seed.sz; ++i) {
+    uint8_t byte;
+    do {
+      ssize_t r = read(fd, &byte, 1);
+    } while (seen[byte] != 0);
+    seen[byte] = 1;
+    info->seed.seed[i] = byte;
+  }
+  close(fd);
+  return 0;*/
+
+  uint8_t seen[256] = {};
+  for(size_t i=0; i<info->seed.sz; ++i) {
+    uint8_t byte;
+    do {
+      byte = ((double)rand() / ((double)RAND_MAX + 1.0)) * 255.0;
+    } while (seen[byte] != 0);
+    seen[byte] = 1;
+    info->seed.seed[i] = byte;
+  }
+  fprintf(stderr, "seeds [%d]: ", info->seed.sz);
+  for(size_t i=0; i<info->seed.sz; ++i) {
+    fprintf(stderr, "%2.2x", info->seed.seed[i]);
+  }
+  fprintf(stderr, "\n");
+  return 0;
+
+
   if (info->seed.sz > rng_reseed_buffer_length) {
-    //_log(PUFFIN.warn, "wolfssl, provided seed buffer smaller than expected, filling missing part");
+    //_log(PUFFIN.warn, "wolfssl: provided seed buffer smaller than expected, filling missing part");
     uint8_t buf[255] = {};
-    for(int i=0; i<rng_reseed_buffer_length; ++i) {
+    for(size_t i=0; i<rng_reseed_buffer_length; ++i) {
       ++buf[rng_reseed_buffer[i]];
     }
     memcpy(info->seed.seed, rng_reseed_buffer, rng_reseed_buffer_length);
-    for(size_t i=rng_reseed_buffer_length, j=0; i<info->seed.sz; ++j) {
+    size_t i = rng_reseed_buffer_length;
+    for(size_t j=0; (i<info->seed.sz) && (j<256); ++j) {
       if (buf[j] == 0) {
         info->seed.seed[i] = j;
         ++i;
       }
     }
-    return 0;
+    if (i < info->seed.sz) {
+      _log(PUFFIN.error, "wolfssl: unable to fill seed buffer");
+      return CRYPTOCB_UNAVAILABLE;
+    }
+  } else {
+    memcpy(info->seed.seed, rng_reseed_buffer, info->seed.sz);
   }
-  memcpy(info->seed.seed, rng_reseed_buffer, info->seed.sz);
+
+  printf("o seeds ");
+  for(size_t i=0; i<rng_reseed_buffer_length; ++i) {
+    printf("%x", rng_reseed_buffer[i]);
+  }
+  printf("\n");
+  printf("seeds ");
+  for(size_t i=0; i<info->seed.sz; ++i) {
+    printf("%x", info->seed.seed[i]);
+  }
+  printf("\n");
+
+  int zeroPos = -1; 
+  uint8_t newSeed[255] = {};
+  for(size_t i=0; i<rng_reseed_buffer_length; ++i) {
+    uint8_t val = rng_reseed_buffer[i];
+    uint8_t newPos = (val + i) & 0x000000FF;
+    while(newSeed[newPos] != 0) {
+      newPos = (newPos + 1) & 0x000000FF;
+    }
+    if (val == 0) {
+      zeroPos = newPos;
+    }
+    newSeed[newPos] = val;
+  }
+  for(size_t i=0, j=0; j<255; ++j) {
+    rng_reseed_buffer[i] = newSeed[j];
+    if ((rng_reseed_buffer[i] != 0) || (j == zeroPos)) {
+      ++i;
+    }
+  }
+  printf("seeds ");
+  for(size_t i=0; i<rng_reseed_buffer_length; ++i) {
+    printf("%x", rng_reseed_buffer[i]);
+  }
+  printf("\n");
+
+
+  /*for(size_t i=0; i<rng_reseed_buffer_length; ++i) {
+    ++rng_reseed_buffer[i];
+  }*/
   return 0;
 }
 #endif
@@ -848,6 +931,7 @@ ERROR__wolfssl_create_agent:
 }
 
 static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor) {
+  ENTER();
   WOLFSSL_METHOD *(*tls_methods[2])();
   char const* tls_version_str = NULL;
   switch(descriptor->tls_version) {
@@ -895,6 +979,7 @@ static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor) {
 }
 
 static void wolfssl_rng_reseed(uint8_t const *buffer, size_t length) {
+  ENTER();
 #ifdef USE_CUSTOM_PRNG
   if ((buffer != NULL) && (length > 0)) {
     clock_value = CLOCKVALUE_DEFAULT;
@@ -905,6 +990,14 @@ static void wolfssl_rng_reseed(uint8_t const *buffer, size_t length) {
       rng_reseed_buffer = (uint8_t*)realloc(rng_reseed_buffer, length);
     }
     memcpy(rng_reseed_buffer, buffer, length);
+
+    unsigned int seed = 0;
+    if (length <= sizeof(unsigned int)) {
+      seed = *((unsigned int*)buffer);
+    } else {
+      memcpy(&seed, buffer, sizeof(unsigned int));
+    }
+    srand(seed);
   } else {
     clock_value = 0;
 
@@ -913,6 +1006,8 @@ static void wolfssl_rng_reseed(uint8_t const *buffer, size_t length) {
       rng_reseed_buffer = NULL;
     }
     length = 0;
+
+    srand(time(NULL));
   }
   rng_reseed_buffer_length = length;
 #endif
@@ -979,10 +1074,19 @@ word32 TimeNowInMilliseconds(void) {
   return (word32)(now.tv_sec * 1000 + now.tv_usec / 1000);
 }
 
-TLS_PUT_INTERFACE const * REGISTER () {
-  if (getenv("RUST_LOG") != NULL) {
-    wolfSSL_Debugging_ON();
+static void AnalyseLogLevel() {
+  file = open("mwolfssl.txt", O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+  char const* logLevel = getenv("RUST_LOG");
+  if (logLevel == NULL) {
+    return;
   }
+  char const* module[] =  { "tlspuffin", "put" };
+
+  //wolfSSL_Debugging_ON();
+}
+
+TLS_PUT_INTERFACE const * REGISTER () {
+  AnalyseLogLevel();
 
 #if LIBWOLFSSL_VERSION_HEX >= 0x05002000
 #ifdef USE_CUSTOM_PRNG
