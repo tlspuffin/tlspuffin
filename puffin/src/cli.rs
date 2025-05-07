@@ -21,7 +21,7 @@ use crate::log::config_default;
 use crate::protocol::ProtocolBehavior;
 use crate::put::PutDescriptor;
 use crate::put_registry::{PutRegistry, TCP_PUT};
-use crate::trace::{Action, Spawner, Trace, TraceContext};
+use crate::trace::{Action, ConfigTrace, Spawner, Trace, TraceContext};
 
 fn create_app<S>(title: S) -> Command
 where
@@ -43,7 +43,7 @@ where
         .arg(arg!(--tui "Display fuzzing logs using the interactive terminal UI"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
-        .arg(arg!(--"wo-bit" "Disable bit-level mutations"))
+        .arg(arg!(--"with-bit" "Enable bit-level mutations"))
         .arg(arg!(--"wo-dy" "Disable DY mutations"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
@@ -64,6 +64,7 @@ where
                 .arg(arg!(<inputs> "The file which stores a trace").num_args(1..))
                 .arg(arg!(-n --number <n> "Amount of files to execute starting at index.").value_parser(value_parser!(usize)))
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
+                .arg(arg!(--"wo-bit" "Disable evaluating payloads created through bit-level mutations"))
                 .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing")),
             Command::new("execute-traces")
                 .about("Executes traces stored in files.")
@@ -112,7 +113,7 @@ where
     let tui = matches.get_flag("tui");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
-    let without_bit_level = matches.get_flag("wo-bit");
+    let with_bit_level = !matches.get_flag("with-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
     let target_put: Option<&String> = matches.get_one("put");
 
@@ -171,6 +172,7 @@ where
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
+        let without_bit_level = matches.get_flag("wo-bit");
 
         let mut paths = inputs
             .flat_map(|input| {
@@ -227,9 +229,16 @@ where
             Spawner::new(put_registry).with_default(default_put),
         );
 
+        let config_trace = ConfigTrace {
+            with_bit_level: !without_bit_level,
+            ..Default::default()
+        };
+        if without_bit_level {
+            log::info!("Execution without payload evaluations...");
+        }
         for path in lookup_paths {
             log::info!("Executing: {}", path.display());
-            execute(&runner, path);
+            execute(&runner, path, config_trace);
         }
 
         if !lookup_paths.is_empty() {
@@ -287,7 +296,7 @@ where
 
         for path in paths {
             log::info!("Executing: {}", path.display());
-            execute(&runner, path);
+            execute(&runner, path, ConfigTrace::default());
         }
 
         return ExitCode::SUCCESS;
@@ -349,7 +358,7 @@ where
                 Some(title),
                 None,
                 &put_registry,
-                without_bit_level,
+                with_bit_level,
                 without_dy_mutations,
                 put_use_clear,
                 minimizer,
@@ -384,7 +393,7 @@ where
                 None,
                 None,
                 &put_registry,
-                without_bit_level,
+                with_bit_level,
                 without_dy_mutations,
                 put_use_clear,
                 minimizer,
@@ -399,7 +408,7 @@ where
                     None,
                     Some(i),
                     &put_registry,
-                    without_bit_level,
+                    with_bit_level,
                     without_dy_mutations,
                     put_use_clear,
                     minimizer,
@@ -447,11 +456,17 @@ where
             no_launcher,
         };
 
-        if without_bit_level {
+        if with_bit_level && without_dy_mutations {
+            log::error!("Both bit-level and DY mutations are disabled. This is not supported.");
+            return ExitCode::FAILURE;
+        }
+
+        if with_bit_level {
             config.mutation_config.with_bit_level = false;
         }
         if without_dy_mutations {
             config.mutation_config.with_dy = false;
+            config.mutation_config.term_constraints.must_be_root = true;
         }
 
         if let Err(err) = start::<PB>(&put_registry, default_put, config, handle) {
@@ -520,7 +535,11 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) {
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
+    runner: &Runner<PB>,
+    input: P,
+    config_trace: ConfigTrace,
+) {
     let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
         t
     } else {
@@ -533,7 +552,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) 
     // When generating coverage a crash means that no coverage is stored
     // By executing in a fork, even when that process crashes, the other executed code will still
     // yield coverage
-    let status = ForkedRunner::new(runner).execute(trace);
+    let status = ForkedRunner::new(runner).execute_config(trace, config_trace);
 
     match status {
         Ok(s) => log::info!("execution finished with status {s:?}"),
