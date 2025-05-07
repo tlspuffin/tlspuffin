@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::io;
 
 use crate::error::Error;
 
@@ -60,6 +61,21 @@ impl<'a> Reader<'a> {
 
     pub fn sub(&mut self, len: usize) -> Option<Reader> {
         self.take(len).map(Reader::init)
+    }
+}
+
+impl<'a> io::Read for Reader<'a> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let mut len = 0;
+
+        while len < buf.len() && len < self.buf.len() - self.offs {
+            buf[len] = self.buf[self.offs + len];
+            len += 1;
+        }
+
+        self.offs += len;
+
+        Ok(len)
     }
 }
 
