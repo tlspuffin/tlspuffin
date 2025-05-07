@@ -1,0 +1,4 @@
+[submodule "crates/opcua-mapper"]
+	path = crates/opcua-mapper
+	url = git@github.com:tlspuffin/opcua.git
+	branch = puffin
