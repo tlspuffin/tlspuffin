@@ -151,6 +151,17 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         }
     }
 
+    pub fn reset_agent(&mut self, agent_name: AgentName) {
+        log::debug!("Resetting KnowledgeStore for agent {agent_name}");
+        self.raw_knowledge
+        .retain(|x| x.source != Source::Agent(agent_name));
+    }
+
+    pub fn reset(&mut self) {
+        log::debug!("Resetting all KnowledgeStore");
+        self.raw_knowledge = vec![];
+    }
+
     pub fn add_raw_knowledge<T: EvaluatedTerm<PT> + 'static>(
         &mut self,
         data: T,
@@ -506,9 +517,11 @@ impl<PT: ProtocolTypes> Trace<PT> {
             {
                 // rename if it already exists and we want to reuse
                 reusable.reset(descriptor.name)?;
+                // ctx.knowledge_store.reset_agent(descriptor.name); // TODO: maybe better?
             } else {
                 // only spawn completely new if not yet existing
                 ctx.spawn(descriptor)?;
+                // ctx.knowledge_store.reset_agent(descriptor.name); // TODO: maybe better?
             };
         }
 
@@ -525,6 +538,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
     {
         for trace in &self.prior_traces {
             trace.execute(ctx)?;
+            ctx.knowledge_store.reset(); // TODO: maybe do it per agent, when spawning?
         }
 
         self.spawn_agents(ctx)?;
