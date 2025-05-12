@@ -243,6 +243,7 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
     if (descriptor->tls_version == V1_3)
     {
         SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
     }
     else
     {
@@ -316,6 +317,7 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
     if (descriptor->tls_version == V1_3)
     {
         SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
     }
     else
     {
