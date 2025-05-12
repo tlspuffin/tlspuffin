@@ -4,7 +4,7 @@ extern "C" {
 }
 
 pub fn rng_init() {
-    log::debug!("setting OpenSSL in deterministic mode");
+    log::info!("setting OpenSSL in deterministic mode");
     unsafe {
         put_rng_init();
     }
