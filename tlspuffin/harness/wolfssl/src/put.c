@@ -30,7 +30,6 @@
 
 static uint8_t rng_have_custom_seed = 0;
 #define CUSTOM_SEED_SIZE 256
-static uint8_t rng_custom_seed[CUSTOM_SEED_SIZE] = {};
 #ifdef USE_CUSTOM_PRNG
 static TYPETIME clock_value = 0;
 #endif
@@ -691,7 +690,15 @@ static int myCryptoCb_Func(int devId, wc_CryptoInfo* info, void* ctx) {
     return CRYPTOCB_UNAVAILABLE;
   }
 
-  memcpy(info->seed.seed, rng_custom_seed, info->seed.sz);
+  uint8_t seen[256] = {};
+  for(size_t i=0; i<info->seed.sz; ++i) {
+    uint8_t byte = ((double)rand() / ((double)RAND_MAX + 1.0)) * 255.0;
+    if (seen[byte] != 0) {
+      while(seen[++byte] != 0);
+    }
+    seen[byte] = 1;
+    info->seed.seed[i] = byte;
+  }
   return 0;
 }
 #endif
@@ -911,22 +918,10 @@ static void wolfssl_rng_reseed(uint8_t const *buffer, size_t length) {
       memcpy(&seed, buffer, sizeof(unsigned int));
     }
     srand(seed);
-
-    uint8_t seen[256] = {};
-    for(size_t i=0; i<CUSTOM_SEED_SIZE; ++i) {
-      uint8_t byte = ((double)rand() / ((double)RAND_MAX + 1.0)) * 255.0;
-      if (seen[byte] != 0) {
-        while(seen[++byte] != 0);
-      }
-      seen[byte] = 1;
-      rng_custom_seed[i] = byte;
-    }
-
     rng_have_custom_seed = 1;
   } else {
     clock_value = 0;
     srand(time(NULL));
-    memset(rng_custom_seed, 0, CUSTOM_SEED_SIZE);
     rng_have_custom_seed = 0;
   }
 #endif

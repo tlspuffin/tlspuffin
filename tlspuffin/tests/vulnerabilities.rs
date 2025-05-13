@@ -118,15 +118,15 @@ fn test_seed_cve_2022_38152(put: &str) {
 )]
 fn test_seed_cve_2022_38153(put: &str) {
     let runner = default_runner_for(put);
-    let mut cve_trace = seed_cve_2022_38153.build_trace();
-    let success_trace = seed_successful12_with_tickets.build_trace();
+    let trace = seed_successful12_with_tickets.build_trace();
 
-    for _ in 0..50 {
-        cve_trace.prior_traces.push(success_trace.clone());
+    let _ = runner.execute_config(trace.clone(), true).unwrap();
+    for _ in 1..50 {
+        let _ = runner.execute_config(trace.clone(), false).unwrap();
     }
 
     expect_trace_crash(
-        cve_trace,
+        seed_cve_2022_38153.build_trace(),
         runner,
         std::time::Duration::from_secs(20),
         Some(20),
