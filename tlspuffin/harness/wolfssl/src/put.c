@@ -13,6 +13,12 @@
 #include <string.h>
 #include <sys/time.h>
 
+#if LIBWOLFSSL_VERSION_HEX >= 0x05007000
+#define TYPETIME sword64
+#else
+#define TYPETIME word32
+#endif
+
 //#define TIME_CHANGE
 #define USE_CUSTOM_PRNG
 #define CLOCKVALUE_DEFAULT 1742309173;
@@ -26,7 +32,7 @@ static uint8_t rng_have_custom_seed = 0;
 #define CUSTOM_SEED_SIZE 256
 static uint8_t rng_custom_seed[CUSTOM_SEED_SIZE] = {};
 #ifdef USE_CUSTOM_PRNG
-static word32 clock_value = 0;
+static TYPETIME clock_value = 0;
 #endif
 
 static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor);
@@ -195,7 +201,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
   if (cert != NULL) {
     int cert_lenght = wolfSSL_i2d_X509(cert, NULL);
     if (cert_lenght > 0) {
-      uint8_t* data = calloc(1, cert_lenght);
+      uint8_t* data = NULL;
       cert_lenght = wolfSSL_i2d_X509(cert, &data);
       if (cert_lenght > 0) {
         claim->cert.data_length = MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT);
@@ -203,7 +209,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
       } else {
         _log(PUFFIN.error, "wolfSSL_i2d_X509 returned two differents values");
       }
-      free(data);
+      wolfSSL_Free(data);
     } else {
       //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate returned an error a ask for a too big buffer");
     }
@@ -231,7 +237,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
   if (peer_cert != NULL) {
     int cert_lenght = wolfSSL_i2d_X509(peer_cert, NULL);
     if (cert_lenght > 0) {
-      uint8_t* data = calloc(1, cert_lenght);
+      uint8_t* data = NULL;
       cert_lenght = wolfSSL_i2d_X509(peer_cert, &data);
       if (cert_lenght > 0) {
         claim->peer_cert.data_length = MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT);
@@ -239,7 +245,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
       } else {
         _log(PUFFIN.error, "wolfSSL_i2d_X509 returned two differents values");
       }
-      free(data);
+      wolfSSL_Free(data);
     } else {
       //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate returned an error a ask for a too big buffer");
     }
@@ -972,7 +978,7 @@ word32 LowResTimer(void) {
   return (word32)time(NULL);
 }
 
-word32 TimeNowInMilliseconds(void) {
+TYPETIME TimeNowInMilliseconds(void) {
 #ifdef USE_CUSTOM_PRNG
   if (clock_value != 0) {
 #ifdef TIME_CHANGE
@@ -983,8 +989,8 @@ word32 TimeNowInMilliseconds(void) {
 #endif
   struct timeval now;
   if (gettimeofday(&now, NULL) < 0)
-    return (word32)GETTIME_ERROR;
-  return (word32)(now.tv_sec * 1000 + now.tv_usec / 1000);
+    return (TYPETIME)GETTIME_ERROR;
+  return (TYPETIME)(now.tv_sec * 1000 + now.tv_usec / 1000);
 }
 
 static void AnalyseLogLevel() {
