@@ -343,6 +343,8 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     spawner: Spawner<PB>,
 
     phantom: PhantomData<PB>,
+    /// The number of steps that have been successfully executed
+    pub executed_until: usize,
 }
 
 impl<PB: ProtocolBehavior> fmt::Display for TraceContext<PB> {
@@ -382,6 +384,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             claims,
             spawner,
             phantom: Default::default(),
+            executed_until: 0,
         }
     }
 
@@ -551,6 +554,7 @@ pub struct TraceExecution<PT: ProtocolTypes> {
     prior_traces: Vec<TraceExecution<PT>>,
     agents: Vec<AgentDescriptor<PT::PUTConfig>>,
     number_of_steps: usize,
+    executed_until: usize,
     steps: Vec<StepExecution<PT>>,
 }
 
@@ -611,6 +615,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
         Self {
             agents: trace.descriptors.clone(),
             number_of_steps: trace.steps.len(),
+            executed_until: ctx.executed_until,
             steps,
             // right now we exclude prior traces
             prior_traces: Vec::new(),
@@ -629,6 +634,8 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
         for (idx, agent) in self.agents.iter().enumerate() {
             writeln!(f, "{tabs}\t {}: {:?}", idx, agent)?;
         }
+
+        writeln!(f, "{tabs} Executed until step {}", self.executed_until)?;
 
         writeln!(f)?;
 
@@ -785,6 +792,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
             step.execute(i, ctx)?;
 
             ctx.verify_security_violations()?;
+            ctx.executed_until = i + 1;
         }
 
         Ok(())
