@@ -26,7 +26,7 @@ pub trait TraceRunner {
     }
 
     fn execute_config<T>(self, trace: T, with_reseed: bool) -> Result<Self::R, Self::E>
-    where 
+    where
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>;
 }
 

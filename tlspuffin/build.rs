@@ -11,8 +11,6 @@ use puffin_build::{harness, library, vendor_dir};
 compile_error!("Selecting multiple Rust PUT is currently not supported: openssl/libressl, wolfssl and boringssl feature flags are mutually exclusive.");
 
 fn main() {
-    println!("cargo:rustc-link-lib=dylib=stdc++");
-
     let out_dir = std::env::var("OUT_DIR").unwrap();
 
     let bindings_path = PathBuf::from(&out_dir).join("bindings.rs");

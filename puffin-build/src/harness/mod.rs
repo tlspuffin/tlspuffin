@@ -118,11 +118,6 @@ impl Harness {
                     cflags = cflags.join(" ")
                 ));
 
-                cmake_conf.cfg_args.push(format!(
-                    "-DCMAKE_CXX_FLAGS='{cflags}'",
-                    cflags = cflags.join(" ")
-                ));
-
                 cmake_conf.build().map_err(|e| Error::HarnessFailed {
                     harness: Box::new(self.clone()),
                     reason: e,
