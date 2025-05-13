@@ -336,6 +336,7 @@ impl RustPut {
                         origin: config.descriptor.protocol_config.typ,
                         protocol_version: config.descriptor.protocol_config.tls_version,
                         data,
+                        step: None,
                     });
                 }
             }
@@ -360,6 +361,7 @@ impl RustPut {
                             origin,
                             protocol_version,
                             data,
+                            step: None,
                         });
                     }
                 },
@@ -425,6 +427,7 @@ impl RustPut {
                                 signature_algorithm: 0,                // TODO
                                 peer_signature_algorithm: 0,           // TODO
                             })),
+                            step: None,
                         });
 
                         // Extract ClientHello..ClientFinished transcript
@@ -459,6 +462,7 @@ impl RustPut {
                         origin,
                         protocol_version,
                         data,
+                        step: None,
                     });
                 }
             }
