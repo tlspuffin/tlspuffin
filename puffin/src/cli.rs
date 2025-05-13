@@ -282,15 +282,12 @@ where
         let (res, err) =
             match trace.execute_until_step(&mut ctx, *max_step.unwrap_or(&trace.steps.len())) {
                 Ok(_) => (ExitCode::SUCCESS, None),
-                Err(e) => {
-                    println!("Execution error : {}", e);
-                    (ExitCode::FAILURE, Some(e.to_string()))
-                }
+                Err(e) => (ExitCode::FAILURE, Some(e.to_string())),
             };
 
         let exec = ExecutionResult::from(
             put_name,
-            true,
+            err.is_none(),
             err,
             &trace,
             ctx,
