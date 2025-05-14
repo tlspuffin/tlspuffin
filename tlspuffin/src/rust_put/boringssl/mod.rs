@@ -18,9 +18,7 @@ use crate::claims::{
     ClaimData, ClaimDataTranscript, TlsClaim, TranscriptCertificate, TranscriptClientFinished,
     TranscriptServerFinished, TranscriptServerHello,
 };
-use crate::protocol::{
-    AgentType, OpaqueMessageFlight, TLSDescriptorConfig, TLSProtocolBehavior, TLSVersion,
-};
+use crate::protocol::{AgentType, OpaqueMessageFlight, TLSDescriptorConfig, TLSProtocolBehavior};
 use crate::put::TlsPutConfig;
 use crate::static_certs::{ALICE_CERT, ALICE_PRIVATE_KEY, BOB_CERT, BOB_PRIVATE_KEY, EVE_CERT};
 
@@ -151,14 +149,8 @@ impl RustPut {
 
         set_max_protocol_version(&mut ctx_builder, descriptor.protocol_config.tls_version)?;
 
-        match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
-            }
-            TLSVersion::V1_2 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?;
-            }
-        }
+        // Allow EXPORT in server
+        // ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string)?;
 
         if let Some(groups) = &descriptor.protocol_config.groups {
             ctx_builder.set_groups(groups)?;
@@ -174,14 +166,8 @@ impl RustPut {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
         set_max_protocol_version(&mut ctx_builder, descriptor.protocol_config.tls_version)?;
 
-        match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
-            }
-            TLSVersion::V1_2 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?;
-            }
-        }
+        // Disallow EXPORT in client
+        // ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string)?;
 
         if let Some(groups) = &descriptor.protocol_config.groups {
             ctx_builder.set_groups(groups)?;

@@ -23,10 +23,6 @@ if(VENDOR_VERSION VERSION_LESS "5.5.2")
   declare_vulnerability("CVE-2022-42905" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-42905.patch)
 endif()
 
-set(v500_or_later "$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>")
-set(before_v520 "$<VERSION_LESS:${VENDOR_VERSION},5.2.0>")
-set(require_define_xtime "$<AND:${v500_or_later},${before_v520}>")
-
 foreach(CVE IN LISTS fix)
   if(NOT HAS_${CVE})
     message(FATAL_ERROR "Requested fix for unknown CVE '${CVE}'")
@@ -57,8 +53,6 @@ autotools_builder(
     --enable-secure-renegotiation
     --enable-psk # FIXME only 4.3.0
     --disable-examples
-    --disable-crypttests # to be able to build with -DUSER_TICKS
-    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-cryptocb>
 
     $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-context-extra-user-data>
     $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:--enable-dtls-mtu>
@@ -78,8 +72,6 @@ autotools_builder(
     -DHAVE_EX_DATA                # FIXME only 4.3.0
     -DWOLFSSL_CALLBACKS           # FIXME else some msg callbacks are not called
     -DHAVE_CURVE25519
-    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:-DUSER_TICKS> # to ensure deterministic behaviour
-    $<${require_define_xtime}:-DXTIME=time_cb>    # to ensure deterministic behaviour with version >= 5.0.0 and < 5.2.0
     # FIXME broken: -DHAVE_EX_DATA_CLEANUP_HOOKS  # required for cleanup of ex data
     # FIXME broken: -DWC_RNG_SEED_CB              # makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism
     # FIXME broken: -DWOLFSSL_GENSEED_FORTEST     # makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism
@@ -102,11 +94,6 @@ autotools_builder(
     $<$<BOOL:${gcov}>:-O0>
 )
 
-# Extract internal.h from source to install include location
-list(APPEND INSTALL_COMMANDS
-  COMMAND ${CMAKE_COMMAND} -E copy "<SOURCE_DIR>/wolfssl/internal.h" "<INSTALL_DIR>/include/wolfssl/"
-)
-
 set(tls12 yes)
 set(tls13 yes)
 set(transcript_extraction yes)
@@ -115,9 +102,6 @@ if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.0")
   set(tls13_session_resumption yes)
   set(client_authentication_transcript_extraction yes)
 endif()
-set(allow_setting_tls12_ciphers yes)
-set(allow_setting_tls13_ciphers yes)
-
 if(NOT postauth)
   set(disable_postauth yes)
 endif()

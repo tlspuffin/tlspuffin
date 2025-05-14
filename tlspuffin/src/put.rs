@@ -184,22 +184,8 @@ impl CAgent {
 
         let server_store = [&client_cert as *const _, &other_cert];
         let client_store = [&server_cert as *const _, &other_cert];
-        let ciphers_tls13 = CString::new(
-            config
-                .descriptor
-                .protocol_config
-                .cipher_string_tls13
-                .clone(),
-        )
-        .unwrap();
-        let ciphers_tls12 = CString::new(
-            config
-                .descriptor
-                .protocol_config
-                .cipher_string_tls12
-                .clone(),
-        )
-        .unwrap();
+        let ciphers =
+            CString::new(config.descriptor.protocol_config.cipher_string.clone()).unwrap();
         let groups = config
             .descriptor
             .protocol_config
@@ -213,8 +199,7 @@ impl CAgent {
                 &server_cert,
                 &server_pkey,
                 &server_store,
-                &ciphers_tls13,
-                &ciphers_tls12,
+                &ciphers,
                 &groups,
             ),
             AgentType::Client => make_descriptor(
@@ -222,8 +207,7 @@ impl CAgent {
                 &client_cert,
                 &client_pkey,
                 &client_store,
-                &ciphers_tls13,
-                &ciphers_tls12,
+                &ciphers,
                 &groups,
             ),
         };
@@ -283,13 +267,7 @@ impl Put<TLSProtocolBehavior> for CAgent {
 
     fn reset(&mut self, new_name: puffin::agent::AgentName) -> Result<(), Error> {
         self.config.descriptor.name = new_name;
-        r_ccall!(
-            self.put,
-            reset,
-            self.c_agent,
-            new_name.into(),
-            self.config.use_clear as u8
-        )?;
+        r_ccall!(self.put, reset, self.c_agent, new_name.into())?;
         self.register_claimer();
         Ok(())
     }
@@ -384,8 +362,7 @@ fn make_descriptor(
     cert: *const PEM,
     pkey: *const PEM,
     store: &[*const PEM],
-    ciphers_tls13: &CString,
-    ciphers_tls12: &CString,
+    ciphers: &CString,
     groups: &Option<CString>,
 ) -> TLS_AGENT_DESCRIPTOR {
     // eprintln!("{:?}", cert);
@@ -406,8 +383,7 @@ fn make_descriptor(
         },
         client_authentication: config.descriptor.protocol_config.client_authentication,
         server_authentication: config.descriptor.protocol_config.server_authentication,
-        cipher_string_tls13: ciphers_tls13.as_ptr(),
-        cipher_string_tls12: ciphers_tls12.as_ptr(),
+        cipher_string: ciphers.as_ptr(),
         group_list: if let Some(group_list) = groups {
             group_list.as_ref().as_ptr()
         } else {

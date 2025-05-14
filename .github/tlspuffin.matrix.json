@@ -175,8 +175,8 @@
       "preset": "wolfssl510"
     },
     "cargo": {
-      "name": "",
-      "features": ["cputs"]
+      "name": "wolfssl510",
+      "features": []
     }
   },
   {
@@ -187,9 +187,8 @@
       "preset": "wolfssl510-sig"
     },
     "cargo": {
-      "name": "",
+      "name": "wolfssl510",
       "features": [
-        "cputs",
         "fix-CVE-2022-25640",
         "fix-CVE-2022-39173"
       ]
@@ -203,9 +202,8 @@
       "preset": "wolfssl510-skip"
     },
     "cargo": {
-      "name": "",
+      "name": "wolfssl510",
       "features": [
-        "cputs",
         "fix-CVE-2022-25638",
         "fix-CVE-2022-39173"
       ]
@@ -219,8 +217,8 @@
       "preset": "wolfssl520"
     },
     "cargo": {
-      "name": "",
-      "features": ["cputs"]
+      "name": "wolfssl520",
+      "features": []
     }
   },
   {
@@ -231,9 +229,8 @@
       "preset": "wolfssl520-asan"
     },
     "cargo": {
-      "name": "",
+      "name": "wolfssl520",
       "features": [
-        "cputs",
         "asan"
       ]
     }
@@ -248,8 +245,8 @@
       "preset": "wolfssl530"
     },
     "cargo": {
-      "name": "",
-      "features": ["cputs"]
+      "name": "wolfssl530",
+      "features": []
     }
   },
   {
@@ -262,9 +259,8 @@
       "preset": "wolfssl530-asan"
     },
     "cargo": {
-      "name": "",
+      "name": "wolfssl530",
       "features": [
-        "cputs",
         "asan"
       ]
     }
@@ -279,8 +275,8 @@
       "preset": "wolfssl540"
     },
     "cargo": {
-      "name": "",
-      "features": ["cputs"]
+      "name": "wolfssl540",
+      "features": []
     }
   },
   {
@@ -291,9 +287,8 @@
       "preset": "wolfssl540-sdos2"
     },
     "cargo": {
-      "name": "",
+      "name": "wolfssl540",
       "features": [
-        "cputs",
         "wolfssl-disable-postauth",
         "fix-CVE-2022-39173"
       ]
@@ -307,9 +302,8 @@
       "preset": "wolfssl530-cdos"
     },
     "cargo": {
-      "name": "",
+      "name": "wolfssl530",
       "features": [
-        "cputs",
         "fix-CVE-2022-39173"
       ]
     }
@@ -322,9 +316,8 @@
       "preset": "wolfssl540-asan"
     },
     "cargo": {
-      "name": "",
+      "name": "wolfssl540",
       "features": [
-        "cputs",
         "asan"
       ]
     }
@@ -337,9 +330,8 @@
       "preset": "wolfssl540-buf"
     },
     "cargo": {
-      "name": "",
+      "name": "wolfssl540",
       "features": [
-        "cputs",
         "fix-CVE-2022-42905"
       ]
     }
@@ -352,9 +344,8 @@
       "preset": "wolfssl540-heap"
     },
     "cargo": {
-      "name": "",
+      "name": "wolfssl540",
       "features": [
-        "cputs",
         "asan",
         "fix-CVE-2022-39173"
       ]
@@ -368,9 +359,8 @@
       "preset": "wolfssl540-asan-perf"
     },
     "cargo": {
-      "name": "",
+      "name": "wolfssl540",
       "features": [
-        "cputs",
         "asan",
         "fix-CVE-2022-39173",
         "fix-CVE-2022-42905"
@@ -385,9 +375,8 @@
       "preset": "wolfssl540-perf"
     },
     "cargo": {
-      "name": "",
+      "name": "wolfssl540",
       "features": [
-        "cputs",
         "fix-CVE-2022-39173",
         "fix-CVE-2022-42905"
       ]

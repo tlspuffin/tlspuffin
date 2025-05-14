@@ -375,15 +375,6 @@ pub mod claims_helpers {
             // Transcripts in these messages are not up-to-date. They get updated after the Message
             // has been processed
             security_claims::ClaimType::CLAIM_FINISHED => {
-                /*let peer_certificate = if claim.peer_authentication == 1
-                    && matches!(claim.peer_cert.data_length, 1..10240)
-                {
-                    SmallVec::from_slice(
-                        &claim.peer_cert.data[..claim.peer_cert.data_length as usize],
-                    )
-                } else {
-                    Default::default()
-                };*/
                 Some(ClaimData::Message(ClaimDataMessage::Finished(Finished {
                     outbound: claim.write > 0,
                     client_random: SmallVec::from(claim.client_random.data),

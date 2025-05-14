@@ -19,14 +19,6 @@ pub trait TraceRunner {
 
     fn execute<T>(self, trace: T) -> Result<Self::R, Self::E>
     where
-        Self: Sized,
-        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
-    {
-        self.execute_config(trace, true)
-    }
-
-    fn execute_config<T>(self, trace: T, with_reseed: bool) -> Result<Self::R, Self::E>
-    where
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>;
 }
 
@@ -50,14 +42,12 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
     type PB = PB;
     type R = TraceContext<Self::PB>;
 
-    fn execute_config<T>(self, trace: T, with_reseed: bool) -> Result<Self::R, Self::E>
+    fn execute<T>(self, trace: T) -> Result<Self::R, Self::E>
     where
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
     {
-        if with_reseed {
-            // We reseed all PUTs before executing a trace!
-            self.registry.determinism_reseed_all_factories();
-        }
+        // We reseed all PUTs before executing a trace!
+        self.registry.determinism_reseed_all_factories();
 
         let mut ctx = TraceContext::new(self.spawner.clone());
         trace.as_ref().execute(&mut ctx)?;
@@ -99,7 +89,7 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
     type PB = T::PB;
     type R = ExecutionStatus;
 
-    fn execute_config<Tr>(self, trace: Tr, with_reseed: bool) -> Result<Self::R, Self::E>
+    fn execute<Tr>(self, trace: Tr) -> Result<Self::R, Self::E>
     where
         Tr: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
     {
@@ -107,7 +97,7 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
 
         run_in_subprocess(
             || {
-                let ret = match runner.execute_config(trace, with_reseed) {
+                let ret = match runner.execute(trace) {
                     Ok(_) => 0,
                     Err(_) => 1,
                 };

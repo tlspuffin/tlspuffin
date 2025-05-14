@@ -32,7 +32,6 @@ class AsanLog:
         self.depth = depth
         self.fname = fname
         self.stack = []
-        self.stack_desc = []
         self.dups  = []
         self.desc  = ""
         if self.data:
@@ -45,9 +44,7 @@ class AsanLog:
         data = self.data.splitlines()
         for line in data:
             if "ERROR:" in line:
-                next_line_idx = data.index(line) + 1
-                self.desc = line[line.find('Sanitizer:') + 11:] + (
-                    " ==> " + data[next_line_idx] if next_line_idx < len(data) else "")
+                self.desc = line[line.find('Sanitizer:')+11:]
                 break
         return self.desc
 
@@ -68,9 +65,7 @@ class AsanLog:
             if lno not in data[0]:
                 return self.stack
             addr = data[0].lstrip(' ').split(' ')[4]
-            funct = data[0].lstrip(' ').split(' ')[3]
             self.stack.append(addr)
-            self.stack_desc.append(funct)
             data.pop(0)
         return self.stack
 
@@ -123,7 +118,6 @@ def main():
         print("[-] Unique stack (%s)" % (log.fname))
         print("\tDescription: %s" % log.desc)
         print("\tStack: \t%s" % '\n\t\t'.join(log.stack))
-        print("\tStack desc: %s" % ' <-  '.join(log.stack_desc))
         print("\tDuplicates (%d)" % len(log.dups))
         for dup in log.dups:
             print("\t\t%s" % dup)

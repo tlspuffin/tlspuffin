@@ -36,7 +36,7 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor);
 AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor);
 void openssl_destroy(AGENT agent);
 RESULT openssl_progress(AGENT agent);
-RESULT openssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear);
+RESULT openssl_reset(AGENT agent, uint8_t new_name);
 bool openssl_is_successful(AGENT agent);
 const char *openssl_describe_state(AGENT agent);
 bool openssl_is_successful(AGENT agent);
@@ -155,7 +155,7 @@ RESULT openssl_progress(AGENT agent)
     return get_result(agent, ret, true);
 }
 
-RESULT openssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
+RESULT openssl_reset(AGENT agent, uint8_t new_name)
 {
     agent->name = new_name;
 
@@ -240,15 +240,9 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_set_max_proto_version(ssl_ctx, tls_version[descriptor->tls_version]);
 #endif
 
-    if (descriptor->tls_version == V1_3)
-    {
-        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
-    }
-    else
-    {
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
-    }
+    // Disallow EXPORT in client
+    SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string);
+    SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string);
 
     if (descriptor->group_list != NULL)
     {
@@ -314,15 +308,9 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_set_tmp_rsa(ssl_ctx, rsa);
 #endif
 
-    if (descriptor->tls_version == V1_3)
-    {
-        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
-    }
-    else
-    {
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
-    }
+    // Allow EXPORT in server
+    SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string);
+    SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string);
 
     if (descriptor->group_list != NULL)
     {
