@@ -121,6 +121,7 @@ typedef struct Claim
     ClaimVersion version;
 
     int server;
+    uint8_t peer_authentication;
 
     // Session ID
     ClaimSessionId session_id;
