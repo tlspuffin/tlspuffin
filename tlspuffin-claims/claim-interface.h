@@ -75,8 +75,6 @@ typedef struct ClaimCertData
 {
     ClaimKeyType key_type;
     int key_length;
-    int data_length;
-    unsigned char data[CLAIM_MAX_CERTIFICATE_LENGHT];
 } ClaimCertData;
 
 typedef struct ClaimCipher
@@ -123,7 +121,6 @@ typedef struct Claim
     ClaimVersion version;
 
     int server;
-    uint8_t peer_authentication;
 
     // Session ID
     ClaimSessionId session_id;
