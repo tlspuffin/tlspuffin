@@ -60,7 +60,7 @@ extern "C"
         /*
          * In-place reset of the agent.
          */
-        RESULT (*const reset)(AGENT agent, uint8_t new_name);
+        RESULT (*const reset)(AGENT agent, uint8_t new_name, uint8_t use_clear);
 
         /*
          * Produce a textual description of the current agent's state.

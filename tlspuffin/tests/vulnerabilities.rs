@@ -120,8 +120,9 @@ fn test_seed_cve_2022_38153(put: &str) {
     let runner = default_runner_for(put);
     let trace = seed_successful12_with_tickets.build_trace();
 
-    for _ in 0..50 {
-        let _ = runner.execute(trace.clone()).unwrap();
+    let _ = runner.execute_config(trace.clone(), true).unwrap();
+    for _ in 1..50 {
+        let _ = runner.execute_config(trace.clone(), false).unwrap();
     }
 
     expect_trace_crash(
