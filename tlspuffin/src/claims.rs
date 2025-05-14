@@ -376,15 +376,14 @@ pub mod claims_helpers {
             // has been processed
             security_claims::ClaimType::CLAIM_FINISHED => {
                 /*let peer_certificate = if claim.peer_authentication == 1
-                    && matches!(claim.peer_cert.data_length, 1..1024)
+                    && matches!(claim.peer_cert.data_length, 1..10240)
                 {
                     SmallVec::from_slice(
                         &claim.peer_cert.data[..claim.peer_cert.data_length as usize],
                     )
                 } else {
-                    SmallVec::new()
+                    Default::default()
                 };*/
-                let peer_certificate0 = SmallVec::new();
                 Some(ClaimData::Message(ClaimDataMessage::Finished(Finished {
                     outbound: claim.write > 0,
                     client_random: SmallVec::from(claim.client_random.data),
@@ -392,20 +391,18 @@ pub mod claims_helpers {
                     session_id: SmallVec::from_slice(
                         &claim.session_id.data[..claim.session_id.length as usize],
                     ),
-                    authenticate_peer: false/*claim.peer_authentication == 1*/,
-                    peer_certificate: peer_certificate0,
-                    /*master_secret: match protocol_version {
+                    authenticate_peer: false,             // FIXME
+                    peer_certificate: Default::default(), // FIXME
+                    master_secret: match protocol_version {
                         TLSVersion::V1_3 => SmallVec::from_slice(&claim.master_secret.secret),
                         TLSVersion::V1_2 => SmallVec::from_slice(&claim.master_secret_12.secret),
-                    },*/
-                    master_secret: SmallVec::new(),
+                    },
                     chosen_cipher: claim.chosen_cipher.data,
-                    /*available_ciphers: SmallVec::from_iter(
+                    available_ciphers: SmallVec::from_iter(
                         claim.available_ciphers.ciphers[..claim.available_ciphers.length as usize]
                             .iter()
                             .map(|cipher| cipher.data),
-                    ),*/
-                    available_ciphers: SmallVec::new(),
+                    ),
                     signature_algorithm: claim.signature_algorithm,
                     peer_signature_algorithm: claim.peer_signature_algorithm,
                 })))
