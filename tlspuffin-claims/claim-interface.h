@@ -75,6 +75,8 @@ typedef struct ClaimCertData
 {
     ClaimKeyType key_type;
     int key_length;
+    int data_length;
+    unsigned char data[CLAIM_MAX_CERTIFICATE_LENGHT];
 } ClaimCertData;
 
 typedef struct ClaimCipher

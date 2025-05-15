@@ -127,7 +127,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
   }
 
   claim->server = agent->ssl->options.side == WOLFSSL_SERVER_END;
-  ////claim->peer_authentication = agent->peer_authentication;
+  claim->peer_authentication = agent->peer_authentication;
 
 #if LIBWOLFSSL_VERSION_HEX >= 0x05003000
   WOLFSSL_SESSION* session = agent->ssl->session;
@@ -195,7 +195,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
 
   // cert
   claim->cert.key_length = 0;
-  ////claim->cert.data_length = 0;
+  claim->cert.data_length = 0;
   WOLFSSL_X509 *cert = wolfSSL_get_certificate(agent->ssl);
   if (cert != NULL) {
     int cert_lenght = wolfSSL_i2d_X509(cert, NULL);
@@ -203,8 +203,8 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
       uint8_t* data = NULL;
       cert_lenght = wolfSSL_i2d_X509(cert, &data);
       if (cert_lenght > 0) {
-        ////claim->cert.data_length = MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT);
-        ////memcpy(claim->cert.data, data, claim->cert.data_length);
+        claim->cert.data_length = MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT);
+        memcpy(claim->cert.data, data, claim->cert.data_length);
       } else {
         _log(PUFFIN.error, "wolfSSL_i2d_X509 returned two differents values");
       }
@@ -231,7 +231,7 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
 
   // peer cert
   claim->peer_cert.key_length = 0;
-  ////claim->peer_cert.data_length = 0;
+  claim->peer_cert.data_length = 0;
   WOLFSSL_X509 *peer_cert = wolfSSL_get_peer_certificate(agent->ssl);
   if (peer_cert != NULL) {
     int cert_lenght = wolfSSL_i2d_X509(peer_cert, NULL);
@@ -239,8 +239,8 @@ static void fill_claim(AGENT agent, struct Claim* claim) {
       uint8_t* data = NULL;
       cert_lenght = wolfSSL_i2d_X509(peer_cert, &data);
       if (cert_lenght > 0) {
-        ////claim->peer_cert.data_length = MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT);
-        ////memcpy(claim->peer_cert.data, data, claim->peer_cert.data_length);
+        claim->peer_cert.data_length = MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT);
+        memcpy(claim->peer_cert.data, data, claim->peer_cert.data_length);
       } else {
         _log(PUFFIN.error, "wolfSSL_i2d_X509 returned two differents values");
       }
