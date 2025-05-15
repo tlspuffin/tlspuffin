@@ -70,16 +70,6 @@ runs:
         printf 'minrust=%s\n' "${MINRUST_TOOLCHAIN}" >> "${GITHUB_OUTPUT}"
         printf 'rustup-home=%s\n' "$(just run rustup show home)" >> "${GITHUB_OUTPUT}"
 
-    - uses: actions/cache@v4
-      id: rustup-cache
-      with:
-        key: rustup_cache-${{ runner.os }}-${{ steps.toolchains-config.outputs.default }}-${{ steps.toolchains-config.outputs.nightly }}
-        restore-keys: |
-          rustup_cache-${{ runner.os }}-${{ steps.toolchains-config.outputs.default }}
-          rustup_cache-${{ runner.os }}
-        path: |
-          ${{ steps.toolchains-config.outputs.rustup-home }}
-
     - name: install Rust toolchains
       shell: bash
       run: |
