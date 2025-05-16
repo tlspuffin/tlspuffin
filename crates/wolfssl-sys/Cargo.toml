@@ -26,6 +26,8 @@ wolfssl510 = []
 wolfssl520 = []
 wolfssl530 = []
 wolfssl540 = []
+wolfssl552 = []
+wolfssl572 = []
 master = []
 
 sancov = []

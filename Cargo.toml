@@ -45,7 +45,7 @@ description = "A Dolev-Yao-model-guided fuzzer for TLS"
 
 [workspace.dependencies]
 log = "0.4"
-log4rs = "1.2.0"
+log4rs = { version = "1.2.0", features = ["gzip"] }
 test-log = "0.2"
 env_logger = "0.10"
 tempfile = "3.3.0"

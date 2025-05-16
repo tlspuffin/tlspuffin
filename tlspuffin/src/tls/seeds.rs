@@ -397,6 +397,53 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProto
     }
 }
 
+/// This seed performs a TLS 1.2 handshake between a client and a server by only
+/// forwarding messages between the agents
+pub fn seed_successful12_forward(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            TLSDescriptorConfig::new_client(client, TLSVersion::V1_2),
+            TLSDescriptorConfig::new_server(server, TLSVersion::V1_2),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            // Client Hello Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        (client, 0)/MessageFlight
+                    }
+                }),
+            },
+            // ServerHello/EncryptedExtensions/Certificate/CertificateVerify/ServerFinished ->
+            // Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        (server, 0)/MessageFlight
+                    }
+                }),
+            },
+            // Client Finished -> server
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        (client, 1)/MessageFlight
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        (server, 1)/MessageFlight
+                    }
+                }),
+            },
+        ],
+    }
+}
+
 // TODO: `[BAD_DECRYPT] [DECRYPTION_FAILED_OR_BAD_RECORD_MAC]` error with BoringSSL
 pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {

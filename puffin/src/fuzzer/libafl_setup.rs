@@ -10,7 +10,7 @@ use log4rs::Handle;
 use super::harness;
 use crate::fuzzer::mutations::{trace_mutations, MutationConfig};
 use crate::fuzzer::stats_monitor::StatsMonitor;
-use crate::log::{config_fuzzing, config_fuzzing_client};
+use crate::log::load_fuzzing_client;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
@@ -411,15 +411,12 @@ where
 
     log::info!("Running on cores: {}", &core_definition);
     log::info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
-    log_handle.set_config(config_fuzzing(log_file));
 
     let mut run_client = |state: Option<StdState<Trace<PB::ProtocolTypes>, _, _, _>>,
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
                           _core_id: CoreId|
      -> Result<(), Error> {
-        log_handle
-            .clone()
-            .set_config(config_fuzzing_client(log_file));
+        log_handle.clone().set_config(load_fuzzing_client());
 
         let harness_fn = &mut (|input: &_| harness::harness::<PB>(put_registry, input));
 

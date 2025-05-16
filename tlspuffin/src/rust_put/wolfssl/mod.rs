@@ -216,7 +216,14 @@ impl RustPut {
         }
 
         // Disallow EXPORT in client
-        ctx.set_cipher_list(&descriptor.protocol_config.cipher_string)?;
+        match descriptor.protocol_config.tls_version {
+            TLSVersion::V1_3 => {
+                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?
+            }
+            TLSVersion::V1_2 => {
+                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?
+            }
+        }
 
         if let Some(groups) = &descriptor.protocol_config.groups {
             ctx.set_groups(groups)?;
@@ -247,8 +254,14 @@ impl RustPut {
         // cache"
         ctx.disable_session_cache()?;
 
-        // Disallow EXPORT in server
-        ctx.set_cipher_list(&descriptor.protocol_config.cipher_string)?;
+        match descriptor.protocol_config.tls_version {
+            TLSVersion::V1_3 => {
+                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?
+            }
+            TLSVersion::V1_2 => {
+                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?
+            }
+        }
 
         if let Some(groups) = &descriptor.protocol_config.groups {
             ctx.set_groups(groups)?;
