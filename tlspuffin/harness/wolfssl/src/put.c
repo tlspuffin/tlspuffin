@@ -26,7 +26,7 @@
 // static int file = -1;
 //#define CREATE(filename) { file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 //} #define ENTER() fprintf(stderr, "Entering %s\n", __func__) #define ENTER() { char buf[128] = {};
-//int s = snprintf(buf, 128, "Entering %s\n", __func__); write(file, buf, s); }
+// int s = snprintf(buf, 128, "Entering %s\n", __func__); write(file, buf, s); }
 
 static uint8_t rng_have_custom_seed = 0;
 #define CUSTOM_SEED_SIZE 256
@@ -250,7 +250,7 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         else
         {
             //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate returned an error a ask for a too big
-            //buffer");
+            // buffer");
         }
         int key_type = wolfSSL_X509_get_pubkey_type(cert);
         if (key_type != WOLFSSL_FAILURE)
@@ -301,7 +301,7 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         else
         {
             //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate returned an error a ask for a too big
-            //buffer");
+            // buffer");
         }
         int key_type = wolfSSL_X509_get_pubkey_type(cert);
         if (key_type != WOLFSSL_FAILURE)
