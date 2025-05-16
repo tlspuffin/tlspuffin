@@ -55,6 +55,7 @@ struct AGENT_TYPE
     bool peer_authentication;
 };
 
+// Map a key type enum to the corresponding claim key type.
 static ClaimKeyType map_keysum_claimkeytype(enum Key_Sum key)
 {
     switch (key)
@@ -84,6 +85,8 @@ static ClaimKeyType map_keysum_claimkeytype(enum Key_Sum key)
     }
 }
 
+// Extract the current handshake transcript hash from a TLS agent.
+// Returns the SHA-256 digest size on success, or 0 on failure.
 static int extract_current_transcript(AGENT agent, unsigned char *buffer, int bufferSize)
 {
     if (agent == NULL)
@@ -118,6 +121,7 @@ static int extract_current_transcript(AGENT agent, unsigned char *buffer, int bu
     }
 }
 
+// Populate a pre-allocated Claim structure from the current wolfSSL state
 static void fill_claim(AGENT agent, struct Claim *claim)
 {
     char *error_msg = "no error";
@@ -231,27 +235,19 @@ static void fill_claim(AGENT agent, struct Claim *claim)
     WOLFSSL_X509 *cert = wolfSSL_get_certificate(agent->ssl);
     if (cert != NULL)
     {
-        int cert_lenght = wolfSSL_i2d_X509(cert, NULL);
+        uint8_t *data = NULL;
+        int cert_lenght = wolfSSL_i2d_X509(cert, &data);
         if (cert_lenght > 0)
         {
-            uint8_t *data = NULL;
-            cert_lenght = wolfSSL_i2d_X509(cert, &data);
-            if (cert_lenght > 0)
-            {
-                claim->cert.data_length = MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT);
-                memcpy(claim->cert.data, data, claim->cert.data_length);
-            }
-            else
-            {
-                _log(PUFFIN.error, "wolfSSL_i2d_X509 returned two differents values");
-            }
-            wolfSSL_Free(data);
+            claim->cert.data_length = MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT);
+            memcpy(claim->cert.data, data, claim->cert.data_length);
         }
         else
         {
             //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate returned an error a ask for a too big
             // buffer");
         }
+        wolfSSL_Free(data);
         int key_type = wolfSSL_X509_get_pubkey_type(cert);
         if (key_type != WOLFSSL_FAILURE)
         {
@@ -282,27 +278,19 @@ static void fill_claim(AGENT agent, struct Claim *claim)
     WOLFSSL_X509 *peer_cert = wolfSSL_get_peer_certificate(agent->ssl);
     if (peer_cert != NULL)
     {
-        int cert_lenght = wolfSSL_i2d_X509(peer_cert, NULL);
+        uint8_t *data = NULL;
+        int cert_lenght = wolfSSL_i2d_X509(peer_cert, &data);
         if (cert_lenght > 0)
         {
-            uint8_t *data = NULL;
-            cert_lenght = wolfSSL_i2d_X509(peer_cert, &data);
-            if (cert_lenght > 0)
-            {
-                claim->peer_cert.data_length = MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT);
-                memcpy(claim->peer_cert.data, data, claim->peer_cert.data_length);
-            }
-            else
-            {
-                _log(PUFFIN.error, "wolfSSL_i2d_X509 returned two differents values");
-            }
-            wolfSSL_Free(data);
+            claim->peer_cert.data_length = MIN(cert_lenght, CLAIM_MAX_CERTIFICATE_LENGHT);
+            memcpy(claim->peer_cert.data, data, claim->peer_cert.data_length);
         }
         else
         {
             //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate returned an error a ask for a too big
             // buffer");
         }
+        wolfSSL_Free(data);
         int key_type = wolfSSL_X509_get_pubkey_type(cert);
         if (key_type != WOLFSSL_FAILURE)
         {
@@ -404,6 +392,10 @@ static const CLAIMER_CB DEFAULT_CLAIMER_CB = {.context = NULL,
                                               .notify = default_claimer_notify,
                                               .destroy = default_claimer_destroy};
 
+// Translate the result of a wolfSSL operation into a human-readable message and a RESULT_CODE.
+// Returns a dynamically allocated error string describing the last wolfSSL error.
+// If result_code is not NULL, sets it based on the error type.
+// Caller is responsible for freeing the returned string.
 static char *get_result_information(WOLFSSL *ssl, int retval, RESULT_CODE *result_code)
 {
     int error_code = wolfSSL_get_error(ssl, retval);
@@ -439,7 +431,7 @@ wolfssl_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *re
 {
     int ret = wolfSSL_BIO_read(agent->out, bytes, max_length);
     *readbytes = ret > 0 ? ret : 0;
-    /* ToDo check it bring something
+    /* ToDo check if it bring something
     if (((ret <= 0) && wolfSSL_BIO_should_retry(agent->out)) || (ret > 0)) {
       ret = 0;
     }*/
@@ -456,7 +448,7 @@ static RESULT wolfssl_add_inbound(AGENT agent, const uint8_t *bytes, size_t leng
 {
     int ret = wolfSSL_BIO_write(agent->in, bytes, length);
     *written = ret > 0 ? ret : 0;
-    /* ToDo check it bring something
+    /* ToDo check if it bring something
     if (((ret <= 0) && wolfSSL_BIO_should_retry(agent->out)) || (ret > 0)) {
       ret = 0;
     }*/
@@ -488,7 +480,7 @@ static void wolfssl_message_callback(int write_p,
     {
         type = *((uint8_t *)buf);
     }
-    if (write_p != 1)
+    if (write_p != 1) // packet being read
     {
         switch (type)
         {
@@ -514,20 +506,20 @@ static void wolfssl_message_callback(int write_p,
 
     unsigned char buffer[WC_SHA256_DIGEST_SIZE] = {};
     int transcript_lenght = extract_current_transcript(agent, buffer, WC_SHA256_DIGEST_SIZE);
-    if (transcript_lenght == 0)
+    if (transcript_lenght != 0)
     {
-        return;
-    }
-    if (agent->ssl->options.serverState == SERVER_HELLO_COMPLETE)
-    {
-        agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
-        struct Claim claim = {};
-        claim.typ = CLAIM_TRANSCRIPT_CH_SH;
-        fill_claim(agent, &claim);
-        agent->claimer.notify(agent->claimer.context, &claim);
+        if (agent->ssl->options.serverState == SERVER_HELLO_COMPLETE)
+        {
+            agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
+            struct Claim claim = {};
+            claim.typ = CLAIM_TRANSCRIPT_CH_SH;
+            fill_claim(agent, &claim);
+            agent->claimer.notify(agent->claimer.context, &claim);
+        }
     }
 }
 
+// Register a claimer. If claimer is NULL, then register DEFAULT_CLAIMER_CB
 static void wolfssl_register_claimer(AGENT agent, const CLAIMER_CB *claimer)
 {
     if (agent->claimer.destroy != NULL)
@@ -540,7 +532,7 @@ static void wolfssl_register_claimer(AGENT agent, const CLAIMER_CB *claimer)
     }
     else
     {
-        memset((void *)&agent->claimer, 0, sizeof(CLAIMER_CB));
+        memcpy((void *)&agent->claimer, &DEFAULT_CLAIMER_CB, sizeof(CLAIMER_CB));
     }
 }
 
@@ -601,14 +593,9 @@ static enum states wolfssl_query_state(AGENT agent)
 
 static const char *wolfssl_describe_state(AGENT agent)
 {
-#if 0
-  char const* state = wolfSSL_state_string_long(agent->ssl);
-  return state;
-#else
     enum states state = wolfssl_query_state(agent);
     char const *state_string = map_state_statestr(state);
     return state_string;
-#endif
 }
 
 static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
@@ -620,10 +607,15 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
                                   "fatal error wolfssl_reset called with agent == NULL");
     }
 
+#if 0
+    // Was in rust harness
+    CLAIMER_CB current_claimer_cb = {};
+    memcpy(&current_claimer_cb, (void*)&agent->claimer, sizeof(CLAIMER_CB));
+    wolfssl_register_claimer(agent, NULL);
+#endif
+
     if (use_clear)
     {
-        // CLAIMER_CB current_claimer_cb = {};
-        // memcpy(&current_claimer_cb, (void*)&agent->claimer, sizeof(CLAIMER_CB));
         int ret = wolfSSL_clear(agent->ssl);
         memset((void *)&agent->claimer, 0, sizeof(CLAIMER_CB));
         agent->name = new_name;
@@ -634,9 +626,6 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
             free(reason);
             return result;
         }
-        /*if (current_claimer_cb.notify != NULL) {
-          memcpy((void*)&agent->claimer, &current_claimer_cb, sizeof(CLAIMER_CB));
-        }*/
     }
     else
     {
@@ -650,6 +639,11 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
                                       "fatal error in wolfssl_reset, make_agent returned NULL");
         }
     }
+
+#if 0
+    // Was in rust harness
+    wolfssl_register_claimer(agent, &current_claimer_cb);
+#endif
 
     return PUFFIN.make_result(RESULT_OK, NULL);
 }
@@ -688,6 +682,7 @@ static RESULT wolfssl_progress(AGENT agent)
 #if 1
         int ret = wolfSSL_SSL_do_handshake(agent->ssl);
 #else
+        // Rust harness use it, but not working for now in C harness
         int ret = wolfSSL_accept(agent->ssl);
 #endif
         if (ret == WOLFSSL_SUCCESS)
@@ -826,6 +821,7 @@ ERROR__make_agent:
 }
 
 #ifdef USE_CUSTOM_PRNG
+// Callback used by wolfssl to to create seeds
 static int myCryptoCb_Func(int devId, wc_CryptoInfo *info, void *ctx)
 {
     if ((rng_have_custom_seed == 0) || (info->algo_type != WC_ALGO_TYPE_SEED))
@@ -842,6 +838,7 @@ static int myCryptoCb_Func(int devId, wc_CryptoInfo *info, void *ctx)
         return CRYPTOCB_UNAVAILABLE;
     }
 
+    // Generate a new seed, with unique bytes
     uint8_t seen[256] = {};
     for (size_t i = 0; i < info->seed.sz; ++i)
     {
@@ -902,6 +899,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     }
 
 #ifdef USE_CUSTOM_PRNG
+    // Register a device to provide seed (for determinism)
     int_retval = wc_CryptoCb_RegisterDevice(1, myCryptoCb_Func, agent->ctx);
     if (int_retval != 0)
     {
@@ -990,6 +988,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     if (is_server || descriptor->client_authentication)
     {
 #if 1
+        // Mimic rust harness
         WOLFSSL_X509 *x509 = NULL;
         WOLFSSL_BIO *bio = wolfSSL_BIO_new(wolfSSL_BIO_s_mem());
         if (bio == NULL)
