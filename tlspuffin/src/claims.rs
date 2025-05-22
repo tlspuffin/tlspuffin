@@ -375,6 +375,15 @@ pub mod claims_helpers {
             // Transcripts in these messages are not up-to-date. They get updated after the Message
             // has been processed
             security_claims::ClaimType::CLAIM_FINISHED => {
+                let peer_certificate = if claim.peer_authentication == 1
+                    && matches!(claim.peer_cert.data_length, 1..10240)
+                {
+                    SmallVec::from_slice(
+                        &claim.peer_cert.data[..claim.peer_cert.data_length as usize],
+                    )
+                } else {
+                    Default::default()
+                };
                 Some(ClaimData::Message(ClaimDataMessage::Finished(Finished {
                     outbound: claim.write > 0,
                     client_random: SmallVec::from(claim.client_random.data),
@@ -382,8 +391,8 @@ pub mod claims_helpers {
                     session_id: SmallVec::from_slice(
                         &claim.session_id.data[..claim.session_id.length as usize],
                     ),
-                    authenticate_peer: false,             // FIXME
-                    peer_certificate: Default::default(), // FIXME
+                    authenticate_peer: claim.peer_authentication == 1,
+                    peer_certificate,
                     master_secret: match protocol_version {
                         TLSVersion::V1_3 => SmallVec::from_slice(&claim.master_secret.secret),
                         TLSVersion::V1_2 => SmallVec::from_slice(&claim.master_secret_12.secret),

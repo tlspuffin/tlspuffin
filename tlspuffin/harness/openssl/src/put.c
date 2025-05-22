@@ -36,7 +36,7 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor);
 AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor);
 void openssl_destroy(AGENT agent);
 RESULT openssl_progress(AGENT agent);
-RESULT openssl_reset(AGENT agent, uint8_t new_name);
+RESULT openssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear);
 bool openssl_is_successful(AGENT agent);
 const char *openssl_describe_state(AGENT agent);
 bool openssl_is_successful(AGENT agent);
@@ -155,7 +155,7 @@ RESULT openssl_progress(AGENT agent)
     return get_result(agent, ret, true);
 }
 
-RESULT openssl_reset(AGENT agent, uint8_t new_name)
+RESULT openssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
 {
     agent->name = new_name;
 

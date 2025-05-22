@@ -283,7 +283,13 @@ impl Put<TLSProtocolBehavior> for CAgent {
 
     fn reset(&mut self, new_name: puffin::agent::AgentName) -> Result<(), Error> {
         self.config.descriptor.name = new_name;
-        r_ccall!(self.put, reset, self.c_agent, new_name.into())?;
+        r_ccall!(
+            self.put,
+            reset,
+            self.c_agent,
+            new_name.into(),
+            self.config.use_clear as u8
+        )?;
         self.register_claimer();
         Ok(())
     }
