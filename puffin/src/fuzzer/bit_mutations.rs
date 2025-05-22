@@ -177,9 +177,9 @@ use paste::paste;
 use crate::algebra::bitstrings::Payloads;
 use crate::algebra::signature::Signature;
 use crate::fuzzer::mutations::{
-    dy_mutations, remove_prefix_and_type, DyMutations, GenerateMutator, MakeMessage,
-    MutationConfig, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
-    SkipMutator, SwapMutator,
+    dy_mutations, remove_prefix_and_type, GenerateMutator, MakeMessage, MutationConfig,
+    RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,
+    SwapMutator,
 };
 use crate::put_registry::PutRegistry;
 
