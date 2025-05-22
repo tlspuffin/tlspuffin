@@ -361,17 +361,19 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         //         the match would not overlap with the siblings position extrapolated to be exactly
         //         at the end of eval_parent (no trailer): eval_parent.len() -
         //         eval_right_siblings.len()
-        if let Some(pos_child) = all_matches.iter().rev().find(|p| {
-            **p + eval_child.len()
-                <= core::cmp::max(0, eval_parent.len() - eval_right_siblings.len())
-        }) {
-            log::debug!("[find_unique_match_rec] [S2:2] [not-sib] Found pos_child: {pos_child} by comparing with end of eval_parent.len(): {} and eval_right_siblings.len(): {}. Continue....", eval_parent.len(), eval_right_siblings.len());
-            start_pos += pos_child;
-            continue;
-        } else {
-            let ft = format!("--> [find_unique_match_rec] [S2:2] [not-sib-not] Could not find at least one appropriate idx for all_matches: {all_matches:?}, eval_child.len: {}, eval_parent.len: {}, eval_right_siblings.len: {}", eval_child.len(), eval_parent.len(), eval_right_siblings.len());
-            return Err(anyhow!(Error::TermBug(ft)));
-        }
+        // Old heuristics:
+        // if let Some(pos_child) = all_matches.iter().rev().find(|p| {
+        //     **p + eval_child.len()
+        //         <= core::cmp::max(0, eval_parent.len() - eval_right_siblings.len())
+        // }) {
+        //     log::debug!("[find_unique_match_rec] [S2:2] [not-sib] Found pos_child: {pos_child} by
+        // comparing with end of eval_parent.len(): {} and eval_right_siblings.len(): {}.
+        // Continue....", eval_parent.len(), eval_right_siblings.len());     start_pos +=
+        // pos_child;     continue;
+        // } else {
+        //     let ft = format!("--> [find_unique_match_rec] [S2:2] [not-sib-not] Could not find at least one appropriate idx for all_matches: {all_matches:?}, eval_child.len: {}, eval_parent.len: {}, eval_right_siblings.len: {}", eval_child.len(), eval_parent.len(), eval_right_siblings.len());
+        //     return Err(anyhow!(Error::TermBug(ft)));
+        // }
     }
 
     log::debug!("[find_unique_match_rec] End of while, returning {start_pos}");

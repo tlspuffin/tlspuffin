@@ -10,7 +10,7 @@ use log4rs::Handle;
 
 use super::harness;
 use crate::fuzzer::bit_mutations::havoc_mutations_dy;
-use crate::fuzzer::mutations::{dy_mutations, MakeMessage, MutationConfig};
+use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::log::load_fuzzing_client;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
@@ -253,7 +253,7 @@ where
                             _: &mut _,
                             state: &mut ConcreteState<C, R, SC, Trace<PT>>,
                             _: &mut _,
-                            idx: CorpusId|
+                            _idx: CorpusId|
          -> Result<bool, Error> {
             if !mutation_config.with_bit_level {
                 return Ok(false);

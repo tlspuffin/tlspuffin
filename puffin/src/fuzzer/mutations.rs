@@ -1,7 +1,4 @@
-use std::ptr::replace;
-
 use anyhow::Result;
-use itertools::Itertools;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
