@@ -120,8 +120,21 @@ fn test_seed_cve_2022_38153(put: &str) {
     let runner = default_runner_for(put);
     let trace = seed_successful12_with_tickets.build_trace();
 
-    for _ in 0..50 {
-        let _ = runner.execute(trace.clone()).unwrap();
+    let _ = runner.execute_config(trace.clone(), true).unwrap();
+    /*
+    Originally, puffin found this bug because wolfssl was not made deterministic at all. The bug requires that the
+    shared (across sessions) ticket map gets filled until a collision happen (a key refers to two tickets). For this to
+    happen, we need to create several **different** tickets. This won't happen, now that wolfssl is made
+    deterministic (the same ticket will be created at the end of a single handshake). We mimick the old behavior
+    here, using `.execute_config`.
+
+    Theoretically, this attack can still be found with a deterministic WolfSSL: mutations could repeat a full
+    handshake multiple times (hence yielding different tickets) and then appending the malicious handshake.
+    This is extremely unlikely to happen though; or even impossible given the bounds on the trace lengths. In
+    the future, we might want to reconsider whether we **always** want to reseed prior to executing a trace.
+    */
+    for _ in 1..50 {
+        let _ = runner.execute_config(trace.clone(), false).unwrap();
     }
 
     expect_trace_crash(
