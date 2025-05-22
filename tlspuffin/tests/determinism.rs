@@ -3,7 +3,13 @@ use std::time::Duration;
 
 use tlspuffin::test_utils::prelude::*;
 
-#[apply(test_puts, filter = all(tls13, boringssl))]
+/*
+OpenSSL is currently excuded because:
+  (i) we currently don't have a working RNG reseed for the OpenSSL CPUT (see Issue #393),
+  (ii) we don't have a time hook at the moment for the OpenSSL CPUT.
+*/
+#[cfg(not(feature = "wolfssl430"))]
+#[apply(test_puts, filter = not(openssl))]
 fn test_attacker_full_det_recreate(put: &str) {
     use tlspuffin::tls::seeds::seed_client_attacker_full;
 
