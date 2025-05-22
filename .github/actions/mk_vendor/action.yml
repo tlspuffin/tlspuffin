@@ -20,7 +20,7 @@ runs:
       shell: bash
       run: |
         #!/usr/bin/env bash
-        SCRIPTS=${{ hashFiles(format('puffin-build/vendors/{0}/**',inputs.vendor), 'puffin-build/builder/**') }}
+        SCRIPTS=${{ hashFiles(format('puffin-build/vendors/{0}/**',inputs.vendor), 'puffin-build/builder/**', 'tlspuffin-claims/claim-interface.h') }}
 
         printf 'scripts=%s\n' "${SCRIPTS}" >> "${GITHUB_OUTPUT}"
         printf 'confuid=%s\n' "${CONFUID}" >> "${GITHUB_OUTPUT}"

@@ -1,9 +1,12 @@
 #ifndef TLSPUFFIN_CLAIM_INTERFACE_H
 #define TLSPUFFIN_CLAIM_INTERFACE_H
 
+#include <stdint.h>
+
 #define CLAIM_MAX_AVAILABLE_CIPHERS 256
 #define CLAIM_MAX_SECRET_SIZE 64 /* longest known is SHA512 */
 #define CLAIM_SESSION_ID_LENGTH 32
+#define CLAIM_MAX_CERTIFICATE_LENGTH 10240
 
 typedef enum ClaimTLSVersion
 {
@@ -72,6 +75,8 @@ typedef struct ClaimCertData
 {
     ClaimKeyType key_type;
     int key_length;
+    int data_length;
+    unsigned char data[CLAIM_MAX_CERTIFICATE_LENGTH];
 } ClaimCertData;
 
 typedef struct ClaimCipher
@@ -118,6 +123,7 @@ typedef struct Claim
     ClaimVersion version;
 
     int server;
+    uint8_t peer_authentication;
 
     // Session ID
     ClaimSessionId session_id;
