@@ -1,7 +1,7 @@
 # log4rs configuration file for the fuzzing client
 # A: Quick config
 # Adapt the followings to your need:
-# - Change the debug level to `trace` for the `puffin::harness` logger to print all vendor logs in the `tlspuffin.out` file.
+# - Change the debug level to `trace` for the `puffin::harness` logger to print all vendor logs in the `puffin_main_broker_stderr.log` file.
 # - Enable the `debug` logger to print all debug logs in the `debug.log` file.
 
 #  B: Full configuration
@@ -20,7 +20,7 @@
 #   - error: ERROR level messages
 #   - warn: WARNING level messages
 #   - puffin::harness: Debug-level harness logs. By default hidden.
-#     Use level `trace` to print all vendor logs in `tlspuffin.out` file.Spawning next client
+#     Use level `trace` to print all vendor logs in `puffin_main_broker_stderr.log` file.Spawning next client
 #   - puffin::fuzzer: Info-level fuzzer logs
 #   - your_custom_logger: Custom logger taking messages from a specific module and level and redirecting to a specific
 #     appender
@@ -29,176 +29,173 @@
 refresh_rate: 30 seconds
 
 appenders:
-  # An appender named "stdout" that writes to stdout
   stdout:
     kind: console
 
-  # An appender named "fuzzer" that writes to a file for fuzzer logging
-  fuzzer_log:
+  # An appender named "fuzzer.log" that writes to a file for fuzzer logging
+  fuzzer.log:
     kind: rolling_file
     path: "log/fuzzer.log"
     encoder:
       pattern: "{d}\t{l}\t{m}{n}"
     policy:
-      kind: compound
       trigger:
         kind: size
-        limit: 10 mb
+        limit: 10 mb  # 10 MB
       roller:
         kind: fixed_window
-        pattern: log/fuzzer.{}.gz
-        # The maximum number of archived logs to maintain. Required.
-        count: 5
-        # The base value for archived log indices. Defaults to 0.
+        pattern: "log/fuzzer.{}.gz"
         base: 1
+        count: 20
 
-  # An appender named "harness" that writes to a file for harness logging
-  harness_log:
+  # An appender named "harness.log" that writes to a file for harness logging
+  harness.log:
     kind: rolling_file
     path: "log/harness.log"
     encoder:
       pattern: "{d}\t{l}\t{m}{n}"
     policy:
+      trigger:
+        kind: size
+        limit: 10 mb  # 10 MB
+      roller:
+        kind: fixed_window
+        pattern: "log/harness.{}.gz"
+        base: 1
+        count: 20
+
+  # An appender named "puffin_terms_log" that writes to a file for algebra::terms fuzzing
+  puffin_terms_log:
+    kind: rolling_file
+    path: "log/terms.log"
+    encoder:
+      pattern: "{d}\t{l}\t{m}{n}"
+    policy:
       kind: compound
       trigger:
         kind: size
         limit: 10 mb
       roller:
         kind: fixed_window
-        pattern: log/harness.{}.gz
+        pattern: "log/terms.{}.gz"
         # The maximum number of archived logs to maintain. Required.
         count: 5
         # The base value for archived log indices. Defaults to 0.
         base: 1
 
-#  # An appender named "puffin_terms_log" that writes to a file for algebra::terms fuzzing
-#  puffin_terms_log:
-#    kind: rolling_file
-#    path: "log/terms.log"
-#    encoder:
-#      pattern: "{d}\t{l}\t{m}{n}"
-#    policy:
-#      kind: compound
-#      trigger:
-#        kind: size
-#        limit: 10 mb
-#      roller:
-#        kind: fixed_window
-#        pattern: log/terms.{}.gz
-#        # The maximum number of archived logs to maintain. Required.
-#        count: 5
-#        # The base value for archived log indices. Defaults to 0.
-#        base: 1
-
-  # New appender for INFO level messages
-  info_log:
+  # Appenders for level=-specific global messages
+  info.log:
     kind: rolling_file
     path: "log/info.log"
     encoder:
       pattern: "{d}\t{l}\t{m}{n}"
     policy:
-      kind: compound
       trigger:
         kind: size
-        limit: 10 mb
+        limit: 10 mb  # 10 MB
       roller:
         kind: fixed_window
-        pattern: log/info.{}.gz
-        count: 5
+        pattern: "log/info.{}.gz"
         base: 1
+        count: 20
+    filters:
+      - kind: threshold
+        level: info
 
-
-
-  # New appender for WARN level messages
-  warn_log:
+  warn.log:
     kind: rolling_file
     path: "log/warn.log"
     encoder:
       pattern: "{d}\t{l}\t{m}{n}"
     policy:
-      kind: compound
       trigger:
         kind: size
-        limit: 10 mb
+        limit: 10 mb  # 10 MB
       roller:
         kind: fixed_window
-        pattern: log/warn.{}.gz
-        count: 5
+        pattern: "log/warn.{}.gz"
         base: 1
+        count: 20
+    filters:
+      - kind: threshold
+        level: warn
 
-  # New appender for ERROR level messages
-  error_log:
+  error.log:
     kind: rolling_file
     path: "log/error.log"
     encoder:
       pattern: "{d}\t{l}\t{m}{n}"
     policy:
-      kind: compound
       trigger:
         kind: size
-        limit: 10 mb
+        limit: 10 mb  # 10 MB
       roller:
         kind: fixed_window
-        pattern: log/error.{}.gz
-        count: 5
+        pattern: "log/error.{}.gz"
         base: 1
+        count: 20
+    filters:
+      - kind: threshold
+        level: error
 
-#  # New appender for DEBUG level messages
-#  debug_log:
+#  trace.log:
+#    kind: rolling_file
+#    path: "log/trace.log"
+#    encoder:
+#      pattern: "{d}\t{l}\t{m}{n}"
+#    policy:
+#      trigger:
+#        kind: size
+#        limit: 10 mb  # 10 MB
+#      roller:
+#        kind: fixed_window
+#        pattern: "log/trace.{}.gz"
+#        base: 1
+#        count: 20
+#    filters:
+#      - kind: threshold
+#        level: trace
+#
+#  debug.log:
 #    kind: rolling_file
 #    path: "log/debug.log"
 #    encoder:
 #      pattern: "{d}\t{l}\t{m}{n}"
 #    policy:
-#      kind: compound
 #      trigger:
 #        kind: size
-#        limit: 10 mb
+#        limit: 10 mb  # 10 MB
 #      roller:
 #        kind: fixed_window
-#        pattern: log/debug.{}.gz
-#        count: 5
+#        pattern: "log/debug.{}.gz"
 #        base: 1
+#        count: 20
+#    filters:
+#      - kind: threshold
+#        level: debug
 
-# Set the default logging level to "info" and attach the "info_log" appender to the root
+# Set the default logging level to "info" and attach the level-specific appenders
 root:
-  level: info
+  level: info # Can modify the default level here
   appenders:
-    - info_log
+    - info.log
+    - warn.log
+    - error.log
+    # debug.log and trace.log can be added here
 
 loggers:
-  # New logger for ERROR level messages
-  error:
-    level: error
-    appenders:
-      - error_log
-    additive: true
-
-  warn:
-    level: warn
-    appenders:
-      - warn_log
-    additive: true
-
-#  # Costly!
-#  debug:
-#    level: debug
-#    appenders:
-#      - debug_log
-#    additive: true
-
   # Raise the maximum log level for events sent to the "puffin::harness" logger (C harness) to "debug" and print to a dedicated file
   puffin::harness:
-    level: debug # use `trace` here to print all vendor logs in `tlspuffin.out` file
+    level: info
     appenders:
-      - harness_log
+      - harness.log
     additive: true
 
-  # Raise the maximum log level for events sent to the "puffin::fuzzer" logger to "info" and print to a dedicated file
+    # Raise the maximum log level for events sent to the "puffin::fuzzer" logger to "info" and print to a dedicated file
   puffin::fuzzer:
     level: info
     appenders:
-      - fuzzer_log
+      - fuzzer.log
     additive: true
 
 #  # Costly!

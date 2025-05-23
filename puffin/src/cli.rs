@@ -8,6 +8,7 @@ use clap::parser::ValuesRef;
 use clap::{arg, crate_authors, crate_name, value_parser, Command};
 use libafl::inputs::Input;
 use libafl_bolts::prelude::Cores;
+use log::LevelFilter;
 use puffin_build::puffin;
 
 use crate::agent::AgentName;
@@ -45,8 +46,11 @@ where
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
         .arg(arg!(--"with-bit" "Enable bit-level mutations"))
         .arg(arg!(--"wo-dy" "Disable DY mutations"))
+        .arg(arg!(-v --verbosity [l] "Verbosity level for (quick) experiments")
+            .value_parser(value_parser!(LevelFilter)))
         .subcommands(vec![
-            Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
+            Command::new("quick-experiment").about("Starts a new experiment and writes the results out")
+            ,
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
                 .arg(arg!(-d --description [d] "Description of the experiment"))
@@ -95,14 +99,7 @@ where
     S: AsRef<str>,
     PB: ProtocolBehavior + Clone,
 {
-    let handle = match log4rs::init_config(config_default()) {
-        Ok(handle) => handle,
-        Err(err) => {
-            eprintln!("error: failed to initialize logging: {err:?}");
-            return ExitCode::FAILURE;
-        }
-    };
-
+    // Parsing CLI arguments
     let matches = create_app(title).get_matches();
 
     let first_core = "0".to_string();
@@ -121,8 +118,78 @@ where
     let with_bit_level = !matches.get_flag("with-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
     let target_put: Option<&String> = matches.get_one("put");
+    let verbosity: LevelFilter = *matches
+        .get_one::<LevelFilter>("verbosity")
+        .unwrap_or(&LevelFilter::Info);
 
     let mut put_registry = put_registry.clone();
+
+    // Setup Logging
+    // We need to create the log directory before initializing the logger
+    let (is_experiment, base_directory): (bool, PathBuf) =
+        if let Some(_matches) = matches.subcommand_matches("quick-experiment") {
+            let experiments_root = PathBuf::from("experiments");
+            let title = format_title(
+                None,
+                None,
+                &put_registry,
+                with_bit_level,
+                without_dy_mutations,
+                put_use_clear,
+                minimizer,
+                num_cores,
+            );
+            let mut experiment_path = experiments_root.join(&title);
+
+            let mut i = 1;
+            while experiment_path.as_path().exists() {
+                let title = format_title(
+                    None,
+                    Some(i),
+                    &put_registry,
+                    with_bit_level,
+                    without_dy_mutations,
+                    put_use_clear,
+                    minimizer,
+                    num_cores,
+                );
+                experiment_path = experiments_root.join(title);
+                i += 1;
+            }
+            (true, experiments_root.join(&title))
+        } else {
+            if let Some(matches) = matches.subcommand_matches("experiment") {
+                let git_ref = "_".to_string();
+                let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
+                let experiments_root = PathBuf::new().join("experiments");
+                let title = format_title(
+                    Some(title),
+                    None,
+                    &put_registry,
+                    with_bit_level,
+                    without_dy_mutations,
+                    put_use_clear,
+                    minimizer,
+                    num_cores,
+                );
+                let experiment_path = experiments_root.join(title);
+                assert!(
+                    !experiment_path.as_path().exists(),
+                    "Experiment already exists. Consider creating a new experiment."
+                );
+                (true, experiment_path)
+            } else {
+                // Case of non-experiment: plain fuzzing, trace executions, etc.
+                (false, env::current_dir().unwrap())
+            }
+        };
+    let handle = match log4rs::init_config(config_default(&*base_directory.join("./log"))) {
+        Ok(handle) => handle,
+        Err(err) => {
+            eprintln!("error: failed to initialize logging: {err:?}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     if let Some(name) = target_put {
         if let Err((available_puts, non_available_puts)) =
@@ -365,7 +432,6 @@ where
         let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
             let git_ref = "_".to_string();
             let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
-            let experiments_root = PathBuf::new().join("experiments");
             let format_t = format_title(
                 Some(title),
                 None,
@@ -376,11 +442,7 @@ where
                 minimizer,
                 num_cores,
             );
-            let experiment_path = experiments_root.join(format_t.clone());
-            assert!(
-                !experiment_path.as_path().exists(),
-                "Experiment already exists. Consider creating a new experiment."
-            );
+            let experiment_path = base_directory;
 
             let base_dec = format_t;
             let description: &String = matches.get_one("description").unwrap_or(&base_dec);
@@ -399,7 +461,7 @@ where
             experiment_path
         } else if let Some(_matches) = matches.subcommand_matches("quick-experiment") {
             let description = "No Description, because this is a quick experiment.";
-            let experiments_root = PathBuf::from("experiments");
+            let experiment_path = base_directory;
 
             let title = format_title(
                 None,
@@ -411,24 +473,6 @@ where
                 minimizer,
                 num_cores,
             );
-
-            let mut experiment_path = experiments_root.join(&title);
-
-            let mut i = 1;
-            while experiment_path.as_path().exists() {
-                let title = format_title(
-                    None,
-                    Some(i),
-                    &put_registry,
-                    with_bit_level,
-                    without_dy_mutations,
-                    put_use_clear,
-                    minimizer,
-                    num_cores,
-                );
-                experiment_path = experiments_root.join(title);
-                i += 1;
-            }
 
             if let Err(err) = write_experiment_markdown(
                 &experiment_path,
@@ -459,13 +503,15 @@ where
             corpus_dir: experiment_path.join("corpus"),
             objective_dir: experiment_path.join("objective"),
             broker_port: port,
-            stats_file: experiment_path.join("stats.json"),
-            log_file: experiment_path.join("tlspuffin.log"),
+            stats_file: experiment_path.join("log/stats.json"),
+            log_folder: experiment_path.join("log/"),
             minimizer,
             mutation_stage_config: Default::default(),
             mutation_config: Default::default(),
             tui,
             no_launcher,
+            is_experiment,
+            verbosity,
         };
 
         if with_bit_level && without_dy_mutations {
@@ -559,7 +605,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
         return;
     };
 
-    log::info!("Agents: {:?}", &trace.descriptors);
+    log::debug!("Agents: {:?}", &trace.descriptors);
 
     // When generating coverage a crash means that no coverage is stored
     // By executing in a fork, even when that process crashes, the other executed code will still
@@ -582,7 +628,7 @@ fn binary_attack<PB: ProtocolBehavior>(
     let ctx = TraceContext::new(spawner);
     let trace = Trace::<PB::ProtocolTypes>::from_file(input)?;
 
-    log::info!("Agents: {:?}", &trace.descriptors);
+    log::debug!("Agents: {:?}", &trace.descriptors);
 
     let mut f = File::create(output).expect("Unable to create file");
 
