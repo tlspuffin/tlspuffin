@@ -1,15 +1,17 @@
 //! This module provides[`DYTerm`]sas well as iterators over them.
 
 use std::fmt;
+use std::fmt::Debug;
 use std::hash::Hash;
 
+use anyhow::{anyhow, Context, Result};
 use itertools::Itertools;
-use libafl::inputs::BytesInput;
 use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
 use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
 use crate::algebra::dynamic_function::TypeShape;
+use crate::algebra::error::FnError;
 use crate::error::Error;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::TraceContext;
@@ -50,6 +52,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn display_at_depth(&self, depth: usize) -> String;
     fn is_symbolic(&self) -> bool;
     fn make_symbolic(&mut self); // remove all payloads
+    fn get(&self, path: &[usize]) -> Result<&Self>;
 
     /// Evaluate terms into `ConcreteMessage` and `EvaluatedTerm` (considering Payloads or not
     /// depending on `with_payloads`) With `with_payloads, the returned `EvaluatedTerm` is
@@ -58,19 +61,67 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>)>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>;
 
-    /// Evaluate terms into `ConcreteMessage` (considering Payloads)
-    fn evaluate<PB: ProtocolBehavior>(
+    /// Wrap `evaluate_config` with error handling and logging information
+    fn evaluate_config_wrap<PB: ProtocolBehavior>(
         &self,
-        ctx: &TraceContext<PB>,
-    ) -> Result<ConcreteMessage, Error>
+        context: &TraceContext<PB>,
+        with_payloads: bool,
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>)>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config(ctx, true)?.0)
+        self.evaluate_config(context, with_payloads)
+            .map_err(|e| {
+                match e.downcast_ref() {
+                    Some(Error::TermBug(_te)) => {
+                        log::error!("[evaluate_config_wrap] TermBug Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+
+                        #[cfg(any(debug_assertions, feature = "debug"))]
+                        { // we panic in debug or test mode
+                            panic!("[evaluate_config_wrap] Panic! {}", e);
+                        }
+                    }
+                    Some(Error::Term(te)) => {
+                        log::debug!("[evaluate_config_wrap] Term Error {}", te);
+                    }
+                    Some(Error::Fn(fe)) => match &fe {
+                        FnError::Unknown(_fne) => {
+                            log::error!("[evaluate_config_wrap]  FnError::Unknown Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                        }
+                        _ => {
+                            log::debug!("[evaluate_config_wrap]  FnError::* Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                        }
+                    },
+                    Some(Error::SecurityClaim(_se)) => {
+                        log::error!("[evaluate_config_wrap] SecurityClaim Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                    }
+                    Some(Error::Extraction()) => {
+                        log::error!("[evaluate_config_wrap] Extraction Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                    }
+                    _ => {
+                        log::debug!("[evaluate_config_wrap] Other Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                    } /* Error::Codec(_) => {}
+                   * Error::Put(_) => {}
+                   * Error::IO(_) => {}
+                   * Error::Agent(_) => {}
+                   * Error::Stream(_) => {} */
+                };
+                e
+            })
+    }
+
+    /// Evaluate terms into `ConcreteMessage` (considering Payloads)
+    fn evaluate<PB: ProtocolBehavior>(&self, ctx: &TraceContext<PB>) -> Result<ConcreteMessage>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        Ok(self
+            .evaluate_config_wrap(ctx, ctx.config_trace.with_bit_level)?
+            .0)
     }
 
     /// Evaluate terms into `ConcreteMessage` considering all sub-terms as symbolic (even those with
@@ -78,11 +129,11 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn evaluate_symbolic<PB: ProtocolBehavior>(
         &self,
         ctx: &TraceContext<PB>,
-    ) -> Result<ConcreteMessage, Error>
+    ) -> Result<ConcreteMessage>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config(ctx, false)?.0)
+        Ok(self.evaluate_config_wrap(ctx, false)?.0)
     }
 
     /// Evaluate terms into `EvaluatedTerm`  considering all sub-terms as symbolic (even those with
@@ -90,11 +141,11 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn evaluate_dy<PB: ProtocolBehavior>(
         &self,
         ctx: &TraceContext<PB>,
-    ) -> Result<Box<dyn EvaluatedTerm<PT>>, Error>
+    ) -> Result<Box<dyn EvaluatedTerm<PT>>>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config(ctx, false)?.1)
+        Ok(self.evaluate_config_wrap(ctx, false)?.1)
     }
 }
 
@@ -205,6 +256,31 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
+    /// When the term starts with an opaque function symbol (like encryption)
+    pub fn is_get(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(fd, _) => fd.is_get(),
+        }
+    }
+
+    /// When the term starts with a `no_bit` function symbol. We will never MakeMessage on, thus
+    /// disabling applying any of the bit-level mutations.
+    pub fn is_no_bit(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(fd, _) => fd.no_bit(),
+        }
+    }
+
+    /// When the term has a variable as sub-term
+    pub fn has_variable(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => true,
+            DYTerm::Application(_, args) => args.iter().any(|arg| arg.has_variable()),
+        }
+    }
+
     /// Erase all payloads in a term, including those under opaque function symbol
     pub fn erase_payloads_subterms(&mut self, is_subterm: bool) {
         if is_subterm {
@@ -221,26 +297,40 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
-    /// Add a payload at the root position, erase payloads in strict sub-terms not under opaque
-    pub fn add_payload(&mut self, payload: Vec<u8>) {
+    /// Add a payload at the root position and start with a new payload.payload possibly different
+    /// from payload.payload_0, erase payloads in strict sub-terms not under opaque
+    pub fn add_payload_with_new(&mut self, payload_0: Vec<u8>, payload_new: Vec<u8>) {
         self.payloads = Option::from({
             Payloads {
-                payload_0: BytesInput::new(payload.clone()),
-                payload: BytesInput::new(payload),
+                payload_0: payload_0.into(),
+                payload: payload_new.into(),
             }
         });
         self.erase_payloads_subterms(false);
     }
 
+    /// Add a payload at the root position, erase payloads in strict sub-terms not under opaque
+    pub fn add_payload(&mut self, payload_0: Vec<u8>) {
+        self.add_payload_with_new(payload_0.clone(), payload_0)
+    }
+
     /// Make and Add a payload at the root position, erase payloads in strict sub-terms not under
     /// opaque
-    pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) -> Result<(), Error>
+    pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) -> Result<()>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        let eval = self.evaluate_symbolic(ctx)?;
-        self.add_payload(eval);
-        Ok(())
+        let eval_0 = self.evaluate_symbolic(ctx)?; // we compute the original encoding, without payloads!
+        if self.has_payload_to_replace() {
+            // specific case: we will directly put the evaluation (with existing payloads in
+            // payload.payload)
+            let eval = self.evaluate(ctx)?; // we compute the original encoding, without payloads!
+            self.add_payload_with_new(eval_0, eval);
+            Ok(())
+        } else {
+            self.add_payload(eval_0);
+            Ok(())
+        }
     }
 
     /// Return all payloads contains in a term, even under opaque terms.
@@ -305,7 +395,7 @@ impl<PT: ProtocolTypes> Term<PT> {
     }
 
     /// Return whether there is at least one payload, except those under opaque terms and at the
-    /// root..
+    /// root.
     pub fn has_payload_to_replace_wo_root(&self) -> bool {
         has_payload_to_replace_rec(self, false)
     }
@@ -397,30 +487,42 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>)>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        log::debug!("[evaluate_config] About to evaluate {}\n===================================================================", &self);
+        log::trace!("[evaluate_config] About to evaluate term (with_payloads: {with_payloads}):\n{}\n===================================================================", &self);
         let mut eval_tree = EvalTree::empty();
-        let (m, all_payloads) = self.eval_until_opaque(
-            &mut eval_tree,
-            context,
-            with_payloads,
-            false,
-            self.get_type_shape(),
-        )?;
+        let (m, all_payloads) = self
+            .eval_until_opaque(
+                &mut eval_tree,
+                context,
+                with_payloads,
+                false,
+                self.get_type_shape(),
+            )
+            .with_context(|| format!("--> [evaluate_config] eval_until_opaque failed"))?;
         // if let Some(mut e) = eval {
         if with_payloads && !all_payloads.is_empty() {
-            log::debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",
-                    self, &all_payloads);
-            Ok((
-                replace_payloads(self, &mut eval_tree, all_payloads, context)?,
-                m,
-            ))
+            let ft = format!("[evaluate_config] About to replace for a term {}\n payloads with contexts: {}\n-------------------------------------------------------------------",
+                    self, all_payloads.iter().format(","));
+            log::trace!("{}", ft);
+            let res = replace_payloads(self, &mut eval_tree, all_payloads).with_context(|| {
+                format!(
+                    "[eval_until_opaque] replace_payloads failed with:\n\
+                      - eval_tree: {:?}\n Call: {ft}",
+                    &eval_tree
+                )
+            })?;
+            log::trace!(
+                "        / [payload]    We successfully evaluated the root term into: {res:?}"
+            );
+            Ok((res, m))
         } else {
             let eval = PB::any_get_encoding(m.as_ref());
-            log::trace!("        / We successfully evaluated the root term into: {eval:?}");
+            log::trace!(
+                "        / [no_payload] We successfully evaluated the root term into: {eval:?}"
+            );
             Ok((eval, m))
         }
     }
@@ -504,6 +606,27 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
 
     fn make_symbolic(&mut self) {
         self.erase_payloads_subterms(true); // true as we also want to remove payloads at top-level
+    }
+
+    fn get(&self, path: &[usize]) -> Result<&Self> {
+        if path.is_empty() {
+            return Ok(self);
+        }
+        match &self.term {
+            DYTerm::Variable(_) => { Err(anyhow!(Error::TermBug(format!(
+                    "--> [get] Should never happen! self.args.len() <= nb. Term: {self}\n, path: {path:?}"
+                )))) }
+            DYTerm::Application(_, args) => {
+                let nb = path[0];
+                let path = &path[1..];
+                if args.len() <= nb {
+                    return Err(anyhow!(Error::TermBug(format!(
+                    "--> [get] Should never happen! self.args.len() <= nb. Term: {self}\n, path: {path:?}"
+                ))));
+                }
+                args[nb].get(path)
+            }
+        }
     }
 }
 

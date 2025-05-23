@@ -5,31 +5,40 @@ use libafl_bolts::rands::Rand;
 
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::{FunctionDefinition, Signature};
-use crate::algebra::{DYTerm, Term};
+use crate::algebra::{DYTerm, Term, TermType};
 use crate::fuzzer::utils::Choosable;
-use crate::protocol::ProtocolTypes;
+use crate::protocol::ProtocolBehavior;
+use crate::trace::TraceContext;
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
-const MAX_TRIES: u16 = 100; // How often we want to try to generate before stopping
+const MAX_TRIES: usize = 120_000; // How often we want to try to generate before stopping
 
-pub struct TermZoo<PT: ProtocolTypes> {
-    terms: Vec<Term<PT>>,
+pub struct TermZoo<PB: ProtocolBehavior> {
+    terms: Vec<Term<PB::ProtocolTypes>>,
 }
 
-impl<PT: ProtocolTypes> TermZoo<PT> {
-    pub fn generate<R: Rand>(signature: &Signature<PT>, rand: &mut R) -> Self {
-        Self::generate_many(signature, rand, 1, None)
+impl<PB: ProtocolBehavior> TermZoo<PB> {
+    pub fn generate<R: Rand>(
+        ctx: &TraceContext<PB>,
+        signature: &Signature<PB::ProtocolTypes>,
+        rand: &mut R,
+        how_many: usize,
+    ) -> Self {
+        Self::generate_many(ctx, signature, rand, how_many, None, true, true)
     }
 
     pub fn generate_many<R: Rand>(
-        signature: &Signature<PT>,
+        ctx: &TraceContext<PB>,
+        signature: &Signature<PB::ProtocolTypes>,
         rand: &mut R,
-        how_many: usize,
-        filter: Option<&FunctionDefinition<PT>>,
+        how_many: usize, // how many terms to generate
+        filter: Option<&FunctionDefinition<PB::ProtocolTypes>>,
+        filter_evaluated: bool,
+        filter_no_gen: bool,
     ) -> Self {
         let mut acc = vec![];
         if let Some(def) = filter {
-            let mut counter = MAX_TRIES as usize * how_many;
+            let mut counter = MAX_TRIES;
             let mut many = 0;
 
             loop {
@@ -40,13 +49,20 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
                 counter -= 1;
 
                 if let Some(term) = Self::generate_term(signature, def, MAX_DEPTH, rand) {
-                    many += 1;
-                    acc.push(term);
+                    if !filter_evaluated || term.evaluate(ctx).is_ok() {
+                        many += 1;
+                        counter = MAX_TRIES;
+                        acc.push(term);
+                    }
                 }
             }
         } else {
             for def in &signature.functions {
-                let mut counter = MAX_TRIES as usize * how_many;
+                if !filter_no_gen || !signature.attrs_by_name.get(def.0.name).unwrap().no_gen {
+                    log::debug!("Skipping generation for [{:?}]", def.0.name);
+                    continue; // Skip this function symbol
+                }
+                let mut counter = MAX_TRIES;
                 let mut many = 0;
 
                 loop {
@@ -57,8 +73,11 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
                     counter -= 1;
 
                     if let Some(term) = Self::generate_term(signature, def, MAX_DEPTH, rand) {
-                        many += 1;
-                        acc.push(term);
+                        if !filter_evaluated || term.evaluate(ctx).is_ok() {
+                            many += 1;
+                            counter = MAX_TRIES;
+                            acc.push(term);
+                        }
                     }
                 }
             }
@@ -68,11 +87,11 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
     }
 
     fn generate_term<R: Rand>(
-        signature: &Signature<PT>,
-        (shape, dynamic_fn): &FunctionDefinition<PT>,
+        signature: &Signature<PB::ProtocolTypes>,
+        (shape, dynamic_fn): &FunctionDefinition<PB::ProtocolTypes>,
         depth: u16,
         rand: &mut R,
-    ) -> Option<Term<PT>> {
+    ) -> Option<Term<PB::ProtocolTypes>> {
         if depth == 0 {
             // Reached max depth
             return None;
@@ -109,15 +128,19 @@ impl<PT: ProtocolTypes> TermZoo<PT> {
         )))
     }
 
-    pub fn choose_filtered<P, R: Rand>(&self, filter: P, rand: &mut R) -> Option<&Term<PT>>
+    pub fn choose_filtered<P, R: Rand>(
+        &self,
+        filter: P,
+        rand: &mut R,
+    ) -> Option<&Term<PB::ProtocolTypes>>
     where
-        P: FnMut(&&Term<PT>) -> bool,
+        P: FnMut(&&Term<PB::ProtocolTypes>) -> bool,
     {
         self.terms.choose_filtered(filter, rand)
     }
 
     #[must_use]
-    pub fn terms(&self) -> &[Term<PT>] {
+    pub fn terms(&self) -> &[Term<PB::ProtocolTypes>] {
         &self.terms
     }
 }
