@@ -14,8 +14,8 @@ use crate::tls::rustls::key::Certificate;
 use crate::tls::rustls::msgs::base::PayloadU8;
 use crate::tls::rustls::msgs::enums::{CipherSuite, HandshakeType, NamedGroup};
 use crate::tls::rustls::msgs::handshake::{
-    CertificateEntries, CertificateEntry, CertificateExtension, CertificateExtensions,
-    HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
+    CertificateEntries, CertificateEntry, HandshakeMessagePayload, HandshakePayload, Random,
+    ServerECDHParams,
 };
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
 use crate::tls::rustls::suites::SupportedCipherSuite;

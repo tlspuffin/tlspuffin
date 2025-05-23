@@ -85,6 +85,10 @@ pub fn new_tcp_factory() -> Box<dyn Factory<TLSProtocolBehavior>> {
         fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
             Box::new(TCPFactory)
         }
+
+        fn rng_reseed(&self) {
+            log::debug!("[RNG] reseed failed ({}): not supported", self.name());
+        }
     }
 
     Box::new(TCPFactory)
