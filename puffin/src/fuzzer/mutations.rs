@@ -190,7 +190,7 @@ where
         trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[DY] Start mutate with {}", self.name());
+        log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
         }
@@ -220,7 +220,7 @@ where
                 }
             }
         }
-        log::info!("       Skipped {}", self.name());
+        log::debug!("       Skipped {}", self.name());
         Ok(MutationResult::Skipped)
     }
 }
@@ -269,7 +269,7 @@ where
         trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[DY] Start mutate with {}", self.name());
+        log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
         }
@@ -297,7 +297,7 @@ where
             match &mut to_mutate.term {
                 // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
                 DYTerm::Variable(_) => {
-                    log::info!("       Skipped {}", self.name());
+                    log::debug!("       Skipped {}", self.name());
                     Ok(MutationResult::Skipped)
                 }
                 DYTerm::Application(_, ref mut subterms) => {
@@ -312,12 +312,12 @@ where
                         subterms.swap_remove(subterm_index);
                         return Ok(MutationResult::Mutated);
                     }
-                    log::info!("       Skipped {}", self.name());
+                    log::debug!("       Skipped {}", self.name());
                     Ok(MutationResult::Skipped)
                 }
             }
         } else {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             Ok(MutationResult::Skipped)
         }
     }
@@ -376,7 +376,7 @@ where
         trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[DY] Start mutate with {}", self.name());
+        log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
         }
@@ -396,7 +396,7 @@ where
                         )));
                         Ok(MutationResult::Mutated)
                     } else {
-                        log::info!("       Skipped {}", self.name());
+                        log::debug!("       Skipped {}", self.name());
                         Ok(MutationResult::Skipped)
                     }
                 }
@@ -412,13 +412,13 @@ where
                         func_mut.change_function(shape.clone(), dynamic_fn.clone());
                         Ok(MutationResult::Mutated)
                     } else {
-                        log::info!("       Skipped {}", self.name());
+                        log::debug!("       Skipped {}", self.name());
                         Ok(MutationResult::Skipped)
                     }
                 }
             }
         } else {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             Ok(MutationResult::Skipped)
         }
     }
@@ -471,7 +471,7 @@ where
         trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[DY] Start mutate with {}", self.name());
+        log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
         }
@@ -495,7 +495,7 @@ where
                         > self.constraints.threshold_max_payloads_per_term;
                     if no_more_new_payloads {
                         log::debug!("[ReplaceReuseMutator] Skipped as the chosen replacement would yield too many payloads.");
-                        log::info!("       Skipped {}", self.name());
+                        log::debug!("       Skipped {}", self.name());
                         return Ok(MutationResult::Skipped);
                     }
                 }
@@ -508,7 +508,7 @@ where
                 return Ok(MutationResult::Mutated);
             }
         }
-        log::info!("       Skipped {}", self.name());
+        log::debug!("       Skipped {}", self.name());
         Ok(MutationResult::Skipped)
     }
 }
@@ -555,18 +555,18 @@ where
         trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[DY] Start mutate with {}", self.name());
+        log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
         }
         let steps = &mut trace.steps;
         let length = steps.len();
         if length <= self.min_trace_length {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
         if length == 0 {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
         let remove_index = state.rand_mut().between(0, (length - 1) as u64) as usize;
@@ -617,18 +617,18 @@ where
         trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[DY] Start mutate with {}", self.name());
+        log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
         }
         let steps = &trace.steps;
         let length = steps.len();
         if length >= self.max_trace_length {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
         if length == 0 {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
         let insert_index = state.rand_mut().between(0, length as u64) as usize;
@@ -698,7 +698,7 @@ where
         trace: &mut Trace<PB::ProtocolTypes>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[DY] Start mutate with {}", self.name());
+        log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
         }
@@ -738,11 +738,11 @@ where
                 to_mutate.mutate(term.clone());
                 Ok(MutationResult::Mutated)
             } else {
-                log::info!("       Skipped {}", self.name());
+                log::debug!("       Skipped {}", self.name());
                 Ok(MutationResult::Skipped)
             }
         } else {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             Ok(MutationResult::Skipped)
         }
     }
@@ -798,7 +798,7 @@ where
             could only happen if this mutation is scheduled with other mutations that create a non-executable trace.\
             Error: {e}", path.0);
         log::trace!("{}", &tr);
-        log::info!("       Skipped MakeMessage");
+        log::debug!("       Skipped MakeMessage");
         Ok::<MutationResult, Error>(MutationResult::Skipped)
     });
 
@@ -823,7 +823,7 @@ where
         trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[Bit] Start mutate with {}", self.name());
+        log::debug!("[Bit] Start mutate with {}", self.name());
         if !self.with_bit_level {
             log::debug!("[Mutation-bit] Mutate MakeMessage skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
@@ -884,7 +884,7 @@ where
                 }
                 Err(e) => {
                     log::debug!("mutation::MakeMessage failed due to {e}");
-                    log::info!("       Skipped {}", self.name());
+                    log::debug!("       Skipped {}", self.name());
                     Ok(MutationResult::Skipped)
                 }
             }
@@ -893,7 +893,7 @@ where
                 "mutation::MakeMessage failed to choose term in trace:\n {}",
                 &trace
             );
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             Ok(MutationResult::Skipped)
         }
     }

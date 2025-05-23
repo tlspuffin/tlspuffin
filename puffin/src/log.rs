@@ -24,7 +24,7 @@ pub fn config_default(base_directory: &Path) -> Config {
             Root::builder()
                 .appender("stderr")
                 .appender("tofile")
-                .build(LevelFilter::Info),
+                .build(log_level()),
         )
         .unwrap()
 }
