@@ -1,3 +1,4 @@
+use std::fmt::{Debug, Display};
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -7,6 +8,7 @@ use nix::sys::wait::WaitStatus::{self, Exited, Signaled};
 use nix::sys::wait::{waitpid, WaitPidFlag};
 use nix::unistd::{fork, ForkResult, Pid};
 
+use crate::differential::TraceDifference;
 use crate::error::Error;
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
@@ -15,7 +17,7 @@ use crate::trace::{Spawner, Trace, TraceContext};
 pub trait TraceRunner {
     type PB: ProtocolBehavior;
     type R;
-    type E;
+    type E: Display;
 
     fn execute<T>(self, trace: T) -> Result<Self::R, Self::E>
     where
@@ -109,13 +111,108 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
             || {
                 let ret = match runner.execute_config(trace, with_reseed) {
                     Ok(_) => 0,
-                    Err(_) => 1,
+                    Err(e) => {
+                        log::info!("{}", e);
+                        1
+                    }
                 };
 
                 std::process::exit(ret);
             },
             self.timeout,
         )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct DifferentialRunner<PB: ProtocolBehavior> {
+    registry: PutRegistry<PB>,
+    first_spawner: Spawner<PB>,
+    second_spawner: Spawner<PB>,
+}
+
+impl<PB: ProtocolBehavior> DifferentialRunner<PB> {
+    pub fn new(
+        registry: impl Into<PutRegistry<PB>>,
+        first_spawner: impl Into<Spawner<PB>>,
+        second_spawner: impl Into<Spawner<PB>>,
+    ) -> Self {
+        Self {
+            registry: registry.into(),
+            first_spawner: first_spawner.into(),
+            second_spawner: second_spawner.into(),
+        }
+    }
+}
+
+impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
+    type E = Error;
+    type PB = PB;
+    type R = TraceContext<Self::PB>;
+
+    fn execute<T>(self, trace: T) -> Result<Self::R, Self::E>
+    where
+        T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
+    {
+        // We reseed all PUTs before executing a trace!
+        self.registry.determinism_reseed_all_factories();
+
+        log::info!("Executing first PUT");
+        let mut first_ctx = TraceContext::new(self.first_spawner.clone());
+        let first_trace_status = trace.as_ref().execute(&mut first_ctx);
+
+        log::info!("Executing second PUT");
+        let mut second_ctx = TraceContext::new(self.second_spawner.clone());
+        let second_trace_status = trace.as_ref().execute(&mut second_ctx);
+
+        match (&first_trace_status, &second_trace_status) {
+            (Err(put1_status), Ok(_)) => {
+                return Err(Error::Difference(vec![TraceDifference::Status(
+                    crate::differential::StatusDiff {
+                        first_executed_steps: first_ctx.executed_until,
+                        first_status: put1_status.to_string(),
+                        second_executed_steps: second_ctx.executed_until,
+                        second_status: "Success".into(),
+                        total_step: trace.as_ref().steps.len(),
+                    },
+                )]))
+            }
+            (Ok(_), Err(put2_status)) => {
+                return Err(Error::Difference(vec![TraceDifference::Status(
+                    crate::differential::StatusDiff {
+                        first_executed_steps: first_ctx.executed_until,
+                        first_status: "Success".into(),
+                        second_executed_steps: second_ctx.executed_until,
+                        second_status: put2_status.to_string(),
+                        total_step: trace.as_ref().steps.len(),
+                    },
+                )]))
+            }
+            (Err(put1_error), Err(put2_error)) => {
+                if first_ctx.executed_until == second_ctx.executed_until {
+                    return Ok(first_ctx);
+                } else {
+                    return Err(Error::Difference(vec![TraceDifference::Status(
+                        crate::differential::StatusDiff {
+                            first_executed_steps: first_ctx.executed_until,
+                            first_status: put1_error.to_string(),
+                            second_executed_steps: second_ctx.executed_until,
+                            second_status: put2_error.to_string(),
+                            total_step: trace.as_ref().steps.len(),
+                        },
+                    )]));
+                }
+            }
+            _ => (),
+        }
+
+        let is_diff = first_ctx.compare(&second_ctx);
+
+        if let Err(diff) = is_diff {
+            return Err(Error::Difference(diff));
+        }
+
+        Ok(first_ctx)
     }
 }
 

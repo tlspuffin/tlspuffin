@@ -1,5 +1,6 @@
 use std::any::TypeId;
 
+use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::agent::ProtocolDescriptorConfig;
 use puffin::algebra::signature::Signature;
@@ -21,7 +22,7 @@ use crate::ssh::message::{RawSshMessage, SshMessage};
 use crate::ssh::SSH_SIGNATURE;
 use crate::violation::SshSecurityViolationPolicy;
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(SshProtocolTypes)]
 pub struct SshMessageFlight {
     pub messages: Vec<SshMessage>,
@@ -69,7 +70,7 @@ impl From<SshMessage> for SshMessageFlight {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(SshProtocolTypes)]
 pub struct RawSshMessageFlight {
     pub messages: Vec<RawSshMessage>,
@@ -184,6 +185,28 @@ impl ProtocolTypes for SshProtocolTypes {
 
     fn signature() -> &'static Signature<Self> {
         &SSH_SIGNATURE
+    }
+
+    fn differential_fuzzing_blacklist() -> Option<Vec<std::any::TypeId>> {
+        None
+    }
+
+    fn differential_fuzzing_whitelist() -> Option<Vec<std::any::TypeId>> {
+        None
+    }
+
+    fn differential_fuzzing_terms_to_eval() -> Vec<puffin::algebra::Term<Self>> {
+        vec![]
+    }
+
+    fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
+        None
+    }
+
+    fn differential_fuzzing_uniformise_put_config(
+        agent: puffin::agent::AgentDescriptor<Self::PUTConfig>,
+    ) -> puffin::agent::AgentDescriptor<Self::PUTConfig> {
+        agent
     }
 }
 
