@@ -6,13 +6,14 @@ use std::path::PathBuf;
 use libafl::corpus::ondisk::OnDiskMetadataFormat;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
+use log::LevelFilter;
 use log4rs::Handle;
 
 use super::harness;
 use crate::fuzzer::bit_mutations::havoc_mutations_dy;
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
 use crate::fuzzer::stats_monitor::StatsMonitor;
-use crate::log::load_fuzzing_client;
+use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
@@ -42,7 +43,9 @@ pub struct FuzzerConfig {
     pub mutation_config: MutationConfig,
     pub tui: bool,
     pub no_launcher: bool,
-    pub log_file: PathBuf,
+    pub log_folder: PathBuf,
+    pub is_experiment: bool,
+    pub verbosity: LevelFilter, // level for the client logging
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -234,7 +237,7 @@ where
         let cb_dy =
             |_: &mut _, _: &mut _, _: &mut _, _: &mut _, _idx: CorpusId| -> Result<bool, Error> {
                 if mutation_config.with_dy {
-                    log::info!("[*] DY StdMutationalStage");
+                    log::debug!("[*] DY StdMutationalStage");
                     return Ok(true);
                 } else {
                     return Ok(false);
@@ -263,7 +266,7 @@ where
             if !mutation_config.with_dy
                 || (*state.executions() > MIN_BIT_EXECS && state.corpus().count() > MIN_BIT_CORPUS)
             {
-                log::info!("[*] BIT StdMutationalStage");
+                log::debug!("[*] BIT StdMutationalStage");
                 return Ok(true);
             } else {
                 return Ok(false);
@@ -466,11 +469,13 @@ where
         corpus_dir,
         objective_dir,
         static_seed: _,
-        log_file,
         stats_file,
         broker_port,
         tui,
         no_launcher,
+        is_experiment,
+        log_folder,
+        verbosity,
         ..
     } = &config;
 
@@ -481,7 +486,14 @@ where
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
                           _core_id: CoreId|
      -> Result<(), Error> {
-        log_handle.clone().set_config(load_fuzzing_client());
+        if *is_experiment {
+            log_handle
+                .clone()
+                .set_config(set_experiment_fuzzing_client(log_folder, *verbosity));
+        } else {
+            log_handle.clone().set_config(load_fuzzing_client());
+        }
+        log::info!("log_handle: {:?}", &log_handle);
 
         let harness_fn = &mut (|input: &_| harness::harness::<PB>(put_registry, input));
 
@@ -556,10 +568,14 @@ where
         //
         // To verify this assumption, we save the clients' output to a file that
         // should always be empty.
-        let out_path = log_file.with_extension("out");
+        let out_path = log_folder.join("puffin_main_broker_stdout.log");
         let out_file = out_path
             .to_str()
             .expect("failed to create path to redirect fuzzer clients' stdout");
+        let err_path = log_folder.join("puffin_main_broker_stderr.log");
+        let err_file = err_path
+            .to_str()
+            .expect("failed to create path to redirect fuzzer clients' stderr");
 
         if *tui {
             let stats_monitor = StatsMonitor::with_tui_output(stats_file.clone());
@@ -572,6 +588,7 @@ where
                 .cores(&cores)
                 .broker_port(*broker_port)
                 .stdout_file(Some(out_file))
+                .stderr_file(Some(err_file))
                 .build()
                 .launch()
         } else {
@@ -585,6 +602,7 @@ where
                 .cores(&cores)
                 .broker_port(*broker_port)
                 .stdout_file(Some(out_file))
+                .stderr_file(Some(err_file))
                 .build()
                 .launch()
         }
