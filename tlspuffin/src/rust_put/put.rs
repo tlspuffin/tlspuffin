@@ -89,7 +89,7 @@ impl Factory<TLSProtocolBehavior> for RustFactory {
     }
 
     fn rng_reseed(&self) {
-        log::info!("[RNG] reseed ({})", self.name());
+        log::debug!("[RNG] reseed ({})", self.name());
         crate::rust_put::rand::rng_reseed();
     }
 

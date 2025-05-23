@@ -95,7 +95,7 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
     }
 
     pub fn determinism_reseed_all_factories(&self) {
-        log::info!("[RNG] reseed all PUT factories");
+        log::debug!("[RNG] reseed all PUT factories");
         for factory in self.factories.values() {
             factory.rng_reseed();
         }

@@ -219,7 +219,7 @@ impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S>
         trace: &mut Trace<PT>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[Bit] Start mutate with {}", self.name());
+        log::debug!("[Bit] Start mutate with {}", self.name());
 
         if !self.with_bit_level {
             log::debug!("[Mutation-bit] Mutate {} skipped because bit-level mutations are disabled", self.name());
@@ -243,7 +243,7 @@ impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S>
                 panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
             }
         } else {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             Ok(MutationResult::Skipped)
         }
     }
@@ -341,7 +341,7 @@ where
         trace: &mut Trace<PT>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[Bit] Start mutate with {}", self.name());
+        log::debug!("[Bit] Start mutate with {}", self.name());
 
         if !self.with_bit_level {
             log::debug!("[Mutation-bit] Mutate BytesSwapMutatorDY skipped because bit-level mutations are disabled");
@@ -370,7 +370,7 @@ where
                 panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
             }
         } else {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             Ok(MutationResult::Skipped)
         }
     }
@@ -420,7 +420,7 @@ where
         trace: &mut Trace<PT>,
         stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[Bit] Start mutate with {}", self.name());
+        log::debug!("[Bit] Start mutate with {}", self.name());
 
         if !self.with_bit_level {
             log::debug!("[Mutation-bit] Mutate BytesInsertCopyMutatorDY skipped because bit-level mutations are disabled");
@@ -449,7 +449,7 @@ where
                 panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
             }
         } else {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             Ok(MutationResult::Skipped)
         }
     }
@@ -611,7 +611,7 @@ where
         trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[Bit] Start mutate with {}", self.name());
+        log::debug!("[Bit] Start mutate with {}", self.name());
 
         if !self.with_bit_level {
             log::debug!("[Mutation-bit] Mutate CrossoverInsertMutatorDY skipped because bit-level mutations are disabled");
@@ -619,7 +619,7 @@ where
         }
 
         let Some((input, _)) = choose_payload_mut(trace, state) else {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         };
 
@@ -627,7 +627,7 @@ where
         let size = input.len();
         let max_size = state.max_size();
         if size >= max_size {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
 
@@ -636,7 +636,7 @@ where
 
         if let Some(cur) = state.corpus().current() {
             if idx == *cur {
-                log::info!("       Skipped {}", self.name());
+                log::debug!("       Skipped {}", self.name());
                 return Ok(MutationResult::Skipped);
             }
         }
@@ -651,7 +651,7 @@ where
             other_input_trace.all_payloads().len()
         };
         if size_vec_payloads < 1 {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
         let payload_idx = state // we need to split the choice of other_input int two steps to
@@ -670,7 +670,7 @@ where
         //
 
         if other_size < 2 {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
 
@@ -745,7 +745,7 @@ where
         trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[Bit] Start mutate with {}", self.name());
+        log::debug!("[Bit] Start mutate with {}", self.name());
 
         if !self.with_bit_level {
             log::debug!("[Mutation-bit] Mutate CrossoverReplaceMutatorDY skipped because bit-level mutations are disabled");
@@ -753,14 +753,14 @@ where
         }
 
         let Some((input, _)) = choose_payload_mut(trace, state) else {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         };
 
         // Inlined from libafl::mutators::mutations pub struct CrossoverReplaceMutator
         let size = input.len();
         if size == 0 {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
 
@@ -768,7 +768,7 @@ where
         let idx = random_corpus_id!(state.corpus(), state.rand_mut());
         if let Some(cur) = state.corpus().current() {
             if idx == *cur {
-                log::info!("       Skipped {}", self.name());
+                log::debug!("       Skipped {}", self.name());
                 return Ok(MutationResult::Skipped);
             }
         }
@@ -783,7 +783,7 @@ where
             other_input_trace.all_payloads().len()
         };
         if size_vec_payloads < 1 {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
         let payload_idx = state // we need to split the choice of other_input int two steps to
@@ -802,7 +802,7 @@ where
         //
 
         if other_size < 2 {
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
 
@@ -872,7 +872,7 @@ where
         trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        log::info!("[Bit] Start mutate with {}", self.name());
+        log::debug!("[Bit] Start mutate with {}", self.name());
 
         if !self.with_bit_level {
             log::debug!("[Mutation-bit] Mutate SpliceMutatorDY skipped because bit-level mutations are disabled");
@@ -881,7 +881,7 @@ where
 
         let Some((input, _)) = choose_payload_mut(trace, state) else {
             log::trace!("choose_payload_mut failed");
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         };
 
@@ -891,7 +891,7 @@ where
         if let Some(cur) = state.corpus().current() {
             if idx == *cur {
                 log::trace!("Same other testcase");
-                log::info!("       Skipped {}", self.name());
+                log::debug!("       Skipped {}", self.name());
                 return Ok(MutationResult::Skipped);
             }
         }
@@ -904,7 +904,7 @@ where
         };
         if size_vec_payloads < 1 {
             log::trace!("other payload is too short: {size_vec_payloads}");
-            log::info!("       Skipped {}", self.name());
+            log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
         let payload_idx = state // we need to split the choice of other_input int two steps to
@@ -938,7 +938,7 @@ where
                 }
                 if counter == 3 {
                     log::trace!("counter is 3");
-                    log::info!("       Skipped {}", self.name());
+                    log::debug!("       Skipped {}", self.name());
                     return Ok(MutationResult::Skipped);
                 }
                 counter += 1;
