@@ -3,6 +3,7 @@
 #include <openssl/rand.h>
 #include <stdint.h>
 #include <stdlib.h>
+#define USE_CUSTOM_PRNG
 
 #ifndef thread_local
 // since C11 the standard include _Thread_local
