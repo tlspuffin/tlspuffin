@@ -64,7 +64,7 @@ static const CLAIMER_CB DEFAULT_CLAIMER_CB = {.context = NULL,
 
 static const TLS_PUT_INTERFACE OPENSSL_PUT = {
     .create = openssl_create,
-    .rng_reseed = NULL,
+    .rng_reseed = rng_reseed,
     .supports = NULL,
 
     .agent_interface =
