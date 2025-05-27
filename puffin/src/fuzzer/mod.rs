@@ -21,7 +21,7 @@ pub mod term_zoo;
 pub mod mutations;
 pub mod utils;
 
-pub use libafl_setup::{start, FuzzerConfig};
+pub use libafl_setup::{start, FuzzerConfig, FuzzingTarget};
 
 // LibAFL support
 impl<PT: ProtocolTypes> Input for Trace<PT> {
