@@ -193,40 +193,54 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
 
         match (&first_trace_status, &second_trace_status) {
             (Err(put1_status), Ok(_)) => {
-                return Err(Error::Difference(vec![TraceDifference::Status(
-                    crate::differential::StatusDiff {
-                        first_executed_steps: first_ctx.executed_until,
-                        first_status: put1_status.to_string(),
-                        second_executed_steps: second_ctx.executed_until,
-                        second_status: "Success".into(),
-                        total_step: trace.as_ref().steps.len(),
-                    },
-                )]))
+                if matches!(put1_status, &Error::Put(_))
+                    || matches!(put1_status, &Error::SecurityClaim(_))
+                {
+                    return Err(Error::Difference(vec![TraceDifference::Status(
+                        crate::differential::StatusDiff {
+                            first_executed_steps: first_ctx.executed_until,
+                            first_status: put1_status.to_string(),
+                            second_executed_steps: second_ctx.executed_until,
+                            second_status: "Success".into(),
+                            total_step: trace.as_ref().steps.len(),
+                        },
+                    )]));
+                }
             }
             (Ok(_), Err(put2_status)) => {
-                return Err(Error::Difference(vec![TraceDifference::Status(
-                    crate::differential::StatusDiff {
-                        first_executed_steps: first_ctx.executed_until,
-                        first_status: "Success".into(),
-                        second_executed_steps: second_ctx.executed_until,
-                        second_status: put2_status.to_string(),
-                        total_step: trace.as_ref().steps.len(),
-                    },
-                )]))
+                if matches!(put2_status, &Error::Put(_))
+                    || matches!(put2_status, &Error::SecurityClaim(_))
+                {
+                    return Err(Error::Difference(vec![TraceDifference::Status(
+                        crate::differential::StatusDiff {
+                            first_executed_steps: first_ctx.executed_until,
+                            first_status: "Success".into(),
+                            second_executed_steps: second_ctx.executed_until,
+                            second_status: put2_status.to_string(),
+                            total_step: trace.as_ref().steps.len(),
+                        },
+                    )]));
+                }
             }
             (Err(put1_error), Err(put2_error)) => {
                 if first_ctx.executed_until == second_ctx.executed_until {
                     return Ok(first_ctx);
                 } else {
-                    return Err(Error::Difference(vec![TraceDifference::Status(
-                        crate::differential::StatusDiff {
-                            first_executed_steps: first_ctx.executed_until,
-                            first_status: put1_error.to_string(),
-                            second_executed_steps: second_ctx.executed_until,
-                            second_status: put2_error.to_string(),
-                            total_step: trace.as_ref().steps.len(),
-                        },
-                    )]));
+                    if (matches!(put1_error, &Error::Put(_))
+                        || matches!(put1_error, &Error::SecurityClaim(_)))
+                        && (matches!(put2_error, &Error::Put(_))
+                            || matches!(put2_error, &Error::SecurityClaim(_)))
+                    {
+                        return Err(Error::Difference(vec![TraceDifference::Status(
+                            crate::differential::StatusDiff {
+                                first_executed_steps: first_ctx.executed_until,
+                                first_status: put1_error.to_string(),
+                                second_executed_steps: second_ctx.executed_until,
+                                second_status: put2_error.to_string(),
+                                total_step: trace.as_ref().steps.len(),
+                            },
+                        )]));
+                    }
                 }
             }
             _ => (),
