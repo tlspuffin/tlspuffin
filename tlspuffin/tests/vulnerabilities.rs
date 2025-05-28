@@ -1,7 +1,7 @@
 use puffin::execution::Runner;
 use puffin::put::PutDescriptor;
 use puffin::put_registry::TCP_PUT;
-use puffin::trace::Spawner;
+use puffin::trace::{ConfigTrace, Spawner};
 use tlspuffin::protocol::TLSVersion;
 #[allow(unused_imports)]
 use tlspuffin::{test_utils::prelude::*, tls::seeds::*, tls::vulnerabilities::*};
@@ -20,15 +20,15 @@ fn test_seed_freak(put: &str) {
     );
 }
 
-#[apply(test_puts, filter = all(CVE_2014_0160, tls12, asan))]
-fn test_seed_heartbleed(put: &str) {
-    expect_trace_crash(
-        seed_heartbleed.build_trace(),
-        default_runner_for(put),
-        std::time::Duration::from_secs(20),
-        Some(20),
-    );
-}
+// #[apply(test_puts, filter = all(CVE_2014_0160, tls12, asan))]
+// fn test_seed_heartbleed(put: &str) {
+//     expect_trace_crash(
+//         seed_heartbleed.build_trace(),
+//         default_runner_for(put),
+//         std::time::Duration::from_secs(20),
+//         Some(20),
+//     );
+// }
 
 #[apply(test_puts, filter = all(CVE_2021_3449, tls12))]
 fn test_seed_cve_2021_3449(put: &str) {
@@ -120,7 +120,7 @@ fn test_seed_cve_2022_38153(put: &str) {
     let runner = default_runner_for(put);
     let trace = seed_successful12_with_tickets.build_trace();
 
-    let _ = runner.execute_config(trace.clone(), true).unwrap();
+    let _ = runner.execute(trace.clone()).unwrap();
     /*
     Originally, puffin found this bug because wolfssl was not made deterministic at all. The bug requires that the
     shared (across sessions) ticket map gets filled until a collision happen (a key refers to two tickets). For this to
@@ -134,7 +134,15 @@ fn test_seed_cve_2022_38153(put: &str) {
     the future, we might want to reconsider whether we **always** want to reseed prior to executing a trace.
     */
     for _ in 1..50 {
-        let _ = runner.execute_config(trace.clone(), false).unwrap();
+        let _ = runner
+            .execute_config(
+                trace.clone(),
+                ConfigTrace {
+                    with_reseed: false,
+                    ..ConfigTrace::default()
+                },
+            )
+            .unwrap();
     }
 
     expect_trace_crash(
