@@ -10,10 +10,12 @@
 
 #include <claim-interface.h>
 
+#include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <threads.h>
 
-#if LIBWOLFSSL_VERSION_HEX >= 0x05007000
+#if LIBWOLFSSL_VERSION_HEX >= 0x05005001
 #define TYPETIME sword64
 #else
 #define TYPETIME word32
@@ -28,7 +30,8 @@
 //} #define ENTER() fprintf(stderr, "Entering %s\n", __func__) #define ENTER() { char buf[128] = {};
 // int s = snprintf(buf, 128, "Entering %s\n", __func__); write(file, buf, s); }
 
-static uint8_t rng_have_custom_seed = 0;
+static thread_local uint8_t rng_have_custom_seed = 0;
+static thread_local struct drand48_data rng_states = {};
 #define CUSTOM_SEED_SIZE 256
 #ifdef USE_CUSTOM_PRNG
 static TYPETIME clock_value = 0;
@@ -493,10 +496,13 @@ static void wolfssl_message_callback(int write_p,
         case 0x14:
             agent->transcriptType = CLAIM_TRANSCRIPT_CH_CLIENT_FIN;
             {
-                struct Claim claim = {};
-                claim.typ = CLAIM_FINISHED;
-                fill_claim(agent, &claim);
-                agent->claimer.notify(agent->claimer.context, &claim);
+                if (agent->claimer.notify != NULL)
+                {
+                    struct Claim claim = {};
+                    claim.typ = CLAIM_FINISHED;
+                    fill_claim(agent, &claim);
+                    agent->claimer.notify(agent->claimer.context, &claim);
+                }
             }
             break;
         default:
@@ -511,10 +517,13 @@ static void wolfssl_message_callback(int write_p,
         if (agent->ssl->options.serverState == SERVER_HELLO_COMPLETE)
         {
             agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
-            struct Claim claim = {};
-            claim.typ = CLAIM_TRANSCRIPT_CH_SH;
-            fill_claim(agent, &claim);
-            agent->claimer.notify(agent->claimer.context, &claim);
+            if (agent->claimer.notify != NULL)
+            {
+                struct Claim claim = {};
+                claim.typ = CLAIM_TRANSCRIPT_CH_SH;
+                fill_claim(agent, &claim);
+                agent->claimer.notify(agent->claimer.context, &claim);
+            }
         }
     }
 }
@@ -707,6 +716,8 @@ static RESULT wolfssl_progress(AGENT agent)
         claim.typ = agent->transcriptType;
         fill_claim(agent, &claim);
         agent->claimer.notify(agent->claimer.context, &claim);
+
+        agent->transcriptType = CLAIM_NOT_SET;
     }
 
     return result;
@@ -842,7 +853,9 @@ static int myCryptoCb_Func(int devId, wc_CryptoInfo *info, void *ctx)
     uint8_t seen[256] = {};
     for (size_t i = 0; i < info->seed.sz; ++i)
     {
-        uint8_t byte = ((double)rand() / ((double)RAND_MAX + 1.0)) * 255.0;
+        double value = 0;
+        drand48_r(&rng_states, &value);
+        uint8_t byte = value * 255.0;
         if (seen[byte] != 0)
         {
             while (seen[++byte] != 0)
@@ -1133,7 +1146,7 @@ static void wolfssl_rng_reseed(uint8_t const *buffer, size_t length)
         {
             memcpy(&seed, buffer, sizeof(unsigned int));
         }
-        srand(seed);
+        srand48_r(seed, &rng_states);
         rng_have_custom_seed = 1;
     }
     else

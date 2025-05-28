@@ -35,8 +35,8 @@ fn test_attacker_full_det_recreate(put: &str) {
 
 /// Check PUT determinism by checking that the first flight of the server
 /// (ServerHello + extensions) is the same
-// FIXME: activate this test when wolfssl PRNG has thread safety
-#[apply(test_puts, filter = all(tls13, not(wolfssl)))]
+#[cfg(not(feature = "wolfssl430"))]
+#[apply(test_puts, filter = all(tls13))]
 fn test_attacker_full_det_recreate_no_tickets(put: &str) {
     use tlspuffin::tls::seeds::seed_client_attacker_full;
 
