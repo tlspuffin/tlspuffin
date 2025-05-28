@@ -99,7 +99,7 @@ impl Build {
 
         let prefix = vendor_dir::from_env()
             .library_dir(&name)
-            .and_then(|dir| dir.make(config))
+            .and_then(|dir| dir.make(config, false))
             .unwrap();
 
         let openssl = Artifacts {
