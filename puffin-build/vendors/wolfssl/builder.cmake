@@ -25,7 +25,9 @@ endif()
 
 set(v500_or_later "$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>")
 set(before_v520 "$<VERSION_LESS:${VENDOR_VERSION},5.2.0>")
-set(require_define_xtime "$<AND:${v500_or_later},${before_v520}>")
+set(require_define_xtime "$<AND:$<AND:${CPUT},${v500_or_later}>,${before_v520}>")
+
+set(require_user_ticks "$<AND:${CPUT},${v500_or_later}>")
 
 foreach(CVE IN LISTS fix)
   if(NOT HAS_${CVE})
@@ -78,7 +80,7 @@ autotools_builder(
     -DHAVE_EX_DATA                # FIXME only 4.3.0
     -DWOLFSSL_CALLBACKS           # FIXME else some msg callbacks are not called
     -DHAVE_CURVE25519
-    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:-DUSER_TICKS> # to ensure deterministic behaviour
+    $<${require_user_ticks}:-DUSER_TICKS>         # to ensure deterministic behaviour
     $<${require_define_xtime}:-DXTIME=time_cb>    # to ensure deterministic behaviour with version >= 5.0.0 and < 5.2.0
     # FIXME broken: -DHAVE_EX_DATA_CLEANUP_HOOKS  # required for cleanup of ex data
     # FIXME broken: -DWC_RNG_SEED_CB              # makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism

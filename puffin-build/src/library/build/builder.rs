@@ -21,6 +21,7 @@ impl Builder {
         out_dir: impl AsRef<Path>,
         version: impl AsRef<str>,
         options: impl AsRef<Options>,
+        cput: bool,
     ) -> Result<()> {
         match self {
             Self::BuiltIn { .. } | Self::CMake { .. } => {
@@ -44,6 +45,10 @@ impl Builder {
                 cmake_conf
                     .cfg_args
                     .push(format!("-DVENDOR_VERSION={}", version.as_ref()));
+
+                cmake_conf
+                    .cfg_args
+                    .push(format!("-DCPUT={}", if cput { "1" } else { "0" }));
 
                 for (name, value) in options.as_ref().into_iter() {
                     cmake_conf
