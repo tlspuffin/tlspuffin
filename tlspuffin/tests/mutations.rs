@@ -2,10 +2,9 @@ use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::{DescribableFunction, TypeShape};
 use puffin::algebra::{DYTerm, TermType};
 use puffin::execution::{run_in_subprocess, TraceRunner};
-use puffin::fuzzer::bit_mutations::{ByteFlipMutatorDY, ByteInterestingMutatorDY};
+use puffin::fuzzer::bit_mutations::{ByteFlipMutatorDY, ByteInterestingMutatorDY, MakeMessage};
 use puffin::fuzzer::mutations::{
-    MakeMessage, MutationConfig, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator,
-    ReplaceReuseMutator,
+    MutationConfig, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
 };
 use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::{Corpus, InMemoryCorpus, Testcase};
@@ -34,6 +33,8 @@ use tlspuffin::tls::seeds::{
 use tlspuffin::tls::TLS_SIGNATURE;
 
 /// Test that all mutations can be successfully applied on all traces from the corpus
+#[test_log::test]
+#[ignore]
 fn test_mutators() {
     let with_dy = true;
     let with_bit_level = true;

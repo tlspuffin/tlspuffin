@@ -131,7 +131,7 @@ pub fn set_experiment_fuzzing_client(base_directory: &Path, level_filter: LevelF
     let warn_log = build_rolling_appender("warn.log", "warn.{}.gz", Some(LevelFilter::Warn));
     let error_log = build_rolling_appender("error.log", "error.{}.gz", Some(LevelFilter::Error));
 
-    let mut config = Config::builder()
+    let config = Config::builder()
         // appenders
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
         .appender(fuzzer_log)
