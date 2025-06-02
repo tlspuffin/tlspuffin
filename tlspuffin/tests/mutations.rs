@@ -34,6 +34,8 @@ use tlspuffin::tls::seeds::{
 use tlspuffin::tls::TLS_SIGNATURE;
 
 /// Test that all mutations can be successfully applied on all traces from the corpus
+#[test_log::test]
+#[ignore]
 fn test_mutators() {
     let with_dy = true;
     let with_bit_level = true;
