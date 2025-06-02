@@ -9,7 +9,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
-use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
+use crate::algebra::bitstrings::{replace_payloads, EvalTree, PayloadMetadata, Payloads};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
 use crate::error::Error;
@@ -37,7 +37,7 @@ pub enum DYTerm<PT: ProtocolTypes> {
 
 impl<PT: ProtocolTypes> fmt::Display for DYTerm<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", display_term_at_depth(self, 0, false))
+        write!(f, "{}", display_term_at_depth(self, 0, false, false))
     }
 }
 
@@ -273,11 +273,23 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
-    /// When the term has a variable as sub-term
+    /// When the term has a variable as sub-term (excluding strict0-sub-terms of readable)
     pub fn has_variable(&self) -> bool {
         match &self.term {
             DYTerm::Variable(_) => true,
-            DYTerm::Application(_, args) => args.iter().any(|arg| arg.has_variable()),
+            DYTerm::Application(_, args) => {
+                !self.is_readable() && args.iter().any(|arg| arg.has_variable())
+            }
+        }
+    }
+
+    /// Whether the term is readable, i.e. whether it has a payload that will be read before
+    /// evaluating
+    pub fn is_readable(&self) -> bool {
+        if let Some(payload) = &self.payloads {
+            payload.metadata.readable
+        } else {
+            false
         }
     }
 
@@ -299,11 +311,17 @@ impl<PT: ProtocolTypes> Term<PT> {
 
     /// Add a payload at the root position and start with a new payload.payload possibly different
     /// from payload.payload_0, erase payloads in strict sub-terms not under opaque
-    pub fn add_payload_with_new(&mut self, payload_0: Vec<u8>, payload_new: Vec<u8>) {
+    pub fn add_payload_with_new(
+        &mut self,
+        payload_0: Vec<u8>,
+        payload_new: Vec<u8>,
+        with_metadata: Option<PayloadMetadata>,
+    ) {
         self.payloads = Option::from({
             Payloads {
                 payload_0: payload_0.into(),
                 payload: payload_new.into(),
+                metadata: with_metadata.unwrap_or_else(|| PayloadMetadata::default()),
             }
         });
         self.erase_payloads_subterms(false);
@@ -311,11 +329,10 @@ impl<PT: ProtocolTypes> Term<PT> {
 
     /// Add a payload at the root position, erase payloads in strict sub-terms not under opaque
     pub fn add_payload(&mut self, payload_0: Vec<u8>) {
-        self.add_payload_with_new(payload_0.clone(), payload_0)
+        self.add_payload_with_new(payload_0.clone(), payload_0, None)
     }
 
-    /// Make and Add a payload at the root position, erase payloads in strict sub-terms not under
-    /// opaque
+    /// Make and Add a payload at the root position, erase payloads in strict sub-terms
     pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) -> Result<()>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
@@ -325,7 +342,7 @@ impl<PT: ProtocolTypes> Term<PT> {
             // specific case: we will directly put the evaluation (with existing payloads in
             // payload.payload)
             let eval = self.evaluate(ctx)?; // we compute the original encoding, without payloads!
-            self.add_payload_with_new(eval_0, eval);
+            self.add_payload_with_new(eval_0, eval, None);
             Ok(())
         } else {
             self.add_payload(eval_0);
@@ -333,9 +350,22 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
+    /// Add a payload at the root position, erase payloads in strict sub-terms and make the payload
+    /// readable.
+    pub fn add_payload_readable(&mut self, payload: ConcreteMessage) {
+        self.add_payload_with_new(
+            payload.clone(),
+            payload,
+            Some(PayloadMetadata {
+                readable: true,
+                ..PayloadMetadata::default()
+            }),
+        );
+    }
+
     /// Return all payloads contains in a term, even under opaque terms.
     /// Note that we keep the invariant that a non-symbolic term cannot have payloads in
-    /// struct-subterms, see `add_payload/make_payload`.
+    /// strict-subterms, see `add_payload/make_payload`.
     pub fn all_payloads(&self) -> Vec<&Payloads> {
         self.into_iter()
             .filter_map(|t| t.payloads.as_ref())
@@ -344,7 +374,7 @@ impl<PT: ProtocolTypes> Term<PT> {
 
     /// Return all payloads contains in a term (mutable references), even under opaque terms.
     /// Note that we keep the invariant that a non-symbolic term cannot have payloads in
-    /// struct-subterms, see `add_payload/make_payload`.
+    /// strict-subterms, see `add_payload/make_payload`.
     pub fn all_payloads_mut(&mut self) -> Vec<&mut Payloads> {
         // unable to implement as_iter_map for Term due to its tree structure so:
         // do it manually instead!
@@ -366,14 +396,14 @@ impl<PT: ProtocolTypes> Term<PT> {
         acc
     }
 
-    /// Return all payloads contained in a term, except those under opaque terms.
+    /// Return all payloads contained in a term, except those under opaque or readable terms.
     /// The deeper the first in the returned vector.
     pub fn payloads_to_replace(&self) -> Vec<&Payloads> {
         pub fn rec<'a, PT: ProtocolTypes>(term: &'a Term<PT>, acc: &mut Vec<&'a Payloads>) {
             match &term.term {
                 DYTerm::Variable(_) => {}
                 DYTerm::Application(_, args) => {
-                    if !term.is_opaque() {
+                    if !term.is_opaque() && !term.is_readable() {
                         for t in args {
                             rec(t, acc);
                         }
@@ -389,13 +419,13 @@ impl<PT: ProtocolTypes> Term<PT> {
         acc
     }
 
-    /// Return whether there is at least one payload, except those under opaque terms.
+    /// Return whether there is at least one payload, except those under opaque or readable terms.
     pub fn has_payload_to_replace(&self) -> bool {
         has_payload_to_replace_rec(self, true)
     }
 
-    /// Return whether there is at least one payload, except those under opaque terms and at the
-    /// root.
+    /// Return whether there is at least one payload, except those under opaque terms or readable
+    /// and at the root.
     pub fn has_payload_to_replace_wo_root(&self) -> bool {
         has_payload_to_replace_rec(self, false)
     }
@@ -408,7 +438,7 @@ pub fn has_payload_to_replace_rec<PT: ProtocolTypes>(term: &Term<PT>, include_ro
     match &term.term {
         DYTerm::Variable(_) => {}
         DYTerm::Application(_, args) => {
-            if !term.is_opaque() {
+            if !term.is_opaque() && !term.is_readable() {
                 for t in args {
                     if has_payload_to_replace_rec(t, true) {
                         return true;
@@ -444,11 +474,20 @@ fn display_term_at_depth<PT: ProtocolTypes>(
     term: &DYTerm<PT>,
     depth: usize,
     is_bitstring: bool,
+    is_readable: bool,
 ) -> String {
     let tabs = "\t".repeat(depth);
     match term {
         DYTerm::Variable(ref v) => {
-            let is_bitstring = if is_bitstring { "BS//" } else { "" };
+            let is_bitstring = if is_bitstring {
+                if is_readable {
+                    "BS-READ//"
+                } else {
+                    "BS//"
+                }
+            } else {
+                ""
+            };
             format!("{tabs}{is_bitstring}{v}")
         }
         DYTerm::Application(ref func, ref args) => {
@@ -460,7 +499,14 @@ fn display_term_at_depth<PT: ProtocolTypes>(
             } else {
                 let args_str = args
                     .iter()
-                    .map(|arg| display_term_at_depth(&arg.term, depth + 1, !arg.is_symbolic()))
+                    .map(|arg| {
+                        display_term_at_depth(
+                            &arg.term,
+                            depth + 1,
+                            !arg.is_symbolic(),
+                            arg.is_readable(),
+                        )
+                    })
                     .join(",\n");
                 format!("{tabs}{is_bitstring}{op_str}(\n{args_str}\n{tabs}) -> {return_type}")
             }
@@ -597,7 +643,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
     }
 
     fn display_at_depth(&self, depth: usize) -> String {
-        display_term_at_depth(&self.term, depth, !self.is_symbolic())
+        display_term_at_depth(&self.term, depth, !self.is_symbolic(), self.is_readable())
     }
 
     fn is_symbolic(&self) -> bool {

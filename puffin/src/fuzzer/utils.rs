@@ -23,6 +23,8 @@ pub struct TermConstraints {
     pub weighted_depth: bool,
     // only select root terms
     pub must_be_root: bool,
+    // when true: only look for readable terms
+    pub not_readable: bool,
     // Number of terms to generate for each type
     pub zoo_gen_how_many: usize,
     // Max number of paylaods per term (limiting further MakeMessage)
@@ -42,6 +44,7 @@ impl Default for TermConstraints {
             not_inside_list: false,
             weighted_depth: false,
             must_be_root: false,
+            not_readable: false,
             zoo_gen_how_many: 10, /* Over-approximates 1/10 of the threshold obtained from
                                    * `test_term_payloads_eval`, making sure we successfully
                                    * generate, MakeMessage,
@@ -193,6 +196,7 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
                             || (term.is_symbolic() && !term.has_payload_to_replace())
                             || (!term.is_symbolic() && !term.has_payload_to_replace_wo_root()))
                         && (!constraints.not_inside_list || !term.is_list())
+                        && (!constraints.not_readable || !term.is_readable())
                     {
                         let level = if if_weighted {
                             // if weighted, we reason per-depth, otherwise, we reason globally
