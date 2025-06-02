@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cmp::min;
 use std::ops::Not;
 
@@ -7,13 +8,14 @@ use libafl_bolts::prelude::{tuple_list, tuple_list_type};
 use libafl_bolts::rands::Rand;
 use libafl_bolts::Named;
 
-use super::utils::{choose_filtered, find_term_mut, TermConstraints, TracePath};
+use super::utils::{choose, choose_filtered, choose_term_path_filtered, find_term_mut, TermConstraints, TracePath};
 use crate::algebra::TermType;
 use crate::fuzzer::utils::choose_term_filtered_mut;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 pub type HavocMutationsTypeDY<'a, S, PB> = tuple_list_type!(
     MakeMessage<'a, PB>,
+    ReadMessage<'a, PB>,
     BitFlipMutatorDY<S>,
     ByteFlipMutatorDY<S>,
     ByteIncMutatorDY<S>,
@@ -85,6 +87,7 @@ where
     let with_bit_level = mutation_config.with_bit_level;
     tuple_list!(
         MakeMessage::new(mutation_config, put_registry),
+        ReadMessage::new(mutation_config, put_registry),
         BitFlipMutatorDY::new(with_bit_level),
         ByteFlipMutatorDY::new(with_bit_level),
         ByteIncMutatorDY::new(with_bit_level),
@@ -125,6 +128,7 @@ pub type AllMutations<'harness, PT, PB, S> = tuple_list_type!(
     GenerateMutator<'harness, S, PB>,
     SwapMutator<S>,
     MakeMessage<'harness, PB>,
+    ReadMessage<'harness, PB>,
     BitFlipMutatorDY<S>,
     ByteFlipMutatorDY<S>,
     ByteIncMutatorDY<S>,
@@ -169,7 +173,7 @@ where
 }
 
 // --------------------------------------------------------------------------------------------------
-// MakeMessage mutations
+// MakeMessage mutation
 // --------------------------------------------------------------------------------------------------
 
 /// MAKE MESSAGE : transforms a sub term into a message which can then be mutated using havoc
@@ -197,7 +201,7 @@ fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
     tr: &mut Trace<PT>,
     path: &TracePath,
     ctx: &mut TraceContext<PB>,
-) -> anyhow::Result<(), anyhow::Error>
+) -> anyhow::Result<()>
 where
     PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
@@ -266,6 +270,7 @@ where
             // TODO: set two lasts to false now as they allow to find more case. TODO: fix reservori
             // sampling and set this to true (as well as in
             // integration_test/term_zoo.rs)
+            not_readable: true,
             ..self.constraints
         };
         if !self.with_dy {
@@ -312,6 +317,158 @@ where
 }
 
 impl<'a, PB> Named for MakeMessage<'a, PB>
+where
+    PB: ProtocolBehavior,
+{
+    fn name(&self) -> &str {
+        remove_prefix_and_type(std::any::type_name::<Self>())
+    }
+}
+
+// --------------------------------------------------------------------------------------------------
+// ReadMessage mutation
+// --------------------------------------------------------------------------------------------------
+
+/// READ MESSAGE : picks a sub-term having itself a sub-term with payload, evaluate, read and
+/// performs an in-place replacement
+pub struct ReadMessage<'a, PB> {
+    with_bit_level: bool,
+    constraints: TermConstraints,
+    put_registry: &'a PutRegistry<PB>,
+    with_dy: bool,
+}
+
+impl<'a, PB> ReadMessage<'a, PB> {
+    #[must_use]
+    pub const fn new(mutation_config: MutationConfig, put_registry: &'a PutRegistry<PB>) -> Self {
+        Self {
+            with_bit_level: mutation_config.with_bit_level,
+            constraints: mutation_config.term_constraints,
+            put_registry,
+            with_dy: mutation_config.with_dy,
+        }
+    }
+}
+
+/// `ReadMessage` on the term at path `path` in `tr`.
+fn read_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
+    tr: &mut Trace<PT>,
+    path: &TracePath,
+    ctx: &mut TraceContext<PB>,
+) -> anyhow::Result<()>
+where
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
+{
+    // Only execute shorter trace: trace[0..step_index])
+    // execute the PUT on the first step_index steps and store the resulting trace context
+    log::debug!("Try eval until path.0: {}", path.0);
+    tr.execute_until_step(ctx, path.0, &mut 0).err().map(|e| {
+        // 20% to 50% MakeMessage mutations fail (so should do ReadMessage), so this is a bit costly :(
+        // TODO: we could memoize the recipe evaluation in a Option<ConcreteMessage> and use that
+        log::debug!("mutation::ReadMessage trace is not executable until step {},\
+            could only happen if this mutation is scheduled with other mutations that create a non-executable trace.\
+            Error: {e}", path.0);
+        log::trace!("{}", &tr);
+        log::debug!("       Skipped ReadMessage");
+        Ok::<MutationResult, Error>(MutationResult::Skipped)
+    });
+
+    let t = find_term_mut(tr, path).expect("read_message_term - Should never happen.");
+    log::debug!("[mutation::ReadMessage] [read_message_term] Mutate ReadMessage on term\n{}", t);
+    log::debug!("[mutation::ReadMessage] [read_message_term] Trying read for type shape: {} and type id : {:?}", t.get_type_shape(), t.term.type_id());
+    // Evaluate the term and try to read it into the term type
+    let eval = t.evaluate(ctx)?;
+    let read_term = PB::try_read_bytes(&*eval, t.get_type_shape().clone().into())?; // skip if try_read fails
+
+    // The evaluation of this readable term eval_read is likely NOT the original evaluation itself
+    // eval. What we keep here is eval_read since we aim to store the re-interpretation of the
+    // payload. Note that when eval != eval_read, it likely means that `t` is length-prefixed or has
+    // some headers and that havoc mutations have messed up with those or the payload length. We
+    // will loose part of this. However, it is likely that we could have ReadMessage a
+    // strict-subterm instead to avoid this.
+    let eval_read = read_term.get_encoding();
+    t.add_payload_readable(eval_read);
+    Ok(())
+}
+
+impl<'a, S, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>> Mutator<Trace<PT>, S>
+    for ReadMessage<'a, PB>
+where
+    S: HasRand,
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<PT>,
+        _stage_idx: i32,
+    ) -> anyhow::Result<MutationResult, Error> {
+        log::debug!("[Bit] Start mutate with {}", self.name());
+        if !self.with_bit_level {
+            log::debug!("[Mutation-bit] Mutate ReadMessage skipped because bit-level mutations are disabled");
+            return Ok(MutationResult::Skipped);
+        }
+        let rand = state.rand_mut();
+        // Randomly choose a random sub term
+        // Specifically for ReadMessage, we should prioritize terms close to a sub-term with payloads.
+        // We first randomly pick a term with payload. With proba p:=1/2 we pick that one. With proba.
+        // p:=p/2 we pick the parent term, etc.
+        if let Some((step, path)) = choose_term_path_filtered(
+            trace,
+            |x| x.is_symbolic().not(),
+            TermConstraints {
+                not_readable: true,
+                ..TermConstraints::default()
+            },
+            rand,
+        ) {
+            log::trace!("[ReadMessage] Initially picked term at step {step} with path {path:?}");
+            let mut chosen_path = path;
+            let mut proba = 1.0 / 2.0;
+            while !chosen_path.is_empty() {
+                let max_range = (1_000_000_000.0 * proba) as u64;
+                if rand.between(0, 1_000_000_000 - 1) < max_range {
+                    log::trace!("[ReadMessage] Going up, proba was {proba}");
+                    proba = proba / 2.0;
+                    chosen_path.pop();
+                } else {
+                    break;
+                }
+            }
+            let chosen_path = (step, chosen_path);
+            let spawner = Spawner::new(self.put_registry.clone());
+            // log::trace!("Using self.put_registry {:?} to compute ctx",
+            // self.put_registry.default().name());
+            let mut ctx = TraceContext::new_config(
+                spawner,
+                ConfigTrace {
+                    with_bit_level: self.with_bit_level,
+                    ..Default::default()
+                },
+            );
+            match read_message_term(trace, &chosen_path, &mut ctx) {
+                Ok(_) => {
+                    log::debug!("[mutation::ReadMessage] successful!");
+                    Ok(MutationResult::Mutated)
+                }
+                Err(e) => {
+                    log::debug!("[mutation::ReadMessage] failed due to {e}");
+                    log::debug!("       Skipped {}", self.name());
+                    Ok(MutationResult::Skipped)
+                }
+            }
+        } else {
+            log::debug!(
+                "[mutation::ReadMessage] Failed to choose term with payload in trace:\n {}",
+                &trace
+            );
+            log::debug!("       Skipped {}", self.name());
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+
+impl<'a, PB> Named for ReadMessage<'a, PB>
 where
     PB: ProtocolBehavior,
 {
@@ -380,7 +537,11 @@ impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S>
         if let Some(to_mutate) = choose_term_filtered_mut(
             trace,
             |x| x.is_symbolic().not(),
-            TermConstraints::default(), // TODO: we may want to add no_payload_subterm
+            TermConstraints {
+                not_readable: true,
+                ..TermConstraints::default()
+            },
+            // TODO: we may want to add no_payload_subterm
             // pros of adding: less mutations on sub-terms that could be subsumed by mutations on a larger term done in the first place
             // cons: might be useful to first shotgun small mutations on a small term to make the trace progress with possibly more actions and then
             //       do larger mutations on a larger term from there (might have an impact later).
@@ -502,7 +663,10 @@ where
         if let Some(to_mutate) = choose_term_filtered_mut(
             trace,
             |x| x.is_symbolic().not(),
-            TermConstraints::default(),
+            TermConstraints {
+                not_readable: true,
+                ..TermConstraints::default()
+            },
             rand,
         ) {
             log::debug!(
@@ -581,7 +745,10 @@ where
         if let Some(to_mutate) = choose_term_filtered_mut(
             trace,
             |x| x.is_symbolic().not(),
-            TermConstraints::default(),
+            TermConstraints {
+                not_readable: true,
+                ..TermConstraints::default()
+            },
             rand,
         ) {
             log::debug!(

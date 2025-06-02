@@ -621,7 +621,9 @@ pub type TLSState = StdState<
 pub fn create_state() -> TLSState {
     let rand = StdRand::with_seed(1235);
     let mut corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();
-    corpus.add(Testcase::new(seed_successful.build_trace())).unwrap();
+    corpus
+        .add(Testcase::new(seed_successful.build_trace()))
+        .unwrap();
     StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
 }
 
