@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 use std::any::TypeId;
 use std::cmp::max;
 use std::collections::HashSet;
@@ -245,7 +246,7 @@ fn test_term_payloads_eval() {
                         success_count += 1;
                         return Ok(());
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         log::error!("Eval FAILED with payloads: {term_with_payloads}.");
                         if !ignored_functions.contains(term.name()) {
                             eval_payload_fail += 1;
