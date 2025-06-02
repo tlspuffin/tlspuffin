@@ -7,11 +7,11 @@ use libafl_bolts::prelude::{tuple_list, tuple_list_type};
 use libafl_bolts::rands::Rand;
 use libafl_bolts::Named;
 
-use super::utils::TermConstraints;
+use super::utils::{choose_filtered, find_term_mut, TermConstraints, TracePath};
 use crate::algebra::TermType;
 use crate::fuzzer::utils::choose_term_filtered_mut;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
-use crate::trace::Trace;
+use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 pub type HavocMutationsTypeDY<'a, S, PB> = tuple_list_type!(
     MakeMessage<'a, PB>,
     BitFlipMutatorDY<S>,
@@ -169,6 +169,158 @@ where
 }
 
 // --------------------------------------------------------------------------------------------------
+// MakeMessage mutations
+// --------------------------------------------------------------------------------------------------
+
+/// MAKE MESSAGE : transforms a sub term into a message which can then be mutated using havoc
+pub struct MakeMessage<'a, PB> {
+    with_bit_level: bool,
+    constraints: TermConstraints,
+    put_registry: &'a PutRegistry<PB>,
+    with_dy: bool,
+}
+
+impl<'a, PB> MakeMessage<'a, PB> {
+    #[must_use]
+    pub const fn new(mutation_config: MutationConfig, put_registry: &'a PutRegistry<PB>) -> Self {
+        Self {
+            with_bit_level: mutation_config.with_bit_level,
+            constraints: mutation_config.term_constraints,
+            put_registry,
+            with_dy: mutation_config.with_dy,
+        }
+    }
+}
+
+/// `MakeMessage` on the term at path `path` in `tr`.
+fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
+    tr: &mut Trace<PT>,
+    path: &TracePath,
+    ctx: &mut TraceContext<PB>,
+) -> anyhow::Result<(), anyhow::Error>
+where
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
+{
+    // Only execute shorter trace: trace[0..step_index])
+    // execute the PUT on the first step_index steps and store the resulting trace context
+    tr.execute_until_step(ctx, path.0, &mut 0).err().map(|e| {
+        // 20% to 50% MakeMessage mutations fail, so this is a bit costly :(
+        // TODO: we could memoize the recipe evaluation in a Option<ConcreteMessage> and use that
+        log::debug!("mutation::MakeMessage trace is not executable until step {},\
+            could only happen if this mutation is scheduled with other mutations that create a non-executable trace.\
+            Error: {e}", path.0);
+        log::trace!("{}", &tr);
+        log::debug!("       Skipped MakeMessage");
+        Ok::<MutationResult, Error>(MutationResult::Skipped)
+    });
+
+    let t = find_term_mut(tr, path).expect("make_message_term - Should never happen.");
+    // We get payload_0 by symbolically evaluating the term! (and not full eval with potential
+    // payloads in sub-terms). This because, doing differently would dramatically complexify the
+    // computation of replace_payloads. See terms.rs. Also, one could argue the mutations of the
+    // strict sub-terms could have been done on the larger term in the first place.
+    t.make_payload(ctx)?;
+    Ok(())
+}
+
+impl<'a, S, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>> Mutator<Trace<PT>, S>
+    for MakeMessage<'a, PB>
+where
+    S: HasRand,
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        trace: &mut Trace<PT>,
+        _stage_idx: i32,
+    ) -> anyhow::Result<MutationResult, Error> {
+        log::debug!("[Bit] Start mutate with {}", self.name());
+        if !self.with_bit_level {
+            log::debug!("[Mutation-bit] Mutate MakeMessage skipped because bit-level mutations are disabled");
+            return Ok(MutationResult::Skipped);
+        }
+        let nb_payloads = trace.all_payloads().len();
+        let nb_terms = trace.steps.len();
+        let no_more_new_payloads = nb_payloads / std::cmp::max(1, nb_terms)
+            > self.constraints.threshold_max_payloads_per_term;
+        if no_more_new_payloads {
+            log::debug!("[MakeMessage] on a trace with too many payloads: {trace}")
+        } else {
+            log::debug!("[MakeMessage] Do a regular MakeMessage")
+        }
+        let rand = state.rand_mut();
+        let mut constraints_make_message = TermConstraints {
+            must_be_symbolic: true, /* we exclude non-symbolic terms, which were already mutated
+                                     * with MakeMessage */
+            no_payload_in_subterm: false, /* change to true to exclude picking a term with a
+                                           * payload in a sub-term */
+            must_payload_in_subterm: no_more_new_payloads, /* change to true when there are too
+                                                            * many payloads already */
+            not_inside_list: true, /* true means we are not picking terms inside list (like
+                                    * fn_append in the middle) */
+            // we set it to true since it would otherwise be redundant with picking each of the item
+            // as mutated term
+            weighted_depth: false, /* true means we select a sub-term by giving higher-priority
+                                    * to deeper sub-terms */
+            // TODO: set two lasts to false now as they allow to find more case. TODO: fix reservori
+            // sampling and set this to true (as well as in
+            // integration_test/term_zoo.rs)
+            ..self.constraints
+        };
+        if !self.with_dy {
+            constraints_make_message.must_be_root = true;
+        }
+        // choose a random sub term
+        if let Some((chosen_term, (step_index, term_path))) =
+            choose_filtered(trace, constraints_make_message, |t| !t.is_no_bit(), rand)
+        {
+            log::debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
+            let spawner = Spawner::new(self.put_registry.clone());
+            // log::trace!("Using self.put_registry {:?} to compute ctx",
+            // self.put_registry.default().name());
+            let mut ctx = TraceContext::new_config(
+                spawner,
+                ConfigTrace {
+                    with_bit_level: self.with_bit_level,
+                    ..Default::default()
+                },
+            );
+            match make_message_term(trace, &(step_index, term_path), &mut ctx) {
+                // TODO: possibly we would need to make sure the mutated trace can be executed (if
+                // not directly dropped by the feedback loop once executed).
+                // TODO: maybe check we get the same by reading /encoding
+                Ok(()) => {
+                    log::debug!("mutation::MakeMessage successful!");
+                    Ok(MutationResult::Mutated)
+                }
+                Err(e) => {
+                    log::debug!("mutation::MakeMessage failed due to {e}");
+                    log::debug!("       Skipped {}", self.name());
+                    Ok(MutationResult::Skipped)
+                }
+            }
+        } else {
+            log::debug!(
+                "mutation::MakeMessage failed to choose term in trace:\n {}",
+                &trace
+            );
+            log::debug!("       Skipped {}", self.name());
+            Ok(MutationResult::Skipped)
+        }
+    }
+}
+
+impl<'a, PB> Named for MakeMessage<'a, PB>
+where
+    PB: ProtocolBehavior,
+{
+    fn name(&self) -> &str {
+        remove_prefix_and_type(std::any::type_name::<Self>())
+    }
+}
+
+// --------------------------------------------------------------------------------------------------
 // Term-level bit-level mutations
 // --------------------------------------------------------------------------------------------------
 
@@ -177,9 +329,8 @@ use paste::paste;
 use crate::algebra::bitstrings::Payloads;
 use crate::algebra::signature::Signature;
 use crate::fuzzer::mutations::{
-    dy_mutations, remove_prefix_and_type, GenerateMutator, MakeMessage, MutationConfig,
-    RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator,
-    SwapMutator,
+    dy_mutations, remove_prefix_and_type, GenerateMutator, MutationConfig, RemoveAndLiftMutator,
+    RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator, SwapMutator,
 };
 use crate::put_registry::PutRegistry;
 
@@ -581,7 +732,6 @@ where
     S: HasCorpus + HasRand + HasMaxSize,
 {
     with_bit_level: bool,
-    tmp_buf: CrossoverInsertMutator,
     phantom_s: std::marker::PhantomData<S>,
 }
 
@@ -593,7 +743,6 @@ where
     pub fn new(with_bit_level: bool) -> Self {
         Self {
             with_bit_level,
-            tmp_buf: CrossoverInsertMutator::new(),
             phantom_s: std::marker::PhantomData,
         }
     }
@@ -715,7 +864,6 @@ where
     S: HasCorpus + HasRand + HasMaxSize,
 {
     with_bit_level: bool,
-    tmp_buf: CrossoverReplaceMutator,
     phantom_s: std::marker::PhantomData<S>,
 }
 
@@ -727,7 +875,6 @@ where
     pub fn new(with_bit_level: bool) -> Self {
         Self {
             with_bit_level,
-            tmp_buf: CrossoverReplaceMutator::new(),
             phantom_s: std::marker::PhantomData,
         }
     }
@@ -841,7 +988,6 @@ where
     S: HasCorpus + HasRand + HasMaxSize,
 {
     with_bit_level: bool,
-    tmp_buf: SpliceMutator,
     phantom_s: std::marker::PhantomData<S>,
 }
 
@@ -853,7 +999,6 @@ where
     pub fn new(with_bit_level: bool) -> Self {
         Self {
             with_bit_level,
-            tmp_buf: SpliceMutator::new(),
             phantom_s: std::marker::PhantomData,
         }
     }

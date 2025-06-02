@@ -134,7 +134,7 @@ where
         };
         let _ = put_registry.set_default(name);
     };
-    
+
     // Setup Logging
     // We need to create the log directory before initializing the logger
     let (is_experiment, base_directory): (bool, PathBuf) =

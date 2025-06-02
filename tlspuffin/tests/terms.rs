@@ -5,8 +5,8 @@ use puffin::protocol::{ProtocolBehavior, ProtocolMessage};
 use puffin::trace::Action::Input;
 use puffin::trace::{Action, OutputAction, Trace, TraceContext};
 use tlspuffin::protocol::TLSProtocolBehavior;
-#[allow(unused_imports)]
-use tlspuffin::{test_utils::prelude::*, tls::seeds::*};
+use tlspuffin::test_utils::prelude::*;
+use tlspuffin::tls::seeds::*;
 
 fn test_one_replace(
     trace: &mut Trace<<TLSProtocolBehavior as ProtocolBehavior>::ProtocolTypes>,
