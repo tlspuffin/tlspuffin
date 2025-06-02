@@ -1,9 +1,8 @@
 use puffin::algebra::TermType;
-use puffin::codec::Codec;
 use puffin::fuzzer::utils::{find_term_by_term_path, find_term_by_term_path_mut};
-use puffin::protocol::{ProtocolBehavior, ProtocolMessage};
+use puffin::protocol::ProtocolBehavior;
 use puffin::trace::Action::Input;
-use puffin::trace::{Action, OutputAction, Trace, TraceContext};
+use puffin::trace::{Trace, TraceContext};
 use tlspuffin::protocol::TLSProtocolBehavior;
 use tlspuffin::test_utils::prelude::*;
 use tlspuffin::tls::seeds::*;
@@ -24,7 +23,7 @@ fn test_one_replace(
 
         let sub = find_term_by_term_path_mut(term, &mut path.clone()).expect("OUPS2");
         sub.erase_payloads_subterms(false);
-        sub.make_payload(ctx); // will remove payloads in strict sub-terms, as expected
+        sub.make_payload(ctx).unwrap(); // will remove payloads in strict sub-terms, as expected
         let sub_before = sub.clone();
         let e_sub_before = sub_before.evaluate_symbolic(ctx).expect("OUPS3"); // evaluate_symbolic:
                                                                               // mimicking term::make_payload ! We loose all previous mutations on sub-terms!
