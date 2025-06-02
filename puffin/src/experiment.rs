@@ -59,6 +59,7 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
     let full_description = format!(
         "# Experiment: {title}\n\
                 * PUT Versions: {put_versions}\n\
+                * Default PUT: {default_put}\n\
                 * Date: {date}\n\
                 * Git Ref: {git_ref}\n\
                 * Git Commit: {git_msg}\n\
@@ -67,6 +68,15 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
                 * Log: [tlspuffin.log](./tlspuffin.log)\n\n\
                 {description}\n",
         title = &title,
+        default_put =  &put_registry
+        .default()
+        .versions()
+        .last()
+        .unwrap()
+        .1
+        .trim()
+        .split_whitespace()
+        .join("-"),
         put_versions = put_registry
             .puts()
             .map(|(n, p)| format!(
