@@ -7,19 +7,16 @@ use puffin::fuzzer::mutations::{
     MutationConfig, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
 };
 use puffin::fuzzer::utils::TermConstraints;
-use puffin::libafl::corpus::{Corpus, InMemoryCorpus, Testcase};
+use puffin::libafl::corpus::{Corpus, Testcase};
 use puffin::libafl::mutators::{MutationResult, Mutator, MutatorsTuple};
-use puffin::libafl::state::{HasCorpus, StdState};
-use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
+use puffin::libafl::state::HasCorpus;
 use puffin::libafl_bolts::tuples::HasConstLen;
 use puffin::libafl_bolts::HasLen;
-use puffin::protocol::{ProtocolBehavior, ProtocolTypes};
-use puffin::put_registry::PutRegistry;
 use puffin::test_utils::AssertExecution;
 use puffin::trace::{Action, Spawner, Step, Trace, TraceContext};
 use puffin::trace_helper::TraceHelper;
 use puffin_macros::apply;
-use tlspuffin::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
+use tlspuffin::protocol::TLSProtocolTypes;
 use tlspuffin::put_registry::tls_registry;
 use tlspuffin::test_utils::prelude::*;
 use tlspuffin::test_utils::{create_state, default_runner_for, test_mutations, TLSState};
@@ -27,9 +24,7 @@ use tlspuffin::tls::fn_impl::{
     fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
     fn_support_group_extension,
 };
-use tlspuffin::tls::seeds::{
-    _seed_client_attacker12, create_corpus, seed_client_attacker_full, seed_successful,
-};
+use tlspuffin::tls::seeds::{_seed_client_attacker12, create_corpus, seed_client_attacker_full};
 use tlspuffin::tls::TLS_SIGNATURE;
 
 /// Test that all mutations can be successfully applied on all traces from the corpus
@@ -146,7 +141,7 @@ fn test_mutators() {
             "Adding 4th MakeMessage inputs to the corpus (required for CrossOver mutations..."
         );
         for t in &acc {
-            state.corpus_mut().add(Testcase::new(t.clone()));
+            state.corpus_mut().add(Testcase::new(t.clone())).unwrap();
         }
         acc.retain(|t| {
             !t.is_symbolic()
@@ -237,16 +232,16 @@ fn test_byte_remove_payloads(put: &str) {
 
     let mut trace = seed_client_attacker_full.build_trace();
     let mut i = 0;
-    let MAX = 1000;
+    let max = 1000;
 
-    while i < MAX {
+    while i < max {
         i += 1;
         mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let Some(first) = trace.steps.get(0) {
             match &first.action {
                 Action::Input(input) => {
-                    if let DYTerm::Application(fd, args) = &input.recipe.term {
+                    if let DYTerm::Application(_fd, args) = &input.recipe.term {
                         if args.len() > 5
                             && input.recipe.is_symbolic()
                             && !args[5].payloads_to_replace().is_empty()
@@ -267,19 +262,19 @@ fn test_byte_remove_payloads(put: &str) {
             }
         }
     }
-    assert_ne!(i, MAX); // success condition
+    assert_ne!(i, max); // success condition
 
     // This further test only applies when we allow MakeMessage with no_payload_in_subterm: false,
     // which is currently the case
     i = 0;
-    while i < MAX {
+    while i < max {
         i += 1;
         mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
 
         if let Some(first) = trace.steps.get(0) {
             match &first.action {
                 Action::Input(input) => {
-                    if let DYTerm::Application(fd, args) = &input.recipe.term {
+                    if let DYTerm::Application(_fd, args) = &input.recipe.term {
                         if args.len() > 5 && !input.recipe.is_symbolic() {
                             if args[5].payloads_to_replace().is_empty()
                                 && input.recipe.payloads_to_replace().len() == 1
@@ -308,7 +303,7 @@ fn test_byte_remove_payloads(put: &str) {
             }
         }
     }
-    assert_ne!(i, MAX); // success condition
+    assert_ne!(i, max); // success condition
 }
 
 #[apply(test_puts, filter = all(tls13))] // require version which supports TLS 1.3
@@ -323,9 +318,9 @@ fn test_byte_simple(put: &str) {
 
     let mut trace = seed_client_attacker_full.build_trace();
     let mut i = 0;
-    let MAX = 1000;
+    let max = 1000;
 
-    while i < MAX {
+    while i < max {
         i += 1;
         mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
 
@@ -349,10 +344,10 @@ fn test_byte_simple(put: &str) {
         }
     }
 
-    assert_ne!(i, MAX);
+    assert_ne!(i, max);
     i = 0;
 
-    while i < MAX {
+    while i < max {
         println!("START");
         i += 1;
         mutator_byte.mutate(&mut state, &mut trace, 0).unwrap();
@@ -378,7 +373,7 @@ fn test_byte_simple(put: &str) {
             }
         }
     }
-    assert_ne!(i, MAX);
+    assert_ne!(i, max);
 }
 
 #[apply(test_puts, filter = all(tls13))] // require version which supports TLS 1.3
@@ -393,9 +388,9 @@ fn test_byte_interesting(put: &str) {
     let ctx = TraceContext::new(spawner);
     let mut trace = seed_client_attacker_full.build_trace();
     let mut i = 0;
-    let MAX = 1000;
+    let max = 1000;
 
-    while i < MAX {
+    while i < max {
         i += 1;
         mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
 
@@ -428,12 +423,12 @@ fn test_byte_interesting(put: &str) {
         }
     }
 
-    assert_ne!(i, MAX);
+    assert_ne!(i, max);
     i = 0;
 
     // This second while loop may always fail because we might have chosen a MakeMessage on som
     // sub-term that cannot be meaningfully mutated (e.g., NamedGroup under encryption)
-    while i < MAX {
+    while i < max {
         i += 1;
         log::error!("Test attempt {i}");
         mutator_byte_interesting
@@ -484,7 +479,7 @@ fn test_byte_interesting(put: &str) {
             }
         }
     }
-    assert_ne!(i, MAX);
+    assert_ne!(i, max);
 }
 
 fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtocolTypes>> {
@@ -706,7 +701,7 @@ fn test_mutate_seed_cve_2021_3449() {
 
 // The test below succeeds when executed in isolation but fails when run with others :( TODO:
 // investigate why
-// #[apply(test_puts, filter = all(CVE_2021_3449, tls12))]
+#[apply(test_puts, filter = all(CVE_2021_3449, tls12))]
 fn test_mutate_and_execute_seed_cve_2021_3449(put: &str) {
     let runner = default_runner_for(put);
     let mut state = create_state();
