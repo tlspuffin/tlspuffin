@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{ConcreteMessage, DYTerm, Term, TermType};
 use crate::error::Error;
+use crate::error::Error::TermBug;
 use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
@@ -17,12 +18,25 @@ use crate::trace::{Source, TraceContext};
 const THRESHOLD_SIZE: usize = 3; // minimum size of a payload to be directly searched in root_eval
 const THRESHOLD_RATIO: usize = 100; // maximum ratio for root_eval/too_search for a direct search
 
+/// `TermMetadata` stores some metadata about terms.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PayloadMetadata {
+    pub(crate) readable: bool,
+}
+
+impl Default for PayloadMetadata {
+    fn default() -> Self {
+        Self { readable: false }
+    }
+}
+
 /// `Term`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
 /// symbolic terms.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Payloads {
     pub payload_0: BytesInput, // initially both are equal and correspond to the term evaluation
     pub payload: BytesInput,   // this one will later be subject to bit-level mutation
+    pub(crate) metadata: PayloadMetadata, // stores metadata
 }
 
 impl Payloads {
@@ -500,7 +514,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         // We optimize here by bypassing evaluation and directly read over the payload when the term
         // has no variable. Indeed, variables may contain different values since when we ran
         // MakeMessage
-        if let (true, false, Some(payload)) = (with_payloads, self.has_variable(), &self.payloads) {
+        if let (true, Some(payload)) = (with_payloads && !self.has_variable(), &self.payloads) {
             log::trace!(
                 "[eval_until_opaque] Trying to read payload_0 to skip further computations... payload_0: {:?}",
                 payload.payload_0.bytes(),
@@ -538,6 +552,28 @@ impl<PT: ProtocolTypes> Term<PT> {
                 // the announced length. Note: we don't want to make encode only write the announced
                 // length since we precisely want to be able to "lie" about the announced lengths...
                 log::trace!("[eval_until_opaque] Attempt to skip evaluation failed, fall back to normal evaluation...");
+            }
+        }
+
+        // Specific case of readable terms (originated from ReadMessage): if the term is a readable
+        // term, we MUST read it directly from payload!
+        if with_payloads && self.is_readable() {
+            let payload = self.payloads.as_ref().ok_or(TermBug(format!("[eval_until_opaque] Try to read a readable term without payload, should never happen!")))?;
+            log::trace!(
+                "[eval_until_opaque] Trying to read payload (originated from ReadMessage): {:?}",
+                payload.payload.bytes(),
+            );
+            if let Ok(di) = PB::try_read_bytes(
+                payload.payload.bytes(),
+                <TypeShape<PT> as Clone>::clone(type_term).into(),
+            ) {
+                log::trace!("[eval_until_opaque] Successfully read term: {:?}", di);
+                // We have set payload to di.get_encoding() when performing ReadMessage, so we can
+                // use it here
+                eval_tree.encode = Some(payload.payload.bytes().to_vec());
+                return Ok((di, vec![]));
+            } else {
+                bail!(TermBug(format!("[eval_until_opaque] Fail to read a readable term (originated from ReadMessage), should never happen!")))
             }
         }
 

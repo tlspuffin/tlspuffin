@@ -68,15 +68,15 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
                 * Log: [tlspuffin.log](./tlspuffin.log)\n\n\
                 {description}\n",
         title = &title,
-        default_put =  &put_registry
-        .default()
-        .versions()
-        .last()
-        .unwrap()
-        .1
-        .trim()
-        .split_whitespace()
-        .join("-"),
+        default_put = &put_registry
+            .default()
+            .versions()
+            .last()
+            .unwrap()
+            .1
+            .trim()
+            .split_whitespace()
+            .join("-"),
         put_versions = put_registry
             .puts()
             .map(|(n, p)| format!(
