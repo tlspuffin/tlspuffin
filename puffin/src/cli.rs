@@ -124,6 +124,17 @@ where
 
     let mut put_registry = put_registry.clone();
 
+    if let Some(name) = target_put {
+        if let Err((available_puts, non_available_puts)) =
+            check_if_puts_exist(&put_registry, &[name])
+        {
+            println!("Available PUTs: {}", available_puts.join(","));
+            println!("Error: PUT not found: {}", non_available_puts.join(","));
+            return ExitCode::FAILURE;
+        };
+        let _ = put_registry.set_default(name);
+    };
+    
     // Setup Logging
     // We need to create the log directory before initializing the logger
     let (is_experiment, base_directory): (bool, PathBuf) =
@@ -189,17 +200,6 @@ where
             eprintln!("error: failed to initialize logging: {err:?}");
             return ExitCode::FAILURE;
         }
-    };
-
-    if let Some(name) = target_put {
-        if let Err((available_puts, non_available_puts)) =
-            check_if_puts_exist(&put_registry, &[name])
-        {
-            log::error!("PUT not found : {}", non_available_puts.join(","));
-            log::error!("Available PUTs: {}", available_puts.join(","));
-            return ExitCode::FAILURE;
-        };
-        let _ = put_registry.set_default(name);
     };
 
     log::info!("Version: {}", puffin::full_version());
