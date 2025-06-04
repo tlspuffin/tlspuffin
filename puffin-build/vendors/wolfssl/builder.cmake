@@ -23,6 +23,12 @@ if(VENDOR_VERSION VERSION_LESS "5.5.2")
   declare_vulnerability("CVE-2022-42905" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-CVE-2022-42905.patch)
 endif()
 
+if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.2")
+  declare_vulnerability("AllowClaim" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-AllowClaim-552.patch)
+elseif(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.0")
+  declare_vulnerability("AllowClaim" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-AllowClaim-550.patch)
+endif()
+
 set(v500_or_later "$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>")
 set(before_v520 "$<VERSION_LESS:${VENDOR_VERSION},5.2.0>")
 set(require_define_xtime "$<AND:${v500_or_later},${before_v520}>")
