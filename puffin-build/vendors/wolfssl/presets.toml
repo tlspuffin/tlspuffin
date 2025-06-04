@@ -9,6 +9,11 @@ sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "master", 
 builder = { type = "builtin", name = "wolfssl" }
 sancov = true
 
+[wolfssl580]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.0-stable", version = "5.8.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+
 [wolfssl572]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.7.2-stable", version = "5.7.2" }
 builder = { type = "builtin", name = "wolfssl" }
