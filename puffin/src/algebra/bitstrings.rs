@@ -521,7 +521,7 @@ impl<PT: ProtocolTypes> Term<PT> {
             );
             if let Ok(di) = PB::try_read_bytes(
                 payload.payload_0.bytes(),
-                <TypeShape<PT> as Clone>::clone(type_term).into(),
+                type_term.clone().into(),
             ) {
                 // We must make sure that we read correctly and avoided cases where read and encode
                 // are not inverse of each other. Otherwise, later payload replacements will fail.
@@ -565,7 +565,7 @@ impl<PT: ProtocolTypes> Term<PT> {
             );
             if let Ok(di) = PB::try_read_bytes(
                 payload.payload.bytes(),
-                <TypeShape<PT> as Clone>::clone(type_term).into(),
+                type_term.clone().into(),
             ) {
                 log::trace!("[eval_until_opaque] Successfully read term: {:?}", di);
                 // We have set payload to di.get_encoding() when performing ReadMessage, so we can
