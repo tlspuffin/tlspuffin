@@ -62,7 +62,7 @@ pub fn main() -> std::process::ExitCode {
                         library_dir.remove()?
                     }
 
-                    library_dir.make(config)
+                    library_dir.make(config, true)
                 })
             {
                 log::error!("Error while building vendor library '{name}': {e}");

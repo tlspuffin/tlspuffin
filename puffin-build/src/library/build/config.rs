@@ -51,11 +51,16 @@ impl Config {
             .cloned()
     }
 
-    pub fn build(&self, out_dir: impl AsRef<Path>) -> Result<()> {
+    pub fn build(&self, out_dir: impl AsRef<Path>, cput: bool) -> Result<()> {
         let sources_dir = out_dir.as_ref().join("src");
         let sources = self.sources.download(sources_dir)?;
-        self.builder
-            .build(sources, out_dir, self.sources.version(), &self.options)
+        self.builder.build(
+            sources,
+            out_dir,
+            self.sources.version(),
+            &self.options,
+            cput,
+        )
     }
 
     pub fn option(&mut self, name: impl Into<String>, value: impl Into<Value>) -> &mut Self {
