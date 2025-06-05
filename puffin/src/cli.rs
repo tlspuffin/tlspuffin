@@ -66,9 +66,9 @@ where
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
                 .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing")),
             Command::new("display-execute")
-                .about("Executes a trace stored in a file and display informations")
+                .about("Executes a trace stored in a file and display information")
                 .arg(arg!(<input> "The file which stores a trace"))
-                .arg(arg!(-s --max_step <n> "The step to stop to").value_parser(value_parser!(usize)))
+                .arg(arg!(-s --max_step <n> "The step at which to stop").value_parser(value_parser!(usize)))
                 .arg(arg!(-S --only_step <n> "Show only the specified step").value_parser(value_parser!(usize)))
                 .arg(arg!(-t --show_terms "Show the terms computed at each input step").value_parser(value_parser!(bool)))
                 .arg(arg!(-c --show_claims "Show the claims emitted at each input step").value_parser(value_parser!(bool)))
