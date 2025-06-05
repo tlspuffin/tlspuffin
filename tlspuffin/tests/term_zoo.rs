@@ -157,8 +157,7 @@ fn test_term_read_encode() {
     let mut closure = |term: &Term<TLSProtocolTypes>,
                        ctx: &TraceContext<TLSProtocolBehavior>,
                        _: &mut RomuDuoJrRand| {
-        let type_id: TypeId =
-            <TypeShape<TLSProtocolTypes> as Clone>::clone(&(*term.get_type_shape())).into();
+        let type_id: TypeId = term.get_type_shape().clone().into();
         term.evaluate(&ctx)
             .map(|eval1| {
                 match TLSProtocolBehavior::try_read_bytes(&*eval1, type_id) {
