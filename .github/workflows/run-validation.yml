@@ -112,7 +112,7 @@ jobs:
       - name: run `tlspuffin seed`
         run: just run cargo run --bin tlspuffin --target x86_64-unknown-linux-gnu --profile=release --features=openssl111j -- seed && [[ -d ./seeds ]]
       - name: run `tlspuffin execute` on seeds
-        run: just run cargo run --bin tlspuffin --target x86_64-unknown-linux-gnu --profile=release --features=openssl111j -- execute-traces ./seeds
+        run: just run cargo run --bin tlspuffin --target x86_64-unknown-linux-gnu --profile=release --features=openssl111j -- execute ./seeds
 
   cli-sshpuffin:
     needs: [configure]
@@ -132,7 +132,7 @@ jobs:
       - name: run `sshpuffin seed`
         run: just run cargo run --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release -- seed && [[ -d ./seeds ]]
       - name: run `sshpuffin execute` on seeds
-        run: just run cargo run --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release -- execute-traces ./seeds
+        run: just run cargo run --bin sshpuffin --target x86_64-unknown-linux-gnu --profile=release -- execute ./seeds
 
   test-tlspuffin:
     needs: [configure]
