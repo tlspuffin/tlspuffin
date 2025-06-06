@@ -3,11 +3,13 @@ sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "master", 
 builder = { type = "builtin", name = "wolfssl" }
 asan = true
 sancov = true
+fix = ["AllowClaim"]
 
 [wolfsslmaster]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "master", version = "master" }
 builder = { type = "builtin", name = "wolfssl" }
 sancov = true
+fix = ["AllowClaim"]
 
 [wolfssl580]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.0-stable", version = "5.8.0" }
