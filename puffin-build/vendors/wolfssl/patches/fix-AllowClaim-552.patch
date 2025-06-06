@@ -1,0 +1,26 @@
+From d6a3eb5d62388f6da2ddf2ab1adccf0e50f6d435 Mon Sep 17 00:00:00 2001
+From: Olivier Demengeon <olivier.demengeon@inria.fr>
+Date: Wed, 4 Jun 2025 18:08:27 +0200
+Subject: [PATCH] Bypass check of ssl->keys.encryptionOn in AddPacketInfo
+
+---
+ src/internal.c | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/src/internal.c b/src/internal.c
+index 4d4d28353..87a9c4b3d 100644
+--- a/src/internal.c
++++ b/src/internal.c
+@@ -25250,8 +25250,7 @@ int PickHashSigAlgo(WOLFSSL* ssl, const byte* hashSigAlgo, word32 hashSigAlgoSz)
+         }
+     #endif /* WOLFSSL_CALLBACKS */
+     #ifdef OPENSSL_EXTRA
+-        if ((ssl->protoMsgCb != NULL) && (sz > 0) &&
+-            (ssl->keys.encryptionOn != 1)) {
++        if ((ssl->protoMsgCb != NULL) && (sz > 0)) {
+             /* version from hex to dec  16 is 16^1, 256 from 16^2 and
+                4096 from 16^3 */
+             int version = (ssl->version.minor & 0x0F) +
+-- 
+2.43.0
+

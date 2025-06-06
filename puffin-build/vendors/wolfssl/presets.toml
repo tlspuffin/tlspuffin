@@ -3,33 +3,52 @@ sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "master", 
 builder = { type = "builtin", name = "wolfssl" }
 asan = true
 sancov = true
+fix = ["AllowClaim"]
 
 [wolfsslmaster]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "master", version = "master" }
 builder = { type = "builtin", name = "wolfssl" }
 sancov = true
+fix = ["AllowClaim"]
+
+[wolfssl580]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.0-stable", version = "5.8.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+fix = ["AllowClaim"]
+
+[wolfssl580-asan]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.0-stable", version = "5.8.0" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+fix = ["AllowClaim"]
 
 [wolfssl572]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.7.2-stable", version = "5.7.2" }
 builder = { type = "builtin", name = "wolfssl" }
 sancov = true
+fix = ["AllowClaim"]
 
 [wolfssl572-asan]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.7.2-stable", version = "5.7.2" }
 builder = { type = "builtin", name = "wolfssl" }
 sancov = true
 asan = true
+fix = ["AllowClaim"]
 
 [wolfssl552]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.5.2-stable", version = "5.5.2" }
 builder = { type = "builtin", name = "wolfssl" }
 sancov = true
+fix = ["AllowClaim"]
 
 [wolfssl552-asan]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.5.2-stable", version = "5.5.2" }
 builder = { type = "builtin", name = "wolfssl" }
 sancov = true
 asan = true
+fix = ["AllowClaim"]
 
 [wolfssl540-sdos2]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.4.0-stable", version = "5.4.0" }
