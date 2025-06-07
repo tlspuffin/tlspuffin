@@ -6,6 +6,239 @@ use libafl::prelude::mutational::MutatedTransform;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
+/// A [`Mutator`] that schedules one of the embedded mutations on each call.
+pub struct FocusScheduledMutator<I, MT, MtPre, MtPost, S>
+where
+    MT: MutatorsTuple<I, S>,
+    MtPre: MutatorsTuple<I, S>,
+    MtPost: MutatorsTuple<I, S>,
+    S: HasRand,
+{
+    name: String,
+    mutations: MT,
+    mutations_pre: MtPre,
+    mutations_post: MtPost,
+    max_stack_pow: u64,
+    phantom: PhantomData<(I, S)>,
+}
+
+impl<I, MT, MtPre, MtPost, S> Debug for FocusScheduledMutator<I, MT, MtPre, MtPost, S>
+where
+    MT: MutatorsTuple<I, S>,
+    MtPre: MutatorsTuple<I, S>,
+    MtPost: MutatorsTuple<I, S>,
+    S: HasRand,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "FocusScheduledMutator with {} core mutations, {} pre-mutations, {} post-mutations, for Input type {}",
+            self.mutations.len(),
+            self.mutations_pre.len(),
+            self.mutations_post.len(),
+            core::any::type_name::<I>()
+        )
+    }
+}
+
+impl<I, MT, MtPre, MtPost, S> Named for FocusScheduledMutator<I, MT, MtPre, MtPost, S>
+where
+    MT: MutatorsTuple<I, S>,
+    MtPre: MutatorsTuple<I, S>,
+    MtPost: MutatorsTuple<I, S>,
+    S: HasRand,
+{
+    fn name(&self) -> &str {
+        &self.name
+    }
+}
+
+impl<I, MT, MtPre, MtPost, S> Mutator<I, S> for FocusScheduledMutator<I, MT, MtPre, MtPost, S>
+where
+    MT: MutatorsTuple<I, S>,
+    MtPre: MutatorsTuple<I, S>,
+    MtPost: MutatorsTuple<I, S>,
+    S: HasRand,
+{
+    #[inline]
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut I,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        self.scheduled_mutate(state, input, stage_idx)
+    }
+}
+
+impl<I, MT, MtPre, MtPost, S> ComposedByMutations<I, MT, S>
+    for FocusScheduledMutator<I, MT, MtPre, MtPost, S>
+where
+    MT: MutatorsTuple<I, S>,
+    MtPre: MutatorsTuple<I, S>,
+    MtPost: MutatorsTuple<I, S>,
+    S: HasRand,
+{
+    /// Get the mutations: we use a custom selection instead of the default
+    fn mutations(&self) -> &MT {
+        &self.mutations
+    }
+
+    /// Get the mutations (mutable): we use a custom selection instead of the default
+    fn mutations_mut(&mut self) -> &mut MT {
+        &mut self.mutations
+    }
+}
+
+impl<I, MT, MtPre, MtPost, S> ScheduledMutator<I, MT, S>
+    for FocusScheduledMutator<I, MT, MtPre, MtPost, S>
+where
+    MT: MutatorsTuple<I, S>,
+    MtPre: MutatorsTuple<I, S>,
+    MtPost: MutatorsTuple<I, S>,
+    S: HasRand,
+{
+    /// Compute the number of iterations used to apply stacked mutations
+    fn iterations(&self, state: &mut S, _: &I) -> u64 {
+        1 << (1 + state.rand_mut().below(self.max_stack_pow))
+    }
+
+    /// Get the next mutation to apply
+    fn schedule(&self, state: &mut S, _: &I) -> MutationId {
+        debug_assert!(!self.mutations().is_empty());
+        state.rand_mut().below(self.mutations().len() as u64).into()
+    }
+
+    /// New default implementation for mutate.
+    /// Implementations must forward `mutate()` to this method
+    fn scheduled_mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut I,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let mut r = MutationResult::Skipped;
+        let num = self.iterations(state, input);
+        log::error!(
+            "FocusScheduledMutator:num: {},  stage_idx: {}, max_stack_pow: {}",
+            num,
+            stage_idx,
+            self.max_stack_pow
+        );
+        // Pre-mutation: schedule exactly once
+        // Note: the pre mutations will recognize this stage_idx and there is a certain probability
+        // that the mutation won't be applied. However, a payload path will always be chosen and
+        // stored in the input metadata for the later, HAVOC, and ReadMessage mutations.
+        let idx = self.schedule_pre(state, input);
+        let outcome = self
+            .mutations_pre_mut()
+            .get_and_mutate(idx, state, input, stage_idx)?;
+        if outcome == MutationResult::Mutated {
+            r = MutationResult::Mutated;
+        }
+
+        // Core mutations
+        for _ in 0..num {
+            let idx = self.schedule(state, input);
+            let outcome = self
+                .mutations_mut()
+                .get_and_mutate(idx, state, input, stage_idx)?;
+            if outcome == MutationResult::Mutated {
+                r = MutationResult::Mutated;
+            }
+        }
+
+        // Post-mutation: schedule exactly once
+        // Note: the post mutations will recognize this stage_idx and there is a certain probability
+        // that the mutation won't be applied, so we can skip it
+        let idx = self.schedule_post(state, input);
+        let outcome = self
+            .mutations_post_mut()
+            .get_and_mutate(idx, state, input, stage_idx)?;
+        if outcome == MutationResult::Mutated {
+            r = MutationResult::Mutated;
+        }
+
+        Ok(r)
+    }
+}
+
+impl<I, MT, MtPre, MtPost, S> FocusScheduledMutator<I, MT, MtPre, MtPost, S>
+where
+    MT: MutatorsTuple<I, S>,
+    MtPre: MutatorsTuple<I, S>,
+    MtPost: MutatorsTuple<I, S>,
+    S: HasRand,
+{
+    /// Create a new [`libafl::mutators::StdScheduledMutator`] instance specifying mutations
+    pub fn new(mutations_pre: MtPre, mutations: MT, mutations_post: MtPost) -> Self {
+        FocusScheduledMutator {
+            name: format!(
+                "FocusScheduledMutator[{};{};{}]",
+                mutations_pre.names().join(", "),
+                mutations.names().join(", "),
+                mutations_post.names().join(", ")
+            ),
+            mutations,
+            mutations_pre,
+            mutations_post,
+            max_stack_pow: 7,
+            phantom: PhantomData,
+        }
+    }
+
+    /// Create a new [`libafl::mutators::StdScheduledMutator`] instance specifying mutations and the
+    /// maximun number of iterations
+    // pub fn with_max_stack_pow(mutations_pre:  MtPre, mutations: MT, mutations_post: MtPost,
+    // max_stack_pow: u64) -> Self {     FocusScheduledMutator {
+    //         name: format!("FocusScheduledMutator[{};{};{}]", mutations_pre.names().join(", "),
+    // mutations.names().join(", "), mutations_post.names().join(", ")),         mutations,
+    //         mutations_pre,
+    //         mutations_post,
+    //         max_stack_pow,
+    //         phantom: PhantomData,
+    //     }
+    // }
+
+    /// Get the next pre-mutation to apply
+    fn schedule_pre(&self, state: &mut S, _: &I) -> MutationId {
+        debug_assert!(!self.mutations_pre.is_empty());
+        state
+            .rand_mut()
+            .below(self.mutations_pre.len() as u64)
+            .into()
+    }
+
+    /// Get the next post-mutation to apply
+    fn schedule_post(&self, state: &mut S, _: &I) -> MutationId {
+        debug_assert!(!self.mutations_post.is_empty());
+        state
+            .rand_mut()
+            .below(self.mutations_post.len() as u64)
+            .into()
+    }
+
+    /// Get the pre-mutations (mutable): we use a custom selection instead of the default
+    fn mutations_pre_mut(&mut self) -> &mut MtPre {
+        &mut self.mutations_pre
+    }
+
+    /// Get the post-mutations (mutable): we use a custom selection instead of the default
+    fn mutations_post_mut(&mut self) -> &mut MtPost {
+        &mut self.mutations_post
+    }
+
+    pub fn mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut I,
+        stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        self.scheduled_mutate(state, input, stage_idx)
+    }
+}
+
+/* --------------------- OLD STUFF ------------------------------- */
 /// The default mutational stage
 #[derive(Clone, Debug)]
 pub struct PuffinMutationalStage<E, EM, I, M, Z> {

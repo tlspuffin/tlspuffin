@@ -10,8 +10,11 @@ use log::LevelFilter;
 use log4rs::Handle;
 
 use super::harness;
-use crate::fuzzer::bit_mutations::havoc_mutations_dy;
+use crate::fuzzer::bit_mutations::{
+    bit_mutations_dy, havoc_mutations_dy, MakeMessage, ReadMessage,
+};
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
+use crate::fuzzer::stages::FocusScheduledMutator;
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
@@ -246,12 +249,12 @@ where
         let stage_dy = IfStage::new(cb_dy, tuple_list!(StdMutationalStage::new(mutator_dy)));
 
         // ==== Bit-level mutational stage
-        let mutator_bit = StdScheduledMutator::new(havoc_mutations_dy::<
+        let mutator_bit = StdScheduledMutator::new(bit_mutations_dy::<
             StdState<Trace<PT>, C, R, SC>,
             PB,
         >(mutation_config, put_registry));
-        // Run bit-levlel muts. if bit-level enabled, already advanced (to
-        // save a bit of time)
+        // Run bit-levlel muts. if bit-level enabled + already sufficiently advanced (to save a bit
+        // of time)
         let cb_bit_level = |_: &mut _,
                             _: &mut _,
                             state: &mut ConcreteState<C, R, SC, Trace<PT>>,
@@ -272,9 +275,16 @@ where
                 return Ok(false);
             }
         };
+        let mutator_bit_focus = FocusScheduledMutator::new(
+            tuple_list!(MakeMessage::new(mutation_config, put_registry)),
+            havoc_mutations_dy::<StdState<Trace<PT>, C, R, SC>>(mutation_config),
+            tuple_list!(ReadMessage::new(mutation_config, put_registry)),
+        );
+
         let stage_bit = IfStage::new(
             cb_bit_level,
-            tuple_list!(StdMutationalStage::new(mutator_bit)),
+            tuple_list!(StdMutationalStage::new(mutator_bit), // Old-style stage
+                                StdMutationalStage::new(mutator_bit_focus)), // Focus stage, first MakeMessage, then HAVOC, then ReadMessage
         );
 
         // ==== All stages put together
