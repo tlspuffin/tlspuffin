@@ -408,28 +408,39 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
+        let mut term_constraints = TermConstraints {
+            not_readable: true,
+            ..self.constraints
+        };
+        if !self.with_dy {
+            term_constraints.must_be_root = true;
+        }
         // Randomly choose a random sub term
-        // Specifically for ReadMessage, we should prioritize terms close to a sub-term with payloads.
-        // We first randomly pick a term with payload. With proba p:=1/2 we pick that one. With proba.
-        // p:=p/2 we pick the parent term, etc.
-        if let Some((step, path)) = choose_term_path_filtered(
-            trace,
-            |x| x.is_symbolic().not(),
-            TermConstraints {
-                not_readable: true,
-                ..TermConstraints::default()
-            },
-            rand,
-        ) {
-            log::trace!("[ReadMessage] Initially picked term at step {step} with path {path:?}");
-            let mut chosen_path = path;
+        // Specifically for ReadMessage, we should prioritize terms close to a sub-term with
+        // payloads. We first randomly pick a term with payload. With proba p:=1/2 we pick
+        // that one. With proba. p:=p/2 we pick the parent term, etc.
+        if let Some((step, path)) =
+            choose_term_path_filtered(trace, |x| x.is_symbolic().not(), term_constraints, rand)
+        {
+            let mut chosen_path = (step, path);
+            log::trace!("[ReadMessage] Initially picked term at {chosen_path:?}");
+            let term = find_term_mut(trace, &chosen_path)
+                .expect("mutation::ReadMessage::mutate - Should never happen!");
+            let payloads = term.payloads.as_ref().expect(
+                "mutation::ReadMessage::mutate - Should never happen, we should have filtered out symbolic terms",
+            );
+            if !payloads.has_changed() {
+                // Extremely likely that payload.payload == payload.payload0 then!
+                log::debug!("       Skipped {} because payload unchanged", self.name());
+                return Ok(MutationResult::Skipped);
+            }
             let mut proba = 1.0 / 2.0;
-            while !chosen_path.is_empty() {
+            while !chosen_path.1.is_empty() {
                 let max_range = (1_000_000_000.0 * proba) as u64;
                 if rand.between(0, 1_000_000_000 - 1) < max_range {
                     log::trace!("[ReadMessage] Going up, proba was {proba}");
                     proba = proba / 2.0;
-                    chosen_path.pop();
+                    chosen_path.1.pop();
                 } else {
                     break;
                 }
@@ -674,12 +685,11 @@ where
                 &to_mutate
             );
             if let Some(payloads) = &mut to_mutate.payloads {
-                libafl::mutators::mutations::BytesSwapMutator::mutate(
-                    &mut self.tmp_buf,
-                    state,
-                    &mut payloads.payload,
-                    stage_idx,
-                )
+                BytesSwapMutator::mutate(&mut self.tmp_buf, state, &mut payloads.payload, stage_idx)
+                    .and_then(|r| {
+                        payloads.set_changed();
+                        Ok(r)
+                    })
             } else {
                 panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
             }
@@ -761,7 +771,10 @@ where
                     state,
                     &mut payloads.payload,
                     stage_idx,
-                )
+                )                    .and_then(|r| {
+                    payloads.set_changed();
+                    Ok(r)
+                })
             } else {
                 panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
             }
@@ -787,11 +800,11 @@ where
 // --------------------------------------------------------------------------------------------------
 
 /// Randomly choose a payload and its index (nth) in a trace (mutable reference), if there is any
-/// and if it has at least 2 bytes
+/// and if it has at least 2 bytes. Also returns a mutable ref to the payload metadata.
 pub fn choose_payload_mut<'a, PT, S>(
     trace: &'a mut Trace<PT>,
     state: &mut S,
-) -> Option<(&'a mut Vec<u8>, usize)>
+) -> Option<(&'a mut Vec<u8>, usize, &'a mut PayloadMetadata)>
 where
     S: HasCorpus + HasRand + HasMaxSize,
     PT: ProtocolTypes,
@@ -802,11 +815,12 @@ where
     }
     let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
     let input = all_payloads.remove(idx);
+    let metada = &mut input.metadata;
     let input = input.payload.bytes_mut();
     if input.len() < 2 {
         return None;
     }
-    Some((input, idx))
+    Some((input, idx, metada))
 }
 
 // Randomly choose a payload and its index (n-th) in a trace, if there is any and if it has at
@@ -933,7 +947,7 @@ where
             return Ok(MutationResult::Skipped);
         }
 
-        let Some((input, _)) = choose_payload_mut(trace, state) else {
+        let Some((input, _, metadata)) = choose_payload_mut(trace, state) else {
             log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         };
@@ -1010,6 +1024,8 @@ where
         unsafe {
             buffer_copy(input, other_input, range.start, target, range.len());
         }
+        metadata.has_changed = true;
+
         log::debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", self.name());
         log::trace!("Trace: {trace}");
         Ok(MutationResult::Mutated)
@@ -1065,7 +1081,7 @@ where
             return Ok(MutationResult::Skipped);
         }
 
-        let Some((input, _)) = choose_payload_mut(trace, state) else {
+        let Some((input, _, metadata)) = choose_payload_mut(trace, state) else {
             log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         };
@@ -1134,6 +1150,8 @@ where
         unsafe {
             buffer_copy(input, other_input, range.start, target, range.len());
         }
+        metadata.has_changed = true;
+
         log::debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", self.name());
         log::trace!("Trace: {trace}");
         Ok(MutationResult::Mutated)
@@ -1190,7 +1208,7 @@ where
             return Ok(MutationResult::Skipped);
         }
 
-        let Some((input, _)) = choose_payload_mut(trace, state) else {
+        let Some((input, _, metadata)) = choose_payload_mut(trace, state) else {
             log::trace!("choose_payload_mut failed");
             log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
@@ -1265,6 +1283,8 @@ where
             .bytes();
 
         input.splice(split_at.., other_input[split_at..].iter().copied());
+        metadata.has_changed = true;
+
         log::debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", self.name());
         log::trace!("Trace: {trace}");
         Ok(MutationResult::Mutated)
