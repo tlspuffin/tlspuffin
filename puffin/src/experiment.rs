@@ -29,11 +29,18 @@ pub fn format_title<PB: ProtocolBehavior>(
     let without_dy_mutations = if without_dy_mutations { "_wo-dy" } else { "" };
     let put_use_clear = if put_use_clear { "_put-use-clear" } else { "" };
     let minimizer = if minimizer { "_minimizer" } else { "" };
-    let default_put: &str = &put_registry.default().versions().last().unwrap().1.clone();
-    let default_put_short = default_put.split('(').collect::<Vec<&str>>()[0].trim();
+    let default_put: &str = &put_registry
+        .default()
+        .versions()
+        .last()
+        .unwrap()
+        .1
+        .trim()
+        .split_whitespace()
+        .join("-");
     format!(
         "{date}\
-        --{default_put_short}-{num_cores}c{without_bit_level}{without_dy_mutations}{put_use_clear}{minimizer}__\
+        --{default_put}-{num_cores}c{without_bit_level}{without_dy_mutations}{put_use_clear}{minimizer}__\
         {title}--{hour}--{index}",
         date = date,
         title = title.unwrap_or(&puffin::git_ref().unwrap_or_default()),
@@ -52,6 +59,7 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
     let full_description = format!(
         "# Experiment: {title}\n\
                 * PUT Versions: {put_versions}\n\
+                * Default PUT: {default_put}\n\
                 * Date: {date}\n\
                 * Git Ref: {git_ref}\n\
                 * Git Commit: {git_msg}\n\
@@ -60,6 +68,15 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
                 * Log: [tlspuffin.log](./tlspuffin.log)\n\n\
                 {description}\n",
         title = &title,
+        default_put = &put_registry
+            .default()
+            .versions()
+            .last()
+            .unwrap()
+            .1
+            .trim()
+            .split_whitespace()
+            .join("-"),
         put_versions = put_registry
             .puts()
             .map(|(n, p)| format!(

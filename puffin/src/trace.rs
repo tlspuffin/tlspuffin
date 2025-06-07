@@ -16,13 +16,13 @@
 
 use core::fmt;
 use std::any::TypeId;
+use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::vec::IntoIter;
 
-use clap::error::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};
@@ -31,6 +31,7 @@ use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{remove_prefix, Matcher, Term, TermType};
 use crate::claims::{GlobalClaimList, SecurityViolationPolicy};
 use crate::error::Error;
+use crate::fuzzer::utils::TracePath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
@@ -320,6 +321,20 @@ impl<PB: ProtocolBehavior> Clone for Spawner<PB> {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct ConfigTrace {
+    pub with_bit_level: bool,
+    pub with_reseed: bool,
+}
+impl Default for ConfigTrace {
+    fn default() -> Self {
+        ConfigTrace {
+            with_bit_level: true,
+            with_reseed: true,
+        }
+    }
+}
+
 /// The [`TraceContext`] represents the state of an execution.
 ///
 /// The [`TraceContext`] contains a list of [`EvaluatedTerm`], which is known as the knowledge
@@ -333,6 +348,7 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     pub knowledge_store: KnowledgeStore<PB::ProtocolTypes>,
     agents: Vec<Agent<PB>>,
     claims: GlobalClaimList<PB::Claim>,
+    pub config_trace: ConfigTrace,
 
     spawner: Spawner<PB>,
 
@@ -360,12 +376,17 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
             && format!("{:?}", self.knowledge_store.raw_knowledge)
                 == format!("{:?}", other.knowledge_store.raw_knowledge)
             && format!("{:?}", self.claims) == format!("{:?}", other.claims)
+            && self.config_trace == other.config_trace
     }
 }
 
 impl<PB: ProtocolBehavior> TraceContext<PB> {
     #[must_use]
     pub fn new(spawner: Spawner<PB>) -> Self {
+        Self::new_config(spawner, ConfigTrace::default())
+    }
+
+    pub fn new_config(spawner: Spawner<PB>, config_trace: ConfigTrace) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
         let claims = GlobalClaimList::<PB::Claim>::new();
@@ -374,6 +395,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             knowledge_store: KnowledgeStore::new(),
             agents: vec![],
             claims,
+            config_trace,
             spawner,
             phantom: Default::default(),
         }
@@ -478,11 +500,25 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 }
 
 #[derive(Clone, Deserialize, Serialize, Hash)]
+pub struct MetadataTrace {
+    /// The path focus of the trace, which is used to focus on a specific part of the trace for HAVOC mutations during a FocusScheduledMutator
+    path_focus: Option<TracePath>,
+}
+
+impl Default for MetadataTrace {
+    fn default() -> Self {
+        Self {
+            path_focus: None,
+        }
+    }
+}
+#[derive(Clone, Deserialize, Serialize, Hash)]
 #[serde(bound = "PT: ProtocolTypes")]
 pub struct Trace<PT: ProtocolTypes> {
     pub descriptors: Vec<AgentDescriptor<PT::PUTConfig>>,
     pub steps: Vec<Step<PT>>,
     pub prior_traces: Vec<Trace<PT>>,
+    pub metadata_trace: MetadataTrace,
 }
 
 /// A [`Trace`] consists of several [`Step`]s. Each has either a [`OutputAction`] or an
@@ -583,6 +619,18 @@ impl<PT: ProtocolTypes> Trace<PT> {
             Input(r) => r.recipe.is_symbolic(),
             _ => true,
         })
+    }
+
+    /// Sets in the metadata the focus of the trace to a specific [`TracePath`].
+    pub fn set_focus(&mut self, tarce_path: TracePath) {
+        log::debug!("[Set_focus] Setting focus to {tarce_path:?}");
+        self.metadata_trace.path_focus = Some(tarce_path);
+    }
+
+    /// Clear from the metadata any focus
+    pub fn clear_focus(&mut self) {
+        log::debug!("[clear_focus] clear focus");
+        self.metadata_trace.path_focus = None;
     }
 }
 
