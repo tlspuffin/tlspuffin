@@ -22,11 +22,15 @@ const THRESHOLD_RATIO: usize = 100; // maximum ratio for root_eval/too_search fo
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PayloadMetadata {
     pub(crate) readable: bool,
+    pub(crate) has_changed: bool, // true when payload has been modified at least once
 }
 
 impl Default for PayloadMetadata {
     fn default() -> Self {
-        Self { readable: false }
+        Self {
+            readable: false,
+            has_changed: false,
+        }
     }
 }
 
@@ -43,6 +47,15 @@ impl Payloads {
     #[must_use]
     pub fn len(&self) -> usize {
         self.payload_0.bytes().len()
+    }
+
+    #[must_use]
+    pub fn has_changed(&self) -> bool {
+        self.metadata.has_changed
+    }
+
+    pub fn set_changed(&mut self) {
+        self.metadata.has_changed = true
     }
 }
 
