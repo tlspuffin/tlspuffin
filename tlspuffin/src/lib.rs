@@ -101,6 +101,7 @@
 //!         },
 //!         // further steps here
 //!     ],
+//!     ..Default::default()
 //! };
 //! ```
 //!

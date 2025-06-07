@@ -22,7 +22,7 @@ use puffin::protocol::{ProtocolBehavior, ProtocolTypes};
 use puffin::put::PutDescriptor;
 use puffin::put_registry::PutRegistry;
 use puffin::trace::Action::Input;
-use puffin::trace::{InputAction, Spawner, Step, Trace, TraceContext};
+use puffin::trace::{InputAction, MetadataTrace, Spawner, Step, Trace, TraceContext};
 use puffin::trace_helper::TraceHelper;
 
 use crate::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
@@ -551,10 +551,11 @@ pub fn add_one_payload_randomly<
             }),
         }],
         prior_traces: vec![],
+        metadata_trace: MetadataTrace::default(),
     };
     if let Some((st_, (step, mut path))) = choose(
         &trace,
-        TermConstraints {
+        &TermConstraints {
             // as for Make_message.mutate
             no_payload_in_subterm: false,
             not_inside_list: false, // should be true, TODO: fix this

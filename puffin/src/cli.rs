@@ -506,12 +506,11 @@ where
             stats_file: experiment_path.join("log/stats.json"),
             log_folder: experiment_path.join("log/"),
             minimizer,
-            mutation_stage_config: Default::default(),
-            mutation_config: Default::default(),
             tui,
             no_launcher,
             is_experiment,
             verbosity,
+            ..Default::default()
         };
 
         if with_bit_level && without_dy_mutations {

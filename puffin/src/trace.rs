@@ -33,6 +33,7 @@ use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{remove_prefix, Matcher, Term, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
 use crate::error::Error;
+use crate::fuzzer::utils::TracePath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
@@ -510,11 +511,24 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
 }
 
 #[derive(Clone, Deserialize, Serialize, Hash)]
+pub struct MetadataTrace {
+    /// The path focus of the trace, which is used to focus on a specific part of the trace for
+    /// HAVOC mutations during a FocusScheduledMutator
+    path_focus: Option<TracePath>,
+}
+
+impl Default for MetadataTrace {
+    fn default() -> Self {
+        Self { path_focus: None }
+    }
+}
+#[derive(Clone, Deserialize, Serialize, Hash)]
 #[serde(bound = "PT: ProtocolTypes")]
 pub struct Trace<PT: ProtocolTypes> {
     pub descriptors: Vec<AgentDescriptor<PT::PUTConfig>>,
     pub steps: Vec<Step<PT>>,
     pub prior_traces: Vec<Trace<PT>>,
+    pub metadata_trace: MetadataTrace,
 }
 
 /// Identify a step and a (prior) trace
@@ -900,6 +914,27 @@ impl<PT: ProtocolTypes> Trace<PT> {
             Input(r) => r.recipe.is_symbolic(),
             _ => true,
         })
+    }
+
+    /// Sets in the metadata the focus of the trace to a specific [`TracePath`].
+    pub fn set_focus(&mut self, tarce_path: TracePath) {
+        log::debug!("[Set_focus] Setting focus to {tarce_path:?}");
+        self.metadata_trace.path_focus = Some(tarce_path);
+    }
+
+    /// Clear from the metadata any focus
+    pub fn clear_focus(&mut self) {
+        log::debug!("[clear_focus] clear focus");
+        self.metadata_trace.path_focus = None;
+    }
+impl<PT: ProtocolTypes> Default for Trace<PT> {
+    fn default() -> Self {
+        Self {
+            descriptors: vec![],
+            steps: vec![],
+            prior_traces: vec![],
+            metadata_trace: Default::default(),
+        }
     }
 }
 

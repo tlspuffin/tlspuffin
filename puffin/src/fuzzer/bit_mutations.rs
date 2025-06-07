@@ -2,20 +2,27 @@ use std::any::Any;
 use std::cmp::min;
 use std::ops::Not;
 
+use libafl::mutators::mutations::{
+    BitFlipMutator, ByteAddMutator, ByteDecMutator, ByteFlipMutator, ByteIncMutator,
+    ByteInterestingMutator, ByteNegMutator, ByteRandMutator, BytesCopyMutator, BytesDeleteMutator,
+    BytesExpandMutator, BytesInsertCopyMutator, BytesInsertMutator, BytesRandInsertMutator,
+    BytesRandSetMutator, BytesSetMutator, BytesSwapMutator, DwordAddMutator,
+    DwordInterestingMutator, QwordAddMutator, WordAddMutator, WordInterestingMutator,
+};
 use libafl::prelude::*;
 use libafl_bolts::bolts_prelude::Merge;
 use libafl_bolts::prelude::{tuple_list, tuple_list_type};
 use libafl_bolts::rands::Rand;
 use libafl_bolts::Named;
 
-use super::utils::{choose, choose_filtered, choose_term_path_filtered, find_term_mut, TermConstraints, TracePath};
+use super::utils::{
+    choose_filtered, choose_term_path_filtered, find_term_mut, TermConstraints, TracePath,
+};
 use crate::algebra::TermType;
 use crate::fuzzer::utils::choose_term_filtered_mut;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
-pub type HavocMutationsTypeDY<'a, S, PB> = tuple_list_type!(
-    MakeMessage<'a, PB>,
-    ReadMessage<'a, PB>,
+pub type HavocMutationsTypeDY<S> = tuple_list_type!(
     BitFlipMutatorDY<S>,
     ByteFlipMutatorDY<S>,
     ByteIncMutatorDY<S>,
@@ -34,6 +41,7 @@ pub type HavocMutationsTypeDY<'a, S, PB> = tuple_list_type!(
     BytesDeleteMutatorDY<S>,
     BytesDeleteMutatorDY<S>,
     BytesExpandMutatorDY<S>,
+    BytesLargeExpandMutatorDY<S>, // NEW! Different from classical havoc!!
     BytesInsertMutatorDY<S>,
     BytesRandInsertMutatorDY<S>,
     BytesSetMutatorDY<S>,
@@ -77,10 +85,81 @@ pub type HavocMutationsTypeDY<'a, S, PB> = tuple_list_type!(
 */
 
 #[must_use]
-pub fn havoc_mutations_dy<'a, S: HasRand + HasMaxSize + HasCorpus, PB>(
+pub fn havoc_mutations_dy<S: HasRand + HasMaxSize + HasCorpus>(
+    mutation_config: MutationConfig,
+) -> HavocMutationsTypeDY<S>  {
+    let with_bit_level = mutation_config.with_bit_level;
+    tuple_list!(
+        BitFlipMutatorDY::new(with_bit_level),
+        ByteFlipMutatorDY::new(with_bit_level),
+        ByteIncMutatorDY::new(with_bit_level),
+        ByteDecMutatorDY::new(with_bit_level),
+        ByteNegMutatorDY::new(with_bit_level),
+        ByteRandMutatorDY::new(with_bit_level),
+        ByteAddMutatorDY::new(with_bit_level),
+        WordAddMutatorDY::new(with_bit_level),
+        DwordAddMutatorDY::new(with_bit_level),
+        QwordAddMutatorDY::new(with_bit_level),
+        ByteInterestingMutatorDY::new(with_bit_level),
+        WordInterestingMutatorDY::new(with_bit_level),
+        DwordInterestingMutatorDY::new(with_bit_level),
+        BytesDeleteMutatorDY::new(with_bit_level),
+        BytesDeleteMutatorDY::new(with_bit_level),
+        BytesDeleteMutatorDY::new(with_bit_level),
+        BytesDeleteMutatorDY::new(with_bit_level),
+        BytesExpandMutatorDY::new(with_bit_level),
+        BytesLargeExpandMutatorDY::new(with_bit_level),
+        BytesInsertMutatorDY::new(with_bit_level),
+        BytesRandInsertMutatorDY::new(with_bit_level),
+        BytesSetMutatorDY::new(with_bit_level),
+        BytesRandSetMutatorDY::new(with_bit_level),
+        BytesCopyMutatorDY::new(with_bit_level),
+        BytesInsertCopyMutatorDY::new(with_bit_level),
+        BytesSwapMutatorDY::new(with_bit_level),
+        CrossoverInsertMutatorDY::new(with_bit_level),
+        CrossoverReplaceMutatorDY::new(with_bit_level),
+        SpliceMutatorDY::new(with_bit_level),
+    )
+}
+
+pub type BitMutations<'harness, PB, S> = tuple_list_type!(
+    MakeMessage<'harness, PB>,
+    ReadMessage<'harness, PB>,
+    BitFlipMutatorDY<S>,
+    ByteFlipMutatorDY<S>,
+    ByteIncMutatorDY<S>,
+    ByteDecMutatorDY<S>,
+    ByteNegMutatorDY<S>,
+    ByteRandMutatorDY<S>,
+    ByteAddMutatorDY<S>,
+    WordAddMutatorDY<S>,
+    DwordAddMutatorDY<S>,
+    QwordAddMutatorDY<S>,
+    ByteInterestingMutatorDY<S>,
+    WordInterestingMutatorDY<S>,
+    DwordInterestingMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesExpandMutatorDY<S>,
+    BytesLargeExpandMutatorDY<S>,
+    BytesInsertMutatorDY<S>,
+    BytesRandInsertMutatorDY<S>,
+    BytesSetMutatorDY<S>,
+    BytesRandSetMutatorDY<S>,
+    BytesCopyMutatorDY<S>,
+    BytesInsertCopyMutatorDY<S>,
+    BytesSwapMutatorDY<S>,
+    CrossoverInsertMutatorDY<S>,
+    CrossoverReplaceMutatorDY<S>,
+    SpliceMutatorDY<S>,
+);
+#[must_use]
+pub fn bit_mutations_dy<'a, S: HasRand + HasMaxSize + HasCorpus, PB>(
     mutation_config: MutationConfig,
     put_registry: &'a PutRegistry<PB>,
-) -> HavocMutationsTypeDY<'a, S, PB>
+) -> BitMutations<'a, PB, S>
 where
     PB: ProtocolBehavior,
 {
@@ -106,6 +185,7 @@ where
         BytesDeleteMutatorDY::new(with_bit_level),
         BytesDeleteMutatorDY::new(with_bit_level),
         BytesExpandMutatorDY::new(with_bit_level),
+        BytesLargeExpandMutatorDY::new(with_bit_level),
         BytesInsertMutatorDY::new(with_bit_level),
         BytesRandInsertMutatorDY::new(with_bit_level),
         BytesSetMutatorDY::new(with_bit_level),
@@ -118,6 +198,7 @@ where
         SpliceMutatorDY::new(with_bit_level),
     )
 }
+
 
 pub type AllMutations<'harness, PT, PB, S> = tuple_list_type!(
     RepeatMutator<S>,
@@ -147,6 +228,7 @@ pub type AllMutations<'harness, PT, PB, S> = tuple_list_type!(
     BytesDeleteMutatorDY<S>,
     BytesDeleteMutatorDY<S>,
     BytesExpandMutatorDY<S>,
+    BytesLargeExpandMutatorDY<S>,
     BytesInsertMutatorDY<S>,
     BytesRandInsertMutatorDY<S>,
     BytesSetMutatorDY<S>,
@@ -169,7 +251,7 @@ where
     PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
     dy_mutations(mutation_config, signature, put_registry)
-        .merge(havoc_mutations_dy(mutation_config, put_registry))
+        .merge(bit_mutations_dy(mutation_config, put_registry))
 }
 
 // --------------------------------------------------------------------------------------------------
@@ -277,7 +359,7 @@ where
             constraints_make_message.must_be_root = true;
         }
         // choose a random sub term
-        if let Some((chosen_term, (step_index, term_path))) =
+        if let Some((chosen_term, trace_path)) =
             choose_filtered(trace, constraints_make_message, |t| !t.is_no_bit(), rand)
         {
             log::debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
@@ -291,7 +373,7 @@ where
                     ..Default::default()
                 },
             );
-            match make_message_term(trace, &(step_index, term_path), &mut ctx) {
+            match make_message_term(trace, &trace_path, &mut ctx) {
                 // TODO: possibly we would need to make sure the mutated trace can be executed (if
                 // not directly dropped by the feedback loop once executed).
                 // TODO: maybe check we get the same by reading /encoding
@@ -374,7 +456,10 @@ where
     });
 
     let t = find_term_mut(tr, path).expect("read_message_term - Should never happen.");
-    log::debug!("[mutation::ReadMessage] [read_message_term] Mutate ReadMessage on term\n{}", t);
+    log::debug!(
+        "[mutation::ReadMessage] [read_message_term] Mutate ReadMessage on term\n{}",
+        t
+    );
     log::debug!("[mutation::ReadMessage] [read_message_term] Trying read for type shape: {} and type id : {:?}", t.get_type_shape(), t.term.type_id());
     // Evaluate the term and try to read it into the term type
     let eval = t.evaluate(ctx)?;
@@ -446,7 +531,6 @@ where
                     break;
                 }
             }
-            let chosen_path = (step, chosen_path);
             let spawner = Spawner::new(self.put_registry.clone());
             // log::trace!("Using self.put_registry {:?} to compute ctx",
             // self.put_registry.default().name());
@@ -459,6 +543,7 @@ where
             );
             match read_message_term(trace, &chosen_path, &mut ctx) {
                 Ok(_) => {
+                    log::error!("[ReadMessage] Path chosen: {chosen_path:?}, step: {step}");
                     log::debug!("[mutation::ReadMessage] successful!");
                     Ok(MutationResult::Mutated)
                 }
@@ -494,7 +579,7 @@ where
 
 use paste::paste;
 
-use crate::algebra::bitstrings::Payloads;
+use crate::algebra::bitstrings::{PayloadMetadata, Payloads};
 use crate::algebra::signature::Signature;
 use crate::fuzzer::mutations::{
     dy_mutations, remove_prefix_and_type, GenerateMutator, MutationConfig, RemoveAndLiftMutator,
@@ -561,7 +646,11 @@ impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S>
         ) {
             log::debug!("[Mutation-bit] [macro] Mutate {} on term\n{}", self.name(), &to_mutate);
             if let Some(payloads) = &mut to_mutate.payloads {
-                libafl::mutators::mutations::$mutation.mutate(state, &mut payloads.payload, stage_idx)
+                $mutation.mutate(state, &mut payloads.payload, stage_idx)
+                          .and_then(|r| {
+                               payloads.set_changed();
+                               Ok(r)
+                          })
             } else {
                 panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
             }
@@ -597,7 +686,7 @@ macro_rules! expand_mutations {
           $crate::expand_mutations!($($MS),*);
     };
 }
-
+// Use of `expand_mutations` is below
 expand_mutations!(
     BitFlipMutator,
     ByteFlipMutator,
@@ -614,6 +703,7 @@ expand_mutations!(
     DwordInterestingMutator,
     BytesDeleteMutator,
     BytesExpandMutator,
+    BytesLargeExpandMutator,
     BytesInsertMutator,
     BytesRandInsertMutator,
     BytesSetMutator,
@@ -767,7 +857,7 @@ where
                 &to_mutate
             );
             if let Some(payloads) = &mut to_mutate.payloads {
-                libafl::mutators::mutations::BytesInsertCopyMutator::mutate(
+                BytesInsertCopyMutator::mutate(
                     &mut self.tmp_buf,
                     state,
                     &mut payloads.payload,
@@ -1298,5 +1388,71 @@ where
 {
     fn name(&self) -> &str {
         remove_prefix_and_type(std::any::type_name::<Self>())
+    }
+}
+
+/***************************************************************************************************
+                      New BytesLargeExpandMutator mutation
+***************************************************************************************************/
+
+/// Large number of bytes expand mutation for inputs with a bytes vector (expand range: from 2^5 to
+/// 2^12)
+#[derive(Default, Debug)]
+pub struct BytesLargeExpandMutator;
+
+impl<I, S> Mutator<I, S> for BytesLargeExpandMutator
+where
+    S: HasRand + HasMaxSize,
+    I: HasBytesVec,
+{
+    fn mutate(
+        &mut self,
+        state: &mut S,
+        input: &mut I,
+        _stage_idx: i32,
+    ) -> Result<MutationResult, Error> {
+        let min_length_log = 5;
+        let max_length_log = 12;
+
+        let max_size = state.max_size();
+        let size = input.bytes().len();
+        if size == 0 || size >= max_size {
+            return Ok(MutationResult::Skipped);
+        }
+        if size < 1 << min_length_log {
+            return Ok(MutationResult::Skipped);
+        }
+        let len_log = state
+            .rand_mut()
+            .between(min_length_log as u64, max_length_log as u64) as usize;
+        let len = min(1 << len_log, max_size - size);
+        let start = state.rand_mut().between(0, size as u64) as usize;
+        let range = start..(start + len);
+        log::trace!("[BytesLargeExpandMutator] len: {len}, range: {range:?}, size: {size}");
+        input.bytes_mut().resize(size + range.len(), 0);
+        unsafe {
+            buffer_self_copy(
+                input.bytes_mut(),
+                range.start,
+                range.start + range.len(),
+                size - range.start,
+            );
+        }
+        log::trace!("After mutation, length is: {}", input.bytes().len());
+        Ok(MutationResult::Mutated)
+    }
+}
+
+impl Named for BytesLargeExpandMutator {
+    fn name(&self) -> &str {
+        "BytesLargexpandMutator"
+    }
+}
+
+impl BytesLargeExpandMutator {
+    /// Creates a new [`BytesLargeExpandMutator`].
+    #[must_use]
+    pub fn new() -> Self {
+        Self
     }
 }
