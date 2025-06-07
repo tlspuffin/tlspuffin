@@ -196,12 +196,12 @@ where
         }
         let _a = BytesInsertMutator;
         let rand = state.rand_mut();
-        if let Some((term_a, trace_path_a)) = choose(trace, self.constraints, rand) {
+        if let Some((term_a, trace_path_a)) = choose(trace, &self.constraints, rand) {
             if let Some(trace_path_b) = choose_term_path_filtered(
                 trace,
                 |term: &Term<PT>| term.get_type_shape() == term_a.get_type_shape(),
                 // TODO-bitlevel: maybe also check that both terms are .is_symbolic()
-                self.constraints,
+                &self.constraints,
                 rand,
             ) {
                 let term_a_cloned = term_a.clone();
@@ -289,7 +289,7 @@ where
                     .is_some()
             }
         };
-        if let Some(to_mutate) = choose_term_filtered_mut(trace, filter, self.constraints, rand) {
+        if let Some(to_mutate) = choose_term_filtered_mut(trace, filter, &self.constraints, rand) {
             log::debug!(
                 "[Mutation] Mutate RemoveAndLiftMutator on term\n{}",
                 to_mutate
@@ -381,7 +381,7 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        if let Some(to_mutate) = choose_term_mut(trace, self.constraints, rand) {
+        if let Some(to_mutate) = choose_term_mut(trace, &self.constraints, rand) {
             log::debug!("[Mutation] ReplaceMatchMutator on term\n{}", to_mutate);
             match &mut to_mutate.term {
                 // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
@@ -481,11 +481,11 @@ where
         } else {
             (0, 0)
         };
-        if let Some(replacement) = choose_term(trace, self.constraints, rand).cloned() {
+        if let Some(replacement) = choose_term(trace, &self.constraints, rand).cloned() {
             if let Some(to_replace) = choose_term_filtered_mut(
                 trace,
                 |term: &Term<PT>| term.get_type_shape() == replacement.get_type_shape(),
-                self.constraints,
+                &self.constraints,
                 rand,
             ) {
                 if self.with_bit {
@@ -703,7 +703,7 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        if let Some(to_mutate) = choose_term_mut(trace, self.constraints, rand) {
+        if let Some(to_mutate) = choose_term_mut(trace, &self.constraints, rand) {
             log::debug!("[Mutation] Mutate GenerateMutator on term\n{}", to_mutate);
             self.mutation_counter += 1;
             let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
@@ -965,7 +965,7 @@ mod tests {
         let mut stats: HashSet<TracePath> = HashSet::new();
 
         for _ in 0..10000 {
-            let path = choose_term_path(&trace, TermConstraints::default(), &mut rand).unwrap();
+            let path = choose_term_path(&trace, &TermConstraints::default(), &mut rand).unwrap();
             find_term_mut(&mut trace, &path).unwrap();
             stats.insert(path);
         }
@@ -1012,7 +1012,7 @@ mod tests {
         let mut stats: HashMap<u32, u32> = HashMap::new();
 
         for _ in 0..10000 {
-            let term = choose(&trace, TermConstraints::default(), &mut rand).unwrap();
+            let term = choose(&trace, &TermConstraints::default(), &mut rand).unwrap();
 
             let id = term.0.resistant_id();
 

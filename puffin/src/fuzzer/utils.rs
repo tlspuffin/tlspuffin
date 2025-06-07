@@ -120,7 +120,7 @@ pub type TracePath = (StepIndex, TermPath);
 fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
     trace: &'a Trace<PT>,
     filter: P,
-    constraints: TermConstraints,
+    constraints: &TermConstraints,
     rand: &mut R,
 ) -> Option<(&'a Term<PT>, TracePath)> {
     // log::trace!("[reservoir_sample] Start");
@@ -347,7 +347,7 @@ pub fn find_term<'a, PT: ProtocolTypes>(
 
 pub fn choose<'a, R: Rand, PT: ProtocolTypes>(
     trace: &'a Trace<PT>,
-    constraints: TermConstraints,
+    constraints: &TermConstraints,
     rand: &mut R,
 ) -> Option<(&'a Term<PT>, (usize, TermPath))> {
     reservoir_sample(trace, |_| true, constraints, rand)
@@ -355,7 +355,7 @@ pub fn choose<'a, R: Rand, PT: ProtocolTypes>(
 
 pub fn choose_filtered<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
     trace: &'a Trace<PT>,
-    constraints: TermConstraints,
+    constraints: &TermConstraints,
     filter: P,
     rand: &mut R,
 ) -> Option<(&'a Term<PT>, (usize, TermPath))> {
@@ -364,7 +364,7 @@ pub fn choose_filtered<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool 
 
 pub fn choose_mut<'a, R: Rand, PT: ProtocolTypes>(
     trace: &'a mut Trace<PT>,
-    constraints: TermConstraints,
+    constraints: &TermConstraints,
     rand: &mut R,
 ) -> Option<(&'a mut Term<PT>, (usize, TermPath))> {
     if let Some((_, (u, path))) = reservoir_sample(trace, |_| true, constraints, rand) {
@@ -377,7 +377,7 @@ pub fn choose_mut<'a, R: Rand, PT: ProtocolTypes>(
 
 pub fn choose_term<'a, R: Rand, PT: ProtocolTypes>(
     trace: &'a Trace<PT>,
-    constraints: TermConstraints,
+    constraints: &TermConstraints,
     rand: &mut R,
 ) -> Option<&'a Term<PT>> {
     reservoir_sample(trace, |_| true, constraints, rand).map(|ret| ret.0)
@@ -385,7 +385,7 @@ pub fn choose_term<'a, R: Rand, PT: ProtocolTypes>(
 
 pub fn choose_term_mut<'a, R: Rand, PT: ProtocolTypes>(
     trace: &'a mut Trace<PT>,
-    constraints: TermConstraints,
+    constraints: &TermConstraints,
     rand: &mut R,
 ) -> Option<&'a mut Term<PT>> {
     if let Some(trace_path) = choose_term_path_filtered(trace, |_| true, constraints, rand) {
@@ -398,7 +398,7 @@ pub fn choose_term_mut<'a, R: Rand, PT: ProtocolTypes>(
 pub fn choose_term_filtered_mut<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
     trace: &'a mut Trace<PT>,
     filter: P,
-    constraints: TermConstraints,
+    constraints: &TermConstraints,
     rand: &mut R,
 ) -> Option<&'a mut Term<PT>> {
     if let Some(trace_path) = choose_term_path_filtered(trace, filter, constraints, rand) {
@@ -410,7 +410,7 @@ pub fn choose_term_filtered_mut<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>)
 
 pub fn choose_term_path<R: Rand, PT: ProtocolTypes>(
     trace: &Trace<PT>,
-    constraints: TermConstraints,
+    constraints: &TermConstraints,
     rand: &mut R,
 ) -> Option<TracePath> {
     choose_term_path_filtered(trace, |_| true, constraints, rand)
@@ -419,7 +419,7 @@ pub fn choose_term_path<R: Rand, PT: ProtocolTypes>(
 pub fn choose_term_path_filtered<R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
     trace: &Trace<PT>,
     filter: P,
-    constraints: TermConstraints,
+    constraints: &TermConstraints,
     rand: &mut R,
 ) -> Option<TracePath> {
     reservoir_sample(trace, filter, constraints, rand).map(|ret| ret.1)
@@ -443,7 +443,7 @@ mod tests {
         let mut stats: HashSet<TracePath> = HashSet::new();
 
         for _ in 0..10000 {
-            let path = choose_term_path(&trace, TermConstraints::default(), &mut rand).unwrap();
+            let path = choose_term_path(&trace, &TermConstraints::default(), &mut rand).unwrap();
             find_term_mut(&mut trace, &path).unwrap();
             stats.insert(path);
         }
@@ -490,7 +490,7 @@ mod tests {
         let mut stats: HashMap<u32, u32> = HashMap::new();
 
         for _ in 0..10000 {
-            let term = choose(&trace, TermConstraints::default(), &mut rand).unwrap();
+            let term = choose(&trace, &TermConstraints::default(), &mut rand).unwrap();
 
             let id = term.0.resistant_id();
 
@@ -519,7 +519,7 @@ mod tests {
         let mut stats: HashSet<TracePath> = HashSet::new();
 
         for _ in 0..10000 {
-            let path = choose_term_path(&trace, constraints, &mut rand).unwrap();
+            let path = choose_term_path(&trace, &constraints, &mut rand).unwrap();
             find_term_mut(&mut trace, &path).unwrap();
             stats.insert(path);
         }

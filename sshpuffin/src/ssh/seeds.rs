@@ -158,6 +158,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtoco
                 },
             ),
         ],
+        ..Default::default()
     }
 }
 

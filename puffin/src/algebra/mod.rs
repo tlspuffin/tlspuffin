@@ -342,6 +342,7 @@ pub mod test_signature {
                     }),
                 },
             ],
+            ..Default::default()
         }
     }
 

@@ -532,10 +532,8 @@ impl<PT: ProtocolTypes> Term<PT> {
                 "[eval_until_opaque] Trying to read payload_0 to skip further computations... payload_0: {:?}",
                 payload.payload_0.bytes(),
             );
-            if let Ok(di) = PB::try_read_bytes(
-                payload.payload_0.bytes(),
-                type_term.clone().into(),
-            ) {
+            if let Ok(di) = PB::try_read_bytes(payload.payload_0.bytes(), type_term.clone().into())
+            {
                 // We must make sure that we read correctly and avoided cases where read and encode
                 // are not inverse of each other. Otherwise, later payload replacements will fail.
                 if &di.get_encoding()[..] != &payload.payload_0.bytes()[..] {
@@ -576,10 +574,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 "[eval_until_opaque] Trying to read payload (originated from ReadMessage): {:?}",
                 payload.payload.bytes(),
             );
-            if let Ok(di) = PB::try_read_bytes(
-                payload.payload.bytes(),
-                type_term.clone().into(),
-            ) {
+            if let Ok(di) = PB::try_read_bytes(payload.payload.bytes(), type_term.clone().into()) {
                 log::trace!("[eval_until_opaque] Successfully read term: {:?}", di);
                 // We have set payload to di.get_encoding() when performing ReadMessage, so we can
                 // use it here

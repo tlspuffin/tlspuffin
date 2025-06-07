@@ -314,7 +314,7 @@ fn test_byte_simple(put: &str) {
     let mut mutator_config = MutationConfig::default();
     mutator_config.term_constraints.must_be_symbolic = true;
     let mut mutator_make = MakeMessage::new(mutator_config, &tls_registry);
-    let mut mutator_byte = ByteFlipMutatorDY::new(true);
+    let mut mutator_byte = ByteFlipMutatorDY::new(MutationConfig::default());
 
     let mut trace = seed_client_attacker_full.build_trace();
     let mut i = 0;
@@ -383,7 +383,7 @@ fn test_byte_interesting(put: &str) {
     let spawner = Spawner::new(tls_registry.clone());
     let mut state = create_state();
     let mut mutator_make = MakeMessage::new(MutationConfig::default(), &tls_registry);
-    let mut mutator_byte_interesting = ByteInterestingMutatorDY::new(true);
+    let mut mutator_byte_interesting = ByteInterestingMutatorDY::new(MutationConfig::default());
 
     let ctx = TraceContext::new(spawner);
     let mut trace = seed_client_attacker_full.build_trace();

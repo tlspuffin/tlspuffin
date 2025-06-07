@@ -10,8 +10,11 @@ use log::LevelFilter;
 use log4rs::Handle;
 
 use super::harness;
-use crate::fuzzer::bit_mutations::havoc_mutations_dy;
+use crate::fuzzer::bit_mutations::{
+    bit_mutations_dy, havoc_mutations_dy, MakeMessage, ReadMessage,
+};
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
+use crate::fuzzer::stages::FocusScheduledMutator;
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
@@ -48,6 +51,28 @@ pub struct FuzzerConfig {
     pub verbosity: LevelFilter, // level for the client logging
 }
 
+impl Default for FuzzerConfig {
+    fn default() -> Self {
+        Self {
+            initial_corpus_dir: PathBuf::from("corpus"),
+            static_seed: None,
+            max_iters: None,
+            core_definition: "1".to_string(),
+            stats_file: PathBuf::from("stats.json"),
+            corpus_dir: PathBuf::from("corpus"),
+            objective_dir: PathBuf::from("objective_corpus"),
+            broker_port: 1337,
+            minimizer: false,
+            tui: false,
+            no_launcher: false,
+            log_folder: PathBuf::from("logs"),
+            is_experiment: false,
+            verbosity: LevelFilter::Info, // default verbosity
+            mutation_stage_config: Default::default(),
+            mutation_config: Default::default(),
+        }
+    }
+}
 #[derive(Clone, Copy, Debug)]
 pub struct MutationStageConfig {
     /// How many iterations each stage gets, as an upper bound
@@ -246,12 +271,12 @@ where
         let stage_dy = IfStage::new(cb_dy, tuple_list!(StdMutationalStage::new(mutator_dy)));
 
         // ==== Bit-level mutational stage
-        let mutator_bit = StdScheduledMutator::new(havoc_mutations_dy::<
+        let mutator_bit = StdScheduledMutator::new(bit_mutations_dy::<
             StdState<Trace<PT>, C, R, SC>,
             PB,
         >(mutation_config, put_registry));
-        // Run bit-levlel muts. if bit-level enabled, already advanced (to
-        // save a bit of time)
+        // Run bit-levlel muts. if bit-level enabled + already sufficiently advanced (to save a bit
+        // of time)
         let cb_bit_level = |_: &mut _,
                             _: &mut _,
                             state: &mut ConcreteState<C, R, SC, Trace<PT>>,
@@ -272,9 +297,18 @@ where
                 return Ok(false);
             }
         };
+        let mutator_bit_focus = FocusScheduledMutator::new(
+            tuple_list!(MakeMessage::new(mutation_config, put_registry)),
+            havoc_mutations_dy::<StdState<Trace<PT>, C, R, SC>>(mutation_config),
+            tuple_list!(ReadMessage::new(mutation_config, put_registry)),
+        );
+
         let stage_bit = IfStage::new(
             cb_bit_level,
-            tuple_list!(StdMutationalStage::new(mutator_bit)),
+            tuple_list!(
+                StdMutationalStage::new(mutator_bit), // Old-style stage
+                StdMutationalStage::new(mutator_bit_focus)
+            ), // Focus stage, first MakeMessage, then HAVOC, then ReadMessage
         );
 
         // ==== All stages put together
