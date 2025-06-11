@@ -69,11 +69,9 @@ where
                 .about("Executes a trace stored in a file and display information")
                 .arg(arg!(<input> "The file which stores a trace"))
                 .arg(arg!(-s --max_step <n> "The step at which to stop").value_parser(value_parser!(usize)))
-                .arg(arg!(-S --only_step <n> "Show only the specified step").value_parser(value_parser!(usize)))
                 .arg(arg!(-t --show_terms "Show the terms computed at each input step").value_parser(value_parser!(bool)))
                 .arg(arg!(-c --show_claims "Show the claims emitted at each input step").value_parser(value_parser!(bool)))
                 .arg(arg!(-k --show_knowledges "Show the knowledges gathered at each output step").value_parser(value_parser!(bool)))
-                .arg(arg!(-p --show_prior "Show infos for prior traces").value_parser(value_parser!(bool)))
                 .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool))),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
@@ -260,11 +258,9 @@ where
     } else if let Some(matches) = matches.subcommand_matches("display-execute") {
         let input: &String = matches.get_one("input").unwrap();
         let max_step: Option<&usize> = matches.get_one("max_step");
-        // let only_step: Option<&usize> = matches.get_one("only_step");
         let show_terms: &bool = matches.get_one("show_terms").unwrap();
         let show_knowledges: &bool = matches.get_one("show_knowledges").unwrap();
         let show_claims: &bool = matches.get_one("show_claims").unwrap();
-        // let show_prior: &bool = matches.get_one("show_prior").unwrap();
         let export_json: &bool = matches.get_one("json").unwrap();
 
         let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
@@ -554,23 +550,6 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) 
         Err(reason) => panic!("failed to execute trace: {reason}"),
     }
 }
-
-// fn execute_display<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) {
-//     let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
-//         t
-//     } else {
-//         log::error!("Invalid trace file {}", input.as_ref().display());
-//         return;
-//     };
-
-//     log::info!("Agents: {:?}", &trace.descriptors);
-
-//     let mut ctx = TraceContext::new(spawner);
-//     trace.display_trace_execution(ctx, nb_steps, true, true, None);
-
-//     let store = ctx.knowledge_store;
-//
-// }
 
 fn binary_attack<PB: ProtocolBehavior>(
     input: &str,
