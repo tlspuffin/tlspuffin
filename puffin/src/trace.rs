@@ -789,6 +789,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
 
         self.spawn_agents(ctx)?;
         let steps = &self.steps[0..nb_steps];
+        ctx.executed_until = 0;
         for (i, step) in steps.iter().enumerate() {
             log::debug!("Executing step #{}", i);
             step.execute(i, ctx)?;
