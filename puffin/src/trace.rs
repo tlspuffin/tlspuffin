@@ -499,7 +499,6 @@ pub struct Trace<PT: ProtocolTypes> {
 #[serde(bound = "PT: ProtocolTypes")]
 pub struct ExecutionResult<PT: ProtocolTypes> {
     put: String,
-    success: bool,
     error: Option<String>,
     execution: TraceExecution<PT>,
 }
@@ -507,7 +506,6 @@ pub struct ExecutionResult<PT: ProtocolTypes> {
 impl<PT: ProtocolTypes> ExecutionResult<PT> {
     pub fn from<PB>(
         put: String,
-        success: bool,
         error: Option<String>,
         trace: &Trace<PT>,
         ctx: TraceContext<PB>,
@@ -521,7 +519,6 @@ impl<PT: ProtocolTypes> ExecutionResult<PT> {
         let mut ctx = ctx;
         Self {
             put,
-            success,
             error,
             execution: TraceExecution::from(
                 trace,
@@ -541,20 +538,25 @@ impl<PT: ProtocolTypes> Display for ExecutionResult<PT> {
 
         self.execution.print(f, 0)?;
 
-        match self.success {
-            true => writeln!(f, "Success"),
-            false => writeln!(f, "Error : {}", self.error.clone().unwrap_or("".into())),
+        match self.error {
+            None => writeln!(f, "Success"),
+            Some(_) => writeln!(f, "Error : {}", self.error.clone().unwrap_or("".into())),
         }
     }
 }
 
+/// Store the result of a trace execution to be printed in the cli or serialized
+/// for automated analysis
 #[derive(Serialize)]
 #[serde(bound = "PT: ProtocolTypes")]
 pub struct TraceExecution<PT: ProtocolTypes> {
     prior_traces: Vec<TraceExecution<PT>>,
     agents: Vec<AgentDescriptor<PT::PUTConfig>>,
+    /// Total number of step in the trace
     number_of_steps: usize,
+    /// Number of steps executed before error
     executed_until: usize,
+    /// Execution result of each step
     steps: Vec<StepExecution<PT>>,
 }
 

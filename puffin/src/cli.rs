@@ -283,7 +283,6 @@ where
 
         let exec = ExecutionResult::from(
             put_name,
-            err.is_none(),
             err,
             &trace,
             ctx,
