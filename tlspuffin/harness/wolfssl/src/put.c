@@ -1,3 +1,5 @@
+// ToDO Known issues
+
 #include <wolfssl/options.h>
 #include <wolfssl/ssl.h>
 
@@ -318,32 +320,29 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate return NULL");
     }
 
-#if LIBWOLFSSL_VERSION_HEX >= 0x05004000
-    uint8_t master_secret[SECRET_LEN] = {};
-    if (wolfSSL_GetSession(agent->ssl, &master_secret, 0) != NULL)
-    {
-        if (claim->version.data == CLAIM_TLS_VERSION_V1_2)
-        {
-            memcpy(claim->master_secret_12.secret,
-                   master_secret,
-                   MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
-        }
-        else
-        {
-            memcpy(claim->master_secret.secret,
-                   master_secret,
-                   MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
-        }
-    }
-#endif
-
     if (agent->ssl->arrays != NULL)
     {
+        if (claim->version.data == CLAIM_TLS_VERSION_V1_2) {
+          memcpy(claim->master_secret_12.secret, agent->ssl->arrays->masterSecret,
+            MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
+        } else {
+          memcpy(claim->master_secret.secret, agent->ssl->arrays->masterSecret,
+              MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
+        }
+        // ToDo only in tls 1.3 ?
         memcpy(claim->handshake_secret.secret,
                agent->ssl->arrays->secret,
                MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
-        /*memcpy(claim->handshake_secret.secret, agent->ssl->arrays->exporterSecret,
-            MIN(WC_MAX_DIGEST_SIZE, CLAIM_MAX_SECRET_SIZE));*/
+    }
+    else if (agent->ssl->session != NULL)
+    {
+        if (claim->version.data == CLAIM_TLS_VERSION_V1_2) {
+          memcpy(claim->master_secret_12.secret, agent->ssl->session->masterSecret,
+            MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
+        } else {
+          memcpy(claim->master_secret.secret, agent->ssl->session->masterSecret,
+              MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
+        }
     }
     else
     {
@@ -497,24 +496,37 @@ static void wolfssl_message_callback(int write_p,
     }
     if (write_p != 1) // packet being read
     {
+        fprintf(stderr, "agent: %2.2x type = %2.2x\n", agent->name, type);
         switch (type)
         {
         case 0x0b:
-            agent->transcriptType = CLAIM_TRANSCRIPT_CH_CERT;
+            //agent->transcriptType = CLAIM_TRANSCRIPT_CH_CERT;
+            {
+                struct Claim claim = {};
+                claim.typ = CLAIM_TRANSCRIPT_CH_CERT;
+                fill_claim(agent, &claim);
+                agent->claimer.notify(agent->claimer.context, &claim);
+            }
             break;
         case 0x0f:
-            agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
+            //agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
+            {
+                struct Claim claim = {};
+                claim.typ = CLAIM_CERTIFICATE_VERIFY;
+                fill_claim(agent, &claim);
+                agent->claimer.notify(agent->claimer.context, &claim);
+            }
             break;
         case 0x14:
             agent->transcriptType = CLAIM_TRANSCRIPT_CH_CLIENT_FIN;
             {
-                if (agent->claimer.notify != NULL)
+                /*if (agent->claimer.notify != NULL)
                 {
                     struct Claim claim = {};
                     claim.typ = CLAIM_FINISHED;
                     fill_claim(agent, &claim);
                     agent->claimer.notify(agent->claimer.context, &claim);
-                }
+                }*/
             }
             break;
         default:
@@ -679,6 +691,8 @@ static RESULT wolfssl_progress(AGENT agent)
     RESULT_CODE result_code = RESULT_ERROR_OTHER;
     RESULT result = NULL;
 
+    fprintf(stderr, "agent: %2.2x progress\n", agent->name);
+
     if (wolfSSL_is_init_finished(agent->ssl))
     {
         // trigger another read
@@ -724,6 +738,14 @@ static RESULT wolfssl_progress(AGENT agent)
     // deferred_transcript_extraction
     if ((agent->claimer.notify != NULL) && (agent->transcriptType != CLAIM_NOT_SET))
     {
+        if (agent->transcriptType == CLAIM_TRANSCRIPT_CH_CLIENT_FIN)
+        {
+            struct Claim claim = {};
+            claim.typ = CLAIM_FINISHED;
+            fill_claim(agent, &claim);
+            agent->claimer.notify(agent->claimer.context, &claim);
+        }
+
         struct Claim claim = {};
         claim.typ = agent->transcriptType;
         fill_claim(agent, &claim);
@@ -732,6 +754,7 @@ static RESULT wolfssl_progress(AGENT agent)
         agent->transcriptType = CLAIM_NOT_SET;
     }
 
+    fprintf(stderr, "progress done\n");
     return result;
 }
 
