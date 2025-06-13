@@ -318,15 +318,27 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate return NULL");
     }
 
+#if LIBWOLFSSL_VERSION_HEX >= 0x05002000
+    uint8_t master_secret[SECRET_LEN] = {};
+    if (wolfSSL_GetSession(agent->ssl, &master_secret, 0) != NULL)
+    {
+        if (claim->version.data == CLAIM_TLS_VERSION_V1_2)
+        {
+            memcpy(claim->master_secret_12.secret,
+                   master_secret,
+                   MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
+        }
+        else
+        {
+            memcpy(claim->master_secret.secret,
+                   master_secret,
+                   MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
+        }
+    }
+#endif
+
     if (agent->ssl->arrays != NULL)
     {
-        /*if (claim->version.data == CLAIM_TLS_VERSION_V1_2) {
-          memcpy(claim->master_secret_12.secret, agent->ssl->arrays->masterSecret,
-            MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
-        } else {
-          memcpy(claim->master_secret.secret, agent->ssl->arrays->masterSecret,
-              MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
-        }*/
         memcpy(claim->handshake_secret.secret,
                agent->ssl->arrays->secret,
                MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
