@@ -96,6 +96,7 @@ pub mod test_signature {
     use std::fmt;
     use std::io::Read;
 
+    use comparable::Comparable;
     use puffin_build::puffin;
     use serde::{Deserialize, Serialize};
 
@@ -119,31 +120,31 @@ pub mod test_signature {
         dummy_extract_knowledge_codec, term,
     };
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct HmacKey;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct HandshakeMessage;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct Encrypted;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct ProtocolVersion;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct Random;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct ClientExtension;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct ClientExtensions;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct Group;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct SessionID;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct CipherSuites;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct CipherSuite;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct Compression;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct Compressions;
 
     dummy_extract_knowledge_codec!(TestProtocolTypes, HmacKey);
@@ -376,7 +377,7 @@ pub mod test_signature {
     pub type TestTrace = Trace<TestProtocolTypes>;
     pub type TestTerm = Term<TestProtocolTypes>;
 
-    #[derive(Clone)]
+    #[derive(Clone, Comparable, PartialEq)]
     pub struct TestClaim;
 
     dummy_extract_knowledge_codec!(TestProtocolTypes, TestClaim);
@@ -403,6 +404,7 @@ pub mod test_signature {
         }
     }
 
+    #[derive(Comparable)]
     pub struct TestOpaqueMessage;
 
     impl Clone for TestOpaqueMessage {
@@ -435,6 +437,7 @@ pub mod test_signature {
 
     dummy_extract_knowledge!(TestProtocolTypes, TestOpaqueMessage);
 
+    #[derive(Comparable)]
     pub struct TestMessage;
 
     impl Clone for TestMessage {
@@ -484,7 +487,7 @@ pub mod test_signature {
         }
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct TestMessageFlight;
 
     impl
@@ -524,7 +527,7 @@ pub mod test_signature {
         }
     }
 
-    #[derive(Debug, Clone, Default)]
+    #[derive(Debug, Clone, Default, Comparable)]
     pub struct TestOpaqueMessageFlight;
 
     impl OpaqueProtocolMessageFlight<TestProtocolTypes, TestOpaqueMessage> for TestOpaqueMessageFlight {
@@ -574,6 +577,28 @@ pub mod test_signature {
 
         fn signature() -> &'static Signature<Self> {
             &TEST_SIGNATURE
+        }
+
+        fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>> {
+            None
+        }
+
+        fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
+            None
+        }
+
+        fn differential_fuzzing_terms_to_eval() -> Vec<crate::algebra::Term<Self>> {
+            vec![]
+        }
+
+        fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
+            None
+        }
+
+        fn differential_fuzzing_uniformise_put_config(
+            agent: AgentDescriptor<Self::PUTConfig>,
+        ) -> AgentDescriptor<Self::PUTConfig> {
+            agent
         }
     }
 
