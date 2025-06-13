@@ -318,7 +318,7 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate return NULL");
     }
 
-#if LIBWOLFSSL_VERSION_HEX >= 0x05002000
+#if LIBWOLFSSL_VERSION_HEX >= 0x05004000
     uint8_t master_secret[SECRET_LEN] = {};
     if (wolfSSL_GetSession(agent->ssl, &master_secret, 0) != NULL)
     {
