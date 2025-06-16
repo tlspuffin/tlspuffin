@@ -87,6 +87,7 @@ pub struct Knowledge<'a, PT: ProtocolTypes> {
 #[derive(Debug)]
 pub struct RawKnowledge<PT: ProtocolTypes> {
     pub source: Source,
+    /// the step of the trace that produced this knowledge
     pub step: Option<usize>,
     pub matcher: Option<PT::Matcher>,
     pub associated_term: Option<Term<PT>>,
@@ -945,7 +946,7 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
     fn execute<PB>(
         &self,
         agent_name: AgentName,
-        step: usize,
+        step: usize, // the current step of the trace
         ctx: &mut TraceContext<PB>,
     ) -> Result<(), Error>
     where
