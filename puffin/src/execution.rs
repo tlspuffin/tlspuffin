@@ -222,7 +222,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             _ => (),
         }
 
-        let is_diff = first_ctx.compare(&second_ctx);
+        let is_diff = first_ctx.compare(&second_ctx, &trace.as_ref().descriptors);
 
         if let Err(diff) = is_diff {
             return Err(Error::Difference(diff));
