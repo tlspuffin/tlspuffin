@@ -13,7 +13,7 @@ use puffin::protocol::{
 };
 use puffin::put::PutDescriptor;
 use puffin::trace::{Knowledge, Source, Trace};
-use puffin::{atom_extract_knowledge, codec, dummy_codec, dummy_extract_knowledge};
+use puffin::{atom_extract_knowledge, codec, dummy_codec, dummy_extract_knowledge, term};
 use serde::{Deserialize, Serialize};
 
 use crate::claims::{
@@ -23,6 +23,10 @@ use crate::claims::{
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
+use crate::tls::fn_impl::{
+    fn_decrypt_handshake_flight_with_secret, fn_finished_get_cipher, fn_finished_get_client_random,
+    fn_finished_get_handshake_secret, fn_seq_0, fn_server_hello_transcript, fn_true,
+};
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
 use crate::tls::rustls::msgs::handshake::{
@@ -373,8 +377,36 @@ impl ProtocolTypes for TLSProtocolTypes {
         Some(vec![TypeId::of::<MessagePayload>()])
     }
 
-    fn differential_fuzzing_terms_to_eval() -> Vec<puffin::algebra::Term<Self>> {
-        [].into()
+    fn differential_fuzzing_terms_to_eval(
+        agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
+    ) -> Vec<puffin::algebra::Term<Self>> {
+        let mut is_server = false;
+        let mut server = AgentName::new();
+
+        for agent in agents {
+            if agent.protocol_config.typ == AgentType::Server {
+                is_server = true;
+                server = agent.name;
+            }
+        }
+
+        let mut terms = vec![];
+
+        if is_server {
+            terms.push(term! {
+                fn_decrypt_handshake_flight_with_secret(
+                ((server, 0)/MessageFlight), // The first flight of messages sent by the server
+                (fn_server_hello_transcript(((server, 0)))),
+                fn_true,
+                fn_seq_0,  // sequence 0
+                (fn_finished_get_client_random(((server, 0)))),
+                (fn_finished_get_cipher(((server, 0)))),
+                (fn_finished_get_handshake_secret(((server, 2))))
+            )
+            });
+        }
+
+        terms
     }
 
     fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {

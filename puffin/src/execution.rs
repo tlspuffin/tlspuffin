@@ -248,7 +248,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
 
         *executed_until = usize::max(first_ctx.executed_until, second_ctx.executed_until);
 
-        let is_diff = first_ctx.compare(&second_ctx);
+        let is_diff = first_ctx.compare(&second_ctx, &trace.as_ref().descriptors);
 
         if let Err(diff) = is_diff {
             return Err(Error::Difference(diff));

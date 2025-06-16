@@ -593,7 +593,9 @@ pub mod test_signature {
             None
         }
 
-        fn differential_fuzzing_terms_to_eval() -> Vec<crate::algebra::Term<Self>> {
+        fn differential_fuzzing_terms_to_eval(
+            _agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
+        ) -> Vec<crate::algebra::Term<Self>> {
             vec![]
         }
 

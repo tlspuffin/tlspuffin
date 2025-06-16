@@ -577,12 +577,16 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .all(super::agent::Agent::is_state_successful)
     }
 
-    pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
+    pub fn compare(
+        &self,
+        other: &Self,
+        descriptors: &Vec<AgentDescriptor<<PB::ProtocolTypes as ProtocolTypes>::PUTConfig>>,
+    ) -> Result<(), Vec<TraceDifference>> {
         let mut res = vec![];
 
         // Decrypting knowledges
         let terms: Vec<Term<PB::ProtocolTypes>> =
-            PB::ProtocolTypes::differential_fuzzing_terms_to_eval();
+            PB::ProtocolTypes::differential_fuzzing_terms_to_eval(descriptors);
 
         let mut self_store = KnowledgeStore::new();
         let mut other_store = KnowledgeStore::new();
@@ -590,6 +594,9 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         for t in terms {
             let self_eval = t.evaluate_dy(self);
             let other_eval = t.evaluate_dy(other);
+            log::trace!("Evaluate term : {}", t);
+            log::trace!("Trying term evaluation for first PUT : {:?}", self_eval);
+            log::trace!("Trying term evaluation for second PUT : {:?}", other_eval);
             if let Ok(decrypted) = self_eval {
                 self_store.add_raw_boxed_knowledge(
                     decrypted,
