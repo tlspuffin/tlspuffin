@@ -2,7 +2,7 @@ use std::any::TypeId;
 
 use comparable::Comparable;
 use extractable_macro::Extractable;
-use puffin::agent::ProtocolDescriptorConfig;
+use puffin::agent::{AgentDescriptor, ProtocolDescriptorConfig};
 use puffin::algebra::signature::Signature;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
@@ -195,7 +195,9 @@ impl ProtocolTypes for SshProtocolTypes {
         None
     }
 
-    fn differential_fuzzing_terms_to_eval() -> Vec<puffin::algebra::Term<Self>> {
+    fn differential_fuzzing_terms_to_eval(
+        _agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
+    ) -> Vec<puffin::algebra::Term<Self>> {
         vec![]
     }
 
