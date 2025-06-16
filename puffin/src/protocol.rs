@@ -252,7 +252,9 @@ pub trait ProtocolTypes:
     /// eg. decryption recipes
     /// Terms to evaluate and compare during differential fuzzing
     /// eg. decryption recipes
-    fn differential_fuzzing_terms_to_eval() -> Vec<crate::algebra::Term<Self>>;
+    fn differential_fuzzing_terms_to_eval(
+        agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
+    ) -> Vec<crate::algebra::Term<Self>>;
 
     /// Replace some parameters from agent's protocol config with parameters
     /// that unifomize the behavior of the PUTs
