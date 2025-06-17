@@ -512,7 +512,6 @@ static RESULT wolfssl_add_inbound(AGENT agent, const uint8_t *bytes, size_t leng
     return result;
 }
 
-#if 1
 static int wolfssl_tls13secrets_callback(WOLFSSL *ssl,
                                          int id,
                                          const unsigned char *secret,
@@ -587,7 +586,6 @@ static int wolfssl_tls13secrets_callback(WOLFSSL *ssl,
 
     return 0;
 }
-#endif
 
 static void wolfssl_message_callback(int write_p,
                                      int version,
@@ -614,22 +612,10 @@ static void wolfssl_message_callback(int write_p,
         switch (type)
         {
         case 0x0b:
-            // agent->transcriptType = CLAIM_TRANSCRIPT_CH_CERT;
-            {
-                struct Claim claim = {};
-                claim.typ = CLAIM_TRANSCRIPT_CH_CERT;
-                fill_claim(agent, &claim);
-                agent->claimer.notify(agent->claimer.context, &claim);
-            }
+            agent->transcriptType = CLAIM_TRANSCRIPT_CH_CERT;
             break;
         case 0x0f:
-            // agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
-            {
-                struct Claim claim = {};
-                claim.typ = CLAIM_CERTIFICATE_VERIFY;
-                fill_claim(agent, &claim);
-                agent->claimer.notify(agent->claimer.context, &claim);
-            }
+            agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
             break;
         case 0x14:
             agent->transcriptType = CLAIM_TRANSCRIPT_CH_CLIENT_FIN;
