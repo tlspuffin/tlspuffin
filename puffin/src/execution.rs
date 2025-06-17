@@ -60,7 +60,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
         }
 
         let mut ctx = TraceContext::new(self.spawner.clone());
-        trace.as_ref().execute(&mut ctx)?;
+        trace.as_ref().execute(&mut ctx, &mut 0)?;
         Ok(ctx)
     }
 }
