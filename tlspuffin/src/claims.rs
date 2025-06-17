@@ -183,6 +183,8 @@ pub struct Finished {
     ///     (<https://en.wikipedia.org/wiki/X.690#DER_encoding>)
     pub peer_certificate: SmallVec<[u8; 32]>,
 
+    pub early_secret: SmallVec<[u8; 32]>,
+    pub handshake_secret: SmallVec<[u8; 32]>,
     pub master_secret: SmallVec<[u8; 32]>,
 
     pub chosen_cipher: u16,
@@ -393,6 +395,8 @@ pub mod claims_helpers {
                     ),
                     authenticate_peer: claim.peer_authentication == 1,
                     peer_certificate,
+                    early_secret: SmallVec::from_slice(&claim.early_secret.secret),
+                    handshake_secret: SmallVec::from_slice(&claim.handshake_secret.secret),
                     master_secret: match protocol_version {
                         TLSVersion::V1_3 => SmallVec::from_slice(&claim.master_secret.secret),
                         TLSVersion::V1_2 => SmallVec::from_slice(&claim.master_secret_12.secret),

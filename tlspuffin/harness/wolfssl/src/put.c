@@ -58,6 +58,8 @@ struct AGENT_TYPE
     bool handshake_done;
     enum ClaimType transcriptType;
     bool peer_authentication;
+    uint32_t secret_size;
+    uint8_t handshake_secret[SECRET_LEN];
 };
 
 // Map a key type enum to the corresponding claim key type.
@@ -320,34 +322,69 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         //_log(PUFFIN.warn, "wolfSSL_get_peer_certificate return NULL");
     }
 
+    int32_t secret_size = agent->ssl->specs.hash_size;
+
     if (agent->ssl->arrays != NULL)
     {
-        if (claim->version.data == CLAIM_TLS_VERSION_V1_2) {
-          memcpy(claim->master_secret_12.secret, agent->ssl->arrays->masterSecret,
-            MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
-        } else {
-          memcpy(claim->master_secret.secret, agent->ssl->arrays->masterSecret,
-              MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
+        if (claim->version.data == CLAIM_TLS_VERSION_V1_2)
+        {
+            memcpy(claim->master_secret_12.secret,
+                   agent->ssl->arrays->masterSecret,
+                   MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
+        }
+        else
+        {
+            memcpy(claim->master_secret.secret,
+                   agent->ssl->arrays->masterSecret,
+                   MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
         }
         // ToDo only in tls 1.3 ?
-        memcpy(claim->handshake_secret.secret,
+        memcpy(claim->early_secret.secret,
                agent->ssl->arrays->secret,
-               MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
+               MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
+        /*memcpy(claim->handshake_secret.secret,
+               agent->ssl->arrays->preMasterSecret,
+               MIN(agent->ssl->arrays->preMasterSz, CLAIM_MAX_SECRET_SIZE));*/
+        memcpy(claim->handshake_secret.secret,
+               agent->handshake_secret,
+               MIN(agent->secret_size, CLAIM_MAX_SECRET_SIZE));
     }
-    else if (agent->ssl->session != NULL)
+    else if (session != NULL)
     {
-        if (claim->version.data == CLAIM_TLS_VERSION_V1_2) {
-          memcpy(claim->master_secret_12.secret, agent->ssl->session->masterSecret,
-            MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
-        } else {
-          memcpy(claim->master_secret.secret, agent->ssl->session->masterSecret,
-              MIN(SECRET_LEN, CLAIM_MAX_SECRET_SIZE));
+        if (claim->version.data == CLAIM_TLS_VERSION_V1_2)
+        {
+            memcpy(claim->master_secret_12.secret,
+                   session->masterSecret,
+                   MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
+        }
+        else
+        {
+            memcpy(claim->master_secret.secret,
+                   session->masterSecret,
+                   MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
         }
     }
     else
     {
         //_log(PUFFIN.warn, "ssl->arrays is NULL");
     }
+
+#if 0
+    fprintf(stderr, "agent: %2.2x\n\t0x", agent->name);
+    for (int i=0; i<MIN(secret_size, CLAIM_MAX_SECRET_SIZE); ++i) {
+        fprintf(stderr, "%2.2x", claim->master_secret.secret[i]);
+    }
+    fprintf(stderr, "\n\t0x");
+    for (int i=0; i<MIN(secret_size, CLAIM_MAX_SECRET_SIZE); ++i) {
+        fprintf(stderr, "%2.2x", claim->early_secret.secret[i]);
+    }
+    fprintf(stderr, "\n\t0x");
+    //for (int i=0; i<MIN(agent->ssl->arrays->preMasterSz, CLAIM_MAX_SECRET_SIZE); ++i) {
+    for (int i=0; i<MIN(secret_size, CLAIM_MAX_SECRET_SIZE); ++i) {
+        fprintf(stderr, "%2.2x", claim->handshake_secret.secret[i]);
+    }
+    fprintf(stderr, "\n");
+#endif
 
     claim->chosen_cipher.data = wolfSSL_get_current_cipher_suite(agent->ssl);
     if (claim->chosen_cipher.data == 0)
@@ -475,6 +512,83 @@ static RESULT wolfssl_add_inbound(AGENT agent, const uint8_t *bytes, size_t leng
     return result;
 }
 
+#if 1
+static int wolfssl_tls13secrets_callback(WOLFSSL *ssl,
+                                         int id,
+                                         const unsigned char *secret,
+                                         int secretSz,
+                                         void *ctx)
+{
+    AGENT agent = (AGENT)ctx;
+    if (agent == NULL)
+    {
+        return 0;
+    }
+
+#if 0
+    char* type = "Unknow";
+    switch(id) {
+        case CLIENT_EARLY_TRAFFIC_SECRET:
+        type = "CLIENT_EARLY_TRAFFIC_SECRET";
+        break;
+        case CLIENT_HANDSHAKE_TRAFFIC_SECRET:
+        type = "CLIENT_HANDSHAKE_TRAFFIC_SECRET";
+        break;
+        case SERVER_HANDSHAKE_TRAFFIC_SECRET:
+        type = "SERVER_HANDSHAKE_TRAFFIC_SECRET";
+        break;
+        case CLIENT_TRAFFIC_SECRET:
+        type = "CLIENT_TRAFFIC_SECRET";
+        break;
+        case SERVER_TRAFFIC_SECRET:
+        type = "SERVER_TRAFFIC_SECRET";
+        break;
+        case EARLY_EXPORTER_SECRET:
+        type = "EARLY_EXPORTER_SECRET";
+        break;
+        case EXPORTER_SECRET:
+        type = "EXPORTER_SECRET";
+        break;
+
+    }
+#endif
+
+#if 0
+    fprintf(stderr, "agent: %2.2x id = %2.2x %s : 0x", agent->name, id, type);
+    for (int i=0; i<secretSz; ++i) {
+        fprintf(stderr, "%2.2x", secret[i]);
+    }
+    fprintf(stderr, "\n");
+#endif
+
+    int32_t secret_size = agent->ssl->specs.hash_size;
+
+    if (((id == CLIENT_HANDSHAKE_TRAFFIC_SECRET) || (id == CLIENT_HANDSHAKE_TRAFFIC_SECRET)) &&
+        (agent->secret_size == 0))
+    {
+        if ((ssl->arrays != NULL) && (ssl->arrays->preMasterSecret != NULL))
+        {
+#if 0
+            fprintf(stderr, "agent: %2.2x id = %2.2x %s size: %d preMasterSecret 0x", agent->name, id, type, secret_size);
+            for (int i=0; i<secret_size; ++i) {
+                fprintf(stderr, "%2.2x", agent->ssl->arrays->preMasterSecret[i]);
+            }
+#endif
+            agent->secret_size = secret_size;
+            memcpy(agent->handshake_secret,
+                   ssl->arrays->preMasterSecret,
+                   MIN(secret_size, SECRET_LEN));
+        }
+        else
+        {
+            _log(PUFFIN.warn, "agent->ssl->arrays is NULL, unable to extract handshake key");
+        }
+    }
+
+    return 0;
+}
+#endif
+
 static void wolfssl_message_callback(int write_p,
                                      int version,
                                      int content_type,
@@ -494,13 +608,13 @@ static void wolfssl_message_callback(int write_p,
     {
         type = *((uint8_t *)buf);
     }
-    if (write_p != 1) // packet being read
+    if (write_p == 0) // packet being read
     {
-        fprintf(stderr, "agent: %2.2x type = %2.2x\n", agent->name, type);
+        // fprintf(stderr, "agent: %2.2x type = %2.2x\n", agent->name, type);
         switch (type)
         {
         case 0x0b:
-            //agent->transcriptType = CLAIM_TRANSCRIPT_CH_CERT;
+            // agent->transcriptType = CLAIM_TRANSCRIPT_CH_CERT;
             {
                 struct Claim claim = {};
                 claim.typ = CLAIM_TRANSCRIPT_CH_CERT;
@@ -509,7 +623,7 @@ static void wolfssl_message_callback(int write_p,
             }
             break;
         case 0x0f:
-            //agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
+            // agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
             {
                 struct Claim claim = {};
                 claim.typ = CLAIM_CERTIFICATE_VERIFY;
@@ -543,6 +657,8 @@ static void wolfssl_message_callback(int write_p,
             agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
             if (agent->claimer.notify != NULL)
             {
+                // fprintf(stderr, "agent: %2.2x fill_claim server state == HELLO_DONE\n",
+                // agent->name);
                 struct Claim claim = {};
                 claim.typ = CLAIM_TRANSCRIPT_CH_SH;
                 fill_claim(agent, &claim);
@@ -691,7 +807,7 @@ static RESULT wolfssl_progress(AGENT agent)
     RESULT_CODE result_code = RESULT_ERROR_OTHER;
     RESULT result = NULL;
 
-    fprintf(stderr, "agent: %2.2x progress\n", agent->name);
+    // fprintf(stderr, "agent: %2.2x progress\n", agent->name);
 
     if (wolfSSL_is_init_finished(agent->ssl))
     {
@@ -740,12 +856,15 @@ static RESULT wolfssl_progress(AGENT agent)
     {
         if (agent->transcriptType == CLAIM_TRANSCRIPT_CH_CLIENT_FIN)
         {
+            // fprintf(stderr, "agent: %2.2x fill_claim transcript ==
+            // CLAIM_TRANSCRIPT_CH_CLIENT_FIN\n", agent->name);
             struct Claim claim = {};
             claim.typ = CLAIM_FINISHED;
             fill_claim(agent, &claim);
             agent->claimer.notify(agent->claimer.context, &claim);
         }
 
+        // fprintf(stderr, "agent: %2.2x end progress fill_claim\n", agent->name);
         struct Claim claim = {};
         claim.typ = agent->transcriptType;
         fill_claim(agent, &claim);
@@ -754,7 +873,7 @@ static RESULT wolfssl_progress(AGENT agent)
         agent->transcriptType = CLAIM_NOT_SET;
     }
 
-    fprintf(stderr, "progress done\n");
+    // fprintf(stderr, "progress done\n");
     return result;
 }
 
@@ -824,6 +943,15 @@ static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor)
         goto ERROR__make_agent;
     }
 
+    int_retval = wolfSSL_set_tls13_secret_cb(agent->ssl, wolfssl_tls13secrets_callback, agent);
+    if (int_retval != WOLFSSL_SUCCESS)
+    {
+        strncpy(error_msg,
+                "fatal error in wolfSSL_set_tls13_secret_cb, unable to register arg callback",
+                128);
+        goto ERROR__make_agent;
+    }
+
     agent->in = wolfSSL_BIO_new(wolfSSL_BIO_s_mem());
     if (agent->in == NULL)
     {
@@ -841,6 +969,8 @@ static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor)
     agent->transcriptType = CLAIM_NOT_SET;
     agent->peer_authentication = descriptor->role == CLIENT ? descriptor->server_authentication
                                                             : descriptor->client_authentication;
+    agent->secret_size = 0;
+    memset(agent->handshake_secret, 0, SECRET_LEN);
 
     memset((void *)&agent->claimer, 0, sizeof(CLAIMER_CB));
     wolfssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
