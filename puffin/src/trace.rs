@@ -88,7 +88,7 @@ pub struct Knowledge<'a, PT: ProtocolTypes> {
 pub struct RawKnowledge<PT: ProtocolTypes> {
     pub source: Source,
     /// the step of the trace that produced this knowledge
-    pub step: Option<usize>,
+    pub step: Option<StepNumber>,
     pub matcher: Option<PT::Matcher>,
     pub associated_term: Option<Term<PT>>,
     pub data: Box<dyn EvaluatedTerm<PT>>,
@@ -157,7 +157,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
     pub fn add_raw_knowledge<T: EvaluatedTerm<PT> + 'static>(
         &mut self,
         data: T,
-        step: Option<usize>,
+        step: Option<StepNumber>,
         source: Source,
         term: Option<Term<PT>>,
     ) {
@@ -175,7 +175,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
     pub fn add_raw_boxed_knowledge(
         &mut self,
         data: Box<dyn EvaluatedTerm<PT>>,
-        step: Option<usize>,
+        step: Option<StepNumber>,
         source: Source,
         term: Option<Term<PT>>,
     ) {
@@ -495,6 +495,21 @@ pub struct Trace<PT: ProtocolTypes> {
     pub prior_traces: Vec<Trace<PT>>,
 }
 
+/// Identify a step and a (prior) trace
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, PartialEq, Eq)]
+pub struct StepNumber {
+    /// identify the trace (allow to differentiate between prior traces)
+    pub trace: usize,
+    /// The step number in the trace
+    pub step: usize,
+}
+
+impl StepNumber {
+    pub fn new(trace: usize, step: usize) -> Self {
+        Self { trace, step }
+    }
+}
+
 /// Store the result of a trace execution for displaying or serializing
 #[derive(Serialize)]
 #[serde(bound = "PT: ProtocolTypes")]
@@ -574,6 +589,8 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
     {
         let mut steps = Vec::with_capacity(trace.steps.len());
 
+        let trace_number = Self::count_prior_traces(trace) - 1;
+
         for (idx, step) in trace.steps.iter().enumerate() {
             let knowledges = if export_knowledges {
                 let mut step_knowledges = Vec::new();
@@ -582,7 +599,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
                 mem::swap(&mut old_knowledges, &mut ctx.knowledge_store.raw_knowledge);
 
                 for k in old_knowledges {
-                    if k.step == Some(idx) {
+                    if k.step == Some(StepNumber::new(trace_number, idx)) {
                         step_knowledges.push(k.data);
                     } else {
                         ctx.knowledge_store.raw_knowledge.push(k);
@@ -597,7 +614,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
                 let mut step_claims = Vec::new();
 
                 for c in ctx.claims.deref_borrow().iter() {
-                    if c.get_step() == Some(idx) {
+                    if c.get_step() == Some(StepNumber::new(trace_number, idx)) {
                         step_claims.push(c.inner());
                     }
                 }
@@ -623,6 +640,14 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
             // right now we exclude prior traces
             prior_traces: Vec::new(),
         }
+    }
+
+    fn count_prior_traces(trace: &Trace<PT>) -> usize {
+        let prior: usize = trace
+            .prior_traces
+            .iter()
+            .fold(0, |acc, p| acc + Self::count_prior_traces(p));
+        return 1 + prior;
     }
 
     pub fn print(&self, f: &mut std::fmt::Formatter<'_>, depth: usize) -> std::fmt::Result {
@@ -655,7 +680,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
 pub struct StepExecution<PT: ProtocolTypes> {
     step_number: usize,
     action: ActionType,
-    agent: u8,
+    agent: AgentName,
     knowledges: Option<Vec<Box<dyn EvaluatedTerm<PT>>>>,
     claims: Option<Vec<Box<dyn EvaluatedTerm<PT>>>>,
 }
@@ -779,34 +804,41 @@ impl<PT: ProtocolTypes> Trace<PT> {
     pub fn execute_until_step<PB>(
         &self,
         ctx: &mut TraceContext<PB>,
-        nb_steps: usize,
+        stop_at_step: usize,
+        trace_number: &mut usize,
     ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         for trace in &self.prior_traces {
-            trace.execute(ctx)?;
+            trace.execute(ctx, trace_number)?;
         }
 
         self.spawn_agents(ctx)?;
-        let steps = &self.steps[0..nb_steps];
+        let steps = &self.steps[0..stop_at_step];
         ctx.executed_until = 0;
         for (i, step) in steps.iter().enumerate() {
             log::debug!("Executing step #{}", i);
-            step.execute(i, ctx)?;
+            step.execute(StepNumber::new(*trace_number, i), ctx)?;
 
             ctx.verify_security_violations()?;
             ctx.executed_until = i + 1;
         }
 
+        *trace_number += 1;
+
         Ok(())
     }
 
-    pub fn execute<PB>(&self, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    pub fn execute<PB>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+        trace_number: &mut usize,
+    ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        self.execute_until_step(ctx, self.steps.len())
+        self.execute_until_step(ctx, self.steps.len(), trace_number)
     }
 
     pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {
@@ -879,7 +911,11 @@ pub struct Step<PT: ProtocolTypes> {
 }
 
 impl<PT: ProtocolTypes> Step<PT> {
-    pub fn execute<PB>(&self, step_number: usize, ctx: &mut TraceContext<PB>) -> Result<(), Error>
+    pub fn execute<PB>(
+        &self,
+        step_number: StepNumber,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -946,7 +982,7 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
     fn execute<PB>(
         &self,
         agent_name: AgentName,
-        step: usize, // the current step of the trace
+        step: StepNumber, // the current step of the trace
         ctx: &mut TraceContext<PB>,
     ) -> Result<(), Error>
     where
@@ -967,14 +1003,17 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
 
             if let Ok(flight) = TryInto::<PB::ProtocolMessageFlight>::try_into(opaque_flight) {
                 ctx.knowledge_store
-                    .add_raw_knowledge(flight, Some(step), source, None);
+                    .add_raw_knowledge(flight, Some(step.clone()), source, None);
             }
         }
 
+        // Iterate on claimlist from the end to set the step number on the last claims collected
         for claim in ctx.claims.deref_borrow_mut().iter_mut().rev() {
             if claim.get_step().is_none() {
-                claim.set_step(Some(step));
+                // if the claim doesn't have a step number, it has been created during the last step
+                claim.set_step(Some(step.clone()));
             } else {
+                // all prior claims should already have a number
                 break;
             }
         }

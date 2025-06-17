@@ -113,7 +113,7 @@ pub mod test_signature {
     };
     use crate::put::{Put, PutDescriptor, PutOptions};
     use crate::put_registry::Factory;
-    use crate::trace::{Action, InputAction, Knowledge, Source, Step, Trace};
+    use crate::trace::{Action, InputAction, Knowledge, Source, Step, StepNumber, Trace};
     use crate::{
         codec, define_signature, dummy_codec, dummy_extract_knowledge,
         dummy_extract_knowledge_codec, term,
@@ -402,9 +402,9 @@ pub mod test_signature {
             panic!("Not implemented for test stub");
         }
 
-        fn set_step(&mut self, _step: Option<usize>) {}
+        fn set_step(&mut self, _step: Option<StepNumber>) {}
 
-        fn get_step(&self) -> Option<usize> {
+        fn get_step(&self) -> Option<StepNumber> {
             None
         }
     }
@@ -752,7 +752,7 @@ mod tests {
         let mut context = TraceContext::new(spawner);
         context.knowledge_store.add_raw_knowledge(
             data,
-            Some(0),
+            None,
             Source::Agent(AgentName::first()),
             None,
         );

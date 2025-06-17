@@ -275,11 +275,14 @@ where
 
         let put_name = put_registry.default_put_name().into();
         let mut ctx = TraceContext::new(Spawner::new(put_registry).with_default(default_put));
-        let (res, err) =
-            match trace.execute_until_step(&mut ctx, *max_step.unwrap_or(&trace.steps.len())) {
-                Ok(_) => (ExitCode::SUCCESS, None),
-                Err(e) => (ExitCode::FAILURE, Some(e.to_string())),
-            };
+        let (res, err) = match trace.execute_until_step(
+            &mut ctx,
+            *max_step.unwrap_or(&trace.steps.len()),
+            &mut 0,
+        ) {
+            Ok(_) => (ExitCode::SUCCESS, None),
+            Err(e) => (ExitCode::FAILURE, Some(e.to_string())),
+        };
 
         let exec = ExecutionResult::from(
             put_name,

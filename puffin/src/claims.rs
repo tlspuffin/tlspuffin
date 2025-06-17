@@ -9,6 +9,7 @@ use itertools::Itertools;
 use crate::agent::AgentName;
 use crate::algebra::dynamic_function::TypeShape;
 use crate::protocol::{EvaluatedTerm, ProtocolTypes};
+use crate::trace::StepNumber;
 
 pub trait Claim: EvaluatedTerm<Self::PT> + Debug {
     type PT: ProtocolTypes;
@@ -16,8 +17,8 @@ pub trait Claim: EvaluatedTerm<Self::PT> + Debug {
     fn agent_name(&self) -> AgentName;
     fn id(&self) -> TypeShape<Self::PT>;
     fn inner(&self) -> Box<dyn EvaluatedTerm<Self::PT>>;
-    fn set_step(&mut self, step: Option<usize>);
-    fn get_step(&self) -> Option<usize>;
+    fn set_step(&mut self, step: Option<StepNumber>);
+    fn get_step(&self) -> Option<StepNumber>;
 }
 
 pub trait SecurityViolationPolicy {

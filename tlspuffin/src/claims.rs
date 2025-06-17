@@ -5,7 +5,7 @@ use puffin::algebra::dynamic_function::TypeShape;
 use puffin::claims::Claim;
 use puffin::error::Error;
 use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
-use puffin::trace::{Knowledge, Source};
+use puffin::trace::{Knowledge, Source, StepNumber};
 use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
 use smallvec::SmallVec;
 
@@ -248,7 +248,7 @@ pub struct TlsClaim {
     pub origin: AgentType,
     pub protocol_version: TLSVersion,
     pub data: ClaimData,
-    pub step: Option<usize>,
+    pub step: Option<StepNumber>,
 }
 
 dummy_codec!(TLSProtocolTypes, TlsClaim);
@@ -305,12 +305,12 @@ impl Claim for TlsClaim {
         }
     }
 
-    fn set_step(&mut self, step: Option<usize>) {
+    fn set_step(&mut self, step: Option<StepNumber>) {
         self.step = step;
     }
 
-    fn get_step(&self) -> Option<usize> {
-        self.step
+    fn get_step(&self) -> Option<StepNumber> {
+        self.step.clone()
     }
 }
 
