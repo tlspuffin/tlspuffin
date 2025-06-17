@@ -21,7 +21,7 @@ use crate::log::config_default;
 use crate::protocol::ProtocolBehavior;
 use crate::put::PutDescriptor;
 use crate::put_registry::{PutRegistry, TCP_PUT};
-use crate::trace::{Action, Spawner, Trace, TraceContext};
+use crate::trace::{Action, ExecutionResult, Spawner, Trace, TraceContext};
 
 fn create_app<S>(title: S) -> Command
 where
@@ -65,9 +65,14 @@ where
                 .arg(arg!(-n --number <n> "Amount of files to execute starting at index.").value_parser(value_parser!(usize)))
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
                 .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing")),
-            Command::new("execute-traces")
-                .about("Executes traces stored in files.")
-                .arg(arg!(<inputs> "The file which stores a trace").num_args(1..)),
+            Command::new("display-execute")
+                .about("Executes a trace stored in a file and display information")
+                .arg(arg!(<input> "The file which stores a trace"))
+                .arg(arg!(-s --max_step <n> "The step at which to stop").value_parser(value_parser!(usize)))
+                .arg(arg!(-t --show_terms "Show the terms computed at each input step").value_parser(value_parser!(bool)))
+                .arg(arg!(-c --show_claims "Show the claims emitted at each input step").value_parser(value_parser!(bool)))
+                .arg(arg!(-k --show_knowledges "Show the knowledges gathered at each output step").value_parser(value_parser!(bool)))
+                .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool))),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -246,51 +251,58 @@ where
         }
 
         if end_reached {
-            return ExitCode::FAILURE;
-        } else {
             return ExitCode::SUCCESS;
+        } else {
+            return ExitCode::FAILURE;
         }
-    } else if let Some(matches) = matches.subcommand_matches("execute-traces") {
-        let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
+    } else if let Some(matches) = matches.subcommand_matches("display-execute") {
+        let input: &String = matches.get_one("input").unwrap();
+        let max_step: Option<&usize> = matches.get_one("max_step");
+        let show_terms: &bool = matches.get_one("show_terms").unwrap();
+        let show_knowledges: &bool = matches.get_one("show_knowledges").unwrap();
+        let show_claims: &bool = matches.get_one("show_claims").unwrap();
+        let export_json: &bool = matches.get_one("json").unwrap();
 
-        let mut paths = inputs
-            .flat_map(|input| {
-                let input = PathBuf::from(input);
+        let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
+            t
+        } else {
+            log::error!("Invalid trace file {}", input);
 
-                if input.is_dir() {
-                    fs::read_dir(input)
-                        .expect("failed to read directory")
-                        .map(|entry| entry.expect("failed to read path in directory").path())
-                        .filter(|path| {
-                            !path.file_name().unwrap().to_str().unwrap().starts_with('.')
-                        })
-                        .collect()
-                } else {
-                    vec![input]
-                }
-            })
-            .collect::<Vec<_>>();
+            return ExitCode::FAILURE;
+        };
 
-        paths.sort_by_key(|path| {
-            fs::metadata(path)
-                .unwrap_or_else(|_| panic!("missing trace file {}", path.display()))
-                .modified()
-                .unwrap()
-        });
+        log::info!("Agents: {:?}", &trace.descriptors);
 
-        log::info!("execute: found {} inputs", paths.len());
+        let put_name = put_registry.default_put_name().into();
+        let mut ctx = TraceContext::new(Spawner::new(put_registry).with_default(default_put));
+        let (res, err) = match trace.execute_until_step(
+            &mut ctx,
+            *max_step.unwrap_or(&trace.steps.len()),
+            &mut 0,
+        ) {
+            Ok(_) => (ExitCode::SUCCESS, None),
+            Err(e) => (ExitCode::FAILURE, Some(e.to_string())),
+        };
 
-        let runner = Runner::new(
-            put_registry.clone(),
-            Spawner::new(put_registry).with_default(default_put),
+        let exec = ExecutionResult::from(
+            put_name,
+            err,
+            &trace,
+            ctx,
+            *show_terms,
+            *show_knowledges,
+            *show_claims,
         );
 
-        for path in paths {
-            log::info!("Executing: {}", path.display());
-            execute(&runner, path);
+        if *export_json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&exec).unwrap_or("".into())
+            );
+        } else {
+            println!("{}", exec);
         }
-
-        return ExitCode::SUCCESS;
+        return res;
     } else if let Some(matches) = matches.subcommand_matches("binary-attack") {
         let input: &String = matches.get_one("input").unwrap();
         let output: &String = matches.get_one("output").unwrap();

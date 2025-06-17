@@ -2,13 +2,14 @@ use std::cell::{Ref, RefCell, RefMut};
 use std::fmt::Debug;
 use std::ops::Deref;
 use std::rc::Rc;
-use std::slice::Iter;
+use std::slice::{Iter, IterMut};
 
 use itertools::Itertools;
 
 use crate::agent::AgentName;
 use crate::algebra::dynamic_function::TypeShape;
 use crate::protocol::{EvaluatedTerm, ProtocolTypes};
+use crate::trace::StepNumber;
 
 pub trait Claim: EvaluatedTerm<Self::PT> + Debug {
     type PT: ProtocolTypes;
@@ -16,6 +17,8 @@ pub trait Claim: EvaluatedTerm<Self::PT> + Debug {
     fn agent_name(&self) -> AgentName;
     fn id(&self) -> TypeShape<Self::PT>;
     fn inner(&self) -> Box<dyn EvaluatedTerm<Self::PT>>;
+    fn set_step(&mut self, step: Option<StepNumber>);
+    fn get_step(&self) -> Option<StepNumber>;
 }
 
 pub trait SecurityViolationPolicy {
@@ -32,6 +35,10 @@ pub struct ClaimList<C: Claim> {
 impl<C: Claim> ClaimList<C> {
     pub fn iter(&self) -> Iter<'_, C> {
         self.claims.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> IterMut<'_, C> {
+        self.claims.iter_mut()
     }
 
     /// finds the last claim matching `type`
@@ -83,7 +90,8 @@ impl<C: Claim> ClaimList<C> {
         Self { claims: vec![] }
     }
 
-    pub fn claim_sized(&mut self, claim: C) {
+    pub fn claim_sized(&mut self, mut claim: C) {
+        claim.set_step(None);
         self.claims.push(claim);
     }
 }
