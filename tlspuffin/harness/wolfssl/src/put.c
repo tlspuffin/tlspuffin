@@ -1,4 +1,7 @@
-// ToDO Known issues
+/* Known issues:
+ * wolfssl 5.5.X test_seed_client_attacker12 and test_seed_successful12
+   fail with "can't match cipher suite"
+******************************************************************************/
 
 #include <wolfssl/options.h>
 #include <wolfssl/ssl.h>
@@ -337,17 +340,13 @@ static void fill_claim(AGENT agent, struct Claim *claim)
             memcpy(claim->master_secret.secret,
                    agent->ssl->arrays->masterSecret,
                    MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
+            memcpy(claim->early_secret.secret,
+                   agent->ssl->arrays->secret,
+                   MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
+            memcpy(claim->handshake_secret.secret,
+                   agent->handshake_secret,
+                   MIN(agent->secret_size, CLAIM_MAX_SECRET_SIZE));
         }
-        // ToDo only in tls 1.3 ?
-        memcpy(claim->early_secret.secret,
-               agent->ssl->arrays->secret,
-               MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
-        /*memcpy(claim->handshake_secret.secret,
-               agent->ssl->arrays->preMasterSecret,
-               MIN(agent->ssl->arrays->preMasterSz, CLAIM_MAX_SECRET_SIZE));*/
-        memcpy(claim->handshake_secret.secret,
-               agent->handshake_secret,
-               MIN(agent->secret_size, CLAIM_MAX_SECRET_SIZE));
     }
     else if (session != NULL)
     {
@@ -512,6 +511,9 @@ static RESULT wolfssl_add_inbound(AGENT agent, const uint8_t *bytes, size_t leng
     return result;
 }
 
+// Callback to retrieve TLS 1.3 secrets.
+// This function is called when the `handshake_secret` is available
+// in the `ssl` structure, allowing its retrieval.
 static int wolfssl_tls13secrets_callback(WOLFSSL *ssl,
                                          int id,
                                          const unsigned char *secret,
@@ -620,15 +622,6 @@ static void wolfssl_message_callback(int write_p,
             break;
         case 0x14:
             agent->transcriptType = CLAIM_TRANSCRIPT_CH_CLIENT_FIN;
-            {
-                /*if (agent->claimer.notify != NULL)
-                {
-                    struct Claim claim = {};
-                    claim.typ = CLAIM_FINISHED;
-                    fill_claim(agent, &claim);
-                    agent->claimer.notify(agent->claimer.context, &claim);
-                }*/
-            }
             break;
         default:
             break;
@@ -930,13 +923,16 @@ static AGENT make_agent(AGENT agent, TLS_AGENT_DESCRIPTOR const *descriptor)
         goto ERROR__make_agent;
     }
 
-    int_retval = wolfSSL_set_tls13_secret_cb(agent->ssl, wolfssl_tls13secrets_callback, agent);
-    if (int_retval != WOLFSSL_SUCCESS)
+    if (descriptor->tls_version != V1_2)
     {
-        strncpy(error_msg,
-                "fatal error in wolfSSL_set_tls13_secret_cb, unable to register arg callback",
-                128);
-        goto ERROR__make_agent;
+        int_retval = wolfSSL_set_tls13_secret_cb(agent->ssl, wolfssl_tls13secrets_callback, agent);
+        if (int_retval != WOLFSSL_SUCCESS)
+        {
+            strncpy(error_msg,
+                    "fatal error in wolfSSL_set_tls13_secret_cb, unable to register arg callback",
+                    128);
+            goto ERROR__make_agent;
+        }
     }
 
     agent->in = wolfSSL_BIO_new(wolfSSL_BIO_s_mem());
