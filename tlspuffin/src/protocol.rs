@@ -424,8 +424,9 @@ impl ProtocolTypes for TLSProtocolTypes {
         agent: AgentDescriptor<Self::PUTConfig>,
     ) -> AgentDescriptor<Self::PUTConfig> {
         let mut new = agent.clone();
-        new.protocol_config.cipher_string_tls12 =
-            String::from("TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384");
+        new.protocol_config.cipher_string_tls12 = String::from(
+            "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+        );
         new.protocol_config.cipher_string_tls13 = String::from(
             "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256",
         );
