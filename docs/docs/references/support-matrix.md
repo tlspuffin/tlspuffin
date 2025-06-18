@@ -32,6 +32,8 @@ will build `tlspuffin` for the WolfSSL540 PUT with ASAN enabled.
   <TabItem value="openssl" label="OpenSSL" default>
     | Version    | ASAN support[^1]  | security claims | transcript extraction | mk_vendor preset[^2]   |
     | :--------: | :---------------: | :-------------: | :-------------------: | ---------------------- |
+    | 3.4.0      | yes               | yes             | yes                   | `openssl:openssl340`   |
+    | 3.2.0      | yes               | yes             | yes                   | `openssl:openssl320`   |
     | 3.1.2      | yes               | yes             | yes                   | `openssl:openssl312`   |
     | 1.1.1u     | yes               | yes             | yes                   | `openssl:openssl111u`  |
     | 1.1.1k     | yes               | yes             | yes                   | `openssl:openssl111k`  |
@@ -49,12 +51,17 @@ will build `tlspuffin` for the WolfSSL540 PUT with ASAN enabled.
   <TabItem value="wolfssl" label="wolfSSL">
     | Version    | ASAN support[^1]  | security claims | transcript extraction | mk_vendor preset[^2]                             |
     | :--------: | :---------------: | :-------------: | :-------------------: | ------------------------------------------------ |
-    | 4.3.0      | yes               | no              | yes                   | *work in progress* (cargo preset: `wolfssl430`)  |
-    | 5.1.0      | yes               | no              | yes                   | *work in progress* (cargo preset: `wolfssl510`)  |
-    | 5.2.0      | yes               | no              | yes                   | *work in progress* (cargo preset: `wolfssl520`)  |
-    | 5.3.0      | yes               | no              | yes                   | *work in progress* (cargo preset: `wolfssl530`)  |
-    | 5.4.0      | yes               | no              | yes                   | *work in progress* (cargo preset: `wolfssl540`)  |
-  </TabItem>
+    | 4.3.0      | yes               | no              | yes                   | excluded, use cargo preset: `wolfssl430` instead  |
+    | 5.1.0      | yes               | yes             | yes                   | `wolfssl:wolfssl510`  |
+    | 5.2.0      | yes               | yes             | yes                   | `wolfssl:wolfssl520`  |    
+    | 5.3.0      | yes               | yes             | yes                   | `wolfssl:wolfssl530`  |    
+    | 5.4.0      | yes               | yes             | yes                   | `wolfssl:wolfssl540`  |    
+    | 5.5.2      | yes               | yes             | yes                   | `wolfssl:wolfssl552`, WARNING: not fully functional |    
+    | 5.7.2      | yes               | yes             | yes                   | `wolfssl:wolfssl572`  |    
+    | 5.8.0      | yes               | yes             | yes                   | `wolfssl:wolfssl580`  |
+</TabItem>
+ 
+
 
   <TabItem value="boringssl" label="BoringSSL">
     | Version    | ASAN support[^1]  | security claims | transcript extraction | mk_vendor preset[^2]   |
