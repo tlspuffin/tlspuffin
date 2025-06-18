@@ -15,7 +15,7 @@ where
     S: HasRand,
 {
     name: String,
-    mutations: MT,
+    mutations_core: MT,
     mutations_pre: MtPre,
     mutations_post: MtPost,
     max_stack_pow: u64,
@@ -33,7 +33,7 @@ where
         write!(
             f,
             "FocusScheduledMutator with {} core mutations, {} pre-mutations, {} post-mutations, for Input type {}",
-            self.mutations.len(),
+            self.mutations_core.len(),
             self.mutations_pre.len(),
             self.mutations_post.len(),
             core::any::type_name::<I>()
@@ -81,12 +81,12 @@ where
 {
     /// Get the mutations: we use a custom selection instead of the default
     fn mutations(&self) -> &MT {
-        &self.mutations
+        panic!("[FocusScheduledMutator] mutations - mutations - should never be used");
     }
 
     /// Get the mutations (mutable): we use a custom selection instead of the default
     fn mutations_mut(&mut self) -> &mut MT {
-        &mut self.mutations
+        panic!("[FocusScheduledMutator] mutations - mutations_mut - should never be used");
     }
 }
 
@@ -103,10 +103,9 @@ where
         1 << (1 + state.rand_mut().below(self.max_stack_pow))
     }
 
-    /// Get the next mutation to apply
-    fn schedule(&self, state: &mut S, _: &I) -> MutationId {
-        debug_assert!(!self.mutations().is_empty());
-        state.rand_mut().below(self.mutations().len() as u64).into()
+    /// Get the next mutation to apply (base implementation)
+    fn schedule(&self, _: &mut S, _: &I) -> MutationId {
+        panic!("[FocusScheduledMutator] mutations - schedule - should never be used");
     }
 
     /// New default implementation for mutate.
@@ -119,17 +118,24 @@ where
     ) -> Result<MutationResult, Error> {
         let mut r = MutationResult::Skipped;
         let num = self.iterations(state, input);
-        log::error!(
+        log::info!(
             "FocusScheduledMutator:num: {},  stage_idx: {}, max_stack_pow: {}",
             num,
             stage_idx,
             self.max_stack_pow
+        );
+        log::info!(
+            "Mutations are: pre: {:?}, core: {:?}, post: {:?}",
+            self.mutations_pre.names(),
+            self.mutations_core.names(),
+            self.mutations_post.names()
         );
         // Pre-mutation: schedule exactly once
         // Note: the pre mutations will recognize this stage_idx and there is a certain probability
         // that the mutation won't be applied. However, a payload path will always be chosen and
         // stored in the input metadata for the later, HAVOC, and ReadMessage mutations.
         let idx = self.schedule_pre(state, input);
+        log::debug!("FocusScheduledMutator: PRE idx: {}", idx);
         let outcome = self
             .mutations_pre_mut()
             .get_and_mutate(idx, state, input, stage_idx)?;
@@ -139,9 +145,13 @@ where
 
         // Core mutations
         for _ in 0..num {
-            let idx = self.schedule(state, input);
+            let idx = self.schedule_core(state, input);
+            log::debug!(
+                "FocusScheduledMutator: CORE idx: {}, stage_idx: {stage_idx}",
+                idx
+            );
             let outcome = self
-                .mutations_mut()
+                .mutations_core_mut()
                 .get_and_mutate(idx, state, input, stage_idx)?;
             if outcome == MutationResult::Mutated {
                 r = MutationResult::Mutated;
@@ -152,6 +162,7 @@ where
         // Note: the post mutations will recognize this stage_idx and there is a certain probability
         // that the mutation won't be applied, so we can skip it
         let idx = self.schedule_post(state, input);
+        log::debug!("FocusScheduledMutator: POST idx: {}", idx);
         let outcome = self
             .mutations_post_mut()
             .get_and_mutate(idx, state, input, stage_idx)?;
@@ -171,15 +182,15 @@ where
     S: HasRand,
 {
     /// Create a new [`libafl::mutators::StdScheduledMutator`] instance specifying mutations
-    pub fn new(mutations_pre: MtPre, mutations: MT, mutations_post: MtPost) -> Self {
+    pub fn new(mutations_pre: MtPre, mutations_core: MT, mutations_post: MtPost) -> Self {
         FocusScheduledMutator {
             name: format!(
                 "FocusScheduledMutator[{};{};{}]",
                 mutations_pre.names().join(", "),
-                mutations.names().join(", "),
+                mutations_core.names().join(", "),
                 mutations_post.names().join(", ")
             ),
-            mutations,
+            mutations_core,
             mutations_pre,
             mutations_post,
             max_stack_pow: 7,
@@ -199,6 +210,15 @@ where
     //         phantom: PhantomData,
     //     }
     // }
+
+    /// Get the next core-mutation to apply
+    fn schedule_core(&self, state: &mut S, _: &I) -> MutationId {
+        debug_assert!(!self.mutations_core.is_empty());
+        state
+            .rand_mut()
+            .below(self.mutations_core.len() as u64)
+            .into()
+    }
 
     /// Get the next pre-mutation to apply
     fn schedule_pre(&self, state: &mut S, _: &I) -> MutationId {
@@ -221,6 +241,11 @@ where
     /// Get the pre-mutations (mutable): we use a custom selection instead of the default
     fn mutations_pre_mut(&mut self) -> &mut MtPre {
         &mut self.mutations_pre
+    }
+
+    /// Get the core-mutations (mutable): we use a custom selection instead of the default
+    fn mutations_core_mut(&mut self) -> &mut MT {
+        &mut self.mutations_core
     }
 
     /// Get the post-mutations (mutable): we use a custom selection instead of the default

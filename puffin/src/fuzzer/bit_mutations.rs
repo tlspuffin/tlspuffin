@@ -18,41 +18,10 @@ use libafl_bolts::Named;
 use super::utils::{
     choose_filtered, choose_term_path_filtered, find_term_mut, TermConstraints, TracePath,
 };
-use crate::algebra::TermType;
+use crate::algebra::{Term, TermType};
 use crate::fuzzer::utils::choose_term_filtered_mut;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
-pub type HavocMutationsTypeDY<S> = tuple_list_type!(
-    BitFlipMutatorDY<S>,
-    ByteFlipMutatorDY<S>,
-    ByteIncMutatorDY<S>,
-    ByteDecMutatorDY<S>,
-    ByteNegMutatorDY<S>,
-    ByteRandMutatorDY<S>,
-    ByteAddMutatorDY<S>,
-    WordAddMutatorDY<S>,
-    DwordAddMutatorDY<S>,
-    QwordAddMutatorDY<S>,
-    ByteInterestingMutatorDY<S>,
-    WordInterestingMutatorDY<S>,
-    DwordInterestingMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesExpandMutatorDY<S>,
-    BytesLargeExpandMutatorDY<S>, // NEW! Different from classical havoc!!
-    BytesInsertMutatorDY<S>,
-    BytesRandInsertMutatorDY<S>,
-    BytesSetMutatorDY<S>,
-    BytesRandSetMutatorDY<S>,
-    BytesCopyMutatorDY<S>,
-    BytesInsertCopyMutatorDY<S>,
-    BytesSwapMutatorDY<S>,
-    CrossoverInsertMutatorDY<S>,
-    CrossoverReplaceMutatorDY<S>,
-    SpliceMutatorDY<S>,
-);
 
 /* List from: https://docs.rs/libafl/latest/src/libafl/mutators/havoc_mutations.rs.html#60
     BitFlipMutator,
@@ -84,43 +53,37 @@ pub type HavocMutationsTypeDY<S> = tuple_list_type!(
     CrossoverReplaceMutator,
 */
 
-#[must_use]
-pub fn havoc_mutations_dy<S: HasRand + HasMaxSize + HasCorpus>(
-    mutation_config: MutationConfig,
-) -> HavocMutationsTypeDY<S>  {
-    let with_bit_level = mutation_config.with_bit_level;
-    tuple_list!(
-        BitFlipMutatorDY::new(with_bit_level),
-        ByteFlipMutatorDY::new(with_bit_level),
-        ByteIncMutatorDY::new(with_bit_level),
-        ByteDecMutatorDY::new(with_bit_level),
-        ByteNegMutatorDY::new(with_bit_level),
-        ByteRandMutatorDY::new(with_bit_level),
-        ByteAddMutatorDY::new(with_bit_level),
-        WordAddMutatorDY::new(with_bit_level),
-        DwordAddMutatorDY::new(with_bit_level),
-        QwordAddMutatorDY::new(with_bit_level),
-        ByteInterestingMutatorDY::new(with_bit_level),
-        WordInterestingMutatorDY::new(with_bit_level),
-        DwordInterestingMutatorDY::new(with_bit_level),
-        BytesDeleteMutatorDY::new(with_bit_level),
-        BytesDeleteMutatorDY::new(with_bit_level),
-        BytesDeleteMutatorDY::new(with_bit_level),
-        BytesDeleteMutatorDY::new(with_bit_level),
-        BytesExpandMutatorDY::new(with_bit_level),
-        BytesLargeExpandMutatorDY::new(with_bit_level),
-        BytesInsertMutatorDY::new(with_bit_level),
-        BytesRandInsertMutatorDY::new(with_bit_level),
-        BytesSetMutatorDY::new(with_bit_level),
-        BytesRandSetMutatorDY::new(with_bit_level),
-        BytesCopyMutatorDY::new(with_bit_level),
-        BytesInsertCopyMutatorDY::new(with_bit_level),
-        BytesSwapMutatorDY::new(with_bit_level),
-        CrossoverInsertMutatorDY::new(with_bit_level),
-        CrossoverReplaceMutatorDY::new(with_bit_level),
-        SpliceMutatorDY::new(with_bit_level),
-    )
-}
+pub type HavocMutationsTypeDY<S> = tuple_list_type!(
+    BitFlipMutatorDY<S>,
+    ByteFlipMutatorDY<S>,
+    ByteIncMutatorDY<S>,
+    ByteDecMutatorDY<S>,
+    ByteNegMutatorDY<S>,
+    ByteRandMutatorDY<S>,
+    ByteAddMutatorDY<S>,
+    WordAddMutatorDY<S>,
+    DwordAddMutatorDY<S>,
+    QwordAddMutatorDY<S>,
+    ByteInterestingMutatorDY<S>,
+    WordInterestingMutatorDY<S>,
+    DwordInterestingMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesDeleteMutatorDY<S>,
+    BytesExpandMutatorDY<S>,
+    BytesLargeExpandMutatorDY<S>, // NEW! Different from classical havoc!!
+    BytesInsertMutatorDY<S>,
+    BytesRandInsertMutatorDY<S>,
+    BytesSetMutatorDY<S>,
+    BytesRandSetMutatorDY<S>,
+    BytesCopyMutatorDY<S>,
+    BytesInsertCopyMutatorDY<S>,
+    BytesSwapMutatorDY<S>,
+    CrossoverInsertMutatorDY<S>,
+    CrossoverReplaceMutatorDY<S>,
+    SpliceMutatorDY<S>,
+);
 
 pub type BitMutations<'harness, PB, S> = tuple_list_type!(
     MakeMessage<'harness, PB>,
@@ -155,50 +118,6 @@ pub type BitMutations<'harness, PB, S> = tuple_list_type!(
     CrossoverReplaceMutatorDY<S>,
     SpliceMutatorDY<S>,
 );
-#[must_use]
-pub fn bit_mutations_dy<'a, S: HasRand + HasMaxSize + HasCorpus, PB>(
-    mutation_config: MutationConfig,
-    put_registry: &'a PutRegistry<PB>,
-) -> BitMutations<'a, PB, S>
-where
-    PB: ProtocolBehavior,
-{
-    let with_bit_level = mutation_config.with_bit_level;
-    tuple_list!(
-        MakeMessage::new(mutation_config, put_registry),
-        ReadMessage::new(mutation_config, put_registry),
-        BitFlipMutatorDY::new(with_bit_level),
-        ByteFlipMutatorDY::new(with_bit_level),
-        ByteIncMutatorDY::new(with_bit_level),
-        ByteDecMutatorDY::new(with_bit_level),
-        ByteNegMutatorDY::new(with_bit_level),
-        ByteRandMutatorDY::new(with_bit_level),
-        ByteAddMutatorDY::new(with_bit_level),
-        WordAddMutatorDY::new(with_bit_level),
-        DwordAddMutatorDY::new(with_bit_level),
-        QwordAddMutatorDY::new(with_bit_level),
-        ByteInterestingMutatorDY::new(with_bit_level),
-        WordInterestingMutatorDY::new(with_bit_level),
-        DwordInterestingMutatorDY::new(with_bit_level),
-        BytesDeleteMutatorDY::new(with_bit_level),
-        BytesDeleteMutatorDY::new(with_bit_level),
-        BytesDeleteMutatorDY::new(with_bit_level),
-        BytesDeleteMutatorDY::new(with_bit_level),
-        BytesExpandMutatorDY::new(with_bit_level),
-        BytesLargeExpandMutatorDY::new(with_bit_level),
-        BytesInsertMutatorDY::new(with_bit_level),
-        BytesRandInsertMutatorDY::new(with_bit_level),
-        BytesSetMutatorDY::new(with_bit_level),
-        BytesRandSetMutatorDY::new(with_bit_level),
-        BytesCopyMutatorDY::new(with_bit_level),
-        BytesInsertCopyMutatorDY::new(with_bit_level),
-        BytesSwapMutatorDY::new(with_bit_level),
-        CrossoverInsertMutatorDY::new(with_bit_level),
-        CrossoverReplaceMutatorDY::new(with_bit_level),
-        SpliceMutatorDY::new(with_bit_level),
-    )
-}
-
 
 pub type AllMutations<'harness, PT, PB, S> = tuple_list_type!(
     RepeatMutator<S>,
@@ -241,6 +160,58 @@ pub type AllMutations<'harness, PT, PB, S> = tuple_list_type!(
     SpliceMutatorDY<S>,
 );
 
+#[must_use]
+pub fn havoc_mutations_dy<S: HasRand + HasMaxSize + HasCorpus>(
+    mutation_config: MutationConfig,
+) -> HavocMutationsTypeDY<S> {
+    tuple_list!(
+        BitFlipMutatorDY::new(mutation_config),
+        ByteFlipMutatorDY::new(mutation_config),
+        ByteIncMutatorDY::new(mutation_config),
+        ByteDecMutatorDY::new(mutation_config),
+        ByteNegMutatorDY::new(mutation_config),
+        ByteRandMutatorDY::new(mutation_config),
+        ByteAddMutatorDY::new(mutation_config),
+        WordAddMutatorDY::new(mutation_config),
+        DwordAddMutatorDY::new(mutation_config),
+        QwordAddMutatorDY::new(mutation_config),
+        ByteInterestingMutatorDY::new(mutation_config),
+        WordInterestingMutatorDY::new(mutation_config),
+        DwordInterestingMutatorDY::new(mutation_config),
+        BytesDeleteMutatorDY::new(mutation_config),
+        BytesDeleteMutatorDY::new(mutation_config),
+        BytesDeleteMutatorDY::new(mutation_config),
+        BytesDeleteMutatorDY::new(mutation_config),
+        BytesExpandMutatorDY::new(mutation_config),
+        BytesLargeExpandMutatorDY::new(mutation_config),
+        BytesInsertMutatorDY::new(mutation_config),
+        BytesRandInsertMutatorDY::new(mutation_config),
+        BytesSetMutatorDY::new(mutation_config),
+        BytesRandSetMutatorDY::new(mutation_config),
+        BytesCopyMutatorDY::new(mutation_config),
+        BytesInsertCopyMutatorDY::new(mutation_config),
+        BytesSwapMutatorDY::new(mutation_config),
+        CrossoverInsertMutatorDY::new(mutation_config),
+        CrossoverReplaceMutatorDY::new(mutation_config),
+        SpliceMutatorDY::new(mutation_config),
+    )
+}
+
+#[must_use]
+pub fn bit_mutations_dy<S: HasRand + HasMaxSize + HasCorpus, PB>(
+    mutation_config: MutationConfig,
+    put_registry: &PutRegistry<PB>,
+) -> BitMutations<PB, S>
+where
+    PB: ProtocolBehavior,
+{
+    tuple_list!(
+        MakeMessage::new(mutation_config, put_registry),
+        ReadMessage::new(mutation_config, put_registry)
+    )
+    .merge(havoc_mutations_dy(mutation_config))
+}
+
 pub fn all_mutations<'harness, S, PT: ProtocolTypes, PB>(
     mutation_config: MutationConfig,
     signature: &'static Signature<PT>,
@@ -260,20 +231,16 @@ where
 
 /// MAKE MESSAGE : transforms a sub term into a message which can then be mutated using havoc
 pub struct MakeMessage<'a, PB> {
-    with_bit_level: bool,
-    constraints: TermConstraints,
     put_registry: &'a PutRegistry<PB>,
-    with_dy: bool,
+    config: MutationConfig,
 }
 
 impl<'a, PB> MakeMessage<'a, PB> {
     #[must_use]
-    pub const fn new(mutation_config: MutationConfig, put_registry: &'a PutRegistry<PB>) -> Self {
+    pub const fn new(config: MutationConfig, put_registry: &'a PutRegistry<PB>) -> Self {
         Self {
-            with_bit_level: mutation_config.with_bit_level,
-            constraints: mutation_config.term_constraints,
+            config,
             put_registry,
-            with_dy: mutation_config.with_dy,
         }
     }
 }
@@ -287,6 +254,7 @@ fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
 where
     PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
+    log::debug!("make_message_term: executing until path.0: {}", path.0);
     // Only execute shorter trace: trace[0..step_index])
     // execute the PUT on the first step_index steps and store the resulting trace context
     tr.execute_until_step(ctx, path.0, &mut 0).err().map(|e| {
@@ -322,14 +290,15 @@ where
         _stage_idx: i32,
     ) -> anyhow::Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
-        if !self.with_bit_level {
+        if !self.config.with_bit_level {
             log::debug!("[Mutation-bit] Mutate MakeMessage skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
         }
         let nb_payloads = trace.all_payloads().len();
         let nb_terms = trace.steps.len();
-        let no_more_new_payloads = nb_payloads / std::cmp::max(1, nb_terms)
-            > self.constraints.threshold_max_payloads_per_term;
+        let payloads_term_ratio = nb_payloads / std::cmp::max(1, nb_terms);
+        let no_more_new_payloads =
+            payloads_term_ratio > self.config.term_constraints.threshold_max_payloads_per_term;
         if no_more_new_payloads {
             log::debug!("[MakeMessage] on a trace with too many payloads: {trace}")
         } else {
@@ -341,6 +310,12 @@ where
                                      * with MakeMessage */
             no_payload_in_subterm: false, /* change to true to exclude picking a term with a
                                            * payload in a sub-term */
+            // TODO: we may want to set no_payload_subterm to true
+            // pros of adding: less mutations on sub-terms that could be subsumed by mutations on a
+            // larger term done in the first place cons: might be useful to first
+            // shotgun small mutations on a small term to make the trace progress with possibly more
+            // actions and then       do larger mutations on a larger term from there
+            // (might have an impact later). TODO: balance out this trade-off
             must_payload_in_subterm: no_more_new_payloads, /* change to true when there are too
                                                             * many payloads already */
             not_inside_list: true, /* true means we are not picking terms inside list (like
@@ -353,15 +328,51 @@ where
             // sampling and set this to true (as well as in
             // integration_test/term_zoo.rs)
             not_readable: true,
-            ..self.constraints
+            ..self.config.term_constraints
         };
-        if !self.with_dy {
+        if !self.config.with_dy {
             constraints_make_message.must_be_root = true;
         }
+
+        // If debug mode, test that trace has no focus and panic otherwise
+        #[cfg(any(debug_assertions, feature = "debug"))]
+        if trace.get_focus().is_some() {
+            log::error!(
+                "[MakeMessage] with_focus is set but trace has a focus already: {:?}. Trace:\n{trace}",
+                trace.get_focus().unwrap()
+            );
+            return Ok(MutationResult::Skipped);
+        }
+
         // choose a random sub term
-        if let Some((chosen_term, trace_path)) =
-            choose_filtered(trace, constraints_make_message, |t| !t.is_no_bit(), rand)
-        {
+        if let Some((chosen_term, trace_path)) = if self.config.with_focus {
+            if nb_payloads > 0 && payloads_term_ratio > 1 {
+                log::debug!(
+                    "[MakeMessage] With focus and enough existing payloads: randomly picking one"
+                );
+                constraints_make_message.must_be_symbolic = false;
+                constraints_make_message.must_payload_in_subterm = false;
+                return if let Some((_, path)) = choose_filtered(
+                    trace,
+                    &constraints_make_message,
+                    |t| !t.is_symbolic(),
+                    state.rand_mut(),
+                ) {
+                    log::debug!("[MakeMessage] Picked existing payload and focus set to it: {path:?}. Mutated.");
+                    trace.set_focus(path);
+                    Ok(MutationResult::Mutated)
+                } else {
+                    log::error!("[MakeMessage] Skipped as we failed selecting a term with existing payloads while there is at least one payload");
+                    Ok(MutationResult::Skipped)
+                };
+            } else {
+                log::debug!("[MakeMessage] With focus and no enough existing payloads, picking a random term");
+                choose_filtered(trace, &constraints_make_message, |t| !t.is_no_bit(), rand)
+            }
+        } else {
+            log::debug!("[MakeMessage] Without focus, picking a random term");
+            choose_filtered(trace, &constraints_make_message, |t| !t.is_no_bit(), rand)
+        } {
             log::debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
             let spawner = Spawner::new(self.put_registry.clone());
             // log::trace!("Using self.put_registry {:?} to compute ctx",
@@ -369,7 +380,7 @@ where
             let mut ctx = TraceContext::new_config(
                 spawner,
                 ConfigTrace {
-                    with_bit_level: self.with_bit_level,
+                    with_bit_level: self.config.with_bit_level,
                     ..Default::default()
                 },
             );
@@ -379,6 +390,10 @@ where
                 // TODO: maybe check we get the same by reading /encoding
                 Ok(()) => {
                     log::debug!("mutation::MakeMessage successful!");
+                    if self.config.with_focus {
+                        log::debug!("mutation::MakeMessage set focus");
+                        trace.set_focus(trace_path);
+                    }
                     Ok(MutationResult::Mutated)
                 }
                 Err(e) => {
@@ -414,20 +429,16 @@ where
 /// READ MESSAGE : picks a sub-term having itself a sub-term with payload, evaluate, read and
 /// performs an in-place replacement
 pub struct ReadMessage<'a, PB> {
-    with_bit_level: bool,
-    constraints: TermConstraints,
+    config: MutationConfig,
     put_registry: &'a PutRegistry<PB>,
-    with_dy: bool,
 }
 
 impl<'a, PB> ReadMessage<'a, PB> {
     #[must_use]
-    pub const fn new(mutation_config: MutationConfig, put_registry: &'a PutRegistry<PB>) -> Self {
+    pub const fn new(config: MutationConfig, put_registry: &'a PutRegistry<PB>) -> Self {
         Self {
-            with_bit_level: mutation_config.with_bit_level,
-            constraints: mutation_config.term_constraints,
+            config,
             put_registry,
-            with_dy: mutation_config.with_dy,
         }
     }
 }
@@ -454,6 +465,7 @@ where
         log::debug!("       Skipped ReadMessage");
         Ok::<MutationResult, Error>(MutationResult::Skipped)
     });
+    log::debug!("read_message_term: successful eval");
 
     let t = find_term_mut(tr, path).expect("read_message_term - Should never happen.");
     log::debug!(
@@ -489,77 +501,95 @@ where
         _stage_idx: i32,
     ) -> anyhow::Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
-        if !self.with_bit_level {
+        let focus = trace.get_focus().map(|p| p.clone());
+        if self.config.with_focus {
+            trace.clear_focus(); // to save a bit of memory (no need to serialize focus in the
+                                 // corpus!)
+        }
+        if !self.config.with_bit_level {
             log::debug!("[Mutation-bit] Mutate ReadMessage skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
         let mut term_constraints = TermConstraints {
             not_readable: true,
-            ..self.constraints
+            ..self.config.term_constraints
         };
-        if !self.with_dy {
+        if !self.config.with_dy {
             term_constraints.must_be_root = true;
         }
-        // Randomly choose a random sub term
-        // Specifically for ReadMessage, we should prioritize terms close to a sub-term with
-        // payloads. We first randomly pick a term with payload. With proba p:=1/2 we pick
-        // that one. With proba. p:=p/2 we pick the parent term, etc.
-        if let Some((step, path)) =
-            choose_term_path_filtered(trace, |x| x.is_symbolic().not(), term_constraints, rand)
-        {
-            let mut chosen_path = (step, path);
-            log::trace!("[ReadMessage] Initially picked term at {chosen_path:?}");
-            let term = find_term_mut(trace, &chosen_path)
-                .expect("mutation::ReadMessage::mutate - Should never happen!");
-            let payloads = term.payloads.as_ref().expect(
-                "mutation::ReadMessage::mutate - Should never happen, we should have filtered out symbolic terms",
-            );
-            if !payloads.has_changed() {
-                // Extremely likely that payload.payload == payload.payload0 then!
-                log::debug!("       Skipped {} because payload unchanged", self.name());
-                return Ok(MutationResult::Skipped);
-            }
-            let mut proba = 1.0 / 2.0;
-            while !chosen_path.1.is_empty() {
-                let max_range = (1_000_000_000.0 * proba) as u64;
-                if rand.between(0, 1_000_000_000 - 1) < max_range {
-                    log::trace!("[ReadMessage] Going up, proba was {proba}");
-                    proba = proba / 2.0;
-                    chosen_path.1.pop();
-                } else {
-                    break;
-                }
-            }
-            let spawner = Spawner::new(self.put_registry.clone());
-            // log::trace!("Using self.put_registry {:?} to compute ctx",
-            // self.put_registry.default().name());
-            let mut ctx = TraceContext::new_config(
-                spawner,
-                ConfigTrace {
-                    with_bit_level: self.with_bit_level,
-                    ..Default::default()
-                },
-            );
-            match read_message_term(trace, &chosen_path, &mut ctx) {
-                Ok(_) => {
-                    log::error!("[ReadMessage] Path chosen: {chosen_path:?}, step: {step}");
-                    log::debug!("[mutation::ReadMessage] successful!");
-                    Ok(MutationResult::Mutated)
-                }
-                Err(e) => {
-                    log::debug!("[mutation::ReadMessage] failed due to {e}");
-                    log::debug!("       Skipped {}", self.name());
-                    Ok(MutationResult::Skipped)
-                }
+        let chosen_path = if self.config.with_focus {
+            if let Some(trace_path) = focus {
+                // If focus was already set, we use it as is!
+                // TODO: investigate whether we still want to explore application on parents
+                log::debug!("read_message_term::mutate - Using focus {trace_path:?}");
+                trace_path.clone()
+            } else {
+                log::error!("read_message_term::mutate - No focus set and yet with_focus config. Skipping...");
+                return Ok(MutationResult::Skipped); // First MakeMessage failed, we won't apply
+                                                    // further mutations then
             }
         } else {
-            log::debug!(
-                "[mutation::ReadMessage] Failed to choose term with payload in trace:\n {}",
-                &trace
-            );
-            log::debug!("       Skipped {}", self.name());
-            Ok(MutationResult::Skipped)
+            // Randomly choose a random sub term
+            // Specifically for ReadMessage, we should prioritize terms close to a sub-term with
+            // payloads. We first randomly pick a term with payload. With proba p:=1/2 we pick
+            // that one. With proba. p:=p/2 we pick the parent term, etc.
+            if let Some(mut chosen_path) =
+                choose_term_path_filtered(trace, |x| x.is_symbolic().not(), &term_constraints, rand)
+            {
+                log::trace!("[ReadMessage] Initially picked term at {chosen_path:?}");
+                let term = find_term_mut(trace, &chosen_path)
+                    .expect("mutation::ReadMessage::mutate - Should never happen!");
+                let payloads = term.payloads.as_ref().expect(
+                    "mutation::ReadMessage::mutate - Should never happen, we should have filtered out symbolic terms",
+                );
+                if !payloads.has_changed() {
+                    // Extremely likely that payload.payload == payload.payload0 then!
+                    log::debug!("       Skipped {} because payload unchanged", self.name());
+                    return Ok(MutationResult::Skipped);
+                }
+                let mut proba = 1.0 / 2.0;
+                while !chosen_path.1.is_empty() {
+                    let max_range = (1_000_000_000.0 * proba) as u64;
+                    if rand.between(0, 1_000_000_000 - 1) < max_range {
+                        log::trace!("[ReadMessage] Going up, proba was {proba}");
+                        proba = proba / 2.0;
+                        chosen_path.1.pop();
+                    } else {
+                        break;
+                    }
+                }
+                chosen_path
+            } else {
+                log::debug!(
+                    "[mutation::ReadMessage] Failed to choose term with payload in trace:\n {}",
+                    &trace
+                );
+                log::debug!("       Skipped {}", self.name());
+                return Ok(MutationResult::Skipped);
+            }
+        };
+        let spawner = Spawner::new(self.put_registry.clone());
+        // log::trace!("Using self.put_registry {:?} to compute ctx",
+        // self.put_registry.default().name());
+        let mut ctx = TraceContext::new_config(
+            spawner,
+            ConfigTrace {
+                with_bit_level: self.config.with_bit_level,
+                ..Default::default()
+            },
+        );
+        match read_message_term(trace, &chosen_path, &mut ctx) {
+            Ok(_) => {
+                log::debug!("[ReadMessage] Path chosen: {chosen_path:?}");
+                log::debug!("[mutation::ReadMessage] successful!");
+                Ok(MutationResult::Mutated)
+            }
+            Err(e) => {
+                log::debug!("[mutation::ReadMessage] failed due to {e}");
+                log::debug!("       Skipped {}", self.name());
+                Ok(MutationResult::Skipped)
+            }
         }
     }
 }
@@ -579,7 +609,7 @@ where
 
 use paste::paste;
 
-use crate::algebra::bitstrings::{PayloadMetadata, Payloads};
+use crate::algebra::bitstrings::PayloadMetadata;
 use crate::algebra::signature::Signature;
 use crate::fuzzer::mutations::{
     dy_mutations, remove_prefix_and_type, GenerateMutator, MutationConfig, RemoveAndLiftMutator,
@@ -595,7 +625,7 @@ pub struct [<$mutation  DY>]<S>
     where
         S: HasRand + HasMaxSize,
 {
-    with_bit_level: bool,
+    config: MutationConfig,
     phantom_s: std::marker::PhantomData<S>,
 }
 
@@ -604,9 +634,15 @@ impl<S> [<$mutation  DY>]<S>
         S: HasRand + HasMaxSize,
 {
     #[must_use]
-    pub const fn new(with_bit_level: bool) -> Self {
+    pub const fn new(config: MutationConfig) -> Self {
         Self {
-            with_bit_level,
+            config: MutationConfig {
+                term_constraints: TermConstraints {
+                    not_readable: true,
+                    ..config.term_constraints
+                },
+                ..config
+            },
             phantom_s: std::marker::PhantomData,
         }
     }
@@ -625,38 +661,32 @@ impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S>
     ) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
 
-        if !self.with_bit_level {
+        if !self.config.with_bit_level {
             log::debug!("[Mutation-bit] Mutate {} skipped because bit-level mutations are disabled", self.name());
             return Ok(MutationResult::Skipped)
         }
-        let rand = state.rand_mut();
-        if let Some(to_mutate) = choose_term_filtered_mut(
+        match choose_term_with_payload_mut(
             trace,
-            |x| x.is_symbolic().not(),
-            TermConstraints {
-                not_readable: true,
-                ..TermConstraints::default()
-            },
-            // TODO: we may want to add no_payload_subterm
-            // pros of adding: less mutations on sub-terms that could be subsumed by mutations on a larger term done in the first place
-            // cons: might be useful to first shotgun small mutations on a small term to make the trace progress with possibly more actions and then
-            //       do larger mutations on a larger term from there (might have an impact later).
-            // TODO: balance out this trade-off
-            rand,
+            state,
+            &self.config.term_constraints,
+            self.config.with_focus,
         ) {
-            log::debug!("[Mutation-bit] [macro] Mutate {} on term\n{}", self.name(), &to_mutate);
-            if let Some(payloads) = &mut to_mutate.payloads {
-                $mutation.mutate(state, &mut payloads.payload, stage_idx)
-                          .and_then(|r| {
+            Some(to_mutate) => {
+                log::debug!("[Mutation-bit] Mutate {} on term {to_mutate}", self.name(),);
+                if let Some(payloads) = &mut to_mutate.payloads {
+                    $mutation.mutate(state, &mut payloads.payload, stage_idx)
+                              .and_then(|r| {
                                payloads.set_changed();
                                Ok(r)
                           })
-            } else {
-                panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
+                } else {
+                    panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
+                }
             }
-        } else {
-            log::debug!("       Skipped {}", self.name());
-            Ok(MutationResult::Skipped)
+            None => {
+                log::debug!("       Skipped {}", self.name());
+                Ok(MutationResult::Skipped)
+            }
         }
     }
 }
@@ -724,7 +754,7 @@ pub struct BytesSwapMutatorDY<S>
 where
     S: HasRand + HasMaxSize,
 {
-    with_bit_level: bool,
+    config: MutationConfig,
     tmp_buf: BytesSwapMutator,
     phantom_s: std::marker::PhantomData<S>,
 }
@@ -734,9 +764,15 @@ where
     S: HasRand + HasMaxSize,
 {
     #[must_use]
-    pub fn new(with_bit_level: bool) -> Self {
+    pub fn new(config: MutationConfig) -> Self {
         Self {
-            with_bit_level,
+            config: MutationConfig {
+                term_constraints: TermConstraints {
+                    not_readable: true,
+                    ..config.term_constraints
+                },
+                ..config
+            },
             tmp_buf: BytesSwapMutator::new(),
             phantom_s: std::marker::PhantomData,
         }
@@ -756,37 +792,37 @@ where
     ) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
 
-        if !self.with_bit_level {
+        if !self.config.with_bit_level {
             log::debug!("[Mutation-bit] Mutate BytesSwapMutatorDY skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
         }
-        let rand = state.rand_mut();
-        if let Some(to_mutate) = choose_term_filtered_mut(
+        match choose_term_with_payload_mut(
             trace,
-            |x| x.is_symbolic().not(),
-            TermConstraints {
-                not_readable: true,
-                ..TermConstraints::default()
-            },
-            rand,
+            state,
+            &self.config.term_constraints,
+            self.config.with_focus,
         ) {
-            log::debug!(
-                "[Mutation-bit] Mutate {} on term\n{}",
-                self.name(),
-                &to_mutate
-            );
-            if let Some(payloads) = &mut to_mutate.payloads {
-                BytesSwapMutator::mutate(&mut self.tmp_buf, state, &mut payloads.payload, stage_idx)
+            Some(to_mutate) => {
+                log::debug!("[Mutation-bit] Mutate {} on term {to_mutate}", self.name(),);
+                if let Some(payloads) = &mut to_mutate.payloads {
+                    BytesSwapMutator::mutate(
+                        &mut self.tmp_buf,
+                        state,
+                        &mut payloads.payload,
+                        stage_idx,
+                    )
                     .and_then(|r| {
                         payloads.set_changed();
                         Ok(r)
                     })
-            } else {
-                panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
+                } else {
+                    panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
+                }
             }
-        } else {
-            log::debug!("       Skipped {}", self.name());
-            Ok(MutationResult::Skipped)
+            None => {
+                log::debug!("       Skipped {}", self.name());
+                Ok(MutationResult::Skipped)
+            }
         }
     }
 }
@@ -805,7 +841,7 @@ pub struct BytesInsertCopyMutatorDY<S>
 where
     S: HasRand + HasMaxSize,
 {
-    with_bit_level: bool,
+    config: MutationConfig,
     tmp_buf: BytesInsertCopyMutator,
     phantom_s: std::marker::PhantomData<S>,
 }
@@ -815,9 +851,15 @@ where
     S: HasRand + HasMaxSize,
 {
     #[must_use]
-    pub fn new(with_bit_level: bool) -> Self {
+    pub fn new(config: MutationConfig) -> Self {
         Self {
-            with_bit_level,
+            config: MutationConfig {
+                term_constraints: TermConstraints {
+                    not_readable: true,
+                    ..config.term_constraints
+                },
+                ..config
+            },
             tmp_buf: BytesInsertCopyMutator::new(),
             phantom_s: std::marker::PhantomData,
         }
@@ -837,41 +879,37 @@ where
     ) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
 
-        if !self.with_bit_level {
+        if !self.config.with_bit_level {
             log::debug!("[Mutation-bit] Mutate BytesInsertCopyMutatorDY skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
         }
-        let rand = state.rand_mut();
-        if let Some(to_mutate) = choose_term_filtered_mut(
+        match choose_term_with_payload_mut(
             trace,
-            |x| x.is_symbolic().not(),
-            TermConstraints {
-                not_readable: true,
-                ..TermConstraints::default()
-            },
-            rand,
+            state,
+            &self.config.term_constraints,
+            self.config.with_focus,
         ) {
-            log::debug!(
-                "[Mutation-bit] Mutate {} on term\n{}",
-                self.name(),
-                &to_mutate
-            );
-            if let Some(payloads) = &mut to_mutate.payloads {
-                BytesInsertCopyMutator::mutate(
-                    &mut self.tmp_buf,
-                    state,
-                    &mut payloads.payload,
-                    stage_idx,
-                )                    .and_then(|r| {
-                    payloads.set_changed();
-                    Ok(r)
-                })
-            } else {
-                panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
+            Some(to_mutate) => {
+                log::debug!("[Mutation-bit] Mutate {} on term {to_mutate}", self.name(),);
+                if let Some(payloads) = &mut to_mutate.payloads {
+                    BytesInsertCopyMutator::mutate(
+                        &mut self.tmp_buf,
+                        state,
+                        &mut payloads.payload,
+                        stage_idx,
+                    )
+                    .and_then(|r| {
+                        payloads.set_changed();
+                        Ok(r)
+                    })
+                } else {
+                    panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
+                }
             }
-        } else {
-            log::debug!("       Skipped {}", self.name());
-            Ok(MutationResult::Skipped)
+            None => {
+                log::debug!("       Skipped {}", self.name());
+                Ok(MutationResult::Skipped)
+            }
         }
     }
 }
@@ -889,6 +927,42 @@ where
 // Trace-level bit-level mutations --> Cross-over need to consider traces with the HasBytesVec
 // trait!
 // --------------------------------------------------------------------------------------------------
+
+/// Returns the focused payload or randomly choose a non-symbolic payload in a trace (mutable
+/// reference).
+pub fn choose_term_with_payload_mut<'a, PT, S>(
+    trace: &'a mut Trace<PT>,
+    state: &mut S,
+    term_constraints: &TermConstraints,
+    with_focus: bool,
+) -> Option<&'a mut Term<PT>>
+where
+    S: HasRand + HasMaxSize,
+    PT: ProtocolTypes,
+{
+    if with_focus {
+        if let Some(path_trace) = trace.get_focus() {
+            log::debug!("choose_term_with_payload_mut -- Focused path: {path_trace:?}");
+            let term = find_term_mut(trace, &path_trace.clone())
+                .expect("choose_term_with_payload_mut -- should never happen");
+            Some(term)
+        } else {
+            log::debug!("choose_term_with_payload_mut -- No focus set and yet with_focus config. Skipping...");
+            None // First MakeMessage failed, we won't apply further mutations then
+        }
+    } else {
+        let res = choose_term_filtered_mut(
+            trace,
+            |x| x.is_symbolic().not(),
+            term_constraints,
+            state.rand_mut(),
+        );
+        log::debug!("choose_term_with_payload_mut -- Chosen term, not focus");
+        res
+    }
+}
+
+/* When !with_focus, possibly randomly choose a payload among the all_payloads vec instead. The distribution won't be the same. Investigate what's best.
 
 /// Randomly choose a payload and its index (nth) in a trace (mutable reference), if there is any
 /// and if it has at least 2 bytes. Also returns a mutable ref to the payload metadata.
@@ -913,6 +987,77 @@ where
     }
     Some((input, idx, metada))
 }
+*/
+
+pub fn choose_payload_mut<'a, PT, S>(
+    trace: &'a mut Trace<PT>,
+    state: &mut S,
+    config: &MutationConfig,
+) -> Option<(&'a mut Vec<u8>, &'a mut PayloadMetadata)>
+where
+    S: HasRand + HasMaxSize,
+    PT: ProtocolTypes,
+{
+    match choose_term_with_payload_mut(trace, state, &config.term_constraints, config.with_focus) {
+        Some(term) => {
+            let payloads = term
+                .payloads
+                .as_mut()
+                .expect("[choose_payload_mut] should never happen");
+            let input = payloads.payload.bytes_mut();
+            if input.len() < 2 {
+                log::debug!(
+                    "[choose_payload_mut] Skipped because payload is too small: {} bytes",
+                    input.len()
+                );
+                None
+            } else {
+                Some((input, &mut payloads.metadata))
+            }
+        }
+        None => None,
+    }
+}
+
+// /// Returns the focused payload or randomly choose over a vector of all payloads a payload in a
+// /// trace (mutable reference), if there is any and if it has at least 2 bytes. Also returns a
+// /// mutable ref to the payload metadata.
+// pub fn choose_payload_mut_<'a, PT, S>(
+//     trace: &'a mut Trace<PT>,
+//     state: &mut S,
+//     config: &MutationConfig,
+// ) -> Option<(&'a mut Vec<u8>, &'a mut PayloadMetadata)>
+// where
+//     S: HasRand + HasMaxSize,
+//     PT: ProtocolTypes,
+// {
+//     if let (true, Some(path_trace)) = (config.with_focus, trace.get_focus()) {
+//         let term = find_term_mut(trace, &path_trace.clone())
+//             .expect("[choose_payload_mut] should never happen");
+//         let payloads = term
+//             .payloads
+//             .as_mut()
+//             .expect("[choose_payload_mut] should never happen");
+//         let input = payloads.payload.bytes_mut();
+//         if input.len() < 2 {
+//             return None;
+//         }
+//         Some((input, &mut payloads.metadata))
+//     } else {
+//         let mut all_payloads: Vec<&'a mut Payloads> = trace.all_payloads_mut();
+//         if all_payloads.is_empty() {
+//             return None;
+//         }
+//         let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
+//         let input = all_payloads.remove(idx);
+//         let metada = &mut input.metadata;
+//         let input = input.payload.bytes_mut();
+//         if input.len() < 2 {
+//             return None;
+//         }
+//         Some((input, metada))
+//     }
+// }
 
 // Randomly choose a payload and its index (n-th) in a trace, if there is any and if it has at
 // least 2 bytes
@@ -1002,7 +1147,7 @@ pub struct CrossoverInsertMutatorDY<S>
 where
     S: HasCorpus + HasRand + HasMaxSize,
 {
-    with_bit_level: bool,
+    config: MutationConfig,
     phantom_s: std::marker::PhantomData<S>,
 }
 
@@ -1011,9 +1156,15 @@ where
     S: HasCorpus + HasRand + HasMaxSize,
 {
     #[must_use]
-    pub fn new(with_bit_level: bool) -> Self {
+    pub fn new(config: MutationConfig) -> Self {
         Self {
-            with_bit_level,
+            config: MutationConfig {
+                term_constraints: TermConstraints {
+                    not_readable: true,
+                    ..config.term_constraints
+                },
+                ..config
+            },
             phantom_s: std::marker::PhantomData,
         }
     }
@@ -1033,12 +1184,12 @@ where
     ) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
 
-        if !self.with_bit_level {
+        if !self.config.with_bit_level {
             log::debug!("[Mutation-bit] Mutate CrossoverInsertMutatorDY skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
         }
 
-        let Some((input, _, metadata)) = choose_payload_mut(trace, state) else {
+        let Some((input, metadata)) = choose_payload_mut(trace, state, &self.config) else {
             log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         };
@@ -1136,7 +1287,7 @@ pub struct CrossoverReplaceMutatorDY<S>
 where
     S: HasCorpus + HasRand + HasMaxSize,
 {
-    with_bit_level: bool,
+    config: MutationConfig,
     phantom_s: std::marker::PhantomData<S>,
 }
 
@@ -1145,9 +1296,15 @@ where
     S: HasCorpus + HasRand + HasMaxSize,
 {
     #[must_use]
-    pub fn new(with_bit_level: bool) -> Self {
+    pub fn new(config: MutationConfig) -> Self {
         Self {
-            with_bit_level,
+            config: MutationConfig {
+                term_constraints: TermConstraints {
+                    not_readable: true,
+                    ..config.term_constraints
+                },
+                ..config
+            },
             phantom_s: std::marker::PhantomData,
         }
     }
@@ -1167,12 +1324,12 @@ where
     ) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
 
-        if !self.with_bit_level {
+        if !self.config.with_bit_level {
             log::debug!("[Mutation-bit] Mutate CrossoverReplaceMutatorDY skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
         }
 
-        let Some((input, _, metadata)) = choose_payload_mut(trace, state) else {
+        let Some((input, metadata)) = choose_payload_mut(trace, state, &self.config) else {
             log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         };
@@ -1262,7 +1419,7 @@ pub struct SpliceMutatorDY<S>
 where
     S: HasCorpus + HasRand + HasMaxSize,
 {
-    with_bit_level: bool,
+    config: MutationConfig,
     phantom_s: std::marker::PhantomData<S>,
 }
 
@@ -1271,9 +1428,15 @@ where
     S: HasCorpus + HasRand + HasMaxSize,
 {
     #[must_use]
-    pub fn new(with_bit_level: bool) -> Self {
+    pub fn new(config: MutationConfig) -> Self {
         Self {
-            with_bit_level,
+            config: MutationConfig {
+                term_constraints: TermConstraints {
+                    not_readable: true,
+                    ..config.term_constraints
+                },
+                ..config
+            },
             phantom_s: std::marker::PhantomData,
         }
     }
@@ -1294,12 +1457,12 @@ where
     ) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
 
-        if !self.with_bit_level {
+        if !self.config.with_bit_level {
             log::debug!("[Mutation-bit] Mutate SpliceMutatorDY skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
         }
 
-        let Some((input, _, metadata)) = choose_payload_mut(trace, state) else {
+        let Some((input, metadata)) = choose_payload_mut(trace, state, &self.config) else {
             log::trace!("choose_payload_mut failed");
             log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);

@@ -337,10 +337,15 @@ impl<PT: ProtocolTypes> Term<PT> {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
+        log::debug!("make_payload: about to symbolic evaluate to get eval_0...");
+        // TODO: do we still want to evaluate with paylloads under opaque terms?
         let eval_0 = self.evaluate_symbolic(ctx)?; // we compute the original encoding, without payloads!
         if self.has_payload_to_replace() {
             // specific case: we will directly put the evaluation (with existing payloads in
             // payload.payload)
+            log::debug!(
+                "make_payload: self has payload to replace, evaluate the term to get payload"
+            );
             let eval = self.evaluate(ctx)?; // we compute the original encoding, without payloads!
             self.add_payload_with_new(eval_0, eval, None);
             Ok(())
