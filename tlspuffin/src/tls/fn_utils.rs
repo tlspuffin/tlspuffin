@@ -19,9 +19,13 @@ use crate::tls::rustls::msgs::handshake::{
 };
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
 use crate::tls::rustls::suites::SupportedCipherSuite;
-use crate::tls::rustls::tls12::{self, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256};
+use crate::tls::rustls::tls12::{
+    self, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+};
 use crate::tls::rustls::tls13::key_schedule::KeyScheduleEarly;
-use crate::tls::rustls::tls13::{TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384};
+use crate::tls::rustls::tls13::{
+    TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384, TLS13_CHACHA20_POLY1305_SHA256,
+};
 
 // ----
 // seed_client_attacker()
@@ -80,8 +84,12 @@ pub fn suite_as_supported_suite(suite: &CipherSuite) -> Result<SupportedCipherSu
         CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 => {
             Ok(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
         }
+        CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 => {
+            Ok(TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384)
+        }
         CipherSuite::TLS13_AES_128_GCM_SHA256 => Ok(TLS13_AES_128_GCM_SHA256),
         CipherSuite::TLS13_AES_256_GCM_SHA384 => Ok(TLS13_AES_256_GCM_SHA384),
+        CipherSuite::TLS13_CHACHA20_POLY1305_SHA256 => Ok(TLS13_CHACHA20_POLY1305_SHA256),
         _ => Err(FnError::Crypto("Unsupported ciphersuite".into())),
     }
 }
