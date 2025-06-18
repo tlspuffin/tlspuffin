@@ -297,16 +297,25 @@ where
                 return Ok(false);
             }
         };
+        let mutation_config_focus = MutationConfig {
+            with_focus: true,
+            ..mutation_config
+        };
         let mutator_bit_focus = FocusScheduledMutator::new(
-            tuple_list!(MakeMessage::new(mutation_config, put_registry)),
-            havoc_mutations_dy::<StdState<Trace<PT>, C, R, SC>>(mutation_config),
-            tuple_list!(ReadMessage::new(mutation_config, put_registry)),
+            tuple_list!(MakeMessage::new(mutation_config_focus, put_registry)),
+            havoc_mutations_dy::<StdState<Trace<PT>, C, R, SC>>(mutation_config_focus),
+            tuple_list!(ReadMessage::new(mutation_config_focus, put_registry)),
         );
 
+        let focus_stage_print = ClosureStage::new(|_, _, _, _, _| -> Result<(), Error> {
+            log::debug!("[*] BIT FocusScheduledMutator");
+            Ok(())
+        });
         let stage_bit = IfStage::new(
             cb_bit_level,
             tuple_list!(
-                StdMutationalStage::new(mutator_bit), // Old-style stage
+                StdMutationalStage::new(mutator_bit), // Old-style HAVOC stage
+                focus_stage_print,                    // printing focus HAVOC stage
                 StdMutationalStage::new(mutator_bit_focus)
             ), // Focus stage, first MakeMessage, then HAVOC, then ReadMessage
         );

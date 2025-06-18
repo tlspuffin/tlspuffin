@@ -927,6 +927,13 @@ impl<PT: ProtocolTypes> Trace<PT> {
         log::debug!("[clear_focus] clear focus");
         self.metadata_trace.path_focus = None;
     }
+
+    /// Clear from the metadata any focus
+    pub fn get_focus(&self) -> Option<&TracePath> {
+        log::debug!("[get_focus] get_focus {:?}", self.metadata_trace.path_focus);
+        self.metadata_trace.path_focus.as_ref()
+    }
+}
 impl<PT: ProtocolTypes> Default for Trace<PT> {
     fn default() -> Self {
         Self {
