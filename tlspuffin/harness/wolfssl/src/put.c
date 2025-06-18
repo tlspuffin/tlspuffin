@@ -562,7 +562,7 @@ static int wolfssl_tls13secrets_callback(WOLFSSL *ssl,
 
     int32_t secret_size = agent->ssl->specs.hash_size;
 
-    if (((id == CLIENT_HANDSHAKE_TRAFFIC_SECRET) || (id == CLIENT_HANDSHAKE_TRAFFIC_SECRET)) &&
+    if (((id == CLIENT_HANDSHAKE_TRAFFIC_SECRET) || (id == SERVER_HANDSHAKE_TRAFFIC_SECRET)) &&
         (agent->secret_size == 0))
     {
         if ((ssl->arrays != NULL) && (ssl->arrays->preMasterSecret != NULL))
@@ -572,6 +572,7 @@ static int wolfssl_tls13secrets_callback(WOLFSSL *ssl,
             for (int i=0; i<secret_size; ++i) {
                 fprintf(stderr, "%2.2x", agent->ssl->arrays->preMasterSecret[i]);
             }
+            fprintf(stderr, "\n");
 #endif
             agent->secret_size = secret_size;
             memcpy(agent->handshake_secret,
