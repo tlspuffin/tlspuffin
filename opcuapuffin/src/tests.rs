@@ -1,6 +1,5 @@
 use opcua::puffin::signature::{fn_hello, fn_acknowledge, fn_reverse_hello};
 use opcua::puffin::signature::fn_impl::fn_constants::{fn_default_size, fn_simulation_server};
-use opcua::puffin::types::OpcuaProtocolTypes;
 use opcua::types::{AcknowledgeMessage, HelloMessage, ReverseHelloMessage};
 
 use puffin::codec::CodecP;
@@ -12,7 +11,7 @@ pub fn client() {
     let mut send_buffer: Vec<u8> = Vec::with_capacity(max_size as usize);
 
     let hello_message: HelloMessage = fn_hello(
-        &String::from("opc.tcp://PenDuick:53530/OPCUA/SimulationServer"),
+        &fn_simulation_server().unwrap(),
         &max_size,  &max_size).unwrap();
     hello_message.encode(&mut send_buffer);
     let hello_msg : Vec<u8> = vec![
@@ -27,8 +26,8 @@ pub fn client() {
 #[test]
 pub fn server() {
 
-    let max_size = 5000;
-    let mut send_buffer: Vec<u8> = Vec::with_capacity(max_size);
+    let max_size: u32 = 5000;
+    let mut send_buffer: Vec<u8> = Vec::with_capacity(max_size as usize);
 
     let reverse_message: ReverseHelloMessage = fn_reverse_hello(
         &String::from("opc.tcp://Penduick:53530"),
@@ -57,22 +56,24 @@ pub fn server() {
       //println!("acknowledge: {:x?}",  send_buffer);
 }
 
-//use puffin::trace::{Action, InputAction, OutputAction, Precomputation, Step, Trace};
 use puffin::term;
 use puffin::algebra::Term;
-use puffin::algebra::error::FnError;
+use opcua::puffin::types::OpcuaProtocolTypes;
 
+#[test]
+pub fn test_hello() {
 
-// #[test]
-// pub fn test_hello() {
+  let _hello_term: Term<OpcuaProtocolTypes> = term! {
+    fn_hello(
+        fn_simulation_server,
+        fn_default_size,
+        fn_default_size)
+  };
 
-//   let hello_term: Term<OpcuaProtocolTypes> = term! {
-//     fn_hello(
-//         fn_simulation_server,
-//         fn_default_size, fn_default_size
-//     )
-//   };
+  let _ack_message: Term<OpcuaProtocolTypes> = term! {
+    fn_acknowledge(
+        fn_default_size,
+        fn_default_size)
+  };
 
-//   //let hello_message: HelloMessage = hello_term;
-
-// }
+}
