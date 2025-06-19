@@ -33,7 +33,6 @@ objective/
 .direnv
 
 *.profdata
-*.profraw
 *.gcov
 coverage.csv
 stats.json.should-be-empty.log
