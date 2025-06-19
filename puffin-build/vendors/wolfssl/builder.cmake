@@ -88,6 +88,7 @@ autotools_builder(
     -DHAVE_CURVE25519
     $<${require_user_ticks}:-DUSER_TICKS>         # to ensure deterministic behaviour
     $<${require_define_xtime}:-DXTIME=time_cb>    # to ensure deterministic behaviour with version >= 5.0.0 and < 5.2.0
+    $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:-DHAVE_SECRET_CALLBACK>
     # FIXME broken: -DHAVE_EX_DATA_CLEANUP_HOOKS  # required for cleanup of ex data
     # FIXME broken: -DWC_RNG_SEED_CB              # makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism
     # FIXME broken: -DWOLFSSL_GENSEED_FORTEST     # makes test test_seed_cve_2022_38153 fail, but should be used when evaluating coverage to get same coverage than other fuzzers which use this flag to disable determinism
