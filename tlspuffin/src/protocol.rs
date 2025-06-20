@@ -24,8 +24,9 @@ use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::{
-    fn_decrypt_handshake_flight_with_secret, fn_finished_get_cipher, fn_finished_get_client_random,
-    fn_finished_get_handshake_secret, fn_seq_0, fn_server_hello_transcript, fn_true,
+    fn_decrypt_handshake_flight_with_secret, fn_false, fn_finished_get_cipher,
+    fn_finished_get_client_random, fn_finished_get_handshake_secret, fn_seq_0,
+    fn_server_hello_transcript, fn_true,
 };
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
@@ -382,11 +383,16 @@ impl ProtocolTypes for TLSProtocolTypes {
     ) -> Vec<puffin::algebra::Term<Self>> {
         let mut is_server = false;
         let mut server = AgentName::new();
+        let mut is_client = false;
+        let mut client = AgentName::new();
 
         for agent in agents {
             if agent.protocol_config.typ == AgentType::Server {
                 is_server = true;
                 server = agent.name;
+            } else if agent.protocol_config.typ == AgentType::Client {
+                is_client = true;
+                client = agent.name;
             }
         }
 
@@ -402,6 +408,20 @@ impl ProtocolTypes for TLSProtocolTypes {
                 (fn_finished_get_client_random(((server, 0)))),
                 (fn_finished_get_cipher(((server, 0)))),
                 (fn_finished_get_handshake_secret(((server, 2))))
+            )
+            });
+        }
+
+        if is_client {
+            terms.push(term! {
+                fn_decrypt_handshake_flight_with_secret(
+                ((client, 1)/MessageFlight),
+                (fn_server_hello_transcript(((client, 0)))),
+                fn_false,
+                fn_seq_0,
+                (fn_finished_get_client_random(((client, 0)))),
+                (fn_finished_get_cipher(((client, 0)))),
+                (fn_finished_get_handshake_secret(((client, 0))))
             )
             });
         }

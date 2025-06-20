@@ -44,15 +44,13 @@ pub fn fn_finished_get_cipher(claim: &Finished) -> Result<CipherSuite, FnError> 
 }
 
 pub fn fn_finished_get_secret(claim: &Finished) -> Result<Vec<u8>, FnError> {
-    let mut secret = Vec::from(claim.master_secret.as_slice());
-    secret.resize(48, 0);
+    let secret = Vec::from(claim.master_secret.as_slice());
 
     Ok(secret)
 }
 
 pub fn fn_finished_get_handshake_secret(claim: &Finished) -> Result<Vec<u8>, FnError> {
-    let mut secret = Vec::from(claim.handshake_secret.as_slice());
-    secret.resize(48, 0);
+    let secret = Vec::from(claim.handshake_secret.as_slice());
 
     Ok(secret)
 }
