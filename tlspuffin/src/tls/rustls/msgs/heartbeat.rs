@@ -1,3 +1,4 @@
+use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::codec::{Codec, Reader};
 
@@ -5,7 +6,7 @@ use crate::protocol::TLSProtocolTypes;
 use crate::tls::rustls::msgs::base::PayloadU16;
 use crate::tls::rustls::msgs::enums::HeartbeatMessageType;
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct HeartbeatPayload {
     #[extractable_ignore]
