@@ -630,7 +630,7 @@ declare_u8_vec!(ProtocolVersions, ProtocolVersion);
 #[derive(Debug, Clone, Extractable, PartialEq, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub enum ClientExtension {
-    ECPointFormats(ECPointFormatList),
+    ECPointFormats(#[comparable_ignore] ECPointFormatList),
     NamedGroups(NamedGroups),
     SignatureAlgorithms(SupportedSignatureSchemes),
     ServerName(ServerNameRequest),
@@ -819,7 +819,7 @@ pub enum ClientSessionTicket {
 
 #[derive(Clone, Debug, PartialEq, Comparable)]
 pub enum ServerExtension {
-    ECPointFormats(ECPointFormatList),
+    ECPointFormats(#[comparable_ignore] ECPointFormatList),
     ServerNameAck,
     SessionTicketAck,
     RenegotiationInfo(PayloadU8),
