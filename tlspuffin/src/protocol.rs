@@ -42,10 +42,45 @@ use crate::tls::rustls::msgs::{self};
 use crate::tls::violation::TlsSecurityViolationPolicy;
 use crate::tls::TLS_SIGNATURE;
 
-#[derive(Debug, Clone, Extractable, Comparable)]
-#[extractable(TLSProtocolTypes)]
+#[derive(Debug, Clone, Comparable)]
 pub struct MessageFlight {
     pub messages: Vec<Message>,
+}
+
+impl Extractable<TLSProtocolTypes> for MessageFlight {
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
+        _: Option<TlsQueryMatcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        let matcher = if let Some(first_msg) = self.messages.get(0) {
+            match &first_msg.payload {
+                MessagePayload::Handshake(hs) => match hs.payload {
+                    msgs::handshake::HandshakePayload::ClientHello(_) => {
+                        Some(TlsQueryMatcher::ClientHelloFlight)
+                    }
+                    msgs::handshake::HandshakePayload::ServerHello(_) => {
+                        Some(TlsQueryMatcher::ServerHelloFlight)
+                    }
+                    _ => Some(TlsQueryMatcher::OtherFlight),
+                },
+                MessagePayload::ApplicationData(_) => Some(TlsQueryMatcher::EncryptedFlight),
+                _ => Some(TlsQueryMatcher::OtherFlight),
+            }
+        } else {
+            None
+        };
+
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+
+        self.messages.extract_knowledge(knowledges, None, source)?;
+        Ok(())
+    }
 }
 
 impl ProtocolMessageFlight<TLSProtocolTypes, Message, OpaqueMessage, OpaqueMessageFlight>
@@ -401,7 +436,7 @@ impl ProtocolTypes for TLSProtocolTypes {
         if is_server {
             terms.push(term! {
                 fn_decrypt_handshake_flight_with_secret(
-                ((server, 0)/MessageFlight), // The first flight of messages sent by the server
+                ((server, 0)[Some(TlsQueryMatcher::ServerHelloFlight)]/MessageFlight),
                 (fn_server_hello_transcript(((server, 0)))),
                 fn_true,
                 fn_seq_0,  // sequence 0
@@ -415,7 +450,7 @@ impl ProtocolTypes for TLSProtocolTypes {
         if is_client {
             terms.push(term! {
                 fn_decrypt_handshake_flight_with_secret(
-                ((client, 1)/MessageFlight),
+                ((client, 0)[Some(TlsQueryMatcher::EncryptedFlight)]/MessageFlight),
                 (fn_server_hello_transcript(((client, 0)))),
                 fn_false,
                 fn_seq_0,
