@@ -77,6 +77,10 @@ impl CPut {
         capabilities: HashSet<String>,
         interface: TLS_PUT_INTERFACE,
     ) -> Self {
+        let capabilities: HashSet<String> = capabilities
+            .into_iter()
+            .map(|s| s.replace('_', "-"))
+            .collect();
         Self {
             name: name.into(),
             harness_version: harness_version.into(),
