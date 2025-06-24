@@ -110,32 +110,36 @@ static int extract_current_transcript(AGENT agent, unsigned char *buffer, int bu
         _log(PUFFIN.warn, "agent->ssl is NULL");
         return 0;
     }
-    if (agent->ssl->hsHashes == NULL) {
+    if (agent->ssl->hsHashes == NULL)
+    {
         //_log(PUFFIN.warn, "agent->ssl->hsHashes is NULL");
         return 0;
     }
 
     uint8_t mac_algorithm = agent->ssl->specs.mac_algorithm;
     int hash_size = 0;
-    switch (mac_algorithm) {
-        case sha256_mac:
-            hash_size = WC_SHA256_DIGEST_SIZE;
-            break;
-        case sha384_mac:
-            hash_size = WC_SHA384_DIGEST_SIZE;
-            break;
-        case sha512_mac:
-            hash_size = WC_SHA512_DIGEST_SIZE;
-            break;
-        default:
-            break;
+    switch (mac_algorithm)
+    {
+    case sha256_mac:
+        hash_size = WC_SHA256_DIGEST_SIZE;
+        break;
+    case sha384_mac:
+        hash_size = WC_SHA384_DIGEST_SIZE;
+        break;
+    case sha512_mac:
+        hash_size = WC_SHA512_DIGEST_SIZE;
+        break;
+    default:
+        break;
     }
-    if (hash_size == 0) {
+    if (hash_size == 0)
+    {
         //_log(PUFFIN.warn, "mac_algorithm no supported");
         return 0;
     }
 
-    if (buffer == NULL) {
+    if (buffer == NULL)
+    {
         return hash_size;
     }
     if (bufferSize < hash_size)
@@ -145,18 +149,19 @@ static int extract_current_transcript(AGENT agent, unsigned char *buffer, int bu
     }
 
     int retval = -1;
-    switch (mac_algorithm) {
-        case sha256_mac:
-            retval = wc_Sha256GetHash(&agent->ssl->hsHashes->hashSha256, buffer);
-            break;
-        case sha384_mac:
-            retval = wc_Sha384GetHash(&agent->ssl->hsHashes->hashSha384, buffer);
-            break;
-        case sha512_mac:
-            retval = wc_Sha512GetHash(&agent->ssl->hsHashes->hashSha512, buffer);
-            break;
-        default:
-            break;
+    switch (mac_algorithm)
+    {
+    case sha256_mac:
+        retval = wc_Sha256GetHash(&agent->ssl->hsHashes->hashSha256, buffer);
+        break;
+    case sha384_mac:
+        retval = wc_Sha384GetHash(&agent->ssl->hsHashes->hashSha384, buffer);
+        break;
+    case sha512_mac:
+        retval = wc_Sha512GetHash(&agent->ssl->hsHashes->hashSha512, buffer);
+        break;
+    default:
+        break;
     }
 
     if (retval == 0)
@@ -447,8 +452,8 @@ static void fill_claim(AGENT agent, struct Claim *claim)
       _log(PUFFIN.warn, "wolfSSL_get_peer_signature_nid failed");
     }*/
 
-    claim->transcript.length = extract_current_transcript(agent, 
-        claim->transcript.data, CLAIM_MAX_SECRET_SIZE);
+    claim->transcript.length =
+        extract_current_transcript(agent, claim->transcript.data, CLAIM_MAX_SECRET_SIZE);
 
     return;
 }
