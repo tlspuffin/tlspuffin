@@ -2044,16 +2044,16 @@ pub fn create_corpus(
         seed_successful: put.supports("tls13"),
         seed_successful_with_ccs: put.supports("tls13"),
         seed_successful_with_tickets: put.supports("tls13"),
-        seed_successful12: put.supports("tls12") && !put.supports("tls12-session-resumption"),
-        seed_successful12_with_tickets: put.supports("tls12") && put.supports("tls12-session-resumption"),
+        seed_successful12: put.supports("tls12") && !put.supports("tls12_session_resumption"),
+        seed_successful12_with_tickets: put.supports("tls12") && put.supports("tls12_session_resumption"),
         // Client Attackers
         seed_client_attacker: put.supports("tls13"),
         seed_client_attacker_full: put.supports("tls13"),
-        seed_client_attacker_auth: put.supports("tls13") && put.supports("client-authentication-transcript-extraction"),
+        seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
         seed_client_attacker12: put.supports("tls12"),
         // Session resumption
-        seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13-session-resumption"),
-        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13-session-resumption"),
+        seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption"),
         // Server Attackers
         seed_server_attacker_full: put.supports("tls13"),
     )

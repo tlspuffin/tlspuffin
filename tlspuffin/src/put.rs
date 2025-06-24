@@ -127,7 +127,6 @@ impl Factory<TLSProtocolBehavior> for CPut {
 
     fn supports(&self, capability: &str) -> bool {
         self.capabilities.contains(capability)
-            || self.capabilities.contains(&capability.replace('-', "_"))
     }
 
     fn clone_factory(&self) -> Box<dyn Factory<TLSProtocolBehavior>> {
