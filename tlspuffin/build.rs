@@ -4,9 +4,9 @@ use puffin_build::harness::{Harness, Put};
 use puffin_build::{harness, library, vendor_dir};
 
 #[cfg(any(
-    all(feature = "openssl-binding", feature = "wolfssl-binding"),
-    all(feature = "openssl-binding", feature = "boringssl-binding"),
-    all(feature = "wolfssl-binding", feature = "boringssl-binding")
+    all(feature = "openssl_binding", feature = "wolfssl_binding"),
+    all(feature = "openssl_binding", feature = "boringssl_binding"),
+    all(feature = "wolfssl_binding", feature = "boringssl_binding")
 ))]
 compile_error!("Selecting multiple Rust PUT is currently not supported: openssl/libressl, wolfssl and boringssl feature flags are mutually exclusive.");
 

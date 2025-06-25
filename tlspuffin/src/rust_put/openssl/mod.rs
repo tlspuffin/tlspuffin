@@ -155,7 +155,7 @@ impl RustPut {
         ctx_builder.set_certificate(&cert)?;
         ctx_builder.set_private_key(&key)?;
 
-        #[cfg(any(feature = "openssl111-binding", feature = "libressl-binding"))]
+        #[cfg(any(feature = "openssl111_binding", feature = "libressl_binding"))]
         if let Some(groups) = &descriptor.protocol_config.groups {
             ctx_builder.set_groups_list(groups)?;
         }
@@ -172,15 +172,15 @@ impl RustPut {
             ctx_builder.set_verify(SslVerifyMode::NONE);
         }
 
-        #[cfg(feature = "openssl111-binding")]
+        #[cfg(feature = "openssl111_binding")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
-        #[cfg(feature = "openssl111-binding")]
+        #[cfg(feature = "openssl111_binding")]
         bindings::set_allow_no_dhe_kex(&mut ctx_builder);
 
         set_max_protocol_version(&mut ctx_builder, descriptor.protocol_config.tls_version)?;
 
-        #[cfg(any(feature = "openssl101-binding", feature = "openssl102-binding"))]
+        #[cfg(any(feature = "openssl101_binding", feature = "openssl102_binding"))]
         {
             ctx_builder.set_tmp_ecdh(
                 &openssl::ec::EcKey::from_curve_name(openssl::nid::Nid::SECP384R1)?.as_ref(),
@@ -195,17 +195,17 @@ impl RustPut {
                 // TLS 1.3 should use `set_ciphersuites` API but some versions
                 // of OpenSSL and LibreSSL still use `set_cipher_list`
                 #[cfg(any(
-                    feature = "openssl101-binding",
-                    feature = "openssl102-binding",
-                    feature = "openssl111-binding",
-                    feature = "libressl-binding"
+                    feature = "openssl101_binding",
+                    feature = "openssl102_binding",
+                    feature = "openssl111_binding",
+                    feature = "libressl_binding"
                 ))]
                 ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
                 #[cfg(not(any(
-                    feature = "openssl101-binding",
-                    feature = "openssl102-binding",
-                    feature = "openssl111-binding",
-                    feature = "libressl-binding"
+                    feature = "openssl101_binding",
+                    feature = "openssl102_binding",
+                    feature = "openssl111_binding",
+                    feature = "libressl_binding"
                 )))]
                 ctx_builder.set_ciphersuites(&descriptor.protocol_config.cipher_string_tls13)?;
             }
@@ -232,12 +232,12 @@ impl RustPut {
         // The tests become simpler if disabled to maybe that's what we want. Lets leave it default
         // for now.
         // https://wiki.openssl.org/index.php/TLS1.3#Middlebox_Compatibility_Mode
-        #[cfg(feature = "openssl111-binding")]
+        #[cfg(feature = "openssl111_binding")]
         ctx_builder.clear_options(openssl::ssl::SslOptions::ENABLE_MIDDLEBOX_COMPAT);
 
         set_max_protocol_version(&mut ctx_builder, descriptor.protocol_config.tls_version)?;
 
-        #[cfg(any(feature = "openssl111-binding", feature = "libressl-binding"))]
+        #[cfg(any(feature = "openssl111_binding", feature = "libressl_binding"))]
         if let Some(groups) = &descriptor.protocol_config.groups {
             ctx_builder.set_groups_list(groups)?;
         }
@@ -245,17 +245,17 @@ impl RustPut {
         match descriptor.protocol_config.tls_version {
             TLSVersion::V1_3 => {
                 #[cfg(any(
-                    feature = "openssl101-binding",
-                    feature = "openssl102-binding",
-                    feature = "openssl111-binding",
-                    feature = "libressl-binding"
+                    feature = "openssl101_binding",
+                    feature = "openssl102_binding",
+                    feature = "openssl111_binding",
+                    feature = "libressl_binding"
                 ))]
                 ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
                 #[cfg(not(any(
-                    feature = "openssl101-binding",
-                    feature = "openssl102-binding",
-                    feature = "openssl111-binding",
-                    feature = "libressl-binding"
+                    feature = "openssl101_binding",
+                    feature = "openssl102_binding",
+                    feature = "openssl111_binding",
+                    feature = "libressl_binding"
                 )))]
                 ctx_builder.set_ciphersuites(&descriptor.protocol_config.cipher_string_tls13)?;
             }

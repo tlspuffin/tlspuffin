@@ -11,6 +11,17 @@ use crate::protocol::{TLSDescriptorConfig, TLSProtocolBehavior};
 use crate::put::TlsPutConfig;
 use crate::rust_put::RustPut;
 
+macro_rules! feature_supports {
+    ($cap:expr, { $($feat:literal),* $(,)? }) => {
+        match $cap {
+            $(
+                $feat => cfg!(feature = $feat),
+            )*
+            _ => false,
+        }
+    };
+    }
+
 #[derive(Debug, Clone)]
 pub struct RustFactory {
     name: String,
@@ -58,42 +69,23 @@ impl Factory<TLSProtocolBehavior> for RustFactory {
     }
 
     fn supports(&self, capability: &str) -> bool {
-        let capabilities: HashSet<&str> = vec![
-            #[cfg(feature = "openssl-binding")]
+        feature_supports!(capability, {
             "openssl_binding",
-            #[cfg(feature = "libressl-binding")]
             "libressl_binding",
-            #[cfg(feature = "wolfssl-binding")]
             "wolfssl_binding",
-            #[cfg(feature = "boringssl-binding")]
             "boringssl_binding",
-            #[cfg(feature = "tls12")]
             "tls12",
-            #[cfg(feature = "tls13")]
             "tls13",
-            #[cfg(feature = "tls12-session-resumption")]
             "tls12_session_resumption",
-            #[cfg(feature = "tls13-session-resumption")]
             "tls13_session_resumption",
-            #[cfg(feature = "openssl111-binding")]
             "openssl111_binding",
-            #[cfg(feature = "openssl102-binding")]
             "openssl102_binding",
-            #[cfg(feature = "openssl101-binding")]
             "openssl101_binding",
-            #[cfg(feature = "transcript-extraction")]
             "transcript_extraction",
-            #[cfg(feature = "client-authentication-transcript-extraction")]
             "client_authentication_transcript_extraction",
-            #[cfg(feature = "allow-setting-tls12-ciphers")]
             "allow_setting_tls12_ciphers",
-            #[cfg(feature = "allow-setting-tls13-ciphers")]
             "allow_setting_tls13_ciphers",
-        ]
-        .into_iter()
-        .collect();
-
-        capabilities.contains(capability)
+        })
     }
 
     fn rng_reseed(&self) {
