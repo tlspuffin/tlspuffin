@@ -599,7 +599,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         &self,
         other: &Self,
         descriptors: &Vec<AgentDescriptor<<PB::ProtocolTypes as ProtocolTypes>::PUTConfig>>,
-    ) -> Result<(), Vec<TraceDifference>> {
+    ) -> Vec<TraceDifference> {
         let mut res = vec![];
 
         // Decrypting knowledges
@@ -652,11 +652,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         // Comparing the computed terms
         res.extend(self_store.compare(&other_store).err().map_or(vec![], |x| x));
 
-        if res.is_empty() {
-            Ok(())
-        } else {
-            Err(res)
-        }
+        res
     }
 }
 

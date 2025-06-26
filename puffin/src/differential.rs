@@ -2,11 +2,20 @@ use core::fmt;
 
 use serde::Serialize;
 
+use crate::error::Error;
+
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub enum TraceDifference {
     Status(StatusDiff),
     Knowledges(KnowledgeDiff),
     Claims(ClaimDiff),
+    SecurityClaim(SecurityClaimDiff),
+}
+
+impl TraceDifference {
+    pub fn as_error(self) -> Error {
+        Error::Difference(vec![self])
+    }
 }
 
 impl fmt::Display for TraceDifference {
@@ -17,6 +26,7 @@ impl fmt::Display for TraceDifference {
                 writeln!(f, "Differences in knowledges: {}", diff)
             }
             TraceDifference::Claims(diff) => write!(f, "{diff}"),
+            TraceDifference::SecurityClaim(diff) => write!(f, "{diff}"),
         }
     }
 }
@@ -28,6 +38,12 @@ pub struct StatusDiff {
     pub second_executed_steps: usize,
     pub second_status: String,
     pub total_step: usize,
+}
+
+impl StatusDiff {
+    pub fn as_trace_difference(self) -> TraceDifference {
+        TraceDifference::Status(self)
+    }
 }
 
 impl fmt::Display for StatusDiff {
@@ -109,6 +125,42 @@ impl fmt::Display for ClaimDiff {
             ClaimDiff::InnerDifference { index, diff, agent } => {
                 writeln!(f, "Claim [agent{agent},{}]:\n{}", index, diff)
             }
+        }
+    }
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+pub enum SecurityClaimDiff {
+    Different {
+        put: u8,
+        claim: String,
+    },
+    BothError {
+        first_put: String,
+        second_put: String,
+    },
+}
+
+impl SecurityClaimDiff {
+    pub fn as_trace_difference(self) -> TraceDifference {
+        TraceDifference::SecurityClaim(self)
+    }
+}
+
+impl fmt::Display for SecurityClaimDiff {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SecurityClaimDiff::Different { put, claim } => {
+                writeln!(f, "Security Claim violation on PUT {} : \"{}\"", put, claim)
+            }
+            SecurityClaimDiff::BothError {
+                first_put,
+                second_put,
+            } => writeln!(
+                f,
+                "Security Claim violation on both PUT : \"{}\" and \"{}\"",
+                first_put, second_put
+            ),
         }
     }
 }
