@@ -8,7 +8,6 @@ use nix::sys::wait::WaitStatus::{self, Exited, Signaled};
 use nix::sys::wait::{waitpid, WaitPidFlag};
 use nix::unistd::{fork, ForkResult, Pid};
 
-use crate::differential::TraceDifference;
 use crate::error::Error;
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
@@ -193,54 +192,47 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
 
         match (&first_trace_status, &second_trace_status) {
             (Err(put1_status), Ok(_)) => {
-                if matches!(put1_status, &Error::Put(_))
-                    || matches!(put1_status, &Error::SecurityClaim(_))
-                {
-                    return Err(Error::Difference(vec![TraceDifference::Status(
-                        crate::differential::StatusDiff {
-                            first_executed_steps: first_ctx.executed_until,
-                            first_status: put1_status.to_string(),
-                            second_executed_steps: second_ctx.executed_until,
-                            second_status: "Success".into(),
-                            total_step: trace.as_ref().steps.len(),
-                        },
-                    )]));
+                if matches!(put1_status, &Error::Put(_)) {
+                    return Err(crate::differential::StatusDiff {
+                        first_executed_steps: first_ctx.executed_until,
+                        first_status: put1_status.to_string(),
+                        second_executed_steps: second_ctx.executed_until,
+                        second_status: "Success".into(),
+                        total_step: trace.as_ref().steps.len(),
+                    }
+                    .as_trace_difference()
+                    .as_error());
                 }
             }
             (Ok(_), Err(put2_status)) => {
-                if matches!(put2_status, &Error::Put(_))
-                    || matches!(put2_status, &Error::SecurityClaim(_))
-                {
-                    return Err(Error::Difference(vec![TraceDifference::Status(
-                        crate::differential::StatusDiff {
-                            first_executed_steps: first_ctx.executed_until,
-                            first_status: "Success".into(),
-                            second_executed_steps: second_ctx.executed_until,
-                            second_status: put2_status.to_string(),
-                            total_step: trace.as_ref().steps.len(),
-                        },
-                    )]));
+                if matches!(put2_status, &Error::Put(_)) {
+                    return Err(crate::differential::StatusDiff {
+                        first_executed_steps: first_ctx.executed_until,
+                        first_status: "Success".into(),
+                        second_executed_steps: second_ctx.executed_until,
+                        second_status: put2_status.to_string(),
+                        total_step: trace.as_ref().steps.len(),
+                    }
+                    .as_trace_difference()
+                    .as_error());
                 }
             }
             (Err(put1_error), Err(put2_error)) => {
-                if first_ctx.executed_until == second_ctx.executed_until {
-                    return Ok(first_ctx);
-                } else {
-                    if (matches!(put1_error, &Error::Put(_))
-                        || matches!(put1_error, &Error::SecurityClaim(_)))
-                        && (matches!(put2_error, &Error::Put(_))
-                            || matches!(put2_error, &Error::SecurityClaim(_)))
-                    {
-                        return Err(Error::Difference(vec![TraceDifference::Status(
-                            crate::differential::StatusDiff {
-                                first_executed_steps: first_ctx.executed_until,
-                                first_status: put1_error.to_string(),
-                                second_executed_steps: second_ctx.executed_until,
-                                second_status: put2_error.to_string(),
-                                total_step: trace.as_ref().steps.len(),
-                            },
-                        )]));
+                if matches!(put1_error, &Error::Put(_)) && matches!(put2_error, &Error::Put(_)) {
+                    if first_ctx.executed_until == second_ctx.executed_until {
+                        // If both PUT fail at the same step we consider that they fail for the same
+                        // reason
+                        return Ok(first_ctx);
                     }
+                    return Err(crate::differential::StatusDiff {
+                        first_executed_steps: first_ctx.executed_until,
+                        first_status: put1_error.to_string(),
+                        second_executed_steps: second_ctx.executed_until,
+                        second_status: put2_error.to_string(),
+                        total_step: trace.as_ref().steps.len(),
+                    }
+                    .as_trace_difference()
+                    .as_error());
                 }
             }
             _ => (),
@@ -248,9 +240,36 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
 
         *executed_until = usize::max(first_ctx.executed_until, second_ctx.executed_until);
 
-        let is_diff = first_ctx.compare(&second_ctx, &trace.as_ref().descriptors);
+        //check if we have security claim violation
+        let mut diff = match (&first_trace_status, &second_trace_status) {
+            (Err(Error::SecurityClaim(put1_err)), Err(Error::SecurityClaim(put2_err))) => {
+                vec![crate::differential::SecurityClaimDiff::BothError {
+                    first_put: put1_err.to_string(),
+                    second_put: put2_err.to_string(),
+                }
+                .as_trace_difference()]
+            }
+            (Err(Error::SecurityClaim(put1_err)), _) => {
+                vec![crate::differential::SecurityClaimDiff::Different {
+                    put: 1,
+                    claim: put1_err.to_string(),
+                }
+                .as_trace_difference()]
+            }
+            (_, Err(Error::SecurityClaim(put2_err))) => {
+                vec![crate::differential::SecurityClaimDiff::Different {
+                    put: 2,
+                    claim: put2_err.to_string(),
+                }
+                .as_trace_difference()]
+            }
+            _ => vec![],
+        };
 
-        if let Err(diff) = is_diff {
+        // Compare the trace context
+        diff.extend(first_ctx.compare(&second_ctx, &trace.as_ref().descriptors));
+
+        if !diff.is_empty() {
             return Err(Error::Difference(diff));
         }
 
