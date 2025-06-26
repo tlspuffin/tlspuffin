@@ -13,12 +13,12 @@ pub fn clear(ssl: &SslRef) -> u32 {
 
 mod version_specific_bindings {
     #[cfg(all(
-        any(feature = "openssl101-binding", feature = "openssl102-binding"),
-        not(feature = "openssl111-binding")
+        any(feature = "openssl101_binding", feature = "openssl102_binding"),
+        not(feature = "openssl111_binding")
     ))]
     include!("bindings-10x.rs");
 
-    #[cfg(feature = "openssl111-binding")]
+    #[cfg(feature = "openssl111_binding")]
     include!("bindings-111.rs");
 }
 

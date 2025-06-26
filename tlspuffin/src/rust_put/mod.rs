@@ -1,6 +1,6 @@
-#[cfg_attr(feature = "boringssl-binding", path = "boringssl/mod.rs")]
-#[cfg_attr(feature = "openssl-binding", path = "openssl/mod.rs")]
-#[cfg_attr(feature = "wolfssl-binding", path = "wolfssl/mod.rs")]
+#[cfg_attr(feature = "boringssl_binding", path = "boringssl/mod.rs")]
+#[cfg_attr(feature = "openssl_binding", path = "openssl/mod.rs")]
+#[cfg_attr(feature = "wolfssl_binding", path = "wolfssl/mod.rs")]
 mod internals;
 
 pub mod claims;
