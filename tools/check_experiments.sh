@@ -59,7 +59,8 @@ for exp in ./experiments/*; do
 
         # Check if modified in the last 5 minutes (TIME_WINDOW seconds)
         if [ "$elapsed" -le ${TIME_WINDOW} ]; then
-            echo "# Experiment: $exp"
+            exp_name=$(basename "$exp")
+            echo "# Experiment: $exp_name"
             echo "  Time since last stats.json update: ${elapsed}s"
 
             # Default PUT info from log

@@ -6,7 +6,6 @@ USE="./analyze-crashes.sh <crash_dir> [--release] [--put=<option>] [--verbose] [
 
 ## Argument parsing
 target="debug"
-options=""
 crash_dir=""
 verbose=""
 
@@ -18,19 +17,29 @@ for arg in "$@"; do
   elif [[ "$arg" == "--put="* ]]; then
     options="$arg"
   elif [[ "$arg" == "--binary="* ]]; then
-    tlspuffin="$arg"
+    # store in tlspuffin what's after "--binary":
+    tlspuffin="${arg#--binary=}"
   elif [[ "$arg" == "--verbose" ]]; then
     verbose="--verbose"
   elif [[ "$arg" == "--help" ]]; then
     echo "Usage:"
     echo $USE
     exit 0
-  elif [[ "$crash_dir" == "" && "$arg" != --* ]]; then
-    crash_dir="$arg"
+  else
+    crash_dir_rel="$arg"
   fi
 done
-crash_dir="${tlspuffin_dir}/$1"
-tlspuffin=${tlspuffin_dir}/target/${target}/tlspuffin
+crash_dir="${tlspuffin_dir}/$crash_dir_rel"
+
+if [ -z "$tlspuffin" ]; then
+  tlspuffin="${tlspuffin_dir}/target/${target}/tlspuffin"
+  if [ ! -f "$tlspuffin" ]; then
+    echo "Error: tlspuffin binary not found at ${tlspuffin}. Please build it first."
+    echo "Usage:"
+    echo $USE
+    exit 1
+  fi
+fi
 
 echo "Puffin binary was built at:"
 stat -c "%w %n" ${tlspuffin}
@@ -61,7 +70,7 @@ export RUST_LOG=warn
 find "$crash_dir" -name "*.trace" -print0 | while IFS= read -r -d '' trace_file; do
     # if verbose argument is not empty!
     if [ -z $verbose ]; then
-      "${tlspuffin}" "${options}" execute "${trace_file}" > /dev/null 2> "${trace_file}.log"
+      "${tlspuffin}" ${options} execute "${trace_file}" > /dev/null 2> "${trace_file}.log"
     else
       echo "Processing: ${trace_file}"
       ## If execution time above exceeds 0,5s, print a warning

@@ -39,11 +39,13 @@ class SystemTime:
 class ErrorStatistics:
     fn_error: int
     term_error: int
-    ssl_error: int
+    put_error: int
     io_error: int
     ag_error: int
     str_error: int
     ext_error: int
+    not_exec: int
+    codec_error: int
 
 
 @dataclass
