@@ -310,7 +310,8 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
                     y.data.type_name(),
                     y.source
                 );
-                x.data.find_differences(y.data, &mut differences, idx);
+                x.data
+                    .find_differences(y.data, &mut differences, idx, x.source, y.source);
             })
             .count();
 
