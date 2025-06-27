@@ -80,6 +80,12 @@ pub struct FunctionAttributes {
     /// Incidentally, its concretization does not contain all the conretizations of its arguments.
     /// Examples: `fn_get_server_key_share`.
     pub is_get: bool,
+    /// Whether we usually fail and thus prevent from trying to generate terms with that function
+    /// symbols at top-level. This will reduce the scope of the GenerateMutator.
+    pub no_gen: bool,
+    /// Symbols we will never MakeMessage on, thus disabling applying any of the bit-level
+    /// mutations.
+    pub no_bit: bool,
 }
 // TODO: add a uni test for making sure the given attributes are correct
 
@@ -89,6 +95,8 @@ impl Default for FunctionAttributes {
             is_opaque: false,
             is_list: false,
             is_get: false,
+            no_gen: false,
+            no_bit: false,
         }
     }
 }
@@ -252,14 +260,14 @@ macro_rules! dynamic_fn {
                            if let Some(arg_) = args.get(index)
                                     .ok_or_else(|| {
                                         let shape = Self::shape();
-                                        FnError::Unknown(format!("Missing argument #{} while calling {}.", index + 1, shape.name))
+                                        FnError::Malformed(format!("Missing argument #{} while calling {}.", index + 1, shape.name))
                                     })?
                                     .as_any().downcast_ref::<$arg>() {
                                index += 1;
                                arg_
                            } else {
                                let shape = Self::shape();
-                               return Err(FnError::Unknown(format!(
+                               return Err(FnError::Malformed(format!(
                                     "Passed argument #{} of {} did not match the shape {}. Hashes of passed types are {}.",
                                     index + 1,
                                     shape.name,
