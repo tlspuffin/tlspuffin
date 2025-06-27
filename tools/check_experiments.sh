@@ -51,7 +51,10 @@ ps x | grep "l+" | grep tlspuffin
 # Loop through all experiment folders
 for exp in ./experiments/*; do
     stats_file="$exp/log/stats.json"
-
+    # if stat_file does not exists then look for the file at $exp/stats.json (as in older versions of puffin)
+    if [ ! -f "$stats_file" ]; then
+        stats_file="$exp/stats.json"
+    fi
     if [ -f "$stats_file" ]; then
         # Last modified time in epoch seconds
         mod_time=$(stat -c %Y "$stats_file")
@@ -59,7 +62,8 @@ for exp in ./experiments/*; do
 
         # Check if modified in the last 5 minutes (TIME_WINDOW seconds)
         if [ "$elapsed" -le ${TIME_WINDOW} ]; then
-            echo "# Experiment: $exp"
+            exp_name=$(basename "$exp")
+            echo "# Experiment: $exp_name"
             echo "  Time since last stats.json update: ${elapsed}s"
 
             # Default PUT info from log
