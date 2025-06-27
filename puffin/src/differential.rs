@@ -3,6 +3,7 @@ use core::fmt;
 use serde::Serialize;
 
 use crate::error::Error;
+use crate::trace::Source;
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub enum TraceDifference {
@@ -67,11 +68,14 @@ pub enum KnowledgeDiff {
         index: usize,
         first_type: String,
         second_type: String,
+        first_source: Source,
+        second_source: Source,
     },
     InnerDifference {
         index: usize,
         type_name: String,
         diff: String,
+        source: Source,
     },
 }
 
@@ -82,12 +86,23 @@ impl fmt::Display for KnowledgeDiff {
                 index,
                 first_type,
                 second_type,
-            } => writeln!(f, "knowledge[{}]: {} != {}", index, first_type, second_type),
+                first_source,
+                second_source,
+            } => writeln!(
+                f,
+                "knowledge[{}]: {} ({}) != {} ({})",
+                index, first_type, first_source, second_type, second_source
+            ),
             KnowledgeDiff::InnerDifference {
                 index,
                 type_name,
                 diff,
-            } => writeln!(f, "knowledge[{}] ({}) : \n{}", index, type_name, diff),
+                source,
+            } => writeln!(
+                f,
+                "knowledge[{}] ({}, {}) : \n{}",
+                index, type_name, source, diff
+            ),
         }
     }
 }

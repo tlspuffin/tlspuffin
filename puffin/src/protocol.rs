@@ -45,6 +45,8 @@ pub trait CompareKnowledge<PT> {
         other: &dyn EvaluatedTerm<PT>,
         diffs: &mut Vec<TraceDifference>,
         knowledge_num: usize,
+        self_source: &Source,
+        other_source: &Source,
     );
 }
 
@@ -57,6 +59,8 @@ where
         other: &dyn EvaluatedTerm<PT>,
         diffs: &mut Vec<TraceDifference>,
         knowledge_num: usize,
+        self_source: &Source,
+        other_source: &Source,
     ) {
         match other.as_any().downcast_ref::<T>() {
             Some(casted_other) => {
@@ -67,6 +71,7 @@ where
                             index: knowledge_num,
                             type_name: other.type_name().into(),
                             diff: format!("{:?}", changes),
+                            source: self_source.to_owned(),
                         },
                     ))
                 }
@@ -76,6 +81,8 @@ where
                     index: knowledge_num,
                     first_type: std::any::type_name::<Self>().into(),
                     second_type: other.type_name().into(),
+                    first_source: self_source.to_owned(),
+                    second_source: other_source.to_owned(),
                 },
             )),
         };
