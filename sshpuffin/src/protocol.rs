@@ -205,10 +205,8 @@ impl ProtocolTypes for SshProtocolTypes {
         None
     }
 
-    fn differential_fuzzing_uniformise_put_config(
-        agent: puffin::agent::AgentDescriptor<Self::PUTConfig>,
-    ) -> puffin::agent::AgentDescriptor<Self::PUTConfig> {
-        agent
+    fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self> {
+        trace
     }
 }
 
