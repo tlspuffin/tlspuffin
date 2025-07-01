@@ -679,15 +679,10 @@ fn seed<PB: ProtocolBehavior>(
     fs::create_dir_all("./seeds")?;
     for (mut trace, name) in PB::create_corpus(put) {
         if differential_fuzzing {
-            trace.descriptors = trace
-            .descriptors
-            .into_iter()
-            .map(|agent| {
+            trace =
                 <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
-                    agent,
-                )
-            })
-            .collect();
+                    trace,
+                );
         }
 
         trace.to_file(format!("./seeds/{name}.trace"))?;

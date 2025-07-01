@@ -603,10 +603,8 @@ pub mod test_signature {
             None
         }
 
-        fn differential_fuzzing_uniformise_put_config(
-            agent: AgentDescriptor<Self::PUTConfig>,
-        ) -> AgentDescriptor<Self::PUTConfig> {
-            agent
+        fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self> {
+            trace
         }
     }
 

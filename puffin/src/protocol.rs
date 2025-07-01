@@ -263,11 +263,9 @@ pub trait ProtocolTypes:
         agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
     ) -> Vec<crate::algebra::Term<Self>>;
 
-    /// Replace some parameters from agent's protocol config with parameters
+    /// Replace trace's agent protocol config with parameters
     /// that unifomize the behavior of the PUTs
-    fn differential_fuzzing_uniformise_put_config(
-        agent: AgentDescriptor<Self::PUTConfig>,
-    ) -> AgentDescriptor<Self::PUTConfig>;
+    fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self>;
 }
 
 /// Defines the protocol which is being tested.
