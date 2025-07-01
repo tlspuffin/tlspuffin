@@ -71,15 +71,10 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
     input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {
     let agent = input.descriptors[0].name;
-    let mut input_trace = input.clone();
     // Uniformize the put configuration
-    input_trace.descriptors = input_trace
-        .descriptors
-        .into_iter()
-        .map(|agent| {
-            <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(agent)
-        })
-        .collect();
+    let input = <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
+        input.clone(),
+    );
 
     let runner = DifferentialRunner::new(
         put_registry.clone(),
@@ -105,14 +100,17 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
         }
     }
 
+    let input_len = input.steps.len();
+    let input_size = input.size();
+
     // Execute the trace
     let mut fail_at_step = 0;
     let exec_res = runner.execute(input, &mut fail_at_step);
 
     log::trace!(
         "[a:trace len={}/size={}/{fail_at_step}] [[harness] Executed until {fail_at_step}.",
-        input.steps.len(),
-        input.size(),
+        input_len,
+        input_size,
     );
     FAIL_AT_STEP.set(Some(fail_at_step));
 

@@ -475,18 +475,22 @@ impl ProtocolTypes for TLSProtocolTypes {
         ])
     }
 
-    fn differential_fuzzing_uniformise_put_config(
-        agent: AgentDescriptor<Self::PUTConfig>,
-    ) -> AgentDescriptor<Self::PUTConfig> {
-        let mut new = agent.clone();
-        new.protocol_config.cipher_string_tls12 = String::from(
-            "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-        );
-        new.protocol_config.cipher_string_tls13 = String::from(
-            "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256",
-        );
-        new.protocol_config.groups = Some(String::from("P-256:P-384"));
-        new
+    fn differential_fuzzing_uniformise_put_config(mut trace: Trace<Self>) -> Trace<Self> {
+        for agent in trace.descriptors.iter_mut() {
+            agent.protocol_config.cipher_string_tls12 = String::from(
+                "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+            );
+            agent.protocol_config.cipher_string_tls13 = String::from(
+                "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256",
+            );
+            agent.protocol_config.groups = Some(String::from("P-256:P-384"));
+        }
+
+        for t in trace.prior_traces.iter_mut() {
+            *t = Self::differential_fuzzing_uniformise_put_config(t.to_owned());
+        }
+
+        trace
     }
 }
 
