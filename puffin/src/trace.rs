@@ -726,6 +726,8 @@ pub struct TraceExecution<PT: ProtocolTypes> {
     executed_until: usize,
     /// Execution result of each step
     steps: Vec<StepExecution<PT>>,
+    // Other knowledges (eg. post computations)
+    extra_knowledges: Option<Vec<(Source, Box<dyn EvaluatedTerm<PT>>)>>,
 }
 
 impl<PT: ProtocolTypes> TraceExecution<PT> {
@@ -758,19 +760,27 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
                     }
                 }
                 Some(step_knowledges)
+                // TODO : Bump rust version to 1.87 to use `extract_if` instead of mem:swap code
+                // Some(
+                //     ctx.knowledge_store
+                //         .raw_knowledge
+                //         .extract_if(.., |k| k.step == Some(StepNumber::new(trace_number, idx)))
+                //         .map(|k| k.data)
+                //         .collect(),
+                // )
             } else {
                 None
             };
 
             let claims = if export_claims {
-                let mut step_claims = Vec::new();
-
-                for c in ctx.claims.deref_borrow().iter() {
-                    if c.get_step() == Some(StepNumber::new(trace_number, idx)) {
-                        step_claims.push(c.inner());
-                    }
-                }
-                Some(step_claims)
+                Some(
+                    ctx.claims
+                        .deref_borrow()
+                        .iter()
+                        .filter(|c| c.get_step() == Some(StepNumber::new(trace_number, idx)))
+                        .map(|c| c.inner())
+                        .collect(),
+                )
             } else {
                 None
             };
@@ -784,6 +794,32 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
             });
         }
 
+        let extra_knowledges = if export_knowledges {
+            let mut knowledges = Vec::new();
+            let mut old_knowledges = Vec::new();
+
+            mem::swap(&mut old_knowledges, &mut ctx.knowledge_store.raw_knowledge);
+
+            for k in old_knowledges {
+                if k.step == None {
+                    knowledges.push((k.source, k.data));
+                } else {
+                    ctx.knowledge_store.raw_knowledge.push(k);
+                }
+            }
+            Some(knowledges)
+            // TODO : Bump rust version to 1.87 to use `extract_if` instead of mem:swap code
+            // Some(
+            //     ctx.knowledge_store
+            //         .raw_knowledge
+            //         .extract_if(.., |k| k.step == None)
+            //         .map(|k| (k.source, k.data))
+            //         .collect(),
+            // )
+        } else {
+            None
+        };
+
         Self {
             agents: trace.descriptors.clone(),
             number_of_steps: trace.steps.len(),
@@ -791,6 +827,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
             steps,
             // right now we exclude prior traces
             prior_traces: Vec::new(),
+            extra_knowledges,
         }
     }
 
@@ -821,6 +858,13 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
 
         for s in &self.steps {
             s.print(f, depth)?;
+        }
+
+        if let Some(knowledges) = &self.extra_knowledges {
+            println!("{tabs}Extra knowledges :");
+            for k in knowledges {
+                println!("{tabs}>>> [{}] {:?}", k.0, k.1);
+            }
         }
 
         writeln!(f, "")
