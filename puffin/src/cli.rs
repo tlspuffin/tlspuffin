@@ -22,7 +22,7 @@ use crate::log::config_default;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::{PutDescriptor, PutOptions};
 use crate::put_registry::{PutRegistry, TCP_PUT};
-use crate::trace::{Action, ExecutionResult, Spawner, Trace, TraceContext};
+use crate::trace::{Action, ExecutionResult, Source, Spawner, Trace, TraceContext};
 
 fn create_app<S>(title: S) -> Command
 where
@@ -79,6 +79,7 @@ where
                 .arg(arg!(-t --show_terms "Show the terms computed at each input step").value_parser(value_parser!(bool)))
                 .arg(arg!(-c --show_claims "Show the claims emitted at each input step").value_parser(value_parser!(bool)))
                 .arg(arg!(-k --show_knowledges "Show the knowledges gathered at each output step").value_parser(value_parser!(bool)))
+                .arg(arg!(-p --differential_post_computations "Evaluate the post execution terms ued in differential fuzzing").value_parser(value_parser!(bool)))
                 .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool))),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
@@ -348,6 +349,8 @@ where
         let show_knowledges: &bool = matches.get_one("show_knowledges").unwrap();
         let show_claims: &bool = matches.get_one("show_claims").unwrap();
         let export_json: &bool = matches.get_one("json").unwrap();
+        let differential_post_computations: &bool =
+            matches.get_one("differential_post_computations").unwrap();
 
         let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
             t
@@ -369,6 +372,22 @@ where
             Ok(_) => (ExitCode::SUCCESS, None),
             Err(e) => (ExitCode::FAILURE, Some(e.to_string())),
         };
+
+        if *differential_post_computations {
+            for t in PB::ProtocolTypes::differential_fuzzing_terms_to_eval(&trace.descriptors) {
+                log::info!("Trying decryption with : {}", t);
+                let k = t.evaluate_dy(&ctx);
+                match k {
+                    Ok(decrypted) => ctx.knowledge_store.add_raw_boxed_knowledge(
+                        decrypted,
+                        None,
+                        Source::Label(Some("Decryption".into())),
+                        None,
+                    ),
+                    Err(err) => log::info!("failed decryption : {}", err),
+                }
+            }
+        }
 
         let exec = ExecutionResult::from(
             put_name,
