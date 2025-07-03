@@ -14,13 +14,14 @@ use crate::fuzzer::bit_mutations::{
     bit_mutations_dy, havoc_mutations_dy, MakeMessage, ReadMessage,
 };
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
-use crate::fuzzer::stages::FocusScheduledMutator;
+use crate::fuzzer::stages::{FocusScheduledMutator, PuffinMutationalStage};
 use crate::fuzzer::stats_monitor::StatsMonitor;
+use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
 use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
-use crate::trace::Trace;
+use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
@@ -268,7 +269,13 @@ where
                     return Ok(false);
                 }
             };
-        let stage_dy = IfStage::new(cb_dy, tuple_list!(StdMutationalStage::new(mutator_dy)));
+        let stage_dy = IfStage::new(
+            cb_dy,
+            tuple_list!(PuffinMutationalStage::new(
+                mutator_dy,
+                self.config.mutation_stage_config.max_iterations_per_stage
+            )),
+        );
 
         // ==== Bit-level mutational stage
         let mutator_bit = StdScheduledMutator::new(bit_mutations_dy::<
@@ -314,14 +321,76 @@ where
         let stage_bit = IfStage::new(
             cb_bit_level,
             tuple_list!(
-                StdMutationalStage::new(mutator_bit), // Old-style HAVOC stage
-                focus_stage_print,                    // printing focus HAVOC stage
-                StdMutationalStage::new(mutator_bit_focus)
+                PuffinMutationalStage::new(
+                    mutator_bit,
+                    self.config.mutation_stage_config.max_iterations_per_stage
+                ), // Old-style HAVOC stage
+                focus_stage_print, // printing focus HAVOC stage
+                PuffinMutationalStage::new(
+                    mutator_bit_focus,
+                    self.config.mutation_stage_config.max_iterations_per_stage
+                )
             ), // Focus stage, first MakeMessage, then HAVOC, then ReadMessage
+        );
+        // A stage that only enables in introspection mode and executes each testcase in corpus
+        // prior to executing other stages on it
+        let stage_test_input = ClosureStage::new(
+            |_: &mut _,
+             _: &mut _,
+             cs: &mut ConcreteState<C, R, SC, Trace<PT>>,
+             _: &mut _,
+             idx: CorpusId|
+             -> Result<(), Error> {
+                if cfg!(feature = "introspection") {
+                    CORPUS_EXEC.increment();
+                    log::debug!("[*] Introspection stage");
+                    let current_testcase = cs.corpus().get(idx)?.borrow_mut();
+                    // Input will already be loaded.
+                    let current_input = current_testcase.input().as_ref().unwrap();
+                    let spawner = Spawner::new(put_registry.clone());
+                    let mut ctx = TraceContext::new_config(
+                        spawner,
+                        ConfigTrace {
+                            with_bit_level: self.config.mutation_config.with_bit_level,
+                            ..Default::default()
+                        },
+                    );
+                    let error_ok;
+                    match current_input.execute_until_step_wrap(
+                        &mut ctx,
+                        current_input.len(),
+                        &mut 0,
+                    ) {
+                        Ok(()) => {
+                            CORPUS_EXEC_MINIMAL.increment();
+                            return Ok(());
+                        }
+                        Err(crate::error::Error::Put(_)) => {
+                            error_ok = true;
+                        }
+                        Err(crate::error::Error::SecurityClaim(_)) => {
+                            error_ok = true;
+                        }
+                        _ => {
+                            // Other error: not OK (no increment of CORPUS_EXEC_SUCCESS)
+                            return Ok(());
+                        }
+                    }
+                    if error_ok {
+                        // If it failed because of the PUT or the security claim, we only consider
+                        // the testcase to be "minimal" if it failed at the very last step
+                        if ctx.executed_until == current_input.len() - 1 {
+                            CORPUS_EXEC_MINIMAL.increment();
+                            return Ok(());
+                        }
+                    }
+                }
+                Ok(())
+            },
         );
 
         // ==== All stages put together
-        let mut stages = tuple_list!(stage_dy, stage_bit);
+        let mut stages = tuple_list!(stage_test_input, stage_dy, stage_bit, StatsStage::new());
 
         let mut fuzzer: StdFuzzer<CS, F, OF, OT> =
             StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);

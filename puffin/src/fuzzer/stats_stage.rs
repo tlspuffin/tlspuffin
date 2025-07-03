@@ -3,17 +3,31 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use libafl::prelude::*;
 pub enum RuntimeStats {
-    FnError(&'static Counter),
-    TermError(&'static Counter),
-    TermBugError(&'static Counter),
-    CodecError(&'static Counter),
-    PutError(&'static Counter),
-    IOError(&'static Counter),
-    AgentError(&'static Counter),
-    StreamError(&'static Counter),
-    ExtractionError(&'static Counter),
+    AllFnError(&'static Counter),
+    AllTermError(&'static Counter),
+    AllTermBugError(&'static Counter),
+    AllTermEval(&'static Counter),
+    AllTermEvalSuccess(&'static Counter),
+    AllExec(&'static Counter),
+    AllExecSuccess(&'static Counter),
+    HarnessExec(&'static Counter),
+    HarnessExecSuccess(&'static Counter),
+    BitExec(&'static Counter),
+    BitExecSuccess(&'static Counter),
+    MMExec(&'static Counter),
+    MMNExecSuccess(&'static Counter),
+    CorpusExec(&'static Counter),
+    CorpusExecMinimal(&'static Counter),
+    AllCodecError(&'static Counter),
+    AllPutError(&'static Counter),
+    AllIOError(&'static Counter),
+    AllAgentError(&'static Counter),
+    AllStreamError(&'static Counter),
+    AllExtractionError(&'static Counter),
     TraceLength(&'static MinMaxMean),
     TermSize(&'static MinMaxMean),
+    NbPayload(&'static MinMaxMean),
+    PayloadLength(&'static MinMaxMean),
 }
 
 impl RuntimeStats {
@@ -22,56 +36,101 @@ impl RuntimeStats {
         consume: &mut dyn FnMut(String, UserStats) -> Result<(), Error>,
     ) -> Result<(), Error> {
         match self {
-            Self::FnError(inner) => inner.fire(consume),
-            Self::TermError(inner) => inner.fire(consume),
-            Self::TermBugError(inner) => inner.fire(consume),
-            Self::CodecError(inner) => inner.fire(consume),
-            Self::PutError(inner) => inner.fire(consume),
-            Self::IOError(inner) => inner.fire(consume),
-            Self::AgentError(inner) => inner.fire(consume),
-            Self::StreamError(inner) => inner.fire(consume),
-            Self::ExtractionError(inner) => inner.fire(consume),
+            Self::AllFnError(inner) => inner.fire(consume),
+            Self::AllTermError(inner) => inner.fire(consume),
+            Self::AllTermBugError(inner) => inner.fire(consume),
+            Self::AllTermEval(inner) => inner.fire(consume),
+            Self::AllTermEvalSuccess(inner) => inner.fire(consume),
+            Self::AllExec(inner) => inner.fire(consume),
+            Self::AllExecSuccess(inner) => inner.fire(consume),
+            Self::HarnessExec(inner) => inner.fire(consume),
+            Self::HarnessExecSuccess(inner) => inner.fire(consume),
+            Self::BitExec(inner) => inner.fire(consume),
+            Self::BitExecSuccess(inner) => inner.fire(consume),
+            Self::MMExec(inner) => inner.fire(consume),
+            Self::MMNExecSuccess(inner) => inner.fire(consume),
+            Self::CorpusExec(inner) => inner.fire(consume),
+            Self::CorpusExecMinimal(inner) => inner.fire(consume),
+            Self::AllCodecError(inner) => inner.fire(consume),
+            Self::AllPutError(inner) => inner.fire(consume),
+            Self::AllIOError(inner) => inner.fire(consume),
+            Self::AllAgentError(inner) => inner.fire(consume),
+            Self::AllStreamError(inner) => inner.fire(consume),
+            Self::AllExtractionError(inner) => inner.fire(consume),
             Self::TraceLength(inner) => inner.fire(consume),
             Self::TermSize(inner) => inner.fire(consume),
+            Self::NbPayload(inner) => inner.fire(consume),
+            Self::PayloadLength(inner) => inner.fire(consume),
         }
     }
 }
 
+/// Errors counters triggered by all evaluations (not mutations!)
 // Fn(FnError),
-pub static FN_ERROR: Counter = Counter::new("fn");
+pub static ERROR_FN: Counter = Counter::new("error-fn");
 // Term(String),
-pub static TERM: Counter = Counter::new("term");
+pub static ERROR_TERM: Counter = Counter::new("error-term");
 // TermBug(String),
-pub static TERMBUG: Counter = Counter::new("term");
+pub static ERROR_TERMBUG: Counter = Counter::new("error-term-bug");
 // Codec(String),
-pub static CODEC: Counter = Counter::new("codec");
+pub static ERROR_CODEC: Counter = Counter::new("error-codec");
 // Put(String),
-pub static PUT: Counter = Counter::new("put");
+pub static ERROR_PUT: Counter = Counter::new("error-put");
 // IO(String),
-pub static IO: Counter = Counter::new("io");
+pub static ERROR_IO: Counter = Counter::new("error-io");
 // Agent(String),
-pub static AGENT: Counter = Counter::new("ag");
+pub static ERROR_AGENT: Counter = Counter::new("error-ag");
 // Stream(String),
-pub static STREAM: Counter = Counter::new("str");
+pub static ERROR_STREAM: Counter = Counter::new("error-str");
 // Extraction(ContentType),
-pub static EXTRACTION: Counter = Counter::new("extr");
+pub static ERROR_EXTRACTION: Counter = Counter::new("error-extr");
 
+/// Metric for traces, terms, and payloads
 pub static TRACE_LENGTH: MinMaxMean = MinMaxMean::new("trace-length");
-
 pub static TERM_SIZE: MinMaxMean = MinMaxMean::new("term-size");
+pub static NB_PAYLOAD: MinMaxMean = MinMaxMean::new("nb-payload");
+pub static PAYLOAD_LENGTH: MinMaxMean = MinMaxMean::new("payload-length");
 
-pub static STATS: [RuntimeStats; 11] = [
-    RuntimeStats::FnError(&FN_ERROR),
-    RuntimeStats::TermError(&TERM),
-    RuntimeStats::TermBugError(&TERMBUG),
-    RuntimeStats::CodecError(&TERM),
-    RuntimeStats::PutError(&PUT),
-    RuntimeStats::IOError(&IO),
-    RuntimeStats::AgentError(&AGENT),
-    RuntimeStats::StreamError(&STREAM),
-    RuntimeStats::ExtractionError(&EXTRACTION),
+/// Metrics for evaluations and executions
+pub static ALL_EXEC: Counter = Counter::new("all-exec");
+pub static ALL_EXEC_SUCCESS: Counter = Counter::new("all-exec-success");
+pub static HARNESS_EXEC: Counter = Counter::new("harness-exec");
+pub static HARNESS_EXEC_SUCCESS: Counter = Counter::new("harness-exec-success");
+pub static ALL_TERM_EVAL: Counter = Counter::new("all-term-eval");
+pub static ALL_TERM_EVAL_SUCCESS: Counter = Counter::new("all-term-eval-success");
+pub static BIT_EXEC: Counter = Counter::new("bit-exec");
+pub static BIT_EXEC_SUCCESS: Counter = Counter::new("bit-exec-success");
+pub static MM_EXEC: Counter = Counter::new("mm-exec");
+pub static MM_EXEC_SUCCESS: Counter = Counter::new("mmn-exec-success");
+pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
+pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
+
+pub static STATS: [RuntimeStats; 25] = [
+    RuntimeStats::AllFnError(&ERROR_FN),
+    RuntimeStats::AllTermError(&ERROR_TERM),
+    RuntimeStats::AllTermBugError(&ERROR_TERMBUG),
+    RuntimeStats::AllCodecError(&ERROR_CODEC),
+    RuntimeStats::AllPutError(&ERROR_PUT),
+    RuntimeStats::AllIOError(&ERROR_IO),
+    RuntimeStats::AllAgentError(&ERROR_AGENT),
+    RuntimeStats::AllStreamError(&ERROR_STREAM),
+    RuntimeStats::AllExtractionError(&ERROR_EXTRACTION),
     RuntimeStats::TraceLength(&TRACE_LENGTH),
     RuntimeStats::TermSize(&TERM_SIZE),
+    RuntimeStats::NbPayload(&NB_PAYLOAD),
+    RuntimeStats::PayloadLength(&PAYLOAD_LENGTH),
+    RuntimeStats::AllTermEval(&ALL_TERM_EVAL),
+    RuntimeStats::AllTermEvalSuccess(&ALL_TERM_EVAL_SUCCESS),
+    RuntimeStats::AllExec(&ALL_EXEC),
+    RuntimeStats::AllExecSuccess(&ALL_EXEC_SUCCESS),
+    RuntimeStats::HarnessExec(&HARNESS_EXEC),
+    RuntimeStats::HarnessExecSuccess(&HARNESS_EXEC_SUCCESS),
+    RuntimeStats::BitExec(&BIT_EXEC),
+    RuntimeStats::BitExecSuccess(&BIT_EXEC_SUCCESS),
+    RuntimeStats::MMExec(&MM_EXEC),
+    RuntimeStats::MMNExecSuccess(&MM_EXEC_SUCCESS),
+    RuntimeStats::CorpusExec(&CORPUS_EXEC),
+    RuntimeStats::CorpusExecMinimal(&CORPUS_EXEC_MINIMAL),
 ];
 
 pub trait Fire: Sync {
@@ -235,17 +294,19 @@ where
         manager: &mut EM,
         _corpus_idx: CorpusId,
     ) -> Result<(), Error> {
-        for stat in &STATS {
-            stat.fire(&mut |name, stats| {
-                manager.fire(
-                    state,
-                    Event::UpdateUserStats {
-                        name,
-                        value: stats,
-                        phantom: Default::default(),
-                    },
-                )
-            })?;
+        if cfg!(feature = "introspection") {
+            for stat in &STATS {
+                stat.fire(&mut |name, stats| {
+                    manager.fire(
+                        state,
+                        Event::UpdateUserStats {
+                            name,
+                            value: stats,
+                            phantom: Default::default(),
+                        },
+                    )
+                })?;
+            }
         }
 
         Ok(())

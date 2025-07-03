@@ -118,17 +118,11 @@ where
     ) -> Result<MutationResult, Error> {
         let mut r = MutationResult::Skipped;
         let num = self.iterations(state, input);
-        log::info!(
+        log::debug!(
             "FocusScheduledMutator:num: {},  stage_idx: {}, max_stack_pow: {}",
             num,
             stage_idx,
             self.max_stack_pow
-        );
-        log::info!(
-            "Mutations are: pre: {:?}, core: {:?}, post: {:?}",
-            self.mutations_pre.names(),
-            self.mutations_core.names(),
-            self.mutations_post.names()
         );
         // Pre-mutation: schedule exactly once
         // Note: the pre mutations will recognize this stage_idx and there is a certain probability

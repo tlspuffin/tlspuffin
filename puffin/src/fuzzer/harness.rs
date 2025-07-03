@@ -2,10 +2,9 @@ use libafl::executors::ExitKind;
 use rand::Rng;
 
 use crate::algebra::TermType;
-use crate::error::Error;
 use crate::execution::{Runner, TraceRunner};
 use crate::fuzzer::stats_stage::{
-    AGENT, CODEC, EXTRACTION, FN_ERROR, IO, PUT, STREAM, TERM, TERMBUG, TERM_SIZE, TRACE_LENGTH,
+    HARNESS_EXEC, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH, TERM_SIZE, TRACE_LENGTH,
 };
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
@@ -15,10 +14,13 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
     input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {
-    let runner = Runner::new(put_registry.clone(), Spawner::new(put_registry.clone()));
-
+    // Stats
+    HARNESS_EXEC.increment();
     TRACE_LENGTH.update(input.steps.len());
-
+    NB_PAYLOAD.update(input.all_payloads().len());
+    for payload in input.all_payloads() {
+        PAYLOAD_LENGTH.update(payload.len());
+    }
     for step in &input.steps {
         match &step.action {
             Action::Input(input) => {
@@ -28,26 +30,11 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         }
     }
 
-    if let Err(err) = runner.execute(input) {
-        match &err {
-            Error::Fn(_) => FN_ERROR.increment(),
-            Error::Term(_e) => TERM.increment(),
-            Error::TermBug(_e) => TERMBUG.increment(),
-            Error::Put(_) => PUT.increment(),
-            Error::Codec(_) => CODEC.increment(),
-            Error::IO(_) => IO.increment(),
-            Error::Agent(_) => AGENT.increment(),
-            Error::Stream(_) => STREAM.increment(),
-            Error::Extraction() => EXTRACTION.increment(),
-            Error::SecurityClaim(msg) => {
-                log::error!("{}", msg);
-                std::process::abort()
-            }
-        }
-
-        log::trace!("{}", err);
+    // Execute the trace
+    let runner = Runner::new(put_registry.clone(), Spawner::new(put_registry.clone()));
+    if let Ok(_) = runner.execute(input) {
+        HARNESS_EXEC_SUCCESS.increment();
     }
-
     ExitKind::Ok
 }
 

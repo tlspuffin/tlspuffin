@@ -384,6 +384,10 @@ where
                     ..Default::default()
                 },
             );
+            if self.config.with_focus {
+                MM_EXEC.increment();
+            }
+            BIT_EXEC.increment();
             match make_message_term(trace, &trace_path, &mut ctx) {
                 // TODO: possibly we would need to make sure the mutated trace can be executed (if
                 // not directly dropped by the feedback loop once executed).
@@ -391,12 +395,18 @@ where
                 Ok(()) => {
                     log::debug!("mutation::MakeMessage successful!");
                     if self.config.with_focus {
+                        MM_EXEC_SUCCESS.increment();
                         log::debug!("mutation::MakeMessage set focus");
                         trace.set_focus(trace_path);
                     }
+                    BIT_EXEC_SUCCESS.increment();
                     Ok(MutationResult::Mutated)
                 }
                 Err(e) => {
+                    log::warn!(
+                        "mutation::MakeMessage failed (with_focus: {}) due to {e}",
+                        self.config.with_focus
+                    );
                     log::debug!("mutation::MakeMessage failed due to {e}");
                     log::debug!("       Skipped {}", self.name());
                     Ok(MutationResult::Skipped)
@@ -474,7 +484,7 @@ where
     );
     log::debug!("[mutation::ReadMessage] [read_message_term] Trying read for type shape: {} and type id : {:?}", t.get_type_shape(), t.term.type_id());
     // Evaluate the term and try to read it into the term type
-    let eval = t.evaluate(ctx)?;
+    let eval = t.evaluate(ctx)?; // We do not measure failure or not for this specific eval (less costly than trace execution)
     let read_term = PB::try_read_bytes(&*eval, t.get_type_shape().clone().into())?; // skip if try_read fails
 
     // The evaluation of this readable term eval_read is likely NOT the original evaluation itself
@@ -525,7 +535,7 @@ where
                 log::debug!("read_message_term::mutate - Using focus {trace_path:?}");
                 trace_path.clone()
             } else {
-                log::error!("read_message_term::mutate - No focus set and yet with_focus config. Skipping...");
+                log::debug!("read_message_term::mutate - No focus set and yet with_focus config. Skipping...");
                 return Ok(MutationResult::Skipped); // First MakeMessage failed, we won't apply
                                                     // further mutations then
             }
@@ -579,8 +589,16 @@ where
                 ..Default::default()
             },
         );
+        if self.config.with_focus {
+            MM_EXEC.increment();
+        }
+        BIT_EXEC.increment();
         match read_message_term(trace, &chosen_path, &mut ctx) {
             Ok(_) => {
+                if self.config.with_focus {
+                    MM_EXEC_SUCCESS.increment();
+                }
+                BIT_EXEC_SUCCESS.increment();
                 log::debug!("[ReadMessage] Path chosen: {chosen_path:?}");
                 log::debug!("[mutation::ReadMessage] successful!");
                 Ok(MutationResult::Mutated)
@@ -615,6 +633,7 @@ use crate::fuzzer::mutations::{
     dy_mutations, remove_prefix_and_type, GenerateMutator, MutationConfig, RemoveAndLiftMutator,
     RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator, SwapMutator,
 };
+use crate::fuzzer::stats_stage::{BIT_EXEC, BIT_EXEC_SUCCESS, MM_EXEC, MM_EXEC_SUCCESS};
 use crate::put_registry::PutRegistry;
 
 macro_rules! expand_mutation {

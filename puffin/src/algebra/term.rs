@@ -13,6 +13,7 @@ use crate::algebra::bitstrings::{replace_payloads, EvalTree, PayloadMetadata, Pa
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
 use crate::error::Error;
+use crate::fuzzer::stats_stage::{ALL_TERM_EVAL, ALL_TERM_EVAL_SUCCESS};
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::TraceContext;
 
@@ -74,12 +75,13 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
+        ALL_TERM_EVAL.increment();
+
         self.evaluate_config(context, with_payloads)
             .map_err(|e| {
                 match e.downcast_ref() {
                     Some(Error::TermBug(_te)) => {
                         log::error!("[evaluate_config_wrap] TermBug Error on\n{}\n[==>] Causes: {:?}", &self, &e);
-
                         #[cfg(any(debug_assertions, feature = "debug"))]
                         { // we panic in debug or test mode
                             panic!("[evaluate_config_wrap] Panic! {}", e);
@@ -111,6 +113,10 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
                    * Error::Stream(_) => {} */
                 };
                 e
+            })
+            .map(|r| {
+                ALL_TERM_EVAL_SUCCESS.increment();
+                r
             })
     }
 
