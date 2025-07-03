@@ -42,12 +42,7 @@ impl Default for MutationConfig {
 }
 
 pub fn trace_mutations<'harness, S, PT: ProtocolTypes, PB>(
-    min_trace_length: usize,
-    max_trace_length: usize,
-    constraints: TermConstraints,
-    fresh_zoo_after: u64,
-    _with_bit_level: bool,
-    with_dy: bool,
+    mutation_config: MutationConfig,
     signature: &'static Signature<PT>,
     _put_registry: &'harness PutRegistry<PB>,
 ) -> tuple_list_type!(
@@ -63,14 +58,30 @@ where
     S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
     PB: ProtocolBehavior,
 {
+    let MutationConfig {
+        fresh_zoo_after,
+        max_trace_length,
+        min_trace_length,
+        term_constraints,
+        with_dy,
+        ..
+    } = mutation_config;
+
     tuple_list!(
         RepeatMutator::new(max_trace_length, with_dy),
         SkipMutator::new(min_trace_length, with_dy),
-        ReplaceReuseMutator::new(constraints, with_dy),
-        ReplaceMatchMutator::new(constraints, signature, with_dy),
-        RemoveAndLiftMutator::new(constraints, with_dy),
-        GenerateMutator::new(0, fresh_zoo_after, constraints, None, signature, with_dy), /* Refresh zoo after 100000M mutations */
-        SwapMutator::new(constraints, with_dy),
+        ReplaceReuseMutator::new(term_constraints, with_dy),
+        ReplaceMatchMutator::new(term_constraints, signature, with_dy),
+        RemoveAndLiftMutator::new(term_constraints, with_dy),
+        GenerateMutator::new(
+            0,
+            fresh_zoo_after,
+            term_constraints,
+            None,
+            signature,
+            with_dy
+        ), /* Refresh zoo after 100000M mutations */
+        SwapMutator::new(term_constraints, with_dy),
     )
 }
 

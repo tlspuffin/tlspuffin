@@ -1,5 +1,6 @@
 use core::time::Duration;
 use std::fmt;
+use std::marker::PhantomData;
 use std::path::PathBuf;
 
 use libafl::corpus::ondisk::OnDiskMetadataFormat;
@@ -9,12 +10,14 @@ use log4rs::Handle;
 
 use super::harness;
 use crate::fuzzer::mutations::{trace_mutations, MutationConfig};
+use crate::fuzzer::stages::PuffinMutationalStage;
 use crate::fuzzer::stats_monitor::StatsMonitor;
+use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
 use crate::log::load_fuzzing_client;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
-use crate::trace::Trace;
+use crate::trace::{Spawner, Trace, TraceContext};
 
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
@@ -59,14 +62,14 @@ impl Default for MutationStageConfig {
     }
 }
 
-struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
+struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PT>
 where
-    I: Input,
+    PT: ProtocolTypes + 'static,
 {
     config: FuzzerConfig,
 
     harness_fn: &'harness mut H,
-    existing_state: Option<ConcreteState<C, R, SC, I>>,
+    existing_state: Option<ConcreteState<C, R, SC, Trace<PT>>>,
     rand: Option<R>,
     objective_corpus: Option<SC>,
     corpus: Option<C>,
@@ -75,37 +78,38 @@ where
     observers: Option<OT>,
     feedback: Option<F>,
     objective: Option<OF>,
-    initial_inputs: Option<Vec<(I, &'static str)>>,
-    mutations: Option<MT>,
+    initial_inputs: Option<Vec<(Trace<PT>, &'static str)>>,
+    phantom_data: PhantomData<PT>,
 }
 
-impl<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
-    RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, MT, I>
+impl<'harness, H, C, R, SC, EM, F, OF, OT, CS, PT>
+    RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PT>
 where
-    ConcreteState<C, R, SC, I>: UsesInput<Input = I>,
-    I: Input + HasLen,
-    C: Corpus + UsesInput<Input = I>,
+    ConcreteState<C, R, SC, Trace<PT>>: UsesInput<Input = Trace<PT>>,
+    C: Corpus + UsesInput<Input = Trace<PT>>,
     R: Rand,
-    SC: Corpus + UsesInput<Input = I>,
-    H: FnMut(&I) -> ExitKind,
-    CS: Scheduler + UsesState<State = ConcreteState<C, R, SC, I>>,
-    F: Feedback<ConcreteState<C, R, SC, I>>,
-    OF: Feedback<ConcreteState<C, R, SC, I>>,
-    OT: ObserversTuple<ConcreteState<C, R, SC, I>> + serde::Serialize + serde::de::DeserializeOwned,
+    SC: Corpus + UsesInput<Input = Trace<PT>>,
+    H: FnMut(&Trace<PT>) -> ExitKind,
+    CS: Scheduler + UsesState<State = ConcreteState<C, R, SC, Trace<PT>>>,
+    F: Feedback<ConcreteState<C, R, SC, Trace<PT>>>,
+    OF: Feedback<ConcreteState<C, R, SC, Trace<PT>>>,
+    OT: ObserversTuple<ConcreteState<C, R, SC, Trace<PT>>>
+        + serde::Serialize
+        + serde::de::DeserializeOwned,
     EM: EventFirer
         + EventRestarter
         + EventManager<
-            ConcreteExecutor<'harness, H, OT, ConcreteState<C, R, SC, I>>,
+            ConcreteExecutor<'harness, H, OT, ConcreteState<C, R, SC, Trace<PT>>>,
             StdFuzzer<CS, F, OF, OT>,
         > + ProgressReporter
-        + UsesState<State = ConcreteState<C, R, SC, I>>,
-    MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
+        + UsesState<State = ConcreteState<C, R, SC, Trace<PT>>>,
     <EM as UsesState>::State: HasClientPerfMonitor + HasMetadata + HasExecutions,
+    PT: ProtocolTypes + 'static,
 {
     fn new(
         config: FuzzerConfig,
         harness_fn: &'harness mut H,
-        existing_state: Option<ConcreteState<C, R, SC, I>>,
+        existing_state: Option<ConcreteState<C, R, SC, Trace<PT>>>,
         event_manager: EM,
     ) -> Self {
         Self {
@@ -121,7 +125,7 @@ where
             feedback: None,
             objective: None,
             initial_inputs: None,
-            mutations: None,
+            phantom_data: Default::default(),
         }
     }
 
@@ -160,17 +164,15 @@ where
         self
     }
 
-    fn with_initial_inputs(mut self, initial_inputs: Vec<(I, &'static str)>) -> Self {
+    fn with_initial_inputs(mut self, initial_inputs: Vec<(Trace<PT>, &'static str)>) -> Self {
         self.initial_inputs = Some(initial_inputs);
         self
     }
 
-    fn with_mutations(mut self, mutations: MT) -> Self {
-        self.mutations = Some(mutations);
-        self
-    }
-
-    fn run_client(mut self) -> Result<(), Error> {
+    fn run_client<PB>(mut self, put_registry: &'harness PutRegistry<PB>) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT> + 'static,
+    {
         let mut feedback = self.feedback.unwrap();
         let mut objective = self.objective.unwrap();
 
@@ -189,22 +191,83 @@ where
         let FuzzerConfig {
             initial_corpus_dir,
             max_iters,
-            mutation_stage_config:
-                MutationStageConfig {
-                    max_iterations_per_stage: _,
-                    max_mutations_per_iteration: _,
-                },
+            mutation_config,
             ..
         } = self.config;
 
-        // FIXME let mutator = PuffinScheduledMutator::new(self.mutations.unwrap(),
-        // max_mutations_per_iteration);
-        let mutator = StdScheduledMutator::new(self.mutations.unwrap());
-        let mut stages = tuple_list!(
-            // FIXMEPuffinMutationalStage::new(mutator, max_iterations_per_stage),
-            StdMutationalStage::new(mutator),
-            // FIXME StatsStage::new()
+        // ==== DY mutational stage
+        let mutator_dy = StdScheduledMutator::new(trace_mutations(
+            mutation_config,
+            <PT>::signature(),
+            put_registry,
+        ));
+        // Always run DY mutations (if enabled)
+        let cb_dy =
+            |_: &mut _, _: &mut _, _: &mut _, _: &mut _, _idx: CorpusId| -> Result<bool, Error> {
+                log::debug!("[*] DY StdMutationalStage");
+                Ok(true)
+            };
+        let stage_dy = IfStage::new(
+            cb_dy,
+            tuple_list!(PuffinMutationalStage::new(
+                mutator_dy,
+                self.config.mutation_stage_config.max_iterations_per_stage
+            )),
         );
+
+        // A stage that only enables in introspection mode and executes each testcase in corpus
+        // prior to executing other stages on it
+        let stage_test_input = ClosureStage::new(
+            |_: &mut _,
+             _: &mut _,
+             cs: &mut ConcreteState<C, R, SC, Trace<PT>>,
+             _: &mut _,
+             idx: CorpusId|
+             -> Result<(), Error> {
+                if cfg!(feature = "introspection") {
+                    CORPUS_EXEC.increment();
+                    log::debug!("[*] Introspection stage");
+                    let current_testcase = cs.corpus().get(idx)?.borrow_mut();
+                    // Input will already be loaded.
+                    let current_input = current_testcase.input().as_ref().unwrap();
+                    let spawner = Spawner::new(put_registry.clone());
+                    let mut ctx = TraceContext::new(spawner);
+                    let error_ok;
+                    match current_input.execute_until_step_wrap(
+                        &mut ctx,
+                        current_input.len(),
+                        &mut 0,
+                    ) {
+                        Ok(()) => {
+                            CORPUS_EXEC_MINIMAL.increment();
+                            return Ok(());
+                        }
+                        Err(crate::error::Error::Put(_)) => {
+                            error_ok = true;
+                        }
+                        Err(crate::error::Error::SecurityClaim(_)) => {
+                            error_ok = true;
+                        }
+                        _ => {
+                            // Other error: not OK (no increment of CORPUS_EXEC_SUCCESS)
+                            return Ok(());
+                        }
+                    }
+                    if error_ok {
+                        // If it failed because of the PUT or the security claim, we only consider
+                        // the testcase to be "minimal" if it failed at the very last step
+                        if ctx.executed_until == current_input.len() - 1 {
+                            CORPUS_EXEC_MINIMAL.increment();
+                            return Ok(());
+                        }
+                    }
+                }
+                Ok(())
+            },
+        );
+
+        // ==== All stages put together
+        let mut stages = tuple_list!(stage_test_input, stage_dy, StatsStage::new());
 
         let mut fuzzer: StdFuzzer<CS, F, OF, OT> =
             StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);
@@ -291,7 +354,7 @@ type ConcreteFeedback<'a, S> = CombinedFeedback<
     S,
 >;
 
-impl<'harness, 'a, H, SC, C, R, EM, OF, CS, MT, I>
+impl<'harness, 'a, H, SC, C, R, EM, OF, CS, PT>
     RunClientBuilder<
         'harness,
         H,
@@ -299,41 +362,44 @@ impl<'harness, 'a, H, SC, C, R, EM, OF, CS, MT, I>
         R,
         SC,
         EM,
-        ConcreteFeedback<'a, ConcreteState<C, R, SC, I>>,
+        ConcreteFeedback<'a, ConcreteState<C, R, SC, Trace<PT>>>,
         OF,
         ConcreteObservers<'a>,
         CS,
-        MT,
-        I,
+        PT,
     >
 where
-    ConcreteState<C, R, SC, I>: UsesInput<Input = I>,
-    I: Input + HasLen,
-    C: Corpus + UsesInput<Input = I> + fmt::Debug,
+    ConcreteState<C, R, SC, Trace<PT>>: UsesInput<Input = Trace<PT>>,
+    C: Corpus + UsesInput<Input = Trace<PT>> + fmt::Debug,
     R: Rand,
-    SC: Corpus + UsesInput<Input = I> + fmt::Debug,
-    H: FnMut(&I) -> ExitKind,
-    OF: Feedback<ConcreteState<C, R, SC, I>>,
-    CS: Scheduler + UsesState<State = ConcreteState<C, R, SC, I>>,
+    SC: Corpus + UsesInput<Input = Trace<PT>> + fmt::Debug,
+    H: FnMut(&Trace<PT>) -> ExitKind,
+    OF: Feedback<ConcreteState<C, R, SC, Trace<PT>>>,
+    CS: Scheduler + UsesState<State = ConcreteState<C, R, SC, Trace<PT>>>,
     EM: EventFirer
         + EventRestarter
         + EventManager<
-            ConcreteExecutor<'harness, H, ConcreteObservers<'a>, ConcreteState<C, R, SC, I>>,
+            ConcreteExecutor<
+                'harness,
+                H,
+                ConcreteObservers<'a>,
+                ConcreteState<C, R, SC, Trace<PT>>,
+            >,
             StdFuzzer<
-                ConcreteMinimizer<ConcreteState<C, R, SC, I>>,
-                ConcreteFeedback<'a, ConcreteState<C, R, SC, I>>,
+                ConcreteMinimizer<ConcreteState<C, R, SC, Trace<PT>>>,
+                ConcreteFeedback<'a, ConcreteState<C, R, SC, Trace<PT>>>,
                 OF,
                 ConcreteObservers<'a>,
             >,
         > + ProgressReporter
-        + UsesState<State = ConcreteState<C, R, SC, I>>,
-    MT: MutatorsTuple<I, ConcreteState<C, R, SC, I>>,
+        + UsesState<State = ConcreteState<C, R, SC, Trace<PT>>>,
     <EM as UsesState>::State: HasClientPerfMonitor + HasMetadata + HasExecutions,
+    PT: ProtocolTypes + 'static,
 {
     fn create_feedback_observers(
         &self,
     ) -> (
-        ConcreteFeedback<'a, ConcreteState<C, R, SC, I>>,
+        ConcreteFeedback<'a, ConcreteState<C, R, SC, Trace<PT>>>,
         ConcreteObservers<'a>,
     ) {
         #[cfg(not(test))]
@@ -397,15 +463,6 @@ where
         broker_port,
         tui,
         no_launcher,
-        mutation_config:
-            MutationConfig {
-                fresh_zoo_after,
-                max_trace_length,
-                min_trace_length,
-                term_constraints,
-                with_bit_level,
-                with_dy,
-            },
         ..
     } = &config;
 
@@ -422,16 +479,6 @@ where
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder
-            .with_mutations(trace_mutations::<_, _, PB>(
-                *min_trace_length,
-                *max_trace_length,
-                *term_constraints,
-                *fresh_zoo_after,
-                *with_bit_level,
-                *with_dy,
-                <PB::ProtocolTypes as ProtocolTypes>::signature(),
-                put_registry,
-            ))
             .with_initial_inputs(PB::create_corpus(put.clone()))
             .with_rand(StdRand::new())
             .with_corpus(
@@ -477,7 +524,7 @@ where
                 .with_scheduler(RandScheduler::new());
         } // TODO:EVAL investigate using QueueScheduler instead (see https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L190)
 
-        builder.run_client()
+        builder.run_client(put_registry)
     };
 
     if *no_launcher {

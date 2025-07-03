@@ -11,6 +11,7 @@ use super::atoms::{Function, Variable};
 use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::error::Error;
+use crate::fuzzer::stats_stage::{ALL_TERM_EVAL, ALL_TERM_EVAL_SUCCESS};
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::TraceContext;
 
@@ -70,7 +71,14 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config(ctx, true)?.0)
+        ALL_TERM_EVAL.increment();
+        match self.evaluate_config(ctx, true) {
+            Ok(cm) => {
+                ALL_TERM_EVAL_SUCCESS.increment();
+                Ok(cm.0)
+            }
+            Err(e) => Err(e),
+        }
     }
 
     /// Evaluate terms into `ConcreteMessage` considering all sub-terms as symbolic (even those with

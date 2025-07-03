@@ -2,10 +2,10 @@ use libafl::executors::ExitKind;
 use rand::Rng;
 
 use crate::algebra::TermType;
-use crate::error::Error;
 use crate::execution::{Runner, TraceRunner};
 use crate::fuzzer::stats_stage::{
-    AGENT, CODEC, EXTRACTION, FN_ERROR, IO, PUT, STREAM, TERM, TERM_SIZE, TRACE_LENGTH,
+    HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
+    TERM_SIZE, TRACE_LENGTH,
 };
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
@@ -15,36 +15,33 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
     input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {
-    let runner = Runner::new(put_registry.clone(), Spawner::new(put_registry.clone()));
-
+    // Stats
+    HARNESS_EXEC.increment();
     TRACE_LENGTH.update(input.steps.len());
 
-    for step in &input.steps {
-        match &step.action {
-            Action::Input(input) => {
-                TERM_SIZE.update(input.recipe.size());
+    if cfg!(feature = "introspection") {
+        NB_PAYLOAD.update(input.all_payloads().len());
+        for payload in input.all_payloads() {
+            PAYLOAD_LENGTH.update(payload.len());
+        }
+        for step in &input.steps {
+            match &step.action {
+                Action::Input(input) => {
+                    TERM_SIZE.update(input.recipe.size());
+                }
+                Action::Output(_) => {}
             }
-            Action::Output(_) => {}
         }
     }
-
-    if let Err(err) = runner.execute(input) {
-        match &err {
-            Error::Fn(_) => FN_ERROR.increment(),
-            Error::Term(_e) => TERM.increment(),
-            Error::Put(_) => PUT.increment(),
-            Error::Codec(_) => CODEC.increment(),
-            Error::IO(_) => IO.increment(),
-            Error::Agent(_) => AGENT.increment(),
-            Error::Stream(_) => STREAM.increment(),
-            Error::Extraction() => EXTRACTION.increment(),
-            Error::SecurityClaim(msg) => {
-                log::warn!("{}", msg);
-                std::process::abort()
+    // Execute the trace
+    let runner = Runner::new(put_registry.clone(), Spawner::new(put_registry.clone()));
+    if let Ok(ctx) = runner.execute(input) {
+        HARNESS_EXEC_SUCCESS.increment();
+        if cfg!(feature = "introspection") {
+            if ctx.agents_successful() {
+                HARNESS_EXEC_AGENT_SUCCESS.increment();
             }
         }
-
-        log::trace!("{}", err);
     }
 
     ExitKind::Ok
