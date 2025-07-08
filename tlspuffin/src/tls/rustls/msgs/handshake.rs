@@ -1328,7 +1328,16 @@ declare_u16_vec_empty!(ServerExtensions, ServerExtension);
 #[extractable(TLSProtocolTypes)]
 pub struct ServerHelloPayload {
     #[comparable_synthetic {
-        let sorted_extensions = |x: &Self| -> ServerExtensions { let mut ext = x.extensions.clone(); ext.0.sort_by(puffin::codec::compare_encoding); ext };
+        let sorted_extensions = |x: &Self| -> ServerExtensions {
+            let mut ext = x.extensions.clone();
+            // remove optional RenegotiationInfo
+            ext.0 = ext.0
+                    .into_iter()
+                    .filter(|x|!matches!(x, ServerExtension::RenegotiationInfo(_)))
+                    .collect();
+            ext.0.sort_by(puffin::codec::compare_encoding);
+            ext
+        };
     }]
     pub legacy_version: ProtocolVersion,
     #[comparable_ignore]
@@ -1963,7 +1972,7 @@ impl codec::Codec for CertificateRequestPayload {
 
 #[derive(Debug, Clone, PartialEq, Comparable)]
 pub enum CertReqExtension {
-    SignatureAlgorithms(SupportedSignatureSchemes),
+    SignatureAlgorithms(#[comparable_ignore] SupportedSignatureSchemes),
     AuthorityNames(DistinguishedNames),
     Unknown(UnknownExtension),
 }
@@ -2072,6 +2081,7 @@ impl CertificateRequestPayloadTLS13 {
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct NewSessionTicketPayload {
+    #[comparable_ignore]
     pub lifetime_hint: u32,
     #[comparable_ignore]
     pub ticket: PayloadU16,

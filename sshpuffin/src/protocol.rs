@@ -208,6 +208,10 @@ impl ProtocolTypes for SshProtocolTypes {
     fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self> {
         trace
     }
+
+    fn differential_fuzzing_filter_diff(_diff: &puffin::differential::TraceDifference) -> bool {
+        true
+    }
 }
 
 impl std::fmt::Display for SshProtocolTypes {
