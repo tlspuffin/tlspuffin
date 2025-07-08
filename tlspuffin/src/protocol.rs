@@ -5,6 +5,7 @@ use extractable_macro::Extractable;
 use puffin::agent::{AgentDescriptor, AgentName, ProtocolDescriptorConfig};
 use puffin::algebra::signature::Signature;
 use puffin::algebra::Matcher;
+use puffin::differential::TraceDifference;
 use puffin::error::Error;
 use puffin::protocol::{
     EvaluatedTerm, Extractable, OpaqueProtocolMessage, OpaqueProtocolMessageFlight,
@@ -491,6 +492,22 @@ impl ProtocolTypes for TLSProtocolTypes {
         }
 
         trace
+    }
+
+    fn differential_fuzzing_filter_diff(diff: &TraceDifference) -> bool {
+        if let TraceDifference::Knowledges(puffin::differential::KnowledgeDiff::InnerDifference {
+            index: _,
+            type_name: _,
+            diff,
+            source: _,
+        }) = diff
+        {
+            // OpenSSL sends an optional EllipticCurves extension when renegociating
+            if diff.contains("EncryptedExtensionsChange([Removed(0, Unknown(UnknownExtensionDesc { typ: EllipticCurves }))])") {
+                return false;
+            }
+        }
+        true
     }
 }
 
