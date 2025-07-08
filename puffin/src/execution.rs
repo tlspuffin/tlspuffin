@@ -9,7 +9,7 @@ use nix::sys::wait::{waitpid, WaitPidFlag};
 use nix::unistd::{fork, ForkResult, Pid};
 
 use crate::error::Error;
-use crate::protocol::ProtocolBehavior;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
 use crate::trace::{Spawner, Trace, TraceContext};
 
@@ -268,6 +268,12 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
 
         // Compare the trace context
         diff.extend(first_ctx.compare(&second_ctx, &trace.as_ref().descriptors));
+
+        // Apply filter to remove false positives
+        diff = diff
+            .into_iter()
+            .filter(<<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::differential_fuzzing_filter_diff)
+            .collect();
 
         if !diff.is_empty() {
             return Err(Error::Difference(diff));

@@ -266,6 +266,11 @@ pub trait ProtocolTypes:
     /// Replace trace's agent protocol config with parameters
     /// that unifomize the behavior of the PUTs
     fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self>;
+
+    /// Check wether a difference should be kept
+    /// Use this to remove specific false positive without altering the capabilities of the
+    /// differential fuzzer Return `true` to keep the difference
+    fn differential_fuzzing_filter_diff(diff: &TraceDifference) -> bool;
 }
 
 /// Defines the protocol which is being tested.
