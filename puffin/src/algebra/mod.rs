@@ -606,6 +606,10 @@ pub mod test_signature {
         fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self> {
             trace
         }
+
+        fn differential_fuzzing_filter_diff(_diff: &crate::differential::TraceDifference) -> bool {
+            true
+        }
     }
 
     #[derive(Default, Clone, Debug, Hash, Serialize, Deserialize)]
