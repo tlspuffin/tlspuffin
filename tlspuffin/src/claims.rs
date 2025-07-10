@@ -171,7 +171,7 @@ pub struct CertificateVerify;
 dummy_extract_knowledge_codec!(TLSProtocolTypes, CertificateVerify);
 #[derive(Debug, Clone)]
 pub struct Finished {
-    pub outbound: bool,
+    pub is_server: bool,
 
     pub client_random: SmallVec<[u8; 32]>,
     pub server_random: SmallVec<[u8; 32]>,
@@ -396,7 +396,7 @@ pub mod claims_helpers {
                     Default::default()
                 };
                 Some(ClaimData::Message(ClaimDataMessage::Finished(Finished {
-                    outbound: claim.write > 0,
+                    is_server: claim.server > 0,
                     client_random: SmallVec::from(claim.client_random.data),
                     server_random: SmallVec::from(claim.server_random.data),
                     session_id: SmallVec::from_slice(

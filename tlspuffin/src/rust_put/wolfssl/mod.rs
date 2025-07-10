@@ -412,7 +412,7 @@ impl RustPut {
                             origin,
                             protocol_version,
                             data: ClaimData::Message(ClaimDataMessage::Finished(Finished {
-                                outbound,
+                                is_server: origin == AgentType::Server,
                                 client_random: context.client_random().into(),
                                 server_random: context.server_random().into(),
                                 session_id: Default::default(), // TODO

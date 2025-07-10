@@ -98,7 +98,7 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
 
             let found = claims.iter().find_map(|claim| match &claim.data {
                 ClaimData::Message(ClaimDataMessage::Finished(data)) => {
-                    if data.outbound {
+                    if data.is_server {
                         None
                     } else {
                         Some((claim, data))
@@ -130,7 +130,7 @@ pub fn find_two_finished_messages(
         .iter()
         .filter_map(|claim| match &claim.data {
             ClaimData::Message(ClaimDataMessage::Finished(data)) => {
-                if data.outbound {
+                if data.is_server {
                     None
                 } else {
                     Some((claim, data))
