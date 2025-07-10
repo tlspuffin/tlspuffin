@@ -1,4 +1,3 @@
-use anyhow::Result;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 

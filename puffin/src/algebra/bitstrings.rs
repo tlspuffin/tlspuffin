@@ -1,6 +1,3 @@
-use std::any::TypeId;
-
-use anyhow::Context;
 use libafl::inputs::{BytesInput, HasBytesVec};
 use serde::{Deserialize, Serialize};
 
@@ -70,7 +67,7 @@ impl EvalTree {
         let nb = path[0];
         let path = &path[1..];
         if self.args.len() <= nb {
-            return Err(Error::Term(format!(
+            return Err(Error::TermBug(format!(
                 "[replace_payloads] [get] Should never happen! EvalTree: {self:?}\n, path: {path:?}"
             )));
         }
@@ -192,12 +189,6 @@ impl<PT: ProtocolTypes> Term<PT> {
                         let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
                         let typei = func.shape().argument_types[i].clone();
                         let di = PB::try_read_bytes(&bi, typei.clone().into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
-                            .with_context(|| {
-                                log::warn!("[Eval_until_opaque] Try Read bytes failed for typeid: {}, typeid: {:?} on term (arg: {i}):\n {}",
-                                        typei, TypeId::from(typei.clone()), &self);
-                                format!("[Eval_until_opaque] Try Read bytes failed for typeid: {}, typeid: {:?} on term (arg: {i}):\n {}",
-                                        typei, TypeId::from(typei.clone()), &self)
-                            })
                             .map_err(|e| {
                                 if !ti.is_symbolic() {
                                     log::warn!("[eval_until_opaque] [Argument has payload, might explain why] Warn: {}", e);

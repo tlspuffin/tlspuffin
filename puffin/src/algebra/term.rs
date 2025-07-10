@@ -10,8 +10,12 @@ use serde::{Deserialize, Serialize};
 use super::atoms::{Function, Variable};
 use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
 use crate::algebra::dynamic_function::TypeShape;
+use crate::algebra::error::FnError;
 use crate::error::Error;
-use crate::fuzzer::stats_stage::{ALL_TERM_EVAL, ALL_TERM_EVAL_SUCCESS};
+use crate::fuzzer::stats_stage::{
+    ALL_TERM_EVAL, ALL_TERM_EVAL_SUCCESS, EVAL_ERR_CODEC, EVAL_ERR_FN_CRYPTO,
+    EVAL_ERR_FN_MALFORMED, EVAL_ERR_FN_UNKNOWN, EVAL_ERR_TERM, EVAL_ERR_TERMBUG,
+};
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::TraceContext;
 
@@ -63,6 +67,49 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>;
 
+    fn evaluate_config_wrap<PB: ProtocolBehavior>(
+        &self,
+        context: &TraceContext<PB>,
+        with_payloads: bool,
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        ALL_TERM_EVAL.increment();
+        match self.evaluate_config(context, with_payloads) {
+            Ok(cm) => {
+                ALL_TERM_EVAL_SUCCESS.increment();
+                Ok(cm)
+            }
+            Err(e) => {
+                match e {
+                    Error::Fn(FnError::Crypto(..)) => {
+                        EVAL_ERR_FN_CRYPTO.increment();
+                    }
+                    Error::Fn(FnError::Malformed(..)) => {
+                        EVAL_ERR_FN_MALFORMED.increment();
+                    }
+                    Error::Fn(FnError::Unknown(..)) => {
+                        EVAL_ERR_FN_UNKNOWN.increment();
+                    }
+                    Error::Term(_) => {
+                        EVAL_ERR_TERM.increment();
+                    }
+                    Error::TermBug(_) => {
+                        EVAL_ERR_TERMBUG.increment();
+                    }
+                    Error::Codec(_) => {
+                        EVAL_ERR_CODEC.increment();
+                    }
+                    _ => {
+                        panic!("[evaluate] downcast error failed!");
+                    }
+                };
+                Err(e)
+            }
+        }
+    }
+
     /// Evaluate terms into `ConcreteMessage` (considering Payloads)
     fn evaluate<PB: ProtocolBehavior>(
         &self,
@@ -71,14 +118,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        ALL_TERM_EVAL.increment();
-        match self.evaluate_config(ctx, true) {
-            Ok(cm) => {
-                ALL_TERM_EVAL_SUCCESS.increment();
-                Ok(cm.0)
-            }
-            Err(e) => Err(e),
-        }
+        Ok(self.evaluate_config_wrap(ctx, true)?.0)
     }
 
     /// Evaluate terms into `ConcreteMessage` considering all sub-terms as symbolic (even those with
@@ -90,7 +130,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config(ctx, false)?.0)
+        Ok(self.evaluate_config_wrap(ctx, false)?.0)
     }
 
     /// Evaluate terms into `EvaluatedTerm`  considering all sub-terms as symbolic (even those with
@@ -102,7 +142,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config(ctx, false)?.1)
+        Ok(self.evaluate_config_wrap(ctx, false)?.1)
     }
 }
 

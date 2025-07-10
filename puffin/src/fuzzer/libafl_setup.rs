@@ -242,16 +242,18 @@ where
                             CORPUS_EXEC_MINIMAL.increment();
                             return Ok(());
                         }
-                        Err(crate::error::Error::Put(_)) => {
-                            error_ok = true;
-                        }
-                        Err(crate::error::Error::SecurityClaim(_)) => {
-                            error_ok = true;
-                        }
-                        _ => {
-                            // Other error: not OK (no increment of CORPUS_EXEC_SUCCESS)
-                            return Ok(());
-                        }
+                        Err(e) => match e {
+                            crate::error::Error::Put(_) => {
+                                error_ok = true;
+                            }
+                            crate::error::Error::SecurityClaim(_) => {
+                                error_ok = true;
+                            }
+                            _ => {
+                                // Other error: not OK (no increment of CORPUS_EXEC_SUCCESS)
+                                return Ok(());
+                            }
+                        },
                     }
                     if error_ok {
                         // If it failed because of the PUT or the security claim, we only consider

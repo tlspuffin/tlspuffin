@@ -297,6 +297,7 @@ struct IntrospectFeatures {
 /// - `total_execs`: Total number of executions performed by the client
 /// - `all_term_eval`: Total number of term evaluations.
 /// - `all_term_eval_success`: Number of successful term evaluations.
+/// - `eval_*_error`: Number of X errors whe  evaluating a term
 /// - `all_exec`: Total number of trace executions.
 /// - `all_exec_success`: Number of successful trace executions.
 /// - `all_exec_agent_success`: Number of successful trace executions where all agents are in a
@@ -327,7 +328,17 @@ struct ErrorStatistics {
     #[serde(skip)]
     #[allow(dead_code)]
     total_execs: u64,
+    // Term eval
+    eval_fn_crypto_error: u64,
+    eval_fn_malformed_error: u64,
+    eval_fn_unknown_error: u64,
+    eval_term_error: u64,
+    eval_termbug_error: u64,
+    eval_codec_error: u64,
+    all_term_eval: u64,
+    all_term_eval_success: u64,
 
+    // Trace exec
     fn_error: u64,
     term_error: u64,
     term_bug_error: u64,
@@ -337,8 +348,6 @@ struct ErrorStatistics {
     agent_error: u64,
     stream_error: u64,
     extraction_error: u64,
-    all_term_eval: u64,
-    all_term_eval_success: u64,
     all_exec: u64,
     all_exec_success: u64,
     all_exec_agent_success: u64,
@@ -439,6 +448,11 @@ impl ErrorStatistics {
     pub const fn new(total_execs: u64) -> Self {
         Self {
             total_execs,
+            eval_fn_crypto_error: 0,
+            eval_fn_malformed_error: 0,
+            eval_fn_unknown_error: 0,
+            eval_term_error: 0,
+            eval_termbug_error: 0,
             fn_error: 0,
             term_error: 0,
             term_bug_error: 0,
@@ -462,12 +476,31 @@ impl ErrorStatistics {
             extraction_error: 0,
             corpus_exec: 0,
             corpus_exec_minimal: 0,
+            eval_codec_error: 0,
         }
     }
 
     pub fn count(&mut self, client_stats: &ClientStats) {
         for stat_definition in &STATS {
             match stat_definition {
+                RuntimeStats::EvalFnCryptoError(c) => {
+                    self.eval_fn_crypto_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalFnMalformedError(c) => {
+                    self.eval_fn_malformed_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalFnUnknownError(c) => {
+                    self.eval_fn_unknown_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalTermError(c) => {
+                    self.eval_term_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalTermBugError(c) => {
+                    self.eval_termbug_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalCodecError(c) => {
+                    self.eval_codec_error += get_number(client_stats, c.name)
+                }
                 RuntimeStats::AllFnError(c) => self.fn_error += get_number(client_stats, c.name),
                 RuntimeStats::AllTermError(c) => {
                     self.term_error += get_number(client_stats, c.name)

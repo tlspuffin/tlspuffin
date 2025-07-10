@@ -40,6 +40,7 @@ pub enum RuntimeStats {
     // Full execs of corpus trace scheduled counter
     CorpusExec(&'static Counter),
     CorpusExecMinimal(&'static Counter),
+    // Stats about traces and payloads
     TraceLength(&'static MinMaxMean),
     TermSize(&'static MinMaxMean),
     NbPayload(&'static MinMaxMean),
