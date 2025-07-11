@@ -51,6 +51,8 @@ pub struct MutationStageConfig {
     /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
     pub max_iterations_per_stage: u64,
     pub max_mutations_per_iteration: u64,
+    // Whether to truncate the input after mutations, prior to adding it to the corpus
+    pub with_truncation: bool,
 }
 
 impl Default for MutationStageConfig {
@@ -59,6 +61,7 @@ impl Default for MutationStageConfig {
         Self {
             max_iterations_per_stage: 256,
             max_mutations_per_iteration: 16,
+            with_truncation: true,
         }
     }
 }
@@ -505,6 +508,7 @@ where
         broker_port,
         tui,
         no_launcher,
+        mutation_stage_config,
         ..
     } = &config;
 
@@ -560,7 +564,10 @@ where
             // FIXME
             log::error!("Running without minimizer is unsupported");
             let (feedback, observer) = builder.create_feedback_observers();
-            let feedback_with_minimizer = feedback_or!(MinimizingFeedback::new(), feedback);
+            let feedback_with_minimizer = feedback_or!(
+                MinimizingFeedback::new(mutation_stage_config.with_truncation),
+                feedback
+            );
             builder = builder
                 .with_feedback(feedback_with_minimizer)
                 .with_observers(observer)

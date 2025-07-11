@@ -17,7 +17,7 @@ fn test_group_selection_secp384r1(put: &str) {
         String::from("P-384"), // secp384r1
     );
 
-    let ctx_1 = runner.execute(&trace).unwrap();
+    let ctx_1 = runner.execute(&trace, &mut 0).unwrap();
 
     let first_group = ctx_1.find_variable(
         TypeShape::of::<NamedGroup>(),
@@ -53,7 +53,7 @@ fn test_group_selection_secp256r1(put: &str) {
         String::from("P-256"), // secp256r1
     );
 
-    let ctx_1 = runner.execute(&trace).unwrap();
+    let ctx_1 = runner.execute(&trace, &mut 0).unwrap();
 
     let first_group = ctx_1.find_variable(
         TypeShape::of::<NamedGroup>(),
@@ -85,7 +85,7 @@ fn test_cipher_selection_tls13_aes_256_gcm_sha384(put: &str) {
     trace.descriptors[0].protocol_config.cipher_string_tls13 =
         String::from("TLS_AES_256_GCM_SHA384");
 
-    let ctx_1 = runner.execute(&trace).unwrap();
+    let ctx_1 = runner.execute(&trace, &mut 0).unwrap();
 
     let first_cipher = ctx_1.find_variable(
         TypeShape::of::<CipherSuite>(),
@@ -114,7 +114,7 @@ fn test_cipher_selection_tls13_chacha20_poly1305_sha256(put: &str) {
     trace.descriptors[0].protocol_config.cipher_string_tls13 =
         String::from("TLS_CHACHA20_POLY1305_SHA256");
 
-    let ctx_1 = runner.execute(&trace).unwrap();
+    let ctx_1 = runner.execute(&trace, &mut 0).unwrap();
 
     let first_cipher = ctx_1.find_variable(
         TypeShape::of::<CipherSuite>(),
@@ -145,7 +145,7 @@ fn test_cipher_selection_tls12_ecdhe_rsa_with_aes_128_gcm_sha256(put: &str) {
     trace.descriptors[1].protocol_config.cipher_string_tls12 =
         String::from("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256");
 
-    let ctx_1 = runner.execute(&trace).unwrap();
+    let ctx_1 = runner.execute(&trace, &mut 0).unwrap();
 
     let first_cipher = ctx_1.find_variable(
         TypeShape::of::<CipherSuite>(),
@@ -176,7 +176,7 @@ fn test_cipher_selection_tls12_ecdhe_rsa_with_aes_256_gcm_sha384(put: &str) {
     trace.descriptors[1].protocol_config.cipher_string_tls12 =
         String::from("TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384");
 
-    let ctx_1 = runner.execute(&trace).unwrap();
+    let ctx_1 = runner.execute(&trace, &mut 0).unwrap();
 
     let first_cipher = ctx_1.find_variable(
         TypeShape::of::<CipherSuite>(),

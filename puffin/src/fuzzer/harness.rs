@@ -3,6 +3,7 @@ use rand::Rng;
 
 use crate::algebra::TermType;
 use crate::execution::{Runner, TraceRunner};
+use crate::fuzzer::feedback::FAIL_AT_STEP;
 use crate::fuzzer::stats_stage::{
     HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
     TERM_SIZE, TRACE_LENGTH,
@@ -35,7 +36,8 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     }
     // Execute the trace
     let runner = Runner::new(put_registry.clone(), Spawner::new(put_registry.clone()));
-    if let Ok(ctx) = runner.execute(input) {
+    let mut fail_at_step = 0;
+    if let Ok(ctx) = runner.execute(input, &mut fail_at_step) {
         HARNESS_EXEC_SUCCESS.increment();
         if cfg!(feature = "introspection") {
             if ctx.agents_successful() {
@@ -43,6 +45,14 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
             }
         }
     }
+
+    // Update FAIL_AT_STEP
+    log::trace!(
+        "[a:trace len={}/size={}/{fail_at_step}] [[harness] Executed until {fail_at_step}.",
+        input.steps.len(),
+        input.size(),
+    );
+    FAIL_AT_STEP.set(Some(fail_at_step));
 
     ExitKind::Ok
 }

@@ -45,6 +45,7 @@ where
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
         .arg(arg!(--"wo-bit" "Disable bit-level mutations"))
         .arg(arg!(--"wo-dy" "Disable DY mutations"))
+        .arg(arg!(--"wo-trunc" "Disable failed trace steps truncation"))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
@@ -119,6 +120,7 @@ where
     let put_use_clear = matches.get_flag("put-use-clear");
     let without_bit_level = matches.get_flag("wo-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
+    let without_truncation = matches.get_flag("wo-trunc");
     let target_put: Option<&String> = matches.get_one("put");
 
     let mut put_registry = put_registry.clone();
@@ -345,7 +347,7 @@ where
             put_registry.clone(),
             Spawner::new(put_registry).with_mapping(&[(server, put)]),
         );
-        let mut context = runner.execute(trace).unwrap();
+        let mut context = runner.execute(trace, &mut 0).unwrap();
 
         let server = AgentName::first();
         let shutdown = context.find_agent_mut(server).unwrap().shutdown();
@@ -363,6 +365,7 @@ where
                 &put_registry,
                 without_bit_level,
                 without_dy_mutations,
+                without_truncation,
                 put_use_clear,
                 minimizer,
                 num_cores,
@@ -398,6 +401,7 @@ where
                 &put_registry,
                 without_bit_level,
                 without_dy_mutations,
+                without_truncation,
                 put_use_clear,
                 minimizer,
                 num_cores,
@@ -413,6 +417,7 @@ where
                     &put_registry,
                     without_bit_level,
                     without_dy_mutations,
+                    without_truncation,
                     put_use_clear,
                     minimizer,
                     num_cores,
@@ -465,7 +470,9 @@ where
         if without_dy_mutations {
             config.mutation_config.with_dy = false;
         }
-
+        if without_truncation {
+            config.mutation_stage_config.with_truncation = false;
+        }
         if let Err(err) = start::<PB>(&put_registry, default_put, config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {
@@ -545,7 +552,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) 
     // When generating coverage a crash means that no coverage is stored
     // By executing in a fork, even when that process crashes, the other executed code will still
     // yield coverage
-    let status = ForkedRunner::new(runner).execute(trace);
+    let status = ForkedRunner::new(runner).execute(trace, &mut 0);
 
     match status {
         Ok(s) => log::info!("execution finished with status {s:?}"),

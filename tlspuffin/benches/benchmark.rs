@@ -126,37 +126,37 @@ fn benchmark_seeds(c: &mut Criterion) {
 
     group.bench_function("seed_successful", |b| {
         let trace = seed_successful.build_trace();
-        b.iter(|| runner.execute(&trace))
+        b.iter(|| runner.execute(&trace, &mut 0))
     });
 
     group.bench_function("seed_successful12_with_tickets", |b| {
         let trace = seed_successful12_with_tickets.build_trace();
-        b.iter(|| runner.execute(&trace))
+        b.iter(|| runner.execute(&trace, &mut 0))
     });
 
     group.bench_function("seed_client_attacker", |b| {
         let trace = seed_client_attacker.build_trace();
-        b.iter(|| runner.execute(&trace))
+        b.iter(|| runner.execute(&trace, &mut 0))
     });
 
     group.bench_function("seed_client_attacker12", |b| {
         let trace = seed_client_attacker12.build_trace();
-        b.iter(|| runner.execute(&trace))
+        b.iter(|| runner.execute(&trace, &mut 0))
     });
 
     group.bench_function("seed_session_resumption_dhe", |b| {
         let trace = seed_session_resumption_dhe.build_trace();
-        b.iter(|| runner.execute(&trace))
+        b.iter(|| runner.execute(&trace, &mut 0))
     });
 
     group.bench_function("seed_session_resumption_ke", |b| {
         let trace = seed_session_resumption_ke.build_trace();
-        b.iter(|| runner.execute(&trace))
+        b.iter(|| runner.execute(&trace, &mut 0))
     });
 
     group.bench_function("seed_session_resumption_dhe_full", |b| {
         let trace = seed_session_resumption_dhe_full.build_trace();
-        b.iter(|| runner.execute(&trace))
+        b.iter(|| runner.execute(&trace, &mut 0))
     });
 
     group.finish()

@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use puffin::agent::AgentDescriptor;
 use puffin::claims::GlobalClaimList;
 use puffin::error::Error;

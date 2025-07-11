@@ -19,6 +19,7 @@ pub fn format_title<PB: ProtocolBehavior>(
     put_registry: &PutRegistry<PB>,
     without_bit_level: bool,
     without_dy_mutations: bool,
+    without_truncation: bool,
     put_use_clear: bool,
     minimizer: bool,
     num_cores: usize,
@@ -27,6 +28,7 @@ pub fn format_title<PB: ProtocolBehavior>(
     let hour = Local::now().format("%H-%M-%S");
     let without_bit_level = if without_bit_level { "_wo-bit" } else { "" };
     let without_dy_mutations = if without_dy_mutations { "_wo-dy" } else { "" };
+    let without_truncation = if without_truncation { "_wo-trunc" } else { "" };
     let put_use_clear = if put_use_clear { "_put-use-clear" } else { "" };
     let minimizer = if minimizer { "_minimizer" } else { "" };
     let default_put: &str = &put_registry
@@ -40,7 +42,7 @@ pub fn format_title<PB: ProtocolBehavior>(
         .join("-");
     format!(
         "{date}\
-        --{default_put}-{num_cores}c{without_bit_level}{without_dy_mutations}{put_use_clear}{minimizer}__\
+        --{default_put}-{num_cores}c{without_bit_level}{without_dy_mutations}{without_truncation}{put_use_clear}{minimizer}__\
         {title}--{hour}--{index}",
         date = date,
         title = title.unwrap_or(&puffin::git_ref().unwrap_or_default()),

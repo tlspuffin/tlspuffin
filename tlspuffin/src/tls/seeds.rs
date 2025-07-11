@@ -2082,7 +2082,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_client_attacker12.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2092,7 +2092,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_client_attacker.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2102,7 +2102,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_client_attacker_auth.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2112,7 +2112,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_client_attacker_full.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2123,7 +2123,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_client_attacker_full_precomputation.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2133,7 +2133,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker_full.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2143,7 +2143,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_dhe.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2153,7 +2153,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_dhe_full.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2163,7 +2163,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_ke.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2173,7 +2173,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_successful.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2183,7 +2183,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_successful_client_auth.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2197,7 +2197,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_successful_mitm.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2207,7 +2207,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_successful_with_ccs.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2219,7 +2219,7 @@ pub mod tests {
         let runner = default_runner_for(put);
         let trace = seed_successful_with_tickets.build_trace();
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
@@ -2234,7 +2234,7 @@ pub mod tests {
             seed_successful12.build_trace()
         };
 
-        let ctx = runner.execute(trace).unwrap();
+        let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
     }
