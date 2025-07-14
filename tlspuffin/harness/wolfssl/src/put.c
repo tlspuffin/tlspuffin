@@ -26,7 +26,7 @@
 #define TYPETIME word32
 #endif
 
-//#define TIME_CHANGE
+// #define TIME_CHANGE
 #define USE_CUSTOM_PRNG
 #define CLOCKVALUE_DEFAULT 1742309173;
 
@@ -64,6 +64,8 @@ struct AGENT_TYPE
     uint32_t secret_size;
     uint8_t handshake_secret[SECRET_LEN];
 };
+
+void CheckServerClaimFinished(AGENT agent, bool outbound);
 
 // Map a key type enum to the corresponding claim key type.
 static ClaimKeyType map_keysum_claimkeytype(enum Key_Sum key)
@@ -197,6 +199,9 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         _log(PUFFIN.warn, "unsupported tls version");
         return;
     }
+
+    enum states current_state = (enum states)agent->ssl->options.handShakeState;
+    claim->write = !(current_state == CLIENT_FINISHED_COMPLETE || current_state == HANDSHAKE_DONE);
 
     claim->server = agent->ssl->options.side == WOLFSSL_SERVER_END;
     claim->peer_authentication = agent->peer_authentication;
@@ -674,6 +679,8 @@ static void wolfssl_message_callback(int write_p,
             }
         }
     }
+
+    CheckServerClaimFinished(agent, write_p);
 }
 
 // Register a claimer. If claimer is NULL, then register DEFAULT_CLAIMER_CB
@@ -1304,6 +1311,32 @@ static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor)
              descriptor->role);
         return NULL;
         break;
+    }
+}
+
+void CheckServerClaimFinished(AGENT agent, bool outbound)
+{
+    if ((agent->claimer.notify != NULL) && (agent->descriptor.role == SERVER))
+    {
+        enum states limit = HANDSHAKE_DONE;
+        switch (agent->descriptor.tls_version)
+        {
+        case V1_2:
+            limit = SERVER_KEYEXCHANGE_COMPLETE;
+            break;
+        case V1_3:
+            limit = SERVER_ENCRYPTED_EXTENSIONS_COMPLETE;
+            break;
+        default:
+            break;
+        }
+        if (agent->ssl->options.serverState >= limit)
+        {
+            struct Claim claim = {};
+            claim.typ = CLAIM_FINISHED;
+            fill_claim(agent, &claim);
+            agent->claimer.notify(agent->claimer.context, &claim);
+        }
     }
 }
 
