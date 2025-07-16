@@ -190,40 +190,12 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
         let mut second_ctx = TraceContext::new(self.second_spawner.clone());
         let second_trace_status = trace.as_ref().execute(&mut second_ctx, &mut 0);
 
+        // check status fist
         match (&first_trace_status, &second_trace_status) {
-            (Err(put1_status), Ok(_)) => {
-                if matches!(put1_status, &Error::Put(_)) {
-                    return Err(crate::differential::StatusDiff {
-                        first_executed_steps: first_ctx.executed_until,
-                        first_status: put1_status.to_string(),
-                        second_executed_steps: second_ctx.executed_until,
-                        second_status: "Success".into(),
-                        total_step: trace.as_ref().steps.len(),
-                    }
-                    .as_trace_difference()
-                    .as_error());
-                }
-            }
-            (Ok(_), Err(put2_status)) => {
-                if matches!(put2_status, &Error::Put(_)) {
-                    return Err(crate::differential::StatusDiff {
-                        first_executed_steps: first_ctx.executed_until,
-                        first_status: "Success".into(),
-                        second_executed_steps: second_ctx.executed_until,
-                        second_status: put2_status.to_string(),
-                        total_step: trace.as_ref().steps.len(),
-                    }
-                    .as_trace_difference()
-                    .as_error());
-                }
-            }
-            (Err(put1_error), Err(put2_error)) => {
-                if matches!(put1_error, &Error::Put(_)) && matches!(put2_error, &Error::Put(_)) {
-                    if first_ctx.executed_until == second_ctx.executed_until {
-                        // If both PUT fail at the same step we consider that they fail for the same
-                        // reason
-                        return Ok(first_ctx);
-                    }
+            (Err(Error::Put(put1_error)), Err(Error::Put(put2_error))) => {
+                // If both PUT fail at the same step we consider that they fail for the same
+                // reason
+                if first_ctx.executed_until != second_ctx.executed_until {
                     return Err(crate::differential::StatusDiff {
                         first_executed_steps: first_ctx.executed_until,
                         first_status: put1_error.to_string(),
@@ -234,6 +206,34 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
                     .as_trace_difference()
                     .as_error());
                 }
+            }
+            (Err(Error::Put(put1_error)), second_put_status) => {
+                return Err(crate::differential::StatusDiff {
+                    first_executed_steps: first_ctx.executed_until,
+                    first_status: put1_error.to_string(),
+                    second_executed_steps: second_ctx.executed_until,
+                    second_status: match second_put_status {
+                        Ok(_) => "Success".into(),
+                        Err(e) => e.to_string(),
+                    },
+                    total_step: trace.as_ref().steps.len(),
+                }
+                .as_trace_difference()
+                .as_error());
+            }
+            (first_put_status, Err(Error::Put(put2_error))) => {
+                return Err(crate::differential::StatusDiff {
+                    first_executed_steps: first_ctx.executed_until,
+                    first_status: match first_put_status {
+                        Ok(_) => "Success".into(),
+                        Err(e) => e.to_string(),
+                    },
+                    second_executed_steps: second_ctx.executed_until,
+                    second_status: put2_error.to_string(),
+                    total_step: trace.as_ref().steps.len(),
+                }
+                .as_trace_difference()
+                .as_error());
             }
             _ => (),
         }
