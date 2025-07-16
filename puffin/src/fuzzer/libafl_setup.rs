@@ -568,12 +568,17 @@ where
                 MinimizingFeedback::new(mutation_stage_config.with_truncation),
                 feedback
             );
+            #[cfg(feature = "with-min-scheduler")]
+            let scheduler = IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new());
+            #[cfg(not(feature = "with-min-scheduler"))]
+            let scheduler = RandScheduler::new();
+
             builder = builder
                 .with_feedback(feedback_with_minimizer)
                 .with_observers(observer)
-                .with_scheduler(RandScheduler::new());
+                .with_scheduler(scheduler);
         } // TODO:EVAL investigate using QueueScheduler instead (see https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L190)
-
+          // TODO:EVAL: investigate this versus Rand, versus Queue, versus Minimizer
         builder.run_client(put_registry)
     };
 

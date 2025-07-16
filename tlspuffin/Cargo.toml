@@ -325,6 +325,8 @@ transcript_extraction = []
 client_authentication_transcript_extraction = []
 
 introspection = ["puffin/introspection"]
+# Use IndexesLenTimeMinimizerScheduler instead of RandScheduler
+with-min-scheduler = ["puffin/with-min-scheduler"]
 
 # PUT exposes an API to change the TLS 1.2 ciphersuites
 allow_setting_tls12_ciphers = []

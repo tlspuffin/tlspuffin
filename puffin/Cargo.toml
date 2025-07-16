@@ -18,6 +18,8 @@ sancov_pcguard_log = []
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov are mutally exclusive
 sancov = ["libafl_targets/sancov_pcguard_hitcounts"]
 asan = []
+# Use IndexesLenTimeMinimizerScheduler instead of RandScheduler
+with-min-scheduler = []
 
 introspection = ["libafl/introspection"]
 
