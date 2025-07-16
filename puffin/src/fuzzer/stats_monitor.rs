@@ -297,7 +297,7 @@ struct IntrospectFeatures {
 /// - `total_execs`: Total number of executions performed by the client
 /// - `all_term_eval`: Total number of term evaluations.
 /// - `all_term_eval_success`: Number of successful term evaluations.
-/// - `eval_*_error`: Number of X errors whe  evaluating a term
+/// - `eval_*_error`: Number of X errors when evaluating a term
 /// - `all_exec`: Total number of trace executions.
 /// - `all_exec_success`: Number of successful trace executions.
 /// - `all_exec_agent_success`: Number of successful trace executions where all agents are in a
