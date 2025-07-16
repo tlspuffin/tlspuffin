@@ -24,6 +24,7 @@ use std::mem;
 use std::vec::IntoIter;
 
 use clap::error::Result;
+use comparable::Comparable;
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};
@@ -31,6 +32,7 @@ use crate::algebra::bitstrings::Payloads;
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{remove_prefix, Matcher, Term, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
+use crate::differential::TraceDifference;
 use crate::error::Error;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
@@ -253,6 +255,92 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             .get(query.counter as usize)
             .map(|possibility| possibility.data)
     }
+
+    pub fn knowledges(&self) -> &Vec<RawKnowledge<PT>> {
+        &self.raw_knowledge
+    }
+
+    pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
+        let whitelist = PT::differential_fuzzing_whitelist();
+        let blacklist = PT::differential_fuzzing_blacklist();
+
+        let mut differences: Vec<TraceDifference> = vec![];
+
+        let mut first_store: Vec<Knowledge<'_, PT>> = self
+            .knowledges()
+            .iter()
+            .flatten()
+            .filter(|x| filter_knowledge(x, &whitelist, &blacklist))
+            .collect();
+        let mut second_store: Vec<Knowledge<'_, PT>> = other
+            .knowledges()
+            .iter()
+            .flatten()
+            .filter(|x| filter_knowledge(x, &whitelist, &blacklist))
+            .collect();
+        let first_store_count = first_store.len();
+        let second_store_count = second_store.len();
+
+        if first_store_count > second_store_count {
+            second_store.extend((second_store_count..first_store_count).map(|_| Knowledge {
+                source: &Source::Label(None),
+                matcher: None,
+                data: &(),
+            }))
+        } else {
+            first_store.extend((first_store_count..second_store_count).map(|_| Knowledge {
+                source: &Source::Label(None),
+                matcher: None,
+                data: &(),
+            }))
+        }
+
+        log::trace!("Comparing knowledge stores");
+        let _ = std::iter::zip(first_store, second_store)
+            .enumerate()
+            .map(|(idx, (x, y))| {
+                log::trace!(
+                    "{} (source:{}) | {} (source:{})",
+                    x.data.type_name(),
+                    x.source,
+                    y.data.type_name(),
+                    y.source
+                );
+                x.data
+                    .find_differences(y.data, &mut differences, idx, x.source, y.source);
+            })
+            .count();
+
+        match differences.is_empty() {
+            false => Err(differences),
+            true => Ok(()),
+        }
+    }
+}
+
+/// Should a specific knowledge be filtered out
+fn filter_knowledge<PT: ProtocolTypes>(
+    knowledge: &Knowledge<PT>,
+    whitelist: &Option<Vec<TypeId>>,
+    blacklist: &Option<Vec<TypeId>>,
+) -> bool {
+    if whitelist.is_none() && blacklist.is_none() {
+        return true;
+    }
+
+    if let Some(list) = whitelist {
+        if !list.iter().any(|x| x == &knowledge.data.type_id()) {
+            return false;
+        }
+    }
+
+    if let Some(list) = blacklist {
+        if list.iter().any(|x| x == &knowledge.data.type_id()) {
+            return false;
+        }
+    }
+
+    true
 }
 
 #[derive(Debug)]
@@ -485,6 +573,66 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .iter()
             .all(super::agent::Agent::is_state_successful)
     }
+
+    pub fn compare(
+        &self,
+        other: &Self,
+        descriptors: &Vec<AgentDescriptor<<PB::ProtocolTypes as ProtocolTypes>::PUTConfig>>,
+    ) -> Vec<TraceDifference> {
+        let mut res = vec![];
+
+        // Decrypting knowledges
+        let terms: Vec<Term<PB::ProtocolTypes>> =
+            PB::ProtocolTypes::differential_fuzzing_terms_to_eval(descriptors);
+
+        let mut self_store = KnowledgeStore::new();
+        let mut other_store = KnowledgeStore::new();
+
+        for t in terms {
+            let self_eval = t.evaluate_dy(self);
+            let other_eval = t.evaluate_dy(other);
+            log::trace!("Evaluate term : {}", t);
+            log::trace!("Trying term evaluation for first PUT : {:?}", self_eval);
+            log::trace!("Trying term evaluation for second PUT : {:?}", other_eval);
+            if let Ok(decrypted) = self_eval {
+                self_store.add_raw_boxed_knowledge(
+                    decrypted,
+                    None,
+                    Source::Label(Some("Decryption".into())),
+                    None,
+                );
+            }
+            if let Ok(decrypted) = other_eval {
+                other_store.add_raw_boxed_knowledge(
+                    decrypted,
+                    None,
+                    Source::Label(Some("Decryption".into())),
+                    None,
+                );
+            }
+        }
+
+        // Comparing the claims
+        res.extend(
+            self.claims
+                .compare(&other.claims)
+                .err()
+                .map_or(vec![], |x| x),
+        );
+
+        // Comparing the knowledges
+        res.extend(
+            self.knowledge_store
+                .compare(&other.knowledge_store)
+                .err()
+                .map_or(vec![], |x| x),
+        );
+
+        // Comparing the computed terms
+        res.extend(self_store.compare(&other_store).err().map_or(vec![], |x| x));
+
+        res
+    }
 }
 
 #[derive(Clone, Deserialize, Serialize, Hash)]
@@ -496,7 +644,7 @@ pub struct Trace<PT: ProtocolTypes> {
 }
 
 /// Identify a step and a (prior) trace
-#[derive(Clone, Debug, Deserialize, Serialize, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Serialize, Hash, PartialEq, Eq, Comparable)]
 pub struct StepNumber {
     /// identify the trace (allow to differentiate between prior traces)
     pub trace: usize,
@@ -574,6 +722,8 @@ pub struct TraceExecution<PT: ProtocolTypes> {
     executed_until: usize,
     /// Execution result of each step
     steps: Vec<StepExecution<PT>>,
+    // Other knowledges (eg. post computations)
+    extra_knowledges: Option<Vec<(Source, Box<dyn EvaluatedTerm<PT>>)>>,
 }
 
 impl<PT: ProtocolTypes> TraceExecution<PT> {
@@ -606,19 +756,27 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
                     }
                 }
                 Some(step_knowledges)
+                // TODO : Bump rust version to 1.87 to use `extract_if` instead of mem:swap code
+                // Some(
+                //     ctx.knowledge_store
+                //         .raw_knowledge
+                //         .extract_if(.., |k| k.step == Some(StepNumber::new(trace_number, idx)))
+                //         .map(|k| k.data)
+                //         .collect(),
+                // )
             } else {
                 None
             };
 
             let claims = if export_claims {
-                let mut step_claims = Vec::new();
-
-                for c in ctx.claims.deref_borrow().iter() {
-                    if c.get_step() == Some(StepNumber::new(trace_number, idx)) {
-                        step_claims.push(c.inner());
-                    }
-                }
-                Some(step_claims)
+                Some(
+                    ctx.claims
+                        .deref_borrow()
+                        .iter()
+                        .filter(|c| c.get_step() == Some(StepNumber::new(trace_number, idx)))
+                        .map(|c| c.inner())
+                        .collect(),
+                )
             } else {
                 None
             };
@@ -632,6 +790,32 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
             });
         }
 
+        let extra_knowledges = if export_knowledges {
+            let mut knowledges = Vec::new();
+            let mut old_knowledges = Vec::new();
+
+            mem::swap(&mut old_knowledges, &mut ctx.knowledge_store.raw_knowledge);
+
+            for k in old_knowledges {
+                if k.step == None {
+                    knowledges.push((k.source, k.data));
+                } else {
+                    ctx.knowledge_store.raw_knowledge.push(k);
+                }
+            }
+            Some(knowledges)
+            // TODO : Bump rust version to 1.87 to use `extract_if` instead of mem:swap code
+            // Some(
+            //     ctx.knowledge_store
+            //         .raw_knowledge
+            //         .extract_if(.., |k| k.step == None)
+            //         .map(|k| (k.source, k.data))
+            //         .collect(),
+            // )
+        } else {
+            None
+        };
+
         Self {
             agents: trace.descriptors.clone(),
             number_of_steps: trace.steps.len(),
@@ -639,6 +823,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
             steps,
             // right now we exclude prior traces
             prior_traces: Vec::new(),
+            extra_knowledges,
         }
     }
 
@@ -669,6 +854,13 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
 
         for s in &self.steps {
             s.print(f, depth)?;
+        }
+
+        if let Some(knowledges) = &self.extra_knowledges {
+            println!("{tabs}Extra knowledges :");
+            for k in knowledges {
+                println!("{tabs}>>> [{}] {:?}", k.0, k.1);
+            }
         }
 
         writeln!(f, "")
