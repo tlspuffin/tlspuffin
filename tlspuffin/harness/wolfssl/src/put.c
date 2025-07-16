@@ -26,7 +26,7 @@
 #define TYPETIME word32
 #endif
 
-// #define TIME_CHANGE
+//#define TIME_CHANGE
 #define USE_CUSTOM_PRNG
 #define CLOCKVALUE_DEFAULT 1742309173;
 
@@ -200,6 +200,12 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         return;
     }
 
+    // claim.write is used to set the value for outbound in Rust FinishedClaim
+    // only Finished claims with outbound == false (=> write == 0) are used to
+    // check security properties. Here we only want to check security properties
+    // after a ClientFinished has been sent, but we still want Finished with
+    // outbound == true to have access to cryptographic material to decrypt
+    // packets  if the handshake doesn't finish
     enum states current_state = (enum states)agent->ssl->options.handShakeState;
     claim->write = !(current_state == CLIENT_FINISHED_COMPLETE || current_state == HANDSHAKE_DONE);
 
@@ -1314,6 +1320,9 @@ static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor)
     }
 }
 
+// This functions triggers the creation of a Finished Claim for a server
+// if its state is beyond SERVER_KEYEXCHANGE_COMPLETE for TLS 1.2 or
+// SERVER_ENCRYPTED_EXTENSIONS_COMPLETE for TLS 1.3
 void CheckServerClaimFinished(AGENT agent, bool outbound)
 {
     if ((agent->claimer.notify != NULL) && (agent->descriptor.role == SERVER))
