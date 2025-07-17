@@ -23,7 +23,6 @@ use std::marker::PhantomData;
 use std::mem;
 use std::vec::IntoIter;
 
-use clap::error::Result;
 use serde::{Deserialize, Serialize, Serializer};
 
 use crate::agent::{Agent, AgentDescriptor, AgentName};
@@ -32,6 +31,10 @@ use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{remove_prefix, Matcher, Term, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
 use crate::error::Error;
+use crate::fuzzer::stats_stage::{
+    ALL_EXEC, ALL_EXEC_AGENT_SUCCESS, ALL_EXEC_SUCCESS, ERROR_AGENT, ERROR_CODEC, ERROR_EXTRACTION,
+    ERROR_FN, ERROR_IO, ERROR_PUT, ERROR_STREAM, ERROR_TERM, ERROR_TERMBUG,
+};
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
@@ -801,7 +804,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
         Ok(())
     }
 
-    pub fn execute_until_step<PB>(
+    pub fn execute_until_step_wrap<PB>(
         &self,
         ctx: &mut TraceContext<PB>,
         stop_at_step: usize,
@@ -811,7 +814,14 @@ impl<PT: ProtocolTypes> Trace<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         for trace in &self.prior_traces {
-            trace.execute(ctx, trace_number)?;
+            // Call wrap function to avoid counting these sub-executions in ALL_EXEC and
+            // ALL_EXEC_SUCCESS counters
+            trace
+                .execute_until_step_wrap(ctx, trace.steps.len(), trace_number)
+                .map_err(|e| {
+                    log::warn!("[execute_until_step_wrap] fail executing prior traces {trace}");
+                    e
+                })?;
         }
 
         self.spawn_agents(ctx)?;
@@ -826,6 +836,44 @@ impl<PT: ProtocolTypes> Trace<PT> {
         }
 
         *trace_number += 1;
+
+        Ok(())
+    }
+
+    pub fn execute_until_step<PB>(
+        &self,
+        ctx: &mut TraceContext<PB>,
+        stop_at_step: usize,
+        trace_number: &mut usize,
+    ) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
+        ALL_EXEC.increment();
+        let res = self.execute_until_step_wrap(ctx, stop_at_step, trace_number);
+
+        if let Err(e) = res {
+            match &e {
+                Error::Fn(_) => ERROR_FN.increment(),
+                Error::Term(_e) => ERROR_TERM.increment(),
+                Error::TermBug(_e) => ERROR_TERMBUG.increment(),
+                Error::Put(_) => ERROR_PUT.increment(),
+                Error::Codec(_) => ERROR_CODEC.increment(),
+                Error::IO(_) => ERROR_IO.increment(),
+                Error::Agent(_) => ERROR_AGENT.increment(),
+                Error::Stream(_) => ERROR_STREAM.increment(),
+                Error::Extraction() => ERROR_EXTRACTION.increment(),
+                Error::SecurityClaim(_) => {}
+            }
+            return Err(e);
+        }
+
+        ALL_EXEC_SUCCESS.increment();
+        if cfg!(feature = "introspection") {
+            if ctx.agents_successful() {
+                ALL_EXEC_AGENT_SUCCESS.increment();
+            }
+        }
 
         Ok(())
     }

@@ -287,19 +287,80 @@ struct IntrospectFeatures {
     get_objectives_interesting_all: f32,
 }
 
+/// Aggregates error and execution statistics for a fuzzing client.
+///
+/// This struct collects counts for various error types and execution outcomes,
+/// as defined by the `RuntimeStats` variants. It is used to summarize and report
+/// the number of occurrences for each tracked event during fuzzing.
+///
+/// Fields:
+/// - `total_execs`: Total number of executions performed by the client
+/// - `all_term_eval`: Total number of term evaluations.
+/// - `all_term_eval_success`: Number of successful term evaluations.
+/// - `eval_*_error`: Number of X errors when evaluating a term
+/// - `all_exec`: Total number of trace executions.
+/// - `all_exec_success`: Number of successful trace executions.
+/// - `all_exec_agent_success`: Number of successful trace executions where all agents are in a
+///   successful state.
+/// - `harness_exec`: Number of harness trace executions.
+/// - `harness_exec_success`: Number of successful harness trace executions.
+/// - `harness_exec_agent_success`: Number of successful harness trace executions where all agents
+///   are eventually successful.
+/// - `bit_exec`: Number of bit-level trace executions (Make Message and Read Message).
+/// - `bit_exec_success`: Number of successful bit-level executions (Make Message and Read Message).
+/// - `mm_exec`: Same as bit_exec but only when focused.
+/// - `mmn_exec_success`: Same as bit_exec_success but only when focused.
+/// - `fn_error`: Number of function errors encountered while the harness execute traces.
+/// - `term_error`: Number of term errors encountered while the harness execute traces.
+/// - `term_bug_error`: Number of term bug errors encountered while the harness execute traces.
+/// - `codec_error`: Number of codec errors encountered while the harness execute traces.
+/// - `put_error`: Number of put errors encountered while the harness execute traces.
+/// - `io_error`: Number of I/O errors encountered while the harness execute traces.
+/// - `agent_error`: Number of agent errors encountered while the harness execute traces.
+/// - `stream_error`: Number of stream errors encountered while the harness execute traces.
+/// - `extraction_error`: Number of extraction errors encountered while the harness execute traces.
+/// - `corpus_exec`: Number of executions of corpus testcases that were successful without any
+///   errors.
+/// - `corpus_exec_minimal`: Number of executions of corpus testcases that were successful without
+///   any errors except PUT or security claim violation errors on last step.
 #[derive(Serialize)]
 struct ErrorStatistics {
     #[serde(skip)]
     #[allow(dead_code)]
     total_execs: u64,
+    // Term eval
+    eval_fn_crypto_error: u64,
+    eval_fn_malformed_error: u64,
+    eval_fn_unknown_error: u64,
+    eval_term_error: u64,
+    eval_termbug_error: u64,
+    eval_codec_error: u64,
+    all_term_eval: u64,
+    all_term_eval_success: u64,
 
+    // Trace exec
     fn_error: u64,
     term_error: u64,
-    ssl_error: u64,
+    term_bug_error: u64,
+    codec_error: u64,
+    put_error: u64,
     io_error: u64,
-    ag_error: u64,
-    str_error: u64,
-    ext_error: u64,
+    agent_error: u64,
+    stream_error: u64,
+    extraction_error: u64,
+    all_exec: u64,
+    all_exec_success: u64,
+    all_exec_agent_success: u64,
+    harness_exec: u64,
+    harness_exec_success: u64,
+    harness_exec_agent_success: u64,
+    bit_exec: u64,
+    bit_exec_success: u64,
+    mm_exec: u64,
+    mm_exec_success: u64,
+
+    corpus_exec: u64,
+    corpus_exec_minimal: u64,
 }
 
 #[derive(Serialize)]
@@ -307,6 +368,13 @@ struct TraceStatistics {
     min_trace_length: Option<u64>,
     max_trace_length: Option<u64>,
     mean_trace_length: Option<u64>,
+
+    max_nb_payload: Option<u64>,
+    mean_nb_payload: Option<u64>,
+
+    min_payload_size: Option<u64>,
+    max_payload_size: Option<u64>,
+    mean_payload_size: Option<u64>,
 
     min_term_size: Option<u64>,
     max_term_size: Option<u64>,
@@ -380,29 +448,119 @@ impl ErrorStatistics {
     pub const fn new(total_execs: u64) -> Self {
         Self {
             total_execs,
+            eval_fn_crypto_error: 0,
+            eval_fn_malformed_error: 0,
+            eval_fn_unknown_error: 0,
+            eval_term_error: 0,
+            eval_termbug_error: 0,
             fn_error: 0,
             term_error: 0,
-            ssl_error: 0,
+            term_bug_error: 0,
+            all_term_eval: 0,
+            all_term_eval_success: 0,
+            all_exec: 0,
+            all_exec_success: 0,
+            all_exec_agent_success: 0,
+            harness_exec: 0,
+            harness_exec_success: 0,
+            harness_exec_agent_success: 0,
+            bit_exec: 0,
+            bit_exec_success: 0,
+            mm_exec: 0,
+            mm_exec_success: 0,
+            codec_error: 0,
+            put_error: 0,
             io_error: 0,
-            ag_error: 0,
-            str_error: 0,
-            ext_error: 0,
+            agent_error: 0,
+            stream_error: 0,
+            extraction_error: 0,
+            corpus_exec: 0,
+            corpus_exec_minimal: 0,
+            eval_codec_error: 0,
         }
     }
 
     pub fn count(&mut self, client_stats: &ClientStats) {
         for stat_definition in &STATS {
             match stat_definition {
-                RuntimeStats::FnError(c) => self.fn_error += get_number(client_stats, c.name),
-                RuntimeStats::TermError(c) => self.term_error += get_number(client_stats, c.name),
-                RuntimeStats::PutError(c) => self.ssl_error += get_number(client_stats, c.name),
-                RuntimeStats::IOError(c) => self.io_error += get_number(client_stats, c.name),
-                RuntimeStats::AgentError(c) => self.ag_error += get_number(client_stats, c.name),
-                RuntimeStats::StreamError(c) => self.str_error += get_number(client_stats, c.name),
-                RuntimeStats::ExtractionError(c) => {
-                    self.ext_error += get_number(client_stats, c.name);
+                RuntimeStats::EvalFnCryptoError(c) => {
+                    self.eval_fn_crypto_error += get_number(client_stats, c.name)
                 }
-                _ => {}
+                RuntimeStats::EvalFnMalformedError(c) => {
+                    self.eval_fn_malformed_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalFnUnknownError(c) => {
+                    self.eval_fn_unknown_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalTermError(c) => {
+                    self.eval_term_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalTermBugError(c) => {
+                    self.eval_termbug_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalCodecError(c) => {
+                    self.eval_codec_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::AllFnError(c) => self.fn_error += get_number(client_stats, c.name),
+                RuntimeStats::AllTermError(c) => {
+                    self.term_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::AllTermBugError(c) => {
+                    self.term_bug_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::AllCodecError(c) => {
+                    self.codec_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::AllPutError(c) => self.put_error += get_number(client_stats, c.name),
+                RuntimeStats::AllIOError(c) => self.io_error += get_number(client_stats, c.name),
+                RuntimeStats::AllAgentError(c) => {
+                    self.agent_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::AllStreamError(c) => {
+                    self.stream_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::AllExtractionError(c) => {
+                    self.extraction_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::AllTermEval(c) => {
+                    self.all_term_eval += get_number(client_stats, c.name)
+                }
+                RuntimeStats::AllTermEvalSuccess(c) => {
+                    self.all_term_eval_success += get_number(client_stats, c.name)
+                }
+                RuntimeStats::AllExec(c) => self.all_exec += get_number(client_stats, c.name),
+                RuntimeStats::AllExecSuccess(c) => {
+                    self.all_exec_success += get_number(client_stats, c.name)
+                }
+                RuntimeStats::AllExecAgentSuccess(c) => {
+                    self.all_exec_agent_success += get_number(client_stats, c.name)
+                }
+                RuntimeStats::HarnessExec(c) => {
+                    self.harness_exec += get_number(client_stats, c.name)
+                }
+                RuntimeStats::HarnessExecSuccess(c) => {
+                    self.harness_exec_success += get_number(client_stats, c.name)
+                }
+                RuntimeStats::HarnessExecAgentSuccess(c) => {
+                    self.harness_exec_agent_success += get_number(client_stats, c.name)
+                }
+                RuntimeStats::BitExec(c) => self.bit_exec += get_number(client_stats, c.name),
+                RuntimeStats::BitExecSuccess(c) => {
+                    self.bit_exec_success += get_number(client_stats, c.name)
+                }
+                RuntimeStats::MMExec(c) => self.mm_exec += get_number(client_stats, c.name),
+                RuntimeStats::MMNExecSuccess(c) => {
+                    self.mm_exec_success += get_number(client_stats, c.name)
+                }
+                RuntimeStats::CorpusExec(c) => self.corpus_exec += get_number(client_stats, c.name),
+                RuntimeStats::CorpusExecMinimal(c) => {
+                    self.corpus_exec_minimal += get_number(client_stats, c.name)
+                }
+                // MinMaxMean stats are not counted in ErrorStatistics
+                RuntimeStats::TraceLength(_) => {}
+                RuntimeStats::NbPayload(_) => {}
+                RuntimeStats::PayloadLength(_) => {}
+                RuntimeStats::TermSize(_) => {}
             }
         }
     }
@@ -425,6 +583,11 @@ impl TraceStatistics {
             min_trace_length: None,
             max_trace_length: None,
             mean_trace_length: None,
+            max_nb_payload: None,
+            mean_nb_payload: None,
+            min_payload_size: None,
+            max_payload_size: None,
+            mean_payload_size: None,
             min_term_size: None,
             max_term_size: None,
             mean_term_size: None,
@@ -447,6 +610,20 @@ impl TraceStatistics {
                     trace_stats.max_term_size =
                         Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
                     trace_stats.mean_term_size =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
+                }
+                RuntimeStats::NbPayload(mmm) => {
+                    trace_stats.max_nb_payload =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
+                    trace_stats.mean_nb_payload =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
+                }
+                RuntimeStats::PayloadLength(mmm) => {
+                    trace_stats.min_payload_size =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
+                    trace_stats.max_payload_size =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
+                    trace_stats.mean_payload_size =
                         Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
                 }
                 _ => {}
