@@ -20,6 +20,8 @@ sancov = ["libafl_targets/sancov_pcguard_hitcounts"]
 asan = []
 # Debug mode and panic when internal errors occur, instead of logging and skipping
 debug =[]
+# Use IndexesLenTimeMinimizerScheduler instead of RandScheduler
+with-min-scheduler = []
 
 introspection = ["libafl/introspection"]
 

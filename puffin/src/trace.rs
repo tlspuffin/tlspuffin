@@ -33,8 +33,8 @@ use crate::algebra::{remove_prefix, Matcher, Term, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
 use crate::error::Error;
 use crate::fuzzer::stats_stage::{
-    ALL_EXEC, ALL_EXEC_SUCCESS, ERROR_AGENT, ERROR_CODEC, ERROR_EXTRACTION, ERROR_FN, ERROR_IO,
-    ERROR_PUT, ERROR_STREAM, ERROR_TERM, ERROR_TERMBUG,
+    ALL_EXEC, ALL_EXEC_AGENT_SUCCESS, ALL_EXEC_SUCCESS, ERROR_AGENT, ERROR_CODEC, ERROR_EXTRACTION,
+    ERROR_FN, ERROR_IO, ERROR_PUT, ERROR_STREAM, ERROR_TERM, ERROR_TERMBUG,
 };
 use crate::fuzzer::utils::TracePath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
@@ -850,7 +850,14 @@ impl<PT: ProtocolTypes> Trace<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         for trace in &self.prior_traces {
-            trace.execute_until_step_wrap(ctx, trace.steps.len(), trace_number)?; // Call wrap function to avoid counting these sub-executions in ALL_EXEC and ALL_EXEC_SUCCESS counters
+            // Call wrap function to avoid counting these sub-executions in ALL_EXEC and
+            // ALL_EXEC_SUCCESS counters
+            trace
+                .execute_until_step_wrap(ctx, trace.steps.len(), trace_number)
+                .map_err(|e| {
+                    log::warn!("[execute_until_step_wrap] fail executing prior traces {trace}");
+                    e
+                })?;
         }
 
         self.spawn_agents(ctx)?;
@@ -896,7 +903,14 @@ impl<PT: ProtocolTypes> Trace<PT> {
             }
             return Err(e);
         }
+
         ALL_EXEC_SUCCESS.increment();
+        if cfg!(feature = "introspection") {
+            if ctx.agents_successful() {
+                ALL_EXEC_AGENT_SUCCESS.increment();
+            }
+        }
+
         Ok(())
     }
 
@@ -947,6 +961,20 @@ impl<PT: ProtocolTypes> Trace<PT> {
         self.steps.iter().all(|e| match &e.action {
             Input(r) => r.recipe.is_symbolic(),
             _ => true,
+        })
+    }
+
+    /// Remove the steps after (excluding) `after_step`
+    pub fn truncate_at_step(&mut self, after_step: usize) {
+        log::error!("Truncating trace at step {after_step}");
+        self.steps.truncate(after_step);
+    }
+
+    /// Size of trace (summing all input sizes, counting one for output)
+    pub fn size(&self) -> usize {
+        self.steps.iter().fold(0, |acc, s| match &s.action {
+            Action::Input(inp) => acc + inp.recipe.size(),
+            Action::Output(_) => acc + 1,
         })
     }
 

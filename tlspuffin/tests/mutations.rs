@@ -712,7 +712,7 @@ fn test_mutate_and_execute_seed_cve_2021_3449(put: &str) {
                 // In case we get None, the other test `test_mutate_seed_cve_2021_3449` will fail
                 log::error!("try");
                 for _i in 0..50 {
-                    let _ = runner.execute(&trace);
+                    let _ = runner.execute(&trace, &mut 0);
                 }
             }
         },

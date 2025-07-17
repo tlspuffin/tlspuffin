@@ -3,27 +3,44 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use libafl::prelude::*;
 pub enum RuntimeStats {
-    AllFnError(&'static Counter),
-    AllTermError(&'static Counter),
-    AllTermBugError(&'static Counter),
-    AllTermEval(&'static Counter),
-    AllTermEvalSuccess(&'static Counter),
-    AllExec(&'static Counter),
-    AllExecSuccess(&'static Counter),
-    HarnessExec(&'static Counter),
-    HarnessExecSuccess(&'static Counter),
-    BitExec(&'static Counter),
-    BitExecSuccess(&'static Counter),
-    MMExec(&'static Counter),
-    MMNExecSuccess(&'static Counter),
-    CorpusExec(&'static Counter),
-    CorpusExecMinimal(&'static Counter),
+    // Term Eval error counters
+    EvalFnCryptoError(&'static Counter),
+    EvalFnMalformedError(&'static Counter),
+    EvalFnUnknownError(&'static Counter),
+    EvalTermError(&'static Counter),
+    EvalTermBugError(&'static Counter),
+    EvalCodecError(&'static Counter),
+    // Trace Exec error counters
     AllCodecError(&'static Counter),
     AllPutError(&'static Counter),
     AllIOError(&'static Counter),
     AllAgentError(&'static Counter),
     AllStreamError(&'static Counter),
     AllExtractionError(&'static Counter),
+    AllFnError(&'static Counter),
+    AllTermError(&'static Counter),
+    AllTermBugError(&'static Counter),
+    // Term eval counters
+    AllTermEval(&'static Counter),
+    AllTermEvalSuccess(&'static Counter),
+    // Trace exec counters
+    AllExec(&'static Counter),
+    AllExecSuccess(&'static Counter),
+    AllExecAgentSuccess(&'static Counter),
+    // Trace execs by harness counters
+    HarnessExec(&'static Counter),
+    HarnessExecSuccess(&'static Counter),
+    HarnessExecAgentSuccess(&'static Counter),
+    // Trace execs by bit-mutations counters
+    BitExec(&'static Counter),
+    BitExecSuccess(&'static Counter),
+    // Trace execs by MakeMessage and ReadMessage counters
+    MMExec(&'static Counter),
+    MMNExecSuccess(&'static Counter),
+    // Full execs of corpus trace scheduled counter
+    CorpusExec(&'static Counter),
+    CorpusExecMinimal(&'static Counter),
+    // Stats about traces and payloads
     TraceLength(&'static MinMaxMean),
     TermSize(&'static MinMaxMean),
     NbPayload(&'static MinMaxMean),
@@ -36,6 +53,12 @@ impl RuntimeStats {
         consume: &mut dyn FnMut(String, UserStats) -> Result<(), Error>,
     ) -> Result<(), Error> {
         match self {
+            Self::EvalFnCryptoError(inner) => inner.fire(consume),
+            Self::EvalFnMalformedError(inner) => inner.fire(consume),
+            Self::EvalFnUnknownError(inner) => inner.fire(consume),
+            Self::EvalTermError(inner) => inner.fire(consume),
+            Self::EvalTermBugError(inner) => inner.fire(consume),
+            Self::EvalCodecError(inner) => inner.fire(consume),
             Self::AllFnError(inner) => inner.fire(consume),
             Self::AllTermError(inner) => inner.fire(consume),
             Self::AllTermBugError(inner) => inner.fire(consume),
@@ -43,8 +66,10 @@ impl RuntimeStats {
             Self::AllTermEvalSuccess(inner) => inner.fire(consume),
             Self::AllExec(inner) => inner.fire(consume),
             Self::AllExecSuccess(inner) => inner.fire(consume),
+            Self::AllExecAgentSuccess(inner) => inner.fire(consume),
             Self::HarnessExec(inner) => inner.fire(consume),
             Self::HarnessExecSuccess(inner) => inner.fire(consume),
+            Self::HarnessExecAgentSuccess(inner) => inner.fire(consume),
             Self::BitExec(inner) => inner.fire(consume),
             Self::BitExecSuccess(inner) => inner.fire(consume),
             Self::MMExec(inner) => inner.fire(consume),
@@ -65,7 +90,14 @@ impl RuntimeStats {
     }
 }
 
-/// Errors counters triggered by all evaluations (not mutations!)
+/// Errors counters triggered by term evaluations
+pub static EVAL_ERR_FN_CRYPTO: Counter = Counter::new("eval-error-fn-crypto");
+pub static EVAL_ERR_FN_MALFORMED: Counter = Counter::new("eval-error-fn-malformed");
+pub static EVAL_ERR_FN_UNKNOWN: Counter = Counter::new("eval-error-fn-unknown");
+pub static EVAL_ERR_TERM: Counter = Counter::new("eval-error-term");
+pub static EVAL_ERR_TERMBUG: Counter = Counter::new("eval-error-termbug");
+pub static EVAL_ERR_CODEC: Counter = Counter::new("eval-error-codec");
+/// Errors counters triggered by all trace executions
 // Fn(FnError),
 pub static ERROR_FN: Counter = Counter::new("error-fn");
 // Term(String),
@@ -94,7 +126,9 @@ pub static PAYLOAD_LENGTH: MinMaxMean = MinMaxMean::new("payload-length");
 /// Metrics for evaluations and executions
 pub static ALL_EXEC: Counter = Counter::new("all-exec");
 pub static ALL_EXEC_SUCCESS: Counter = Counter::new("all-exec-success");
+pub static ALL_EXEC_AGENT_SUCCESS: Counter = Counter::new("all-exec-agents-success");
 pub static HARNESS_EXEC: Counter = Counter::new("harness-exec");
+pub static HARNESS_EXEC_AGENT_SUCCESS: Counter = Counter::new("harness-exec-agents-success");
 pub static HARNESS_EXEC_SUCCESS: Counter = Counter::new("harness-exec-success");
 pub static ALL_TERM_EVAL: Counter = Counter::new("all-term-eval");
 pub static ALL_TERM_EVAL_SUCCESS: Counter = Counter::new("all-term-eval-success");
@@ -105,7 +139,13 @@ pub static MM_EXEC_SUCCESS: Counter = Counter::new("mmn-exec-success");
 pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
 pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
 
-pub static STATS: [RuntimeStats; 25] = [
+pub static STATS: [RuntimeStats; 33] = [
+    RuntimeStats::EvalFnCryptoError(&EVAL_ERR_FN_CRYPTO),
+    RuntimeStats::EvalFnMalformedError(&EVAL_ERR_FN_MALFORMED),
+    RuntimeStats::EvalFnUnknownError(&EVAL_ERR_FN_UNKNOWN),
+    RuntimeStats::EvalTermError(&EVAL_ERR_TERM),
+    RuntimeStats::EvalTermBugError(&EVAL_ERR_TERMBUG),
+    RuntimeStats::EvalCodecError(&EVAL_ERR_CODEC),
     RuntimeStats::AllFnError(&ERROR_FN),
     RuntimeStats::AllTermError(&ERROR_TERM),
     RuntimeStats::AllTermBugError(&ERROR_TERMBUG),
@@ -123,8 +163,10 @@ pub static STATS: [RuntimeStats; 25] = [
     RuntimeStats::AllTermEvalSuccess(&ALL_TERM_EVAL_SUCCESS),
     RuntimeStats::AllExec(&ALL_EXEC),
     RuntimeStats::AllExecSuccess(&ALL_EXEC_SUCCESS),
+    RuntimeStats::AllExecAgentSuccess(&ALL_EXEC_AGENT_SUCCESS),
     RuntimeStats::HarnessExec(&HARNESS_EXEC),
     RuntimeStats::HarnessExecSuccess(&HARNESS_EXEC_SUCCESS),
+    RuntimeStats::HarnessExecAgentSuccess(&HARNESS_EXEC_AGENT_SUCCESS),
     RuntimeStats::BitExec(&BIT_EXEC),
     RuntimeStats::BitExecSuccess(&BIT_EXEC_SUCCESS),
     RuntimeStats::MMExec(&MM_EXEC),

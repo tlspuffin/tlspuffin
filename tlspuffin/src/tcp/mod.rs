@@ -447,7 +447,7 @@ mod tests {
         let server = trace.descriptors[0].name;
         let runner = default_runner_for(PutDescriptor::new(TCP_PUT, guard.build_options()));
 
-        let mut context = runner.execute(trace).unwrap();
+        let mut context = runner.execute(trace, &mut 0).unwrap();
 
         let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         log::info!("{}", shutdown);
@@ -462,7 +462,7 @@ mod tests {
         let trace = seed_client_attacker_full.build_trace();
         let server = trace.descriptors[0].name;
 
-        let mut context = runner.execute(trace).unwrap();
+        let mut context = runner.execute(trace, &mut 0).unwrap();
 
         let shutdown = context.find_agent_mut(server).unwrap().shutdown();
         log::info!("{}", shutdown);
@@ -491,7 +491,7 @@ mod tests {
                 .with_mapping(&[(client_agent, client), (server_agent, server)]),
         );
 
-        let mut context = runner.execute(trace).unwrap();
+        let mut context = runner.execute(trace, &mut 0).unwrap();
 
         let shutdown = context.find_agent_mut(client_agent).unwrap().shutdown();
         log::info!("{}", shutdown);
@@ -524,7 +524,7 @@ mod tests {
                 .with_mapping(&[(client_agent, client), (server_agent, server)]),
         );
 
-        let mut context = runner.execute(trace).unwrap();
+        let mut context = runner.execute(trace, &mut 0).unwrap();
 
         let shutdown = context.find_agent_mut(client_agent).unwrap().shutdown();
         log::info!("{}", shutdown);

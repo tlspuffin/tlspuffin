@@ -68,7 +68,7 @@ fn test_seed_cve_2022_25640(put: &str) {
     let runner = default_runner_for(put);
     let trace = seed_cve_2022_25640.build_trace();
 
-    let ctx = runner.execute(trace).unwrap();
+    let ctx = runner.execute(trace, &mut 0).unwrap();
 
     assert!(ctx.agents_successful());
 }
@@ -85,7 +85,7 @@ fn test_seed_cve_2022_25640_simple(put: &str) {
     let runner = default_runner_for(put);
     let trace = seed_cve_2022_25640_simple.build_trace();
 
-    let ctx = runner.execute(trace).unwrap();
+    let ctx = runner.execute(trace, &mut 0).unwrap();
 
     assert!(ctx.agents_successful());
 }
@@ -102,7 +102,7 @@ fn test_seed_cve_2022_25638(put: &str) {
     let runner = default_runner_for(put);
     let trace = seed_cve_2022_25638.build_trace();
 
-    let ctx = runner.execute(trace).unwrap();
+    let ctx = runner.execute(trace, &mut 0).unwrap();
 
     assert!(ctx.agents_successful());
 }
@@ -136,7 +136,7 @@ fn test_seed_cve_2022_38153(put: &str) {
     let runner = default_runner_for(put);
     let trace = seed_successful12_with_tickets.build_trace();
 
-    let _ = runner.execute(trace.clone()).unwrap();
+    let _ = runner.execute(trace.clone(), &mut 0).unwrap();
     /*
     Originally, puffin found this bug because wolfssl was not made deterministic at all. The bug requires that the
     shared (across sessions) ticket map gets filled until a collision happen (a key refers to two tickets). For this to
@@ -157,6 +157,7 @@ fn test_seed_cve_2022_38153(put: &str) {
                     with_reseed: false,
                     ..ConfigTrace::default()
                 },
+                &mut 0
             )
             .unwrap();
     }
@@ -657,7 +658,7 @@ fn tcp_wolfssl_openssl_test_seed_cve_2022_38153() {
         Spawner::new(put_registry).with_mapping(&[(client_agent, client), (server_agent, server)]),
     );
 
-    let mut context = runner.execute(trace).unwrap();
+    let mut context = runner.execute(trace, &mut 0).unwrap();
 
     let shutdown = context.find_agent_mut(client_agent).unwrap().shutdown();
     log::info!("{}", shutdown);
@@ -673,7 +674,7 @@ fn tcp_wolfssl_cve_2022_39173() {
     let runner = default_runner_for(PutDescriptor::new(TCP_PUT, guard.build_options()));
     let server = trace.descriptors[0].name;
 
-    let mut context = runner.execute(trace).unwrap();
+    let mut context = runner.execute(trace, &mut 0).unwrap();
 
     let shutdown = context.find_agent_mut(server).unwrap().shutdown();
     log::info!("{}", shutdown);

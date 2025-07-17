@@ -6,12 +6,23 @@
 # Argument 1: experiment folder <experiment>
 # input file will be at ./experiments/<experiment>/log/stats.json
 # output file will be at ./experiments/<experiment>/log/stats-sampled.json
-input="./experiments/$1/log/stats.json"
-output="./experiments/$1/log/stats-sampled.json"
-# if stat_file does not exists then look for the file at $exp/stats.json (as in older versions of puffin)
+base="."
+for arg in "$@"; do
+  if [[ "$arg" == "--dir="* ]]; then
+    # store in tlspuffin what's after "--binary":
+    base="${arg#--dir=}"
+  else
+    exp=$arg
+  fi
+done
+
+input="${base}/experiments/$exp/log/stats.json"
+output="${base}/experiments/$exp/log/stats-sampled.json"
+
+  # if stat_file does not exists then look for the file at $exp/stats.json (as in older versions of puffin)
 if [ ! -f "$input" ]; then
-  input="./experiments/$1/stats.json"
-  output="./experiments/$1/stats-sampled.json"
+  input="${base}/experiments/$exp/stats.json"
+  output="${base}/experiments/$exp/stats-sampled.json"
 fi
 
 max_size=$((100 * 1024 * 1024))  # 100MB in bytes
@@ -32,4 +43,4 @@ perl -pe 's/(\{"type":"global")/\n$1/g' "$input"| awk -v N="$N" 'NR==1 || ((NR-1
 output_size=$(du -h "$output" | cut -f1)
 output_lines=$(wc -l < "$output")
 
-echo "Final file size: $output_size. Output size: $output_size. Output lines: $output_lines. "
+echo "Final file size: $output_size. Output lines: $output_lines. "

@@ -8,6 +8,7 @@ USE="./analyze-crashes.sh <crash_dir> [--release] [--put=<option>] [--verbose] [
 target="debug"
 crash_dir=""
 verbose=""
+base="."
 
 tlspuffin_dir="$(dirname "$0")/.."
 # Parse arguments
@@ -21,6 +22,8 @@ for arg in "$@"; do
     tlspuffin="${arg#--binary=}"
   elif [[ "$arg" == "--verbose" ]]; then
     verbose="--verbose"
+  elif [[ "$arg" == "--dir="* ]]; then
+    tlspuffin_dir="${arg#--dir=}"
   elif [[ "$arg" == "--help" ]]; then
     echo "Usage:"
     echo $USE

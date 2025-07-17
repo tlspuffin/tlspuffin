@@ -124,9 +124,9 @@ impl EvalTree {
         let nb = path[0];
         let path = &path[1..];
         if self.args.len() <= nb {
-            return Err(anyhow!(Error::TermBug(format!(
-                "--> [get] Should never happen! self.args.len() <= nb. EvalTree: {self:?}\n, path: {path:?}"
-            ))));
+            return Err(Error::TermBug(format!(
+                "[replace_payloads] [get] Should never happen! self.args.len() <= nb. EvalTree: {self:?}\n, path: {path:?}"
+            )));
         }
         self.args[nb].get(path)
     }
@@ -649,28 +649,28 @@ impl<PT: ProtocolTypes> Term<PT> {
                             )
                         })?; // payloads in ti are consumed here!
                         let di = PB::try_read_bytes(&bi, typei.clone().into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
-                            .with_context(|| format!("--> [eval_until_opaque] [argument is symbolic: {}] Try Read bytes failed for type shape: {}, typeid: {:?} on term argument (arg: {i})\n\
-                                {}\n\
-                                - eval_tree:\n {eval_tree:?}\n\
-                                - all its payloads:{}.\n {}",
-                                                     ti.is_symbolic(), typei, TypeId::from(typei.clone()), &ti, &ti.all_payloads().iter().format(","),
-                                                     if !ti.is_symbolic() {
-                                                         format!("[eval_until_opaque] Sanity check for Read:\n - new_eval  : {bi:?}\n - payload_0 :  {:?} ", ti.payloads.as_ref().unwrap().payload_0.bytes())
-                                                     } else {format!("(symbolic)")}
-                            ))?; // This may fail for good or bad reasons, we don't distinguish for now
+                            .map_err(|e| {
+                                if !ti.is_symbolic() {
+                                    log::warn!("[eval_until_opaque] [Argument has payload, might explain why] Warn: {}", e);
+                                } else {
+                                    log::warn!("[eval_until_opaque] [Argument is symbolic!] Err: {}", e);
+                                }
+                                e
+                            })?; // This may fail for good or bad reasons, we don't distinguish for now
                                  // We must make sure that we read correctly and avoided cases where read and
                                  // encode are not inverse of each other.
                                  // Otherwise, later payload replacements will fail.
                         if &di.get_encoding()[..] != &bi[..] {
-                            bail!(Error::Term(format!(
+                            return Error::Term(format!(
                                 "--> [eval_until_opaque] [argument is symbolic: {}] [1] Failed consistency check for read.encode a type {}:\n\
                                 - bi (first eval)  : {bi:?}\n\
                                 - read.encode:     : {:?}",
                                 ti.is_symbolic(),
                                 typei,
                                 di.get_encoding(),
-                            )));
+                            ));
                         }
+
                         dynamic_args.push(di); // no need to add payloads to all_p as they were
                                                // consumed (opaque function symbol)
                     } else {

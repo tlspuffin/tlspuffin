@@ -13,8 +13,9 @@ use super::harness;
 use crate::fuzzer::bit_mutations::{
     bit_mutations_dy, havoc_mutations_dy, MakeMessage, ReadMessage,
 };
-use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
 use crate::fuzzer::stages::{FocusScheduledMutator, PuffinMutationalStage};
+use crate::fuzzer::feedback::MinimizingFeedback;
+use crate::fuzzer::mutations::{trace_mutations, dy_mutations, MutationConfig};
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
 use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
@@ -79,19 +80,19 @@ pub struct MutationStageConfig {
     /// How many iterations each stage gets, as an upper bound
     /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
     pub max_iterations_per_stage: u64,
-    pub max_mutations_per_iteration: u64,
+    pub max_mutations_pow_per_iteration: u64,
+    // Whether to truncate the input after mutations, prior to adding it to the corpus
+    pub with_truncation: bool,
 }
 
 impl Default for MutationStageConfig {
     //  TODO:EVAL: evaluate modifications of this config
     fn default() -> Self {
         Self {
-            max_iterations_per_stage: 128, // Was the default of StdMutationalStage (=128)
-            max_mutations_per_iteration: 32, /* With TuneableScheduledMutator, we set the
-                                            * probability
-                                            * to mutate n times for 1 <= n <=
-                                            * max_mutations_per_iteration to be (2/n)/N (N: to
-                                            * normalize. */
+            max_iterations_per_stage: 128,
+            max_mutations_pow_per_iteration: 7,
+            with_truncation: true,
+            // Default for StdMutationalStage and StdMutationalStage (=HavocScheduledMutator)
         }
     }
 }
@@ -232,7 +233,7 @@ where
         /*
         Standard AFL-like configuration:
         A: Main mutator with StdScheduledMutator
-            1. Compute the number of iterations im used to apply stacked mutations: 1 << (1 + rand(0<= r <= 7))
+            1. Compute the number of iterations im used to apply stacked mutations: 1 << (1 + rand(0 <= r <= 7))
             2. For each time (0..im) : Apply randomly a mutation from the given list (here havoc)
           ==> let mutator = StdScheduledMutator::new(havoc_mutations());
         B: Main mutational stage with StdMutationalStage:
@@ -240,11 +241,8 @@ where
             2. Pick a random iterations is between 1 and 128 (default)
             3. For each 0..is: clone input, mutate using mutator, execute
           ==> let mut stages = tuple_list!(StdMutationalStage::new(mutator));
-        C: We provide a list of stages: all of them are run one after the other, on the same scheduled testcase though. We might want to add more stages in the future, in particular https://docs.rs/libafl/0.15.0/libafl/stages/tmin/struct.StdTMinMutationalStage.html; see https://docs.rs/libafl/0.15.0/libafl/stages/index.html#modules
-
-        Note: A minimization+queue policy to get test cases from the corpus
-          ==> let scheduler = IndexesLenTimeMinimizerScheduler::new(&edges_observer, QueueScheduler::new());
-        Warning: To achieve this, the fuzzer maintains a state that describes which test cases are short and take a short time to execute. Internally, LibAFL attaches metadata to the fuzzer state ( TopRatedsMetadata) and test cases ( IsFavoredMetadata and MapIndexesMetadata). The important part to note here is that this specific scheduler depends on having an observer who can track indices. This is true for our edges_observer because we used the track_indices function when setting it up. For more information, refer to the source code.
+        C: We provide a list of stages: all of them are run one after the other, on the same scheduled testcase though.
+        Note: We might want to add more stages in the future, in particular https://docs.rs/libafl/0.15.0/libafl/stages/tmin/struct.StdTMinMutationalStage.html; see https://docs.rs/libafl/0.15.0/libafl/stages/index.html#modules
         ------------
         We adapt this to our specific setup:
            ==> let mut stages = tuple_list!(stage_dy, stage_bit);
@@ -365,16 +363,18 @@ where
                             CORPUS_EXEC_MINIMAL.increment();
                             return Ok(());
                         }
-                        Err(crate::error::Error::Put(_)) => {
-                            error_ok = true;
-                        }
-                        Err(crate::error::Error::SecurityClaim(_)) => {
-                            error_ok = true;
-                        }
-                        _ => {
-                            // Other error: not OK (no increment of CORPUS_EXEC_SUCCESS)
-                            return Ok(());
-                        }
+                        Err(e) => match e {
+                            crate::error::Error::Put(_) => {
+                                error_ok = true;
+                            }
+                            crate::error::Error::SecurityClaim(_) => {
+                                error_ok = true;
+                            }
+                            _ => {
+                                // Other error: not OK (no increment of CORPUS_EXEC_SUCCESS)
+                                return Ok(());
+                            }
+                        },
                     }
                     if error_ok {
                         // If it failed because of the PUT or the security claim, we only consider
@@ -485,7 +485,46 @@ impl<'harness, 'a, H, SC, C, R, EM, OF, CS, PT>
         R,
         SC,
         EM,
-        ConcreteFeedback<'a, ConcreteState<C, R, SC, Trace<PT>>>,
+        CombinedFeedback<
+            MinimizingFeedback<
+                StdState<
+                    Trace<PT>,
+                    CachedOnDiskCorpus<Trace<PT>>,
+                    RomuDuoJrRand,
+                    CachedOnDiskCorpus<Trace<PT>>,
+                >,
+                PT,
+            >,
+            CombinedFeedback<
+                MapFeedback<
+                    DifferentIsNovel,
+                    HitcountsMapObserver<StdMapObserver<'_, u8, false>>,
+                    MaxReducer,
+                    StdState<
+                        Trace<PT>,
+                        CachedOnDiskCorpus<Trace<PT>>,
+                        RomuDuoJrRand,
+                        CachedOnDiskCorpus<Trace<PT>>,
+                    >,
+                    u8,
+                >,
+                TimeFeedback,
+                LogicEagerOr,
+                StdState<
+                    Trace<PT>,
+                    CachedOnDiskCorpus<Trace<PT>>,
+                    RomuDuoJrRand,
+                    CachedOnDiskCorpus<Trace<PT>>,
+                >,
+            >,
+            LogicEagerOr,
+            StdState<
+                Trace<PT>,
+                CachedOnDiskCorpus<Trace<PT>>,
+                RomuDuoJrRand,
+                CachedOnDiskCorpus<Trace<PT>>,
+            >,
+        >,
         OF,
         ConcreteObservers<'a>,
         CS,
@@ -585,6 +624,7 @@ where
         broker_port,
         tui,
         no_launcher,
+        mutation_stage_config,
         is_experiment,
         log_folder,
         verbosity,
@@ -650,11 +690,21 @@ where
             // FIXME
             log::warn!("Running without minimizer is unsupported");
             let (feedback, observer) = builder.create_feedback_observers();
+            let feedback_with_minimizer = feedback_or!(
+                MinimizingFeedback::new(mutation_stage_config.with_truncation),
+                feedback
+            );
+            #[cfg(feature = "with-min-scheduler")]
+            let scheduler = IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new());
+            #[cfg(not(feature = "with-min-scheduler"))]
+            let scheduler = RandScheduler::new();
+
             builder = builder
-                .with_feedback(feedback)
+                .with_feedback(feedback_with_minimizer)
                 .with_observers(observer)
-                .with_scheduler(RandScheduler::new());
+                .with_scheduler(scheduler);
         } // TODO:EVAL investigate using QueueScheduler instead (see https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L190)
+          // TODO:EVAL: investigate this versus Rand, versus Queue, versus Minimizer
 
         builder.run_client(put_registry)
     };

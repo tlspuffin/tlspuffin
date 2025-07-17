@@ -13,7 +13,10 @@ use crate::algebra::bitstrings::{replace_payloads, EvalTree, PayloadMetadata, Pa
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
 use crate::error::Error;
-use crate::fuzzer::stats_stage::{ALL_TERM_EVAL, ALL_TERM_EVAL_SUCCESS};
+use crate::fuzzer::stats_stage::{
+    ALL_TERM_EVAL, ALL_TERM_EVAL_SUCCESS, EVAL_ERR_CODEC, EVAL_ERR_FN_CRYPTO,
+    EVAL_ERR_FN_MALFORMED, EVAL_ERR_FN_UNKNOWN, EVAL_ERR_TERM, EVAL_ERR_TERMBUG,
+};
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::TraceContext;
 
@@ -66,58 +69,57 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>;
 
-    /// Wrap `evaluate_config` with error handling and logging information
+    /// Wrap `evaluate_config` with error stats and logging handling
     fn evaluate_config_wrap<PB: ProtocolBehavior>(
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>)>
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         ALL_TERM_EVAL.increment();
-
-        self.evaluate_config(context, with_payloads)
-            .map_err(|e| {
-                match e.downcast_ref() {
-                    Some(Error::TermBug(_te)) => {
+        match self.evaluate_config(context, with_payloads) {
+            Ok(cm) => {
+                ALL_TERM_EVAL_SUCCESS.increment();
+                Ok(cm)
+            }
+            Err(e) => {
+                match &e {
+                    Error::Fn(FnError::Crypto(..)) => {
+                        log::debug!("[evaluate_config_wrap]  FnError::Crypto Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                        EVAL_ERR_FN_CRYPTO.increment();
+                    }
+                    Error::Fn(FnError::Malformed(..)) => {
+                        log::debug!("[evaluate_config_wrap]  FnError::Malformed Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                        EVAL_ERR_FN_MALFORMED.increment();
+                    }
+                    Error::Fn(FnError::Unknown(_fne)) => {
+                        log::warn!("[evaluate_config_wrap]  FnError::Unknown Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                        EVAL_ERR_FN_UNKNOWN.increment();
+                    }
+                    Error::Term(te) => {
+                        log::debug!("[evaluate_config_wrap] Term Error {}", te);
+                        EVAL_ERR_TERM.increment();
+                    }
+                    Error::TermBug(_) => {
                         log::error!("[evaluate_config_wrap] TermBug Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                        EVAL_ERR_TERMBUG.increment();
                         #[cfg(any(debug_assertions, feature = "debug"))]
                         { // we panic in debug or test mode
                             panic!("[evaluate_config_wrap] Panic! {}", e);
                         }
                     }
-                    Some(Error::Term(te)) => {
-                        log::debug!("[evaluate_config_wrap] Term Error {}", te);
-                    }
-                    Some(Error::Fn(fe)) => match &fe {
-                        FnError::Unknown(_fne) => {
-                            log::error!("[evaluate_config_wrap]  FnError::Unknown Error on\n{}\n[==>] Causes: {:?}", &self, &e);
-                        }
-                        _ => {
-                            log::debug!("[evaluate_config_wrap]  FnError::* Error on\n{}\n[==>] Causes: {:?}", &self, &e);
-                        }
-                    },
-                    Some(Error::SecurityClaim(_se)) => {
-                        log::error!("[evaluate_config_wrap] SecurityClaim Error on\n{}\n[==>] Causes: {:?}", &self, &e);
-                    }
-                    Some(Error::Extraction()) => {
-                        log::error!("[evaluate_config_wrap] Extraction Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                    Error::Codec(_) => {
+                        EVAL_ERR_CODEC.increment();
                     }
                     _ => {
-                        log::debug!("[evaluate_config_wrap] Other Error on\n{}\n[==>] Causes: {:?}", &self, &e);
-                    } /* Error::Codec(_) => {}
-                   * Error::Put(_) => {}
-                   * Error::IO(_) => {}
-                   * Error::Agent(_) => {}
-                   * Error::Stream(_) => {} */
+                        panic!("[evaluate] downcast error failed!");
+                    }
                 };
-                e
-            })
-            .map(|r| {
-                ALL_TERM_EVAL_SUCCESS.increment();
-                r
-            })
+                Err(e)
+            }
+        }
     }
 
     /// Evaluate terms into `ConcreteMessage` (considering Payloads)

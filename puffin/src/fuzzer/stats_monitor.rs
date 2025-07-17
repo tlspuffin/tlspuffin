@@ -297,14 +297,19 @@ struct IntrospectFeatures {
 /// - `total_execs`: Total number of executions performed by the client
 /// - `all_term_eval`: Total number of term evaluations.
 /// - `all_term_eval_success`: Number of successful term evaluations.
+/// - `eval_*_error`: Number of X errors when evaluating a term
 /// - `all_exec`: Total number of trace executions.
 /// - `all_exec_success`: Number of successful trace executions.
+/// - `all_exec_agent_success`: Number of successful trace executions where all agents are in a
+///   successful state.
 /// - `harness_exec`: Number of harness trace executions.
 /// - `harness_exec_success`: Number of successful harness trace executions.
+/// - `harness_exec_agent_success`: Number of successful harness trace executions where all agents
+///   are eventually successful.
 /// - `bit_exec`: Number of bit-level trace executions (Make Message and Read Message).
 /// - `bit_exec_success`: Number of successful bit-level executions (Make Message and Read Message).
 /// - `mm_exec`: Same as bit_exec but only when focused.
-/// - `mmn_exec_success`: Same as bit_exec_success but only when focused.
+/// - `mm_exec_success`: Same as bit_exec_success but only when focused.
 /// - `fn_error`: Number of function errors encountered while the harness execute traces.
 /// - `term_error`: Number of term errors encountered while the harness execute traces.
 /// - `term_bug_error`: Number of term bug errors encountered while the harness execute traces.
@@ -323,27 +328,37 @@ struct ErrorStatistics {
     #[serde(skip)]
     #[allow(dead_code)]
     total_execs: u64,
+    // Term eval
+    eval_fn_crypto_error: u64,
+    eval_fn_malformed_error: u64,
+    eval_fn_unknown_error: u64,
+    eval_term_error: u64,
+    eval_termbug_error: u64,
+    eval_codec_error: u64,
+    all_term_eval: u64,
+    all_term_eval_success: u64,
 
+    // Trace exec
     fn_error: u64,
     term_error: u64,
     term_bug_error: u64,
-    all_term_eval: u64,
-    all_term_eval_success: u64,
-    all_exec: u64,
-    all_exec_success: u64,
-    harness_exec: u64,
-    harness_exec_success: u64,
-    bit_exec: u64,
-    bit_exec_success: u64,
-    mm_exec: u64,
-    mm_exec_success: u64,
     codec_error: u64,
     put_error: u64,
     io_error: u64,
     agent_error: u64,
     stream_error: u64,
     extraction_error: u64,
-    no_error: u64,
+    all_exec: u64,
+    all_exec_success: u64,
+    all_exec_agent_success: u64,
+    harness_exec: u64,
+    harness_exec_success: u64,
+    harness_exec_agent_success: u64,
+    bit_exec: u64,
+    bit_exec_success: u64,
+    mm_exec: u64,
+    mm_exec_success: u64,
+
     corpus_exec: u64,
     corpus_exec_minimal: u64,
 }
@@ -433,6 +448,11 @@ impl ErrorStatistics {
     pub const fn new(total_execs: u64) -> Self {
         Self {
             total_execs,
+            eval_fn_crypto_error: 0,
+            eval_fn_malformed_error: 0,
+            eval_fn_unknown_error: 0,
+            eval_term_error: 0,
+            eval_termbug_error: 0,
             fn_error: 0,
             term_error: 0,
             term_bug_error: 0,
@@ -440,8 +460,10 @@ impl ErrorStatistics {
             all_term_eval_success: 0,
             all_exec: 0,
             all_exec_success: 0,
+            all_exec_agent_success: 0,
             harness_exec: 0,
             harness_exec_success: 0,
+            harness_exec_agent_success: 0,
             bit_exec: 0,
             bit_exec_success: 0,
             mm_exec: 0,
@@ -452,15 +474,33 @@ impl ErrorStatistics {
             agent_error: 0,
             stream_error: 0,
             extraction_error: 0,
-            no_error: 0,
             corpus_exec: 0,
             corpus_exec_minimal: 0,
+            eval_codec_error: 0,
         }
     }
 
     pub fn count(&mut self, client_stats: &ClientStats) {
         for stat_definition in &STATS {
             match stat_definition {
+                RuntimeStats::EvalFnCryptoError(c) => {
+                    self.eval_fn_crypto_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalFnMalformedError(c) => {
+                    self.eval_fn_malformed_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalFnUnknownError(c) => {
+                    self.eval_fn_unknown_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalTermError(c) => {
+                    self.eval_term_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalTermBugError(c) => {
+                    self.eval_termbug_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalCodecError(c) => {
+                    self.eval_codec_error += get_number(client_stats, c.name)
+                }
                 RuntimeStats::AllFnError(c) => self.fn_error += get_number(client_stats, c.name),
                 RuntimeStats::AllTermError(c) => {
                     self.term_error += get_number(client_stats, c.name)
@@ -492,11 +532,17 @@ impl ErrorStatistics {
                 RuntimeStats::AllExecSuccess(c) => {
                     self.all_exec_success += get_number(client_stats, c.name)
                 }
+                RuntimeStats::AllExecAgentSuccess(c) => {
+                    self.all_exec_agent_success += get_number(client_stats, c.name)
+                }
                 RuntimeStats::HarnessExec(c) => {
                     self.harness_exec += get_number(client_stats, c.name)
                 }
                 RuntimeStats::HarnessExecSuccess(c) => {
                     self.harness_exec_success += get_number(client_stats, c.name)
+                }
+                RuntimeStats::HarnessExecAgentSuccess(c) => {
+                    self.harness_exec_agent_success += get_number(client_stats, c.name)
                 }
                 RuntimeStats::BitExec(c) => self.bit_exec += get_number(client_stats, c.name),
                 RuntimeStats::BitExecSuccess(c) => {

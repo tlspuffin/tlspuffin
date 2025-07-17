@@ -1,6 +1,7 @@
 
 import os
 import subprocess
+import sys
 from datetime import datetime
 from itertools import groupby
 from operator import itemgetter
@@ -16,7 +17,7 @@ def get_end_date(stats):
     return datetime.fromtimestamp(stats[-1]['time']['secs_since_epoch'])
 
 def get_length(stats):
-    return datetime.fromtimestamp(len(stats))
+    return len(stats)
 
 def get_keys(all_stats):
     return flatten(all_stats[0]).keys()
@@ -53,6 +54,12 @@ def display_readme(path, num=0):
 def extract_logs(puffin_path, experiment, num=0, client_id=1, cache=False):
     experiments_path = puffin_path + "experiments"
     stats_path = "%s/%s/log/stats.json" % (experiments_path, experiment)
+    reduced_stats_path = "%s/%s/log/stats-sampled.json" % (experiments_path, experiment)
+
+    if not os.path.isfile(stats_path):
+        stats_path = "%s/%s/stats.json" % (experiments_path, experiment)
+        reduced_stats_path = "%s/%s/stats-sampled.json" % (experiments_path, experiment)
+
     print("Loading file \"%s\". -> " % stats_path, end=" ")
 
     # If file at stats_path, first call the script `./tools/reduceStats.sh` on "experiment" and print out the stdout
@@ -61,7 +68,6 @@ def extract_logs(puffin_path, experiment, num=0, client_id=1, cache=False):
         if size_bytes > 100 * 1024 * 1024:  # 100MB
             try:
                 # Check if the reduced stats file exists and has been updated before or at the same time as the original stats file
-                reduced_stats_path = "%s/%s/log/stats-sampled.json" % (experiments_path, experiment)
                 use_cache_clean = False
                 if os.path.isfile(reduced_stats_path):
                     reduced_stats_mtime = os.path.getmtime(reduced_stats_path)
@@ -86,19 +92,19 @@ def extract_logs(puffin_path, experiment, num=0, client_id=1, cache=False):
             except subprocess.CalledProcessError as e:
                 print("Script failed with error:")
                 print(e.stderr.replace('\n', ' '))
-                exit(1)
+                sys.exit(1)
         else:
             print(f"Stats file is under 100MB ({size_bytes / (1024 * 1024):.2f}MB)...  ", end="")
     else:
-        print(f"Stats file not found: {stats_path}")
-        exit(1)
+        print(f"\nStats file not found: {stats_path} (failed to find in <exp>/log/ and in <exp>/")
+        sys.exit(1)
 
     print("Now loading file \"%s\". -> " % stats_path, end=" ")
     stats = load_json_slurpy(stats_path, client_id)
 
     if not stats:
         print("Stats are empty.")
-        exit(0)
+        sys.exit(0)
 
     # keys_stats = get_keys(stats)
     # print("Available keys (stats): %s" % keys_stats)
@@ -109,10 +115,11 @@ def extract_logs(puffin_path, experiment, num=0, client_id=1, cache=False):
     global_stats = [stat for stat in stats if stat["type"] == "global"]
     print("Number of stats: " + str(len(stats)) + ". ", end="")
     print("Number of client_stats: " + str(len(client_stats)) + ". ", end="")
+    # We access global entry number 20 to let all clients get started and hav entries in the log
     number_ids = global_stats[20]["clients"]
     print("Number of client entries for id: ", end="")
     for i in range(1, number_ids):
-        out = subprocess.check_output("""grep 'id":%d' %s | wc -l""" % (i, stats_path), shell=True)
+        out = subprocess.check_output("""grep 'id":%d' "%s" | wc -l""" % (i, stats_path), shell=True)
         print("id=%d:%s, " % (i, int(out)), end="")
     print(". ", end="")
 

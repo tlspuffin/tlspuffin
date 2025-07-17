@@ -180,7 +180,7 @@ mod tests {
         let client = puffin::agent::AgentName::first();
         let trace = seed_successful(client, client.next());
 
-        let context = runner.execute(trace).unwrap();
+        let context = runner.execute(trace, &mut 0).unwrap();
 
         assert!(context.find_agent(client).unwrap().is_state_successful())
     }

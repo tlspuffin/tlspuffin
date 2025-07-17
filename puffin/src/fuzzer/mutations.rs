@@ -1,4 +1,3 @@
-use anyhow::Result;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
@@ -63,61 +62,6 @@ pub(crate) fn remove_prefix_and_type(str: &str) -> &str {
         .unwrap()
 }
 
-/// Normalize a vector of probabilities
-pub fn normalize_proba(v: &mut Vec<f32>) {
-    let sum: f32 = v.iter().sum();
-    if sum == 0.0 {
-        panic!("Division by 0!");
-    }
-    for i in v.iter_mut() {
-        *i /= sum;
-    }
-}
-
-/// Compute probabilities for the mutations
-pub fn proba_mutations(with_bit_level: bool, with_dy: bool, nb_executions: usize) -> Vec<f32> {
-    let dy_over_bit_level = // probability to pick dy over bit-level mutations
-        if !with_bit_level {
-            1f32
-        } else if !with_dy {
-            0f32
-        } else if nb_executions > 1000 {
-            0.2 + 0.8 * 1000f32 / nb_executions as f32 // 1000->10 000 executions, transitioning p=1->p=0.2
-        } else {
-            1f32 // only DY before 1000 executions
-        };
-    let number_of_dy_mutations = 7;
-    let number_of_bit_mutations = 28;
-    let proba_dy = if with_dy {
-        dy_over_bit_level / number_of_dy_mutations as f32
-    } else {
-        0f32
-    };
-    let mut probabilities_dy = vec![proba_dy; number_of_dy_mutations];
-    let proba_bit = if with_bit_level {
-        (1f32 - dy_over_bit_level) / number_of_bit_mutations as f32
-    } else {
-        0f32
-    };
-    let proba_make_message = proba_bit; // 28 times less likely than other bit-level mutations
-                                        // (since unique versus 28 bit-level mutations)
-
-    let probabilities_bit = vec![proba_bit; number_of_bit_mutations];
-    probabilities_dy.push(proba_make_message);
-    probabilities_dy.extend(probabilities_bit);
-    normalize_proba(&mut probabilities_dy);
-    assert_eq!(probabilities_dy.len(), 36);
-    probabilities_dy
-    // vec![
-    //     0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.2, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-    // ]
-    // vec![
-    //     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.4, 0.6, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-    //     0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-    // ]
-}
-
 #[must_use]
 pub fn dy_mutations<'harness, S, PT: ProtocolTypes, PB>(
     mutation_config: MutationConfig,
@@ -144,15 +88,7 @@ where
         ReplaceReuseMutator::new(term_constraints, with_dy, with_bit_level),
         ReplaceMatchMutator::new(term_constraints, signature, with_dy),
         RemoveAndLiftMutator::new(term_constraints, with_dy),
-        GenerateMutator::new(
-            0,
-            fresh_zoo_after,
-            term_constraints,
-            None,
-            signature,
-            put_registry,
-            with_dy
-        ), // Refresh zoo after 100000M mutations
+        GenerateMutator::new(0, fresh_zoo_after, term_constraints, None, signature, put_registry, with_dy), /* Refresh zoo after 100000M mutations */
         SwapMutator::new(term_constraints, with_dy),
     )
 }
