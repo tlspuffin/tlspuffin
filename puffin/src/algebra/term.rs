@@ -4,7 +4,6 @@ use std::fmt;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use anyhow::{anyhow, Context, Result};
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
@@ -56,7 +55,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn display_at_depth(&self, depth: usize) -> String;
     fn is_symbolic(&self) -> bool;
     fn make_symbolic(&mut self); // remove all payloads
-    fn get(&self, path: &[usize]) -> Result<&Self>;
+    fn get(&self, path: &[usize]) -> Result<&Self, Error>;
 
     /// Evaluate terms into `ConcreteMessage` and `EvaluatedTerm` (considering Payloads or not
     /// depending on `with_payloads`) With `with_payloads, the returned `EvaluatedTerm` is
@@ -65,7 +64,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>)>
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>;
 
@@ -103,10 +102,15 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
                         EVAL_ERR_TERM.increment();
                     }
                     Error::TermBug(_) => {
-                        log::error!("[evaluate_config_wrap] TermBug Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                        log::error!(
+                            "[evaluate_config_wrap] TermBug Error on\n{}\n[==>] Causes: {:?}",
+                            &self,
+                            &e
+                        );
                         EVAL_ERR_TERMBUG.increment();
                         #[cfg(any(debug_assertions, feature = "debug"))]
-                        { // we panic in debug or test mode
+                        {
+                            // we panic in debug or test mode
                             panic!("[evaluate_config_wrap] Panic! {}", e);
                         }
                     }
@@ -123,7 +127,10 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     }
 
     /// Evaluate terms into `ConcreteMessage` (considering Payloads)
-    fn evaluate<PB: ProtocolBehavior>(&self, ctx: &TraceContext<PB>) -> Result<ConcreteMessage>
+    fn evaluate<PB: ProtocolBehavior>(
+        &self,
+        ctx: &TraceContext<PB>,
+    ) -> Result<ConcreteMessage, Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -137,7 +144,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn evaluate_symbolic<PB: ProtocolBehavior>(
         &self,
         ctx: &TraceContext<PB>,
-    ) -> Result<ConcreteMessage>
+    ) -> Result<ConcreteMessage, Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -149,7 +156,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn evaluate_dy<PB: ProtocolBehavior>(
         &self,
         ctx: &TraceContext<PB>,
-    ) -> Result<Box<dyn EvaluatedTerm<PT>>>
+    ) -> Result<Box<dyn EvaluatedTerm<PT>>, Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -341,7 +348,7 @@ impl<PT: ProtocolTypes> Term<PT> {
     }
 
     /// Make and Add a payload at the root position, erase payloads in strict sub-terms
-    pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) -> Result<()>
+    pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -546,33 +553,25 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>)>
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         log::trace!("[evaluate_config] About to evaluate term (with_payloads: {with_payloads}):\n{}\n===================================================================", &self);
         let mut eval_tree = EvalTree::empty();
-        let (m, all_payloads) = self
-            .eval_until_opaque(
-                &mut eval_tree,
-                context,
-                with_payloads,
-                false,
-                self.get_type_shape(),
-            )
-            .with_context(|| format!("--> [evaluate_config] eval_until_opaque failed"))?;
+        let (m, all_payloads) = self.eval_until_opaque(
+            &mut eval_tree,
+            context,
+            with_payloads,
+            false,
+            self.get_type_shape(),
+        )?;
         // if let Some(mut e) = eval {
         if with_payloads && !all_payloads.is_empty() {
             let ft = format!("[evaluate_config] About to replace for a term {}\n payloads with contexts: {}\n-------------------------------------------------------------------",
                     self, all_payloads.iter().format(","));
             log::trace!("{}", ft);
-            let res = replace_payloads(self, &mut eval_tree, all_payloads).with_context(|| {
-                format!(
-                    "[eval_until_opaque] replace_payloads failed with:\n\
-                      - eval_tree: {:?}\n Call: {ft}",
-                    &eval_tree
-                )
-            })?;
+            let res = replace_payloads(self, &mut eval_tree, all_payloads)?;
             log::trace!(
                 "        / [payload]    We successfully evaluated the root term into: {res:?}"
             );
@@ -667,21 +666,23 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         self.erase_payloads_subterms(true); // true as we also want to remove payloads at top-level
     }
 
-    fn get(&self, path: &[usize]) -> Result<&Self> {
+    fn get(&self, path: &[usize]) -> Result<&Self, Error> {
         if path.is_empty() {
             return Ok(self);
         }
         match &self.term {
-            DYTerm::Variable(_) => { Err(anyhow!(Error::TermBug(format!(
+            DYTerm::Variable(_) => {
+                return Err(Error::TermBug(format!(
                     "--> [get] Should never happen! self.args.len() <= nb. Term: {self}\n, path: {path:?}"
-                )))) }
+                )))
+            }
             DYTerm::Application(_, args) => {
                 let nb = path[0];
                 let path = &path[1..];
                 if args.len() <= nb {
-                    return Err(anyhow!(Error::TermBug(format!(
+                    return Err(Error::TermBug(format!(
                     "--> [get] Should never happen! self.args.len() <= nb. Term: {self}\n, path: {path:?}"
-                ))));
+                    )));
                 }
                 args[nb].get(path)
             }

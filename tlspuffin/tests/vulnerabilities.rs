@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use puffin::execution::{ExecutionStatus, ForkedRunner, Runner, TraceRunner};
 use puffin::fuzzer::bit_mutations::{havoc_mutations_dy, MakeMessage, ReadMessage};
 use puffin::fuzzer::mutations::MutationConfig;
@@ -157,7 +155,7 @@ fn test_seed_cve_2022_38153(put: &str) {
                     with_reseed: false,
                     ..ConfigTrace::default()
                 },
-                &mut 0
+                &mut 0,
             )
             .unwrap();
     }
@@ -193,7 +191,7 @@ fn test_seed_bitmut_cve_2022_38153(put: &str) {
     let runner = default_runner_for(put);
     let path_make_message = (9, vec![1, 0]);
     for _ in 0..50 {
-        let _ = runner.execute(trace.clone()).unwrap();
+        let _ = runner.execute(trace.clone(), &mut 0).unwrap();
     }
 
     let timeout = std::time::Duration::from_secs(timeout_secs);
@@ -212,7 +210,7 @@ fn test_seed_bitmut_cve_2022_38153(put: &str) {
 
         // MakeMessage mutant
         let ctx = runner
-            .execute(seed_cve_simple_2022_38153.build_trace())
+            .execute(seed_cve_simple_2022_38153.build_trace(), &mut 0)
             .unwrap();
         let term_to_mutate = find_term_mut(&mut mutant, &path_make_message).unwrap();
         term_to_mutate.make_payload(&ctx).unwrap();
@@ -321,7 +319,7 @@ fn test_seed_bitmut_cve_2022_38153(put: &str) {
                 log::warn!("[EXECUTE] Try mutant_tries: {mutant_tries} / all_tries: {all_tries}");
                 let mut success = false;
                 forked_runner
-                    .execute(&trace_to_execute)
+                    .execute(&trace_to_execute, &mut 0)
                     .inspect(|status| {
                         use ExecutionStatus as S;
                         match &status {
@@ -428,7 +426,7 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
     let runner = default_runner_for(put);
     let path_make_message = (9, vec![1, 0]);
     for _ in 0..50 {
-        let _ = runner.execute(trace.clone()).unwrap();
+        let _ = runner.execute(trace.clone(), &mut 0).unwrap();
     }
 
     let timeout = std::time::Duration::from_secs(timeout_secs);
@@ -439,7 +437,7 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
     let min_mut_idx = 7; // Hence all HAVOC mutations, including MakeMessage and ReadMessage
 
     let _ = runner
-        .execute(seed_cve_simple_2022_38153.build_trace())
+        .execute(seed_cve_simple_2022_38153.build_trace(), &mut 0)
         .unwrap();
 
     // Different overall tries, should work for at least one
@@ -543,7 +541,7 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
                 log::warn!("[EXECUTE] Try mutant_tries: {mutant_tries} / all_tries: {all_tries}");
                 let mut success = false;
                 forked_runner
-                    .execute(&mutant)
+                    .execute(&mutant, &mut 0)
                     .inspect(|status| {
                         use ExecutionStatus as S;
                         match &status {

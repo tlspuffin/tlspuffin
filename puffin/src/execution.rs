@@ -24,7 +24,12 @@ pub trait TraceRunner: Sized {
         Self::execute_config(self, trace, ConfigTrace::default(), executed_until)
     }
 
-    fn execute_config<T>(self, trace: T, config_trace: ConfigTrace, executed_until: &mut usize,) -> Result<Self::R, Self::E>
+    fn execute_config<T>(
+        self,
+        trace: T,
+        config_trace: ConfigTrace,
+        executed_until: &mut usize,
+    ) -> Result<Self::R, Self::E>
     where
         Self: Sized,
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>;
@@ -50,7 +55,12 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
     type PB = PB;
     type R = TraceContext<Self::PB>;
 
-    fn execute_config<T>(self, trace: T, config_trace: ConfigTrace,  executed_until: &mut usize) -> Result<Self::R, Self::E>
+    fn execute_config<T>(
+        self,
+        trace: T,
+        config_trace: ConfigTrace,
+        executed_until: &mut usize,
+    ) -> Result<Self::R, Self::E>
     where
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
     {
@@ -103,7 +113,12 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
     type PB = T::PB;
     type R = ExecutionStatus;
 
-    fn execute_config<Tr>(self, trace: Tr, config_trace: ConfigTrace, executed_until: &mut usize) -> Result<Self::R, Self::E>
+    fn execute_config<Tr>(
+        self,
+        trace: Tr,
+        config_trace: ConfigTrace,
+        executed_until: &mut usize,
+    ) -> Result<Self::R, Self::E>
     where
         Tr: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
     {

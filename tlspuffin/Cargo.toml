@@ -348,7 +348,6 @@ extractable-macro = { path = "../extractable-macro" }
 
 log = { workspace = true }
 #features = ["release_max_level_off", "max_level_warn"]
-anyhow = { workspace = true }
 itertools = { workspace = true }
 libc = { workspace = true }
 hex = { workspace = true }

@@ -250,7 +250,7 @@ fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
     tr: &mut Trace<PT>,
     path: &TracePath,
     ctx: &mut TraceContext<PB>,
-) -> anyhow::Result<()>
+) -> Result<(), crate::error::Error>
 where
     PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
@@ -288,7 +288,7 @@ where
         state: &mut S,
         trace: &mut Trace<PT>,
         _stage_idx: i32,
-    ) -> anyhow::Result<MutationResult, Error> {
+    ) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
         if !self.config.with_bit_level {
             log::debug!("[Mutation-bit] Mutate MakeMessage skipped because bit-level mutations are disabled");
@@ -458,7 +458,7 @@ fn read_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
     tr: &mut Trace<PT>,
     path: &TracePath,
     ctx: &mut TraceContext<PB>,
-) -> anyhow::Result<()>
+) -> Result<(), crate::error::Error>
 where
     PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
@@ -509,7 +509,7 @@ where
         state: &mut S,
         trace: &mut Trace<PT>,
         _stage_idx: i32,
-    ) -> anyhow::Result<MutationResult, Error> {
+    ) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
         let focus = trace.get_focus().map(|p| p.clone());
         if self.config.with_focus {

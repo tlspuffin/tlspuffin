@@ -1,6 +1,5 @@
 use std::any::TypeId;
 
-use anyhow::Result;
 use extractable_macro::Extractable;
 use puffin::agent::ProtocolDescriptorConfig;
 use puffin::algebra::signature::Signature;
@@ -213,7 +212,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
     fn try_read_bytes(
         _bitstring: &[u8],
         _ty: TypeId,
-    ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>> {
+    ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
         todo!()
     }
 }

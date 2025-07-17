@@ -88,7 +88,15 @@ where
         ReplaceReuseMutator::new(term_constraints, with_dy, with_bit_level),
         ReplaceMatchMutator::new(term_constraints, signature, with_dy),
         RemoveAndLiftMutator::new(term_constraints, with_dy),
-        GenerateMutator::new(0, fresh_zoo_after, term_constraints, None, signature, put_registry, with_dy), /* Refresh zoo after 100000M mutations */
+        GenerateMutator::new(
+            0,
+            fresh_zoo_after,
+            term_constraints,
+            None,
+            signature,
+            put_registry,
+            with_dy
+        ), /* Refresh zoo after 100000M mutations */
         SwapMutator::new(term_constraints, with_dy),
     )
 }

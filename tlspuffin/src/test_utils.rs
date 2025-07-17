@@ -2,7 +2,6 @@ use std::cmp::{max, min};
 use std::collections::HashSet;
 use std::time::Duration;
 
-use anyhow::Result;
 use itertools::Itertools;
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::DescribableFunction;
@@ -366,7 +365,7 @@ where
         &Term<TLSProtocolTypes>,
         &TraceContext<TLSProtocolBehavior>,
         &mut RomuDuoJrRand,
-    ) -> Result<()>,
+    ) -> Result<(), Error>,
 {
     let tls_registry = tls_registry();
     let spawner = Spawner::new(tls_registry.clone());

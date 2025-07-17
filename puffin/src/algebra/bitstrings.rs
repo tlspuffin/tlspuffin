@@ -1,8 +1,5 @@
-use std::any::TypeId;
 use std::fmt::Display;
 
-use anyhow::{anyhow, bail, Context, Result};
-use itertools::Itertools;
 use libafl::inputs::{BytesInput, HasBytesVec};
 use serde::{Deserialize, Serialize};
 
@@ -116,7 +113,7 @@ impl EvalTree {
     }
 
     #[allow(dead_code)]
-    fn get(&self, path: &[usize]) -> Result<&Self> {
+    fn get(&self, path: &[usize]) -> Result<&Self, Error> {
         if path.is_empty() {
             return Ok(self);
         }
@@ -143,11 +140,13 @@ pub fn find_unique_match<PT: ProtocolTypes>(
     eval_tree: &EvalTree,
     whole_term: &Term<PT>,
     is_to_search_in_list: bool,
-) -> Result<usize> {
-    Ok(find_unique_match_rec(path_to_search, eval_tree, whole_term, is_to_search_in_list)
-        .with_context(||
-    format!(" --> [find_unique_match] Failure. Did not find! - path_to_search:{path_to_search:?}\n - whole_term:\n{whole_term}\n - eval_tree:\n{eval_tree:?}")
-        )?)
+) -> Result<usize, Error> {
+    Ok(find_unique_match_rec(
+        path_to_search,
+        eval_tree,
+        whole_term,
+        is_to_search_in_list,
+    )?)
 }
 
 /// Goal: locate byte position of eval_tree.get(path_to_search).encode in eval_tree.encode by
@@ -161,7 +160,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
     eval_tree: &EvalTree,
     whole_term: &Term<PT>,
     is_to_search_in_list: bool,
-) -> Result<usize> {
+) -> Result<usize, Error> {
     log::debug!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?}");
     log::trace!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?},\n - eval_tree: {eval_tree:?},\n - to_search: {:?}", eval_tree.get(path_to_search)?.encode.as_ref().unwrap());
     // We will traverse the eval_tree and update the followings until we reach the node at
@@ -327,15 +326,15 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 // not been present in the encoding because the function symbol is a `get` symbol.
                 // No relevant payload replacement is possible --> We returns a simple error in that
                 // case.
-                Err(anyhow!(Error::Term(format!(
+                Err(Error::Term(format!(
                     "{}\n--> [S2:2] [symbol above was a get symbol so this is not a critical error]",
                     ft
-                ))))
+                )))
             } else {
-                Err(anyhow!(Error::TermBug(format!(
+                Err(Error::TermBug(format!(
                     "{}\n--> [S2:2] [symbol above was not a get symbol so this is a critical error]",
                     ft
-                ))))
+                )))
             };
         }
 
@@ -372,7 +371,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 let ft = format!("[find_unique_match_rec] [S2:2] [sib] Could not find at least one appropriate idx for all_matches: {all_matches:?} and eval_child.len: {}, eval_parent.len(): {}, pos_right_siblings: {pos_right_siblings}. Continue....\n\
                   - eval_right_siblings: {eval_right_siblings:?}\n\
                   - eval_parent: {eval_parent:?}", eval_child.len(), eval_parent.len());
-                return Err(anyhow!(Error::TermBug(ft)));
+                return Err(Error::TermBug(ft));
             }
         } else {
             // right_sibling could not be found --> warning
@@ -381,7 +380,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
             #[cfg(any(debug_assertions, feature = "debug"))]
             {
                 // Ungraceful error in debug mode
-                return Err(anyhow!(Error::TermBug(ft)));
+                return Err(Error::TermBug(ft));
             }
         }
         //       - Otherwise, we assume the right position is the maximal idx for which the end of
@@ -414,7 +413,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
     term: &Term<PT>,
     eval_tree: &mut EvalTree,
     payloads: Vec<PayloadContext<PT>>,
-) -> Result<ConcreteMessage> {
+) -> Result<ConcreteMessage, Error> {
     log::trace!("[replace_payload] --------> START");
     let mut shift = 0_isize; // Number of bytes we need to shift on the right to apply the
                              // splicing, taking into account previous payloads replacements). We assume the aforementioned
@@ -428,12 +427,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
         let old_bitstring = if term.has_variable() {
             // We prefer looking for the payload in the term evaluation in case it has changed since
             // MakeMessage because of variables (that might contain different values now)
-            eval_tree
-                .get(path_payload)
-                .with_context(|| format!("[replace_payloads] Should never happen"))?
-                .encode
-                .as_ref()
-                .unwrap()
+            eval_tree.get(path_payload)?.encode.as_ref().unwrap()
         } else {
             payload_context.payloads.payload_0.bytes()
         };
@@ -447,9 +441,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                 .expect("[replace_payload] Should never happen")
                 .is_list()
         };
-        let pos_start = find_unique_match(path_payload, eval_tree, term, is_to_search_in_list)
-            .with_context(|| format!("--> [replace_payloads] find_unique_match failed for path_payload: {path_payload:?}"))?;
-
+        let pos_start = find_unique_match(path_payload, eval_tree, term, is_to_search_in_list)?;
         let old_bitstring_len = old_bitstring.len();
         let new_bitstring = payload_context.payloads.payload.bytes();
 
@@ -463,7 +455,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                  - end = start + old_bitstring_len > to_modify.len(): {end} = ({pos_start} + {shift} + {old_bitstring_len}) as usize > {}\n\
                  - payload_context: {payload_context}",
                 to_modify.len());
-            bail!(Error::TermBug(ft));
+            return Err(Error::TermBug(ft));
         }
 
         log::trace!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}\n  - to_modify={to_modify:?}",
@@ -484,7 +476,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                 to_modify[start..end].to_vec(),
                 payload_context.payloads,
             );
-            bail!(Error::TermBug(ft));
+            return Err(Error::TermBug(ft));
         }
         let to_remove: Vec<u8> = to_modify
             .splice(start..end, new_bitstring.to_vec())
@@ -519,7 +511,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         with_payloads: bool,
         sibling_has_payloads: bool,
         type_term: &TypeShape<PT>,
-    ) -> Result<(Box<dyn EvaluatedTerm<PT>>, Vec<PayloadContext<PT>>)>
+    ) -> Result<(Box<dyn EvaluatedTerm<PT>>, Vec<PayloadContext<PT>>), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
@@ -581,7 +573,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 eval_tree.encode = Some(payload.payload.bytes().to_vec());
                 return Ok((di, vec![]));
             } else {
-                bail!(TermBug(format!("[eval_until_opaque] Fail to read a readable term (originated from ReadMessage), should never happen!")))
+                return Err(TermBug(format!("[eval_until_opaque] Fail to read a readable term (originated from ReadMessage), should never happen!")));
             }
         }
 
@@ -599,9 +591,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                         }
                     })
                     .ok_or_else(|| {
-                        anyhow!(Error::Term(format!(
-                            "--> Unable to find variable {variable}!"
-                        )))
+                        Error::Term(format!("--> Unable to find variable {variable}!"))
                     })?;
                 if with_payloads {
                     let eval = PB::any_get_encoding(d.as_ref());
@@ -642,12 +632,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                         // Fully evaluate this sub-term and consume the payloads
                         log::trace!("    * [eval_until_opaque] Opaque and has payloads: Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
                         let typei = func.shape().argument_types[i].clone();
-                        let bi = ti.evaluate(ctx).with_context(|| {
-                            format!(
-                                "--> [eval_until_opaque] ti.evaluate(ctx) Failed for {}",
-                                &ti
-                            )
-                        })?; // payloads in ti are consumed here!
+                        let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
                         let di = PB::try_read_bytes(&bi, typei.clone().into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
                             .map_err(|e| {
                                 if !ti.is_symbolic() {
@@ -661,14 +646,14 @@ impl<PT: ProtocolTypes> Term<PT> {
                                  // encode are not inverse of each other.
                                  // Otherwise, later payload replacements will fail.
                         if &di.get_encoding()[..] != &bi[..] {
-                            return Error::Term(format!(
+                            return Err(Error::Term(format!(
                                 "--> [eval_until_opaque] [argument is symbolic: {}] [1] Failed consistency check for read.encode a type {}:\n\
                                 - bi (first eval)  : {bi:?}\n\
                                 - read.encode:     : {:?}",
                                 ti.is_symbolic(),
                                 typei,
                                 di.get_encoding(),
-                            ));
+                            )));
                         }
 
                         dynamic_args.push(di); // no need to add payloads to all_p as they were
@@ -727,7 +712,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                             // Some mismatches are to be expected when there are variables
                             log::trace!("[term has variables --> only a log::trace] {}", ft);
                         } else {
-                            bail!(Error::TermBug(ft));
+                            return Err(Error::TermBug(ft));
                         }
                     }
                 }

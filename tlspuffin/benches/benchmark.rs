@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use anyhow::anyhow;
 use criterion::{criterion_group, criterion_main, Criterion};
 use puffin::algebra::dynamic_function::make_dynamic;
 use puffin::algebra::error::FnError;
@@ -211,7 +210,7 @@ fn benchmark_term_payloads_eval(c: &mut Criterion) {
                 if !ignored_functions.contains(term.name()) {
                     add_payload_fail += 1;
                 }
-                return Err(anyhow!(Error::Term("Failed to add payloads".to_string())));
+                return Err(Error::Term("Failed to add payloads".to_string()));
             } else {
                 log::debug!("Term with payloads: {term_with_payloads}");
                 // Sanity check:
@@ -227,9 +226,7 @@ fn benchmark_term_payloads_eval(c: &mut Criterion) {
                         if !ignored_functions.contains(term.name()) {
                             eval_payload_fail += 1;
                         }
-                        return Err(anyhow!(Error::Term(
-                            "Failed to evaluate with payloads".to_string()
-                        )));
+                        return Err(Error::Term("Failed to evaluate with payloads".to_string()));
                     }
                 }
             }
@@ -278,7 +275,7 @@ fn benchmark_test_term_payloads_mutate_eval(c: &mut Criterion) {
             if !ignored_functions.contains(term.name()) {
                 add_payload_fail += 1;
             }
-            return Err(anyhow!(Error::Term("Failed to add payloads".to_string())));
+            return Err(Error::Term("Failed to add payloads".to_string()));
         } else {
             log::debug!("Term with payloads: {term_with_payloads}");
             // Sanity check:
@@ -323,9 +320,9 @@ fn benchmark_test_term_payloads_mutate_eval(c: &mut Criterion) {
                     }
                 }
             }
-            return Err(anyhow!(Error::Term(format!(
+            return Err(Error::Term(format!(
                 "Failed to find a way to mutate {term_with_payloads}!"
-            ))));
+            )));
         }
     };
 

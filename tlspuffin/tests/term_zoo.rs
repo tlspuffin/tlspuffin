@@ -3,7 +3,6 @@ use std::any::TypeId;
 use std::cmp::max;
 use std::collections::HashSet;
 
-use anyhow::anyhow;
 use itertools::Itertools;
 use puffin::agent::AgentName;
 use puffin::algebra::bitstrings::Payloads;
@@ -174,7 +173,7 @@ fn test_term_read_encode() {
                             if !ignored_functions.contains(term.name()) {
                                 read_wrong += 1;
                             }
-                            Err(anyhow!(Error::Term("Not the same read".to_string())))
+                            Err(Error::Term("Not the same read".to_string()))
                         }
                     }
                     Err(e) => {
@@ -182,7 +181,7 @@ fn test_term_read_encode() {
                         if !ignored_functions.contains(term.name()) {
                             read_fail += 1;
                         }
-                        Err(anyhow!(Error::Fn(FnError::Codec(format!("Failed to read: {e}")))))
+                        Err(Error::Fn(FnError::Codec(format!("Failed to read: {e}"))))
                     }
                 }
             })?
@@ -234,7 +233,7 @@ fn test_term_payloads_eval() {
                 if !ignored_functions.contains(term.name()) {
                     add_payload_fail += 1;
                 }
-                return Err(anyhow!(Error::Term("Failed to add payloads".to_string())));
+                return Err(Error::Term("Failed to add payloads".to_string()));
             } else {
                 log::debug!("Term with payloads: {term_with_payloads}");
                 // Sanity check:
@@ -250,9 +249,7 @@ fn test_term_payloads_eval() {
                         if !ignored_functions.contains(term.name()) {
                             eval_payload_fail += 1;
                         }
-                        return Err(anyhow!(Error::Term(
-                            "Failed to evaluate with payloads".to_string()
-                        )));
+                        return Err(Error::Term("Failed to evaluate with payloads".to_string()));
                     }
                 }
             }
@@ -308,7 +305,7 @@ fn test_term_payloads_mutate_eval() {
             if !ignored_functions.contains(term.name()) {
                 add_payload_fail += 1;
             }
-            return Err(anyhow!(Error::Term("Failed to add payloads".to_string())));
+            return Err(Error::Term("Failed to add payloads".to_string()));
         } else {
             log::debug!("Term with payloads: {term_with_payloads}");
             // Sanity check:
@@ -353,9 +350,9 @@ fn test_term_payloads_mutate_eval() {
                     }
                 }
             }
-            return Err(anyhow!(Error::Term(format!(
+            return Err(Error::Term(format!(
                 "Failed to find a way to mutate {term_with_payloads}!"
-            ))));
+            )));
         }
     };
 
