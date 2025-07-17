@@ -209,7 +209,7 @@ fn test_mutate_seed_cve_2021_3449() {
                 }
                 println!("attempts 5: {}", attempts);
 
-                let _ = runner.execute(trace);
+                let _ = runner.execute(trace, &mut 0);
                 println!("try");
             }
         },

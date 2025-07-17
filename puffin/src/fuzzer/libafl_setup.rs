@@ -9,6 +9,7 @@ use libafl_bolts::prelude::*;
 use log4rs::Handle;
 
 use super::harness;
+use crate::fuzzer::feedback::MinimizingFeedback;
 use crate::fuzzer::mutations::{trace_mutations, MutationConfig};
 use crate::fuzzer::stages::PuffinMutationalStage;
 use crate::fuzzer::stats_monitor::StatsMonitor;
@@ -50,6 +51,8 @@ pub struct MutationStageConfig {
     /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
     pub max_iterations_per_stage: u64,
     pub max_mutations_per_iteration: u64,
+    // Whether to truncate the input after mutations, prior to adding it to the corpus
+    pub with_truncation: bool,
 }
 
 impl Default for MutationStageConfig {
@@ -58,6 +61,7 @@ impl Default for MutationStageConfig {
         Self {
             max_iterations_per_stage: 256,
             max_mutations_per_iteration: 16,
+            with_truncation: true,
         }
     }
 }
@@ -364,7 +368,46 @@ impl<'harness, 'a, H, SC, C, R, EM, OF, CS, PT>
         R,
         SC,
         EM,
-        ConcreteFeedback<'a, ConcreteState<C, R, SC, Trace<PT>>>,
+        CombinedFeedback<
+            MinimizingFeedback<
+                StdState<
+                    Trace<PT>,
+                    CachedOnDiskCorpus<Trace<PT>>,
+                    RomuDuoJrRand,
+                    CachedOnDiskCorpus<Trace<PT>>,
+                >,
+                PT,
+            >,
+            CombinedFeedback<
+                MapFeedback<
+                    DifferentIsNovel,
+                    HitcountsMapObserver<StdMapObserver<'_, u8, false>>,
+                    MaxReducer,
+                    StdState<
+                        Trace<PT>,
+                        CachedOnDiskCorpus<Trace<PT>>,
+                        RomuDuoJrRand,
+                        CachedOnDiskCorpus<Trace<PT>>,
+                    >,
+                    u8,
+                >,
+                TimeFeedback,
+                LogicEagerOr,
+                StdState<
+                    Trace<PT>,
+                    CachedOnDiskCorpus<Trace<PT>>,
+                    RomuDuoJrRand,
+                    CachedOnDiskCorpus<Trace<PT>>,
+                >,
+            >,
+            LogicEagerOr,
+            StdState<
+                Trace<PT>,
+                CachedOnDiskCorpus<Trace<PT>>,
+                RomuDuoJrRand,
+                CachedOnDiskCorpus<Trace<PT>>,
+            >,
+        >,
         OF,
         ConcreteObservers<'a>,
         CS,
@@ -465,6 +508,7 @@ where
         broker_port,
         tui,
         no_launcher,
+        mutation_stage_config,
         ..
     } = &config;
 
@@ -520,8 +564,12 @@ where
             // FIXME
             log::error!("Running without minimizer is unsupported");
             let (feedback, observer) = builder.create_feedback_observers();
+            let feedback_with_minimizer = feedback_or!(
+                MinimizingFeedback::new(mutation_stage_config.with_truncation),
+                feedback
+            );
             builder = builder
-                .with_feedback(feedback)
+                .with_feedback(feedback_with_minimizer)
                 .with_observers(observer)
                 .with_scheduler(RandScheduler::new());
         } // TODO:EVAL investigate using QueueScheduler instead (see https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L190)

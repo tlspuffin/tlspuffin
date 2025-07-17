@@ -927,6 +927,20 @@ impl<PT: ProtocolTypes> Trace<PT> {
             _ => true,
         })
     }
+
+    /// Remove the steps after (excluding) `after_step`
+    pub fn truncate_at_step(&mut self, after_step: usize) {
+        log::error!("Truncating trace at step {after_step}");
+        self.steps.truncate(after_step);
+    }
+
+    /// Size of trace (summing all input sizes, counting one for output)
+    pub fn size(&self) -> usize {
+        self.steps.iter().fold(0, |acc, s| match &s.action {
+            Action::Input(inp) => acc + inp.recipe.size(),
+            Action::Output(_) => acc + 1,
+        })
+    }
 }
 
 impl<PT: ProtocolTypes> fmt::Debug for Trace<PT> {
