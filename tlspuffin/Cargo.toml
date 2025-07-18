@@ -15,7 +15,7 @@ categories.workspace = true
 [features]
 default = ["sancov", "introspection"]
 
-cputs = []
+cputs = ["deterministic", "claims"]
 rust-put = []
 
 openssl111 = ["openssl111k"]
@@ -276,7 +276,8 @@ sancov = [
     "wolfssl-sys?/sancov",
     "boringssl-sys?/sancov",
 ]
-
+# Debug mode and panic when internal errors occur, instead of logging and skipping
+debug = ["puffin/debug"]
 # Enables ASAN
 asan = ["openssl-src?/asan", "wolfssl-sys?/asan", "boringssl-sys?/asan"]
 gcov = ["openssl-src?/gcov", "wolfssl-sys?/gcov", "boringssl-sys?/gcov"]
