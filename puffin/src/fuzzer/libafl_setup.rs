@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use libafl::corpus::ondisk::OnDiskMetadataFormat;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
+use log::LevelFilter;
 use log4rs::Handle;
 
 use super::harness;
@@ -14,7 +15,7 @@ use crate::fuzzer::mutations::{trace_mutations, MutationConfig};
 use crate::fuzzer::stages::PuffinMutationalStage;
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
-use crate::log::load_fuzzing_client;
+use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
@@ -42,9 +43,33 @@ pub struct FuzzerConfig {
     pub mutation_config: MutationConfig,
     pub tui: bool,
     pub no_launcher: bool,
-    pub log_file: PathBuf,
+    pub log_folder: PathBuf,
+    pub is_experiment: bool,
+    pub verbosity: LevelFilter, // level for the client logging
 }
 
+impl Default for FuzzerConfig {
+    fn default() -> Self {
+        Self {
+            initial_corpus_dir: PathBuf::from("corpus"),
+            static_seed: None,
+            max_iters: None,
+            core_definition: "1".to_string(),
+            stats_file: PathBuf::from("stats.json"),
+            corpus_dir: PathBuf::from("corpus"),
+            objective_dir: PathBuf::from("objective_corpus"),
+            broker_port: 1337,
+            minimizer: false,
+            tui: false,
+            no_launcher: false,
+            log_folder: PathBuf::from("logs"),
+            is_experiment: false,
+            verbosity: LevelFilter::Info, // default verbosity
+            mutation_stage_config: Default::default(),
+            mutation_config: Default::default(),
+        }
+    }
+}
 #[derive(Clone, Copy, Debug)]
 pub struct MutationStageConfig {
     /// How many iterations each stage gets, as an upper bound
@@ -503,12 +528,14 @@ where
         corpus_dir,
         objective_dir,
         static_seed: _,
-        log_file,
         stats_file,
         broker_port,
         tui,
         no_launcher,
         mutation_stage_config,
+        is_experiment,
+        log_folder,
+        verbosity,
         ..
     } = &config;
 
@@ -519,7 +546,14 @@ where
                           event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
                           _core_id: CoreId|
      -> Result<(), Error> {
-        log_handle.clone().set_config(load_fuzzing_client());
+        if *is_experiment {
+            log_handle
+                .clone()
+                .set_config(set_experiment_fuzzing_client(log_folder, *verbosity));
+        } else {
+            log_handle.clone().set_config(load_fuzzing_client());
+        }
+        log::info!("log_handle: {:?}", &log_handle);
 
         let harness_fn = &mut (|input: &_| harness::harness::<PB>(put_registry, input));
 
@@ -562,7 +596,7 @@ where
         //#[cfg(not(feature = "sancov"))]
         {
             // FIXME
-            log::error!("Running without minimizer is unsupported");
+            log::warn!("Running without minimizer is unsupported");
             let (feedback, observer) = builder.create_feedback_observers();
             let feedback_with_minimizer = feedback_or!(
                 MinimizingFeedback::new(mutation_stage_config.with_truncation),
@@ -579,6 +613,7 @@ where
                 .with_scheduler(scheduler);
         } // TODO:EVAL investigate using QueueScheduler instead (see https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L190)
           // TODO:EVAL: investigate this versus Rand, versus Queue, versus Minimizer
+
         builder.run_client(put_registry)
     };
 
@@ -603,10 +638,14 @@ where
         //
         // To verify this assumption, we save the clients' output to a file that
         // should always be empty.
-        let out_path = log_file.with_extension("out");
+        let out_path = log_folder.join("puffin_main_broker_stdout.log");
         let out_file = out_path
             .to_str()
             .expect("failed to create path to redirect fuzzer clients' stdout");
+        let err_path = log_folder.join("puffin_main_broker_stderr.log");
+        let err_file = err_path
+            .to_str()
+            .expect("failed to create path to redirect fuzzer clients' stderr");
 
         if *tui {
             let stats_monitor = StatsMonitor::with_tui_output(stats_file.clone());
@@ -619,6 +658,7 @@ where
                 .cores(&cores)
                 .broker_port(*broker_port)
                 .stdout_file(Some(out_file))
+                .stderr_file(Some(err_file))
                 .build()
                 .launch()
         } else {
@@ -632,6 +672,7 @@ where
                 .cores(&cores)
                 .broker_port(*broker_port)
                 .stdout_file(Some(out_file))
+                .stderr_file(Some(err_file))
                 .build()
                 .launch()
         }
