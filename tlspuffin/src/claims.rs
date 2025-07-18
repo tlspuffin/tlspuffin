@@ -425,19 +425,12 @@ pub mod claims_helpers {
             security_claims::ClaimType::CLAIM_END_OF_EARLY_DATA => None,
             security_claims::ClaimType::CLAIM_CERTIFICATE => None,
             security_claims::ClaimType::CLAIM_KEY_EXCHANGE => None,
-            // FIXME it is weird that this returns the correct transcript
-            security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => {
-                if claim.write == 0 {
-                    Some(ClaimData::Transcript(ClaimDataTranscript::ServerFinished(
-                        TranscriptServerFinished(TlsTranscript(
-                            claim.transcript.data,
-                            claim.transcript.length,
-                        )),
-                    )))
-                } else {
-                    None
-                }
-            }
+            security_claims::ClaimType::CLAIM_CERTIFICATE_VERIFY => Some(ClaimData::Transcript(
+                ClaimDataTranscript::ServerFinished(TranscriptServerFinished(TlsTranscript(
+                    claim.transcript.data,
+                    claim.transcript.length,
+                ))),
+            )),
             security_claims::ClaimType::CLAIM_KEY_UPDATE => None,
             security_claims::ClaimType::CLAIM_HELLO_REQUEST => None,
             security_claims::ClaimType::CLAIM_SERVER_HELLO => None,

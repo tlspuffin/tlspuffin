@@ -65,6 +65,8 @@ struct AGENT_TYPE
     uint8_t handshake_secret[SECRET_LEN];
 };
 
+void CheckServerClaimFinished(AGENT agent, bool outbound);
+
 // Map a key type enum to the corresponding claim key type.
 static ClaimKeyType map_keysum_claimkeytype(enum Key_Sum key)
 {
@@ -197,6 +199,15 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         _log(PUFFIN.warn, "unsupported tls version");
         return;
     }
+
+    // claim.write is used to set the value for outbound in Rust FinishedClaim
+    // only Finished claims with outbound == false (=> write == 0) are used to
+    // check security properties. Here we only want to check security properties
+    // after a ClientFinished has been sent, but we still want Finished with
+    // outbound == true to have access to cryptographic material to decrypt
+    // packets  if the handshake doesn't finish
+    enum states current_state = (enum states)agent->ssl->options.handShakeState;
+    claim->write = !(current_state == CLIENT_FINISHED_COMPLETE || current_state == HANDSHAKE_DONE);
 
     claim->server = agent->ssl->options.side == WOLFSSL_SERVER_END;
     claim->peer_authentication = agent->peer_authentication;
@@ -674,6 +685,8 @@ static void wolfssl_message_callback(int write_p,
             }
         }
     }
+
+    CheckServerClaimFinished(agent, write_p);
 }
 
 // Register a claimer. If claimer is NULL, then register DEFAULT_CLAIMER_CB
@@ -1304,6 +1317,35 @@ static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor)
              descriptor->role);
         return NULL;
         break;
+    }
+}
+
+// This functions triggers the creation of a Finished Claim for a server
+// if its state is beyond SERVER_KEYEXCHANGE_COMPLETE for TLS 1.2 or
+// SERVER_ENCRYPTED_EXTENSIONS_COMPLETE for TLS 1.3
+void CheckServerClaimFinished(AGENT agent, bool outbound)
+{
+    if ((agent->claimer.notify != NULL) && (agent->descriptor.role == SERVER))
+    {
+        enum states limit = HANDSHAKE_DONE;
+        switch (agent->descriptor.tls_version)
+        {
+        case V1_2:
+            limit = SERVER_KEYEXCHANGE_COMPLETE;
+            break;
+        case V1_3:
+            limit = SERVER_ENCRYPTED_EXTENSIONS_COMPLETE;
+            break;
+        default:
+            break;
+        }
+        if (agent->ssl->options.serverState >= limit)
+        {
+            struct Claim claim = {};
+            claim.typ = CLAIM_FINISHED;
+            fill_claim(agent, &claim);
+            agent->claimer.notify(agent->claimer.context, &claim);
+        }
     }
 }
 
