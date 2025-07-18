@@ -13,7 +13,7 @@ use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
 use crate::error::Error;
 use crate::fuzzer::stats_stage::{
-    ALL_TERM_EVAL, ALL_TERM_EVAL_SUCCESS, EVAL_ERR_CODEC, EVAL_ERR_FN_CRYPTO,
+    ALL_TERM_EVAL, ALL_TERM_EVAL_SUCCESS, EVAL_ERR_CODEC, EVAL_ERR_FN_CODEC, EVAL_ERR_FN_CRYPTO,
     EVAL_ERR_FN_MALFORMED, EVAL_ERR_FN_UNKNOWN, EVAL_ERR_TERM, EVAL_ERR_TERMBUG,
 };
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
@@ -97,9 +97,17 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
                         log::warn!("[evaluate_config_wrap]  FnError::Unknown Error on\n{}\n[==>] Causes: {:?}", &self, &e);
                         EVAL_ERR_FN_UNKNOWN.increment();
                     }
+                    Error::Fn(FnError::Codec(_fne)) => {
+                        log::warn!("[evaluate_config_wrap]  FnError::Codec Error on\n{}\n[==>] Causes: {:?}", &self, &e);
+                        EVAL_ERR_FN_CODEC.increment();
+                    }
                     Error::Term(te) => {
                         log::debug!("[evaluate_config_wrap] Term Error {}", te);
                         EVAL_ERR_TERM.increment();
+                    }
+                    Error::Codec(te) => {
+                        log::debug!("[evaluate_config_wrap] Codec Error {}", te);
+                        EVAL_ERR_CODEC.increment();
                     }
                     Error::TermBug(_) => {
                         log::error!(
@@ -114,11 +122,8 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
                             panic!("[evaluate_config_wrap] Panic! {}", e);
                         }
                     }
-                    Error::Codec(_) => {
-                        EVAL_ERR_CODEC.increment();
-                    }
                     _ => {
-                        panic!("[evaluate] downcast error failed!");
+                        panic!("[evaluate] downcast error failed! {e:?}");
                     }
                 };
                 Err(e)

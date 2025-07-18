@@ -1,9 +1,8 @@
-from typing import Callable, Union, List
-
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import ticker
+from typing import Callable, Union, List
 
 from tlspuffin_analyzer.parse import *
 
@@ -406,64 +405,98 @@ def plot_compare_stats(start_date1, client_stats1: List[dict], global_stats1: Li
                                 divide=lambda stats: stats["errors"]["all_term_eval"],
                                 skip_start=False,
                                 twin=twin, log=False, no_total=True)
-        twin = plot_with_other_compare(ax2, times1, data1, times2, data2,
-                                lambda stats: stats["errors"]["eval_term_error"], "Term",
+        plot_with_other_compare(ax2, times1, data1, times2, data2,
+                                lambda stats: stats["errors"]["eval_fn_codec_error"], "CODEC",
                                 divide=lambda stats: stats["errors"]["all_term_eval"],
                                 skip_start=False,
                                 twin=twin, log=False, no_total=True)
-        twin = plot_with_other_compare(ax2, times1, data1, times2, data2,
-                                lambda stats: stats["errors"]["eval_termbug_error"]+stats["errors"]["eval_codec_error"], "C+TB",
+        ax2.set_title("Fn Term Error Rate by type")
+        twin = plot_with_other_compare(ax3, times1, data1, times2, data2,
+                                lambda stats: stats["errors"]["eval_term_error"], "Term",
+                                divide=lambda stats: stats["errors"]["all_term_eval"],
+                                skip_start=False,
+                                       )
+        twin = plot_with_other_compare(ax3, times1, data1, times2, data2,
+                                       lambda stats: stats["errors"]["eval_termbug_error"] + stats["errors"][
+                                           "eval_codec_error"], "C+TB",
                                 divide=lambda stats: stats["errors"]["all_term_eval"],
                                 skip_start=False,
                                 twin=twin, log=False, no_total=True)
         ax2.set_title("Term Error Rate by type")
+        twin = plot_with_other_compare(ax2, times1, data1, times2, data2,
+                                       lambda stats: stats["errors"]["eval_fn_crypto_error"], "Crypto",
+                                       divide=lambda stats: stats["errors"]["all_term_eval"],
+                                       selector_b=lambda stats: stats["errors"]["all_term_eval"],
+                                       name_b="All term Eval",
+                                       skip_start=False)
+        twin = plot_with_other_compare(ax2, times1, data1, times2, data2,
+                                       lambda stats: stats["errors"]["eval_fn_malformed_error"], "Malf",
+                                       divide=lambda stats: stats["errors"]["all_term_eval"],
+                                       skip_start=False,
+                                       twin=twin, log=False, no_total=True)
+        twin = plot_with_other_compare(ax2, times1, data1, times2, data2,
+                                       lambda stats: stats["errors"]["eval_fn_unknown_error"], "UKWN",
+                                       divide=lambda stats: stats["errors"]["all_term_eval"],
+                                       skip_start=False,
+                                       twin=twin, log=False, no_total=True)
+        twin = plot_with_other_compare(ax2, times1, data1, times2, data2,
+                                       lambda stats: stats["errors"]["eval_term_error"], "Term",
+                                       divide=lambda stats: stats["errors"]["all_term_eval"],
+                                       skip_start=False,
+                                       twin=twin, log=False, no_total=True)
+        twin = plot_with_other_compare(ax2, times1, data1, times2, data2,
+                                       lambda stats: stats["errors"]["eval_termbug_error"] + stats["errors"][
+                                           "eval_codec_error"], "C+TB",
+                                       divide=lambda stats: stats["errors"]["all_term_eval"],
+                                       skip_start=False,
+                                       twin=twin, log=False, no_total=True)
+        ax2.set_title("Term Error Rate by type")
 
-        twin = plot_with_other_compare(ax3, times1, data1, times2, data2,
+        twin = plot_with_other_compare(ax4, times1, data1, times2, data2,
                                 lambda stats: stats["errors"]["all_exec_success"], "Trace Exec Success",
                                 divide=lambda stats: stats["errors"]["all_exec"],
                                 selector_b=lambda stats: stats["errors"]["all_exec"],
                                 name_b="All Trace Executions",
                                 skip_start=True)
-        plot_with_other_compare(ax3, times1, data1, times2, data2,
+        plot_with_other_compare(ax4, times1, data1, times2, data2,
                                 lambda stats: stats["errors"]["all_exec_agent_success"], "+A",
                                 divide=lambda stats: stats["errors"]["all_exec"],
                                 skip_start=True,
                                 twin=twin, log=False, no_total=True)
-        ax3.set_title("Trace Execution Success Rate")
-        twin = plot_with_other_compare(ax4, times1, data1, times2, data2,
+        ax4.set_title("Trace Execution Success Rate")
+        twin = plot_with_other_compare(ax5, times1, data1, times2, data2,
                                 lambda stats: stats["errors"]["harness_exec_success"], "Harness Exec Success",
                                 divide=lambda stats: stats["errors"]["harness_exec"],
                                 selector_b=lambda stats: stats["errors"]["harness_exec"],
                                 name_b="All Harness Trace Executions",
                                 skip_start=True)
-        plot_with_other_compare(ax4, times1, data1, times2, data2,
+        plot_with_other_compare(ax5, times1, data1, times2, data2,
                                 lambda stats: stats["errors"]["harness_exec_agent_success"], "+A",
                                 divide=lambda stats: stats["errors"]["harness_exec"],
                                 skip_start=True,
                                 twin=twin, log=False, no_total=True)
-        ax4.set_title("Harness Execution Success Rate")
-        plot_with_other_compare(ax5, times1, data1, times2, data2,
+        ax5.set_title("Harness Execution Success Rate")
+        plot_with_other_compare(ax6, times1, data1, times2, data2,
                                 lambda stats: stats["errors"]["bit_exec_success"], "Bit Exec Success",
                                 divide=lambda stats: stats["errors"]["bit_exec"],
                                 selector_b=lambda stats: stats["errors"]["bit_exec"],
                                 name_b="All Bit Trace Executions",
                                 skip_start=True)
-        ax5.set_title("Bit-Level Trace Execution Success Rate (for MakeMess. and ReadMess.)")
-        plot_with_other_compare(ax6, times1, data1, times2, data2,
+        ax6.set_title("Bit-Level Trace Execution Success Rate (for MakeMess. and ReadMess.)")
+        plot_with_other_compare(ax7, times1, data1, times2, data2,
                                 lambda stats: stats["errors"]["mm_exec_success"], "MM Exec Success",
                                 divide=lambda stats: stats["errors"]["mm_exec"],
                                 selector_b=lambda stats: stats["errors"]["mm_exec"],
                                 name_b="All MM Trace Executions",
                                 skip_start=True)
-        ax6.set_title("Focus-Bit-Level Trace Execution Success Rate (for MakeMess. and ReadMess.)")
-        plot_with_other_compare(ax7, times1, data1, times2, data2,
+        ax7.set_title("Focus-Bit-Level Trace Execution Success Rate (for MakeMess. and ReadMess.)")
+        plot_with_other_compare(ax8, times1, data1, times2, data2,
                                 lambda stats: stats["errors"]["corpus_exec_minimal"], "Min+Succ Corpus Exec",
                                 divide=lambda stats: stats["errors"]["corpus_exec"],
                                 selector_b=lambda stats: stats["errors"]["corpus_exec"],
                                 name_b="Corpus Executions",
                                 skip_start=True)
-        ax7.set_title("Minimal and Successful Corpus Executions")
-        ax8.set_visible(False)  # Hide the last subplot
+        ax8.set_title("Minimal and Successful Corpus Executions")
 
         # ERRORS SECTION
         plt.figtext(0.1, VS, "Error Analysis", fontsize=FS, ha='left', va='top')
