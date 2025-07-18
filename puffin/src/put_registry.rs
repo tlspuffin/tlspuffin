@@ -132,6 +132,6 @@ pub trait Factory<PB: ProtocolBehavior> {
     fn clone_factory(&self) -> Box<dyn Factory<PB>>;
 
     fn rng_reseed(&self) {
-        log::debug!("[RNG] reseed failed ({}): not supported", self.name());
+        log::warn!("[RNG] reseed failed ({}): not supported", self.name());
     }
 }
