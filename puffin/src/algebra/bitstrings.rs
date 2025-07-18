@@ -1,12 +1,35 @@
+use std::fmt::Display;
+
 use libafl::inputs::{BytesInput, HasBytesVec};
 use serde::{Deserialize, Serialize};
 
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{ConcreteMessage, DYTerm, Term, TermType};
 use crate::error::Error;
+use crate::error::Error::TermBug;
 use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
+
+/// Constants governing heuristic for finding payloads in term evaluations
+const THRESHOLD_SIZE: usize = 3; // minimum size of a payload to be directly searched in root_eval
+const THRESHOLD_RATIO: usize = 100; // maximum ratio for root_eval/too_search for a direct search
+
+/// `TermMetadata` stores some metadata about terms.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PayloadMetadata {
+    pub(crate) readable: bool,
+    pub(crate) has_changed: bool, // true when payload has been modified at least once
+}
+
+impl Default for PayloadMetadata {
+    fn default() -> Self {
+        Self {
+            readable: false,
+            has_changed: false,
+        }
+    }
+}
 
 /// `Term`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
 /// symbolic terms.
@@ -14,14 +37,35 @@ use crate::trace::{Source, TraceContext};
 pub struct Payloads {
     pub payload_0: BytesInput, // initially both are equal and correspond to the term evaluation
     pub payload: BytesInput,   // this one will later be subject to bit-level mutation
+    pub(crate) metadata: PayloadMetadata, // stores metadata
 }
+
 impl Payloads {
     #[must_use]
     pub fn len(&self) -> usize {
         self.payload_0.bytes().len()
     }
+
+    #[must_use]
+    pub fn has_changed(&self) -> bool {
+        self.metadata.has_changed
+    }
+
+    pub fn set_changed(&mut self) {
+        self.metadata.has_changed = true
+    }
 }
 
+impl Display for Payloads {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{{\n    payload_0: {:?}\n    payload:   {:?}\n}}",
+            self.payload_0.bytes(),
+            self.payload.bytes()
+        )
+    }
+}
 /// Payload with the context related to the term it originates from
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PayloadContext<'a, PT: ProtocolTypes> {
@@ -29,6 +73,16 @@ pub struct PayloadContext<'a, PT: ProtocolTypes> {
     of_term: &'a Term<PT>,  // point to the corresponding term
     payloads: &'a Payloads, // point to the corresponding term.payload
     path: TermPath,         // path of the sub-term from which this payload originates
+}
+
+impl<'a, PT: ProtocolTypes> Display for PayloadContext<'a, PT> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "\n{{ of_term:\n{}\n, payloads: {}, path: {:?}\n}}",
+            self.of_term, self.payloads, self.path
+        )
+    }
 }
 
 /// A tree of evaluated term, linked to the term structure itself. Created while evaluating a term.
@@ -68,7 +122,7 @@ impl EvalTree {
         let path = &path[1..];
         if self.args.len() <= nb {
             return Err(Error::TermBug(format!(
-                "[replace_payloads] [get] Should never happen! EvalTree: {self:?}\n, path: {path:?}"
+                "[replace_payloads] [get] Should never happen! self.args.len() <= nb. EvalTree: {self:?}\n, path: {path:?}"
             )));
         }
         self.args[nb].get(path)
