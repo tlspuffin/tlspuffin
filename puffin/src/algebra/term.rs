@@ -268,6 +268,23 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
+    /// When the term starts with an opaque function symbol (like encryption)
+    pub fn is_get(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(fd, _) => fd.is_get(),
+        }
+    }
+
+    /// When the term starts with a `no_bit` function symbol. We will never MakeMessage on, thus
+    /// disabling applying any of the bit-level mutations.
+    pub fn is_no_bit(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(fd, _) => fd.no_bit(),
+        }
+    }
+
     /// Erase all payloads in a term, including those under opaque function symbol
     pub fn erase_payloads_subterms(&mut self, is_subterm: bool) {
         if is_subterm {
