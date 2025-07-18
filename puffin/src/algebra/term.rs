@@ -464,7 +464,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        log::debug!("[evaluate_config] About to evaluate {}\n===================================================================", &self);
+        log::trace!("[evaluate_config] About to evaluate term (with_payloads: {with_payloads}):\n{}\n===================================================================", &self);
         let mut eval_tree = EvalTree::empty();
         let (m, all_payloads) = self.eval_until_opaque(
             &mut eval_tree,
@@ -483,7 +483,9 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
             ))
         } else {
             let eval = PB::any_get_encoding(m.as_ref());
-            log::trace!("        / We successfully evaluated the root term into: {eval:?}");
+            log::trace!(
+                "        / [no_payload] We successfully evaluated the root term into: {eval:?}"
+            );
             Ok((eval, m))
         }
     }

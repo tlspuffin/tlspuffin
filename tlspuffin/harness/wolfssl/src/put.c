@@ -1293,7 +1293,7 @@ static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor)
     switch (descriptor->role)
     {
     case CLIENT:
-        _log(PUFFIN.info,
+        _log(PUFFIN.debug,
              "descriptor %u version: %s type: client",
              descriptor->name,
              tls_version_str);
@@ -1302,7 +1302,7 @@ static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor)
                                     descriptor->server_authentication);
         break;
     case SERVER:
-        _log(PUFFIN.info,
+        _log(PUFFIN.debug,
              "descriptor %u version: %s type: server",
              descriptor->name,
              tls_version_str);

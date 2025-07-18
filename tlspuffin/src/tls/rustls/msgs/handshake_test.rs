@@ -462,7 +462,7 @@ fn test_truncated_client_extension_is_detected() {
 
     for ext in &chp.extensions.0 {
         let mut enc = ext.get_encoding();
-        // println!("testing {:?} enc {:?}", ext, enc);
+        // log::trace!("testing {:?} enc {:?}", ext, enc);
 
         // "outer" truncation, i.e., where the extension-level length is longer than
         // the input

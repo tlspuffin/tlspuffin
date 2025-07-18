@@ -242,7 +242,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 if with_payloads && (!all_payloads.is_empty() || sibling_has_payloads) {
                     eval_tree.args = eval_tree_args;
                     let eval = PB::any_get_encoding(result.as_ref());
-                    log::debug!("        / We successfully evaluated the term into: {eval:?}");
+                    log::trace!("        / We successfully evaluated the term into: {eval:?}");
                     eval_tree.encode = Some(eval);
                 }
 

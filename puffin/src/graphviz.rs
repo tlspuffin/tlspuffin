@@ -144,7 +144,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         statements: &mut Vec<String>,
     ) {
         if !term.is_symbolic() {
-            log::error!("WITH PAYLOADS: {:?} on term {}", term.all_payloads(), term);
+            log::debug!("WITH PAYLOADS: {:?} on term {}", term.all_payloads(), term);
         }
         match &term.term {
             DYTerm::Variable(variable) => {
