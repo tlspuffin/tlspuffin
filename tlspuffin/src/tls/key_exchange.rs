@@ -40,7 +40,7 @@ pub fn deterministic_key_share(group: &NamedGroup) -> Result<Vec<u8>, FnError> {
 pub fn tls13_key_exchange(server_key_share: &[u8], group: &NamedGroup) -> Result<Vec<u8>, FnError> {
     // Shared Secret
     let skxg = KeyExchange::choose(*group, &ALL_KX_GROUPS)
-        .ok_or_else(|| FnError::Unknown("Failed to choose group in key exchange".to_string()))?;
+        .ok_or_else(|| FnError::Malformed("Failed to choose group in key exchange".to_string()))?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
     let shared_secret = kx
         .complete(server_key_share, |secret| Ok(Vec::from(secret)))
@@ -50,7 +50,7 @@ pub fn tls13_key_exchange(server_key_share: &[u8], group: &NamedGroup) -> Result
 
 pub fn tls12_key_exchange(group: &NamedGroup) -> Result<KeyExchange, FnError> {
     let skxg = KeyExchange::choose(*group, &ALL_KX_GROUPS)
-        .ok_or_else(|| "Failed to find key exchange group".to_string())?;
+        .ok_or_else(|| FnError::Malformed("Failed to find key exchange group".to_string()))?;
     let kx: KeyExchange = deterministic_key_exchange(skxg)?;
     Ok(kx)
 }
@@ -69,7 +69,7 @@ pub fn tls12_new_secrets(
     let kx = tls12_key_exchange(group)?;
     let suite = suite
         .tls12()
-        .ok_or_else(|| FnError::Unknown("VersionNotCompatibleError".to_string()))?;
+        .ok_or_else(|| FnError::Malformed("VersionNotCompatibleError".to_string()))?;
     let secrets =
         ConnectionSecrets::from_key_exchange(kx, server_ecdh_pubkey, None, randoms, suite)
             .map_err(|_err| FnError::Crypto("Failed to shared secrets for TLS 1.2".to_string()))?;

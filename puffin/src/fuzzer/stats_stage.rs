@@ -5,6 +5,7 @@ use libafl::prelude::*;
 pub enum RuntimeStats {
     // Term Eval error counters
     EvalFnCryptoError(&'static Counter),
+    EvalFnCodecError(&'static Counter),
     EvalFnMalformedError(&'static Counter),
     EvalFnUnknownError(&'static Counter),
     EvalTermError(&'static Counter),
@@ -56,6 +57,7 @@ impl RuntimeStats {
             Self::EvalFnCryptoError(inner) => inner.fire(consume),
             Self::EvalFnMalformedError(inner) => inner.fire(consume),
             Self::EvalFnUnknownError(inner) => inner.fire(consume),
+            Self::EvalFnCodecError(inner) => inner.fire(consume),
             Self::EvalTermError(inner) => inner.fire(consume),
             Self::EvalTermBugError(inner) => inner.fire(consume),
             Self::EvalCodecError(inner) => inner.fire(consume),
@@ -92,6 +94,7 @@ impl RuntimeStats {
 
 /// Errors counters triggered by term evaluations
 pub static EVAL_ERR_FN_CRYPTO: Counter = Counter::new("eval-error-fn-crypto");
+pub static EVAL_ERR_FN_CODEC: Counter = Counter::new("eval-error-fn-codec");
 pub static EVAL_ERR_FN_MALFORMED: Counter = Counter::new("eval-error-fn-malformed");
 pub static EVAL_ERR_FN_UNKNOWN: Counter = Counter::new("eval-error-fn-unknown");
 pub static EVAL_ERR_TERM: Counter = Counter::new("eval-error-term");
@@ -139,11 +142,12 @@ pub static MM_EXEC_SUCCESS: Counter = Counter::new("mmn-exec-success");
 pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
 pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
 
-pub static STATS: [RuntimeStats; 33] = [
+pub static STATS: [RuntimeStats; 34] = [
     RuntimeStats::EvalFnCryptoError(&EVAL_ERR_FN_CRYPTO),
     RuntimeStats::EvalFnMalformedError(&EVAL_ERR_FN_MALFORMED),
     RuntimeStats::EvalFnUnknownError(&EVAL_ERR_FN_UNKNOWN),
     RuntimeStats::EvalTermError(&EVAL_ERR_TERM),
+    RuntimeStats::EvalFnCodecError(&EVAL_ERR_FN_CODEC),
     RuntimeStats::EvalTermBugError(&EVAL_ERR_TERMBUG),
     RuntimeStats::EvalCodecError(&EVAL_ERR_CODEC),
     RuntimeStats::AllFnError(&ERROR_FN),

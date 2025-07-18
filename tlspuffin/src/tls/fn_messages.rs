@@ -100,22 +100,30 @@ pub fn fn_application_data(data: &Vec<u8>) -> Result<Message, FnError> {
     ))?)?)
 }*/
 
-pub fn fn_heartbeat_fake_length(
-    payload: &PayloadU16,
-    fake_length: &u64,
-) -> Result<Message, FnError> {
+// This is now subsumed by bit-level mutations
+// pub fn fn_heartbeat_fake_length(
+//     payload: &PayloadU16,
+//     fake_length: &u64,
+// ) -> Result<Message, FnError> {
+//     Ok(Message {
+//         version: ProtocolVersion::TLSv1_2,
+//         payload: MessagePayload::Heartbeat(HeartbeatPayload {
+//             typ: HeartbeatMessageType::Request,
+//             payload: payload.clone(),
+//             fake_length: Some(*fake_length as u16),
+//         }),
+//     })
+// }
+
+pub fn fn_heartbeat(payload: &PayloadU16) -> Result<Message, FnError> {
     Ok(Message {
         version: ProtocolVersion::TLSv1_2,
         payload: MessagePayload::Heartbeat(HeartbeatPayload {
             typ: HeartbeatMessageType::Request,
             payload: payload.clone(),
-            fake_length: Some(*fake_length as u16),
+            fake_length: Some(payload.0.len() as u16),
         }),
     })
-}
-
-pub fn fn_heartbeat(payload: &PayloadU16) -> Result<Message, FnError> {
-    fn_heartbeat_fake_length(payload, &(payload.0.len() as u64))
 }
 
 // ----
@@ -388,12 +396,12 @@ pub fn fn_empty_payload_u16_vec() -> Result<Vec<PayloadU16>, FnError> {
 }
 
 pub fn fn_append_payload_u16_vec(
-    p: &PayloadU16,
     vec: &Vec<PayloadU16>,
+    p: &PayloadU16,
 ) -> Result<Vec<PayloadU16>, FnError> {
-    let mut vec = vec.clone();
-    vec.push(p.clone());
-    Ok(vec)
+    let mut res = vec.clone();
+    res.push(p.clone());
+    Ok(res)
 }
 
 pub fn fn_make_payload_u16_vec_u16(vec: &Vec<PayloadU16>) -> Result<VecU16OfPayloadU16, FnError> {
@@ -405,12 +413,12 @@ pub fn fn_empty_payload_u8_vec() -> Result<Vec<PayloadU8>, FnError> {
 }
 
 pub fn fn_append_payload_u8_vec(
-    p: &PayloadU8,
     vec: &Vec<PayloadU8>,
+    p: &PayloadU8,
 ) -> Result<Vec<PayloadU8>, FnError> {
-    let mut vec = vec.clone();
-    vec.push(p.clone());
-    Ok(vec)
+    let mut res = vec.clone();
+    res.push(p.clone());
+    Ok(res)
 }
 
 pub fn fn_make_payload_u8_vec_u16(vec: &Vec<PayloadU8>) -> Result<VecU16OfPayloadU8, FnError> {

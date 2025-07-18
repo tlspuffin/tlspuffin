@@ -18,6 +18,8 @@ sancov_pcguard_log = []
 # Uses libafl for the instrumentation. sancov_pcguard_log and sancov are mutally exclusive
 sancov = ["libafl_targets/sancov_pcguard_hitcounts"]
 asan = []
+# Debug mode and panic when internal errors occur, instead of logging and skipping
+debug =[]
 # Use IndexesLenTimeMinimizerScheduler instead of RandScheduler
 with-min-scheduler = []
 
@@ -53,8 +55,8 @@ itertools = { workspace = true }
 serde_json = { workspace = true }
 nix = { workspace = true, features = ["process", "signal"] }
 signal-hook = { workspace = true, features = ["iterator", "extended-siginfo"] }
-anyhow = { workspace = true }
 derivative = { workspace = true }
+paste = { workspace = true }
 
 [build-dependencies]
 bindgen = { workspace = true }

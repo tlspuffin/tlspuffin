@@ -341,6 +341,7 @@ pub mod test_signature {
                     }),
                 },
             ],
+            ..Default::default()
         }
     }
 
@@ -618,7 +619,7 @@ pub mod test_signature {
             _bitstring: &[u8],
             _ty: TypeId,
         ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
-            Err(Error::Term("try_read_bytes not implemented".to_owned()))
+            Err(Error::Codec("try_read_bytes not implemented".to_owned()))
         }
     }
 
@@ -739,7 +740,7 @@ mod tests {
             ],
         ));
 
-        log::debug!("{}", generated_term);
+        log::debug!("Generated term: {}", generated_term);
 
         fn dummy_factory() -> Box<dyn Factory<TestProtocolBehavior>> {
             Box::new(TestFactory)
@@ -757,7 +758,7 @@ mod tests {
             None,
         );
 
-        log::debug!("{:?}", context.knowledge_store);
+        log::trace!("New knowledge: {:?}", context.knowledge_store);
 
         let _string = generated_term
             .evaluate_dy(&context)

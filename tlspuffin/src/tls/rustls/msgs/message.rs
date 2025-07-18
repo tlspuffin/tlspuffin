@@ -3,9 +3,10 @@ use std::any::TypeId;
 use extractable_macro::Extractable;
 use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
-use puffin::error::Error::Term;
+use puffin::error::Error::{Term, TermBug};
 use puffin::protocol::{EvaluatedTerm, ProtocolMessage};
 
+use crate::claims::*;
 use crate::protocol::{MessageFlight, OpaqueMessageFlight, TLSProtocolTypes};
 use crate::tls::rustls::error::Error;
 use crate::tls::rustls::hash_hs::HandshakeHash;
@@ -20,11 +21,11 @@ use crate::tls::rustls::msgs::enums::{
     ProtocolVersion, SignatureScheme,
 };
 use crate::tls::rustls::msgs::handshake::{
-    CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension, CipherSuites,
-    ClientExtension, ClientExtensions, Compressions, HandshakeMessagePayload, HelloRetryExtension,
-    HelloRetryExtensions, NewSessionTicketExtension, NewSessionTicketExtensions,
-    PresharedKeyIdentity, Random, ServerExtension, ServerExtensions, SessionID, VecU16OfPayloadU16,
-    VecU16OfPayloadU8,
+    CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension,
+    CertificateExtensions, CipherSuites, ClientExtension, ClientExtensions, Compressions,
+    HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions, NewSessionTicketExtension,
+    NewSessionTicketExtensions, PresharedKeyIdentity, Random, ServerExtension, ServerExtensions,
+    SessionID, VecU16OfPayloadU16, VecU16OfPayloadU8,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 
@@ -46,7 +47,7 @@ impl codec::CodecP for MessagePayload {
     }
 
     fn read(&mut self, _: &mut Reader) -> Result<(), puffin::error::Error> {
-        Err(puffin::error::Error::Term(format!(
+        Err(puffin::error::Error::Codec(format!(
             "Failed to read for type {:?}",
             std::any::type_name::<MessagePayload>()
         )))
@@ -425,11 +426,16 @@ macro_rules! try_read {
       {
       if $ti == TypeId::of::<$T>() {
         log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
-        <$T>::read_bytes($bitstring).ok_or(Term(format!(
+        <$T>::read_bytes($bitstring).ok_or({
+            //     log::debug!("[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
+            //     core::any::type_name::<$T>(),
+            //     & $bitstring
+            // );
+            Term(format!(
                 "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
                 & $bitstring
-            )).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
+            ))}).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
       } else {
         try_read!($bitstring, $ti, $($Ts),+)
       }
@@ -443,15 +449,15 @@ macro_rules! try_read {
             <$T>::read_bytes($bitstring).ok_or(Term(format!(
                 "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
-                & $bitstring
+                &$bitstring
             )).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
         } else {
-                log::error!("Failed to find a suitable type with typeID {:?} to read the bitstring {:?}", $ti, &$bitstring);
-                Err(Term(format!(
+                // log::debug!("Failed to find a suitable type with typeID {:?} to read the bitstring {:?}", $ti, &$bitstring);
+                Err(TermBug(format!(
                     "[try_read_bytes] Failed to find a suitable type with typeID {:?} to read the bitstring {:?}",
                     $ti,
                     &$bitstring
-                )).into())
+                )))
         }
       }
   };
@@ -472,7 +478,7 @@ pub fn try_read_bytes(
         bitstring,
         ty,
         // We list all the types that have the Codec trait and that can be the type of a rustls
-        // message
+        // messagefn_key_share_extension
         // The uni-test `term_zoo::test_term_read_encode` tests this is exhaustive for the TLS
         // signature at least
         Message,
@@ -497,6 +503,7 @@ pub fn try_read_bytes(
         CertReqExtension,
         Vec<CertificateExtension>,
         CertificateExtension,
+        CertificateExtensions,
         Vec<NewSessionTicketExtension>,
         NewSessionTicketExtension,
         NewSessionTicketExtensions,
@@ -516,9 +523,16 @@ pub fn try_read_bytes(
         SignatureScheme,
         ProtocolVersion,
         HandshakeHash,
+        TranscriptServerFinished,
+        TlsTranscript,
+        TranscriptPartialClientHello,
+        TranscriptServerHello,
+        TranscriptServerFinished,
+        TranscriptCertificate,
         u64,
         u32,
-        // u8,
+        u16,
+        u8,
         // Vec<u64>,
         PayloadU24,
         PayloadU16,
@@ -532,17 +546,16 @@ pub fn try_read_bytes(
         Option<Vec<u8>>,
         Vec<Vec<u8>>,
         bool,
-        // Option<Vec<Vec<u8>>>,
-        // Result<Option<Vec<u8>>, FnError>,
-        // Result<Vec<u8>, FnError>,
-        // Result<bool, FnError>,
-        // Result<Vec<u8>, FnError>,
-        // Result<Vec<Vec<u8>>, FnError>,
-        //
-        // Message,
-        // Result<Message FnError>,
-        // MessagePayload,
-        // ExtensionType,
-        NamedGroup
+        NamedGroup /* Option<Vec<Vec<u8>>>,
+                    * Result<Option<Vec<u8>>, FnError>,
+                    * Result<Vec<u8>, FnError>,
+                    * Result<bool, FnError>,
+                    * Result<Vec<u8>, FnError>,
+                    * Result<Vec<Vec<u8>>, FnError>,
+                    *
+                    * Message,
+                    * Result<Message FnError>,
+                    * MessagePayload,
+                    * ExtensionType, */
     )
 }

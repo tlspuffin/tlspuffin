@@ -309,7 +309,7 @@ struct IntrospectFeatures {
 /// - `bit_exec`: Number of bit-level trace executions (Make Message and Read Message).
 /// - `bit_exec_success`: Number of successful bit-level executions (Make Message and Read Message).
 /// - `mm_exec`: Same as bit_exec but only when focused.
-/// - `mmn_exec_success`: Same as bit_exec_success but only when focused.
+/// - `mm_exec_success`: Same as bit_exec_success but only when focused.
 /// - `fn_error`: Number of function errors encountered while the harness execute traces.
 /// - `term_error`: Number of term errors encountered while the harness execute traces.
 /// - `term_bug_error`: Number of term bug errors encountered while the harness execute traces.
@@ -332,6 +332,7 @@ struct ErrorStatistics {
     eval_fn_crypto_error: u64,
     eval_fn_malformed_error: u64,
     eval_fn_unknown_error: u64,
+    eval_fn_codec_error: u64,
     eval_term_error: u64,
     eval_termbug_error: u64,
     eval_codec_error: u64,
@@ -451,6 +452,7 @@ impl ErrorStatistics {
             eval_fn_crypto_error: 0,
             eval_fn_malformed_error: 0,
             eval_fn_unknown_error: 0,
+            eval_fn_codec_error: 0,
             eval_term_error: 0,
             eval_termbug_error: 0,
             fn_error: 0,
@@ -491,6 +493,9 @@ impl ErrorStatistics {
                 }
                 RuntimeStats::EvalFnUnknownError(c) => {
                     self.eval_fn_unknown_error += get_number(client_stats, c.name)
+                }
+                RuntimeStats::EvalFnCodecError(c) => {
+                    self.eval_fn_codec_error += get_number(client_stats, c.name)
                 }
                 RuntimeStats::EvalTermError(c) => {
                     self.eval_term_error += get_number(client_stats, c.name)

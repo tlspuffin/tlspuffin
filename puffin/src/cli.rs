@@ -8,6 +8,7 @@ use clap::parser::ValuesRef;
 use clap::{arg, crate_authors, crate_name, value_parser, Command};
 use libafl::inputs::Input;
 use libafl_bolts::prelude::Cores;
+use log::LevelFilter;
 use puffin_build::puffin;
 
 use crate::agent::AgentName;
@@ -21,7 +22,7 @@ use crate::log::config_default;
 use crate::protocol::ProtocolBehavior;
 use crate::put::PutDescriptor;
 use crate::put_registry::{PutRegistry, TCP_PUT};
-use crate::trace::{Action, ExecutionResult, Spawner, Trace, TraceContext};
+use crate::trace::{Action, ConfigTrace, ExecutionResult, Spawner, Trace, TraceContext};
 
 fn create_app<S>(title: S) -> Command
 where
@@ -43,11 +44,14 @@ where
         .arg(arg!(--tui "Display fuzzing logs using the interactive terminal UI"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
-        .arg(arg!(--"wo-bit" "Disable bit-level mutations"))
+        .arg(arg!(--"with-bit" "Enable bit-level mutations"))
         .arg(arg!(--"wo-dy" "Disable DY mutations"))
         .arg(arg!(--"wo-trunc" "Disable failed trace steps truncation"))
+        .arg(arg!(-v --verbosity [l] "Verbosity level for (quick) experiments")
+            .value_parser(value_parser!(LevelFilter)))
         .subcommands(vec![
-            Command::new("quick-experiment").about("Starts a new experiment and writes the results out"),
+            Command::new("quick-experiment").about("Starts a new experiment and writes the results out")
+            ,
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
                 .arg(arg!(-d --description [d] "Description of the experiment"))
@@ -65,6 +69,7 @@ where
                 .arg(arg!(<inputs> "The file which stores a trace").num_args(1..))
                 .arg(arg!(-n --number <n> "Amount of files to execute starting at index.").value_parser(value_parser!(usize)))
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
+                .arg(arg!(--"wo-bit" "Disable evaluating payloads created through bit-level mutations"))
                 .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing")),
             Command::new("display-execute")
                 .about("Executes a trace stored in a file and display information")
@@ -95,14 +100,7 @@ where
     S: AsRef<str>,
     PB: ProtocolBehavior + Clone,
 {
-    let handle = match log4rs::init_config(config_default()) {
-        Ok(handle) => handle,
-        Err(err) => {
-            eprintln!("error: failed to initialize logging: {err:?}");
-            return ExitCode::FAILURE;
-        }
-    };
-
+    // Parsing CLI arguments
     let matches = create_app(title).get_matches();
 
     let first_core = "0".to_string();
@@ -118,10 +116,13 @@ where
     let tui = matches.get_flag("tui");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
-    let without_bit_level = matches.get_flag("wo-bit");
+    let with_bit_level = !matches.get_flag("with-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
     let without_truncation = matches.get_flag("wo-trunc");
     let target_put: Option<&String> = matches.get_one("put");
+    let verbosity: LevelFilter = *matches
+        .get_one::<LevelFilter>("verbosity")
+        .unwrap_or(&LevelFilter::Info);
 
     let mut put_registry = put_registry.clone();
 
@@ -129,11 +130,81 @@ where
         if let Err((available_puts, non_available_puts)) =
             check_if_puts_exist(&put_registry, &[name])
         {
-            log::error!("PUT not found : {}", non_available_puts.join(","));
-            log::error!("Available PUTs: {}", available_puts.join(","));
+            println!("Available PUTs: {}", available_puts.join(","));
+            println!("Error: PUT not found: {}", non_available_puts.join(","));
             return ExitCode::FAILURE;
         };
         let _ = put_registry.set_default(name);
+    };
+
+    // Setup Logging
+    // We need to create the log directory before initializing the logger
+    let (is_experiment, base_directory): (bool, PathBuf) =
+        if let Some(_matches) = matches.subcommand_matches("quick-experiment") {
+            let experiments_root = PathBuf::from("experiments");
+            let title = format_title(
+                None,
+                None,
+                &put_registry,
+                with_bit_level,
+                without_dy_mutations,
+                without_truncation,
+                put_use_clear,
+                minimizer,
+                num_cores,
+            );
+            let mut experiment_path = experiments_root.join(&title);
+
+            let mut i = 1;
+            while experiment_path.as_path().exists() {
+                let title = format_title(
+                    None,
+                    Some(i),
+                    &put_registry,
+                    with_bit_level,
+                    without_dy_mutations,
+                    without_truncation,
+                    put_use_clear,
+                    minimizer,
+                    num_cores,
+                );
+                experiment_path = experiments_root.join(title);
+                i += 1;
+            }
+            (true, experiments_root.join(&title))
+        } else {
+            if let Some(matches) = matches.subcommand_matches("experiment") {
+                let git_ref = "_".to_string();
+                let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
+                let experiments_root = PathBuf::new().join("experiments");
+                let title = format_title(
+                    Some(title),
+                    None,
+                    &put_registry,
+                    with_bit_level,
+                    without_dy_mutations,
+                    without_truncation,
+                    put_use_clear,
+                    minimizer,
+                    num_cores,
+                );
+                let experiment_path = experiments_root.join(title);
+                assert!(
+                    !experiment_path.as_path().exists(),
+                    "Experiment already exists. Consider creating a new experiment."
+                );
+                (true, experiment_path)
+            } else {
+                // Case of non-experiment: plain fuzzing, trace executions, etc.
+                (false, env::current_dir().unwrap())
+            }
+        };
+    let handle = match log4rs::init_config(config_default(&*base_directory.join("./log"))) {
+        Ok(handle) => handle,
+        Err(err) => {
+            eprintln!("error: failed to initialize logging: {err:?}");
+            return ExitCode::FAILURE;
+        }
     };
 
     log::info!("Version: {}", puffin::full_version());
@@ -178,6 +249,7 @@ where
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
+        let without_bit_level = matches.get_flag("wo-bit");
 
         let mut paths = inputs
             .flat_map(|input| {
@@ -234,9 +306,16 @@ where
             Spawner::new(put_registry).with_default(default_put),
         );
 
+        let config_trace = ConfigTrace {
+            with_bit_level: !without_bit_level,
+            ..Default::default()
+        };
+        if without_bit_level {
+            log::info!("Execution without payload evaluations...");
+        }
         for path in lookup_paths {
             log::info!("Executing: {}", path.display());
-            execute(&runner, path);
+            execute(&runner, path, config_trace);
         }
 
         if !lookup_paths.is_empty() {
@@ -358,23 +437,18 @@ where
         let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
             let git_ref = "_".to_string();
             let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
-            let experiments_root = PathBuf::new().join("experiments");
             let format_t = format_title(
                 Some(title),
                 None,
                 &put_registry,
-                without_bit_level,
+                with_bit_level,
                 without_dy_mutations,
                 without_truncation,
                 put_use_clear,
                 minimizer,
                 num_cores,
             );
-            let experiment_path = experiments_root.join(format_t.clone());
-            assert!(
-                !experiment_path.as_path().exists(),
-                "Experiment already exists. Consider creating a new experiment."
-            );
+            let experiment_path = base_directory;
 
             let base_dec = format_t;
             let description: &String = matches.get_one("description").unwrap_or(&base_dec);
@@ -393,38 +467,19 @@ where
             experiment_path
         } else if let Some(_matches) = matches.subcommand_matches("quick-experiment") {
             let description = "No Description, because this is a quick experiment.";
-            let experiments_root = PathBuf::from("experiments");
+            let experiment_path = base_directory;
 
             let title = format_title(
                 None,
                 None,
                 &put_registry,
-                without_bit_level,
+                with_bit_level,
                 without_dy_mutations,
                 without_truncation,
                 put_use_clear,
                 minimizer,
                 num_cores,
             );
-
-            let mut experiment_path = experiments_root.join(&title);
-
-            let mut i = 1;
-            while experiment_path.as_path().exists() {
-                let title = format_title(
-                    None,
-                    Some(i),
-                    &put_registry,
-                    without_bit_level,
-                    without_dy_mutations,
-                    without_truncation,
-                    put_use_clear,
-                    minimizer,
-                    num_cores,
-                );
-                experiment_path = experiments_root.join(title);
-                i += 1;
-            }
 
             if let Err(err) = write_experiment_markdown(
                 &experiment_path,
@@ -455,20 +510,27 @@ where
             corpus_dir: experiment_path.join("corpus"),
             objective_dir: experiment_path.join("objective"),
             broker_port: port,
-            stats_file: experiment_path.join("stats.json"),
-            log_file: experiment_path.join("tlspuffin.log"),
+            stats_file: experiment_path.join("log/stats.json"),
+            log_folder: experiment_path.join("log/"),
             minimizer,
-            mutation_stage_config: Default::default(),
-            mutation_config: Default::default(),
             tui,
             no_launcher,
+            is_experiment,
+            verbosity,
+            ..Default::default()
         };
 
-        if without_bit_level {
+        if with_bit_level && without_dy_mutations {
+            log::error!("Both bit-level and DY mutations are disabled. This is not supported.");
+            return ExitCode::FAILURE;
+        }
+
+        if with_bit_level {
             config.mutation_config.with_bit_level = false;
         }
         if without_dy_mutations {
             config.mutation_config.with_dy = false;
+            config.mutation_config.term_constraints.must_be_root = true;
         }
         if without_truncation {
             config.mutation_stage_config.with_truncation = false;
@@ -539,7 +601,11 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) {
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
+    runner: &Runner<PB>,
+    input: P,
+    config_trace: ConfigTrace,
+) {
     let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
         t
     } else {
@@ -547,12 +613,12 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) 
         return;
     };
 
-    log::info!("Agents: {:?}", &trace.descriptors);
+    log::debug!("Agents: {:?}", &trace.descriptors);
 
     // When generating coverage a crash means that no coverage is stored
     // By executing in a fork, even when that process crashes, the other executed code will still
     // yield coverage
-    let status = ForkedRunner::new(runner).execute(trace, &mut 0);
+    let status = ForkedRunner::new(runner).execute_config(trace, config_trace, &mut 0);
 
     match status {
         Ok(s) => log::info!("execution finished with status {s:?}"),
@@ -570,7 +636,7 @@ fn binary_attack<PB: ProtocolBehavior>(
     let ctx = TraceContext::new(spawner);
     let trace = Trace::<PB::ProtocolTypes>::from_file(input)?;
 
-    log::info!("Agents: {:?}", &trace.descriptors);
+    log::debug!("Agents: {:?}", &trace.descriptors);
 
     let mut f = File::create(output).expect("Unable to create file");
 

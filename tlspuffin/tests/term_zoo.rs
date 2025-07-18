@@ -1,185 +1,33 @@
+#![allow(unused_imports)]
 use std::any::TypeId;
+use std::cmp::max;
 use std::collections::HashSet;
 
+use itertools::Itertools;
+use puffin::agent::AgentName;
+use puffin::algebra::bitstrings::Payloads;
 use puffin::algebra::dynamic_function::{DescribableFunction, TypeShape};
 use puffin::algebra::error::FnError;
 use puffin::algebra::signature::FunctionDefinition;
-use puffin::algebra::{Term, TermType};
+use puffin::algebra::{DYTerm, Term, TermType};
+use puffin::codec::CodecP;
 use puffin::error::Error;
 use puffin::fuzzer::term_zoo::TermZoo;
+use puffin::fuzzer::utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints};
+use puffin::libafl;
+use puffin::libafl::inputs::HasBytesVec;
+use puffin::libafl::mutators::{MutationResult, Mutator, MutatorsTuple};
+use puffin::libafl::prelude::HasRand;
 use puffin::libafl_bolts::prelude::RomuDuoJrRand;
-use puffin::libafl_bolts::rands::StdRand;
-use puffin::protocol::ProtocolBehavior;
-use puffin::trace::{Spawner, TraceContext};
+use puffin::libafl_bolts::rands::{Rand, StdRand};
+use puffin::protocol::{ProtocolBehavior, ProtocolTypes};
+use puffin::trace::Action::Input;
+use puffin::trace::{InputAction, Spawner, Step, Trace, TraceContext};
 use tlspuffin::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use tlspuffin::put_registry::tls_registry;
+use tlspuffin::test_utils::*;
 use tlspuffin::tls::fn_impl::*;
 use tlspuffin::tls::TLS_SIGNATURE;
-
-/// Functions that are known to fail to be adversarially generated
-pub fn ignore_gen() -> HashSet<String> {
-    [
-        // As expected, attacker cannot use them as there is no adversarial
-        // '*Transcript*', which are required as argument
-        fn_server_finished_transcript.name(),
-        fn_client_finished_transcript.name(),
-        fn_server_hello_transcript.name(),
-        fn_certificate_transcript.name(),
-    ]
-    .iter()
-    .map(|fn_name| fn_name.to_string())
-    .collect::<HashSet<String>>()
-}
-
-/// Functions that are known to fail to be evaluated (without payloads)
-pub fn ignore_eval() -> HashSet<String> {
-    let mut ignore_gen = ignore_gen();
-    let ignore_eval = [
-        // Those 2 are the function symbols for which we can generate a term but all fail to
-        // DY_execute! Indeed, the HandshakeHash that is fed as argument must be
-        // computed in a very specific way! We might give known,valid hash-transcript to help?
-        fn_decrypt_application.name(),
-        fn_decrypt_multiple_handshake_messages.name(),
-    ]
-    .iter()
-    .map(|fn_name| fn_name.to_string())
-    .collect::<HashSet<String>>();
-    ignore_gen.extend(ignore_eval);
-    ignore_gen
-}
-
-/// Functions that are known to fail to be adversarially generated
-pub fn ignore_add_payload() -> HashSet<String> {
-    let mut ignore_eval = ignore_eval();
-    let ignore_pay: HashSet<String> = [
-        // No additional failures
-        // fn_find_server_certificate_verify.name(),
-        // fn_find_server_certificate_verify.name(),
-        // fn_find_server_finished.name(),
-    ]
-    .iter()
-    .map(|fn_name: &&str| fn_name.to_string())
-    .collect::<HashSet<String>>();
-    ignore_eval.extend(ignore_pay);
-    ignore_eval
-}
-/// Parametric test for testing operations on terms (closure `test_map`, e.g., evaluation) through
-/// the generation of a zoo of terms
-pub fn zoo_test<Ft>(
-    mut test_map: Ft,
-    mut rand: RomuDuoJrRand,
-    how_many: usize, // number of terms to generate for each function symbol (at root position)
-    stop_on_success: bool, /* do not test further term if its function at root position was
-                      * already positively tested */
-    stop_on_error: bool, /* for each function, stop testing further terms if an error is
-                          * encountered */
-    filter: Option<&FunctionDefinition<TLSProtocolTypes>>,
-    ignored_functions: &HashSet<String>,
-) -> bool
-where
-    Ft: FnMut(
-        &Term<TLSProtocolTypes>,
-        &TraceContext<TLSProtocolBehavior>,
-        &mut RomuDuoJrRand,
-    ) -> Result<(), Error>,
-{
-    let tls_registry = tls_registry();
-    let spawner = Spawner::new(tls_registry.clone());
-    let ctx = TraceContext::new(spawner);
-
-    let all_functions_shape = TLS_SIGNATURE.functions.to_owned();
-    let number_functions = all_functions_shape.len();
-    let mut number_terms = 0;
-    let mut number_success = 0;
-    let mut number_failure = 0;
-    let mut number_failure_on_ignored = 0;
-    let mut successful_functions = vec![];
-
-    let bucket_size = 200;
-    for f in &all_functions_shape {
-        if filter.is_none() || (filter.is_some() && filter.unwrap().0.name == f.0.name) {
-            'outer: for i in 0..(how_many / bucket_size) {
-                let bucket_size_step = if i < how_many / bucket_size - 1 {
-                    bucket_size
-                } else {
-                    how_many - bucket_size * (how_many / bucket_size - 1)
-                };
-                let zoo_f = TermZoo::<TLSProtocolTypes>::generate_many(
-                    &TLS_SIGNATURE,
-                    &mut rand,
-                    bucket_size_step,
-                    Some(&f),
-                );
-                let terms_f = zoo_f.terms();
-                if terms_f.len() != how_many {
-                    log::error!(
-                        "Failed to generate {bucket_size_step} terms (only {}) for function {}.",
-                        terms_f.len(),
-                        f.0.name
-                    );
-                }
-                number_terms += terms_f.len();
-
-                for term in terms_f.iter() {
-                    match test_map(term, &ctx, &mut rand) {
-                        Ok(_) => {
-                            successful_functions.push(term.name().to_string());
-                            number_success += 1;
-                            if stop_on_success {
-                                break 'outer;
-                            }
-                        }
-                        Err(e) => {
-                            if ignored_functions.contains(term.name()) {
-                                log::debug!("[Ignored function] Failed to test_map term {term} with error {e}. ");
-                                number_failure_on_ignored += 1;
-                            } else {
-                                log::error!("[Not ignored function] Failed to test_map term {term} with error {e}. ");
-                                number_failure += 1;
-                                if stop_on_error {
-                                    break 'outer;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    let all_functions = all_functions_shape
-        .iter()
-        .map(|(shape, _)| shape.name.to_string())
-        .collect::<HashSet<String>>();
-
-    let mut successful_functions = successful_functions
-        .into_iter()
-        .collect::<HashSet<String>>();
-    let successful_functions_tested = successful_functions.clone();
-    successful_functions.extend(ignored_functions.clone());
-
-    let difference = all_functions.difference(&successful_functions);
-    let difference_inverse = successful_functions_tested.intersection(&ignored_functions);
-
-    log::debug!("[zoo_test] ignored_functions: {:?}\n", &ignored_functions);
-    log::error!("[zoo_test] Diff: {:?}", &difference);
-    log::error!(
-        "[zoo_test] Intersection with ignored: {:?}",
-        &difference_inverse
-    );
-    log::error!(
-        "[zoo_test] Stats: how_many: {how_many}, stop_on_success: {stop_on_success}, stop_on_error: {stop_on_error}\n\
-        --> number_functions: {}, number_terms: {}, number_success: {}, number_failure: {}, number_failure_on_ignored: {}\n\
-        --> Successfully built (out of {:?} functions): {:?}",
-        number_functions,
-        number_terms,
-        number_success,
-        number_failure,
-        number_failure_on_ignored,
-        &all_functions.len(),
-        &successful_functions_tested.len()
-    );
-    (difference.count() == 0) && (difference_inverse.count() == 0)
-}
 
 #[test_log::test]
 /// Tests whether all function symbols can be used when generating random terms
@@ -191,7 +39,9 @@ fn test_term_generation() {
             rand,
             200,
             false,
-            true, // it should never fail
+            true,
+            false,
+            false,
             None,
             &ignore_gen(),
         );
@@ -208,16 +58,18 @@ fn test_term_generation() {
 /// Tests whether all function symbols can be used when generating random terms and then be
 /// correctly DY evaluated
 #[test_log::test]
+#[ignore] // redundant
 fn test_term_dy_eval() {
-    for i in 0..5 {
+    for i in 0..1 {
         let rand = StdRand::with_seed(i as u64);
         let res = zoo_test(
             |term, ctx, _| term.evaluate_dy(&ctx).map(|_| ()),
             rand,
-            2600,
+            1,
             true,
-            false, /* it could fail since some terms need to have an appropriate structure to be
-                    * evaluated correctly */
+            true,
+            true,
+            false,
             None,
             &ignore_eval(),
         );
@@ -229,23 +81,23 @@ fn test_term_dy_eval() {
         --> number_functions: 221, number_terms: 45200, number_success: 215, number_failure: 1620, number_failure_on_ignored: 1600
         --> Successfully built (out of 220 functions): 214
      */
-    // Remark: some functions are tricky to generate terms for and we spend a lot of failures on a
-    // small number of those, which is not visible in the above stats! Only 37 functions fail when
-    // enabling stop_on_error.
 }
 
 /// Tests whether all function symbols can be used when generating random terms and then be
 /// correctly evaluated
 #[test_log::test]
 fn test_term_eval() {
-    for i in 0..5 {
+    assert_eq!(ignore_eval(), ignore_eval_attribute()); // make sure the signature flag [no_gen] is consistent with this uni tests
+    for i in 0..2 {
         let rand = StdRand::with_seed(i as u64);
         let res = zoo_test(
             |term, ctx, _| term.evaluate(&ctx).map(|_| ()),
             rand,
-            2600,
+            1,
             true,
-            false,
+            true, // test_map should never map because we set filter_executable to true
+            true,
+            true,
             None,
             &ignore_eval(),
         );
@@ -257,7 +109,41 @@ fn test_term_eval() {
         --> number_functions: 221, number_terms: 45200, number_success: 215, number_failure: 1620, number_failure_on_ignored: 1600
         --> Successfully built (out of 220 functions): 214
      */
+    // Remark: some functions are tricky to generate terms for and we spend a lot of failures on a
+    // small number of those, which is not visible in the above stats! Only 37 functions fail when
+    // enabling stop_on_error.
+    // The test passes for all function symbols except ignore_eval for zoo:MAX_TRIES = 110k
+    // With zoo:MAX_TRIES = 1000: only a few failures:
+    // [fn_sign_transcript, fn_find_server_finished, fn_derive_psk, fn_encrypt_application]
+    // With zoo:MAX_TRIES = 200, quite a lot of failures now.
+    // For much larger values (I tested 11_000_000), we still fail to generate the excluded two
+    // symbols.
 }
+
+/// Tests whether all function symbols can be used when generating random terms and then be
+/// correctly evaluated. We use the old generation method: no filtering out on successful
+/// evaluation.
+#[test_log::test]
+#[ignore] // redundant
+fn test_term_old_eval() {
+    for i in 0..2 {
+        let rand = StdRand::with_seed(i as u64);
+        let res = zoo_test(
+            |term, ctx, _| term.evaluate(&ctx).map(|_| ()),
+            rand,
+            2600,
+            true,
+            false, // test_map should never map because we set filter_executable to true
+            false,
+            false,
+            None,
+            &ignore_eval(),
+        );
+        log::error!("Step {i}");
+        assert!(res);
+    }
+}
+
 #[test_log::test]
 /// Tests whether all function symbols can be used when generating random terms and then be
 /// correctly evaluated, read, and re-encoded yielding the same encoding
@@ -270,8 +156,7 @@ fn test_term_read_encode() {
     let mut closure = |term: &Term<TLSProtocolTypes>,
                        ctx: &TraceContext<TLSProtocolBehavior>,
                        _: &mut RomuDuoJrRand| {
-        let type_id: TypeId =
-            <TypeShape<TLSProtocolTypes> as Clone>::clone(&(*term.get_type_shape())).into();
+        let type_id: TypeId = term.get_type_shape().clone().into();
         term.evaluate(&ctx)
             .map(|eval1| {
                 match TLSProtocolBehavior::try_read_bytes(&*eval1, type_id) {
@@ -291,25 +176,27 @@ fn test_term_read_encode() {
                             Err(Error::Term("Not the same read".to_string()))
                         }
                     }
-                    Err(_e) => {
+                    Err(e) => {
                         log::error!("Failed to read for term {}!\n  and encoding: {:?}\n  - TypeShape:{}, TypeId: {:?}", term, eval1, term.get_type_shape(), type_id);
                         if !ignored_functions.contains(term.name()) {
                             read_fail += 1;
                         }
-                        Err(Error::Fn(FnError::Unknown("Failed to read: {_e}".to_string())))
+                        Err(Error::Fn(FnError::Codec(format!("Failed to read: {e}"))))
                     }
                 }
             })?
     };
 
-    for i in 0..5 {
+    for i in 0..2 {
         let rand = StdRand::with_seed(i as u64);
         let res = zoo_test(
             &mut closure,
             rand,
-            1600,
+            50,
             true,
             false,
+            true,
+            true,
             None,
             &ignored_functions,
         );
@@ -325,3 +212,177 @@ fn test_term_read_encode() {
     [2024-11-14T15:16:17Z ERROR term_zoo] [test_term_read_encode] Read stats: read_count: 2105, read_success: 1075, read_fail: 205, read_wrong: 1030
      */
 }
+
+#[test_log::test]
+// #[ignore] // redundant
+/// Tests whether all function symbols can be used when generating random terms and then some
+/// payloads be added while preserving a successful evaluation
+fn test_term_payloads_eval() {
+    let mut success_count = 0;
+    let mut add_payload_fail = 0;
+    let mut eval_payload_fail = 0;
+    let ignored_functions = ignore_add_payload(); // currently is the same as ignore_eval()
+    let mut closure = |term: &Term<TLSProtocolTypes>,
+                       ctx: &TraceContext<TLSProtocolBehavior>,
+                       rand2: &mut RomuDuoJrRand| {
+        term.evaluate(&ctx).map(|_eval| {
+            let mut term_with_payloads = term.clone();
+            add_payloads_randomly(&mut term_with_payloads, rand2, &ctx);
+            if term_with_payloads.all_payloads().len() == 0 {
+                log::warn!("Failed to add payloads, skipping... For:\n   {term_with_payloads}");
+                if !ignored_functions.contains(term.name()) {
+                    add_payload_fail += 1;
+                }
+                return Err(Error::Term("Failed to add payloads".to_string()));
+            } else {
+                log::debug!("Term with payloads: {term_with_payloads}");
+                // Sanity check:
+                test_pay(&term_with_payloads);
+                match &term_with_payloads.evaluate(&ctx) {
+                    Ok(_eval) => {
+                        log::debug!("Eval success!");
+                        success_count += 1;
+                        return Ok(());
+                    }
+                    Err(_e) => {
+                        log::error!("Eval FAILED with payloads: {term_with_payloads}.");
+                        if !ignored_functions.contains(term.name()) {
+                            eval_payload_fail += 1;
+                        }
+                        return Err(Error::Term("Failed to evaluate with payloads".to_string()));
+                    }
+                }
+            }
+        })?
+    };
+
+    for i in 0..2 {
+        let res = zoo_test(
+            &mut closure,
+            StdRand::with_seed(i),
+            100,
+            true,
+            false,
+            true,
+            true,
+            None,
+            &ignored_functions,
+        );
+        log::error!("Step {i}");
+        assert!(res);
+    }
+    log::error!("[test_term_payloads_eval] Stats: success_count: {success_count}, add_payload_fail: {add_payload_fail}, eval_payload_fail: {eval_payload_fail}");
+    /*
+       Harder symbol to obtain is `fn_preshared_keys_extension_empty_binder` and forces us to fo from how_many=50 to 100.
+    */
+    /* (Step 4)
+    [2024-11-14T15:15:11Z ERROR term_zoo] [zoo_test] Stats: how_many: 8000, stop_on_success: true, stop_on_error: false
+        --> number_functions: 221, number_terms: 63400, number_success: 215, number_failure: 6651, number_failure_on_ignored: 16000
+        --> Successfully built (out of 220 functions): 214
+           (Global)
+    [2024-11-14T15:15:11Z ERROR term_zoo] [test_term_payloads_eval] Stats: success_count: 645, add_payload_fail: 0, eval_payload_fail: 187
+         */
+}
+
+#[test_log::test]
+/// Tests whether all function symbols can be used when generating random terms and then some
+/// payloads be added **and bit-level mutated** while preserving a successful evaluation
+fn test_term_payloads_mutate_eval() {
+    let mut success_count = 0;
+    let mut add_payload_fail = 0;
+    let mut mutate_fail = 0;
+    let mut mutate_eval_fail = 0;
+    let ignored_functions = ignore_add_payload_mutate(); // currently is the same as ignore_eval()
+
+    let mut closure = |term: &Term<TLSProtocolTypes>,
+                       ctx: &TraceContext<TLSProtocolBehavior>,
+                       rand2: &mut RomuDuoJrRand| {
+        let mut state = create_state();
+        let mut term_with_payloads = term.clone();
+        add_payloads_randomly(&mut term_with_payloads, rand2, &ctx);
+        if term_with_payloads.all_payloads().len() == 0 {
+            log::warn!("Failed to add payloads, skipping... For:\n   {term_with_payloads}");
+            if !ignored_functions.contains(term.name()) {
+                add_payload_fail += 1;
+            }
+            return Err(Error::Term("Failed to add payloads".to_string()));
+        } else {
+            log::debug!("Term with payloads: {term_with_payloads}");
+            // Sanity check:
+            test_pay(&term_with_payloads);
+            let mut tries = 0;
+            while tries < 1_000 {
+                let mut mutant = term_with_payloads.clone();
+                tries += 1;
+                let mut all_payloads = mutant.all_payloads_mut();
+                let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
+                let payload_to_mutate = all_payloads.remove(idx);
+                let payload_to_mutate_orig = payload_to_mutate.payload_0.clone();
+                let payload_to_mutate = &mut payload_to_mutate.payload;
+                match libafl::mutators::mutations::BitFlipMutator
+                    .mutate(&mut state, payload_to_mutate, 0)
+                    .unwrap()
+                {
+                    MutationResult::Mutated => {
+                        if payload_to_mutate_orig == *payload_to_mutate {
+                            log::warn!("Mutated payload is the same as original: {payload_to_mutate_orig:?} == {payload_to_mutate:?}");
+                            mutate_fail += 1;
+                            continue;
+                        }
+                        log::debug!("Success MakeMessage: adding to new inputs");
+                        match &mutant.evaluate(&ctx) {
+                            Ok(_eval) => {
+                                log::debug!("Eval mutant success!");
+                                success_count += 1;
+                                return Ok(());
+                            }
+                            Err(e) => {
+                                log::warn!("Eval FAILED with payloads: {term_with_payloads} and error {e}.");
+                                if !ignored_functions.contains(term.name()) {
+                                    mutate_eval_fail += 1;
+                                }
+                                continue;
+                            }
+                        }
+                    }
+                    MutationResult::Skipped => {
+                        mutate_fail += 1;
+                    }
+                }
+            }
+            return Err(Error::Term(format!(
+                "Failed to find a way to mutate {term_with_payloads}!"
+            )));
+        }
+    };
+
+    for i in 0..1 {
+        let res = zoo_test(
+            &mut closure,
+            StdRand::with_seed(i),
+            100,
+            true,
+            false,
+            true,
+            true,
+            None,
+            &ignored_functions,
+        );
+        log::error!("Step {i}");
+        assert!(res);
+    }
+    log::error!("[test_term_payloads_eval] Stats: success_count: {success_count}, add_payload_fail: {add_payload_fail}, mutate_fail: {mutate_fail}, mutate_eval_fail: {mutate_eval_fail}");
+}
+
+/* Old:
+## term_eval
+### For number = 200 --> all success :) :)
+Successfully built: #60563
+All functions: #190
+number_terms: 74800, eval_count: 60563, count_lazy_fail: 14237, count_any_encode_fail: 0
+
+### For number = 400 --> all success
+Successfully built: #30258
+All functions: #190
+number_terms: 37400, eval_count: 30258, count_lazy_fail: 7142, count_any_encode_fail: 0
+*/

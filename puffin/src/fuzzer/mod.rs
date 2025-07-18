@@ -13,11 +13,12 @@ use crate::trace::Trace;
 pub mod harness;
 mod libafl_setup;
 pub mod sanitizer;
-mod stages;
+pub mod stages;
 mod stats_monitor;
 pub mod stats_stage;
 pub mod term_zoo;
 // Public for benchmarks
+pub mod bit_mutations;
 pub mod feedback;
 pub mod mutations;
 pub mod utils;

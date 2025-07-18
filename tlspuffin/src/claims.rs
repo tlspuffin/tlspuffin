@@ -16,16 +16,17 @@ pub struct TlsTranscript(pub [u8; 64], pub i32);
 
 impl codec::Codec for TlsTranscript {
     fn encode(&self, b: &mut Vec<u8>) {
-        b.extend(self.0);
-        b.extend(self.1.to_ne_bytes());
+        b.push(self.1 as u8);
+        b.extend(&self.0[..self.1 as usize]);
     }
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
-        let t: [u8; 64] = <[u8; 64]>::try_from(r.take(64)?).ok()?;
-        let x = r.take(4)?;
-        Some(TlsTranscript(t, i32::from_ne_bytes(x.try_into().unwrap())))
+        let length = u8::read(r)?;
+        let t: [u8; 64] = <[u8; 64]>::try_from(r.take(length as usize)?).ok()?;
+        Some(TlsTranscript(t, length as i32))
     }
 }
+dummy_extract_knowledge!(TLSProtocolTypes, TlsTranscript);
 
 #[derive(Debug, Clone)]
 pub struct TranscriptClientHello(pub TlsTranscript);
@@ -73,6 +74,7 @@ dummy_extract_knowledge!(TLSProtocolTypes, TranscriptPartialClientHello);
 pub struct TranscriptServerHello(pub TlsTranscript);
 impl Transcript for TranscriptServerHello {
     fn as_slice(&self) -> &[u8] {
+        log::debug!("TranscriptServerHello.as_slice: {self:?}");
         let transcript = &self.0;
         &transcript.0[..transcript.1 as usize]
     }

@@ -20,7 +20,7 @@ pub mod seeds;
 pub mod violation;
 pub mod vulnerabilities;
 
-/// This modules contains all the concrete implementations of function symbols.
+/// This module contains all the concrete implementations of function symbols.
 #[path = "."]
 pub mod fn_impl {
     pub mod fn_cert;
@@ -84,7 +84,7 @@ define_signature!(
     fn_seq_16
     fn_large_length
     fn_empty_bytes_vec
-    fn_large_bytes_vec
+    fn_large_bytes_vec [no_bit] // exclude MakeMessage and thus bit-level mutations
     // messages
     fn_alert_close_notify
     fn_application_data
@@ -101,7 +101,7 @@ define_signature!(
     fn_encrypted_extensions // Just a wrapper, not encrypting per se
     fn_finished
     fn_heartbeat
-    fn_heartbeat_fake_length // TODO: Was [get] but that was an error. TO TEST
+    // fn_heartbeat_fake_length // Now subsumed by bit-level mutations
     fn_hello_request
     fn_hello_retry_request
     fn_hello_retry_request_random
@@ -114,20 +114,21 @@ define_signature!(
     fn_server_hello_done
     fn_server_key_exchange
     // extensions
-    fn_client_extensions_new
+    fn_client_extensions_new [list]
     fn_client_extensions_append [list]
     fn_client_extensions_make
-    fn_server_extensions_new
+    fn_server_extensions_new [list]
     fn_server_extensions_make
     fn_server_extensions_append [list]
     fn_hello_retry_extensions_make
-    fn_hello_retry_extensions_new
+    fn_hello_retry_extensions_new [list]
     fn_hello_retry_extensions_append [list]
-    fn_cert_req_extensions_new
+    fn_cert_req_extensions_new [list]
     fn_cert_req_extensions_append [list]
-    fn_cert_extensions_new
+    fn_cert_extensions_make
+    fn_cert_extensions_new [list]
     fn_cert_extensions_append [list]
-    fn_new_session_ticket_extensions_new
+    fn_new_session_ticket_extensions_new [list]
     fn_new_session_ticket_extensions_append [list]
     fn_server_name_extension
     fn_server_name_server_extension
@@ -154,7 +155,7 @@ define_signature!(
     fn_new_preshared_key_identity
     fn_empty_preshared_keys_identity_vec
     fn_append_preshared_keys_identity [list]
-    fn_preshared_keys_extension_empty_binder
+    fn_preshared_keys_extension_empty_binder [opaque]
     fn_preshared_keys_server_extension
     fn_early_data_extension
     fn_early_data_new_session_ticket_extension
@@ -171,9 +172,9 @@ define_signature!(
     fn_psk_exchange_mode_ke_extension
     fn_certificate_authorities_extension
     fn_signature_algorithm_cert_extension
-    fn_key_share_deterministic_extension [opaque] // TODO: why?
+    fn_key_share_deterministic_extension
     fn_key_share_extension
-    fn_key_share_deterministic_server_extension [opaque] // TODO: why?
+    fn_key_share_deterministic_server_extension
     fn_key_share_server_extension
     fn_key_share_hello_retry_extension
     fn_transport_parameters_extension
@@ -204,7 +205,7 @@ define_signature!(
     fn_get_any_client_curve [get]
     fn_verify_data [opaque]
     fn_verify_data_server [opaque]
-    fn_sign_transcript
+    fn_sign_transcript [opaque]
     fn_cipher_suites_make
     fn_new_cipher_suites
     fn_append_cipher_suite [list]
@@ -215,14 +216,14 @@ define_signature!(
     fn_weak_export_cipher_suite
     fn_secure_rsa_cipher_suite12
     // utils
-    fn_new_flight
+    fn_new_flight [list]
     fn_append_flight [list]
-    fn_new_opaque_flight
+    fn_new_opaque_flight [list]
     fn_append_opaque_flight [list]
     fn_new_transcript
-    fn_append_transcript [opaque] [list] // this one is opaque and not list since it returns the hash of all elements added to the list so far
+    fn_append_transcript [opaque] // this one is opaque and not list since it returns the hash of all elements added to the list so far
     fn_decrypt_handshake_flight [opaque]
-    fn_decrypt_multiple_handshake_messages [opaque]
+    fn_decrypt_multiple_handshake_messages [opaque] [no_gen]
     fn_decrypt_application_flight [opaque]
     fn_find_server_certificate [get]
     fn_find_server_certificate_request [get]
@@ -232,7 +233,9 @@ define_signature!(
     fn_find_server_finished [get]
     fn_no_psk
     fn_psk
-    fn_decrypt_application [opaque]
+    fn_decrypt_application [opaque] [no_gen]
+    fn_encrypt_handshake [opaque]
+    fn_encrypt_handshake [opaque]
     fn_encrypt_handshake [opaque]
     fn_encrypt_application [opaque]
     fn_derive_psk [opaque]
@@ -247,13 +250,12 @@ define_signature!(
     fn_new_pubkey12 [opaque]
     fn_encrypt12 [opaque]
     fn_new_certificate
-    fn_new_certificates
+    fn_new_certificates [list]
     fn_append_certificate [list]
-    fn_new_certificate_entries
-    fn_append_certificate_entry [list]
     fn_named_group_secp384r1
     fn_named_group_x25519
-    fn_u64_to_u32
+    fn_u64_to_u32 [get]
+    fn_u32_to_u16 [get]
     fn_payload_u8
     fn_payload_u16
     fn_payload_u24
@@ -264,10 +266,10 @@ define_signature!(
     fn_empty_payload_u8_vec
     fn_append_payload_u8_vec [list]
     // transcript functions
-    fn_server_hello_transcript
-    fn_client_finished_transcript
-    fn_server_finished_transcript
-    fn_certificate_transcript
+    fn_server_hello_transcript [opaque] [no_gen]
+    fn_client_finished_transcript [opaque] [no_gen]
+    fn_server_finished_transcript [opaque] [no_gen]
+    fn_certificate_transcript [opaque] [no_gen]
     // certificate functions
     fn_bob_cert
     fn_bob_key
@@ -276,17 +278,18 @@ define_signature!(
     fn_eve_cert
     fn_random_ec_cert
     fn_random_ec_key
-    fn_certificate_entry
+    fn_certificate_entry_extensions
     fn_empty_certificate_chain
-    fn_append_certificate_entry [list]
+    fn_new_certificate_entries [list]
+    fn_append_certificate_entries [list]
     fn_certificate_entries_make
     fn_chain_append_certificate_entry [list]
     fn_get_context [get]
     fn_eve_pkcs1_signature
     fn_rsa_sign_client [opaque]
     fn_rsa_sign_server [opaque]
-    fn_ecdsa_sign_client
-    fn_ecdsa_sign_server
+    fn_ecdsa_sign_client [opaque]
+    fn_ecdsa_sign_server [opaque]
     fn_rsa_pss_signature_algorithm
     fn_rsa_pkcs1_signature_algorithm
     fn_invalid_signature_algorithm
