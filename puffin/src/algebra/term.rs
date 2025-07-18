@@ -8,7 +8,7 @@ use libafl::inputs::BytesInput;
 use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
-use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
+use crate::algebra::bitstrings::{replace_payloads, EvalTree, PayloadMetadata, Payloads};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
 use crate::error::Error;
@@ -301,19 +301,30 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
-    /// Add a payload at the root position, erase payloads in strict sub-terms not under opaque
-    pub fn add_payload(&mut self, payload: Vec<u8>) {
+    /// Add a payload at the root position and start with a new payload.payload possibly different
+    /// from payload.payload_0, erase payloads in strict sub-terms not under opaque
+    pub fn add_payload_with_new(
+        &mut self,
+        payload_0: Vec<u8>,
+        payload_new: Vec<u8>,
+        with_metadata: Option<PayloadMetadata>,
+    ) {
         self.payloads = Option::from({
             Payloads {
-                payload_0: BytesInput::new(payload.clone()),
-                payload: BytesInput::new(payload),
+                payload_0: payload_0.into(),
+                payload: payload_new.into(),
+                metadata: with_metadata.unwrap_or_else(|| PayloadMetadata::default()),
             }
         });
         self.erase_payloads_subterms(false);
     }
 
-    /// Make and Add a payload at the root position, erase payloads in strict sub-terms not under
-    /// opaque
+    /// Add a payload at the root position, erase payloads in strict sub-terms not under opaque
+    pub fn add_payload(&mut self, payload_0: Vec<u8>) {
+        self.add_payload_with_new(payload_0.clone(), payload_0, None)
+    }
+
+    /// Make and Add a payload at the root position, erase payloads in strict sub-terms
     pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
@@ -325,7 +336,7 @@ impl<PT: ProtocolTypes> Term<PT> {
 
     /// Return all payloads contains in a term, even under opaque terms.
     /// Note that we keep the invariant that a non-symbolic term cannot have payloads in
-    /// struct-subterms, see `add_payload/make_payload`.
+    /// strict-subterms, see `add_payload/make_payload`.
     pub fn all_payloads(&self) -> Vec<&Payloads> {
         self.into_iter()
             .filter_map(|t| t.payloads.as_ref())
@@ -334,7 +345,7 @@ impl<PT: ProtocolTypes> Term<PT> {
 
     /// Return all payloads contains in a term (mutable references), even under opaque terms.
     /// Note that we keep the invariant that a non-symbolic term cannot have payloads in
-    /// struct-subterms, see `add_payload/make_payload`.
+    /// strict-subterms, see `add_payload/make_payload`.
     pub fn all_payloads_mut(&mut self) -> Vec<&mut Payloads> {
         // unable to implement as_iter_map for Term due to its tree structure so:
         // do it manually instead!
