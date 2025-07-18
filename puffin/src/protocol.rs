@@ -282,7 +282,7 @@ macro_rules! atom_extract_knowledge {
                 matcher: Option<<$protocol_type as ProtocolTypes>::Matcher>,
                 source: &'a Source,
             ) -> Result<(), Error> {
-                log::debug!("Extract atom: {}", stringify!($extract_type));
+                log::trace!("Extract atom: {}", stringify!($extract_type));
                 knowledges.push(Knowledge {
                     source,
                     matcher,
