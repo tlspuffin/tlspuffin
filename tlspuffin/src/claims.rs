@@ -22,7 +22,12 @@ impl codec::Codec for TlsTranscript {
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
         let length = u8::read(r)?;
-        let t: [u8; 64] = <[u8; 64]>::try_from(r.take(length as usize)?).ok()?;
+        if length > 64 {
+            return None;
+        }
+        let mut t = [0u8; 64];
+        let bytes = r.take(length as usize)?;
+        t[..bytes.len()].copy_from_slice(&bytes);
         Some(TlsTranscript(t, length as i32))
     }
 }
