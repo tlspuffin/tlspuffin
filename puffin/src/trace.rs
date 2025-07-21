@@ -16,6 +16,7 @@
 
 use core::fmt;
 use std::any::TypeId;
+use std::cmp::PartialEq;
 use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
@@ -330,6 +331,20 @@ impl<PB: ProtocolBehavior> Clone for Spawner<PB> {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct ConfigTrace {
+    pub with_bit_level: bool,
+    pub with_reseed: bool,
+}
+impl Default for ConfigTrace {
+    fn default() -> Self {
+        ConfigTrace {
+            with_bit_level: true,
+            with_reseed: true,
+        }
+    }
+}
+
 /// The [`TraceContext`] represents the state of an execution.
 ///
 /// The [`TraceContext`] contains a list of [`EvaluatedTerm`], which is known as the knowledge
@@ -343,6 +358,7 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     pub knowledge_store: KnowledgeStore<PB::ProtocolTypes>,
     agents: Vec<Agent<PB>>,
     claims: GlobalClaimList<PB::Claim>,
+    pub config_trace: ConfigTrace,
 
     spawner: Spawner<PB>,
 
@@ -372,12 +388,17 @@ impl<PB: ProtocolBehavior + PartialEq> PartialEq for TraceContext<PB> {
             && format!("{:?}", self.knowledge_store.raw_knowledge)
                 == format!("{:?}", other.knowledge_store.raw_knowledge)
             && format!("{:?}", self.claims) == format!("{:?}", other.claims)
+            && self.config_trace == other.config_trace
     }
 }
 
 impl<PB: ProtocolBehavior> TraceContext<PB> {
     #[must_use]
     pub fn new(spawner: Spawner<PB>) -> Self {
+        Self::new_config(spawner, ConfigTrace::default())
+    }
+
+    pub fn new_config(spawner: Spawner<PB>, config_trace: ConfigTrace) -> Self {
         // We keep a global list of all claims throughout the execution. Each claim is identified
         // by the AgentName. A rename of an Agent does not interfere with this.
         let claims = GlobalClaimList::<PB::Claim>::new();
@@ -386,6 +407,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             knowledge_store: KnowledgeStore::new(),
             agents: vec![],
             claims,
+            config_trace,
             spawner,
             phantom: Default::default(),
             executed_until: 0,
@@ -940,6 +962,16 @@ impl<PT: ProtocolTypes> Trace<PT> {
             Action::Input(inp) => acc + inp.recipe.size(),
             Action::Output(_) => acc + 1,
         })
+    }
+}
+
+impl<PT: ProtocolTypes> Default for Trace<PT> {
+    fn default() -> Self {
+        Self {
+            descriptors: vec![],
+            steps: vec![],
+            prior_traces: vec![],
+        }
     }
 }
 
