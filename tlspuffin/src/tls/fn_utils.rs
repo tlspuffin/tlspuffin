@@ -14,8 +14,8 @@ use crate::tls::rustls::key::Certificate;
 use crate::tls::rustls::msgs::base::PayloadU8;
 use crate::tls::rustls::msgs::enums::{CipherSuite, HandshakeType, NamedGroup};
 use crate::tls::rustls::msgs::handshake::{
-    CertificateEntries, CertificateEntry, CertificateExtension, CertificateExtensions,
-    HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
+    CertificateEntries, CertificateEntry, HandshakeMessagePayload, HandshakePayload, Random,
+    ServerECDHParams,
 };
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
 use crate::tls::rustls::suites::SupportedCipherSuite;
@@ -627,16 +627,12 @@ pub fn fn_certificate_entries_make(
     Ok(CertificateEntries(entries.clone()))
 }
 
-pub fn fn_append_certificate_entry(
+pub fn fn_append_certificate_entries(
     certs: &Vec<CertificateEntry>,
-    cert: &Certificate,
-    extensions: &Vec<CertificateExtension>,
+    cert_entry: &CertificateEntry,
 ) -> Result<Vec<CertificateEntry>, FnError> {
     let mut new_certs = certs.clone();
-    new_certs.push(CertificateEntry {
-        cert: cert.clone(),
-        exts: CertificateExtensions(extensions.clone()),
-    });
+    new_certs.push(cert_entry.clone());
 
     Ok(new_certs)
 }

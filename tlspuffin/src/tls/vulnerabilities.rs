@@ -75,10 +75,13 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
             // Or append eve cert
             (fn_certificate_entries_make(
                 (fn_chain_append_certificate_entry(
-                (fn_certificate_entry(
-                    fn_eve_cert
-                )),
-              fn_empty_certificate_chain
+                  fn_empty_certificate_chain,
+                  (fn_certificate_entry_extensions(
+                    fn_eve_cert,
+                    (fn_cert_extensions_make(
+                        fn_cert_extensions_new
+                    ))
+                ))
             ))))
         )
     };
@@ -247,10 +250,13 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
             (fn_payload_u8((fn_get_context((@certificate_request_message))))),
             (fn_certificate_entries_make(
                 (fn_chain_append_certificate_entry(
-                (fn_certificate_entry(
-                    fn_eve_cert
-                )),
-              fn_empty_certificate_chain
+                fn_empty_certificate_chain,
+                (fn_certificate_entry_extensions(
+                    fn_eve_cert,
+                    (fn_cert_extensions_make(
+                        fn_cert_extensions_new
+                    ))
+                ))
             ))))
         )
     };
