@@ -58,7 +58,7 @@ impl<PB: ProtocolBehavior> TermZoo<PB> {
             }
         } else {
             for def in &signature.functions {
-                if !filter_no_gen || !signature.attrs_by_name.get(def.0.name).unwrap().no_gen {
+                if filter_no_gen && signature.attrs_by_name.get(def.0.name).unwrap().no_gen {
                     log::debug!("Skipping generation for [{:?}]", def.0.name);
                     continue; // Skip this function symbol
                 }
