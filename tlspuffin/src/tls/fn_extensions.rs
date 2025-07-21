@@ -435,17 +435,17 @@ pub fn fn_preshared_keys_extension_empty_binder(
     )))
 }
 
-pub fn fn_preshared_keys_server_extension(identities: &u64) -> Result<ServerExtension, FnError> {
-    Ok(ServerExtension::PresharedKey(*identities as u16))
+pub fn fn_preshared_keys_server_extension(identities: &u16) -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::PresharedKey(*identities))
 }
 /// EarlyData => 0x002a,
 pub fn fn_early_data_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::EarlyData)
 }
 pub fn fn_early_data_new_session_ticket_extension(
-    early_data: &u64,
+    early_data: &u32,
 ) -> Result<NewSessionTicketExtension, FnError> {
-    Ok(NewSessionTicketExtension::EarlyData(*early_data as u32))
+    Ok(NewSessionTicketExtension::EarlyData(*early_data))
 }
 pub fn fn_early_data_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::EarlyData)
