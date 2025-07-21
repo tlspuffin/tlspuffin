@@ -116,7 +116,7 @@ where
     let tui = matches.get_flag("tui");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
-    let with_bit_level = !matches.get_flag("with-bit");
+    let without_bit_level = !matches.get_flag("with-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
     let without_truncation = matches.get_flag("wo-trunc");
     let target_put: Option<&String> = matches.get_one("put");
@@ -146,7 +146,7 @@ where
                 None,
                 None,
                 &put_registry,
-                with_bit_level,
+                without_bit_level,
                 without_dy_mutations,
                 without_truncation,
                 put_use_clear,
@@ -161,7 +161,7 @@ where
                     None,
                     Some(i),
                     &put_registry,
-                    with_bit_level,
+                    without_bit_level,
                     without_dy_mutations,
                     without_truncation,
                     put_use_clear,
@@ -181,7 +181,7 @@ where
                     Some(title),
                     None,
                     &put_registry,
-                    with_bit_level,
+                    without_bit_level,
                     without_dy_mutations,
                     without_truncation,
                     put_use_clear,
@@ -441,7 +441,7 @@ where
                 Some(title),
                 None,
                 &put_registry,
-                with_bit_level,
+                without_bit_level,
                 without_dy_mutations,
                 without_truncation,
                 put_use_clear,
@@ -473,7 +473,7 @@ where
                 None,
                 None,
                 &put_registry,
-                with_bit_level,
+                without_bit_level,
                 without_dy_mutations,
                 without_truncation,
                 put_use_clear,
@@ -520,12 +520,12 @@ where
             ..Default::default()
         };
 
-        if with_bit_level && without_dy_mutations {
+        if without_bit_level && without_dy_mutations {
             log::error!("Both bit-level and DY mutations are disabled. This is not supported.");
             return ExitCode::FAILURE;
         }
 
-        if with_bit_level {
+        if without_bit_level {
             config.mutation_config.with_bit_level = false;
         }
         if without_dy_mutations {
