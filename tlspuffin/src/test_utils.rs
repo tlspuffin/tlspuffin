@@ -27,8 +27,8 @@ use crate::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put_registry::tls_registry;
 use crate::tls::fn_impl::{
     fn_certificate_transcript, fn_client_finished_transcript, fn_decrypt_application,
-    fn_decrypt_multiple_handshake_messages, fn_heartbeat_fake_length,
-    fn_server_finished_transcript, fn_server_hello_transcript,
+    fn_decrypt_multiple_handshake_messages, fn_server_finished_transcript,
+    fn_server_hello_transcript,
 };
 use crate::tls::seeds::seed_successful;
 use crate::tls::TLS_SIGNATURE;
@@ -286,7 +286,6 @@ pub fn ignore_gen() -> HashSet<String> {
         fn_client_finished_transcript.name(),
         fn_server_hello_transcript.name(),
         fn_certificate_transcript.name(),
-        fn_heartbeat_fake_length.name(),
     ]
     .iter()
     .map(|fn_name| fn_name.to_string())
