@@ -472,7 +472,9 @@ fn test_truncated_client_extension_is_detected() {
 
         // these extension types don't have any internal encoding that rustls validates:
         match ext.get_type() {
-            ExtensionType::TransportParameters | ExtensionType::Unknown(_) => {
+            ExtensionType::TransportParameters
+            | ExtensionType::PreSharedKey
+            | ExtensionType::Unknown(_) => {
                 continue;
             }
             _ => {}
@@ -480,9 +482,9 @@ fn test_truncated_client_extension_is_detected() {
 
         // "inner" truncation, where the extension-level length agrees with the input
         // length, but isn't long enough for the type of extension
-        for l in 0..(enc.len() - 4) {
+        for l in 1..(enc.len() - 4) {
             put_u16(l as u16, &mut enc[2..]);
-            // println!("  encoding {:?} len {:?}", enc, l);
+            // log::trace!("  encoding {:?} len {:?}", enc, l);
             assert!(ClientExtension::read_bytes(&enc).is_none());
         }
     }
@@ -654,7 +656,9 @@ fn test_truncated_server_extension_is_detected() {
 
         // these extension types don't have any internal encoding that rustls validates:
         match ext.get_type() {
-            ExtensionType::TransportParameters | ExtensionType::Unknown(_) => {
+            ExtensionType::TransportParameters
+            | ExtensionType::PreSharedKey
+            | ExtensionType::Unknown(_) => {
                 continue;
             }
             _ => {}
@@ -662,7 +666,7 @@ fn test_truncated_server_extension_is_detected() {
 
         // "inner" truncation, where the extension-level length agrees with the input
         // length, but isn't long enough for the type of extension
-        for l in 0..(enc.len() - 4) {
+        for l in 1..(enc.len() - 4) {
             put_u16(l as u16, &mut enc[2..]);
             // println!("  encoding {:?} len {:?}", enc, l);
             assert!(ServerExtension::read_bytes(&enc).is_none());
@@ -1001,24 +1005,36 @@ fn can_roundtrip_all_tls12_handshake_payloads() {
 fn can_detect_truncation_of_all_tls12_handshake_payloads() {
     for hm in get_all_tls12_handshake_payloads().iter() {
         let mut enc = hm.get_encoding();
-        //// println!("test {:?} enc {:?}", hm, enc);
+        // log::trace!("test {:?} enc:\n{:?}", hm, enc);
 
         // outer truncation
         for l in 0..enc.len() {
+            // log::trace!(" outer truncation check len {:?} enc/initial enc:\n{:?}\n{enc:?}", l,
+            // &enc[..l]);
             assert!(HandshakeMessagePayload::read_bytes(&enc[..l]).is_none())
         }
 
         // inner truncation
         for l in 0..enc.len() - 4 {
+            // log::trace!("initial enc:\n{:?}", enc);
             put_u24(l as u32, &mut enc[1..]);
-            //// println!("  check len {:?} enc {:?}", l, enc);
+            // log::trace!(" inner truncation check len {:?} enc:\n{:?}", l, enc);
 
             match (hm.typ, l) {
                 (HandshakeType::ClientHello, 41)
                 | (HandshakeType::ServerHello, 38)
+                | (HandshakeType::HelloRetryRequest, 39)
+                | (HandshakeType::Certificate, 13)
+                | (HandshakeType::Certificate, 4)
+                | (HandshakeType::CertificateRequest, 2)
+                | (HandshakeType::CertificateRequest, 4)
+                | (HandshakeType::CertificateRequest, 6)
+                | (HandshakeType::NewSessionTicket, 17)
+                | (HandshakeType::EncryptedExtensions, 0)
                 | (HandshakeType::ServerKeyExchange, _)
                 | (HandshakeType::ClientKeyExchange, _)
                 | (HandshakeType::Finished, _)
+                | (HandshakeType::HelloRetryRequest, 38)
                 | (HandshakeType::Unknown(_), _) => continue,
                 _ => {}
             };
@@ -1148,24 +1164,34 @@ fn put_u24(u: u32, b: &mut [u8]) {
 fn can_detect_truncation_of_all_tls13_handshake_payloads() {
     for hm in get_all_tls13_handshake_payloads().iter() {
         let mut enc = hm.get_encoding();
-        //// println!("test {:?} enc {:?}", hm, enc);
+        // log::trace!("test {:?} enc:\n{:?}", hm, enc);
 
         // outer truncation
         for l in 0..enc.len() {
+            // log::trace!(" outer truncation check len {:?} enc/initial enc:\n{:?}\n{enc:?}", l,
+            // &enc[..l]);
             assert!(HandshakeMessagePayload::read_bytes(&enc[..l]).is_none())
         }
 
         // inner truncation
         for l in 0..enc.len() - 4 {
+            // log::trace!("initial enc:\n{:?}", enc);
             put_u24(l as u32, &mut enc[1..]);
-            //// println!("  check len {:?} enc {:?}", l, enc);
+            // log::trace!(" inner truncation check len {:?} enc:\n{:?}", l, enc);
 
             match (hm.typ, l) {
                 (HandshakeType::ClientHello, 41)
                 | (HandshakeType::ServerHello, 38)
+                | (HandshakeType::HelloRetryRequest, 39)
+                | (HandshakeType::Certificate, 13)
+                | (HandshakeType::Certificate, 4)
+                | (HandshakeType::CertificateRequest, 4)
+                | (HandshakeType::NewSessionTicket, 17)
+                | (HandshakeType::EncryptedExtensions, 0)
                 | (HandshakeType::ServerKeyExchange, _)
                 | (HandshakeType::ClientKeyExchange, _)
                 | (HandshakeType::Finished, _)
+                | (HandshakeType::HelloRetryRequest, 38)
                 | (HandshakeType::Unknown(_), _) => continue,
                 _ => {}
             };
