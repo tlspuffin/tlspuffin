@@ -157,6 +157,7 @@ pub fn seed_successful_client_auth(
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -196,6 +197,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TLSProtoco
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -247,6 +249,7 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TLSPr
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -394,6 +397,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProto
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -441,6 +445,7 @@ pub fn seed_successful12_forward(client: AgentName, server: AgentName) -> Trace<
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -550,6 +555,7 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -778,6 +784,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -941,6 +948,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -1017,6 +1025,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
             },
             OutputAction::new_step(server),
         ],
+        ..Default::default()
     }
 }
 
@@ -1161,6 +1170,7 @@ pub fn _seed_client_attacker12(
                 }),
             },
         ],
+        ..Default::default()
     };
 
     (trace, client_verify_data)
@@ -1300,6 +1310,7 @@ pub fn seed_session_resumption_dhe(
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -1438,6 +1449,7 @@ pub fn seed_session_resumption_ke(
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -1621,6 +1633,7 @@ pub fn _seed_client_attacker_full(
             // },
             // OutputAction::new_step(server),
         ],
+        ..Default::default()
     };
 
     (
@@ -1805,6 +1818,7 @@ pub fn _seed_client_attacker_full_precomputation(
             },
             OutputAction::new_step(server),
         ],
+        ..Default::default()
     };
 
     (
@@ -2012,6 +2026,7 @@ pub fn seed_session_resumption_dhe_full(
                 }),
             },*/
         ],
+        ..Default::default()
     }
 }
 

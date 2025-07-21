@@ -10,34 +10,34 @@ use nix::unistd::{fork, ForkResult, Pid};
 use crate::error::Error;
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
-use crate::trace::{Spawner, Trace, TraceContext};
+use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 
-pub trait TraceRunner {
+pub trait TraceRunner: Sized {
     type PB: ProtocolBehavior;
     type R;
     type E;
 
     fn execute<T>(self, trace: T, executed_until: &mut usize) -> Result<Self::R, Self::E>
     where
-        Self: Sized,
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
     {
-        self.execute_config(trace, true, executed_until)
+        Self::execute_config(self, trace, ConfigTrace::default(), executed_until)
     }
 
     fn execute_config<T>(
         self,
         trace: T,
-        with_reseed: bool,
+        config_trace: ConfigTrace,
         executed_until: &mut usize,
     ) -> Result<Self::R, Self::E>
     where
+        Self: Sized,
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>;
 }
 
 #[derive(Debug, Clone)]
 pub struct Runner<PB: ProtocolBehavior> {
-    registry: PutRegistry<PB>,
+    pub registry: PutRegistry<PB>,
     spawner: Spawner<PB>,
 }
 
@@ -58,18 +58,18 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
     fn execute_config<T>(
         self,
         trace: T,
-        with_reseed: bool,
+        config_trace: ConfigTrace,
         executed_until: &mut usize,
     ) -> Result<Self::R, Self::E>
     where
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
     {
-        if with_reseed {
+        if config_trace.with_reseed {
             // We reseed all PUTs before executing a trace!
             self.registry.determinism_reseed_all_factories();
         }
 
-        let mut ctx = TraceContext::new(self.spawner.clone());
+        let mut ctx = TraceContext::new_config(self.spawner.clone(), config_trace);
         trace.as_ref().execute(&mut ctx, &mut 0).map_err(|e| {
             *executed_until = ctx.executed_until;
             e
@@ -116,7 +116,7 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
     fn execute_config<Tr>(
         self,
         trace: Tr,
-        with_reseed: bool,
+        config_trace: ConfigTrace,
         executed_until: &mut usize,
     ) -> Result<Self::R, Self::E>
     where
@@ -126,7 +126,7 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
 
         run_in_subprocess(
             || {
-                let ret = match runner.execute_config(trace, with_reseed, executed_until) {
+                let ret = match runner.execute_config(trace, config_trace, executed_until) {
                     Ok(_) => 0,
                     Err(_) => 1,
                 };
