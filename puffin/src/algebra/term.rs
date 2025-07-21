@@ -1,10 +1,10 @@
 //! This module provides[`DYTerm`]sas well as iterators over them.
 
 use std::fmt;
+use std::fmt::Debug;
 use std::hash::Hash;
 
 use itertools::Itertools;
-use libafl::inputs::BytesInput;
 use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
@@ -55,6 +55,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn display_at_depth(&self, depth: usize) -> String;
     fn is_symbolic(&self) -> bool;
     fn make_symbolic(&mut self); // remove all payloads
+    fn get(&self, path: &[usize]) -> Result<&Self, Error>;
 
     /// Evaluate terms into `ConcreteMessage` and `EvaluatedTerm` (considering Payloads or not
     /// depending on `with_payloads`) With `with_payloads, the returned `EvaluatedTerm` is
@@ -599,6 +600,29 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
 
     fn make_symbolic(&mut self) {
         self.erase_payloads_subterms(true); // true as we also want to remove payloads at top-level
+    }
+
+    fn get(&self, path: &[usize]) -> Result<&Self, Error> {
+        if path.is_empty() {
+            return Ok(self);
+        }
+        match &self.term {
+            DYTerm::Variable(_) => {
+                return Err(Error::TermBug(format!(
+                    "--> [get] Should never happen! self.args.len() <= nb. Term: {self}\n, path: {path:?}"
+                )))
+            }
+            DYTerm::Application(_, args) => {
+                let nb = path[0];
+                let path = &path[1..];
+                if args.len() <= nb {
+                    return Err(Error::TermBug(format!(
+                        "--> [get] Should never happen! self.args.len() <= nb. Term: {self}\n, path: {path:?}"
+                    )));
+                }
+                args[nb].get(path)
+            }
+        }
     }
 }
 
