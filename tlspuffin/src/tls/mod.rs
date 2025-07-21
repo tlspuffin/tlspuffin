@@ -101,7 +101,7 @@ define_signature!(
     fn_encrypted_extensions // Just a wrapper, not encrypting per se
     fn_finished
     fn_heartbeat
-    fn_heartbeat_fake_length// TODO: Was [get] but that was an error. TO TEST
+    // fn_heartbeat_fake_length // Now subsumed by bit-level mutations
     fn_hello_request
     fn_hello_retry_request
     fn_hello_retry_request_random

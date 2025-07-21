@@ -27,8 +27,8 @@ use crate::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put_registry::tls_registry;
 use crate::tls::fn_impl::{
     fn_certificate_transcript, fn_client_finished_transcript, fn_decrypt_application,
-    fn_decrypt_multiple_handshake_messages, fn_heartbeat_fake_length,
-    fn_server_finished_transcript, fn_server_hello_transcript,
+    fn_decrypt_multiple_handshake_messages, fn_server_finished_transcript,
+    fn_server_hello_transcript,
 };
 use crate::tls::seeds::seed_successful;
 use crate::tls::TLS_SIGNATURE;
@@ -307,20 +307,6 @@ pub fn ignore_eval() -> HashSet<String> {
     .collect::<HashSet<String>>();
     ignore_gen.extend(ignore_eval);
     ignore_gen
-}
-
-/// Functions that are known to fail to be read/encoded
-pub fn ignore_read() -> HashSet<String> {
-    let mut ignore_eval = ignore_eval();
-    let ignore_read = [
-        // Cannot read/encode size-cheating function sybols
-        fn_heartbeat_fake_length.name(),
-    ]
-    .iter()
-    .map(|fn_name| fn_name.to_string())
-    .collect::<HashSet<String>>();
-    ignore_eval.extend(ignore_read);
-    ignore_eval
 }
 
 /// Functions that are flagged to fail to be adversarially generated and evaluated according to the
