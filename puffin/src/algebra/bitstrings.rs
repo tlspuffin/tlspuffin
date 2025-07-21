@@ -18,8 +18,8 @@ const THRESHOLD_RATIO: usize = 100; // maximum ratio for root_eval/too_search fo
 /// `TermMetadata` stores some metadata about terms.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PayloadMetadata {
-    pub(crate) readable: bool,
-    pub(crate) has_changed: bool, // true when payload has been modified at least once
+    pub(crate) readable: bool, // true when the payload is readable and whole term should be read
+    pub(crate) has_changed: bool, // true when the payload has been modified at least once
 }
 
 impl Default for PayloadMetadata {
