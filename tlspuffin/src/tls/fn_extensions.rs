@@ -625,41 +625,41 @@ pub fn fn_transport_parameters_draft_server_extension(
 pub fn fn_unknown_client_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
-        payload: Payload::new([42; 7000]),
+        payload: Payload::new([42; 10]),
     }))
 }
 
 pub fn fn_unknown_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
-        payload: Payload::new([42; 7000]),
+        payload: Payload::new([42; 10]),
     }))
 }
 
 pub fn fn_unknown_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
     Ok(HelloRetryExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
-        payload: Payload::new([42; 7000]),
+        payload: Payload::new([42; 10]),
     }))
 }
 
 pub fn fn_unknown_cert_request_extension() -> Result<CertReqExtension, FnError> {
     Ok(CertReqExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
-        payload: Payload::new([42; 7000]),
+        payload: Payload::new([42; 10]),
     }))
 }
 
 pub fn fn_unknown_new_session_ticket_extension() -> Result<NewSessionTicketExtension, FnError> {
     Ok(NewSessionTicketExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
-        payload: Payload::new([42; 7000]),
+        payload: Payload::new([42; 10]),
     }))
 }
 
 pub fn fn_unknown_certificate_extension() -> Result<CertificateExtension, FnError> {
     Ok(CertificateExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
-        payload: Payload::new([42; 7000]),
+        payload: Payload::new([42; 10]),
     }))
 }
