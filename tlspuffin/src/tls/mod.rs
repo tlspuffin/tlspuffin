@@ -255,6 +255,7 @@ define_signature!(
     fn_named_group_secp384r1
     fn_named_group_x25519
     fn_u64_to_u32 [get]
+    fn_u32_to_u16 [get]
     fn_payload_u8
     fn_payload_u16
     fn_payload_u24
