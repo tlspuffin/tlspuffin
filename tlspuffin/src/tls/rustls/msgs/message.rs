@@ -426,16 +426,11 @@ macro_rules! try_read {
       {
       if $ti == TypeId::of::<$T>() {
         log::trace!("Type match TypeID {:?}...!", core::any::type_name::<$T>());
-        <$T>::read_bytes($bitstring).ok_or({
-            //     log::debug!("[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
-            //     core::any::type_name::<$T>(),
-            //     & $bitstring
-            // );
-            Term(format!(
+        <$T>::read_bytes($bitstring).ok_or(Term(format!(
                 "[try_read_bytes] Failed to read to type {:?} the bitstring {:?}",
                 core::any::type_name::<$T>(),
                 & $bitstring
-            ))}).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
+            ))).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
       } else {
         try_read!($bitstring, $ti, $($Ts),+)
       }
@@ -452,7 +447,7 @@ macro_rules! try_read {
                 &$bitstring
             )).into()).map(|v| Box::new(v) as Box<dyn EvaluatedTerm<TLSProtocolTypes>>)
         } else {
-                // log::debug!("Failed to find a suitable type with typeID {:?} to read the bitstring {:?}", $ti, &$bitstring);
+                log::warn!("Failed to find a suitable type with typeID {:?} to read the bitstring {:?}", $ti, &$bitstring);
                 Err(TermBug(format!(
                     "[try_read_bytes] Failed to find a suitable type with typeID {:?} to read the bitstring {:?}",
                     $ti,
@@ -478,7 +473,7 @@ pub fn try_read_bytes(
         bitstring,
         ty,
         // We list all the types that have the Codec trait and that can be the type of a rustls
-        // messagefn_key_share_extension
+        // message
         // The uni-test `term_zoo::test_term_read_encode` tests this is exhaustive for the TLS
         // signature at least
         Message,
