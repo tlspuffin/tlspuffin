@@ -125,6 +125,7 @@ define_signature!(
     fn_hello_retry_extensions_append [list]
     fn_cert_req_extensions_new [list]
     fn_cert_req_extensions_append [list]
+    fn_cert_extensions_make
     fn_cert_extensions_new [list]
     fn_cert_extensions_append [list]
     fn_new_session_ticket_extensions_new [list]
@@ -234,6 +235,8 @@ define_signature!(
     fn_psk
     fn_decrypt_application [opaque] [no_gen]
     fn_encrypt_handshake [opaque]
+    fn_encrypt_handshake [opaque]
+    fn_encrypt_handshake [opaque]
     fn_encrypt_application [opaque]
     fn_derive_psk [opaque]
     fn_derive_binder [opaque]
@@ -249,8 +252,6 @@ define_signature!(
     fn_new_certificate
     fn_new_certificates [list]
     fn_append_certificate [list]
-    fn_new_certificate_entries
-    fn_append_certificate_entry [list]
     fn_named_group_secp384r1
     fn_named_group_x25519
     fn_u64_to_u32 [get]
@@ -276,9 +277,10 @@ define_signature!(
     fn_eve_cert
     fn_random_ec_cert
     fn_random_ec_key
-    fn_certificate_entry
+    fn_certificate_entry_extensions
     fn_empty_certificate_chain
     fn_new_certificate_entries [list]
+    fn_append_certificate_entries [list]
     fn_certificate_entries_make
     fn_chain_append_certificate_entry [list]
     fn_get_context [get]

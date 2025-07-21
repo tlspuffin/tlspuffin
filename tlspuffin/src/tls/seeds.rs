@@ -641,11 +641,14 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
             (fn_payload_u8((fn_empty_bytes_vec))),
             (fn_certificate_entries_make(
                 (fn_chain_append_certificate_entry(
-                (fn_certificate_entry(
-                    fn_alice_cert
-                )),
-              fn_empty_certificate_chain
+                  fn_empty_certificate_chain,
+                  (fn_certificate_entry_extensions(
+                    fn_alice_cert,
+                    (fn_cert_extensions_make(
+                        fn_cert_extensions_new
+                    ))
             ))))
+            ))
         )
     };
 
@@ -842,10 +845,13 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
             (fn_payload_u8((fn_get_context((@certificate_request_message))))),
             (fn_certificate_entries_make(
             (fn_chain_append_certificate_entry(
-                (fn_certificate_entry(
-                    fn_bob_cert
-                )),
-              fn_empty_certificate_chain
+                fn_empty_certificate_chain,
+                (fn_certificate_entry_extensions(
+                    fn_bob_cert,
+                    (fn_cert_extensions_make(
+                        fn_cert_extensions_new
+                    ))
+                ))
             ))))
         )
     };
