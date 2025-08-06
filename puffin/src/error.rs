@@ -1,6 +1,7 @@
 use std::{fmt, io};
 
 use crate::algebra::error::FnError;
+use crate::differential::TraceDifference;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
@@ -24,6 +25,8 @@ pub enum Error {
     Stream(String),
     Extraction(),
     SecurityClaim(&'static str),
+    /// There is a difference between two PUT in differential fuzzing
+    Difference(Vec<TraceDifference>),
 }
 
 impl std::error::Error for Error {}
@@ -38,13 +41,24 @@ impl fmt::Display for Error {
                 f,
                 "error encoding/reading an EvaluatedTerm/bitstring: {err}"
             ),
-            Self::Put(err) => write!(f, "error in openssl: {err}"),
-            Self::IO(err) => write!(f, "error in io of openssl (this should not happen): {err}"),
+            Self::Put(err) => write!(f, "error in PUT : {err}"),
+            Self::IO(err) => write!(f, "error in io of PUT (this should not happen): {err}"),
             Self::Agent(err) => write!(f, "error regarding an agent: {err}"),
             Self::Stream(err) => write!(f, "error in the stream: {err}"),
             Self::Extraction() => write!(f, "error while extracting variable",),
             Self::SecurityClaim(msg) => {
                 write!(f, "error because a security violation occurred. msg: {msg}")
+            }
+            Error::Difference(diffs) => {
+                write!(
+                    f,
+                    "difference between two PUTs :\n{}",
+                    diffs
+                        .iter()
+                        .map(|x| x.to_string())
+                        .collect::<Vec<String>>()
+                        .join("\n")
+                )
             }
         }
     }
