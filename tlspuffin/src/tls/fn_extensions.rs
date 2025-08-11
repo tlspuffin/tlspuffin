@@ -207,9 +207,26 @@ nyi_fn! {
     /// CertificateType => 0x0009,
 }
 /// EllipticCurves => 0x000a,
-pub fn fn_support_group_extension(group: &NamedGroup) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::NamedGroups(NamedGroups(vec![*group])))
+pub fn fn_support_group_extension_make(
+    groups: &Vec<NamedGroup>,
+) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::NamedGroups(NamedGroups(groups.clone())))
 }
+
+pub fn fn_support_group_extension_new() -> Result<Vec<NamedGroup>, FnError> {
+    Ok(vec![])
+}
+
+pub fn fn_support_group_extension_append(
+    groups: &Vec<NamedGroup>,
+    group: &NamedGroup,
+) -> Result<Vec<NamedGroup>, FnError> {
+    let mut new_groups = groups.clone();
+    new_groups.push(group.clone());
+
+    Ok(new_groups)
+}
+
 // ECPointFormats => 0x000b,
 pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::ECPointFormats(ECPointFormatList(vec![

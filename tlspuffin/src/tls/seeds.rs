@@ -800,7 +800,12 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            (fn_support_group_extension(fn_named_group_secp384r1))
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
                         )),
                         fn_signature_algorithm_extension
                     )),
@@ -962,7 +967,12 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            (fn_support_group_extension(fn_named_group_secp384r1))
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
                         )),
                         fn_signature_algorithm_extension
                     )),
@@ -1047,7 +1057,12 @@ pub fn _seed_client_attacker12(
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
                                     fn_client_extensions_new,
-                                    (fn_support_group_extension(fn_named_group_secp384r1))
+                                    (fn_support_group_extension_make(
+                                        (fn_support_group_extension_append(
+                                            fn_support_group_extension_new,
+                                            fn_named_group_secp384r1
+                                        ))
+                                    ))
                                 )),
                                 fn_signature_algorithm_extension
                             )),
@@ -1210,7 +1225,12 @@ pub fn seed_session_resumption_dhe(
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
                                     fn_client_extensions_new,
-                                    (fn_support_group_extension(fn_named_group_secp384r1))
+                                    (fn_support_group_extension_make(
+                                        (fn_support_group_extension_append(
+                                            fn_support_group_extension_new,
+                                            fn_named_group_secp384r1
+                                        ))
+                                    ))
                                 )),
                                 fn_signature_algorithm_extension
                             )),
@@ -1348,7 +1368,12 @@ pub fn seed_session_resumption_ke(
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
                                     fn_client_extensions_new,
-                                    (fn_support_group_extension(fn_named_group_secp384r1))
+                                    (fn_support_group_extension_make(
+                                        (fn_support_group_extension_append(
+                                            fn_support_group_extension_new,
+                                            fn_named_group_secp384r1
+                                        ))
+                                    ))
                                 )),
                                 fn_signature_algorithm_extension
                             )),
@@ -1471,7 +1496,12 @@ pub fn _seed_client_attacker_full(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            (fn_support_group_extension(fn_named_group_secp384r1))
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
                         )),
                         fn_signature_algorithm_extension
                     )),
@@ -1659,7 +1689,12 @@ pub fn _seed_client_attacker_full_precomputation(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            (fn_support_group_extension(fn_named_group_secp384r1))
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
                         )),
                         fn_signature_algorithm_extension
                     )),
@@ -1862,7 +1897,12 @@ pub fn seed_session_resumption_dhe_full(
                             (fn_client_extensions_append(
                                 (fn_client_extensions_append(
                                     fn_client_extensions_new,
-                                    (fn_support_group_extension(fn_named_group_secp384r1))
+                                    (fn_support_group_extension_make(
+                                        (fn_support_group_extension_append(
+                                            fn_support_group_extension_new,
+                                            fn_named_group_secp384r1
+                                        ))
+                                    ))
                                 )),
                                 fn_signature_algorithm_extension
                             )),
