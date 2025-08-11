@@ -33,7 +33,12 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            (fn_support_group_extension(fn_named_group_secp384r1))
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
                         )),
                         fn_signature_algorithm_extension
                     )),
@@ -201,7 +206,12 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            (fn_support_group_extension(fn_named_group_secp384r1))
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
                         )),
                         fn_signature_algorithm_extension
                     )),
@@ -338,7 +348,12 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
                         (fn_client_extensions_append(
                             (fn_client_extensions_append(
                                 fn_client_extensions_new,
-                                (fn_support_group_extension(fn_named_group_secp384r1))
+                                (fn_support_group_extension_make(
+                                    (fn_support_group_extension_append(
+                                        fn_support_group_extension_new,
+                                        fn_named_group_secp384r1
+                                    ))
+                                ))
                             )),
                             fn_ec_point_formats_extension
                         )),
@@ -410,7 +425,12 @@ pub fn seed_heartbleed(client: AgentName, server: AgentName) -> Trace<TLSProtoco
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         fn_client_extensions_new,
-                        (fn_support_group_extension(fn_named_group_secp384r1))
+                        (fn_support_group_extension_make(
+                            (fn_support_group_extension_append(
+                                fn_support_group_extension_new,
+                                fn_named_group_secp384r1
+                            ))
+                        ))
                     )),
                     fn_ec_point_formats_extension
                 )),
@@ -554,7 +574,12 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                            (fn_support_group_extension(fn_named_group_secp384r1))
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
                         )),
                         fn_signature_algorithm_extension
                     )),

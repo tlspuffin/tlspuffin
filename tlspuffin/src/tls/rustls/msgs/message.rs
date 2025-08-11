@@ -418,6 +418,7 @@ impl VecCodecWoSize for Certificate {} // u24, no need?
 impl VecCodecWoSize for CertificateEntry {} // u24
 impl VecCodecWoSize for CipherSuite {} // u16
 impl VecCodecWoSize for PresharedKeyIdentity {} //u16
+impl VecCodecWoSize for NamedGroup {} //u16
 
 #[macro_export]
 macro_rules! try_read {
@@ -530,6 +531,7 @@ pub fn try_read_bytes(
         VecU16OfPayloadU8,
         Vec<u8>,
         Option<Vec<u8>>,
+        Vec<NamedGroup>,
         Vec<Vec<u8>>,
         bool,
         // Option<Vec<Vec<u8>>>,
