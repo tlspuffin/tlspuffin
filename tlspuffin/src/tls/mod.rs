@@ -251,6 +251,7 @@ define_signature!(
     fn_append_certificate [list]
     fn_new_certificate_entries
     fn_append_certificate_entry [list]
+    fn_named_group_secp256r1
     fn_named_group_secp384r1
     fn_named_group_x25519
     fn_u64_to_u32
