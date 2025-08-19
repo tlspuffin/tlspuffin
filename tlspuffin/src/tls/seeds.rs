@@ -781,6 +781,226 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace<TLSProtocolTypes> {
+    let curve = term! {
+        fn_get_any_client_curve(
+            ((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+        )
+    };
+
+    let server_hrr = term! {
+        fn_hello_retry_request(
+            fn_protocol_version12,
+            fn_hello_retry_request_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite13_aes_128_gcm_sha256,
+            fn_compressions,
+            (fn_hello_retry_extensions_make(
+                (fn_hello_retry_extensions_append(
+                    (fn_hello_retry_extensions_append(
+                        fn_hello_retry_extensions_new,
+                    fn_supported_versions13_hello_retry_extension
+                    )),
+                    // ask the client to use P384 curve for the second client hello
+                    (fn_key_share_hello_retry_extension(fn_named_group_secp384r1))
+                ))
+            ))
+        )
+    };
+
+    let server_hello = term! {
+          fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite13_aes_128_gcm_sha256,
+            fn_compression,
+            (fn_server_extensions_make(
+              (fn_server_extensions_append(
+                  (fn_server_extensions_append(
+                      fn_server_extensions_new,
+                      (fn_key_share_deterministic_server_extension((@curve)))
+                  )),
+                  fn_supported_versions13_server_extension
+            ))))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                (fn_append_transcript(
+                    // Compute the hash of the first Client Hello and add the hash in a new transcript buffer
+                    // see RFC 8446 section 4.4.1
+                    (fn_new_hrr_transcript(((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]))),
+                    (@server_hrr)
+                )),
+                ((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+            )),
+            (@server_hello)
+        )
+    };
+
+    let encrypted_extensions = term! {
+        fn_encrypted_extensions(
+            fn_server_extensions_new
+        )
+    };
+
+    let certificate = term! {
+        fn_certificate13(
+            (fn_payload_u8((fn_empty_bytes_vec))),
+            (fn_certificate_entries_make(
+                (fn_chain_append_certificate_entry(
+                (fn_certificate_entry(
+                    fn_alice_cert
+                )),
+              fn_empty_certificate_chain
+            ))))
+        )
+    };
+
+    let encrypted_extensions_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@encrypted_extensions) // plaintext EncryptedExtensions
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@encrypted_extensions_transcript),
+            (@certificate) // plaintext Certificate
+        )
+    };
+
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_rsa_pss_signature_algorithm,
+            (fn_payload_u16(
+                (fn_rsa_sign_server(
+                    (@certificate_transcript),
+                    fn_alice_key,
+                    fn_rsa_pss_signature_algorithm
+                ))
+            ))
+        )
+    };
+
+    let certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@certificate_transcript),
+            (@certificate_verify) // plaintext CertificateVerify
+        )
+    };
+
+    let server_finished = term! {
+        fn_finished(
+            (fn_verify_data_server(
+                (@certificate_verify_transcript),
+                //(fn_server_finished_transcript(((client, 0)))),
+                (@server_hello_transcript),
+                (fn_get_client_key_share(((client, 1)), (@curve))),
+                (@curve),
+                fn_no_psk,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            ))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Client,
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(client),
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hrr }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hello }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@encrypted_extensions),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 1)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_0,  // sequence 0
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@certificate),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 1)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_1,  // sequence 1
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@certificate_verify),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 1)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_2,  // sequence 2
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt_handshake(
+                            (@server_finished),
+                            (@server_hello_transcript),
+                            (fn_get_client_key_share(((client, 1)), (@curve))),
+                            fn_no_psk,
+                            (@curve),
+                            fn_false,
+                            fn_seq_3,  // sequence 3
+                            fn_new_random,
+                            fn_cipher_suite13_aes_128_gcm_sha256
+                        )
+                    }
+                }),
+            },
+        ],
+    }
+}
+
 // TODO: `BAD_SIGNATURE` error with BoringSSL
 pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
     let client_hello = term! {
@@ -2096,6 +2316,7 @@ pub fn create_corpus(
         seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption"),
         // Server Attackers
         seed_server_attacker_full: put.supports("tls13"),
+        seed_server_attacker_with_hello_retry_request : put.supports("tls13")
     )
 }
 
@@ -2172,6 +2393,16 @@ pub mod tests {
     fn test_seed_server_attacker_full(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker_full.build_trace();
+
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+
+        assert!(ctx.agents_successful());
+    }
+
+    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    fn test_seed_server_attacker_with_hello_retry_request(put: &str) {
+        let runner = default_runner_for(put);
+        let trace = seed_server_attacker_with_hello_retry_request.build_trace();
 
         let ctx = runner.execute(trace, &mut 0).unwrap();
 
