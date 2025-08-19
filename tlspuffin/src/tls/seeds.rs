@@ -2280,6 +2280,21 @@ pub fn seed_session_resumption_dhe_full(
     }
 }
 
+fn decrypt_handshake_from_claims() -> Term<TLSProtocolTypes> {
+    let server = AgentName::first();
+    term! {
+            fn_decrypt_handshake_flight(
+                ((server, 0)/MessageFlight),
+                (fn_server_hello_transcript(((server,0)))),
+                (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+                fn_no_psk,
+                fn_named_group_secp384r1,
+                fn_true,
+                fn_seq_0  // sequence 0
+            )
+    }
+}
+
 macro_rules! corpus {
     () => {
         vec![]

@@ -1,5 +1,6 @@
 use std::{collections, fmt};
 
+use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
@@ -19,7 +20,7 @@ use crate::tls::rustls::{key, rand};
 
 macro_rules! declare_u8_vec (
   ($name:ident, $itemtype:ty) => {
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable, PartialEq)]
     pub struct $name(pub Vec<$itemtype>);
 
     atom_extract_knowledge!(TLSProtocolTypes, $name);
@@ -38,7 +39,7 @@ macro_rules! declare_u8_vec (
 
 macro_rules! declare_u16_vec (
   ($name:ident, $itemtype:ty) => {
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable, PartialEq)]
     pub struct $name(pub Vec<$itemtype>);
 
     impl Extractable<TLSProtocolTypes> for $name {
@@ -75,7 +76,7 @@ macro_rules! declare_u16_vec (
 
 macro_rules! declare_u16_vec_empty (
   ($name:ident, $itemtype:ty) => {
-    #[derive(Debug, Clone, Extractable)]
+    #[derive(Debug, Clone, Extractable, Comparable)]
     #[extractable(TLSProtocolTypes)]
     pub struct $name(pub Vec<$itemtype>);
 
@@ -100,7 +101,7 @@ macro_rules! declare_u16_vec_empty (
 
 macro_rules! declare_u24_vec_limited (
   ($name:ident, $itemtype:ty) => {
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct $name(pub Vec<$itemtype>);
 
     atom_extract_knowledge!(TLSProtocolTypes, $name);
@@ -120,7 +121,7 @@ macro_rules! declare_u24_vec_limited (
 declare_u16_vec!(VecU16OfPayloadU8, PayloadU8);
 declare_u16_vec!(VecU16OfPayloadU16, PayloadU16);
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Comparable)]
 pub struct Random(pub [u8; 32]);
 
 static ZERO_RANDOM: Random = Random([0u8; 32]);
@@ -159,9 +160,11 @@ impl From<[u8; 32]> for Random {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Comparable)]
 pub struct SessionID {
+    #[comparable_ignore]
     len: usize,
+    #[comparable_ignore]
     data: [u8; 32],
 }
 
@@ -232,10 +235,11 @@ impl SessionID {
     }
 }
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(TLSProtocolTypes)]
 pub struct UnknownExtension {
     pub typ: ExtensionType,
+    #[comparable_ignore]
     pub payload: Payload,
 }
 
@@ -305,7 +309,7 @@ impl DecomposedSignatureScheme for SignatureScheme {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum ServerNamePayload {
     // Stored twice, bytes so we can round-trip, and DnsName for use
     HostName((PayloadU16, webpki::DnsName)),
@@ -344,12 +348,13 @@ impl ServerNamePayload {
     }
 }
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(TLSProtocolTypes)]
 pub struct ServerName {
     #[extractable_ignore]
     pub typ: ServerNameType,
     #[extractable_ignore]
+    #[comparable_ignore]
     pub payload: ServerNamePayload,
 }
 
@@ -441,10 +446,11 @@ impl ConvertProtocolNameList for ProtocolNameList {
 }
 
 // --- TLS 1.3 Key shares ---
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(TLSProtocolTypes)]
 pub struct KeyShareEntry {
     pub group: NamedGroup,
+    #[comparable_ignore]
     pub payload: PayloadU16,
 }
 
@@ -472,9 +478,11 @@ impl codec::Codec for KeyShareEntry {
 }
 
 // --- TLS 1.3 PresharedKey offers ---
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct PresharedKeyIdentity {
+    #[comparable_ignore]
     pub identity: PayloadU16,
+    #[comparable_ignore]
     pub obfuscated_ticket_age: u32,
 }
 
@@ -505,7 +513,7 @@ declare_u16_vec!(PresharedKeyIdentities, PresharedKeyIdentity);
 pub type PresharedKeyBinder = PayloadU8;
 pub type PresharedKeyBinders = VecU16OfPayloadU8;
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, PartialEq, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct PresharedKeyOffer {
     #[extractable_ignore]
@@ -541,9 +549,11 @@ impl codec::Codec for PresharedKeyOffer {
 // --- RFC6066 certificate status request ---
 type ResponderIDs = VecU16OfPayloadU16;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Comparable)]
 pub struct OCSPCertificateStatusRequest {
+    #[comparable_ignore]
     pub responder_ids: ResponderIDs,
+    #[comparable_ignore]
     pub extensions: PayloadU16,
 }
 
@@ -562,7 +572,7 @@ impl codec::Codec for OCSPCertificateStatusRequest {
     }
 }
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, PartialEq, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub enum CertificateStatusRequest {
     OCSP(#[extractable_ignore] OCSPCertificateStatusRequest),
@@ -617,10 +627,10 @@ declare_u8_vec!(PSKKeyExchangeModes, PSKKeyExchangeMode);
 declare_u16_vec!(KeyShareEntries, KeyShareEntry);
 declare_u8_vec!(ProtocolVersions, ProtocolVersion);
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, PartialEq, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub enum ClientExtension {
-    ECPointFormats(ECPointFormatList),
+    ECPointFormats(#[comparable_ignore] ECPointFormatList),
     NamedGroups(NamedGroups),
     SignatureAlgorithms(SupportedSignatureSchemes),
     ServerName(ServerNameRequest),
@@ -800,16 +810,16 @@ impl ClientExtension {
     }
 }
 
-#[derive(Clone, Debug, Extractable)]
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(TLSProtocolTypes)]
 pub enum ClientSessionTicket {
     Request,
     Offer(#[extractable_ignore] Payload),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Comparable)]
 pub enum ServerExtension {
-    ECPointFormats(ECPointFormatList),
+    ECPointFormats(#[comparable_ignore] ECPointFormatList),
     ServerNameAck,
     SessionTicketAck,
     RenegotiationInfo(PayloadU8),
@@ -938,14 +948,25 @@ declare_u16_vec_empty!(ClientExtensions, ClientExtension);
 declare_u16_vec!(CipherSuites, CipherSuite);
 declare_u8_vec!(Compressions, Compression);
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct ClientHelloPayload {
+    #[comparable_synthetic {
+        let sorted_cipher_suites = |x: &Self| -> std::collections::HashMap<CipherSuite, ()> { let ciphers : std::collections::HashMap<CipherSuite, ()>= x.cipher_suites.0.clone().into_iter().map(|c| (c,())).collect(); ciphers };
+    }]
+    #[comparable_synthetic {
+        let sorted_extensions = |x: &Self| -> ClientExtensions { let mut ext = x.extensions.clone(); ext.0.sort_by(puffin::codec::compare_encoding); ext };
+    }]
     pub client_version: ProtocolVersion,
+    #[comparable_ignore]
     pub random: Random,
+    #[comparable_ignore]
     pub session_id: SessionID,
+    #[comparable_ignore]
     pub cipher_suites: CipherSuites,
+    // #[comparable_ignore]
     pub compression_methods: Compressions,
+    #[comparable_ignore]
     pub extensions: ClientExtensions,
 }
 
@@ -1136,7 +1157,7 @@ impl ClientHelloPayload {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Comparable)]
 pub enum HelloRetryExtension {
     KeyShare(NamedGroup),
     Cookie(PayloadU16),
@@ -1195,10 +1216,12 @@ impl codec::Codec for HelloRetryExtension {
 
 declare_u16_vec_empty!(HelloRetryExtensions, HelloRetryExtension);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct HelloRetryRequest {
     pub legacy_version: ProtocolVersion,
+    #[comparable_ignore]
     pub random: Random,
+    #[comparable_ignore]
     pub session_id: SessionID,
     pub cipher_suite: CipherSuite,
     pub compression_methods: Compressions,
@@ -1301,14 +1324,29 @@ impl HelloRetryRequest {
 
 declare_u16_vec_empty!(ServerExtensions, ServerExtension);
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct ServerHelloPayload {
+    #[comparable_synthetic {
+        let sorted_extensions = |x: &Self| -> ServerExtensions {
+            let mut ext = x.extensions.clone();
+            // remove optional RenegotiationInfo
+            ext.0 = ext.0
+                    .into_iter()
+                    .filter(|x|!matches!(x, ServerExtension::RenegotiationInfo(_)))
+                    .collect();
+            ext.0.sort_by(puffin::codec::compare_encoding);
+            ext
+        };
+    }]
     pub legacy_version: ProtocolVersion,
+    #[comparable_ignore]
     pub random: Random,
+    #[comparable_ignore]
     pub session_id: SessionID,
     pub cipher_suite: CipherSuite,
     pub compression_method: Compression,
+    #[comparable_ignore]
     pub extensions: ServerExtensions,
 }
 
@@ -1404,7 +1442,7 @@ impl ServerHelloPayload {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct CertificatePayload(#[extractable_no_recursion] pub Vec<key::Certificate>);
 
@@ -1423,7 +1461,7 @@ impl codec::Codec for CertificatePayload {
 // That's annoying. It means the parsing is not
 // context-free any more.
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Comparable)]
 pub enum CertificateExtension {
     CertificateStatus(CertificateStatus),
     SignedCertificateTimestamp(SCTList),
@@ -1501,7 +1539,7 @@ impl codec::Codec for CertificateExtension {
 
 declare_u16_vec!(CertificateExtensions, CertificateExtension);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable, PartialEq)]
 pub struct CertificateEntry {
     pub cert: key::Certificate,
     pub exts: CertificateExtensions,
@@ -1568,7 +1606,8 @@ impl CertificateEntry {
 }
 
 declare_u24_vec_limited!(CertificateEntries, CertificateEntry);
-#[derive(Debug, Clone)]
+
+#[derive(Debug, Clone, Comparable)]
 pub struct CertificatePayloadTLS13 {
     pub context: PayloadU8,
     pub entries: CertificateEntries,
@@ -1665,7 +1704,7 @@ pub enum KeyExchangeAlgorithm {
 // We don't support arbitrary curves.  It's a terrible
 // idea and unnecessary attack surface.  Please,
 // get a grip.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct ECParameters {
     pub curve_type: ECCurveType,
     pub named_group: NamedGroup,
@@ -1688,9 +1727,10 @@ impl codec::Codec for ECParameters {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct DigitallySignedStruct {
     pub scheme: SignatureScheme,
+    #[comparable_ignore]
     pub sig: PayloadU16,
 }
 
@@ -1733,12 +1773,13 @@ impl codec::Codec for ClientECDHParams {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct ServerECDHParams {
     #[extractable_ignore]
     pub curve_params: ECParameters,
     #[extractable_ignore]
+    #[comparable_ignore]
     pub public: PayloadU8,
 }
 
@@ -1771,7 +1812,7 @@ impl codec::Codec for ServerECDHParams {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct ECDHEServerKeyExchange {
     pub params: ServerECDHParams,
@@ -1793,7 +1834,7 @@ impl codec::Codec for ECDHEServerKeyExchange {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub enum ServerKeyExchangePayload {
     ECDHE(ECDHEServerKeyExchange),
@@ -1902,7 +1943,7 @@ declare_u8_vec!(ClientCertificateTypes, ClientCertificateType);
 pub type DistinguishedName = PayloadU16;
 pub type DistinguishedNames = VecU16OfPayloadU16;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct CertificateRequestPayload {
     pub certtypes: ClientCertificateTypes,
     pub sigschemes: SupportedSignatureSchemes,
@@ -1929,9 +1970,9 @@ impl codec::Codec for CertificateRequestPayload {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Comparable)]
 pub enum CertReqExtension {
-    SignatureAlgorithms(SupportedSignatureSchemes),
+    SignatureAlgorithms(#[comparable_ignore] SupportedSignatureSchemes),
     AuthorityNames(DistinguishedNames),
     Unknown(UnknownExtension),
 }
@@ -1991,7 +2032,7 @@ impl codec::Codec for CertReqExtension {
 
 declare_u16_vec!(CertReqExtensions, CertReqExtension);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct CertificateRequestPayloadTLS13 {
     pub context: PayloadU8,
     pub extensions: CertReqExtensions,
@@ -2037,10 +2078,12 @@ impl CertificateRequestPayloadTLS13 {
 }
 
 // -- NewSessionTicket --
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct NewSessionTicketPayload {
+    #[comparable_ignore]
     pub lifetime_hint: u32,
+    #[comparable_ignore]
     pub ticket: PayloadU16,
 }
 
@@ -2071,7 +2114,7 @@ impl codec::Codec for NewSessionTicketPayload {
 }
 
 // -- NewSessionTicket electric boogaloo --
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable, PartialEq)]
 pub enum NewSessionTicketExtension {
     EarlyData(u32),
     Unknown(UnknownExtension),
@@ -2120,7 +2163,7 @@ impl codec::Codec for NewSessionTicketExtension {
 
 declare_u16_vec!(NewSessionTicketExtensions, NewSessionTicketExtension);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 pub struct NewSessionTicketPayloadTLS13 {
     pub lifetime: u32,
     pub age_add: u32,
@@ -2197,7 +2240,7 @@ impl codec::Codec for NewSessionTicketPayloadTLS13 {
 // -- RFC6066 certificate status types
 
 /// Only supports OCSP
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Comparable)]
 pub struct CertificateStatus {
     pub ocsp_response: PayloadU24,
 }
@@ -2232,7 +2275,7 @@ impl CertificateStatus {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub enum HandshakePayload {
     HelloRequest,
@@ -2289,7 +2332,7 @@ impl codec::Codec for HandshakePayload {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct HandshakeMessagePayload {
     #[extractable_ignore]

@@ -1,9 +1,11 @@
-use core::any::TypeId;
+use std::any::TypeId;
 
+use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::agent::{AgentDescriptor, AgentName, ProtocolDescriptorConfig};
 use puffin::algebra::signature::Signature;
 use puffin::algebra::Matcher;
+use puffin::differential::TraceDifference;
 use puffin::error::Error;
 use puffin::protocol::{
     EvaluatedTerm, Extractable, OpaqueProtocolMessage, OpaqueProtocolMessageFlight,
@@ -12,13 +14,21 @@ use puffin::protocol::{
 };
 use puffin::put::PutDescriptor;
 use puffin::trace::{Knowledge, Source, Trace};
-use puffin::{atom_extract_knowledge, codec, dummy_codec, dummy_extract_knowledge};
+use puffin::{atom_extract_knowledge, codec, dummy_codec, dummy_extract_knowledge, term};
 use serde::{Deserialize, Serialize};
 
-use crate::claims::TlsClaim;
+use crate::claims::{
+    TlsClaim, TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
+    TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
+};
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
+use crate::tls::fn_impl::{
+    fn_decrypt_handshake_flight_with_secret, fn_false, fn_finished_get_cipher,
+    fn_finished_get_client_random, fn_finished_get_handshake_secret, fn_seq_0,
+    fn_server_hello_transcript, fn_true,
+};
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
 use crate::tls::rustls::msgs::handshake::{
@@ -33,10 +43,45 @@ use crate::tls::rustls::msgs::{self};
 use crate::tls::violation::TlsSecurityViolationPolicy;
 use crate::tls::TLS_SIGNATURE;
 
-#[derive(Debug, Clone, Extractable)]
-#[extractable(TLSProtocolTypes)]
+#[derive(Debug, Clone, Comparable)]
 pub struct MessageFlight {
     pub messages: Vec<Message>,
+}
+
+impl Extractable<TLSProtocolTypes> for MessageFlight {
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, TLSProtocolTypes>>,
+        _: Option<TlsQueryMatcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        let matcher = if let Some(first_msg) = self.messages.get(0) {
+            match &first_msg.payload {
+                MessagePayload::Handshake(hs) => match hs.payload {
+                    msgs::handshake::HandshakePayload::ClientHello(_) => {
+                        Some(TlsQueryMatcher::ClientHelloFlight)
+                    }
+                    msgs::handshake::HandshakePayload::ServerHello(_) => {
+                        Some(TlsQueryMatcher::ServerHelloFlight)
+                    }
+                    _ => Some(TlsQueryMatcher::OtherFlight),
+                },
+                MessagePayload::ApplicationData(_) => Some(TlsQueryMatcher::EncryptedFlight),
+                _ => Some(TlsQueryMatcher::OtherFlight),
+            }
+        } else {
+            None
+        };
+
+        knowledges.push(Knowledge {
+            source,
+            matcher,
+            data: self,
+        });
+
+        self.messages.extract_knowledge(knowledges, None, source)?;
+        Ok(())
+    }
 }
 
 impl ProtocolMessageFlight<TLSProtocolTypes, Message, OpaqueMessage, OpaqueMessageFlight>
@@ -80,7 +125,7 @@ impl codec::Codec for MessageFlight {
     }
 }
 
-#[derive(Debug, Clone, Extractable)]
+#[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct OpaqueMessageFlight {
     pub messages: Vec<OpaqueMessage>,
@@ -253,13 +298,13 @@ impl Matcher for msgs::enums::HandshakeType {
     }
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug, Eq, PartialEq, Hash, Comparable)]
 pub enum AgentType {
     Server,
     Client,
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, Eq, PartialEq, Hash, Comparable)]
 pub enum TLSVersion {
     V1_3,
     V1_2,
@@ -359,6 +404,110 @@ impl ProtocolTypes for TLSProtocolTypes {
 
     fn signature() -> &'static Signature<Self> {
         &TLS_SIGNATURE
+    }
+
+    fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>> {
+        None
+    }
+
+    fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
+        Some(vec![TypeId::of::<MessagePayload>()])
+    }
+
+    fn differential_fuzzing_terms_to_eval(
+        agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
+    ) -> Vec<puffin::algebra::Term<Self>> {
+        let mut is_server = false;
+        let mut server = AgentName::new();
+        let mut is_client = false;
+        let mut client = AgentName::new();
+
+        for agent in agents {
+            if agent.protocol_config.typ == AgentType::Server {
+                is_server = true;
+                server = agent.name;
+            } else if agent.protocol_config.typ == AgentType::Client {
+                is_client = true;
+                client = agent.name;
+            }
+        }
+
+        let mut terms = vec![];
+
+        if is_server {
+            terms.push(term! {
+                fn_decrypt_handshake_flight_with_secret(
+                ((server, 0)[Some(TlsQueryMatcher::ServerHelloFlight)]/MessageFlight),
+                (fn_server_hello_transcript(((server, 0)))),
+                fn_true,
+                fn_seq_0,  // sequence 0
+                (fn_finished_get_client_random(((server, 0)))),
+                (fn_finished_get_cipher(((server, 0)))),
+                (fn_finished_get_handshake_secret(((server, 2))))
+            )
+            });
+        }
+
+        if is_client {
+            terms.push(term! {
+                fn_decrypt_handshake_flight_with_secret(
+                ((client, 0)[Some(TlsQueryMatcher::EncryptedFlight)]/MessageFlight),
+                (fn_server_hello_transcript(((client, 0)))),
+                fn_false,
+                fn_seq_0,
+                (fn_finished_get_client_random(((client, 0)))),
+                (fn_finished_get_cipher(((client, 0)))),
+                (fn_finished_get_handshake_secret(((client, 0))))
+            )
+            });
+        }
+
+        terms
+    }
+
+    fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
+        Some(vec![
+            TypeId::of::<TranscriptCertificate>(),
+            TypeId::of::<TranscriptClientFinished>(),
+            TypeId::of::<TranscriptClientHello>(),
+            TypeId::of::<TranscriptPartialClientHello>(),
+            TypeId::of::<TranscriptServerFinished>(),
+            TypeId::of::<TranscriptServerHello>(),
+        ])
+    }
+
+    fn differential_fuzzing_uniformise_put_config(mut trace: Trace<Self>) -> Trace<Self> {
+        for agent in trace.descriptors.iter_mut() {
+            agent.protocol_config.cipher_string_tls12 = String::from(
+                "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+            );
+            agent.protocol_config.cipher_string_tls13 = String::from(
+                "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256",
+            );
+            agent.protocol_config.groups = Some(String::from("P-256:P-384"));
+        }
+
+        for t in trace.prior_traces.iter_mut() {
+            *t = Self::differential_fuzzing_uniformise_put_config(t.to_owned());
+        }
+
+        trace
+    }
+
+    fn differential_fuzzing_filter_diff(diff: &TraceDifference) -> bool {
+        if let TraceDifference::Knowledges(puffin::differential::KnowledgeDiff::InnerDifference {
+            index: _,
+            type_name: _,
+            diff,
+            source: _,
+        }) = diff
+        {
+            // OpenSSL sends an optional EllipticCurves extension when renegociating
+            if diff.contains("EncryptedExtensionsChange([Removed(0, Unknown(UnknownExtensionDesc { typ: EllipticCurves }))])") {
+                return false;
+            }
+        }
+        true
     }
 }
 
