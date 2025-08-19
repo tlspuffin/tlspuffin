@@ -214,7 +214,7 @@ fn test_term_dy_eval() {
         let res = zoo_test(
             |term, ctx, _| term.evaluate_dy(&ctx).map(|_| ()),
             rand,
-            2600,
+            3300,
             true,
             false, /* it could fail since some terms need to have an appropriate structure to be
                     * evaluated correctly */
@@ -243,7 +243,7 @@ fn test_term_eval() {
         let res = zoo_test(
             |term, ctx, _| term.evaluate(&ctx).map(|_| ()),
             rand,
-            2100,
+            3300,
             true,
             false,
             None,
@@ -307,7 +307,7 @@ fn test_term_read_encode() {
         let res = zoo_test(
             &mut closure,
             rand,
-            2100,
+            3300,
             true,
             false,
             None,

@@ -1193,7 +1193,7 @@ impl codec::Codec for HelloRetryExtension {
     }
 }
 
-declare_u16_vec!(HelloRetryExtensions, HelloRetryExtension);
+declare_u16_vec_empty!(HelloRetryExtensions, HelloRetryExtension);
 
 #[derive(Debug, Clone)]
 pub struct HelloRetryRequest {
@@ -1211,20 +1211,24 @@ impl codec::Codec for HelloRetryRequest {
         self.random.encode(bytes);
         self.session_id.encode(bytes);
         self.cipher_suite.encode(bytes);
-        self.compression_methods.encode(bytes);
-        // Compression::Null.encode(bytes);
-        // if !self.extensions.0.is_empty() {  // TODO: @MAX shouldn't we also accept empty ones?
-        //         // lists of extensions, as for CLientHello ClientExtensions?
+        // HelloRetryRequest is encoded as a ServerHello
+        // ServerHello only contains one compression method while HRR can hold a vec of compression
+        // methods if the vec is not empty we encode the first element, else we encode the
+        // Null compression
+        if !self.compression_methods.0.is_empty() {
+            self.compression_methods.0[0].encode(bytes);
+        } else {
+            Compression::Null.encode(bytes);
+        }
         self.extensions.encode(bytes);
-        // }
     }
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
         let session_id = SessionID::read(r)?;
         let cipher_suite = CipherSuite::read(r)?;
-        let compression_methods = Compressions::read(r)?;
+        let compression_method = Compression::read(r)?;
         let extensions = HelloRetryExtensions::read(r)?;
-        if compression_methods.0 != vec![Compression::Null] {
+        if compression_method != Compression::Null {
             return None;
         }
 
@@ -1234,7 +1238,7 @@ impl codec::Codec for HelloRetryRequest {
             random: fn_hello_retry_request_random().unwrap(), // same
             session_id,
             cipher_suite,
-            compression_methods,
+            compression_methods: Compressions(vec![compression_method]),
             extensions,
         })
     }
