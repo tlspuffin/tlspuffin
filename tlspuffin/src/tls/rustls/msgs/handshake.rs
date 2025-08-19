@@ -1211,8 +1211,15 @@ impl codec::Codec for HelloRetryRequest {
         self.random.encode(bytes);
         self.session_id.encode(bytes);
         self.cipher_suite.encode(bytes);
-        // self.compression_methods.encode(bytes);
-        Compression::Null.encode(bytes);
+        // HelloRetryRequest is encoded as a ServerHello
+        // ServerHello only contains one compression method while HRR can hold a vec of compression
+        // methods if the vec is not empty we encode the first element, else we encode the
+        // Null compression
+        if !self.compression_methods.0.is_empty() {
+            self.compression_methods.0[0].encode(bytes);
+        } else {
+            Compression::Null.encode(bytes);
+        }
         self.extensions.encode(bytes);
     }
 

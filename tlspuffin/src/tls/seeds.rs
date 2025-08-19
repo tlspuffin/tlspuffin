@@ -781,6 +781,11 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+/// This seed sends a HelloRetryRequest message asking the TLS client to use P384 curves as keyshare
+/// and compute a correct transcript for the whole handshake
+/// The differences with seed_server_attacker_full are the addition of a round trip (server sends
+/// HRR to the client and the client sends second client hello) and the computation of the
+/// transcript following the HRR according to RFC 8446 section 4.4.1
 pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace<TLSProtocolTypes> {
     let curve = term! {
         fn_get_any_client_curve(
@@ -2316,7 +2321,7 @@ pub fn create_corpus(
         seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption"),
         // Server Attackers
         seed_server_attacker_full: put.supports("tls13"),
-        seed_server_attacker_with_hello_retry_request : put.supports("tls13")
+        seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
     )
 }
 
