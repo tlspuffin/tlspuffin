@@ -43,6 +43,15 @@ pub fn fn_append_transcript(
     Ok(new_transcript)
 }
 
+pub fn fn_new_hrr_transcript(original_client_hello: &Message) -> Result<HandshakeHash, FnError> {
+    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256;
+
+    let mut transcript = HandshakeHash::new(suite.hash_algorithm());
+    transcript.add_message(original_client_hello);
+    transcript.rollup_for_hrr();
+    Ok(transcript)
+}
+
 pub fn fn_new_flight() -> Result<MessageFlight, FnError> {
     Ok(MessageFlight::new())
 }
