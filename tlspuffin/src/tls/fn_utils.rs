@@ -632,6 +632,10 @@ pub fn fn_append_certificate_entry(
     Ok(new_certs)
 }
 
+pub fn fn_named_group_secp256r1() -> Result<NamedGroup, FnError> {
+    Ok(NamedGroup::secp256r1)
+}
+
 pub fn fn_named_group_secp384r1() -> Result<NamedGroup, FnError> {
     Ok(NamedGroup::secp384r1)
 }

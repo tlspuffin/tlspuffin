@@ -97,7 +97,12 @@ fn benchmark_trace(c: &mut Criterion) {
                                 (fn_client_extensions_append(
                                     (fn_client_extensions_append(
                                         fn_client_extensions_new,
-                                        (fn_support_group_extension(fn_named_group_secp384r1))
+                                        (fn_support_group_extension_make(
+                                            (fn_support_group_extension_append(
+                                                fn_support_group_extension_new,
+                                                fn_named_group_secp384r1
+                                            ))
+                                        ))
                                     )),
                                     fn_signature_algorithm_extension
                                 )),

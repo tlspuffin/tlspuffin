@@ -134,7 +134,6 @@ define_signature!(
     fn_status_request_extension
     fn_status_request_server_extension
     fn_status_request_certificate_extension
-    fn_support_group_extension
     fn_ec_point_formats_extension
     fn_ec_point_formats_server_extension
     fn_signature_algorithm_extension
@@ -214,6 +213,9 @@ define_signature!(
     fn_cipher_suite13_aes_128_ccm_sha256
     fn_weak_export_cipher_suite
     fn_secure_rsa_cipher_suite12
+    fn_support_group_extension_new
+    fn_support_group_extension_make
+    fn_support_group_extension_append [list]
     // utils
     fn_new_flight
     fn_append_flight [list]
@@ -251,6 +253,7 @@ define_signature!(
     fn_append_certificate [list]
     fn_new_certificate_entries
     fn_append_certificate_entry [list]
+    fn_named_group_secp256r1
     fn_named_group_secp384r1
     fn_named_group_x25519
     fn_u64_to_u32

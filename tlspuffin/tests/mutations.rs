@@ -17,7 +17,7 @@ use tlspuffin::put_registry::tls_registry;
 use tlspuffin::test_utils::default_runner_for;
 use tlspuffin::tls::fn_impl::{
     fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
-    fn_support_group_extension,
+    fn_support_group_extension_make,
 };
 use tlspuffin::tls::seeds::_seed_client_attacker12;
 use tlspuffin::tls::TLS_SIGNATURE;
@@ -160,7 +160,7 @@ fn test_mutate_seed_cve_2021_3449() {
                                                 );
                                             let support_groups_extensions = first_subterm
                                                 .count_functions_by_name(
-                                                    fn_support_group_extension.name(),
+                                                    fn_support_group_extension_make.name(),
                                                 );
                                             if sig_alg_extensions == 0
                                                 && support_groups_extensions == 1

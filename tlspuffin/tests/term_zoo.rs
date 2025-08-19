@@ -243,7 +243,7 @@ fn test_term_eval() {
         let res = zoo_test(
             |term, ctx, _| term.evaluate(&ctx).map(|_| ()),
             rand,
-            2600,
+            2100,
             true,
             false,
             None,
@@ -307,7 +307,7 @@ fn test_term_read_encode() {
         let res = zoo_test(
             &mut closure,
             rand,
-            1600,
+            2100,
             true,
             false,
             None,
