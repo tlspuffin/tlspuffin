@@ -213,7 +213,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         // We apply this fast heuristics if the likelyhood of a unique match seems high enough
         if eval_to_search.len() > 0
             && (eval_to_search.len() > THRESHOLD_SIZE
-            || eval_parent.len() / eval_to_search.len() < THRESHOLD_RATIO)
+                || eval_parent.len() / eval_to_search.len() < THRESHOLD_RATIO)
         {
             if let Some(unique_pos) = first_sub_vec_unique(eval_parent, eval_to_search) {
                 log::debug!(
@@ -417,10 +417,10 @@ pub fn replace_payloads<PT: ProtocolTypes>(
 ) -> Result<ConcreteMessage, Error> {
     log::trace!("[replace_payload] --------> START");
     let mut shift = 0_isize; // Number of bytes we need to shift on the right to operate the
-    // replacement (i.e., apply the splicing, taking into account previous payloads replacements).
-    // We assume the aforementioned invariant.
+                             // replacement (i.e., apply the splicing, taking into account previous payloads replacements).
+                             // We assume the aforementioned invariant.
     let mut to_modify: Vec<u8> = eval_tree.encode.as_ref().unwrap().clone(); // unwrap: eval_until_opaque
-    // returned an error if it cannot compute the encoding of the root having payloads
+                                                                             // returned an error if it cannot compute the encoding of the root having payloads
     log::trace!("to_modify before: {to_modify:?}");
     for payload_context in &payloads {
         let path_payload = &payload_context.path;
@@ -528,24 +528,47 @@ impl<PT: ProtocolTypes> Term<PT> {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        log::debug!("[eval_until_opaque] [START]: Eval term:\n {self}");
-        if let (true, Some(payload)) = (with_payloads, &self.payloads) {
-            // TODO: investigate whether this value could be incorrect due to modifications to the
-            // terms through mutations previously applied
-            log::trace!("[eval_until_opaque] Trying to read payload_0 to skip further computations...........");
-            if let Ok(di) = PB::try_read_bytes(
+        log::trace!("[eval_until_opaque] [START]: Eval term:\n {self}");
+        // We optimize here by bypassing evaluation and directly read over the payload when the term
+        // has no variable. Indeed, variables may contain different values since when we ran
+        // MakeMessage
+        if let (true, Some(payload)) = (with_payloads && !self.has_variable(), &self.payloads) {
+            log::trace!(
+                "[eval_until_opaque] Trying to read payload_0 to skip further computations... payload_0: {:?}",
                 payload.payload_0.bytes(),
-                <TypeShape<PT> as Clone>::clone(type_term).into(),
-            ) {
-                let p_c = vec![PayloadContext {
-                    of_term: self,
-                    payloads: payload,
-                    path: eval_tree.path.clone(),
-                }];
-                eval_tree.encode = Some(payload.payload_0.bytes().to_vec());
-                return Ok((di, p_c));
+            );
+            if let Ok(di) = PB::try_read_bytes(payload.payload_0.bytes(), type_term.clone().into())
+            {
+                // We must make sure that we read correctly and avoided cases where read and encode
+                // are not inverse of each other. Otherwise, later payload replacements will fail.
+                if &di.get_encoding()[..] != &payload.payload_0.bytes()[..] {
+                    log::warn!(
+                                "--> [eval_until_opaque] [argument is symbolic: {}] [Skipping eval bypass] Failed consistency check for read.encode a type {}:\n\
+                                - bi (first eval)  : {:?}\n\
+                                - read.encode:     : {:?}",
+                                self.is_symbolic(),
+                                 <TypeShape<PT> as Clone>::clone(type_term),
+                payload.payload_0.bytes(),
+                                di.get_encoding(),
+                            );
+                } else {
+                    log::trace!("[eval_until_opaque] Successfully read term: {:?}", di);
+                    let p_c = vec![PayloadContext {
+                        of_term: self,
+                        payloads: payload,
+                        path: eval_tree.path.clone(),
+                    }];
+                    eval_tree.encode = Some(payload.payload_0.bytes().to_vec());
+                    return Ok((di, p_c));
+                }
+            } else {
+                // We expect this might fail because encode and read are not fully inverse of each
+                // other. For example: read(encode(PayloadU8)) != PayloadU8 when its size exceeds
+                // 255 because: encode will write it all, while read will only read
+                // the announced length. Note: we don't want to make encode only write the announced
+                // length since we precisely want to be able to "lie" about the announced lengths...
+                log::trace!("[eval_until_opaque] Attempt to skip evaluation failed, fall back to normal evaluation...");
             }
-            log::trace!("[eval_until_opaque] Attempt to skip evaluation failed, fall back to normal evaluation...");
         }
 
         match &self.term {
@@ -616,9 +639,9 @@ impl<PT: ProtocolTypes> Term<PT> {
                                 }
                                 e
                             })?; // This may fail for good or bad reasons, we don't distinguish for now
-                        // We must make sure that we read correctly and avoided cases where read and
-                        // encode are not inverse of each other.
-                        // Otherwise, later payload replacements will fail.
+                                 // We must make sure that we read correctly and avoided cases where read and
+                                 // encode are not inverse of each other.
+                                 // Otherwise, later payload replacements will fail.
                         if &di.get_encoding()[..] != &bi[..] {
                             return Err(Error::Term(format!(
                                 "--> [eval_until_opaque] [argument is symbolic: {}] [1] Failed consistency check for read.encode a type {}:\n\
