@@ -184,6 +184,7 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -322,6 +323,7 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -552,6 +554,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolType
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -641,6 +644,7 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -750,6 +754,7 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -894,6 +899,7 @@ pub fn seed_cve_2022_39173(
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -1022,6 +1028,7 @@ pub fn seed_cve_2022_39173_full(
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -1126,6 +1133,7 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 

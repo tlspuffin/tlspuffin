@@ -11,6 +11,8 @@ pub struct TermConstraints {
     pub must_be_symbolic: bool,
     // when true: only look for terms with no payload in sub-terms
     pub no_payload_in_subterm: bool,
+    // when true: only look for terms with at least one payload in sub-terms
+    pub must_payload_in_subterm: bool,
     // when true: we do not choose terms that have a list symbol and whose parent also has a list
     // symbol those terms are thus "inside a list", like t in fn_append(t,t3) for t =
     // fn(append(t1,t2)
@@ -30,6 +32,7 @@ impl Default for TermConstraints {
                                  * instantiating the fuzzer */
             must_be_symbolic: false,
             no_payload_in_subterm: false,
+            must_payload_in_subterm: false,
             not_inside_list: false,
             weighted_depth: false,
             must_be_root: false,

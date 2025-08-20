@@ -1,14 +1,14 @@
 //! This module provides[`DYTerm`]sas well as iterators over them.
 
 use std::fmt;
+use std::fmt::Debug;
 use std::hash::Hash;
 
 use itertools::Itertools;
-use libafl::inputs::BytesInput;
 use serde::{Deserialize, Serialize};
 
 use super::atoms::{Function, Variable};
-use crate::algebra::bitstrings::{replace_payloads, EvalTree, Payloads};
+use crate::algebra::bitstrings::{replace_payloads, EvalTree, PayloadMetadata, Payloads};
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::error::FnError;
 use crate::error::Error;
@@ -55,6 +55,7 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     fn display_at_depth(&self, depth: usize) -> String;
     fn is_symbolic(&self) -> bool;
     fn make_symbolic(&mut self); // remove all payloads
+    fn get(&self, path: &[usize]) -> Result<&Self, Error>;
 
     /// Evaluate terms into `ConcreteMessage` and `EvaluatedTerm` (considering Payloads or not
     /// depending on `with_payloads`) With `with_payloads, the returned `EvaluatedTerm` is
@@ -133,7 +134,9 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        Ok(self.evaluate_config_wrap(ctx, true)?.0)
+        Ok(self
+            .evaluate_config_wrap(ctx, ctx.config_trace.with_bit_level)?
+            .0)
     }
 
     /// Evaluate terms into `ConcreteMessage` considering all sub-terms as symbolic (even those with
@@ -268,6 +271,23 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
+    /// When the term starts with an opaque function symbol (like encryption)
+    pub fn is_get(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(fd, _) => fd.is_get(),
+        }
+    }
+
+    /// When the term starts with a `no_bit` function symbol. We will never MakeMessage on, thus
+    /// disabling applying any of the bit-level mutations.
+    pub fn is_no_bit(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(fd, _) => fd.no_bit(),
+        }
+    }
+
     /// Erase all payloads in a term, including those under opaque function symbol
     pub fn erase_payloads_subterms(&mut self, is_subterm: bool) {
         if is_subterm {
@@ -284,19 +304,30 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
-    /// Add a payload at the root position, erase payloads in strict sub-terms not under opaque
-    pub fn add_payload(&mut self, payload: Vec<u8>) {
+    /// Add a payload at the root position and start with a new payload.payload possibly different
+    /// from payload.payload_0, erase payloads in strict sub-terms not under opaque
+    pub fn add_payload_with_new(
+        &mut self,
+        payload_0: Vec<u8>,
+        payload_new: Vec<u8>,
+        with_metadata: Option<PayloadMetadata>,
+    ) {
         self.payloads = Option::from({
             Payloads {
-                payload_0: BytesInput::new(payload.clone()),
-                payload: BytesInput::new(payload),
+                payload_0: payload_0.into(),
+                payload: payload_new.into(),
+                metadata: with_metadata.unwrap_or_else(|| PayloadMetadata::default()),
             }
         });
         self.erase_payloads_subterms(false);
     }
 
-    /// Make and Add a payload at the root position, erase payloads in strict sub-terms not under
-    /// opaque
+    /// Add a payload at the root position, erase payloads in strict sub-terms not under opaque
+    pub fn add_payload(&mut self, payload_0: Vec<u8>) {
+        self.add_payload_with_new(payload_0.clone(), payload_0, None)
+    }
+
+    /// Make and Add a payload at the root position, erase payloads in strict sub-terms
     pub fn make_payload<PB>(&mut self, ctx: &TraceContext<PB>) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
@@ -308,7 +339,7 @@ impl<PT: ProtocolTypes> Term<PT> {
 
     /// Return all payloads contains in a term, even under opaque terms.
     /// Note that we keep the invariant that a non-symbolic term cannot have payloads in
-    /// struct-subterms, see `add_payload/make_payload`.
+    /// strict-subterms, see `add_payload/make_payload`.
     pub fn all_payloads(&self) -> Vec<&Payloads> {
         self.into_iter()
             .filter_map(|t| t.payloads.as_ref())
@@ -317,7 +348,7 @@ impl<PT: ProtocolTypes> Term<PT> {
 
     /// Return all payloads contains in a term (mutable references), even under opaque terms.
     /// Note that we keep the invariant that a non-symbolic term cannot have payloads in
-    /// struct-subterms, see `add_payload/make_payload`.
+    /// strict-subterms, see `add_payload/make_payload`.
     pub fn all_payloads_mut(&mut self) -> Vec<&mut Payloads> {
         // unable to implement as_iter_map for Term due to its tree structure so:
         // do it manually instead!
@@ -569,6 +600,29 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
 
     fn make_symbolic(&mut self) {
         self.erase_payloads_subterms(true); // true as we also want to remove payloads at top-level
+    }
+
+    fn get(&self, path: &[usize]) -> Result<&Self, Error> {
+        if path.is_empty() {
+            return Ok(self);
+        }
+        match &self.term {
+            DYTerm::Variable(_) => {
+                return Err(Error::TermBug(format!(
+                    "--> [get] Should never happen! self.args.len() <= nb. Term: {self}\n, path: {path:?}"
+                )))
+            }
+            DYTerm::Application(_, args) => {
+                let nb = path[0];
+                let path = &path[1..];
+                if args.len() <= nb {
+                    return Err(Error::TermBug(format!(
+                        "--> [get] Should never happen! self.args.len() <= nb. Term: {self}\n, path: {path:?}"
+                    )));
+                }
+                args[nb].get(path)
+            }
+        }
     }
 }
 
