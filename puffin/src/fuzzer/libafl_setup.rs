@@ -10,6 +10,9 @@ use log::LevelFilter;
 use log4rs::Handle;
 
 use super::harness;
+use crate::fuzzer::bit_mutations::{
+    bit_mutations_dy, havoc_mutations_dy, MakeMessage, ReadMessage,
+};
 use crate::fuzzer::feedback::MinimizingFeedback;
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
 use crate::fuzzer::stages::PuffinMutationalStage;
@@ -23,6 +26,8 @@ use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
+const MIN_BIT_EXECS: usize = 5_000; // one 1 core
+const MIN_BIT_CORPUS: usize = 200; // on 1 core
 
 type ConcreteExecutor<'harness, H, OT, S> = TimeoutExecutor<InProcessExecutor<'harness, H, OT, S>>;
 
@@ -225,6 +230,28 @@ where
             ..
         } = self.config;
 
+        /*
+        Standard AFL-like configuration:
+        A: Main mutator with StdScheduledMutator
+            1. Compute the number of iterations im used to apply stacked mutations: 1 << (1 + rand(0 <= r <= 7))
+            2. For each time (0..im) : Apply randomly a mutation from the given list (here havoc)
+          ==> let mutator = StdScheduledMutator::new(havoc_mutations());
+        B: Main mutational stage with StdMutationalStage:
+            1. Take the scheduled input from the corpus
+            2. Pick a random iterations is between 1 and 128 (default)
+            3. For each 0..is: clone input, mutate using mutator, execute
+          ==> let mut stages = tuple_list!(StdMutationalStage::new(mutator));
+        C: We provide a list of stages: all of them are run one after the other, on the same scheduled testcase though.
+        Note: We might want to add more stages in the future, in particular https://docs.rs/libafl/0.15.0/libafl/stages/tmin/struct.StdTMinMutationalStage.html; see https://docs.rs/libafl/0.15.0/libafl/stages/index.html#modules
+        ------------
+        We adapt this to our specific setup:
+           ==> let mut stages = tuple_list!(stage_dy, stage_bit);
+        where:
+         - stage_dy is a StdScheduledMutator stage over DY mutations, enabled when DY mutations are
+         - stage_bit is a StdScheduledMutator with only 1 run stage over bit-level mutations, enabled when bit mutations are enabled and when sufficiently many executions and corpus testcases have been done/found
+         We refine this initial design below.
+        */
+
         // ==== DY mutational stage
         let mutator_dy = StdScheduledMutator::new(dy_mutations(
             mutation_config,
@@ -249,6 +276,42 @@ where
             )),
         );
 
+        // ==== Bit-level mutational stage
+        let mutator_bit = StdScheduledMutator::new(bit_mutations_dy::<
+            StdState<Trace<PT>, C, R, SC>,
+            PB,
+        >(mutation_config, put_registry));
+        // Run bit-levlel muts. if bit-level enabled + already sufficiently advanced (to save a bit
+        // of time)
+        let cb_bit_level = |_: &mut _,
+                            _: &mut _,
+                            state: &mut ConcreteState<C, R, SC, Trace<PT>>,
+                            _: &mut _,
+                            _idx: CorpusId|
+         -> Result<bool, Error> {
+            if !mutation_config.with_bit_level {
+                return Ok(false);
+            }
+            // Return false if the campaign is not advanced enough (per client/core), except if no
+            // DY
+            if !mutation_config.with_dy
+                || (*state.executions() > MIN_BIT_EXECS && state.corpus().count() > MIN_BIT_CORPUS)
+            {
+                log::debug!("[*] BIT StdMutationalStage");
+                return Ok(true);
+            } else {
+                return Ok(false);
+            }
+        };
+        let stage_bit = IfStage::new(
+            cb_bit_level,
+            tuple_list!(
+                PuffinMutationalStage::new(
+                    mutator_bit,
+                    self.config.mutation_stage_config.max_iterations_per_stage
+                ), // Old-style HAVOC stage
+            ),
+        );
         // A stage that only enables in introspection mode and executes each testcase in corpus
         // prior to executing other stages on it
         let stage_test_input = ClosureStage::new(
@@ -309,7 +372,7 @@ where
         );
 
         // ==== All stages put together
-        let mut stages = tuple_list!(stage_test_input, stage_dy, StatsStage::new());
+        let mut stages = tuple_list!(stage_test_input, stage_dy, stage_bit, StatsStage::new());
 
         let mut fuzzer: StdFuzzer<CS, F, OF, OT> =
             StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);
