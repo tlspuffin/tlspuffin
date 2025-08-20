@@ -408,15 +408,102 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
 }
 
 /// Operate the payloads replacements in `eval_tree.encode`[vec![]] and returns the modified
-/// bitstring. `@payloads` follows this order: deeper terms first, left-to-right, assuming no
-/// overlap (no two terms one being a sub-term of the other).
-pub fn replace_payloads<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
-    _term: &Term<PT>,
-    _eval_tree: &mut EvalTree,
-    _payloads: Vec<PayloadContext<PT>>,
-    _ctx: &TraceContext<PB>,
+/// bitstring by "splicing". `@payloads` follows this order: deeper terms first, left-to-right,
+/// assuming no overlap (no two terms one being a sub-term of the other).
+pub fn replace_payloads<PT: ProtocolTypes>(
+    term: &Term<PT>,
+    eval_tree: &mut EvalTree,
+    payloads: Vec<PayloadContext<PT>>,
 ) -> Result<ConcreteMessage, Error> {
-    todo!("Done in another PR (bit mutations/term-evaluation)");
+    log::trace!("[replace_payload] --------> START");
+    let mut shift = 0_isize; // Number of bytes we need to shift on the right to operate the
+    // replacement (i.e., apply the splicing, taking into account previous payloads replacements).
+    // We assume the aforementioned invariant.
+    let mut to_modify: Vec<u8> = eval_tree.encode.as_ref().unwrap().clone(); // unwrap: eval_until_opaque
+    // returned an error if it cannot compute the encoding of the root having payloads
+    log::trace!("to_modify before: {to_modify:?}");
+    for payload_context in &payloads {
+        let path_payload = &payload_context.path;
+        log::trace!("[replace_payload] --------> treating {} at path {:?} on message of length = {}. Shift = {shift}", payload_context.payloads, payload_context.path, to_modify.len());
+        let old_bitstring = if term.has_variable() {
+            // We prefer looking for the payload in the term evaluation in case it has changed since
+            // MakeMessage because of variables (that might contain different values now)
+            eval_tree.get(path_payload)?.encode.as_ref().unwrap()
+        } else {
+            payload_context.payloads.payload_0.bytes()
+        };
+
+        // Consistency checks in debug mode
+        #[cfg(any(debug_assertions, feature = "debug"))]
+        if !term.has_variable() {
+            assert_eq!(
+                eval_tree.get(path_payload)?.encode.as_ref().unwrap(),
+                payload_context.payloads.payload_0.bytes()
+            );
+        }
+
+        // Goal: compute byte position of path_payload in eval_tree: `pos_start`
+        let is_to_search_in_list = if path_payload.is_empty() {
+            false
+        } else {
+            let path_parent = &path_payload[0..path_payload.len() - 1];
+            term.get(path_parent)
+                .expect("[replace_payload] Should never happen")
+                .is_list()
+        };
+        let pos_start = find_unique_match(path_payload, eval_tree, term, is_to_search_in_list)?;
+        let old_bitstring_len = old_bitstring.len();
+        let new_bitstring = payload_context.payloads.payload.bytes();
+
+        let start = (pos_start as isize + shift) as usize; // taking previous replacements into account, we need to shift the start
+        let end = start + old_bitstring_len;
+
+        if (pos_start as isize + shift) < 0 || start + old_bitstring_len > to_modify.len() {
+            let ft = format!(
+                "--> [replace_payload] Impossible to splice because of incompatible indices.\n\
+                 - start = (pos_start as isize + shift) < 0: {start} = ({pos_start} + {shift}) < 0\n\
+                 - end = start + old_bitstring_len > to_modify.len(): {end} = ({pos_start} + {shift} + {old_bitstring_len}) as usize > {}\n\
+                 - payload_context: {payload_context}",
+                to_modify.len());
+            log::error!("{ft}");
+            return Err(Error::TermBug(ft));
+        }
+
+        log::trace!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}\n  - to_modify={to_modify:?}",
+                to_modify.len(), &to_modify[start..end]);
+        #[cfg(any(debug_assertions, feature = "debug"))]
+        if to_modify[start..end] != *old_bitstring {
+            let ft = format!(
+                "--> [replace_payloads] Payloads returned by eval_until_opaque were inconsistent!\n\
+                   - payload_path: {:?}\n\
+                   - term: {term}\n\
+                   - payload_0.bytes() != to_modify[{start}..{end}].to_vec()\n\
+                   - old_bistring = payload_0.bytes()\n= {:?}\n\
+                   - to_modify[{start}..{end}].to_vec()\n= {:?}\n\
+                   - payload_context: {payload_context}\
+                   - payload: {:?}",
+                payload_context.path,
+                old_bitstring,
+                to_modify[start..end].to_vec(),
+                payload_context.payloads,
+            );
+            log::error!("{ft}");
+            return Err(Error::TermBug(ft));
+        }
+        // Performing the bytes replaceents through splicing
+        let to_remove: Vec<u8> = to_modify
+            .splice(start..end, new_bitstring.to_vec())
+            .collect();
+        log::trace!(
+            "[replace_payload] Removed elements (len={}): {:?}",
+            to_remove.len(),
+            &to_remove
+        );
+        log::trace!("[replace_payload] Shift update!: New_b: {}, old_b_len: {old_bitstring_len}, old_shift: {shift}, new_shift:{} ", new_bitstring.len(), shift + (new_bitstring.len() as isize - old_bitstring_len as isize));
+        shift += new_bitstring.len() as isize - old_bitstring_len as isize;
+    }
+    log::trace!("to_modify afterwards: {to_modify:?}");
+    Ok(to_modify)
 }
 
 impl<PT: ProtocolTypes> Term<PT> {
