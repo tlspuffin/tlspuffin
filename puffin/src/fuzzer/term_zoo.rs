@@ -11,7 +11,7 @@ use crate::protocol::ProtocolBehavior;
 use crate::trace::TraceContext;
 
 const MAX_DEPTH: u16 = 8; // how deep terms we allow max
-const MAX_TRIES: usize = 120_000; // How often we want to try to generate before stopping
+const MAX_TRIES: usize = 140_000; // How often we want to try to generate before stopping
 
 pub struct TermZoo<PB: ProtocolBehavior> {
     terms: Vec<Term<PB::ProtocolTypes>>,
