@@ -1,9 +1,12 @@
+use std::time::Duration;
+
 use criterion::{criterion_group, criterion_main, Criterion};
 use puffin::algebra::dynamic_function::make_dynamic;
 use puffin::algebra::error::FnError;
-use puffin::algebra::Term;
+use puffin::algebra::{Term, TermType};
 use puffin::execution::{Runner, TraceRunner};
 use puffin::fuzzer::mutations::ReplaceReuseMutator;
+use puffin::fuzzer::term_zoo::TermZoo;
 use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::InMemoryCorpus;
 use puffin::libafl::mutators::Mutator;
@@ -11,12 +14,13 @@ use puffin::libafl::state::StdState;
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 use puffin::protocol::EvaluatedTerm;
 use puffin::term;
-use puffin::trace::{Spawner, Trace};
+use puffin::trace::{Spawner, Trace, TraceContext};
 use puffin::trace_helper::TraceHelper;
-use tlspuffin::protocol::TLSProtocolTypes;
+use tlspuffin::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use tlspuffin::put_registry::tls_registry;
 use tlspuffin::tls::fn_impl::*;
 use tlspuffin::tls::seeds::*;
+use tlspuffin::tls::TLS_SIGNATURE;
 
 fn fn_benchmark_example(a: &u64) -> Result<u64, FnError> {
     Ok(*a * *a)
@@ -65,6 +69,7 @@ fn benchmark_mutations(c: &mut Criterion) {
                 weighted_depth: false,
                 ..TermConstraints::default()
             },
+            true,
             true,
         );
         let mut trace = seed_client_attacker12.build_trace();
@@ -167,6 +172,26 @@ fn benchmark_seeds(c: &mut Criterion) {
     group.finish()
 }
 
+fn compute_zoo_in_generate_mutator(c: &mut Criterion) {
+    let mut group = c.benchmark_group("mutations");
+    let tls_registry = tls_registry();
+    let spawner = Spawner::new(tls_registry.clone());
+    let ctx = TraceContext::new(spawner);
+    let mut i = 0;
+
+    group.bench_function("compute_zoo_in_generate_mutator", |b| {
+        b.iter(|| {
+            let _ = TermZoo::<TLSProtocolBehavior>::generate(
+                &ctx,
+                &TLS_SIGNATURE,
+                &mut StdRand::with_seed(i),
+                TermConstraints::default().zoo_gen_how_many,
+            );
+            i = i + 1;
+        })
+    });
+}
+
 criterion_group!(
     benches,
     benchmark_dynamic,
@@ -174,4 +199,10 @@ criterion_group!(
     benchmark_mutations,
     benchmark_seeds,
 );
-criterion_main!(benches);
+criterion_group! {
+    name = long_benches;
+    config = Criterion::default().measurement_time(Duration::from_secs(20)).sample_size(10);
+    targets =
+    compute_zoo_in_generate_mutator,
+}
+criterion_main!(benches, long_benches);
