@@ -561,16 +561,16 @@ impl<PT: ProtocolTypes> Term<PT> {
                             None
                         }
                     })
-                    .ok_or_else(|| Error::Term(format!("Unable to find variable {variable}!")))?;
-                if with_payloads && (eval_tree.path.is_empty() || (self.payloads.is_some())) {
-                    if let Some(payload) = &self.payloads {
-                        log::trace!("        / We retrieve evaluation for eval_tree from payload.");
-                        eval_tree.encode = Some(payload.payload_0.clone().into());
-                    } else {
-                        let eval = PB::any_get_encoding(d.as_ref());
-                        log::trace!("        / No payload so we evaluated into: {eval:?}");
-                        eval_tree.encode = Some(eval);
-                    }
+                    .ok_or_else(|| {
+                        Error::Term(format!("--> Unable to find variable {variable}!"))
+                    })?;
+                if with_payloads {
+                    // TODO: we might want to relax this a bit and only do this for nodes that are
+                    // in the paths towards a payload or a right sibling of such a node. Not sure
+                    // this woulf save us a lot of computations though.
+                    let eval = PB::any_get_encoding(d.as_ref());
+                    log::trace!("        / Variable evaluated into: {eval:?}");
+                    eval_tree.encode = Some(eval);
                     if self.payloads.is_some() {
                         log::trace!("[eval_until_opaque] [Var] Add a payload for a leaf at path: {:?}, payload is: {:?} and eval is: {:?}", eval_tree.path, self.payloads.as_ref().unwrap(), PB::any_get_encoding(d.as_ref()));
                         return Ok((
@@ -605,8 +605,8 @@ impl<PT: ProtocolTypes> Term<PT> {
                     if with_payloads && self.is_opaque() && ti.has_payload_to_replace() {
                         // Fully evaluate this sub-term and consume the payloads
                         log::trace!("    * [eval_until_opaque] Opaque and has payloads: Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
-                        let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
                         let typei = func.shape().argument_types[i].clone();
+                        let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
                         let di = PB::try_read_bytes(&bi, typei.clone().into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
                             .map_err(|e| {
                                 if !ti.is_symbolic() {
@@ -615,7 +615,21 @@ impl<PT: ProtocolTypes> Term<PT> {
                                     log::warn!("[eval_until_opaque] [Argument is symbolic!] Err: {}", e);
                                 }
                                 e
-                            })?;
+                            })?; // This may fail for good or bad reasons, we don't distinguish for now
+                        // We must make sure that we read correctly and avoided cases where read and
+                        // encode are not inverse of each other.
+                        // Otherwise, later payload replacements will fail.
+                        if &di.get_encoding()[..] != &bi[..] {
+                            return Err(Error::Term(format!(
+                                "--> [eval_until_opaque] [argument is symbolic: {}] [1] Failed consistency check for read.encode a type {}:\n\
+                                - bi (first eval)  : {bi:?}\n\
+                                - read.encode:     : {:?}",
+                                ti.is_symbolic(),
+                                typei,
+                                di.get_encoding(),
+                            )));
+                        }
+
                         dynamic_args.push(di); // no need to add payloads to all_p as they were
                                                // consumed (opaque function symbol)
                     } else {
@@ -656,8 +670,29 @@ impl<PT: ProtocolTypes> Term<PT> {
                     });
                 }
 
-                // If there are payloads to replace in self, then we will *likely* have to know the
-                // encoding of self, we save it for later in eval_tree
+                // Sanity check!
+                #[cfg(any(debug_assertions, feature = "debug"))]
+                if let (true, Some(payload)) = (with_payloads, &self.payloads) {
+                    log::trace!("[eval_until_opaque] Checking consistency!");
+                    let new_payload_0 = PB::any_get_encoding(result.as_ref());
+                    if new_payload_0 != payload.payload_0.bytes() {
+                        let ft = format!("--> [eval_until_opaque] [term has variable:{}] Failed consistency check payload_0 versus new encoding.\n\
+                                    - term: {}\n\
+                                    - payload_0:    {:?}\n\
+                                    - new_eval:     {new_payload_0:?}\n\
+                                    - result: {result:?}",
+                                         self.has_variable(), self, &payload.payload_0.bytes());
+                        if self.has_variable() {
+                            // Some mismatches are to be expected when there are variables
+                            log::trace!("[term has variables --> only a log::trace] {}", ft);
+                        } else {
+                            return Err(Error::TermBug(ft));
+                        }
+                    }
+                }
+
+                // If there are payloads to replace in self or siblings, then we will *likely* have
+                // to know the encoding of self, we save it for later in eval_tree
                 if with_payloads && (!all_payloads.is_empty() || sibling_has_payloads) {
                     eval_tree.args = eval_tree_args;
                     let eval = PB::any_get_encoding(result.as_ref());
