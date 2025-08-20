@@ -288,6 +288,26 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
+    /// When the term has a variable as sub-term (excluding strict0-sub-terms of readable)
+    pub fn has_variable(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => true,
+            DYTerm::Application(_, args) => {
+                !self.is_readable() && args.iter().any(|arg| arg.has_variable())
+            }
+        }
+    }
+
+    /// Whether the term is readable, i.e. whether it has a payload that will be read before
+    /// evaluating
+    pub fn is_readable(&self) -> bool {
+        if let Some(payload) = &self.payloads {
+            payload.metadata.readable
+        } else {
+            false
+        }
+    }
+
     /// Erase all payloads in a term, including those under opaque function symbol
     pub fn erase_payloads_subterms(&mut self, is_subterm: bool) {
         if is_subterm {
@@ -506,12 +526,14 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         )?;
         // if let Some(mut e) = eval {
         if with_payloads && !all_payloads.is_empty() {
-            log::debug!("[evaluate_config] About to replace for a term {}\n payloads with contexts {:?}\n-------------------------------------------------------------------",
-                    self, &all_payloads);
-            Ok((
-                replace_payloads(self, &mut eval_tree, all_payloads, context)?,
-                m,
-            ))
+            let ft = format!("[evaluate_config] About to replace for a term {}\n payloads with contexts: {}\n-------------------------------------------------------------------",
+                             self, all_payloads.iter().format(","));
+            log::trace!("{}", ft);
+            let res = replace_payloads(self, &mut eval_tree, all_payloads)?;
+            log::trace!(
+                "        / [payload]    We successfully evaluated the root term into: {res:?}"
+            );
+            Ok((res, m))
         } else {
             let eval = PB::any_get_encoding(m.as_ref());
             log::trace!(
