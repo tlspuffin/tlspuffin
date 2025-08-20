@@ -45,11 +45,11 @@ impl Default for MutationConfig {
 
 pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
 // DY mutations
-      RepeatMutator<S>,
-      SkipMutator<S>,
-      ReplaceReuseMutator<S>,
-      ReplaceMatchMutator<S, PT>,
-      RemoveAndLiftMutator<S>,
+    RepeatMutator<S>,
+    SkipMutator<S>,
+    ReplaceReuseMutator<S>,
+    ReplaceMatchMutator<S, PT>,
+    RemoveAndLiftMutator<S>,
     GenerateMutator<'harness, S, PB>,
     SwapMutator<S>,
 );
@@ -423,6 +423,11 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
+        let (trace_nb_payloads, nb_terms) = if self.with_bit {
+            (trace.all_payloads().len(), trace.steps.len())
+        } else {
+            (0, 0)
+        };
         if let Some(replacement) = choose_term(trace, &self.constraints, rand).cloned() {
             if let Some(to_replace) = choose_term_filtered_mut(
                 trace,
@@ -430,6 +435,17 @@ where
                 &self.constraints,
                 rand,
             ) {
+                if self.with_bit {
+                    let nb_payloads = trace_nb_payloads + replacement.all_payloads().len()
+                        - to_replace.all_payloads().len();
+                    let no_more_new_payloads = nb_payloads / std::cmp::max(1, nb_terms)
+                        > self.constraints.threshold_max_payloads_per_term;
+                    if no_more_new_payloads {
+                        log::debug!("[ReplaceReuseMutator] Skipped as the chosen replacement would yield too many payloads.");
+                        log::debug!("       Skipped {}", self.name());
+                        return Ok(MutationResult::Skipped);
+                    }
+                }
                 log::debug!(
                     "[Mutation] Mutate ReplaceReuseMutator on terms\n {} and\n{}",
                     to_replace,
