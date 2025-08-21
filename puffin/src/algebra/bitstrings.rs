@@ -571,6 +571,25 @@ impl<PT: ProtocolTypes> Term<PT> {
             }
         }
 
+        // Specific case of readable terms (originated from ReadMessage): if the term is a readable
+        // term, we MUST read it directly from payload!
+        if with_payloads && self.is_readable() {
+            let payload = self.payloads.as_ref().ok_or(TermBug(format!("[eval_until_opaque] Try to read a readable term without payload, should never happen!")))?;
+            log::trace!(
+                "[eval_until_opaque] Trying to read payload (originated from ReadMessage): {:?}",
+                payload.payload.bytes(),
+            );
+            if let Ok(di) = PB::try_read_bytes(payload.payload.bytes(), type_term.clone().into()) {
+                log::trace!("[eval_until_opaque] Successfully read term: {:?}", di);
+                // We have set payload to di.get_encoding() when performing ReadMessage, so we can
+                // use it here
+                eval_tree.encode = Some(payload.payload.bytes().to_vec());
+                return Ok((di, vec![]));
+            } else {
+                return Err(TermBug(format!("[eval_until_opaque] Fail to read a readable term (originated from ReadMessage), should never happen!")));
+            }
+        }
+
         match &self.term {
             DYTerm::Variable(variable) => {
                 let d = ctx

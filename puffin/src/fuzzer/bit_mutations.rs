@@ -321,8 +321,9 @@ where
             weighted_depth: false, /* true means we select a sub-term by giving higher-priority
                                     * to deeper sub-terms */
             // Set two lasts to false now as this allows to find more case for now.
-            // TODO: fix reservori sampling and set this to true (as well as in
+            // TODO: fix reservoir sampling and set this to true (as well as in
             // integration_test/term_zoo.rs)
+            not_readable: true,
             ..self.config.term_constraints
         };
         if !self.config.with_dy {
@@ -405,6 +406,46 @@ impl<'a, PB> ReadMessage<'a, PB> {
     }
 }
 
+/// `ReadMessage` on the term at path `path` in `tr`.
+fn read_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
+    tr: &mut Trace<PT>,
+    path: &TracePath,
+    ctx: &mut TraceContext<PB>,
+) -> Result<(), crate::error::Error>
+where
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
+{
+    // Only execute shorter trace: trace[0..step_index])
+    // execute the PUT on the first step_index steps and store the resulting trace context
+    log::debug!("Try eval until path.0: {}", path.0);
+    tr.execute_until_step(ctx, path.0, &mut 0).err().map(|e| {
+        log::debug!("mutation::ReadMessage trace is not executable until step {},\
+            could only happen if this mutation is scheduled with other mutations that create a non-executable trace. Skipped ReadMessage\
+            Error: {e}", path.0);
+        log::trace!("{}", &tr);
+        Ok::<MutationResult, Error>(MutationResult::Skipped)
+    });
+
+    let t = find_term_mut(tr, path).expect("read_message_term - Should never happen.");
+    log::debug!(
+        "[mutation::ReadMessage] [read_message_term] Mutate ReadMessage on term\n{}\n Trying read for type shape: {} and type id : {:?}",
+        t, t.get_type_shape(), t.term.type_id()
+    );
+    // Evaluate the term and try to read it into the term type
+    let eval = t.evaluate(ctx)?; // We do not measure failure or not for this specific eval (less costly than trace execution)
+    let read_term = PB::try_read_bytes(&*eval, t.get_type_shape().clone().into())?; // skip if try_read fails
+
+    // The evaluation of this readable term eval_read is likely NOT the original evaluation itself
+    // eval. What we keep here is eval_read since we aim to store the re-interpretation of the
+    // payload. Note that when eval != eval_read, it likely means that `t` is length-prefixed or has
+    // some headers and that havoc mutations have messed up with those or the payload length. We
+    // will loose part of this. However, it is likely that we could have ReadMessage a
+    // strict-subterm instead to avoid this.
+    let eval_read = read_term.get_encoding();
+    t.add_payload_readable(eval_read);
+    Ok(())
+}
+
 impl<'a, S, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>> Mutator<Trace<PT>, S>
     for ReadMessage<'a, PB>
 where
@@ -417,8 +458,84 @@ where
         trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        // Nothing for now
-        Ok(MutationResult::Skipped)
+        log::debug!("[Bit] Start mutate with {}", self.name());
+        let focus = false; // used in a late PR
+        if !self.config.with_bit_level {
+            log::debug!("[Mutation-bit] Mutate ReadMessage skipped because bit-level mutations are disabled");
+            return Ok(MutationResult::Skipped);
+        }
+        let rand = state.rand_mut();
+        let mut term_constraints = TermConstraints {
+            not_readable: true,
+            ..self.config.term_constraints
+        };
+        if !self.config.with_dy {
+            term_constraints.must_be_root = true;
+        }
+        let chosen_path = {
+            // Randomly choose a random sub term
+            // Specifically for ReadMessage, we should prioritize terms close to a sub-term with
+            // payloads. We first randomly pick a term with payload. With proba p:=1/2 we pick
+            // that one. With proba. p:=p/2 we pick the parent term, etc.
+            if let Some(mut chosen_path) =
+                choose_term_path_filtered(trace, |x| x.is_symbolic().not(), &term_constraints, rand)
+            {
+                log::trace!("[ReadMessage] Initially picked term at {chosen_path:?}");
+                let term = find_term_mut(trace, &chosen_path)
+                    .expect("mutation::ReadMessage::mutate - Should never happen!");
+                let payloads = term.payloads.as_ref().expect(
+                    "mutation::ReadMessage::mutate - Should never happen, we should have filtered out symbolic terms",
+                );
+                if !payloads.has_changed() {
+                    // Extremely likely that payload.payload == payload.payload0 then!
+                    log::debug!("       Skipped {} because payload unchanged", self.name());
+                    return Ok(MutationResult::Skipped);
+                }
+                let mut proba = 1.0 / 2.0;
+                while !chosen_path.1.is_empty() {
+                    let max_range = (1_000_000_000.0 * proba) as u64;
+                    if rand.between(0, 1_000_000_000 - 1) < max_range {
+                        log::trace!("[ReadMessage] Going up, proba was {proba}");
+                        proba = proba / 2.0;
+                        chosen_path.1.pop();
+                    } else {
+                        break;
+                    }
+                }
+                chosen_path
+            } else {
+                log::debug!(
+                    "[mutation::ReadMessage] Failed to choose term with payload in trace:\n {}",
+                    &trace
+                );
+                log::debug!("       Skipped {}", self.name());
+                return Ok(MutationResult::Skipped);
+            }
+        };
+        let spawner = Spawner::new(self.put_registry.clone());
+        // log::trace!("Using self.put_registry {:?} to compute ctx",
+        // self.put_registry.default().name());
+        let mut ctx = TraceContext::new_config(
+            spawner,
+            ConfigTrace {
+                with_bit_level: self.config.with_bit_level,
+                ..Default::default()
+            },
+        );
+        BIT_EXEC.increment();
+        match read_message_term(trace, &chosen_path, &mut ctx) {
+            Ok(_) => {
+                BIT_EXEC_SUCCESS.increment();
+                log::debug!("[ReadMessage] Path chosen: {chosen_path:?}");
+                log::debug!("[mutation::ReadMessage] successful!");
+                Ok(MutationResult::Mutated)
+            }
+            Err(e) => {
+                log::debug!("[mutation::ReadMessage] failed due to {e}");
+                log::debug!("       Skipped {}", self.name());
+                Ok(MutationResult::Skipped)
+            }
+        }
     }
 }
 
