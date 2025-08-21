@@ -22,7 +22,7 @@ use tlspuffin::test_utils::prelude::*;
 use tlspuffin::test_utils::{create_state, default_runner_for, test_mutations, TLSState};
 use tlspuffin::tls::fn_impl::{
     fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
-    fn_support_group_extension,
+    fn_support_group_extension_make,
 };
 use tlspuffin::tls::seeds::{_seed_client_attacker12, create_corpus, seed_client_attacker_full};
 use tlspuffin::tls::TLS_SIGNATURE;
@@ -627,7 +627,9 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
                                     fn_signature_algorithm_extension.name(),
                                 );
                                 let support_groups_extensions = first_subterm
-                                    .count_functions_by_name(fn_support_group_extension.name());
+                                    .count_functions_by_name(
+                                        fn_support_group_extension_make.name(),
+                                    );
                                 if sig_alg_extensions == 0 && support_groups_extensions == 1 {
                                     trace = mutate;
                                     success = true;
