@@ -15,7 +15,7 @@ use crate::fuzzer::bit_mutations::{
 };
 use crate::fuzzer::feedback::MinimizingFeedback;
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
-use crate::fuzzer::stages::PuffinMutationalStage;
+use crate::fuzzer::stages::{FocusScheduledMutator, PuffinMutationalStage};
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
 use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
@@ -248,8 +248,11 @@ where
            ==> let mut stages = tuple_list!(stage_dy, stage_bit);
         where:
          - stage_dy is a StdScheduledMutator stage over DY mutations, enabled when DY mutations are
-         - stage_bit is a StdScheduledMutator with only 1 run stage over bit-level mutations, enabled when bit mutations are enabled and when sufficiently many executions and corpus testcases have been done/found
-         We refine this initial design below.
+         - stage_bit is a StdScheduledMutator with only 1 run stage over bit-level mutations, enabled
+         when bit mutations are enabled and when sufficiently many executions and corpus testcases have been done/found
+
+         We refine this initial design below with the addition of a Focused stage where the payload
+         on which we'll apply HAVOC mutations is first randomly chosen for the whole mutational stage.
         */
 
         // ==== DY mutational stage
@@ -303,6 +306,20 @@ where
                 return Ok(false);
             }
         };
+        let mutation_config_focus = MutationConfig {
+            with_focus: true,
+            ..mutation_config
+        };
+        let mutator_bit_focus = FocusScheduledMutator::new(
+            tuple_list!(MakeMessage::new(mutation_config_focus, put_registry)),
+            havoc_mutations_dy::<StdState<Trace<PT>, C, R, SC>>(mutation_config_focus),
+            tuple_list!(ReadMessage::new(mutation_config_focus, put_registry)),
+        );
+
+        let focus_stage_print = ClosureStage::new(|_, _, _, _, _| -> Result<(), Error> {
+            log::debug!("[*] BIT FocusScheduledMutator");
+            Ok(())
+        });
         let stage_bit = IfStage::new(
             cb_bit_level,
             tuple_list!(
@@ -310,7 +327,12 @@ where
                     mutator_bit,
                     self.config.mutation_stage_config.max_iterations_per_stage
                 ), // Old-style HAVOC stage
-            ),
+                focus_stage_print, // printing focus HAVOC stage
+                PuffinMutationalStage::new(
+                    mutator_bit_focus,
+                    self.config.mutation_stage_config.max_iterations_per_stage
+                )
+            ), // Focus stage, first MakeMessage, then HAVOC, then ReadMessage
         );
         // A stage that only enables in introspection mode and executes each testcase in corpus
         // prior to executing other stages on it
