@@ -388,8 +388,16 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
             log::error!("{ft}");
             #[cfg(any(debug_assertions, feature = "debug"))]
             {
-                // Ungraceful error in debug mode
-                return Err(Error::TermBug(ft));
+                return if parent_is_get {
+                    // This case is to be expected: we are looking for a child encoding that might
+                    // just not been present in the encoding because the
+                    // function symbol is a `get` symbol. No relevant payload
+                    // replacement is possible --> We returns a simple error in that
+                    // case.
+                    Err(Error::Term(format!("{ft}")))
+                } else {
+                    Err(Error::TermBug(format!("{ft}")))
+                };
             }
         }
     }
