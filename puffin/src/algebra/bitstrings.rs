@@ -180,7 +180,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
     let eval_to_search_orig: Vec<u8>;
     #[cfg(any(debug_assertions, feature = "debug"))]
     {
-        eval_root_orig = eval_to_search.clone();
+        eval_root_orig = eval_tree.encode.as_ref().unwrap().clone();
         eval_to_search_orig = eval_to_search.clone();
     }
 
@@ -400,8 +400,9 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
     #[cfg(any(debug_assertions, feature = "debug"))]
     {
         log::debug!("[find_unique_match_rec] [DEBUG] Checking consistencies...");
+        assert!(start_pos + eval_to_search_orig.len() <= eval_root_orig.len());
         assert_eq!(
-            eval_root_orig[start_pos..start_pos + eval_to_search_orig.len()],
+            eval_root_orig[start_pos..(start_pos + eval_to_search_orig.len())],
             eval_to_search_orig
         );
     }
