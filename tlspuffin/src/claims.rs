@@ -407,7 +407,10 @@ pub mod claims_helpers {
                     client_random: SmallVec::from(claim.client_random.data),
                     server_random: SmallVec::from(claim.server_random.data),
                     session_id: SmallVec::from_slice(
-                        &claim.session_id.data[..claim.session_id.length as usize],
+                        &claim.session_id.data[..std::cmp::min(
+                            claim.session_id.data.len(),
+                            claim.session_id.length as usize,
+                        )],
                     ),
                     authenticate_peer: claim.peer_authentication == 1,
                     peer_certificate,
