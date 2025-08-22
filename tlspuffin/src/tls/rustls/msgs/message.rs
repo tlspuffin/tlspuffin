@@ -525,6 +525,7 @@ pub fn try_read_bytes(
         TranscriptServerHello,
         TranscriptServerFinished,
         TranscriptCertificate,
+        TranscriptClientFinished,
         u64,
         u32,
         u16,

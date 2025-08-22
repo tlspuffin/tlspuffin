@@ -324,7 +324,7 @@ pub fn ignore_eval_attribute() -> HashSet<String> {
 /// Functions that are known to fail to be adversarially generated, MakeMessage, evaluated
 pub fn ignore_add_payload() -> HashSet<String> {
     let mut ignore_eval = ignore_eval();
-    let ignore_pay: HashSet<String> = ["tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk"]
+    let ignore_pay: HashSet<String> = vec![] //["tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk"]
         .iter()
         .map(|fn_name: &&str| fn_name.to_string())
         .collect::<HashSet<String>>();
