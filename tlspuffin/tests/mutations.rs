@@ -483,7 +483,7 @@ fn test_byte_interesting(put: &str) {
 }
 
 fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtocolTypes>> {
-    let loop_tries = 1000;
+    let loop_tries = 5000;
     let mut attempts = 0;
     let (mut trace, _) = _seed_client_attacker12(AgentName::first());
     let mut success = false;
@@ -669,9 +669,11 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
                     DYTerm::Variable(_) => {}
                     DYTerm::Application(_, subterms) => {
                         if let Some(first_subterm) = subterms.iter().next() {
+                            log::warn!("mutational resul first sub-term: {:?}", first_subterm);
+                            let is_client_hello = first_subterm.name() == fn_client_hello.name();
                             let signatures =
                                 first_subterm.count_functions_by_name(fn_sign_transcript.name());
-                            if signatures == 1 {
+                            if signatures == 1 && is_client_hello {
                                 trace = mutate;
                                 success = true;
                                 break;
