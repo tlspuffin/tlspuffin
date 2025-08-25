@@ -131,13 +131,15 @@ impl EvalTree {
 
 /// Search and locate `to_search := eval_tree[path_to_search].encode` in
 /// `root_eval:=eval_tree`[vec![]].encode (=`whole_term.encode(ctx)`) such that the match
-/// corresponds to `path_to_search` (when `to_search` occurs multiple times).
+/// corresponds to `path_to_search` (when `to_search` occurs multiple times). Also returns
+/// a boolean flag envcountered_get_symbol indicating whether a get symbol is between the root and
+/// the path_to_search, in which case, inconsistencies might occur.
 pub fn find_unique_match<PT: ProtocolTypes>(
     path_to_search: &[usize],
     eval_tree: &EvalTree,
     whole_term: &Term<PT>,
     is_to_search_in_list: bool,
-) -> Result<usize, Error> {
+) -> Result<(usize, bool), Error> {
     Ok(find_unique_match_rec(
         path_to_search,
         eval_tree,
@@ -153,12 +155,14 @@ pub fn find_unique_match<PT: ProtocolTypes>(
 ///   node
 /// - there can be headers of arbitrary length
 /// - no trailer (no bytes added after the last argument encoding)
+///  Also returns a boolean flag envcountered_get_symbol indicating whether a get symbol is between
+/// he root and the path_to_search, in which case, inconsistencies might occur.
 pub fn find_unique_match_rec<PT: ProtocolTypes>(
     path_to_search: &[usize],
     eval_tree: &EvalTree,
     whole_term: &Term<PT>,
     is_to_search_in_list: bool,
-) -> Result<usize, Error> {
+) -> Result<(usize, bool), Error> {
     log::debug!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?}");
     log::trace!("[find_unique_match_rec] --- [STARTING] with {path_to_search:?},\n - eval_tree: {eval_tree:?},\n - to_search: {:?}", eval_tree.get(path_to_search)?.encode.as_ref().unwrap());
     // We traverse the eval_tree and update the followings until we reach the node at
@@ -172,6 +176,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         .encode
         .as_ref()
         .expect("[find_unique_match_rec] path_to_search should exist in eval_tree");
+    let mut encountered_get_symbol = false;
 
     // For later debugging
     #[cfg(any(debug_assertions, feature = "debug"))]
@@ -180,7 +185,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
     let eval_to_search_orig: Vec<u8>;
     #[cfg(any(debug_assertions, feature = "debug"))]
     {
-        eval_root_orig = eval_to_search.clone();
+        eval_root_orig = eval_tree.encode.as_ref().unwrap().clone();
         eval_to_search_orig = eval_to_search.clone();
     }
 
@@ -190,6 +195,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         let parent_tp = term.get_type_shape();
         let parent_is_get = term.is_get();
         let parent_is_list = term.is_list();
+        encountered_get_symbol = parent_is_get || encountered_get_symbol;
         let nb_children = eval_tree.args.len();
         let child_arg_number = path_to_search[0];
         log::debug!("[find_unique_match_rec] while step: {path_to_search:?}, nb_children: {nb_children}, child_arg: {child_arg_number}");
@@ -380,7 +386,11 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 let ft = format!("[find_unique_match_rec] [S2:2] [sib] Could not find at least one appropriate idx for all_matches: {all_matches:?} and eval_child.len: {}, eval_parent.len(): {}, pos_right_siblings: {pos_right_siblings}. Continue....\n\
                   - eval_right_siblings: {eval_right_siblings:?}\n\
                   - eval_parent: {eval_parent:?}", eval_child.len(), eval_parent.len());
-                return Err(Error::TermBug(ft));
+                if !parent_is_get {
+                    return Err(Error::TermBug(ft));
+                } else {
+                    return Err(Error::Term(ft));
+                }
             }
         } else {
             // right_sibling could not be found --> warning
@@ -388,9 +398,32 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
             log::error!("{ft}");
             #[cfg(any(debug_assertions, feature = "debug"))]
             {
-                // Ungraceful error in debug mode
-                return Err(Error::TermBug(ft));
+                return if parent_is_get {
+                    // This case is to be expected: we are looking for a child encoding that might
+                    // just not been present in the encoding because the
+                    // function symbol is a `get` symbol. No relevant payload
+                    // replacement is possible --> We returns a simple error in that
+                    // case.
+                    Err(Error::Term(format!("{ft}")))
+                } else {
+                    Err(Error::TermBug(format!("{ft}")))
+                };
             }
+        }
+    }
+
+    // If match was found before reaching the target, update encountered_get_symbol
+    if !encountered_get_symbol && path_to_search.len() > 0 {
+        while path_to_search.len() > 0 {
+            if term.is_get() {
+                encountered_get_symbol = true;
+                break;
+            }
+            let child_arg_number = path_to_search[0];
+            path_to_search = &path_to_search[1..];
+            term = term
+                .get(&[child_arg_number])
+                .expect("[find_unique_match_rec] term does not match eval_tree");
         }
     }
 
@@ -399,14 +432,17 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
     // Check consistencies in debug mode
     #[cfg(any(debug_assertions, feature = "debug"))]
     {
-        log::debug!("[find_unique_match_rec] [DEBUG] Checking consistencies...");
-        assert_eq!(
-            eval_root_orig[start_pos..start_pos + eval_to_search_orig.len()],
-            eval_to_search_orig
-        );
+        if !encountered_get_symbol {
+            log::debug!("[find_unique_match_rec] [DEBUG] Checking consistencies...");
+            assert!(start_pos + eval_to_search_orig.len() <= eval_root_orig.len());
+            assert_eq!(
+                eval_root_orig[start_pos..(start_pos + eval_to_search_orig.len())],
+                eval_to_search_orig
+            );
+        }
     }
 
-    Ok(start_pos)
+    Ok((start_pos, encountered_get_symbol))
 }
 
 /// Operate the payloads replacements in `eval_tree.encode`[vec![]] and returns the modified
@@ -453,7 +489,8 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                 .expect("[replace_payload] Should never happen")
                 .is_list()
         };
-        let pos_start = find_unique_match(path_payload, eval_tree, term, is_to_search_in_list)?;
+        let (pos_start, encountered_get_symbol) =
+            find_unique_match(path_payload, eval_tree, term, is_to_search_in_list)?;
         let old_bitstring_len = old_bitstring.len();
         let new_bitstring = payload_context.payloads.payload.bytes();
 
@@ -468,7 +505,11 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                  - payload_context: {payload_context}",
                 to_modify.len());
             log::error!("{ft}");
-            return Err(Error::TermBug(ft));
+            if !encountered_get_symbol {
+                return Err(Error::TermBug(ft));
+            } else {
+                return Err(Error::Term(ft));
+            }
         }
 
         log::trace!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}\n  - to_modify={to_modify:?}",
@@ -490,7 +531,11 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                 payload_context.payloads,
             );
             log::error!("{ft}");
-            return Err(Error::TermBug(ft));
+            if !encountered_get_symbol {
+                return Err(Error::TermBug(ft));
+            } else {
+                return Err(Error::Term(ft));
+            }
         }
         // Performing the bytes replaceents through splicing
         let to_remove: Vec<u8> = to_modify
@@ -549,8 +594,8 @@ impl<PT: ProtocolTypes> Term<PT> {
                                 - bi (first eval)  : {:?}\n\
                                 - read.encode:     : {:?}",
                                 self.is_symbolic(),
-                                 <TypeShape<PT> as Clone>::clone(type_term),
-                payload.payload_0.bytes(),
+                                <TypeShape<PT> as Clone>::clone(type_term),
+                                payload.payload_0.bytes(),
                                 di.get_encoding(),
                             );
                 } else {
@@ -717,7 +762,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 // Sanity check!
                 #[cfg(any(debug_assertions, feature = "debug"))]
                 if let (true, Some(payload)) = (with_payloads, &self.payloads) {
-                    log::trace!("[eval_until_opaque] Checking consistency!");
+                    log::trace!("[eval_until_opaque] Checking consistency of new evaluation!");
                     let new_payload_0 = PB::any_get_encoding(result.as_ref());
                     if new_payload_0 != payload.payload_0.bytes() {
                         let ft = format!("--> [eval_until_opaque] [term has variable:{}] Failed consistency check payload_0 versus new encoding.\n\

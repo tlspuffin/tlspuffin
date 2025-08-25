@@ -1135,7 +1135,9 @@ impl ClientHelloPayload {
     pub fn set_psk_binder(&mut self, binder: impl Into<Vec<u8>>) {
         let last_extension = self.extensions.0.last_mut();
         if let Some(ClientExtension::PresharedKey(ref mut offer)) = last_extension {
-            offer.binders.0[0] = PresharedKeyBinder::new(binder.into());
+            if !offer.binders.0.is_empty() {
+                offer.binders.0[0] = PresharedKeyBinder::new(binder.into());
+            }
         }
     }
 

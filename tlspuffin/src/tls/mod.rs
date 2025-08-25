@@ -103,7 +103,7 @@ define_signature!(
     fn_heartbeat
     // fn_heartbeat_fake_length // Now subsumed by bit-level mutations
     fn_hello_request
-    fn_hello_retry_request
+    fn_hello_retry_request [get] // because some compressions get lost
     fn_hello_retry_request_random
     fn_key_update
     fn_key_update_not_requested

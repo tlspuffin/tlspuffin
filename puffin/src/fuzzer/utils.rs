@@ -427,6 +427,5 @@ mod tests {
 
         assert!(std_dev < 30.0);
         assert_eq!(term_size, stats.len());
-        assert_eq!(term_size, stats.len());
     }
 }
