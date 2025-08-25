@@ -594,8 +594,8 @@ impl<PT: ProtocolTypes> Term<PT> {
                                 - bi (first eval)  : {:?}\n\
                                 - read.encode:     : {:?}",
                                 self.is_symbolic(),
-                                 <TypeShape<PT> as Clone>::clone(type_term),
-                payload.payload_0.bytes(),
+                                <TypeShape<PT> as Clone>::clone(type_term),
+                                payload.payload_0.bytes(),
                                 di.get_encoding(),
                             );
                 } else {
@@ -762,7 +762,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 // Sanity check!
                 #[cfg(any(debug_assertions, feature = "debug"))]
                 if let (true, Some(payload)) = (with_payloads, &self.payloads) {
-                    log::trace!("[eval_until_opaque] Checking consistency!");
+                    log::trace!("[eval_until_opaque] Checking consistency of new evaluation!");
                     let new_payload_0 = PB::any_get_encoding(result.as_ref());
                     if new_payload_0 != payload.payload_0.bytes() {
                         let ft = format!("--> [eval_until_opaque] [term has variable:{}] Failed consistency check payload_0 versus new encoding.\n\
