@@ -523,7 +523,6 @@ pub fn try_read_bytes(
         TlsTranscript,
         TranscriptPartialClientHello,
         TranscriptServerHello,
-        TranscriptServerFinished,
         TranscriptCertificate,
         TranscriptClientFinished,
         u64,

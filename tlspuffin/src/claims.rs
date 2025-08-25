@@ -22,12 +22,7 @@ impl codec::Codec for TlsTranscript {
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
         let length = u8::read(r)?;
-        if length > 64 {
-            return None;
-        }
-        let mut t = [0u8; 64];
-        let bytes = r.take(length as usize)?;
-        t[..bytes.len()].copy_from_slice(&bytes);
+        let t: [u8; 64] = <[u8; 64]>::try_from(r.take(length as usize)?).ok()?;
         Some(TlsTranscript(t, length as i32))
     }
 }
@@ -407,10 +402,7 @@ pub mod claims_helpers {
                     client_random: SmallVec::from(claim.client_random.data),
                     server_random: SmallVec::from(claim.server_random.data),
                     session_id: SmallVec::from_slice(
-                        &claim.session_id.data[..std::cmp::min(
-                            claim.session_id.data.len(),
-                            claim.session_id.length as usize,
-                        )],
+                        &claim.session_id.data[..claim.session_id.length as usize],
                     ),
                     authenticate_peer: claim.peer_authentication == 1,
                     peer_certificate,
