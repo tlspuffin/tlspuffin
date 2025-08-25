@@ -20,6 +20,12 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/wolfssl/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/tools/tlspuffin-analyzer" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/wolfssl-src/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/extractable-macro/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/extractable-macro/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/puffin-build/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/puffin-macros/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/puffin-macros/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/tlspuffin/tests" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/deps" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
