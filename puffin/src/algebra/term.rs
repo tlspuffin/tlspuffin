@@ -344,7 +344,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 metadata: with_metadata.unwrap_or_else(|| PayloadMetadata::default()),
             }
         });
-        self.erase_payloads_subterms(false);
+        // self.erase_payloads_subterms(false);
     }
 
     /// Add a payload at the root position, erase payloads in strict sub-terms not under opaque

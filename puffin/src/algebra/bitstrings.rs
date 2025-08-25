@@ -594,8 +594,8 @@ impl<PT: ProtocolTypes> Term<PT> {
                                 - bi (first eval)  : {:?}\n\
                                 - read.encode:     : {:?}",
                                 self.is_symbolic(),
-                                 <TypeShape<PT> as Clone>::clone(type_term),
-                payload.payload_0.bytes(),
+                                <TypeShape<PT> as Clone>::clone(type_term),
+                                payload.payload_0.bytes(),
                                 di.get_encoding(),
                             );
                 } else {
