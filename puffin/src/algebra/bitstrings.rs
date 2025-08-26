@@ -299,7 +299,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 .expect("[find_unique_match_rec] path_to_search[0..len-1] should exist in term")
                 .get_type_shape();
             if parent_tp != parent_to_search_tp {
-                log::error!(
+                log::debug!(
                     "[S2:special-list] [S2:1] Parent and target are not the same type, we cannot use the special heuristic. Continue..."
                 );
             } else {
@@ -395,7 +395,6 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         } else {
             // right_sibling could not be found --> warning
             let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
-            log::error!("{ft}");
             #[cfg(any(debug_assertions, feature = "debug"))]
             {
                 return if parent_is_get {
@@ -404,8 +403,10 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                     // function symbol is a `get` symbol. No relevant payload
                     // replacement is possible --> We returns a simple error in that
                     // case.
+                    log::debug!("{ft}");
                     Err(Error::Term(format!("{ft}")))
                 } else {
+                    log::error!("{ft}");
                     Err(Error::TermBug(format!("{ft}")))
                 };
             }
@@ -598,6 +599,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                                 payload.payload_0.bytes(),
                                 di.get_encoding(),
                             );
+                    log::trace!("Read EvaluatedTerm was: {di:?}");
                 } else {
                     log::trace!("[eval_until_opaque] Successfully read term: {:?}", di);
                     let p_c = vec![PayloadContext {
@@ -626,13 +628,17 @@ impl<PT: ProtocolTypes> Term<PT> {
                 "[eval_until_opaque] Trying to read payload (originated from ReadMessage): {:?}",
                 payload.payload.bytes(),
             );
-            if let Ok(di) = PB::try_read_bytes(payload.payload.bytes(), type_term.clone().into()) {
+            if let Ok(di) = PB::try_read_bytes(
+                payload.payload.bytes(),
+                self.get_type_shape().clone().into(),
+            ) {
                 log::trace!("[eval_until_opaque] Successfully read term: {:?}", di);
                 // We have set payload to di.get_encoding() when performing ReadMessage, so we can
                 // use it here
                 eval_tree.encode = Some(payload.payload.bytes().to_vec());
                 return Ok((di, vec![]));
             } else {
+                log::error!("[eval_until_opaque] Fail to read a readable term (originated from ReadMessage), should never happen! payload:\n{:?}\n payload_0:\n{:?}. Has changed: {}", payload.payload.bytes(), payload.payload_0.bytes(), payload.has_changed());
                 return Err(TermBug(format!("[eval_until_opaque] Fail to read a readable term (originated from ReadMessage), should never happen!")));
             }
         }
@@ -694,7 +700,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                     if with_payloads && self.is_opaque() && ti.has_payload_to_replace() {
                         // Fully evaluate this sub-term and consume the payloads
                         log::trace!("    * [eval_until_opaque] Opaque and has payloads: Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
-                        let typei = func.shape().argument_types[i].clone();
+                        let typei = ti.get_type_shape();
                         let bi = ti.evaluate(ctx)?; // payloads in ti are consumed here!
                         let di = PB::try_read_bytes(&bi, typei.clone().into()) // TODO: to make this more robust, we might want to relax this when payloads are in deeper terms, then read there!
                             .map_err(|e| {
@@ -734,7 +740,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                             ctx,
                             with_payloads,
                             self_has_payloads_wo_root,
-                            &func.shape().argument_types[i],
+                            &ti.get_type_shape(),
                         )?;
                         dynamic_args.push(di); // add the evaluation (Boc<dyn Any>) to the list of arguments
                         if with_payloads {
@@ -768,9 +774,10 @@ impl<PT: ProtocolTypes> Term<PT> {
                         let ft = format!("--> [eval_until_opaque] [term has variable:{}] Failed consistency check payload_0 versus new encoding.\n\
                                     - term: {}\n\
                                     - payload_0:    {:?}\n\
+                                    - payload:    {:?}\n\
                                     - new_eval:     {new_payload_0:?}\n\
                                     - result: {result:?}",
-                                         self.has_variable(), self, &payload.payload_0.bytes());
+                                         self.has_variable(), self, &payload.payload_0.bytes(), &payload.payload.bytes());
                         if self.has_variable() {
                             // Some mismatches are to be expected when there are variables
                             log::trace!("[term has variables --> only a log::trace] {}", ft);
