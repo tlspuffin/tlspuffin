@@ -358,7 +358,7 @@ where
                     trace.set_focus(path);
                     Ok(MutationResult::Mutated)
                 } else {
-                    log::error!("[MakeMessage] Skipped as we failed selecting a term with existing payloads while there is at least one payload");
+                    log::error!("[MakeMessage] Skipped as we failed selecting a term with existing payloads while there is at least one payload. Trace: {trace}");
                     Ok(MutationResult::Skipped)
                 };
             } else {
@@ -485,6 +485,13 @@ where
     // will loose part of this. However, it is likely that we could have ReadMessage a
     // strict-subterm instead to avoid this.
     let eval_read = read_term.get_encoding();
+
+    if PB::try_read_bytes(&*eval_read, t.get_type_shape().clone().into()).is_err() {
+        log::error!("[mutation::ReadMessage] [read_message_term] Failed to read eval_read\n - t: {t}\n - eval: {eval:?}\n - read_term: {read_term:?}\n - eval_read: {eval_read:?}\n - type shape: {:?} and type id : {:?}",
+            t.get_type_shape(), t.term.type_id());
+        panic!("Error")
+    }
+
     t.add_payload_readable(eval_read);
     Ok(())
 }
