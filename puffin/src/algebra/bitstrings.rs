@@ -176,7 +176,17 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         .encode
         .as_ref()
         .expect("[find_unique_match_rec] path_to_search should exist in eval_tree");
+    // Whether there is a get symbol above the target
     let mut encountered_get_symbol = false;
+    if path_to_search.len() > 1 {
+        for i in 0..path_to_search.len() - 1 {
+            // excluding the target
+            if term.get(&path_to_search[..i]).unwrap().is_get() {
+                encountered_get_symbol = true;
+                break;
+            }
+        }
+    }
 
     // For later debugging
     #[cfg(any(debug_assertions, feature = "debug"))]
@@ -195,7 +205,6 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         let parent_tp = term.get_type_shape();
         let parent_is_get = term.is_get();
         let parent_is_list = term.is_list();
-        encountered_get_symbol = parent_is_get || encountered_get_symbol;
         let nb_children = eval_tree.args.len();
         let child_arg_number = path_to_search[0];
         log::debug!("[find_unique_match_rec] while step: {path_to_search:?}, nb_children: {nb_children}, child_arg: {child_arg_number}");
@@ -222,6 +231,9 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         if eval_to_search.len() > 0
             && (eval_to_search.len() > THRESHOLD_SIZE
                 || eval_parent.len() / eval_to_search.len() < THRESHOLD_RATIO)
+            && !encountered_get_symbol
+        // otherwise, we might find a match, which is not the right one
+        // and yet unique because the target is simply not present in the encoding.
         {
             if let Some(unique_pos) = first_sub_vec_unique(eval_parent, eval_to_search) {
                 log::debug!(
@@ -403,28 +415,11 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                     // function symbol is a `get` symbol. No relevant payload
                     // replacement is possible --> We returns a simple error in that
                     // case.
-                    log::debug!("{ft}");
                     Err(Error::Term(format!("{ft}")))
                 } else {
-                    log::error!("{ft}");
                     Err(Error::TermBug(format!("{ft}")))
                 };
             }
-        }
-    }
-
-    // If match was found before reaching the target, update encountered_get_symbol
-    if !encountered_get_symbol && path_to_search.len() > 0 {
-        while path_to_search.len() > 0 {
-            if term.is_get() {
-                encountered_get_symbol = true;
-                break;
-            }
-            let child_arg_number = path_to_search[0];
-            path_to_search = &path_to_search[1..];
-            term = term
-                .get(&[child_arg_number])
-                .expect("[find_unique_match_rec] term does not match eval_tree");
         }
     }
 
