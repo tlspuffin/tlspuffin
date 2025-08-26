@@ -129,6 +129,17 @@ impl EvalTree {
     }
 }
 
+/// Checks if a get symbol is between the root and the path_to_search
+pub fn is_get_in_path<PT: ProtocolTypes>(term: &Term<PT>, path_to_search: &[usize]) -> bool {
+    for i in 0..path_to_search.len() {
+        // excluding the target
+        if term.get(&path_to_search[..i]).unwrap().is_get() {
+            return true;
+        }
+    }
+    false
+}
+
 /// Search and locate `to_search := eval_tree[path_to_search].encode` in
 /// `root_eval:=eval_tree`[vec![]].encode (=`whole_term.encode(ctx)`) such that the match
 /// corresponds to `path_to_search` (when `to_search` occurs multiple times). Also returns
@@ -177,16 +188,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         .as_ref()
         .expect("[find_unique_match_rec] path_to_search should exist in eval_tree");
     // Whether there is a get symbol above the target
-    let mut encountered_get_symbol = false;
-    if path_to_search.len() > 1 {
-        for i in 0..path_to_search.len() - 1 {
-            // excluding the target
-            if term.get(&path_to_search[..i]).unwrap().is_get() {
-                encountered_get_symbol = true;
-                break;
-            }
-        }
-    }
+    let encountered_get_symbol = is_get_in_path(whole_term, path_to_search);
 
     // For later debugging
     #[cfg(any(debug_assertions, feature = "debug"))]
@@ -271,7 +273,8 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         // list. This could be extremely costly when the list is long, e.g., same element is
         // repeated many times. We assume there is no nested list of same type: that is if to_search
         // and parents are in a list of the same type, it should be the same list.
-        if parent_is_list && is_to_search_in_list {
+        if parent_is_list && is_to_search_in_list && !is_get_in_path(term, path_to_search) {
+            // do not proceed with the heuristics if there is a get symbol above the target
             if child_arg_number == 0 && path_to_search.iter().all(|x| *x == 0) {
                 log::debug!("[find_unique_match_rec] [S2:special-list] [Nil*] Child is the NIL starting the list, pos is 0!");
                 break;
@@ -316,7 +319,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 );
             } else {
                 log::debug!(
-                    "[S2:special-list] Searching encoding of parent of target (at {:?}) in parent... AWE: \n  - eval_parent_to_search:{eval_parent_to_search:?}\n -eval_to_search: {eval_to_search:?}",
+                    "[S2:special-list] Searching encoding of parent target (at {:?}) in parent... \n  - eval_parent_to_search:{eval_parent_to_search:?}\n  - eval_to_search: {eval_to_search:?}",
                     path_to_search[0..path_to_search.len() - 1].to_vec()
                 );
                 let pos = eval_parent_to_search.len() - eval_to_search.len();
@@ -367,7 +370,12 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         // [STEP 2:2: POSITION CHILD RELATIVELY TO SIBLINGS] If no unique match, we must find which
         // matching position of child relatively to the position of the evaluation of all
         // right siblings.
-
+        if parent_is_get {
+            // do not proceed with the heuristics if parent is a get symbol
+            let ft = format!("[[find_unique_match_rec] [S2:2] Skipps last resorting heuristics since the parant is a get symbol. Failed to find the target.");
+            log::warn!("{ft}");
+            return Err(Error::Term(format!("{ft}")));
+        }
         // We first compute evaluation of all right siblings
         let mut eval_right_siblings = Vec::new();
         for right_sibling in (child_arg_number + 1)..nb_children {
