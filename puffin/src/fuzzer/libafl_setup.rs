@@ -19,7 +19,7 @@ use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
-use crate::trace::{Spawner, Trace, TraceContext};
+use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
@@ -75,7 +75,7 @@ pub struct MutationStageConfig {
     /// How many iterations each stage gets, as an upper bound
     /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
     pub max_iterations_per_stage: u64,
-    pub max_mutations_per_iteration: u64,
+    pub max_mutations_pow_per_iteration: u64,
     // Whether to truncate the input after mutations, prior to adding it to the corpus
     pub with_truncation: bool,
 }
@@ -84,9 +84,10 @@ impl Default for MutationStageConfig {
     //  TODO:EVAL: evaluate modifications of this config
     fn default() -> Self {
         Self {
-            max_iterations_per_stage: 256,
-            max_mutations_per_iteration: 16,
+            max_iterations_per_stage: 128,
+            max_mutations_pow_per_iteration: 7,
             with_truncation: true,
+            // Default for StdMutationalStage and StdMutationalStage (=HavocScheduledMutator)
         }
     }
 }
@@ -260,7 +261,13 @@ where
                     // Input will already be loaded.
                     let current_input = current_testcase.input().as_ref().unwrap();
                     let spawner = Spawner::new(put_registry.clone());
-                    let mut ctx = TraceContext::new(spawner);
+                    let mut ctx = TraceContext::new_config(
+                        spawner,
+                        ConfigTrace {
+                            with_bit_level: self.config.mutation_config.with_bit_level,
+                            ..Default::default()
+                        },
+                    );
                     let error_ok;
                     match current_input.execute_until_step_wrap(
                         &mut ctx,

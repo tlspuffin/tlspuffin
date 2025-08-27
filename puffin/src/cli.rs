@@ -22,7 +22,7 @@ use crate::log::config_default;
 use crate::protocol::ProtocolBehavior;
 use crate::put::PutDescriptor;
 use crate::put_registry::{PutRegistry, TCP_PUT};
-use crate::trace::{Action, ExecutionResult, Spawner, Trace, TraceContext};
+use crate::trace::{Action, ConfigTrace, ExecutionResult, Spawner, Trace, TraceContext};
 
 fn create_app<S>(title: S) -> Command
 where
@@ -249,6 +249,7 @@ where
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
+        let without_bit_level = matches.get_flag("wo-bit");
 
         let mut paths = inputs
             .flat_map(|input| {
@@ -305,9 +306,16 @@ where
             Spawner::new(put_registry).with_default(default_put),
         );
 
+        let config_trace = ConfigTrace {
+            with_bit_level: !without_bit_level,
+            ..Default::default()
+        };
+        if without_bit_level {
+            log::info!("Execution without payload evaluations...");
+        }
         for path in lookup_paths {
             log::info!("Executing: {}", path.display());
-            execute(&runner, path);
+            execute(&runner, path, config_trace);
         }
 
         if !lookup_paths.is_empty() {
@@ -593,7 +601,11 @@ fn seed<PB: ProtocolBehavior>(
     Ok(())
 }
 
-fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) {
+fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
+    runner: &Runner<PB>,
+    input: P,
+    config_trace: ConfigTrace,
+) {
     let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
         t
     } else {
@@ -606,7 +618,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(runner: &Runner<PB>, input: P) 
     // When generating coverage a crash means that no coverage is stored
     // By executing in a fork, even when that process crashes, the other executed code will still
     // yield coverage
-    let status = ForkedRunner::new(runner).execute(trace, &mut 0);
+    let status = ForkedRunner::new(runner).execute_config(trace, config_trace, &mut 0);
 
     match status {
         Ok(s) => log::info!("execution finished with status {s:?}"),
