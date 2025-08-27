@@ -839,21 +839,7 @@ pub fn last_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     None
 }
 
-/// Return the first matching positions, if any
-#[must_use]
-pub fn first_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if haystack.len() < needle.len() {
-        return None;
-    }
-    for i in (0..=(haystack.len() - needle.len())).rev() {
-        if haystack[i..i + needle.len()] == needle[..] {
-            return Some(i);
-        }
-    }
-    None
-}
-
-/// Return the first matching position when it us unique, and None otherwise
+/// Return the first matching position when it is unique, and None otherwise
 pub fn first_sub_vec_unique(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if haystack.len() < needle.len() {
         // log::trace!("search_sub_vec_double: length");
