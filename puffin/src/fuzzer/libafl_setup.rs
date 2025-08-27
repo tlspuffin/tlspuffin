@@ -11,7 +11,7 @@ use log4rs::Handle;
 
 use super::harness;
 use crate::fuzzer::feedback::MinimizingFeedback;
-use crate::fuzzer::mutations::{trace_mutations, MutationConfig};
+use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
 use crate::fuzzer::stages::PuffinMutationalStage;
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
@@ -226,7 +226,7 @@ where
         } = self.config;
 
         // ==== DY mutational stage
-        let mutator_dy = StdScheduledMutator::new(trace_mutations(
+        let mutator_dy = StdScheduledMutator::new(dy_mutations(
             mutation_config,
             <PT>::signature(),
             put_registry,
@@ -234,8 +234,12 @@ where
         // Always run DY mutations (if enabled)
         let cb_dy =
             |_: &mut _, _: &mut _, _: &mut _, _: &mut _, _idx: CorpusId| -> Result<bool, Error> {
-                log::debug!("[*] DY StdMutationalStage");
-                Ok(true)
+                if mutation_config.with_dy {
+                    log::debug!("[*] DY StdMutationalStage");
+                    return Ok(true);
+                } else {
+                    return Ok(false);
+                }
             };
         let stage_dy = IfStage::new(
             cb_dy,
@@ -521,8 +525,8 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start<PB>(
-    put_registry: &PutRegistry<PB>,
+pub fn start<'harness, PB>(
+    put_registry: &'harness PutRegistry<PB>,
     put: PutDescriptor,
     config: FuzzerConfig,
     log_handle: Handle,
