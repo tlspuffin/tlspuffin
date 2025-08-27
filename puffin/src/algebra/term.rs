@@ -528,11 +528,13 @@ fn display_term_at_depth<PT: ProtocolTypes>(
 }
 
 fn append_eval<'a, PT: ProtocolTypes>(term_eval: &'a Term<PT>, v: &mut Vec<&'a Term<PT>>) {
-    match term_eval.term {
-        DYTerm::Variable(_) => {}
-        DYTerm::Application(_, ref subterms) => {
-            for subterm in subterms {
-                append_eval(subterm, v);
+    if term_eval.is_symbolic() {
+        match term_eval.term {
+            DYTerm::Variable(_) => {}
+            DYTerm::Application(_, ref subterms) => {
+                for subterm in subterms {
+                    append_eval(subterm, v);
+                }
             }
         }
     }
