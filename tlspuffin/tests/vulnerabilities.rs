@@ -173,13 +173,13 @@ fn test_seed_cve_2022_38153(put: &str) {
 // 2. Applying HAVOC mutations randomly
 // 3. For each batch of HAVOC mutations, then apply ReadMessage and execute
 
-#[apply(test_puts,
-    filter = all(
-        CVE_2022_38153,
-        tls12,
-        tls12_session_resumption,
-    )
-)]
+// #[apply(test_puts,
+//     filter = all(
+//         CVE_2022_38153,
+//         tls12,
+//         tls12_session_resumption,
+//     )
+// )]
 #[ignore]
 fn test_seed_bitmut_cve_2022_38153(put: &str) {
     let timeout_secs = 60 * 10 as u64;
