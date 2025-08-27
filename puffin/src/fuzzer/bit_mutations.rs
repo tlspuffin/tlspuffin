@@ -486,10 +486,10 @@ where
     // strict-subterm instead to avoid this.
     let eval_read = read_term.get_encoding();
 
+    #[cfg(any(debug_assertions, feature = "debug"))]
     if PB::try_read_bytes(&*eval_read, t.get_type_shape().clone().into()).is_err() {
         log::error!("[mutation::ReadMessage] [read_message_term] Failed to read eval_read\n - t: {t}\n - eval: {eval:?}\n - read_term: {read_term:?}\n - eval_read: {eval_read:?}\n - type shape: {:?} and type id : {:?}",
             t.get_type_shape(), t.term.type_id());
-        panic!("Error")
     }
 
     t.add_payload_readable(eval_read);

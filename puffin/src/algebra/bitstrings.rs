@@ -508,10 +508,11 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                  - end = start + old_bitstring_len > to_modify.len(): {end} = ({pos_start} + {shift} + {old_bitstring_len}) as usize > {}\n\
                  - payload_context: {payload_context}",
                 to_modify.len());
-            log::error!("{ft}");
             if !encountered_get_symbol {
+                log::error!("{ft}");
                 return Err(Error::TermBug(ft));
             } else {
+                log::debug!("(with encountered_get_symbol) {ft}");
                 return Err(Error::Term(ft));
             }
         }
@@ -534,10 +535,11 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                 to_modify[start..end].to_vec(),
                 payload_context.payloads,
             );
-            log::error!("{ft}");
             if !encountered_get_symbol {
+                log::error!("{ft}");
                 return Err(Error::TermBug(ft));
             } else {
+                log::debug!("(encountered_get_symbol) {ft}");
                 return Err(Error::Term(ft));
             }
         }
