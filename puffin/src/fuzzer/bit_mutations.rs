@@ -519,9 +519,7 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        let mut constraints_make_message = TermConstraints {
-            must_be_symbolic: true, /* we exclude non-symbolic terms, which were already mutated
-                                     * with MakeMessage */
+        let mut constraints_read_message = TermConstraints {
             no_payload_in_subterm: false, /* change to true to exclude picking a term with a
                                            * payload in a sub-term */
             not_inside_list: true, /* true means we are not picking terms inside list (like
@@ -532,10 +530,16 @@ where
             ..self.config.term_constraints
         };
         if !self.config.with_dy {
-            constraints_make_message.must_be_root = true;
+            constraints_read_message.must_be_root = true;
         }
         let chosen_path = if self.config.with_focus {
             if let Some(trace_path) = focus {
+                // We skip ReadMessage with proba 1/4 in focus mode!
+                let proba = 1.0 / 4.0;
+                let max_range = (1_000_000_000.0 * proba) as u64;
+                if !rand.between(0, 1_000_000_000 - 1) < max_range {
+                    return Ok(MutationResult::Skipped);
+                }
                 // If focus was already set, we use it as is!
                 // TODO: investigate whether we still want to explore application on parents
                 log::debug!("read_message_term::mutate - Using focus {trace_path:?}");
@@ -553,7 +557,7 @@ where
             if let Some(mut chosen_path) = choose_term_path_filtered(
                 trace,
                 |x| x.is_symbolic().not(),
-                &constraints_make_message,
+                &constraints_read_message,
                 rand,
             ) {
                 log::trace!("[ReadMessage] Initially picked term at {chosen_path:?}");
@@ -588,6 +592,15 @@ where
                 return Ok(MutationResult::Skipped);
             }
         };
+        let term =
+            find_term_mut(trace, &chosen_path).expect("read_message_term - Should never happen.");
+        if term.is_list() || term.is_readable() {
+            log::debug!(
+                "[ReadMessage] Skipping ReadMessage on term {term:?}, because it is a list or already readable"
+            );
+            return Ok(MutationResult::Skipped);
+        }
+
         let spawner = Spawner::new(self.put_registry.clone());
         // log::trace!("Using self.put_registry {:?} to compute ctx",
         // self.put_registry.default().name());
