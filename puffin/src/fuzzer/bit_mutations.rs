@@ -519,12 +519,20 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        let mut term_constraints = TermConstraints {
+        let mut constraints_make_message = TermConstraints {
+            must_be_symbolic: true, /* we exclude non-symbolic terms, which were already mutated
+                                     * with MakeMessage */
+            no_payload_in_subterm: false, /* change to true to exclude picking a term with a
+                                           * payload in a sub-term */
+            not_inside_list: true, /* true means we are not picking terms inside list (like
+                                    * fn_append in the middle) */
+            weighted_depth: false, /* true means we select a sub-term by giving higher-priority
+                                    * to deeper sub-terms */
             not_readable: true,
             ..self.config.term_constraints
         };
         if !self.config.with_dy {
-            term_constraints.must_be_root = true;
+            constraints_make_message.must_be_root = true;
         }
         let chosen_path = if self.config.with_focus {
             if let Some(trace_path) = focus {
@@ -542,9 +550,12 @@ where
             // Specifically for ReadMessage, we should prioritize terms close to a sub-term with
             // payloads. We first randomly pick a term with payload. With proba p:=1/2 we pick
             // that one. With proba. p:=p/2 we pick the parent term, etc.
-            if let Some(mut chosen_path) =
-                choose_term_path_filtered(trace, |x| x.is_symbolic().not(), &term_constraints, rand)
-            {
+            if let Some(mut chosen_path) = choose_term_path_filtered(
+                trace,
+                |x| x.is_symbolic().not(),
+                &constraints_make_message,
+                rand,
+            ) {
                 log::trace!("[ReadMessage] Initially picked term at {chosen_path:?}");
                 let term = find_term_mut(trace, &chosen_path)
                     .expect("mutation::ReadMessage::mutate - Should never happen!");
