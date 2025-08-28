@@ -106,6 +106,18 @@ for exp in ./experiments/*; do
                 echo "  Corpus: Directory not found"
             fi
 
+
+            # Stats
+            log_file="$exp/log/stats_puffin_main_broker.log"
+            if [ -f "$log_file" ]; then
+                edges=$(tail -n 10 "$log_file" | grep "CLIENT" | grep "edges" | tail -n1 | cut -d':' -f9-)
+                echo -n "    Stats: edges:${edges} | "
+                execs=$(tail -n 10 "$log_file" | grep "GLOBAL" | grep "exec/" | tail -n1 | cut -d':' -f9)
+                echo "execs/sec:$execs"
+            else
+                echo "  Log file not found: $log_file"
+            fi
+
             # Error log
             log_file="$exp/log/error.log"
             if [ -f "$log_file" ]; then
