@@ -368,9 +368,8 @@ where
                     trace.set_focus(trace_path.clone());
                     Some(trace_path)
                 } else {
-                    log::error!("[MakeMessage] Skipped as we failed selecting a term with existing payloads while there is at least one payload. Trace: {trace}");
-                    panic!("[MakeMessage] Skipped as we failed selecting a term with existing payloads while there is at least one payload. Trace: {trace}. Constraints: {:?}.", constraints_make_message);
-                    // return Ok(MutationResult::Skipped);
+                    log::error!("[MakeMessage] Skipped as we failed selecting a term with existing payloads while there is at least one payload. Trace: {trace}. Constraints: {:?}.", constraints_make_message);
+                    return Ok(MutationResult::Skipped);
                 }
             } else {
                 log::debug!("[MakeMessage] With focus and no enough existing payloads, picking a random term");
@@ -543,6 +542,7 @@ where
             weighted_depth: false, /* true means we select a sub-term by giving higher-priority
                                     * to deeper sub-terms */
             not_readable: true,
+            must_be_det: true, // do not make read on a non det term !
             ..self.config.term_constraints
         };
         if !self.config.with_dy {
@@ -610,9 +610,9 @@ where
         };
         let term =
             find_term_mut(trace, &chosen_path).expect("read_message_term - Should never happen.");
-        if term.is_list() || term.is_readable() {
+        if term.is_list() || term.is_readable() || term.has_no_det() {
             log::debug!(
-                "[ReadMessage] Skipping ReadMessage on term {term:?}, because it is a list or already readable"
+                "[ReadMessage] Skipping ReadMessage on term {term:?}, because it is a list or already readable or has no det"
             );
             return Ok(MutationResult::Skipped);
         }

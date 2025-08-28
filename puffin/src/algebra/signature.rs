@@ -156,6 +156,7 @@ macro_rules! define_signature {
                                     "get" => attrs.is_get = true,
                                     "no_gen" => attrs.no_gen = true,
                                     "no_bit" => attrs.no_bit = true,
+                                    "no_det" => attrs.no_det = true,
                                     _ => {},
                                 }
                             )*
