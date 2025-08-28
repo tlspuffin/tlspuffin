@@ -16,7 +16,8 @@ use libafl_bolts::rands::Rand;
 use libafl_bolts::Named;
 
 use super::utils::{
-    choose_filtered, choose_term_path_filtered, find_term_mut, TermConstraints, TracePath,
+    choose_filtered, choose_term_path_filtered, find_term, find_term_mut, TermConstraints,
+    TracePath,
 };
 use crate::algebra::{Term, TermType};
 use crate::fuzzer::utils::choose_term_filtered_mut;
@@ -291,6 +292,11 @@ where
             return Ok(MutationResult::Skipped);
         }
         let nb_payloads = trace.all_payloads().len();
+        let nb_payloads_no_readable = trace
+            .all_payloads()
+            .iter()
+            .filter(|p| !p.metadata.readable)
+            .count();
         let nb_terms = trace.steps.len();
         let payloads_term_ratio = nb_payloads / std::cmp::max(1, nb_terms);
         let no_more_new_payloads =
@@ -341,35 +347,45 @@ where
         }
 
         // choose a random sub term
-        if let Some((chosen_term, trace_path)) = if self.config.with_focus {
+        if let Some(trace_path) = if self.config.with_focus {
             if nb_payloads > 0 && payloads_term_ratio > 1 {
+                if nb_payloads_no_readable == 0 {
+                    log::debug!("[MakeMessage] With focus and enough existing payloads but all are readable. Skipping...");
+                    return Ok(MutationResult::Skipped);
+                }
                 log::debug!(
                     "[MakeMessage] With focus and enough existing payloads: randomly picking one"
                 );
                 constraints_make_message.must_be_symbolic = false;
                 constraints_make_message.must_payload_in_subterm = false;
-                return if let Some((_, path)) = choose_filtered(
+                if let Some((_, trace_path)) = choose_filtered(
                     trace,
                     &constraints_make_message,
                     |t| !t.is_symbolic(),
                     state.rand_mut(),
                 ) {
-                    log::debug!("[MakeMessage] Picked existing payload and focus set to it: {path:?}. Mutated.");
-                    trace.set_focus(path);
-                    Ok(MutationResult::Mutated)
+                    log::debug!("[MakeMessage] Picked existing payload and focus set to it: {trace_path:?}. Mutated.");
+                    trace.set_focus(trace_path.clone());
+                    Some(trace_path)
                 } else {
                     log::error!("[MakeMessage] Skipped as we failed selecting a term with existing payloads while there is at least one payload. Trace: {trace}");
-                    Ok(MutationResult::Skipped)
-                };
+                    panic!("[MakeMessage] Skipped as we failed selecting a term with existing payloads while there is at least one payload. Trace: {trace}. Constraints: {:?}.", constraints_make_message);
+                    // return Ok(MutationResult::Skipped);
+                }
             } else {
                 log::debug!("[MakeMessage] With focus and no enough existing payloads, picking a random term");
                 choose_filtered(trace, &constraints_make_message, |t| !t.is_no_bit(), rand)
+                    .map(|(_, p)| p)
             }
         } else {
             log::debug!("[MakeMessage] Without focus, picking a random term");
             choose_filtered(trace, &constraints_make_message, |t| !t.is_no_bit(), rand)
+                .map(|(_, p)| p)
         } {
-            log::debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
+            log::debug!(
+                "[Mutation-bit] Mutate MakeMessage on term\n{}",
+                find_term(trace, &trace_path).expect("make_message_term - Should never happen.")
+            );
             let spawner = Spawner::new(self.put_registry.clone());
             // log::trace!("Using self.put_registry {:?} to compute ctx",
             // self.put_registry.default().name());
