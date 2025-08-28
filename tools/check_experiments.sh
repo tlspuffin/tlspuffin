@@ -40,16 +40,21 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
 fi
 
 # Time window in seconds (5 minutes)
-TIME_WINDOW=300
+TIME_WINDOW=100
 
 # Current time in epoch seconds
 now=$(date +%s)
 
 echo -e "# All running tlspuffin main jobs:"
 ps x | grep "l+" | grep tlspuffin
+ps x | grep "l+" | grep wolf
+ps x | grep "l+" | grep open
+ps x | grep "l+" | grep boring
+echo ""
 
 # Loop through all experiment folders
 for exp in ./experiments/*; do
+    README="$exp/README.md"
     stats_file="$exp/log/stats.json"
     # if stat_file does not exists then look for the file at $exp/stats.json (as in older versions of puffin)
     if [ ! -f "$stats_file" ]; then
@@ -63,8 +68,12 @@ for exp in ./experiments/*; do
         # Check if modified in the last 5 minutes (TIME_WINDOW seconds)
         if [ "$elapsed" -le ${TIME_WINDOW} ]; then
             exp_name=$(basename "$exp")
-            echo "# Experiment: $exp_name"
-            echo "  Time since last stats.json update: ${elapsed}s"
+            echo -n "# Experiment: $exp_name"
+	    if [ -f "$README" ]; then
+	        port=$(head -n 100 "$README" | grep "Port:" | cut -d' ' -f2-)
+	        echo -n "  ${port}"
+	    fi
+            echo -e "\n  Time since last stats.json update: ${elapsed}s"
 
             # Default PUT info from log
             log_file="$exp/log/stats_puffin_main_broker.log"
@@ -73,7 +82,12 @@ for exp in ./experiments/*; do
                 if [ -n "$default_put" ]; then
                     echo "  $default_put"
                 else
-                    echo "  Default PUT: Not found in log"
+		    if [ -f "$README" ]; then
+			default_put=$(head -n 100 "$README" | grep "Default PUT:" | cut -d' ' -f2-)
+			echo "  ${default_put} (asan?)"
+		    else
+			echo "   Could not find default PUT in README or ./log/stats_puffin_main_broker.log"
+		    fi
                 fi
             else
                 echo "  Log file not found: $log_file"
@@ -92,6 +106,26 @@ for exp in ./experiments/*; do
                 echo "  Corpus: Directory not found"
             fi
 
+            # Error log
+            log_file="$exp/log/error.log"
+            if [ -f "$log_file" ]; then
+		if [ -s "$log_file" ]; then
+		    echo -n "   --> ❌ Errors while fuzzing: "
+                    nb_errors=$(grep -c ERROR "$log_file")
+		    echo -n "${nb_errors} errors, "
+                    nb_crashes=$(grep -c CRASH "$log_file")		    
+		    echo "${nb_crashes} crashes"
+                    last_lines=$(grep ERROR "$log_file" | grep "\[" | tail -n 1  | cut -c1-180)
+                    if [ -n "$last_lines" ]; then
+			echo "  $last_lines"
+                    fi
+		else
+		    echo "    No error ✅"
+		fi
+            else
+                echo "  Log file not found: $log_file"
+	    fi
+		
             # Objective info
             objective_dir="$exp/objective"
             if [ -d "$objective_dir" ]; then
@@ -102,9 +136,9 @@ for exp in ./experiments/*; do
                 last_objective_elapsed=$(( (now - last_objective_time) / 60 ))
                  # Display the following if obejctive_count is greater than 0
                 if [ "$objective_count" -gt 0 ]; then
-                  echo "  ==> Objective: $objective_count file(s), last modified: $last_objective_elapsed minutes ago - $last_objective"
+                  echo "    ==> 🎉 Objective: $objective_count file(s), last modified: $last_objective_elapsed minutes ago - $last_objective"
                 else
-                  echo "  (no objective yet)"
+                  echo "    No objective yet ✓"
                 fi
             else
                 echo "  Objective: Directory not found"

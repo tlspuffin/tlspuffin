@@ -1135,7 +1135,9 @@ impl ClientHelloPayload {
     pub fn set_psk_binder(&mut self, binder: impl Into<Vec<u8>>) {
         let last_extension = self.extensions.0.last_mut();
         if let Some(ClientExtension::PresharedKey(ref mut offer)) = last_extension {
-            offer.binders.0[0] = PresharedKeyBinder::new(binder.into());
+            if !offer.binders.0.is_empty() {
+                offer.binders.0[0] = PresharedKeyBinder::new(binder.into());
+            }
         }
     }
 
@@ -2013,12 +2015,19 @@ pub struct CertificateRequestPayloadTLS13 {
 impl codec::Codec for CertificateRequestPayloadTLS13 {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.context.encode(bytes);
+        if self.extensions.0.is_empty() {
+            return; // do not print 0, 0 (declare_u16_vec) in that case
+        }
         self.extensions.encode(bytes);
     }
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
         let context = PayloadU8::read(r)?;
-        let extensions = CertReqExtensions::read(r)?;
+        let extensions = if r.any_left() {
+            CertReqExtensions::read(r)?
+        } else {
+            CertReqExtensions(vec![])
+        };
 
         Some(Self {
             context,

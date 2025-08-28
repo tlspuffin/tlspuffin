@@ -1677,7 +1677,6 @@ name = "puffin"
 version = "0.1.0"
 dependencies = [
  "ahash",
- "anyhow",
  "bindgen 0.69.1",
  "cc",
  "cfg-if",
