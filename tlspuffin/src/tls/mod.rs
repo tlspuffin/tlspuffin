@@ -128,8 +128,8 @@ define_signature!(
     fn_cert_extensions_make
     fn_cert_extensions_new [list]
     fn_cert_extensions_append [list]
-    fn_new_session_ticket_extensions_new [list]
-    fn_new_session_ticket_extensions_append [list]
+    fn_new_session_ticket_extensions_new
+    fn_new_session_ticket_extensions_append
     fn_server_name_extension
     fn_server_name_server_extension
     fn_status_request_extension
@@ -186,7 +186,7 @@ define_signature!(
     fn_unknown_server_extension
     fn_unknown_hello_retry_extension
     fn_unknown_cert_request_extension
-    fn_new_session_ticket_extensions
+    fn_new_session_ticket_extensions [list]
     fn_unknown_new_session_ticket_extension
     fn_unknown_certificate_extension
     // fields
@@ -218,9 +218,9 @@ define_signature!(
     fn_support_group_extension_make
     fn_support_group_extension_append [list]
     // utils
-    fn_new_flight [list]
+    fn_new_flight
     fn_append_flight [list]
-    fn_new_opaque_flight [list]
+    fn_new_opaque_flight
     fn_append_opaque_flight [list]
     fn_new_transcript
     fn_new_hrr_transcript [opaque]
@@ -282,7 +282,7 @@ define_signature!(
     fn_random_ec_key
     fn_certificate_entry_extensions
     fn_empty_certificate_chain
-    fn_new_certificate_entries [list]
+    fn_new_certificate_entries
     fn_append_certificate_entries [list]
     fn_certificate_entries_make
     fn_chain_append_certificate_entry [list]
