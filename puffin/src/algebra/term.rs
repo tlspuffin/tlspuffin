@@ -511,23 +511,22 @@ fn display_term_at_depth<PT: ProtocolTypes>(
     is_readable: bool,
 ) -> String {
     let tabs = "\t".repeat(depth);
+    let is_bitstring = if is_bitstring {
+        if is_readable {
+            "BS-READ//"
+        } else {
+            "BS//"
+        }
+    } else {
+        ""
+    };
     match term {
         DYTerm::Variable(ref v) => {
-            let is_bitstring = if is_bitstring {
-                if is_readable {
-                    "BS-READ//"
-                } else {
-                    "BS//"
-                }
-            } else {
-                ""
-            };
             format!("{tabs}{is_bitstring}{v}")
         }
         DYTerm::Application(ref func, ref args) => {
             let op_str = remove_prefix(func.name());
             let return_type = remove_prefix(func.shape().return_type.name);
-            let is_bitstring = if is_bitstring { "BS//" } else { "" };
             if args.is_empty() {
                 format!("{tabs}{is_bitstring}{op_str} -> {return_type}")
             } else {

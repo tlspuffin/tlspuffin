@@ -414,9 +414,9 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
             }
         } else {
             // right_sibling could not be found --> warning
-            let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
             #[cfg(any(debug_assertions, feature = "debug"))]
             {
+                let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
                 return if parent_is_get {
                     // This case is to be expected: we are looking for a child encoding that might
                     // just not been present in the encoding because the
