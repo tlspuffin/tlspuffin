@@ -414,9 +414,9 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
             }
         } else {
             // right_sibling could not be found --> warning
-            let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
             #[cfg(any(debug_assertions, feature = "debug"))]
             {
+                let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
                 return if parent_is_get {
                     // This case is to be expected: we are looking for a child encoding that might
                     // just not been present in the encoding because the
@@ -477,7 +477,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
 
         // Consistency checks in debug mode
         #[cfg(any(debug_assertions, feature = "debug"))]
-        if !term.has_variable() {
+        if !term.has_variable() && !term.has_no_det() {
             assert_eq!(
                 eval_tree.get(path_payload)?.encode.as_ref().unwrap(),
                 payload_context.payloads.payload_0.bytes()
@@ -508,7 +508,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                  - end = start + old_bitstring_len > to_modify.len(): {end} = ({pos_start} + {shift} + {old_bitstring_len}) as usize > {}\n\
                  - payload_context: {payload_context}",
                 to_modify.len());
-            if !encountered_get_symbol {
+            if !encountered_get_symbol && !term.has_no_det() {
                 log::error!("{ft}");
                 return Err(Error::TermBug(ft));
             } else {
@@ -783,9 +783,10 @@ impl<PT: ProtocolTypes> Term<PT> {
                                     - new_eval:     {new_payload_0:?}\n\
                                     - result: {result:?}",
                                          self.has_variable(), self, &payload.payload_0.bytes(), &payload.payload.bytes());
-                        if self.has_variable() {
-                            // Some mismatches are to be expected when there are variables
-                            log::trace!("[term has variables --> only a log::trace] {}", ft);
+                        if self.has_variable() || self.has_no_det() {
+                            // Some mismatches are to be expected when there are variables or no
+                            // deterministic function symbols
+                            log::trace!("[term has variables or no det function symbols --> only a log::trace] {}", ft);
                         } else {
                             return Err(Error::TermBug(ft));
                         }
@@ -839,21 +840,7 @@ pub fn last_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     None
 }
 
-/// Return the first matching positions, if any
-#[must_use]
-pub fn first_sub_vec(haystack: &[u8], needle: &[u8]) -> Option<usize> {
-    if haystack.len() < needle.len() {
-        return None;
-    }
-    for i in (0..=(haystack.len() - needle.len())).rev() {
-        if haystack[i..i + needle.len()] == needle[..] {
-            return Some(i);
-        }
-    }
-    None
-}
-
-/// Return the first matching position when it us unique, and None otherwise
+/// Return the first matching position when it is unique, and None otherwise
 pub fn first_sub_vec_unique(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if haystack.len() < needle.len() {
         // log::trace!("search_sub_vec_double: length");

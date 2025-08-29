@@ -293,12 +293,33 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
-    /// When the term has a variable as sub-term (excluding strict0-sub-terms of readable)
+    /// When the term starts with a `no_det` function symbol.
+    pub fn is_no_det(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(fd, _) => fd.no_det(),
+        }
+    }
+
+    /// When the term has a variable as sub-term (excluding strict-sub-terms of readable)
     pub fn has_variable(&self) -> bool {
         match &self.term {
             DYTerm::Variable(_) => true,
             DYTerm::Application(_, args) => {
                 !self.is_readable() && args.iter().any(|arg| arg.has_variable())
+            }
+        }
+    }
+
+    /// When the term has a variable as sub-term (excluding strict0-sub-terms of readable)
+    pub fn has_no_det(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(_, args) => {
+                if self.is_no_det() {
+                    return true;
+                }
+                args.iter().any(|arg| arg.has_no_det())
             }
         }
     }
@@ -490,23 +511,22 @@ fn display_term_at_depth<PT: ProtocolTypes>(
     is_readable: bool,
 ) -> String {
     let tabs = "\t".repeat(depth);
+    let is_bitstring = if is_bitstring {
+        if is_readable {
+            "BS-READ//"
+        } else {
+            "BS//"
+        }
+    } else {
+        ""
+    };
     match term {
         DYTerm::Variable(ref v) => {
-            let is_bitstring = if is_bitstring {
-                if is_readable {
-                    "BS-READ//"
-                } else {
-                    "BS//"
-                }
-            } else {
-                ""
-            };
             format!("{tabs}{is_bitstring}{v}")
         }
         DYTerm::Application(ref func, ref args) => {
             let op_str = remove_prefix(func.name());
             let return_type = remove_prefix(func.shape().return_type.name);
-            let is_bitstring = if is_bitstring { "BS//" } else { "" };
             if args.is_empty() {
                 format!("{tabs}{is_bitstring}{op_str} -> {return_type}")
             } else {
@@ -528,11 +548,13 @@ fn display_term_at_depth<PT: ProtocolTypes>(
 }
 
 fn append_eval<'a, PT: ProtocolTypes>(term_eval: &'a Term<PT>, v: &mut Vec<&'a Term<PT>>) {
-    match term_eval.term {
-        DYTerm::Variable(_) => {}
-        DYTerm::Application(_, ref subterms) => {
-            for subterm in subterms {
-                append_eval(subterm, v);
+    if term_eval.is_symbolic() {
+        match term_eval.term {
+            DYTerm::Variable(_) => {}
+            DYTerm::Application(_, ref subterms) => {
+                for subterm in subterms {
+                    append_eval(subterm, v);
+                }
             }
         }
     }

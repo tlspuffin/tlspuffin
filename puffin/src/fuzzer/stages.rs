@@ -119,7 +119,7 @@ where
         let mut r = MutationResult::Skipped;
         let num = self.iterations(state, input);
         log::debug!(
-            "FocusScheduledMutator:num: {},  stage_idx: {}, max_stack_pow: {}",
+            "FocusScheduledMutator: num: {},  stage_idx: {}, max_stack_pow: {}",
             num,
             stage_idx,
             self.max_stack_pow

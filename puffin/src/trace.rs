@@ -979,9 +979,9 @@ impl<PT: ProtocolTypes> Trace<PT> {
     }
 
     /// Sets in the metadata the focus of the trace to a specific [`TracePath`].
-    pub fn set_focus(&mut self, tarce_path: TracePath) {
-        log::debug!("[Set_focus] Setting focus to {tarce_path:?}");
-        self.metadata_trace.path_focus = Some(tarce_path);
+    pub fn set_focus(&mut self, trace_path: TracePath) {
+        log::debug!("[Set_focus] Setting focus to {trace_path:?}");
+        self.metadata_trace.path_focus = Some(trace_path);
     }
 
     /// Clear from the metadata any focus
@@ -990,7 +990,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
         self.metadata_trace.path_focus = None;
     }
 
-    /// Clear from the metadata any focus
+    /// Returns the current focus path from the metadata, if any
     pub fn get_focus(&self) -> Option<&TracePath> {
         log::debug!("[get_focus] get_focus {:?}", self.metadata_trace.path_focus);
         self.metadata_trace.path_focus.as_ref()
