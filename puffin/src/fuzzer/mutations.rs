@@ -36,13 +36,22 @@ impl Default for MutationConfig {
             max_trace_length: 15,
             min_trace_length: 2,
             term_constraints: TermConstraints::default(),
-            with_bit_level: true,
+            with_bit_level: false,
             with_dy: true,
-            with_focus: false,
+            with_focus: true,
         }
     }
 }
 
+impl MutationConfig {
+    pub fn default_with_bit() -> Self {
+        MutationConfig {
+            with_bit_level: true,
+            with_focus: false,
+            ..Self::default()
+        }
+    }
+}
 pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
 // DY mutations
     RepeatMutator<S>,

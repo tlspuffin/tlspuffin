@@ -192,7 +192,7 @@ fn test_make_message(put: &str) {
     let runner = default_runner_for(put);
     let tls_registry = runner.registry;
     let mut state = create_state();
-    let mut mutator = MakeMessage::new(MutationConfig::default(), &tls_registry);
+    let mut mutator = MakeMessage::new(MutationConfig::default_with_bit(), &tls_registry);
 
     let mut trace = seed_client_attacker_full.build_trace();
 
@@ -226,7 +226,7 @@ fn test_byte_remove_payloads(put: &str) {
     let runner = default_runner_for(put);
     let tls_registry = runner.registry;
     let mut state = create_state();
-    let mut mutator_config = MutationConfig::default();
+    let mut mutator_config = MutationConfig::default_with_bit();
     mutator_config.term_constraints.must_be_symbolic = true;
     let mut mutator_make = MakeMessage::new(mutator_config, &tls_registry);
 
@@ -311,10 +311,10 @@ fn test_byte_simple(put: &str) {
     let runner = default_runner_for(put);
     let tls_registry = runner.registry;
     let mut state = create_state();
-    let mut mutator_config = MutationConfig::default();
+    let mut mutator_config = MutationConfig::default_with_bit();
     mutator_config.term_constraints.must_be_symbolic = true;
     let mut mutator_make = MakeMessage::new(mutator_config, &tls_registry);
-    let mut mutator_byte = ByteFlipMutatorDY::new(MutationConfig::default());
+    let mut mutator_byte = ByteFlipMutatorDY::new(MutationConfig::default_with_bit());
 
     let mut trace = seed_client_attacker_full.build_trace();
     let mut i = 0;
@@ -382,8 +382,9 @@ fn test_byte_interesting(put: &str) {
     let tls_registry = runner.registry;
     let spawner = Spawner::new(tls_registry.clone());
     let mut state = create_state();
-    let mut mutator_make = MakeMessage::new(MutationConfig::default(), &tls_registry);
-    let mut mutator_byte_interesting = ByteInterestingMutatorDY::new(MutationConfig::default());
+    let mut mutator_make = MakeMessage::new(MutationConfig::default_with_bit(), &tls_registry);
+    let mut mutator_byte_interesting =
+        ByteInterestingMutatorDY::new(MutationConfig::default_with_bit());
 
     let ctx = TraceContext::new(spawner);
     let mut trace = seed_client_attacker_full.build_trace();
