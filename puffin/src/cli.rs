@@ -363,9 +363,9 @@ where
         let show_knowledges: &bool = matches.get_one("show_knowledges").unwrap();
         let show_claims: &bool = matches.get_one("show_claims").unwrap();
         let export_json: &bool = matches.get_one("json").unwrap();
-        let show_raw: &bool = matches.get_one("show_raw").unwrap();
         let differential_post_computations: &bool =
             matches.get_one("differential_post_computations").unwrap();
+        let show_raw: &bool = matches.get_one("show_raw").unwrap();
 
         let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
             t
