@@ -680,6 +680,7 @@ impl<PT: ProtocolTypes> ExecutionResult<PT> {
         export_terms: bool,
         export_knowledges: bool,
         export_claims: bool,
+        export_raw: bool,
     ) -> Self
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
@@ -694,6 +695,7 @@ impl<PT: ProtocolTypes> ExecutionResult<PT> {
                 export_terms,
                 export_knowledges,
                 export_claims,
+                export_raw,
             ),
         }
     }
@@ -737,6 +739,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
         export_terms: bool,
         export_knowledges: bool,
         export_claims: bool,
+        export_raw: bool,
     ) -> Self
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
@@ -787,7 +790,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
 
             steps.push(StepExecution {
                 step_number: idx,
-                action: ActionType::from(step.action.clone(), export_terms),
+                action: ActionType::from(step.action.clone(), export_terms, export_raw, &ctx),
                 agent: step.agent.into(),
                 knowledges,
                 claims,
@@ -885,17 +888,35 @@ pub struct StepExecution<PT: ProtocolTypes> {
 enum ActionType {
     Input {
         recipe: Option<String>,
+        raw: Option<String>,
         precomputations: Option<Vec<(String, String)>>,
     },
     Output,
 }
 
 impl ActionType {
-    fn from<PT: ProtocolTypes>(value: Action<PT>, export_terms: bool) -> Self {
+    fn from<PB: ProtocolBehavior>(
+        value: Action<PB::ProtocolTypes>,
+        export_terms: bool,
+        export_raw: bool,
+        ctx: &TraceContext<PB>,
+    ) -> Self {
         match value {
             Input(input_action) => ActionType::Input {
                 recipe: match export_terms {
                     true => Some(input_action.recipe.to_string()),
+                    false => None,
+                },
+                raw: match export_raw {
+                    true => Some(
+                        input_action
+                            .recipe
+                            .evaluate(ctx)
+                            .unwrap()
+                            .iter()
+                            .map(|b| format!("{:02x}", b).to_string())
+                            .collect::<String>(),
+                    ),
                     false => None,
                 },
                 precomputations: match export_terms {
@@ -932,6 +953,7 @@ impl<PT: ProtocolTypes> StepExecution<PT> {
         match &self.action {
             ActionType::Input {
                 recipe,
+                raw,
                 precomputations,
             } => {
                 println!("{tabs}Action: Input (attacker -> agent.{})", self.agent);
@@ -942,6 +964,9 @@ impl<PT: ProtocolTypes> StepExecution<PT> {
                             precomputation_name, precomputation_recipe
                         );
                     }
+                }
+                if let Some(r) = raw {
+                    println!("{tabs}Raw: {}", r);
                 }
                 if let Some(r) = recipe {
                     println!("{tabs}Term: {}", r);

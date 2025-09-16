@@ -80,6 +80,7 @@ where
                 .arg(arg!(-c --show_claims "Show the claims emitted at each input step").value_parser(value_parser!(bool)))
                 .arg(arg!(-k --show_knowledges "Show the knowledges gathered at each output step").value_parser(value_parser!(bool)))
                 .arg(arg!(-p --differential_post_computations "Evaluate the post execution terms ued in differential fuzzing").value_parser(value_parser!(bool)))
+                .arg(arg!(-r --show_raw "Show the computed term as raw hex (eg. for use with netcat)").value_parser(value_parser!(bool)))
                 .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool))),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
@@ -351,6 +352,7 @@ where
         let export_json: &bool = matches.get_one("json").unwrap();
         let differential_post_computations: &bool =
             matches.get_one("differential_post_computations").unwrap();
+        let show_raw: &bool = matches.get_one("show_raw").unwrap();
 
         let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
             t
@@ -397,6 +399,7 @@ where
             *show_terms,
             *show_knowledges,
             *show_claims,
+            *show_raw,
         );
 
         if *export_json {
