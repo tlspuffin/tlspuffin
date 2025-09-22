@@ -908,15 +908,14 @@ impl ActionType {
                     false => None,
                 },
                 raw: match export_raw {
-                    true => Some(
-                        input_action
-                            .recipe
-                            .evaluate(ctx)
-                            .unwrap()
-                            .iter()
-                            .map(|b| format!("{:02x}", b).to_string())
-                            .collect::<String>(),
-                    ),
+                    true => match input_action.recipe.evaluate(ctx) {
+                        Ok(v) => Some(
+                            v.iter()
+                                .map(|b| format!("{:02x}", b).to_string())
+                                .collect::<String>(),
+                        ),
+                        Err(_) => None,
+                    },
                     false => None,
                 },
                 precomputations: match export_terms {
