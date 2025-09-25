@@ -1216,13 +1216,15 @@ impl<PT: ProtocolTypes> Step<PT> {
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         match &self.action {
-            Action::Input(input) => input.execute(self.agent, ctx).and_then(|()| {
+            Action::Input(input) => {
+                let exec = input.execute(self.agent, ctx);
                 // NOTE force output after each InputAction step
-                (OutputAction {
+                let _ = (OutputAction {
                     phantom: Default::default(),
                 })
-                .execute(self.agent, step_number, ctx)
-            }),
+                .execute(self.agent, step_number, ctx);
+                exec
+            }
             Action::Output(output) => output.execute(self.agent, step_number, ctx),
         }
     }
