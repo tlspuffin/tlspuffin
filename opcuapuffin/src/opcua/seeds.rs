@@ -4,8 +4,13 @@
 #![allow(dead_code)]
 
 //use opcua::puffin::query::OpcuaQueryMatcher;
-use opcua::puffin::types::OpcuaProtocolTypes;
-use puffin::trace::Trace;
+use opcua::puffin::signature::fn_client_hello;
+use opcua::puffin::signature::fn_impl::{fn_bob_endpoint, fn_default_size};
+use opcua::puffin::types::{OpcuaDescriptorConfig, OpcuaProtocolTypes};
+
+use puffin::agent::AgentName;
+use puffin::{input_action, term};
+use puffin::trace::{Action, InputAction, Step, Trace};
 
 use crate::protocol::OpcuaProtocolBehavior;
 
@@ -35,6 +40,8 @@ pub fn create_corpus(
     _put: &dyn puffin::put_registry::Factory<OpcuaProtocolBehavior>,
 ) -> Vec<(Trace<OpcuaProtocolTypes>, &'static str)> {
     corpus!(
+        // Hello Bob!
+
         // Full Handshakes
 
         // Client Attacks
@@ -42,4 +49,30 @@ pub fn create_corpus(
         // Server Attacks
 
     )
+}
+
+pub fn seed_A_hello_bob (
+    server: AgentName,
+) -> Trace<OpcuaProtocolTypes> {
+    Trace {
+    prior_traces: vec![],
+        descriptors: vec![
+            OpcuaDescriptorConfig::new_server(server)
+        ],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_client_hello (
+                            fn_bob_endpoint,
+                            fn_default_size,
+                            fn_default_size
+                        )
+                    }
+                }),
+            },
+
+
+        ]
+        }
 }

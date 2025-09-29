@@ -8,6 +8,7 @@
 //use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 
 pub mod seeds;
+pub mod violations;
 
 // UA Secure Channel (Part 6)
 pub mod channel;
