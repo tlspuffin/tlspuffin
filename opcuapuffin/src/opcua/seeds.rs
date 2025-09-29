@@ -51,11 +51,11 @@ pub fn create_corpus(
     )
 }
 
-pub fn seed_A_hello_bob (
+pub fn seed_a_hello_bob (
     server: AgentName,
 ) -> Trace<OpcuaProtocolTypes> {
     Trace {
-    prior_traces: vec![],
+        prior_traces: vec![],
         descriptors: vec![
             OpcuaDescriptorConfig::new_server(server)
         ],
@@ -71,8 +71,6 @@ pub fn seed_A_hello_bob (
                     }
                 }),
             },
-
-
         ]
         }
 }
