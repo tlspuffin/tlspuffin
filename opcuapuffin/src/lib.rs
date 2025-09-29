@@ -8,6 +8,7 @@
 mod rust_put;
 
 //pub mod debug;
+pub mod claims;
 pub mod opcua;
 pub mod protocol;
 pub mod put;
