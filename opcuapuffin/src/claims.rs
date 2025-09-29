@@ -10,7 +10,7 @@ use puffin::algebra::dynamic_function::TypeShape;
 use puffin::claims::Claim;
 use puffin::error::Error;
 use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
-use puffin::trace::{Knowledge, Source};
+use puffin::trace::{Knowledge, Source, StepNumber};
 use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
 
 #[derive(Debug, Clone)]
@@ -36,6 +36,9 @@ impl Claim for OpcuaClaim {
     fn inner(&self) -> Box<dyn EvaluatedTerm<OpcuaProtocolTypes>> {
         panic!("Not implemented yet for OPC UA");
     }
+
+    fn set_step(&mut self, _step: Option<StepNumber>) { todo!() }
+    fn get_step(&self) -> Option<StepNumber> { todo!()}
 }
 
 dummy_extract_knowledge_codec!(OpcuaProtocolTypes, OpcuaClaim);
