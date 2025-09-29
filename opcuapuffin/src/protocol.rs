@@ -1,6 +1,7 @@
 // The OPC UA protocol.
 
 use core::any::TypeId;
+use serde::{Deserialize, Serialize};
 
 use opcua::puffin::claims::OpcuaClaim;
 use opcua::core::comms::tcp_codec::Message;
@@ -8,6 +9,7 @@ use opcua::puffin::messages::MessageFlight;
 use opcua::puffin::types::OpcuaProtocolTypes;
 use opcua::puffin::violations::OpcuaSecurityViolationPolicy;
 
+use puffin::agent::ProtocolDescriptorConfig;
 use puffin::error::Error;
 use puffin::protocol::{EvaluatedTerm, ProtocolBehavior};
 use puffin::put::PutDescriptor;

@@ -1,4 +1,3 @@
-use opcua::puffin::signature::fn_impl::fn_bob_uri;
 use serde::{Deserialize, Serialize};
 
 use opcua::puffin::signature::{fn_server_hello, fn_client_hello, fn_acknowledge};
@@ -110,7 +109,9 @@ pub struct TestFactory;
         }
 
         fn clone_factory(&self) -> Box<dyn Factory<OpcuaProtocolBehavior>> {
-            Box::new(TestFactory {})
+            //Box::new(dyn Factory<OpcuaProtocolBehavior>::new())
+            Box::new(TestFactory)
+
         }
     }
 
