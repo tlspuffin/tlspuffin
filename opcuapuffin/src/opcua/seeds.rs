@@ -7,10 +7,13 @@
 use opcua::puffin::signature::fn_client_hello;
 use opcua::puffin::signature::fn_impl::{fn_bob_endpoint, fn_default_size};
 use opcua::puffin::types::{OpcuaDescriptorConfig, OpcuaProtocolTypes};
-use puffin::agent::{AgentName, AgentDescriptor};
-use puffin::trace::Trace;
 
-use crate::protocol::{OpcuaProtocolBehavior};
+use puffin::agent::AgentName;
+use puffin::{input_action, term};
+use puffin::trace::{Action, InputAction, Step, Trace};
+
+use crate::protocol::OpcuaProtocolBehavior;
+
 // This macro, copied from TLSPuffin, should be in Puffin??
 macro_rules! corpus {
     () => {
