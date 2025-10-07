@@ -7,6 +7,8 @@
 #[cfg(feature = "rust-put")]
 mod rust_put;
 
+mod harnesses;
+
 //pub mod debug;
 pub mod claims;
 pub mod opcua;
