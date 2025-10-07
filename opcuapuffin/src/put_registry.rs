@@ -1,12 +1,12 @@
-use std::collections::HashMap;
-
-use puffin::put_registry::{Factory, PutRegistry};
+use puffin::put_registry::PutRegistry;
 
 use crate::protocol::OpcuaProtocolBehavior;
 
+pub const OPEN62541: &str = "open62541";
+
 pub fn opcua_registry() -> PutRegistry<OpcuaProtocolBehavior> {
-    let puts: HashMap<String, Box<dyn Factory<OpcuaProtocolBehavior>>> = HashMap::new();
-    let default = String::from("");
-    PutRegistry::new(puts, default)
-    //panic!("Not implemented yet for OPC UA");
+    PutRegistry::new(
+        [(OPEN62541, crate::harnesses::open62541::new_opcua_factory())],
+        OPEN62541,
+    )
 }
