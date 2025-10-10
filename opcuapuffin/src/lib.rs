@@ -17,9 +17,6 @@ pub mod put;
 pub mod put_registry;
 pub mod types;
 
-pub mod static_certs;
-
-
 //#[cfg(feature = "test-utils")]
 #[cfg(test)]
 pub mod tests;

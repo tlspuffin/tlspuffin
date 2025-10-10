@@ -1,8 +1,6 @@
 use std::collections::HashSet;
-//use std::fs;
 use std::io::{Read, Write};
-//use std::os::unix::io::{IntoRawFd, RawFd};
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::net::{Ipv4Addr, Shutdown, TcpStream};
 
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::ConcreteMessage;
@@ -13,8 +11,9 @@ use puffin::put::{Put, PutOptions};
 use puffin::put_registry::Factory;
 use puffin::stream::Stream;
 
-use opcua::puffin::types::OpcuaDescriptorConfig;
 use opcua::puffin::messages::MessageFlight;
+use opcua::puffin::types::OpcuaDescriptorConfig;
+use opcua::puffin::static_certs::{BOB_CERTIFICATE, BOB_PRIVATE_KEY};
 
 use crate::claims::OpcuaClaim;
 use crate::protocol::OpcuaProtocolBehavior;
@@ -24,9 +23,11 @@ mod raw;
 
 struct Agent {
     agent_descriptor: AgentDescriptor<OpcuaDescriptorConfig>,
-    capabilities: HashSet<String>,
-    claims: GlobalClaimList<OpcuaClaim>,
-    fuzz_stream: UnixStream,
+    _capabilities: HashSet<String>,
+    _claims: GlobalClaimList<OpcuaClaim>,
+    fuzz_stream: TcpStream,
+    _certificate: &'static [u8], //DER
+    _private_key: &'static [u8], //DER
     //...
 }
 
@@ -70,6 +71,7 @@ impl Put<OpcuaProtocolBehavior> for Agent {
     }
 
     fn shutdown(&mut self) -> String {
+        self.fuzz_stream.shutdown(Shutdown::Both).unwrap();
         unimplemented!("Put for Agent")
     }
 }
@@ -84,14 +86,21 @@ struct Open62541Factory {}
             _options: &PutOptions,
         ) -> Result<Box<dyn Put<OpcuaProtocolBehavior>>, Error> {
 
-            let path = format!("socket_{}", agent_descriptor.name);
-            let fuzz_stream = UnixStream::connect(path).unwrap();
+            let localhost = Ipv4Addr::new(127, 0, 0, 1);
+            let port = agent_descriptor.protocol_config.tcp_port;
+
+            // 1. create a server listening on localhost:port:
+
+            // 2. connect to the server:
+            let fuzz_stream = TcpStream::connect((localhost, port)).unwrap();
 
             Ok(Box::new(Agent{
                 agent_descriptor: agent_descriptor.clone(),
-                capabilities: HashSet::new(),
-                claims: claims.clone(),
-                fuzz_stream
+                _capabilities: HashSet::new(),
+                _claims: claims.clone(),
+                fuzz_stream,
+                _certificate: BOB_CERTIFICATE.1,
+                _private_key: BOB_PRIVATE_KEY.1
             }))
         }
 
