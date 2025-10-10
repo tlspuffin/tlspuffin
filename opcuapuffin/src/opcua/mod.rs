@@ -5,15 +5,7 @@
 //! [`DynamicFunction`](puffin::algebra::dynamic_function::DynamicFunction)s which can be used in
 //! the fuzzing.
 
-//use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
+// The main part of the module has been transferred in crates/opcua-mapper/lib/src/puffin
 
 pub mod seeds;
 pub mod violations;
-
-// UA Secure Channel (Part 6)
-pub mod channel;
-//pub use channel::*;
-
-// Services (Part 4)
-// pub mod services;
-// pub use services::*;

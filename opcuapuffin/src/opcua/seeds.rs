@@ -37,10 +37,11 @@ macro_rules! corpus {
 }
 
 pub fn create_corpus(
-    _put: &dyn puffin::put_registry::Factory<OpcuaProtocolBehavior>,
+    put: &dyn puffin::put_registry::Factory<OpcuaProtocolBehavior>,
 ) -> Vec<(Trace<OpcuaProtocolTypes>, &'static str)> {
     corpus!(
         // Hello Bob!
+        seed_a_hello_bob: put.supports("v1.3")
 
         // Full Handshakes
 
