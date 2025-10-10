@@ -1218,6 +1218,9 @@ declare_u16_vec_empty!(HelloRetryExtensions, HelloRetryExtension);
 
 #[derive(Debug, Clone, Comparable)]
 pub struct HelloRetryRequest {
+    #[comparable_synthetic {
+        let sorted_extensions = |x: &Self| -> HelloRetryExtensions { let mut ext = x.extensions.clone(); ext.0.sort_by(puffin::codec::compare_encoding); ext };
+    }]
     pub legacy_version: ProtocolVersion,
     #[comparable_ignore]
     pub random: Random,
@@ -1225,6 +1228,7 @@ pub struct HelloRetryRequest {
     pub session_id: SessionID,
     pub cipher_suite: CipherSuite,
     pub compression_methods: Compressions,
+    #[comparable_ignore]
     pub extensions: HelloRetryExtensions,
 }
 
