@@ -248,8 +248,11 @@ impl Stream<TLSProtocolBehavior> for TcpServerPut {
         self.write_to_stream(message).unwrap();
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
-        take_message_from_outbound(self)
+    fn take_message_from_outbound(
+        &mut self,
+        output_flight: &mut Option<OpaqueMessageFlight>,
+    ) -> Result<(), Error> {
+        take_message_from_outbound(self, output_flight)
     }
 }
 
@@ -258,15 +261,20 @@ impl Stream<TLSProtocolBehavior> for TcpClientPut {
         self.write_to_stream(message).unwrap();
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
-        take_message_from_outbound(self)
+    fn take_message_from_outbound(
+        &mut self,
+        output_flight: &mut Option<OpaqueMessageFlight>,
+    ) -> Result<(), Error> {
+        take_message_from_outbound(self, output_flight)
     }
 }
 
 fn take_message_from_outbound<P: TcpPut>(
     put: &mut P,
-) -> Result<Option<OpaqueMessageFlight>, Error> {
-    put.read_to_flight()
+    output_flight: &mut Option<OpaqueMessageFlight>,
+) -> Result<(), Error> {
+    *output_flight = put.read_to_flight()?;
+    Ok(())
 }
 
 fn addr_from_config(options: &PutOptions) -> Result<SocketAddr, AddrParseError> {

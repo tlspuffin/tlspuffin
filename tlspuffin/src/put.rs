@@ -338,8 +338,10 @@ impl Stream<TLSProtocolBehavior> for CAgent {
 
     fn take_message_from_outbound(
         &mut self,
-    ) -> Result<Option<<TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessageFlight>, Error>
-    {
+        output_flight: &mut Option<
+            <TLSProtocolBehavior as ProtocolBehavior>::OpaqueProtocolMessageFlight,
+        >,
+    ) -> Result<(), Error> {
         let mut flight = OpaqueMessageFlight::new();
         loop {
             if let Some(opaque_message) = self.deframer.pop_frame() {
@@ -362,13 +364,18 @@ impl Stream<TLSProtocolBehavior> for CAgent {
                             // from the TCPStream in the next steps.
                             break;
                         }
-                        _ => return Err(err.into()),
+                        _ => {
+                            *output_flight = (!flight.messages.is_empty()).then_some(flight);
+                            return Err(err.into());
+                        }
                     },
                 }
             }
         }
 
-        Ok((!flight.messages.is_empty()).then_some(flight))
+        *output_flight = (!flight.messages.is_empty()).then_some(flight);
+
+        Ok(())
     }
 }
 
