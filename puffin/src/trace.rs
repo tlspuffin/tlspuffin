@@ -1071,7 +1071,7 @@ impl<PT: ProtocolTypes> Step<PT> {
                 let _ = (OutputAction {
                     phantom: Default::default(),
                 })
-                .execute(self.agent, step_number, ctx);
+                .read_state(self.agent, step_number, ctx);
                 exec
             }
             Action::Output(output) => output.execute(self.agent, step_number, ctx),
@@ -1135,12 +1135,30 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
+        ctx.find_agent_mut(agent_name)?.progress()?;
+
+        self.read_state(agent_name, step.clone(), ctx)?;
+
+        Ok(())
+    }
+
+    fn read_state<PB>(
+        &self,
+        agent_name: AgentName,
+        step: StepNumber,
+        ctx: &mut TraceContext<PB>,
+    ) -> Result<(), Error>
+    where
+        PB: ProtocolBehavior<ProtocolTypes = PT>,
+    {
         let source = Source::Agent(agent_name);
         let agent = ctx.find_agent_mut(agent_name)?;
 
-        agent.progress()?;
+        let mut flight = None;
 
-        if let Some(opaque_flight) = agent.take_message_from_outbound()? {
+        let res = agent.take_message_from_outbound(&mut flight);
+
+        if let Some(opaque_flight) = flight {
             ctx.knowledge_store.add_raw_knowledge(
                 opaque_flight.clone(),
                 Some(step.clone()),
@@ -1165,7 +1183,7 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
             }
         }
 
-        Ok(())
+        res
     }
 }
 
