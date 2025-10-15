@@ -14,42 +14,12 @@ use puffin::trace::{Action, InputAction, Step, Trace};
 
 use crate::protocol::OpcuaProtocolBehavior;
 
-// This macro, copied from TLSPuffin, should be in Puffin??
-macro_rules! corpus {
-    () => {
-        vec![]
-    };
-
-    ( $( $func:ident : $cond:expr ),* $(,)? ) => {
-        {
-            use puffin::trace_helper::TraceHelper;
-            let mut corpus = vec![];
-
-            $(
-                if $cond {
-                    corpus.push(($func.build_trace(), $func.fn_name()));
-                }
-            )*
-
-            corpus
-        }
-    };
-}
-
 pub fn create_corpus(
-    put: &dyn puffin::put_registry::Factory<OpcuaProtocolBehavior>,
+    _put: &dyn puffin::put_registry::Factory<OpcuaProtocolBehavior>,
 ) -> Vec<(Trace<OpcuaProtocolTypes>, &'static str)> {
-    corpus!(
-        // Hello Bob!
-        seed_a_hello_bob: put.supports("v1.3")
-
-        // Full Handshakes
-
-        // Client Attacks
-
-        // Server Attacks
-
-    )
+    vec![
+        (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob")
+    ]
 }
 
 pub fn seed_A_hello_bob (

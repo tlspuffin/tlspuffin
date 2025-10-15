@@ -36,6 +36,7 @@ impl Agent {}
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         self.fuzz_stream.write_all(message).unwrap();
+        self.fuzz_stream.flush().unwrap();
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
@@ -47,11 +48,11 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
 
 impl Put<OpcuaProtocolBehavior> for Agent {
     fn progress(&mut self) -> Result<(), Error> {
-        unimplemented!("Put for Agent")
+        Ok(())
     }
 
     fn reset(&mut self, _new_name: AgentName) -> Result<(), Error> {
-        unimplemented!("Put for Agent")
+        Ok(())
     }
 
     fn descriptor(&self) -> &AgentDescriptor<OpcuaDescriptorConfig> {
@@ -86,13 +87,18 @@ struct Open62541Factory {}
             _options: &PutOptions,
         ) -> Result<Box<dyn Put<OpcuaProtocolBehavior>>, Error> {
 
-            let localhost = Ipv4Addr::new(127, 0, 0, 1);
-            let port = agent_descriptor.protocol_config.tcp_port;
+            let host = Ipv4Addr::LOCALHOST;
+            let port = 4840;
 
             // 1. create a server listening on localhost:port:
 
             // 2. connect to the server:
-            let fuzz_stream = TcpStream::connect((localhost, port)).unwrap();
+            let fuzz_stream = TcpStream::connect((host, port))
+                .map_err(|e| {
+                    log::warn!("Failed to connect to OPC UA server at {}:{}: {}", host, port, e);
+                    Error::IO(e.to_string())
+                })?;
+            log::warn!("Connected to OPC UA server at {}:{}", host, port);
 
             Ok(Box::new(Agent{
                 agent_descriptor: agent_descriptor.clone(),
