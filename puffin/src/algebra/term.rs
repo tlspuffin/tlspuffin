@@ -311,7 +311,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
-    /// When the term has a variable as sub-term (excluding strict0-sub-terms of readable)
+    /// When the term has a non-det sub-term (excluding strict-sub-terms of readable)
     pub fn has_no_det(&self) -> bool {
         match &self.term {
             DYTerm::Variable(_) => false,
@@ -319,7 +319,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 if self.is_no_det() {
                     return true;
                 }
-                args.iter().any(|arg| arg.has_no_det())
+                !self.is_readable() && args.iter().any(|arg| arg.has_no_det())
             }
         }
     }

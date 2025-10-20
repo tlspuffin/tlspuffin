@@ -167,7 +167,7 @@ pub fn find_unique_match<PT: ProtocolTypes>(
 /// - there can be headers of arbitrary length
 /// - no trailer (no bytes added after the last argument encoding)
 ///  Also returns a boolean flag envcountered_get_symbol indicating whether a get symbol is between
-/// he root and the path_to_search, in which case, inconsistencies might occur.
+/// the root and the path_to_search, in which case, inconsistencies might occur.
 pub fn find_unique_match_rec<PT: ProtocolTypes>(
     path_to_search: &[usize],
     eval_tree: &EvalTree,
@@ -372,7 +372,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         // right siblings.
         if parent_is_get {
             // do not proceed with the heuristics if parent is a get symbol
-            let ft = format!("[[find_unique_match_rec] [S2:2] Skipps last resorting heuristics since the parant is a get symbol. Failed to find the target.");
+            let ft = format!("[[find_unique_match_rec] [S2:2] Skips last resorting heuristics since the parant is a get symbol. Failed to find the target.");
             log::warn!("{ft}");
             return Err(Error::Term(format!("{ft}")));
         }
@@ -475,7 +475,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
             payload_context.payloads.payload_0.bytes()
         };
 
-        // Consistency checks in debug mode
+        // Consistency checks in debug mode, except when failures are to be expected
         #[cfg(any(debug_assertions, feature = "debug"))]
         if !term.has_variable() && !term.has_no_det() {
             assert_eq!(

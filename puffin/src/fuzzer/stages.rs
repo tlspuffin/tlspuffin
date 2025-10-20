@@ -81,7 +81,7 @@ where
 {
     /// Get the mutations: we use a custom selection instead of the default
     fn mutations(&self) -> &MT {
-        panic!("[FocusScheduledMutator] mutations - mutations - should never be used");
+        panic!("[FocusScheduledMutator] mutations - should never be used");
     }
 
     /// Get the mutations (mutable): we use a custom selection instead of the default
@@ -193,7 +193,7 @@ where
     }
 
     /// Create a new [`libafl::mutators::StdScheduledMutator`] instance specifying mutations and the
-    /// maximun number of iterations
+    /// maximum number of iterations
     // pub fn with_max_stack_pow(mutations_pre:  MtPre, mutations: MT, mutations_post: MtPost,
     // max_stack_pow: u64) -> Self {     FocusScheduledMutator {
     //         name: format!("FocusScheduledMutator[{};{};{}]", mutations_pre.names().join(", "),

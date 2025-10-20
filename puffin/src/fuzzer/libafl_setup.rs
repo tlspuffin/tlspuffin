@@ -167,7 +167,7 @@ where
         /*
         Standard AFL-like configuration:
         A: Main mutator with StdScheduledMutator
-            1. Compute the number of iterations im used to apply stacked mutations: 1 << (1 + rand(0 <= r <= 7))
+            1. Compute the number `im` of iterations of stacked mutations: 1 << (1 + rand(0 <= r <= 7))
             2. For each time (0..im) : Apply randomly a mutation from the given list (here havoc)
           ==> let mutator = StdScheduledMutator::new(havoc_mutations());
         B: Main mutational stage with StdMutationalStage:
@@ -226,7 +226,7 @@ where
             StdState<Trace<PT>, C, R, SC>,
             PB,
         >(mutation_config_bit, put_registry));
-        // Run bit-levlel muts. if bit-level enabled + already sufficiently advanced (to save a bit
+        // Run bit-level muts. if bit-level enabled + already sufficiently advanced (to save a bit
         // of time)
         let cb_bit_level = |_: &mut _,
                             _: &mut _,

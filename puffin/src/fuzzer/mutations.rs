@@ -24,7 +24,7 @@ pub struct MutationConfig {
     pub term_constraints: TermConstraints,
     pub with_bit_level: bool,
     pub with_dy: bool,
-    // Focus on one payload at a time for a whole StdMutationalStage
+    /// Focus on one payload at a time for a whole StdMutationalStage
     pub with_focus: bool,
 }
 
