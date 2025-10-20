@@ -1026,6 +1026,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
         ctx: &mut TraceContext<PB>,
         stop_at_step: usize,
         trace_number: &mut usize,
+        check_security_violation: bool,
     ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
@@ -1034,7 +1035,12 @@ impl<PT: ProtocolTypes> Trace<PT> {
             // Call wrap function to avoid counting these sub-executions in ALL_EXEC and
             // ALL_EXEC_SUCCESS counters
             trace
-                .execute_until_step_wrap(ctx, trace.steps.len(), trace_number)
+                .execute_until_step_wrap(
+                    ctx,
+                    trace.steps.len(),
+                    trace_number,
+                    check_security_violation,
+                )
                 .map_err(|e| {
                     log::warn!("[execute_until_step_wrap] fail executing prior traces {trace}");
                     e
@@ -1048,7 +1054,9 @@ impl<PT: ProtocolTypes> Trace<PT> {
             log::debug!("Executing step #{}", i);
             step.execute(StepNumber::new(*trace_number, i), ctx)?;
 
-            ctx.verify_security_violations()?;
+            if check_security_violation {
+                ctx.verify_security_violations()?;
+            }
             ctx.executed_until = i + 1;
         }
 
@@ -1062,12 +1070,14 @@ impl<PT: ProtocolTypes> Trace<PT> {
         ctx: &mut TraceContext<PB>,
         stop_at_step: usize,
         trace_number: &mut usize,
+        check_security_violation: bool,
     ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
         ALL_EXEC.increment();
-        let res = self.execute_until_step_wrap(ctx, stop_at_step, trace_number);
+        let res =
+            self.execute_until_step_wrap(ctx, stop_at_step, trace_number, check_security_violation);
 
         if let Err(e) = res {
             match &e {
@@ -1100,11 +1110,17 @@ impl<PT: ProtocolTypes> Trace<PT> {
         &self,
         ctx: &mut TraceContext<PB>,
         trace_number: &mut usize,
+        check_security_violation: bool,
     ) -> Result<(), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        self.execute_until_step(ctx, self.steps.len(), trace_number)
+        self.execute_until_step(
+            ctx,
+            self.steps.len(),
+            trace_number,
+            check_security_violation,
+        )
     }
 
     pub fn serialize_postcard(&self) -> Result<Vec<u8>, postcard::Error> {

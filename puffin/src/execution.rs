@@ -18,12 +18,17 @@ pub trait TraceRunner {
     type R;
     type E: Display;
 
-    fn execute<T>(self, trace: T, executed_until: &mut usize) -> Result<Self::R, Self::E>
+    fn execute<T>(
+        self,
+        trace: T,
+        executed_until: &mut usize,
+        check_security_violation: bool,
+    ) -> Result<Self::R, Self::E>
     where
         Self: Sized,
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
     {
-        self.execute_config(trace, true, executed_until)
+        self.execute_config(trace, true, executed_until, check_security_violation)
     }
 
     fn execute_config<T>(
@@ -31,6 +36,7 @@ pub trait TraceRunner {
         trace: T,
         with_reseed: bool,
         executed_until: &mut usize,
+        check_security_violation: bool,
     ) -> Result<Self::R, Self::E>
     where
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>;
@@ -61,6 +67,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
         trace: T,
         with_reseed: bool,
         executed_until: &mut usize,
+        check_security_violation: bool,
     ) -> Result<Self::R, Self::E>
     where
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
@@ -71,10 +78,13 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
         }
 
         let mut ctx = TraceContext::new(self.spawner.clone());
-        trace.as_ref().execute(&mut ctx, &mut 0).map_err(|e| {
-            *executed_until = ctx.executed_until;
-            e
-        })?;
+        trace
+            .as_ref()
+            .execute(&mut ctx, &mut 0, check_security_violation)
+            .map_err(|e| {
+                *executed_until = ctx.executed_until;
+                e
+            })?;
         *executed_until = ctx.executed_until;
         Ok(ctx)
     }
@@ -119,6 +129,7 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
         trace: Tr,
         with_reseed: bool,
         executed_until: &mut usize,
+        check_security_violation: bool,
     ) -> Result<Self::R, Self::E>
     where
         Tr: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
@@ -127,7 +138,12 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
 
         run_in_subprocess(
             || {
-                let ret = match runner.execute_config(trace, with_reseed, executed_until) {
+                let ret = match runner.execute_config(
+                    trace,
+                    with_reseed,
+                    executed_until,
+                    check_security_violation,
+                ) {
                     Ok(_) => 0,
                     Err(e) => {
                         log::info!("{}", e);
@@ -173,6 +189,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
         trace: T,
         with_reseed: bool,
         executed_until: &mut usize,
+        check_security_violation: bool,
     ) -> Result<Self::R, Self::E>
     where
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
@@ -184,11 +201,17 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
 
         log::info!("Executing first PUT");
         let mut first_ctx = TraceContext::new(self.first_spawner.clone());
-        let first_trace_status = trace.as_ref().execute(&mut first_ctx, &mut 0);
+        let first_trace_status =
+            trace
+                .as_ref()
+                .execute(&mut first_ctx, &mut 0, check_security_violation);
 
         log::info!("Executing second PUT");
         let mut second_ctx = TraceContext::new(self.second_spawner.clone());
-        let second_trace_status = trace.as_ref().execute(&mut second_ctx, &mut 0);
+        let second_trace_status =
+            trace
+                .as_ref()
+                .execute(&mut second_ctx, &mut 0, check_security_violation);
 
         // check status fist
         match (&first_trace_status, &second_trace_status) {
@@ -240,7 +263,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
 
         *executed_until = usize::max(first_ctx.executed_until, second_ctx.executed_until);
 
-        //check if we have security claim violation
+        //check if we have security claim violation (if security claims are enabled)
         let mut diff = match (&first_trace_status, &second_trace_status) {
             (Err(Error::SecurityClaim(put1_err)), Err(Error::SecurityClaim(put2_err))) => {
                 vec![crate::differential::SecurityClaimDiff::BothError {
@@ -282,11 +305,16 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
         Ok(first_ctx)
     }
 
-    fn execute<T>(self, trace: T, executed_until: &mut usize) -> Result<Self::R, Self::E>
+    fn execute<T>(
+        self,
+        trace: T,
+        executed_until: &mut usize,
+        check_security_violation: bool,
+    ) -> Result<Self::R, Self::E>
     where
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
     {
-        self.execute_config(trace, true, executed_until)
+        self.execute_config(trace, true, executed_until, check_security_violation)
     }
 }
 

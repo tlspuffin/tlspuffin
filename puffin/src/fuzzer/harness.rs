@@ -43,7 +43,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         Spawner::new(put_registry.clone()).with_default(put_descriptor.clone()),
     );
     let mut fail_at_step = 0;
-    if let Ok(ctx) = runner.execute(input, &mut fail_at_step) {
+    if let Ok(ctx) = runner.execute(input, &mut fail_at_step, true) {
         HARNESS_EXEC_SUCCESS.increment();
         if cfg!(feature = "introspection") {
             if ctx.agents_successful() {
@@ -95,7 +95,7 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
 
     // Execute the trace
     let mut fail_at_step = 0;
-    let exec_res = runner.execute(input, &mut fail_at_step);
+    let exec_res = runner.execute(input, &mut fail_at_step, false);
 
     log::trace!(
         "[a:trace len={}/size={}/{fail_at_step}] [[harness] Executed until {fail_at_step}.",
