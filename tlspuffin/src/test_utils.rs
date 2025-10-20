@@ -66,7 +66,7 @@ pub fn expect_trace_crash(
         .inspect(|(i, _)| {
             log::debug!("expect_trace_crash (retry {})", i);
         })
-        .map(|_| forked_runner.execute(&trace, &mut 0))
+        .map(|_| forked_runner.execute(&trace, &mut 0, true))
         .inspect(|status| {
             use ExecutionStatus as S;
             match &status {

@@ -82,7 +82,8 @@ where
                 .arg(arg!(-k --show_knowledges "Show the knowledges gathered at each output step").value_parser(value_parser!(bool)))
                 .arg(arg!(-r --show_raw "Show the computed term as raw hex (eg. for use with netcat)").value_parser(value_parser!(bool)))
                 .arg(arg!(-p --differential_post_computations "Evaluate the post execution terms ued in differential fuzzing").value_parser(value_parser!(bool)))
-                .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool))),
+                .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool)))
+                .arg(arg!(-C --disable_security_oracle "Disable the protocol security oracle").value_parser(value_parser!(bool))),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -366,6 +367,7 @@ where
         let differential_post_computations: &bool =
             matches.get_one("differential_post_computations").unwrap();
         let show_raw: &bool = matches.get_one("show_raw").unwrap();
+        let disable_security_oracle: &bool = matches.get_one("disable_security_oracle").unwrap();
 
         let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
             t
@@ -383,6 +385,7 @@ where
             &mut ctx,
             *max_step.unwrap_or(&trace.steps.len()),
             &mut 0,
+            !*disable_security_oracle,
         ) {
             Ok(_) => (ExitCode::SUCCESS, None),
             Err(e) => (ExitCode::FAILURE, Some(e.to_string())),
@@ -466,7 +469,7 @@ where
             put_registry.clone(),
             Spawner::new(put_registry).with_mapping(&[(server, put)]),
         );
-        let mut context = runner.execute(trace, &mut 0).unwrap();
+        let mut context = runner.execute(trace, &mut 0, true).unwrap();
 
         let server = AgentName::first();
         let shutdown = context.find_agent_mut(server).unwrap().shutdown();
@@ -507,7 +510,7 @@ where
                 .with_mapping(&[(agent, PutDescriptor::new(second_put, PutOptions::empty()))]),
         );
 
-        return match runner.execute(trace, &mut 0) {
+        return match runner.execute(trace, &mut 0, false) {
             Ok(_) => {
                 if *export_json {
                     println!("[]");
@@ -696,7 +699,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     // When generating coverage a crash means that no coverage is stored
     // By executing in a fork, even when that process crashes, the other executed code will still
     // yield coverage
-    let status = ForkedRunner::new(runner).execute_config(trace, config_trace, &mut 0);
+    let status = ForkedRunner::new(runner).execute_config(trace, config_trace, &mut 0, true);
 
     match status {
         Ok(s) => log::info!("execution finished with status {s:?}"),

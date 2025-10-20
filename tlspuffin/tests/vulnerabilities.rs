@@ -65,7 +65,7 @@ fn test_seed_cve_2022_25640(put: &str) {
     let runner = default_runner_for(put);
     let trace = seed_cve_2022_25640.build_trace();
 
-    let ctx = runner.execute(trace, &mut 0).unwrap();
+    let ctx = runner.execute(trace, &mut 0, true).unwrap();
 
     assert!(ctx.agents_successful());
 }
@@ -82,7 +82,7 @@ fn test_seed_cve_2022_25640_simple(put: &str) {
     let runner = default_runner_for(put);
     let trace = seed_cve_2022_25640_simple.build_trace();
 
-    let ctx = runner.execute(trace, &mut 0).unwrap();
+    let ctx = runner.execute(trace, &mut 0, true).unwrap();
 
     assert!(ctx.agents_successful());
 }
@@ -99,7 +99,7 @@ fn test_seed_cve_2022_25638(put: &str) {
     let runner = default_runner_for(put);
     let trace = seed_cve_2022_25638.build_trace();
 
-    let ctx = runner.execute(trace, &mut 0).unwrap();
+    let ctx = runner.execute(trace, &mut 0, true).unwrap();
 
     assert!(ctx.agents_successful());
 }
@@ -133,7 +133,7 @@ fn test_seed_cve_2022_38153(put: &str) {
     let runner = default_runner_for(put);
     let trace = seed_successful12_with_tickets.build_trace();
 
-    let _ = runner.execute(trace.clone(), &mut 0).unwrap();
+    let _ = runner.execute(trace.clone(), &mut 0, true).unwrap();
     /*
     Originally, puffin found this bug because wolfssl was not made deterministic at all. The bug requires that the
     shared (across sessions) ticket map gets filled until a collision happen (a key refers to two tickets). For this to
@@ -155,6 +155,7 @@ fn test_seed_cve_2022_38153(put: &str) {
                     ..ConfigTrace::default()
                 },
                 &mut 0,
+                true,
             )
             .unwrap();
     }
@@ -190,7 +191,7 @@ fn test_seed_bitmut_cve_2022_38153(put: &str) {
     let runner = default_runner_for(put);
     let path_make_message = (9, vec![1, 0]);
     for _ in 0..50 {
-        let _ = runner.execute(trace.clone(), &mut 0).unwrap();
+        let _ = runner.execute(trace.clone(), &mut 0, true).unwrap();
     }
 
     let timeout = std::time::Duration::from_secs(timeout_secs);
@@ -209,7 +210,7 @@ fn test_seed_bitmut_cve_2022_38153(put: &str) {
 
         // MakeMessage mutant
         let ctx = runner
-            .execute(seed_cve_simple_2022_38153.build_trace(), &mut 0)
+            .execute(seed_cve_simple_2022_38153.build_trace(), &mut 0, true)
             .unwrap();
         let term_to_mutate = find_term_mut(&mut mutant, &path_make_message).unwrap();
         term_to_mutate.make_payload(&ctx).unwrap();
@@ -318,7 +319,7 @@ fn test_seed_bitmut_cve_2022_38153(put: &str) {
                 log::warn!("[EXECUTE] Try mutant_tries: {mutant_tries} / all_tries: {all_tries}");
                 let mut success = false;
                 forked_runner
-                    .execute(&trace_to_execute, &mut 0)
+                    .execute(&trace_to_execute, &mut 0, true)
                     .inspect(|status| {
                         use ExecutionStatus as S;
                         match &status {
@@ -425,7 +426,7 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
     let runner = default_runner_for(put);
     let path_make_message = (9, vec![1, 0]);
     for _ in 0..50 {
-        let _ = runner.execute(trace.clone(), &mut 0).unwrap();
+        let _ = runner.execute(trace.clone(), &mut 0, true).unwrap();
     }
 
     let timeout = std::time::Duration::from_secs(timeout_secs);
@@ -436,7 +437,7 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
     let min_mut_idx = 7; // Hence all HAVOC mutations, including MakeMessage and ReadMessage
 
     let _ = runner
-        .execute(seed_cve_simple_2022_38153.build_trace(), &mut 0)
+        .execute(seed_cve_simple_2022_38153.build_trace(), &mut 0, true)
         .unwrap();
 
     // Different overall tries, should work for at least one
@@ -540,7 +541,7 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
                 log::warn!("[EXECUTE] Try mutant_tries: {mutant_tries} / all_tries: {all_tries}");
                 let mut success = false;
                 forked_runner
-                    .execute(&mutant, &mut 0)
+                    .execute(&mutant, &mut 0, true)
                     .inspect(|status| {
                         use ExecutionStatus as S;
                         match &status {
@@ -655,7 +656,7 @@ fn tcp_wolfssl_openssl_test_seed_cve_2022_38153() {
         Spawner::new(put_registry).with_mapping(&[(client_agent, client), (server_agent, server)]),
     );
 
-    let mut context = runner.execute(trace, &mut 0).unwrap();
+    let mut context = runner.execute(trace, &mut 0, true).unwrap();
 
     let shutdown = context.find_agent_mut(client_agent).unwrap().shutdown();
     log::info!("{}", shutdown);
@@ -671,7 +672,7 @@ fn tcp_wolfssl_cve_2022_39173() {
     let runner = default_runner_for_desc(PutDescriptor::new(TCP_PUT, guard.build_options()));
     let server = trace.descriptors[0].name;
 
-    let mut context = runner.execute(trace, &mut 0).unwrap();
+    let mut context = runner.execute(trace, &mut 0, true).unwrap();
 
     let shutdown = context.find_agent_mut(server).unwrap().shutdown();
     log::info!("{}", shutdown);

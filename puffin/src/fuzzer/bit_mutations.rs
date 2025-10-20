@@ -258,7 +258,7 @@ where
     log::debug!("make_message_term: executing until path.0: {}", path.0);
     // Only execute shorter trace: trace[0..step_index])
     // execute the PUT on the first step_index steps and store the resulting trace context
-    tr.execute_until_step(ctx, path.0, &mut 0).map_err(|e| {
+    tr.execute_until_step(ctx, path.0, &mut 0, true).map_err(|e| {
         // 20% to 50% MakeMessage mutations fail, so this is a bit costly :(
         // TODO: we could memoize the term evaluation in a Option<ConcreteMessage> and use that here
         log::debug!("mutation::MakeMessage trace is not executable until step {},\
@@ -475,7 +475,7 @@ where
     // Only execute shorter trace: trace[0..step_index])
     // execute the PUT on the first step_index steps and store the resulting trace context
     log::debug!("Try eval until path.0: {}", path.0);
-    tr.execute_until_step(ctx, path.0, &mut 0).map_err(|e| {
+    tr.execute_until_step(ctx, path.0, &mut 0, true).map_err(|e| {
         log::debug!("mutation::ReadMessage trace is not executable until step {}, \
             could only happen if this mutation is scheduled with other mutations that create a non-executable trace. Skipped ReadMessage\
             Error: {e}. Skipping ReadMessage...", path.0);

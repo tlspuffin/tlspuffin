@@ -309,6 +309,7 @@ where
                         &mut ctx,
                         current_input.len(),
                         &mut 0,
+                        true,
                     ) {
                         Ok(()) => {
                             CORPUS_EXEC_MINIMAL.increment();
