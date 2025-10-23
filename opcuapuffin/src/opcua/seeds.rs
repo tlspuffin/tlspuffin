@@ -107,6 +107,39 @@ pub fn seed_b_client_open_secure_channel (
                     }
                 }),
             },
+
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_message (
+                        (fn_header(fn_close, fn_seq_1)),  // needs channel id!
+                        (fn_body(
+                            fn_seq_1,
+                            (fn_request(
+                                (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                                (fn_client_close(
+                                    (fn_request_header(fn_sa_token_zero, fn_seq_1))
+                                ))
+                            )),
+                            (fn_mac(
+                                (fn_request(
+                                    (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                                    (fn_client_close(
+                                        (fn_request_header(fn_sa_token_zero, fn_seq_1))
+                                    ))
+                                )),
+                                (fn_client_mac_key(
+                                    fn_basic256sha256,
+                                    fn_channel_nonce_1,
+                                    fn_channel_nonce_1 // Should be the server nonce here!
+                                ))
+                            ))
+                        ))
+                    )
+                    }
+                }),
+            },
+
         ]
     }
 }
