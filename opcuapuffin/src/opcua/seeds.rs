@@ -5,7 +5,8 @@
 
 //use opcua::puffin::query::OpcuaQueryMatcher;
 use opcua::puffin::signature::fn_client_hello;
-use opcua::puffin::signature::fn_impl::{fn_bob_endpoint, fn_default_size};
+use opcua::puffin::signature::fn_impl::*;
+
 use opcua::puffin::types::{OpcuaDescriptorConfig, OpcuaProtocolTypes};
 
 use puffin::agent::AgentName;
@@ -18,7 +19,8 @@ pub fn create_corpus(
     _put: &dyn puffin::put_registry::Factory<OpcuaProtocolBehavior>,
 ) -> Vec<(Trace<OpcuaProtocolTypes>, &'static str)> {
     vec![
-        (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob")
+        (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
+        (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel")
     ]
 }
 
@@ -45,5 +47,66 @@ pub fn seed_A_hello_bob (
 
 
         ]
-        }
+    }
+}
+
+pub fn seed_b_client_open_secure_channel (
+    server: AgentName,
+) -> Trace<OpcuaProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            OpcuaDescriptorConfig::new_server(server)
+        ],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_client_hello (
+                            fn_bob_endpoint,
+                            fn_default_size,
+                            fn_default_size
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_message (
+                        (fn_header(fn_open, fn_seq_0)),
+                        (fn_asym_encrypt(
+                            fn_basic256sha256,
+                            fn_mallory_cert,
+                            fn_bob_cert,
+                            (fn_request(
+                                (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                (fn_client_open(
+                                    (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                    fn_issue,
+                                    fn_channel_nonce_1
+                                ))
+                            )),
+                            (fn_sign(
+                                (fn_header(fn_open, fn_seq_0)),
+                                fn_basic256sha256,
+                                fn_mallory_cert,
+                                fn_oscar_cert,
+                                (fn_request(
+                                    (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                    (fn_client_open(
+                                        (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                        fn_issue,
+                                        fn_channel_nonce_1
+                                    ))
+                                )),
+                                fn_mallory_sk
+                            ))
+                        ))
+                    )
+                    }
+                }),
+            },
+        ]
+    }
 }
