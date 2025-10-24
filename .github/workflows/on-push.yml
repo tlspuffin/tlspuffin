@@ -1,0 +1,135 @@
+name: on-pr-changed
+
+on:
+  push:
+
+permissions:
+  contents: read
+  pull-requests: read # needed for label-based CI configuration
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  configure:
+    runs-on: ubuntu-22.04
+    outputs:
+      profile: ${{ steps.set-validation-profile.outputs.profile }}
+      ignored: ${{ steps.set-validation-profile.outputs.ignored }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - id: set-validation-profile
+        name: Set Validation Profile
+        run: |
+          printf 'ignored=%s\n' "false" >> "${GITHUB_OUTPUT}"
+          printf 'profile=%s\n' "full" >> "${GITHUB_OUTPUT}"
+
+      - id: print-configuration
+        name: Display Selected Profile
+        run: |
+          #!/usr/bin/env bash
+          printf 'Finished configuration job:\n'
+          printf '  - selected validation profile: %s\n' '${{ steps.set-validation-profile.outputs.profile }}'
+          printf '  - could skip validation rerun: %s\n' '${{ steps.set-validation-profile.outputs.ignored }}'
+          printf '  - triggering event (full):\n'
+          cat "${GITHUB_EVENT_PATH}"
+
+  validation:
+    needs: [configure]
+    uses: ./.github/workflows/run-validation.yml
+    with:
+      profile: ${{ needs.configure.outputs.profile }}
+
+  docs:
+    needs: [configure]
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        shell: bash
+    env:
+      RUSTDOCFLAGS: -Dwarnings
+    steps:
+      - uses: actions/checkout@v4
+      - name: setup
+        uses: ./.github/actions/setup
+
+      - name: build API documentation
+        run: just api-docs
+
+      - name: build website
+        run: just website-pkg
+
+  benchmark:
+    needs: [configure]
+    uses: ./.github/workflows/run-benchmarks.yml
+    if: ${{ needs.configure.outputs.profile == 'full' }}
+
+  can-merge:
+    needs: [configure, docs, validation, benchmark]
+    name: PR is ready for a merge
+    runs-on: ubuntu-22.04
+    if: ${{ needs.configure.outputs.profile == 'full' }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: validation profile is `full`
+        run: |
+          #!/usr/bin/env bash
+          printf 'validation profile: %s\n' '${{ needs.configure.outputs.profile }}'
+          if [[ '${{ needs.configure.outputs.profile }}' != full ]]; then
+            printf 'failure: full validation needed (try adding the PR label "ci:full" or mark the PR ready for review)\n'
+            exit 1
+          fi
+        if: always()
+
+      - name: validation was successful
+        run: |
+          #!/usr/bin/env bash
+          printf 'validation status: %s\n' '${{ needs.validation.result }}'
+
+          if [[ '${{ needs.validation.result }}' == skipped ]]; then
+            printf 'failure: validation job was skipped'
+            exit 1
+          fi
+
+          if [[ '${{ needs.validation.result }}' != success ]]; then
+            printf 'failure: validation job failed'
+            exit 1
+          fi
+        if: always()
+
+      - name: docs built successfully
+        run: |
+          #!/usr/bin/env bash
+          printf 'docs status: %s\n' '${{ needs.docs.result }}'
+
+          if [[ '${{ needs.docs.result }}' == skipped ]]; then
+            printf 'failure: docs build was skipped'
+            exit 1
+          fi
+
+          if [[ '${{ needs.docs.result }}' != success ]]; then
+            printf 'failure: error while building docs'
+            exit 1
+          fi
+        if: always()
+
+      - name: ran benchmark
+        run: |
+          #!/usr/bin/env bash
+          printf 'benchmark status: %s\n' '${{ needs.benchmark.result }}'
+
+          if [[ '${{ needs.benchmark.result }}' == skipped ]]; then
+            printf 'failure: benchmark was skipped'
+            exit 1
+          fi
+
+          if [[ '${{ needs.benchmark.result }}' != success ]]; then
+            printf 'failure: error while running benchmark'
+            exit 1
+          fi
+        if: always()
