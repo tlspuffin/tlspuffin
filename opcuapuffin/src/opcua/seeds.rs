@@ -19,7 +19,7 @@ pub fn create_corpus(
     _put: &dyn puffin::put_registry::Factory<OpcuaProtocolBehavior>,
 ) -> Vec<(Trace<OpcuaProtocolTypes>, &'static str)> {
     vec![
-        (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
+        //(seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
         (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel")
     ]
 }
@@ -114,7 +114,7 @@ pub fn seed_b_client_open_secure_channel (
                     fn_message (
                         (fn_header(fn_close, fn_seq_1)),  // needs channel id!
                         (fn_body(
-                            fn_seq_1,
+                            fn_seq_1, // needs channel token!
                             (fn_request(
                                 (fn_sequence_header(fn_seq_1, fn_seq_1)),
                                 (fn_client_close(
@@ -122,6 +122,9 @@ pub fn seed_b_client_open_secure_channel (
                                 ))
                             )),
                             (fn_mac(
+                                fn_basic256sha256,
+                                (fn_header(fn_close, fn_seq_1)), // needs channel id!
+                                fn_seq_1, // needs channel token!
                                 (fn_request(
                                     (fn_sequence_header(fn_seq_1, fn_seq_1)),
                                     (fn_client_close(
