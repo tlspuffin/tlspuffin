@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, Shutdown, TcpStream};
+use std::time::Duration;
 
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::ConcreteMessage;
@@ -11,7 +12,7 @@ use puffin::put::{Put, PutOptions};
 use puffin::put_registry::Factory;
 use puffin::stream::Stream;
 
-use opcua::puffin::messages::MessageFlight;
+use opcua::puffin::messages::{MAX_WIRE_SIZE, MessageFlight};
 use opcua::puffin::types::OpcuaDescriptorConfig;
 use opcua::puffin::static_certs::{BOB_CERTIFICATE, BOB_PRIVATE_KEY};
 
@@ -35,14 +36,20 @@ impl Agent {}
 
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        log::warn!("Added a new message to the PUT");
         self.fuzz_stream.write_all(message).unwrap();
         self.fuzz_stream.flush().unwrap();
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
         let mut buf = vec![];
-        let _ = self.fuzz_stream.read_to_end(&mut buf);
-        Ok(MessageFlight::read_bytes(&buf))
+        buf.resize(MAX_WIRE_SIZE, 0);
+        let size = self.fuzz_stream.read(&mut buf).map_err(|e| {
+            log::warn!("Error while trying to take bytes from the PUT: {}!", e);
+            Error::Put("Error while trying to take bytes from the PUT!".to_string())
+        })?;
+        log::warn!("Took {size} bytes from the PUT");
+        Ok(MessageFlight::read_bytes(&buf[0..size]))
     }
 }
 
@@ -73,7 +80,7 @@ impl Put<OpcuaProtocolBehavior> for Agent {
 
     fn shutdown(&mut self) -> String {
         self.fuzz_stream.shutdown(Shutdown::Both).unwrap();
-        unimplemented!("Put for Agent")
+        "TCP stream shut down!".to_string()
     }
 }
 
@@ -99,6 +106,11 @@ struct Open62541Factory {}
                     Error::IO(e.to_string())
                 })?;
             log::warn!("Connected to OPC UA server at {}:{}", host, port);
+
+            fuzz_stream.set_read_timeout(Some(Duration::from_millis(500)))
+                 .map_err(|e| { Error::IO(e.to_string()) })?;
+            fuzz_stream.set_nodelay(true)
+                 .map_err(|e| { Error::IO(e.to_string()) })?;
 
             Ok(Box::new(Agent{
                 agent_descriptor: agent_descriptor.clone(),
