@@ -74,8 +74,8 @@ pub fn seed_b_client_open_secure_channel (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
-                        (fn_header(fn_open, fn_seq_0)),
-                        (fn_asym_encrypt(
+                        (fn_open_header(
+                            (fn_header(fn_open, fn_seq_0)),
                             fn_basic256sha256,
                             fn_mallory_cert,
                             fn_bob_cert,
@@ -86,12 +86,15 @@ pub fn seed_b_client_open_secure_channel (
                                     fn_issue,
                                     fn_channel_nonce_1
                                 ))
-                            )),
-                            (fn_sign(
-                                (fn_header(fn_open, fn_seq_0)),
+                            ))
+                        )),
+                        (fn_asym_encrypt(
+                            fn_basic256sha256,
+                            fn_mallory_cert,
+                            fn_bob_cert,
+                            (fn_data_to_encrypt(
                                 fn_basic256sha256,
-                                fn_mallory_cert,
-                                fn_oscar_cert,
+                                fn_bob_cert,
                                 (fn_request(
                                     (fn_sequence_header(fn_seq_0, fn_seq_0)),
                                     (fn_client_open(
@@ -100,8 +103,39 @@ pub fn seed_b_client_open_secure_channel (
                                         fn_channel_nonce_1
                                     ))
                                 )),
-                                fn_mallory_sk
-                            ))
+                                (fn_sign(
+                                    (fn_data_to_sign(
+                                        (fn_open_header(
+                                            (fn_header(fn_open, fn_seq_0)),
+                                            fn_basic256sha256,
+                                            fn_mallory_cert,
+                                            fn_bob_cert,
+                                            (fn_request(
+                                                (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                                (fn_client_open(
+                                                    (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                                    fn_issue,
+                                                    fn_channel_nonce_1
+                                                ))
+                                            ))
+                                        )),
+                                        fn_basic256sha256,
+                                        fn_mallory_cert,
+                                        fn_bob_cert,
+                                        (fn_request(
+                                            (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                            (fn_client_open(
+                                                (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                                fn_issue,
+                                                fn_channel_nonce_1
+                                            ))
+                                        ))
+                                    )),
+                                    fn_basic256sha256,
+                                    fn_mallory_cert,
+                                    fn_mallory_sk
+                                ))
+                           ))
                         ))
                     )
                     }
@@ -112,9 +146,22 @@ pub fn seed_b_client_open_secure_channel (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
-                        (fn_header(fn_close, fn_seq_1)),  // needs channel id!
+                        (fn_mac_header(
+                            fn_basic256sha256,
+                            (fn_header(fn_close, fn_seq_1)),  // needs channel id!
+                            (fn_request(
+                                (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                                (fn_client_close(
+                                    (fn_request_header(fn_sa_token_zero, fn_seq_1))
+                                ))
+                            ))
+                        )),
                         (fn_body(
-                            fn_seq_1, // needs channel token!
+                            (fn_get_channel_token(
+                                (fn_asym_decrypt(
+                                    fn_channel_nonce_1, //data from server response
+                                    fn_mallory_sk))
+                            )),
                             (fn_request(
                                 (fn_sequence_header(fn_seq_1, fn_seq_1)),
                                 (fn_client_close(
@@ -122,19 +169,36 @@ pub fn seed_b_client_open_secure_channel (
                                 ))
                             )),
                             (fn_mac(
-                                fn_basic256sha256,
-                                (fn_header(fn_close, fn_seq_1)), // needs channel id!
-                                fn_seq_1, // needs channel token!
-                                (fn_request(
-                                    (fn_sequence_header(fn_seq_1, fn_seq_1)),
-                                    (fn_client_close(
-                                        (fn_request_header(fn_sa_token_zero, fn_seq_1))
+                                (fn_data_to_mac(
+                                    (fn_mac_header(
+                                        fn_basic256sha256,
+                                        (fn_header(fn_close, fn_seq_1)),  // needs channel id!
+                                        (fn_request(
+                                            (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                                            (fn_client_close(
+                                                (fn_request_header(fn_sa_token_zero, fn_seq_1))
+                                            ))
+                                        ))
+                                    )),
+                                    (fn_get_channel_token(
+                                        (fn_asym_decrypt(
+                                            fn_channel_nonce_1, //data from server response
+                                            fn_mallory_sk))
+                                    )),
+                                    (fn_request(
+                                        (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                                        (fn_client_close(
+                                            (fn_request_header(fn_sa_token_zero, fn_seq_1))
+                                        ))
                                     ))
                                 )),
+                                fn_basic256sha256,
                                 (fn_client_mac_key(
                                     fn_basic256sha256,
                                     fn_channel_nonce_1,
-                                    fn_channel_nonce_1 // Should be the server nonce here!
+                                    (fn_get_server_nonce(
+                                        (fn_asym_decrypt(fn_channel_nonce_1, fn_mallory_sk))
+                                    )) //                ^ Should be the data from the server response here
                                 ))
                             ))
                         ))
