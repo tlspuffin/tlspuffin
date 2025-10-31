@@ -11,7 +11,7 @@ use crate::tls::key_schedule::*;
 use crate::tls::rustls::conn::Side;
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::Certificate;
-use crate::tls::rustls::msgs::base::PayloadU8;
+use crate::tls::rustls::msgs::base::{Payload, PayloadU8};
 use crate::tls::rustls::msgs::enums::{CipherSuite, HandshakeType, NamedGroup};
 use crate::tls::rustls::msgs::handshake::{
     CertificateEntries, CertificateEntry, CertificateExtension, CertificateExtensions,
@@ -54,6 +54,27 @@ pub fn fn_new_hrr_transcript(original_client_hello: &Message) -> Result<Handshak
     transcript.add_message(original_client_hello);
     transcript.rollup_for_hrr();
     Ok(transcript)
+}
+
+pub fn fn_coalesced_flight(flight: &MessageFlight) -> Result<OpaqueMessage, FnError> {
+    let mut payload = Payload::empty();
+
+    if flight.messages.len() == 0 {
+        return Err(FnError::Malformed(
+            "Could not coalesce messages from empty flight".into(),
+        ));
+    }
+    let version = flight.messages[0].version;
+    let typ = flight.messages[0].payload.content_type();
+    for m in flight.messages.clone() {
+        m.payload.encode(&mut payload.0);
+    }
+
+    Ok(OpaqueMessage {
+        version,
+        typ,
+        payload,
+    })
 }
 
 pub fn fn_new_flight() -> Result<MessageFlight, FnError> {
@@ -443,6 +464,41 @@ pub fn fn_encrypt_handshake(
         .derive_encrypter(&key);
     let application_data = encrypter
         .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
+        .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt_handshake".to_string()))?;
+    Ok(application_data)
+}
+
+pub fn fn_encrypt_handshake_opaque(
+    some_message: &OpaqueMessage,
+    server_hello: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
+    psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<OpaqueMessage, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let (key, _) = tls13_handshake_traffic_secret(
+        server_hello,
+        server_key_share,
+        psk,
+        *client,
+        group,
+        client_random,
+        &supported_suite,
+    )?;
+    let encrypter = supported_suite
+        .tls13()
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
+        .derive_encrypter(&key);
+    let application_data = encrypter
+        .encrypt(
+            some_message.clone().into_plain_message().borrow(),
+            *sequence,
+        )
         .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt_handshake".to_string()))?;
     Ok(application_data)
 }

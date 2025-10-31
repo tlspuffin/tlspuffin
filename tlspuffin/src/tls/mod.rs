@@ -220,6 +220,7 @@ define_signature!(
     fn_new_flight
     fn_append_flight [list]
     fn_new_opaque_flight
+    fn_coalesced_flight
     fn_append_opaque_flight [list]
     fn_new_transcript
     fn_new_hrr_transcript [opaque]
@@ -237,6 +238,7 @@ define_signature!(
     fn_psk
     fn_decrypt_application [opaque]
     fn_encrypt_handshake [opaque]
+    fn_encrypt_handshake_opaque [opaque]
     fn_encrypt_application [opaque]
     fn_derive_psk [opaque]
     fn_derive_binder [opaque]
