@@ -19,8 +19,10 @@ pub fn create_corpus(
     _put: &dyn puffin::put_registry::Factory<OpcuaProtocolBehavior>,
 ) -> Vec<(Trace<OpcuaProtocolTypes>, &'static str)> {
     vec![
-        //(seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
-        (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel")
+        (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
+        //(seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel"),
+        //(seed_client_open_unsecure_channel(AgentName::first()), "seed_client_open_unsecure_channel")
+
     ]
 }
 
@@ -73,7 +75,7 @@ pub fn seed_b_client_open_secure_channel (
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    fn_message (
+                    fn_open_message (
                         (fn_open_header(
                             (fn_header(fn_open, fn_seq_0)),
                             fn_basic256sha256,
@@ -162,11 +164,9 @@ pub fn seed_b_client_open_secure_channel (
                                     fn_channel_nonce_1, //data from server response
                                     fn_mallory_sk))
                             )),
-                            (fn_request(
-                                (fn_sequence_header(fn_seq_1, fn_seq_1)),
-                                (fn_client_close(
-                                    (fn_request_header(fn_sa_token_zero, fn_seq_1))
-                                ))
+                            (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                            (fn_client_close(
+                                (fn_request_header(fn_sa_token_zero, fn_seq_1))
                             )),
                             (fn_mac(
                                 (fn_data_to_mac(
@@ -207,6 +207,59 @@ pub fn seed_b_client_open_secure_channel (
                 }),
             },
 
+        ]
+    }
+}
+
+pub fn seed_client_open_unsecure_channel (
+    server: AgentName,
+) -> Trace<OpcuaProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            OpcuaDescriptorConfig::new_server(server)
+        ],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_open_message (
+                        (fn_open_header(
+                             (fn_header(fn_open, fn_seq_0)),
+                             fn_security_policy_none,
+                             fn_null_cert,
+                             fn_null_cert,
+                             (fn_request(
+                                 (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                 (fn_client_open(
+                                     (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                     fn_issue,
+                                     fn_channel_nonce_1
+                                 ))
+                             ))
+                        )),
+                        (fn_asym_encrypt(
+                             fn_security_policy_none,
+                             fn_null_cert,
+                             fn_null_cert,
+                             (fn_data_to_encrypt(
+                                 fn_security_policy_none,
+                                 fn_null_cert,
+                                 (fn_request(
+                                     (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                     (fn_client_open(
+                                         (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                         fn_issue,
+                                         fn_channel_nonce_1
+                                     ))
+                                 )),
+                                 fn_null_cert
+                             ))
+                        ))
+                     )
+                    }
+                }),
+            },
         ]
     }
 }

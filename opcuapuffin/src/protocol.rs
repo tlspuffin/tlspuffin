@@ -8,8 +8,7 @@ use puffin::put::PutDescriptor;
 use puffin::trace::Trace;
 
 // opcua-mapper:
-use opcua::core::comms::tcp_codec::Message;
-use opcua::puffin::messages::MessageFlight;
+use opcua::puffin::messages::{Message, MessageFlight};
 use opcua::puffin::types::OpcuaProtocolTypes;
 
 use crate::claims::OpcuaClaim;
