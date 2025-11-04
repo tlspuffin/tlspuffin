@@ -3,7 +3,8 @@ use serde::{Deserialize, Serialize};
 use opcua::puffin::signature::{fn_server_hello, fn_client_hello, fn_acknowledge};
 use opcua::puffin::signature::fn_impl::fn_constants::{
     fn_basic256sha256, fn_bob_cert, fn_bob_endpoint, fn_bob_sk, fn_channel_nonce_1, fn_channel_nonce_2,
-    fn_default_size, fn_issue, fn_mode_none, fn_mallory_cert, fn_mallory_sk, fn_null_cert, fn_open, fn_sa_token_zero,
+    fn_default_size, fn_issue, fn_mode_none, fn_mallory_cert, fn_mallory_sk, fn_no_bytes, fn_no_nonce, fn_null_cert,
+    fn_open, fn_sa_token_zero,
     fn_security_policy_none, fn_seq_0};
 use opcua::puffin::signature::fn_impl::fn_uasc::{
     fn_asym_decrypt, fn_asym_encrypt, fn_data_to_encrypt, fn_data_to_sign, fn_client_mac_key, fn_client_open,
@@ -250,7 +251,8 @@ pub fn test_open() {
     let context = TraceContext::new(spawner);
 
     let data : Vec<u8> = vec!
-        [79, 80, 78, 70, 160, 0, 0, 0, 0, 0, 0, 0, 47, 0, 0, 0, 104, 116, 116, 112, 58, 47, 47, 111, 112, 99, 102, 111, 117, 110, 100, 97, 116, 105, 111, 110, 46, 111, 114, 103, 47, 85, 65, 47, 83, 101, 99, 117, 114, 105, 116, 121, 80, 111, 108, 105, 99, 121, 35, 78, 111, 110, 101, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 32, 0, 0, 0, 96, 136, 65, 244, 244, 100, 47, 233, 225, 193, 23, 66, 151, 245, 47, 115, 34, 200, 125, 96, 220, 252, 162, 206, 62, 160, 115, 203, 96, 15, 105, 6, 224, 147, 4, 0];
+        [79, 80, 78, 70, 132, 0, 0, 0, 0, 0, 0, 0, 47, 0, 0, 0, 104, 116, 116, 112, 58, 47, 47, 111, 112, 99, 102, 111, 117, 110, 100, 97, 116, 105, 111, 110, 46, 111, 114, 103, 47, 85, 65, 47, 83, 101, 99, 117, 114, 105, 116, 121, 80, 111, 108, 105, 99, 121, 35, 78, 111, 110, 101, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 190, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, 224, 147, 4, 0];
+
 
     let open_term: Term<OpcuaProtocolTypes> = term! {
         fn_open_message (
@@ -265,7 +267,7 @@ pub fn test_open() {
                         (fn_request_header(fn_sa_token_zero, fn_seq_0)),
                         fn_issue,
                         fn_mode_none,
-                        fn_channel_nonce_1
+                        fn_no_nonce
                     ))
                 ))
             )),
@@ -282,10 +284,10 @@ pub fn test_open() {
                             (fn_request_header(fn_sa_token_zero, fn_seq_0)),
                             fn_issue,
                             fn_mode_none,
-                            fn_channel_nonce_1
+                            fn_no_nonce
                         ))
                     )),
-                    fn_null_cert
+                    fn_no_bytes
                 ))
             ))
         )
