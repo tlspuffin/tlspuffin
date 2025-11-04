@@ -224,56 +224,56 @@ pub fn seed_client_open_unsecure_channel (
             OpcuaDescriptorConfig::new_server(server)
         ],
         steps: vec![
-            Step {
-                agent: server,
-                action: Action::Input(input_action! { term! {
-                        fn_client_hello (
-                            fn_bob_endpoint,
-                            fn_default_size,
-                            fn_default_size
-                        )
-                    }
-                }),
-            },
+            // Step {
+            //     agent: server,
+            //     action: Action::Input(input_action! { term! {
+            //             fn_client_hello (
+            //                 fn_bob_endpoint,
+            //                 fn_default_size,
+            //                 fn_default_size
+            //             )
+            //         }
+            //     }),
+            // },
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_open_message (
                         (fn_open_header(
-                             (fn_header(fn_open, fn_seq_0)),
-                             fn_security_policy_none,
-                             fn_null_cert,
-                             fn_null_cert,
-                             (fn_request(
-                                 (fn_sequence_header(fn_seq_0, fn_seq_0)),
-                                 (fn_client_open(
-                                     (fn_request_header(fn_sa_token_zero, fn_seq_0)),
-                                     fn_issue,
-                                     fn_mode_none,
-                                     fn_channel_nonce_1
-                                 ))
-                             ))
+                            (fn_header(fn_open, fn_seq_0)),
+                            fn_security_policy_none,
+                            fn_null_cert,
+                            fn_null_cert,
+                            (fn_request(
+                                (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                (fn_client_open(
+                                    (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                    fn_issue,
+                                    fn_mode_none,
+                                    fn_no_nonce
+                                ))
+                            ))
                         )),
                         (fn_asym_encrypt(
-                             fn_security_policy_none,
-                             fn_null_cert,
-                             fn_null_cert,
-                             (fn_data_to_encrypt(
-                                 fn_security_policy_none,
-                                 fn_null_cert,
-                                 (fn_request(
-                                     (fn_sequence_header(fn_seq_0, fn_seq_0)),
-                                     (fn_client_open(
-                                         (fn_request_header(fn_sa_token_zero, fn_seq_0)),
-                                         fn_issue,
-                                         fn_mode_none,
-                                         fn_channel_nonce_1
-                                     ))
-                                 )),
-                                 fn_null_cert
-                             ))
+                            fn_security_policy_none,
+                            fn_null_cert,
+                            fn_null_cert,
+                            (fn_data_to_encrypt(
+                                fn_security_policy_none,
+                                fn_null_cert,
+                                (fn_request(
+                                    (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                    (fn_client_open(
+                                        (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                        fn_issue,
+                                        fn_mode_none,
+                                        fn_no_nonce
+                                    ))
+                                )),
+                                fn_no_bytes
+                            ))
                         ))
-                     )
+                    )
                     }
                 }),
             },
