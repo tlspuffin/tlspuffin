@@ -14,7 +14,6 @@ use puffin::stream::Stream;
 
 use opcua::puffin::messages::{MAX_WIRE_SIZE, MessageFlight};
 use opcua::puffin::types::OpcuaDescriptorConfig;
-use opcua::puffin::static_certs::{BOB_CERTIFICATE, BOB_PRIVATE_KEY};
 
 use crate::claims::OpcuaClaim;
 use crate::protocol::OpcuaProtocolBehavior;
@@ -27,8 +26,6 @@ struct Agent {
     _capabilities: HashSet<String>,
     _claims: GlobalClaimList<OpcuaClaim>,
     fuzz_stream: TcpStream,
-    _certificate: &'static [u8], //DER
-    _private_key: &'static [u8], //DER
     //...
 }
 
@@ -37,8 +34,16 @@ impl Agent {}
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         log::warn!("Added a new message to the PUT");
-        self.fuzz_stream.write_all(message).unwrap();
-        self.fuzz_stream.flush().unwrap();
+<<<<<<< HEAD
+        if let Err(e) = self.fuzz_stream.write_all(message) {
+            log::warn!("Error while trying to put bytes in the PUT: {}!", e);
+        } else {
+            let _ = self.fuzz_stream.flush();
+        }
+=======
+        self.fuzz_stream.write_all(message).map_err(|e| {});
+        self.fuzz_stream.flush().map_err(|e| {});
+>>>>>>> a774667c5 (WIP debugging DSL seeds)
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
@@ -79,8 +84,12 @@ impl Put<OpcuaProtocolBehavior> for Agent {
     }
 
     fn shutdown(&mut self) -> String {
-        self.fuzz_stream.shutdown(Shutdown::Both).unwrap();
-        "TCP stream shut down!".to_string()
+        if let Err(e) = self.fuzz_stream.shutdown(Shutdown::Both){
+            log::warn!("Error at TCP stream shut down: {e}");
+            format!("Error at TCP stream shut down: {e}")
+        } else {
+            "TCP stream shut down!".to_string()
+        }
     }
 }
 
@@ -107,7 +116,7 @@ struct Open62541Factory {}
                 })?;
             log::warn!("Connected to OPC UA server at {}:{}", host, port);
 
-            fuzz_stream.set_read_timeout(Some(Duration::from_millis(500)))
+            fuzz_stream.set_read_timeout(Some(Duration::from_millis(1000)))
                  .map_err(|e| { Error::IO(e.to_string()) })?;
             fuzz_stream.set_nodelay(true)
                  .map_err(|e| { Error::IO(e.to_string()) })?;
@@ -117,8 +126,6 @@ struct Open62541Factory {}
                 _capabilities: HashSet::new(),
                 _claims: claims.clone(),
                 fuzz_stream,
-                _certificate: BOB_CERTIFICATE.1,
-                _private_key: BOB_PRIVATE_KEY.1
             }))
         }
 
