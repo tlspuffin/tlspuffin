@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use opcua::puffin::signature::{fn_server_hello, fn_client_hello, fn_acknowledge};
 use opcua::puffin::signature::fn_impl::fn_constants::{
     fn_basic256sha256, fn_bob_cert, fn_bob_endpoint, fn_bob_sk, fn_channel_nonce_1, fn_channel_nonce_2,
-    fn_default_size, fn_issue, fn_mode_none, fn_mallory_cert, fn_mallory_sk, fn_no_bytes, fn_no_nonce, fn_null_cert,
+    fn_default_size, fn_issue, fn_mode_none, fn_mode_sign, fn_mallory_cert, fn_mallory_sk, fn_no_bytes, fn_no_nonce, fn_null_cert,
     fn_open, fn_sa_token_zero,
     fn_security_policy_none, fn_seq_0};
 use opcua::puffin::signature::fn_impl::fn_uasc::{
@@ -11,7 +11,7 @@ use opcua::puffin::signature::fn_impl::fn_uasc::{
     fn_header, fn_mac, fn_message, fn_open_message, fn_open_header,
     fn_request, fn_request_header, fn_sequence_header, fn_sign};
 
-use opcua::puffin::messages::Message;
+use opcua::puffin::messages::{DecryptedBody, Message};
 use opcua::puffin::types::{OpcuaDescriptorConfig, OpcuaProtocolTypes};
 
 use puffin::agent::{AgentDescriptor, ProtocolDescriptorConfig};
@@ -197,8 +197,7 @@ pub fn test_encrypt() {
     let context = TraceContext::new(spawner);
 
     let data : Vec<u8> = vec!
-        [111, 112, 99, 46, 116, 99, 112, 58, 47, 47, 108, 111, 99, 97, 108, 104, 111, 115, 116, 58, 52, 56, 52, 48,
-        47, 98, 111, 98, 95, 115, 101, 114, 118, 101, 114];
+        [0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 190, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 32, 0, 0, 0, 96, 136, 65, 244, 244, 100, 47, 233, 225, 193, 23, 66, 151, 245, 47, 115, 34, 200, 125, 96, 220, 252, 162, 206, 62, 160, 115, 203, 96, 15, 105, 6, 224, 147, 4, 0, 111, 112, 99, 46, 116, 99, 112, 58, 47, 47, 108, 111, 99, 97, 108, 104, 111, 115, 116, 58, 52, 56, 52, 48, 47, 98, 111, 98, 95, 115, 101, 114, 118, 101, 114];
 
     let encrypt_term: Term<OpcuaProtocolTypes> = term! {
         fn_asym_decrypt(
@@ -206,7 +205,20 @@ pub fn test_encrypt() {
                 fn_basic256sha256,
                 fn_mallory_cert,
                 fn_bob_cert,
-                fn_bob_endpoint
+                (fn_data_to_encrypt(
+                    fn_basic256sha256,
+                    fn_bob_cert,
+                    (fn_request(
+                        (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                        (fn_client_open(
+                            (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                            fn_issue,
+                            fn_mode_sign,
+                            fn_channel_nonce_1
+                        ))
+                    )),
+                    fn_bob_endpoint
+                ))
             )),
             fn_bob_sk
         )
