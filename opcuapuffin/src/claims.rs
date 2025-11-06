@@ -3,7 +3,7 @@
 /// /!\ not implemented yet /!\
 use std::fmt::Debug;
 
-use opcua::puffin::types::{AgentType, OpcuaProtocolTypes, OpcuaVersion};
+use opcua::puffin::types::{OpcuaProtocolTypes};
 
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::TypeShape;
@@ -13,12 +13,16 @@ use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source, StepNumber};
 use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
 
+// copied from sshpuffin (claim.rs)
+#[derive(Debug, Clone)]
+pub struct OpcuaClaimInner;
+dummy_extract_knowledge_codec!(OpcuaProtocolTypes, Box<OpcuaClaimInner>);
+
 #[derive(Debug, Clone)]
 pub struct OpcuaClaim {
-    pub agent_name: AgentName,
-    pub kind: AgentType,
-    pub version: OpcuaVersion,
-    //pub data: ClaimData,
+    agent_name: AgentName,
+    inner: Box<OpcuaClaimInner>,
+    step: Option<StepNumber>
 }
 
 impl Claim for OpcuaClaim {
@@ -29,16 +33,20 @@ impl Claim for OpcuaClaim {
     }
 
     fn id(&self) -> TypeShape<OpcuaProtocolTypes> {
-        //type Type = TypeShape<OpcuaProtocolTypes>;
-        panic!("Not implemented yet for OPC UA");
+        TypeShape::of::<OpcuaClaimInner>()
     }
 
     fn inner(&self) -> Box<dyn EvaluatedTerm<OpcuaProtocolTypes>> {
-        panic!("Not implemented yet for OPC UA");
+        Box::new(self.inner.clone())
     }
 
-    fn set_step(&mut self, _step: Option<StepNumber>) { todo!() }
-    fn get_step(&self) -> Option<StepNumber> { todo!()}
+    fn set_step(&mut self, step: Option<StepNumber>) {
+        self.step = step;
+    }
+
+    fn get_step(&self) -> Option<StepNumber> {
+        self.step.clone()
+    }
 }
 
 dummy_extract_knowledge_codec!(OpcuaProtocolTypes, OpcuaClaim);
