@@ -201,7 +201,8 @@ pub fn seed_b_client_open_secure_channel (
                                     fn_basic256sha256,
                                     fn_channel_nonce_1,
                                     (fn_get_server_nonce(
-                                        (fn_asym_decrypt(((server, 1)[None]/EncryptedBody), fn_mallory_sk))
+                                        (fn_asym_decrypt(((server, 1)[None]/EncryptedBody),
+                                        fn_mallory_sk))
                                     ))
                                 ))
                             ))
@@ -224,30 +225,93 @@ pub fn seed_client_open_unsecure_channel (
             OpcuaDescriptorConfig::new_server(server)
         ],
         steps: vec![
+            // Step {
+            //     agent: server,
+            //     action: Action::Input(input_action! { term! {
+            //             fn_client_hello (
+            //                 fn_bob_endpoint,
+            //                 fn_default_size,
+            //                 fn_default_size
+            //             )
+            //         }
+            //     }),
+            // },
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                        fn_client_hello (
-                            fn_bob_endpoint,
-                            fn_default_size,
-                            fn_default_size
-                        )
-                    }
-                }),
-            },
-            Step {
-                agent: server,
-                action: Action::Input(input_action! { term! {
-                    fn_open_message (
+                    fn_open_message(
                         (fn_open_header(
-                            fn_dummy_chunker_header // Fail to deserialize this!!
-                            //  fn_security_policy_none
+                            (fn_header(fn_open, fn_seq_0)),
+                            fn_security_policy_none,
+                            fn_null_cert,
+                            fn_null_cert,
+                            (fn_request(
+                                (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                (fn_client_open(
+                                    (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                    fn_issue,
+                                    fn_mode_none,
+                                    fn_no_nonce
+                                ))
+                            ))
                         )),
-                        (fn_no_bytes())
+                        (fn_asym_encrypt(
+                            fn_security_policy_none,
+                            fn_null_cert,
+                            fn_null_cert,
+                            (fn_data_to_encrypt(
+                                fn_security_policy_none,
+                                fn_null_cert,
+                                (fn_request(
+                                    (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                    (fn_client_open(
+                                        (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                        fn_issue,
+                                        fn_mode_none,
+                                        fn_no_nonce
+                                    ))
+                                )),
+                                fn_no_bytes
+                            ))
+                        ))
                     )
-                    }
-                }),
+                    //fn_dummy_chunker_header // Fail to deserialize this!!
+                }}),
             },
         ]
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+
+    use puffin::trace_helper::TraceHelper;
+
+    #[allow(unused_imports)]
+    use super::*;
+
+    fn test_postcard_serialization(trace: Trace<OpcuaProtocolTypes>) {
+        let serialized1 = trace.serialize_postcard().unwrap();
+        let deserialized_trace = Trace::<OpcuaProtocolTypes>::deserialize_postcard(&serialized1.as_ref()).unwrap();
+        let serialized2 = deserialized_trace.serialize_postcard().unwrap();
+        assert_eq!(serialized1, serialized2);
+    }
+
+    #[test]
+    fn test_postcard_of_seed_a() {
+        let trace = seed_a_hello_bob.build_trace();
+        test_postcard_serialization(trace);
+    }
+
+    #[test]
+    fn test_postcard_of_seed_b() {
+        let trace = seed_b_client_open_secure_channel.build_trace();
+        test_postcard_serialization(trace);
+    }
+
+    #[test]
+    fn test_postcard_of_seed_c() {
+        let trace = seed_client_open_unsecure_channel.build_trace();
+        test_postcard_serialization(trace);
     }
 }
