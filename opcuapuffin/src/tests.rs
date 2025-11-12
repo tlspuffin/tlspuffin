@@ -7,7 +7,7 @@ use opcua::puffin::signature::fn_impl::fn_constants::{
     fn_open, fn_sa_token_zero,
     fn_security_policy_none, fn_seq_0};
 use opcua::puffin::signature::fn_impl::fn_uasc::{
-    fn_asym_decrypt, fn_asym_encrypt, fn_data_to_encrypt, fn_data_to_sign, fn_client_mac_key, fn_client_open,
+    fn_asym_decrypt, fn_asym_encrypt, fn_data_to_encrypt, fn_data_to_sign, fn_dummy_chunk_header, fn_client_mac_key, fn_client_open,
     fn_header, fn_mac, fn_message, fn_open_message, fn_open_header,
     fn_request, fn_request_header, fn_sequence_header, fn_sign};
 
@@ -306,4 +306,23 @@ pub fn test_open() {
     };
     let open: Vec<u8> = open_term.evaluate_symbolic(&context).unwrap();
     assert_eq!(&open,  &data);
+}
+
+#[test]
+pub fn test_dummy_header() {
+
+    let registry =
+        PutRegistry::<OpcuaProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
+    let spawner = Spawner::new(registry);
+    let context = TraceContext::new(spawner);
+
+    let data : Vec<u8> = vec!
+        [77, 83, 71, 70, 12, 0, 0, 0, 0, 0, 0, 0];
+
+
+    let dummy_term: Term<OpcuaProtocolTypes> = term! {
+        fn_dummy_chunk_header()
+    };
+    let header: Vec<u8> = dummy_term.evaluate_symbolic(&context).unwrap();
+    assert_eq!(&header,  &data);
 }

@@ -22,7 +22,9 @@ pub fn create_corpus(
     vec![
         (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
         (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel"),
-        (seed_client_open_unsecure_channel(AgentName::first()), "seed_client_open_unsecure_channel")
+        (seed_client_open_unsecure_channel(AgentName::first()), "seed_client_open_unsecure_channel"),
+        (seed_dummy_header(AgentName::first()), "seed_dummy_header")
+
     ]
 }
 
@@ -225,17 +227,17 @@ pub fn seed_client_open_unsecure_channel (
             OpcuaDescriptorConfig::new_server(server)
         ],
         steps: vec![
-            // Step {
-            //     agent: server,
-            //     action: Action::Input(input_action! { term! {
-            //             fn_client_hello (
-            //                 fn_bob_endpoint,
-            //                 fn_default_size,
-            //                 fn_default_size
-            //             )
-            //         }
-            //     }),
-            // },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_client_hello (
+                            fn_bob_endpoint,
+                            fn_default_size,
+                            fn_default_size
+                        )
+                    }
+                }),
+            },
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
@@ -275,12 +277,43 @@ pub fn seed_client_open_unsecure_channel (
                             ))
                         ))
                     )
-                    //fn_dummy_chunker_header // Fail to deserialize this!!
+                    //fn_dummy_chunk_header // Fail to deserialize this!!
                 }}),
             },
         ]
     }
 }
+
+pub fn seed_dummy_header (
+    server: AgentName,
+) -> Trace<OpcuaProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            OpcuaDescriptorConfig::new_server(server)
+        ],
+        steps: vec![
+            // Step {
+            //     agent: server,
+            //     action: Action::Input(input_action! { term! {
+            //         fn_client_hello (
+            //             fn_bob_endpoint,
+            //             fn_default_size,
+            //             fn_default_size
+            //         )
+            //         }
+            //     }),
+            // },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_dummy_chunk_header // Fail to deserialize this!!
+                }}),
+            },
+        ]
+    }
+}
+
 
 #[cfg(test)]
 pub mod tests {
@@ -312,6 +345,12 @@ pub mod tests {
     #[test]
     fn test_postcard_of_seed_c() {
         let trace = seed_client_open_unsecure_channel.build_trace();
+        test_postcard_serialization(trace);
+    }
+
+    #[test]
+    fn test_postcard_of_seed_dummy_header() {
+        let trace = seed_dummy_header.build_trace();
         test_postcard_serialization(trace);
     }
 }
