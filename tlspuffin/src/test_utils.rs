@@ -34,9 +34,18 @@ use crate::tls::fn_impl::{
 use crate::tls::seeds::seed_successful;
 use crate::tls::TLS_SIGNATURE;
 
-pub fn default_runner_for(put: impl Into<PutDescriptor>) -> Runner<TLSProtocolBehavior> {
-    let registry = tls_registry();
-    let spawner = Spawner::new(registry.clone()).with_default(put.into());
+pub fn default_runner_for(put: impl Into<String>) -> Runner<TLSProtocolBehavior> {
+    let mut registry = tls_registry();
+    registry.set_default_factory(&put.into()).unwrap();
+    let spawner = Spawner::new(registry.clone());
+
+    Runner::new(registry, spawner)
+}
+
+pub fn default_runner_for_desc(put_desc: impl Into<PutDescriptor>) -> Runner<TLSProtocolBehavior> {
+    let mut registry = tls_registry();
+    registry.set_default(put_desc.into()).unwrap();
+    let spawner = Spawner::new(registry.clone());
 
     Runner::new(registry, spawner)
 }
@@ -275,7 +284,7 @@ pub mod prelude {
 
     pub use crate::put_registry::{for_puts, tls_registry};
     pub use crate::test_utils::tcp::*;
-    pub use crate::test_utils::{default_runner_for, expect_trace_crash};
+    pub use crate::test_utils::{default_runner_for, default_runner_for_desc, expect_trace_crash};
 }
 
 /// Functions that are known to fail to be adversarially generated

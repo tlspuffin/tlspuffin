@@ -271,7 +271,7 @@ impl<PB: ProtocolBehavior> Spawner<PB> {
     pub fn new(registry: impl Into<PutRegistry<PB>>) -> Self {
         let registry = registry.into();
         Self {
-            default: registry.default().name().into(),
+            default: registry.default_put().clone(),
             registry,
             descriptors: Default::default(),
         }
@@ -280,11 +280,6 @@ impl<PB: ProtocolBehavior> Spawner<PB> {
     #[must_use]
     pub fn with_mapping(mut self, descriptors: &[(AgentName, PutDescriptor)]) -> Self {
         self.descriptors.extend(descriptors.iter().cloned());
-        self
-    }
-
-    pub fn with_default(mut self, put: impl Into<PutDescriptor>) -> Self {
-        self.default = put.into();
         self
     }
 

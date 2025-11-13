@@ -1,3 +1,4 @@
+use puffin::put::{PutDescriptor, PutOptions};
 use puffin::put_registry::PutRegistry;
 
 use crate::protocol::TLSProtocolBehavior;
@@ -110,9 +111,9 @@ pub fn tls_registry() -> PutRegistry<TLSProtocolBehavior> {
         .map(|f| (f.name(), f))
         .collect();
 
-    let default = puts.first().unwrap().0.clone();
-
-    PutRegistry::new(puts, default)
+    let default_name = puts.first().unwrap().0.clone();
+    let default_descriptor = PutDescriptor::new(default_name, PutOptions::empty());
+    PutRegistry::new(puts, default_descriptor)
 }
 
 #[cfg(not(feature = "cputs"))]
