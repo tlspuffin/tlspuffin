@@ -15,6 +15,7 @@ pub mod opcua;
 pub mod protocol;
 pub mod put;
 pub mod put_registry;
+pub mod query;
 
 //#[cfg(feature = "test-utils")]
 #[cfg(test)]
