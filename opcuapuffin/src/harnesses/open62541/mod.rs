@@ -35,20 +35,17 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         log::warn!("Added a new message to the PUT of size {}", message.len());
         self.fuzz_stream.write_all(message).map_err(|e| log::warn!("Error while trying to put bytes in the PUT: {}!", e)).ok();
-        log::warn!("About to flush");
         self.fuzz_stream.flush().map_err(|e| log::warn!("Error while trying to flush the PUT: {}!", e)).ok();
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
         let mut buf = vec![];
         buf.resize(MAX_WIRE_SIZE, 0);
-        log::warn!("About to read...");
         let size = self.fuzz_stream.read(&mut buf).map_err(|e| {
             log::warn!("Error while trying to take bytes from the PUT: {}!", e);
             Error::Put("Error while trying to take bytes from the PUT!".to_string())
         })?;
         log::warn!("Took {size} bytes from the PUT");
-        log::warn!("About to read_bytes...");
         Ok(MessageFlight::read_bytes(&buf[0..size]))
     }
 }
@@ -71,7 +68,7 @@ impl Put<OpcuaProtocolBehavior> for Agent {
     }
 
     fn is_state_successful(&self) -> bool {
-        unimplemented!("Put for Agent")
+        true
     }
 
     fn version() -> String {

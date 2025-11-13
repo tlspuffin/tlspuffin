@@ -22,9 +22,7 @@ pub fn create_corpus(
     vec![
         (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
         (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel"),
-        (seed_client_open_unsecure_channel(AgentName::first()), "seed_client_open_unsecure_channel"),
-        (seed_dummy_header(AgentName::first()), "seed_dummy_header")
-
+        (seed_client_open_unsecure_channel(AgentName::first()), "seed_client_open_unsecure_channel")
     ]
 }
 
@@ -154,9 +152,9 @@ pub fn seed_b_client_open_secure_channel (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
-                        (fn_mac_header(
+                        (fn_msg_header(
                             fn_basic256sha256,
-                            (fn_header(fn_close, ((server, 1)[None]/u32))),  // needs channel id!
+                            (fn_header(fn_close, ((server, 10)[None]/u32))),  // needs channel id!
                             (fn_request(
                                 (fn_sequence_header(fn_seq_1, fn_seq_1)),
                                 (fn_client_close(
@@ -166,9 +164,12 @@ pub fn seed_b_client_open_secure_channel (
                         )),
                         (fn_body(
                             (fn_get_channel_token(
-                                (fn_asym_decrypt(
-                                    ((server, 1)[None]/EncryptedBody),
-                                    fn_mallory_sk))
+                                (fn_decrypted_body(
+                                    (fn_asym_decrypt(
+                                        ((server, 1)[None]/EncryptedBody),
+                                        fn_mallory_sk)),
+                                    fn_mallory_sk
+                                ))
                             )),
                             (fn_sequence_header(fn_seq_1, fn_seq_1)),
                             (fn_client_close(
@@ -176,9 +177,9 @@ pub fn seed_b_client_open_secure_channel (
                             )),
                             (fn_mac(
                                 (fn_data_to_mac(
-                                    (fn_mac_header(
+                                    (fn_msg_header(
                                         fn_basic256sha256,
-                                        (fn_header(fn_close, ((server, 1)[None]/u32))),  // needs channel id!
+                                        (fn_header(fn_close, ((server, 10)[None]/u32))),  // needs channel id!
                                         (fn_request(
                                             (fn_sequence_header(fn_seq_1, fn_seq_1)),
                                             (fn_client_close(
@@ -187,9 +188,12 @@ pub fn seed_b_client_open_secure_channel (
                                         ))
                                     )),
                                     (fn_get_channel_token(
-                                        (fn_asym_decrypt(
-                                            ((server, 1)[None]/EncryptedBody),
-                                            fn_mallory_sk))
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                ((server, 1)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
                                     )),
                                     (fn_request(
                                         (fn_sequence_header(fn_seq_1, fn_seq_1)),
@@ -203,8 +207,12 @@ pub fn seed_b_client_open_secure_channel (
                                     fn_basic256sha256,
                                     fn_channel_nonce_1,
                                     (fn_get_server_nonce(
-                                        (fn_asym_decrypt(((server, 1)[None]/EncryptedBody),
-                                        fn_mallory_sk))
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                ((server, 1)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
                                     ))
                                 ))
                             ))
@@ -277,43 +285,44 @@ pub fn seed_client_open_unsecure_channel (
                             ))
                         ))
                     )
-                    //fn_dummy_chunk_header // Fail to deserialize this!!
                 }}),
             },
-        ]
-    }
-}
-
-pub fn seed_dummy_header (
-    server: AgentName,
-) -> Trace<OpcuaProtocolTypes> {
-    Trace {
-        prior_traces: vec![],
-        descriptors: vec![
-            OpcuaDescriptorConfig::new_server(server)
-        ],
-        steps: vec![
-            // Step {
-            //     agent: server,
-            //     action: Action::Input(input_action! { term! {
-            //         fn_client_hello (
-            //             fn_bob_endpoint,
-            //             fn_default_size,
-            //             fn_default_size
-            //         )
-            //         }
-            //     }),
-            // },
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    fn_dummy_chunk_header // Fail to deserialize this!!
-                }}),
+                    fn_message (
+                        (fn_msg_header(
+                            fn_security_policy_none,
+                            (fn_header(fn_close, ((server, 10)[None]/u32))),  // needs channel id!
+                            (fn_request(
+                                (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                                (fn_client_close(
+                                    (fn_request_header(fn_sa_token_zero, fn_seq_1))
+                                ))
+                            ))
+                        )),
+                        (fn_body(
+                            (fn_get_channel_token(
+                                (fn_decrypted_body(
+                                    (fn_asym_decrypt(
+                                        ((server, 1)[None]/EncryptedBody),
+                                        fn_no_bytes)),
+                                    fn_no_bytes
+                                ))
+                            )),
+                            (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                            (fn_client_close(
+                                (fn_request_header(fn_sa_token_zero, fn_seq_1))
+                            )),
+                            fn_no_bytes
+                        ))
+                    )
+                    }
+                }),
             },
         ]
     }
 }
-
 
 #[cfg(test)]
 pub mod tests {
@@ -348,9 +357,4 @@ pub mod tests {
         test_postcard_serialization(trace);
     }
 
-    #[test]
-    fn test_postcard_of_seed_dummy_header() {
-        let trace = seed_dummy_header.build_trace();
-        test_postcard_serialization(trace);
-    }
 }
