@@ -8,6 +8,6 @@ impl SecurityViolationPolicy for OpcuaSecurityViolationPolicy {
     type C = OpcuaClaim;
 
     fn check_violation(_claims: &[OpcuaClaim]) -> Option<&'static str> {
-        Some("OPCUA check_violation is unimplemented.")
+        None
     }
 }
