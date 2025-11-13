@@ -20,7 +20,6 @@ use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
 use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
-use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
 use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 
@@ -560,7 +559,6 @@ where
 /// Starts the fuzzing loop
 pub fn start<'harness, PB>(
     put_registry: &'harness PutRegistry<PB>,
-    put: PutDescriptor,
     config: FuzzerConfig,
     log_handle: Handle,
 ) -> Result<(), Error>
@@ -603,7 +601,7 @@ where
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder
-            .with_initial_inputs(PB::create_corpus(put.clone()))
+            .with_initial_inputs(PB::create_corpus(put_registry.default_put().clone()))
             .with_rand(StdRand::new())
             .with_corpus(
                 //InMemoryCorpus::new(),

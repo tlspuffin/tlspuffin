@@ -665,6 +665,7 @@ mod tests {
     use crate::algebra::signature::Signature;
     use crate::algebra::term::TermType;
     use crate::algebra::{AnyMatcher, DYTerm, Term};
+    use crate::put::{PutDescriptor, PutOptions};
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
     use crate::trace::{Source, Spawner, TraceContext};
@@ -746,8 +747,10 @@ mod tests {
             Box::new(TestFactory)
         }
 
-        let registry =
-            PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
+        let registry = PutRegistry::<TestProtocolBehavior>::new(
+            [("teststub", dummy_factory())],
+            PutDescriptor::new("teststub", PutOptions::empty()),
+        );
 
         let spawner = Spawner::new(registry);
         let mut context = TraceContext::new(spawner);

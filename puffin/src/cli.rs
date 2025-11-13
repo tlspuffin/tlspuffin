@@ -132,7 +132,9 @@ where
             println!("Error: PUT not found: {}", non_available_puts.join(","));
             return ExitCode::FAILURE;
         };
-        let _ = put_registry.set_default(name);
+        put_registry
+            .set_default_factory(name)
+            .expect("PUT should exist after validation");
     };
 
     log::info!("Version: {}", puffin::full_version());
@@ -153,8 +155,6 @@ where
     if put_use_clear {
         options.push(("use_clear".to_string(), put_use_clear.to_string()));
     }
-
-    let default_put = PutDescriptor::new(put_registry.default().name(), options);
 
     // Set up config
     let mut config = FuzzerConfig {
@@ -239,7 +239,7 @@ where
     };
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
-        if let Err(err) = seed(&put_registry, default_put) {
+        if let Err(err) = seed(&put_registry) {
             log::error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -309,10 +309,7 @@ where
             lookup_paths.len()
         );
 
-        let runner = Runner::new(
-            put_registry.clone(),
-            Spawner::new(put_registry).with_default(default_put),
-        );
+        let runner = Runner::new(put_registry.clone(), Spawner::new(put_registry));
 
         let config_trace = ConfigTrace {
             with_bit_level,
@@ -363,7 +360,7 @@ where
         log::info!("Agents: {:?}", &trace.descriptors);
 
         let put_name = put_registry.default_put_name().into();
-        let mut ctx = TraceContext::new(Spawner::new(put_registry).with_default(default_put));
+        let mut ctx = TraceContext::new(Spawner::new(put_registry));
         let (res, err) = match trace.execute_until_step(
             &mut ctx,
             *max_step.unwrap_or(&trace.steps.len()),
@@ -396,7 +393,7 @@ where
         let input: &String = matches.get_one("input").unwrap();
         let output: &String = matches.get_one("output").unwrap();
 
-        if let Err(err) = binary_attack(input, output, &put_registry, default_put) {
+        if let Err(err) = binary_attack(input, output, &put_registry) {
             log::error!("Failed to create trace output: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -490,7 +487,7 @@ where
             return ExitCode::FAILURE;
         }
 
-        if let Err(err) = start::<PB>(&put_registry, default_put, config, handle) {
+        if let Err(err) = start::<PB>(&put_registry, config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {
                     log::info!("\nFuzzing stopped by user. Good Bye.");
@@ -544,11 +541,10 @@ fn plot<PB: ProtocolBehavior>(
 }
 
 fn seed<PB: ProtocolBehavior>(
-    _put_registry: &PutRegistry<PB>,
-    put: PutDescriptor,
+    put_registry: &PutRegistry<PB>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
-    for (trace, name) in PB::create_corpus(put) {
+    for (trace, name) in PB::create_corpus(put_registry.default_put().clone()) {
         trace.to_file(format!("./seeds/{name}.trace"))?;
     }
 
@@ -585,9 +581,8 @@ fn binary_attack<PB: ProtocolBehavior>(
     input: &str,
     output: &str,
     put_registry: &PutRegistry<PB>,
-    default_put: impl Into<PutDescriptor>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let spawner = Spawner::new(put_registry.clone()).with_default(default_put);
+    let spawner = Spawner::new(put_registry.clone());
     let ctx = TraceContext::new(spawner);
     let trace = Trace::<PB::ProtocolTypes>::from_file(input)?;
 
