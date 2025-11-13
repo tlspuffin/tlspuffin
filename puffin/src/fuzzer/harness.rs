@@ -11,8 +11,12 @@ use crate::trace::{Action, Spawner, Trace};
 pub fn harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
     input: &Trace<PB::Matcher>,
+    default_put: crate::put::PutDescriptor,
 ) -> ExitKind {
-    let runner = Runner::new(put_registry.clone(), Spawner::new(put_registry.clone()));
+    let runner = Runner::new(
+        put_registry.clone(),
+        Spawner::new(put_registry.clone(), default_put),
+    );
 
     TRACE_LENGTH.update(input.steps.len());
 

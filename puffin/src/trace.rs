@@ -233,10 +233,10 @@ pub struct Spawner<PB: ProtocolBehavior> {
 }
 
 impl<PB: ProtocolBehavior> Spawner<PB> {
-    pub fn new(registry: impl Into<PutRegistry<PB>>) -> Self {
+    pub fn new(registry: impl Into<PutRegistry<PB>>, default: PutDescriptor) -> Self {
         let registry = registry.into();
         Self {
-            default: registry.default().name().into(),
+            default,
             registry,
             descriptors: Default::default(),
         }

@@ -39,6 +39,7 @@ pub struct FuzzerConfig {
     pub tui: bool,
     pub no_launcher: bool,
     pub log_file: PathBuf,
+    pub default_put: crate::put::PutDescriptor,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -422,6 +423,7 @@ where
         broker_port,
         tui,
         no_launcher,
+        default_put,
         mutation_config:
             MutationConfig {
                 fresh_zoo_after,
@@ -444,7 +446,8 @@ where
             .clone()
             .set_config(config_fuzzing_client(log_file));
 
-        let harness_fn = &mut (|input: &_| harness::harness::<PB>(put_registry, input));
+        let harness_fn =
+            &mut (|input: &_| harness::harness::<PB>(put_registry, input, default_put.clone()));
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder

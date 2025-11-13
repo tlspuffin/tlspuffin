@@ -7,7 +7,7 @@ use crate::error::Error;
 use crate::protocol::ProtocolBehavior;
 use crate::stream::Stream;
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 pub struct PutOptions {
     options: Vec<(String, String)>,
 }
@@ -41,7 +41,7 @@ where
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash, Default)]
+#[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 pub struct PutDescriptor {
     pub factory: String,
     pub options: PutOptions,
@@ -53,15 +53,6 @@ impl PutDescriptor {
             factory: factory.into(),
             options: options.into(),
         }
-    }
-}
-
-impl<S> From<S> for PutDescriptor
-where
-    S: Into<String>,
-{
-    fn from(name: S) -> Self {
-        PutDescriptor::new(name, PutOptions::default())
     }
 }
 

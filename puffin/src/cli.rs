@@ -204,7 +204,7 @@ where
 
         let runner = Runner::new(
             put_registry.clone(),
-            Spawner::new(put_registry).with_default(default_put),
+            Spawner::new(put_registry, default_put),
         );
 
         for path in lookup_paths {
@@ -262,7 +262,7 @@ where
 
         let runner = Runner::new(
             put_registry.clone(),
-            Spawner::new(put_registry).with_default(default_put),
+            Spawner::new(put_registry, default_put),
         );
 
         for path in paths {
@@ -311,7 +311,7 @@ where
         let put = PutDescriptor::new(TCP_PUT, options);
         let runner = Runner::new(
             put_registry.clone(),
-            Spawner::new(put_registry).with_mapping(&[(server, put)]),
+            Spawner::new(put_registry, default_put).with_mapping(&[(server, put)]),
         );
         let mut context = runner.execute(trace).unwrap();
 
@@ -384,6 +384,7 @@ where
             mutation_config: Default::default(),
             tui,
             no_launcher,
+            default_put,
         };
 
         if let Err(err) = start::<PB>(&put_registry, config, handle) {
@@ -479,7 +480,7 @@ fn binary_attack<PB: ProtocolBehavior>(
     put_registry: &PutRegistry<PB>,
     default_put: impl Into<PutDescriptor>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let spawner = Spawner::new(put_registry.clone()).with_default(default_put);
+    let spawner = Spawner::new(put_registry.clone(), default_put.into());
     let ctx = TraceContext::new(spawner);
     let trace = Trace::<PB::Matcher>::from_file(input)?;
 
