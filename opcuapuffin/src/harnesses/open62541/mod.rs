@@ -13,7 +13,7 @@ use puffin::put_registry::Factory;
 use puffin::stream::Stream;
 
 use opcua::puffin::messages::{MAX_WIRE_SIZE, MessageFlight};
-use opcua::puffin::types::OpcuaDescriptorConfig;
+use opcua::puffin::types::{AgentType, OpcuaDescriptorConfig};
 
 use crate::claims::OpcuaClaim;
 use crate::protocol::OpcuaProtocolBehavior;
@@ -98,27 +98,32 @@ struct Open62541Factory {}
             let host = Ipv4Addr::LOCALHOST;
             let port = 4840;
 
-            // 1. create a server listening on localhost:port:
+            match agent_descriptor.protocol_config.kind {
+                AgentType::Server | AgentType::Client => {
+                    // 1. create a TCP server listening on localhost:port:
 
-            // 2. connect to the server:
-            let fuzz_stream = TcpStream::connect((host, port))
-                .map_err(|e| {
-                    log::warn!("Failed to connect to OPC UA server at {}:{}: {}", host, port, e);
-                    Error::IO(e.to_string())
-                })?;
-            log::warn!("Connected to OPC UA server at {}:{}", host, port);
+                    // 2. connect to the TCP server:
+                    let fuzz_stream = TcpStream::connect((host, port))
+                    .map_err(|e| {
+                        log::warn!("Failed to connect to TCP server at {}:{}: {}", host, port, e);
+                        Error::IO(e.to_string())
+                    })?;
+                    log::warn!("Connected to TCP server at {}:{}", host, port);
 
-            fuzz_stream.set_read_timeout(Some(Duration::from_millis(1000)))
-                 .map_err(|e| { Error::IO(e.to_string()) })?;
-            fuzz_stream.set_nodelay(true)
-                 .map_err(|e| { Error::IO(e.to_string()) })?;
+                    fuzz_stream.set_read_timeout(Some(Duration::from_millis(1000)))
+                        .map_err(|e| { Error::IO(e.to_string()) })?;
+                    fuzz_stream.set_nodelay(true)
+                        .map_err(|e| { Error::IO(e.to_string()) })?;
 
-            Ok(Box::new(Agent{
-                agent_descriptor: agent_descriptor.clone(),
-                _capabilities: HashSet::new(),
-                _claims: claims.clone(),
-                fuzz_stream,
-            }))
+                    Ok(Box::new(Agent{
+                        agent_descriptor: agent_descriptor.clone(),
+                        _capabilities: HashSet::new(),
+                        _claims: claims.clone(),
+                        fuzz_stream,
+                    }))
+                },
+                _ => unimplemented!()
+            }
         }
 
         fn name(&self) -> String {String::from(OPEN62541)}
