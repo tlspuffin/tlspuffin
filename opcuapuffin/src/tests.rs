@@ -9,7 +9,7 @@ use opcua::puffin::signature::fn_impl::fn_constants::{
 use opcua::puffin::signature::fn_impl::fn_uasc::{
     fn_asym_decrypt, fn_asym_encrypt, fn_data_to_encrypt, fn_client_mac_key, fn_client_open, fn_decrypted_body,
     fn_header, fn_mac, fn_open_message, fn_open_header,
-    fn_request, fn_request_header, fn_sequence_header, fn_sign};
+    fn_service, fn_request_header, fn_sequence_header, fn_sign};
 
 use opcua::puffin::messages::Message;
 use opcua::puffin::types::{OpcuaDescriptorConfig, OpcuaProtocolTypes};
@@ -53,8 +53,8 @@ pub fn server() {
     let mut send_buffer: Vec<u8> = Vec::with_capacity(max_size as usize);
 
     let reverse_message: Message = fn_server_hello(
-        &"opc.tcp://PenDuick:53530".as_bytes().to_vec(), //&fn_bob_uri().unwrap(),
-        &"opc.tcp://PenDuick:53530/OPCUA/SimulationServer".as_bytes().to_vec(), //&fn_bob_endpoint().unwrap()
+        &"opc.tcp://PenDuick:53530".as_bytes().to_vec(),
+        &"opc.tcp://PenDuick:53530/OPCUA/SimulationServer".as_bytes().to_vec(),
         ).unwrap();
     reverse_message.encode(&mut send_buffer);
     let rev_hello_msg : Vec<u8> = vec![
@@ -209,7 +209,7 @@ pub fn test_encrypt() {
                     (fn_data_to_encrypt(
                         fn_basic256sha256,
                         fn_bob_cert,
-                        (fn_request(
+                        (fn_service(
                             (fn_sequence_header(fn_seq_0, fn_seq_0)),
                             (fn_client_open(
                                 (fn_request_header(fn_sa_token_zero, fn_seq_0)),
@@ -276,7 +276,7 @@ pub fn test_open() {
                 fn_security_policy_none,
                 fn_null_cert,
                 fn_null_cert,
-                (fn_request(
+                (fn_service(
                     (fn_sequence_header(fn_seq_0, fn_seq_0)),
                     (fn_client_open(
                         (fn_request_header(fn_sa_token_zero, fn_seq_0)),
@@ -293,7 +293,7 @@ pub fn test_open() {
                 (fn_data_to_encrypt(
                     fn_security_policy_none,
                     fn_null_cert,
-                    (fn_request(
+                    (fn_service(
                         (fn_sequence_header(fn_seq_0, fn_seq_0)),
                         (fn_client_open(
                             (fn_request_header(fn_sa_token_zero, fn_seq_0)),

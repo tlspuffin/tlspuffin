@@ -96,12 +96,15 @@ struct Open62541Factory {}
         ) -> Result<Box<dyn Put<OpcuaProtocolBehavior>>, Error> {
 
             let host = Ipv4Addr::LOCALHOST;
-            let port = 4840;
+            let port = match agent_descriptor.protocol_config.kind {
+                AgentType::Server => 4840,
+                AgentType::Client => 4841,
+                _ => 53530
+            };
 
             match agent_descriptor.protocol_config.kind {
                 AgentType::Server | AgentType::Client => {
-                    // 1. create a TCP server listening on localhost:port:
-
+                    // 1. create a TCP server listening on localhost:port
                     // 2. connect to the TCP server:
                     let fuzz_stream = TcpStream::connect((host, port))
                     .map_err(|e| {
