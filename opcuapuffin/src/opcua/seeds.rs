@@ -31,7 +31,7 @@ pub fn seed_a_hello_bob (
     server: AgentName,
 ) -> Trace<OpcuaProtocolTypes> {
     Trace {
-    prior_traces: vec![],
+        prior_traces: vec![],
         descriptors: vec![
             OpcuaDescriptorConfig::new_server(server)
         ],
@@ -47,8 +47,6 @@ pub fn seed_a_hello_bob (
                     }
                 }),
             },
-
-
         ]
     }
 }
@@ -435,6 +433,12 @@ pub mod tests {
     #[test]
     fn test_postcard_of_seed_b() {
         let trace = seed_b_client_open_secure_channel.build_trace();
+        test_postcard_serialization(trace);
+    }
+
+    #[test]
+    fn test_postcard_of_seed_c() {
+        let trace = seed_c_server_open_unsecure_channel.build_trace();
         test_postcard_serialization(trace);
     }
 
