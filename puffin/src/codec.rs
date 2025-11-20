@@ -433,3 +433,25 @@ impl<T: Codec + VecCodecWoSize> Codec for Vec<T> {
         Some(ret)
     }
 }
+
+pub fn put_f64(v: f64, bytes: &mut [u8]) {
+    let bytes: &mut [u8; 8] = (&mut bytes[..8]).try_into().unwrap();
+    *bytes = f64::to_be_bytes(v);
+}
+
+#[must_use]
+pub fn decode_f64(bytes: &[u8]) -> Option<f64> {
+    Some(f64::from_be_bytes(bytes.try_into().ok()?))
+}
+
+impl Codec for f64 {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        let mut b64 = [0u8; 8];
+        put_f64(*self, &mut b64);
+        bytes.extend_from_slice(&b64);
+    }
+
+    fn read(r: &mut Reader) -> Option<Self> {
+        r.take(8).and_then(decode_f64)
+    }
+}

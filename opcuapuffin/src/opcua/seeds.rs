@@ -24,6 +24,7 @@ pub fn create_corpus(
         (seed_ap_client_open_unsecure_channel(AgentName::first()), "seed_ap_client_open_unsecure_channel"),
         (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel"),
         (seed_c_server_open_unsecure_channel(AgentName::first()), "seed_c_server_open_unsecure_channel"),
+        (seed_d_client_create_session(AgentName::first()), "seed_d_client_create_session"),
     ]
 }
 
@@ -182,7 +183,7 @@ pub fn seed_b_client_open_secure_channel (
                             (fn_service(
                                 (fn_sequence_header(fn_seq_0, fn_seq_0)),
                                 (fn_client_open(
-                                    (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                    (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
                                     fn_issue,
                                     fn_mode_sign,
                                     fn_channel_nonce_1
@@ -199,7 +200,7 @@ pub fn seed_b_client_open_secure_channel (
                                 (fn_service(
                                     (fn_sequence_header(fn_seq_0, fn_seq_0)),
                                     (fn_client_open(
-                                        (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                        (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
                                         fn_issue,
                                         fn_mode_sign,
                                         fn_channel_nonce_1
@@ -215,7 +216,7 @@ pub fn seed_b_client_open_secure_channel (
                                             (fn_service(
                                                 (fn_sequence_header(fn_seq_0, fn_seq_0)),
                                                 (fn_client_open(
-                                                    (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                                    (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
                                                     fn_issue,
                                                     fn_mode_sign,
                                                     fn_channel_nonce_1
@@ -228,7 +229,7 @@ pub fn seed_b_client_open_secure_channel (
                                         (fn_service(
                                             (fn_sequence_header(fn_seq_0, fn_seq_0)),
                                             (fn_client_open(
-                                                (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                                                (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
                                                 fn_issue,
                                                 fn_mode_sign,
                                                 fn_channel_nonce_1
@@ -401,6 +402,191 @@ pub fn seed_c_server_open_unsecure_channel (
     }
 }
 
+pub fn seed_d_client_create_session (
+    server: AgentName,
+) -> Trace<OpcuaProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            OpcuaDescriptorConfig::new_server(server)
+        ],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_client_hello (
+                            fn_bob_endpoint,
+                            fn_default_size,
+                            fn_default_size
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_open_message (
+                        (fn_open_header(
+                            (fn_header(fn_open, fn_seq_0)),
+                            fn_basic256sha256,
+                            fn_mallory_cert,
+                            fn_bob_cert,
+                            (fn_service(
+                                (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                (fn_client_open(
+                                    (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
+                                    fn_issue,
+                                    fn_mode_sign,
+                                    fn_channel_nonce_1
+                                ))
+                            ))
+                        )),
+                        (fn_asym_encrypt(
+                            fn_basic256sha256,
+                            fn_mallory_cert,
+                            fn_bob_cert,
+                            (fn_data_to_encrypt(
+                                fn_basic256sha256,
+                                fn_bob_cert,
+                                (fn_service(
+                                    (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                    (fn_client_open(
+                                        (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
+                                        fn_issue,
+                                        fn_mode_sign,
+                                        fn_channel_nonce_1
+                                    ))
+                                )),
+                                (fn_sign(
+                                    (fn_data_to_sign(
+                                        (fn_open_header(
+                                            (fn_header(fn_open, fn_seq_0)),
+                                            fn_basic256sha256,
+                                            fn_mallory_cert,
+                                            fn_bob_cert,
+                                            (fn_service(
+                                                (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                                (fn_client_open(
+                                                    (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
+                                                    fn_issue,
+                                                    fn_mode_sign,
+                                                    fn_channel_nonce_1
+                                                ))
+                                            ))
+                                        )),
+                                        fn_basic256sha256,
+                                        fn_mallory_cert,
+                                        fn_bob_cert,
+                                        (fn_service(
+                                            (fn_sequence_header(fn_seq_0, fn_seq_0)),
+                                            (fn_client_open(
+                                                (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
+                                                fn_issue,
+                                                fn_mode_sign,
+                                                fn_channel_nonce_1
+                                            ))
+                                        ))
+                                    )),
+                                    fn_basic256sha256,
+                                    fn_mallory_cert,
+                                    fn_mallory_sk
+                                ))
+                           ))
+                        ))
+                    )
+                    }
+                }),
+            },
+
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_message (
+                        (fn_msg_header(
+                            fn_basic256sha256,
+                            (fn_header(fn_final, ((server, 10)[None]/u32))),  // needs channel id!
+                            (fn_service(
+                                (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                                (fn_create_request(
+                                    (fn_request_header(fn_sa_token_zero, fn_seq_1)),
+                                    fn_bob_endpoint,
+                                    fn_session_nonce_1,
+                                    fn_mallory_cert
+                                ))
+                            ))
+                        )),
+                        (fn_body(
+                            (fn_get_channel_token(
+                                (fn_decrypted_body(
+                                    (fn_asym_decrypt(
+                                        ((server, 1)[None]/EncryptedBody),
+                                        fn_mallory_sk)),
+                                    fn_mallory_sk
+                                ))
+                            )),
+                            (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                            (fn_create_request(
+                                (fn_request_header(fn_sa_token_zero, fn_seq_1)),
+                                fn_bob_endpoint,
+                                fn_session_nonce_1,
+                                fn_mallory_cert
+                            )),
+                            (fn_mac(
+                                (fn_data_to_mac(
+                                    (fn_msg_header(
+                                        fn_basic256sha256,
+                                        (fn_header(fn_final, ((server, 10)[None]/u32))),  // needs channel id!
+                                        (fn_service(
+                                            (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                                            (fn_create_request(
+                                                (fn_request_header(fn_sa_token_zero, fn_seq_1)),
+                                                fn_bob_endpoint,
+                                                fn_session_nonce_1,
+                                                fn_mallory_cert
+                                            ))
+                                        ))
+                                    )),
+                                    (fn_get_channel_token(
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                ((server, 1)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
+                                    )),
+                                    (fn_service(
+                                        (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                                        (fn_create_request(
+                                            (fn_request_header(fn_sa_token_zero, fn_seq_1)),
+                                            fn_bob_endpoint,
+                                            fn_session_nonce_1,
+                                            fn_mallory_cert
+                                        ))
+                                    ))
+                                )),
+                                fn_basic256sha256,
+                                (fn_client_mac_key(
+                                    fn_basic256sha256,
+                                    fn_channel_nonce_1,
+                                    (fn_get_server_nonce(
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                ((server, 1)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
+                                    ))
+                                ))
+                            ))
+                        ))
+                    )
+                    }
+                }),
+            },
+
+        ]
+    }
+}
 
 
 #[cfg(test)]
