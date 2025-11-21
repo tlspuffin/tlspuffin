@@ -183,7 +183,7 @@ pub fn seed_b_client_open_secure_channel (
                             (fn_service(
                                 (fn_sequence_header(fn_seq_0, fn_seq_0)),
                                 (fn_client_open(
-                                    (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
+                                    (fn_request_header(fn_sa_token_zero, fn_seq_0)),
                                     fn_issue,
                                     fn_mode_sign,
                                     fn_channel_nonce_1
@@ -200,7 +200,7 @@ pub fn seed_b_client_open_secure_channel (
                                 (fn_service(
                                     (fn_sequence_header(fn_seq_0, fn_seq_0)),
                                     (fn_client_open(
-                                        (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
+                                        (fn_request_header(fn_sa_token_zero, fn_seq_0)),
                                         fn_issue,
                                         fn_mode_sign,
                                         fn_channel_nonce_1
@@ -216,7 +216,7 @@ pub fn seed_b_client_open_secure_channel (
                                             (fn_service(
                                                 (fn_sequence_header(fn_seq_0, fn_seq_0)),
                                                 (fn_client_open(
-                                                    (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
+                                                    (fn_request_header(fn_sa_token_zero, fn_seq_0)),
                                                     fn_issue,
                                                     fn_mode_sign,
                                                     fn_channel_nonce_1
@@ -229,7 +229,7 @@ pub fn seed_b_client_open_secure_channel (
                                         (fn_service(
                                             (fn_sequence_header(fn_seq_0, fn_seq_0)),
                                             (fn_client_open(
-                                                (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
+                                                (fn_request_header(fn_sa_token_zero, fn_seq_0)),
                                                 fn_issue,
                                                 fn_mode_sign,
                                                 fn_channel_nonce_1
@@ -434,7 +434,7 @@ pub fn seed_d_client_create_session (
                             (fn_service(
                                 (fn_sequence_header(fn_seq_0, fn_seq_0)),
                                 (fn_client_open(
-                                    (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
+                                    (fn_request_header(fn_sa_token_zero, fn_seq_0)),
                                     fn_issue,
                                     fn_mode_sign,
                                     fn_channel_nonce_1
@@ -451,7 +451,7 @@ pub fn seed_d_client_create_session (
                                 (fn_service(
                                     (fn_sequence_header(fn_seq_0, fn_seq_0)),
                                     (fn_client_open(
-                                        (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
+                                        (fn_request_header(fn_sa_token_zero, fn_seq_0)),
                                         fn_issue,
                                         fn_mode_sign,
                                         fn_channel_nonce_1
@@ -467,7 +467,7 @@ pub fn seed_d_client_create_session (
                                             (fn_service(
                                                 (fn_sequence_header(fn_seq_0, fn_seq_0)),
                                                 (fn_client_open(
-                                                    (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
+                                                    (fn_request_header(fn_sa_token_zero, fn_seq_0)),
                                                     fn_issue,
                                                     fn_mode_sign,
                                                     fn_channel_nonce_1
@@ -480,7 +480,7 @@ pub fn seed_d_client_create_session (
                                         (fn_service(
                                             (fn_sequence_header(fn_seq_0, fn_seq_0)),
                                             (fn_client_open(
-                                                (fn_open_request_header(fn_sa_token_zero, fn_seq_0)),
+                                                (fn_request_header(fn_sa_token_zero, fn_seq_0)),
                                                 fn_issue,
                                                 fn_mode_sign,
                                                 fn_channel_nonce_1
