@@ -135,6 +135,8 @@ int main(int argc, char* argv[]) {
     UA_Logger logger = UA_Log_Stdout_withLevel( log_level );
     logger.clear = config->logging->clear;
     *config->logging = logger;
+    /* Do not care about timestamps ! */
+    config->verifyRequestTimestamp = UA_RULEHANDLING_ACCEPT;
 
 #ifdef UA_ENABLE_ENCRYPTION
     UA_ByteString certificate = UA_BYTESTRING_NULL;
