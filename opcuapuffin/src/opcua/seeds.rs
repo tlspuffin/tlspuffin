@@ -10,6 +10,7 @@ use opcua::puffin::signature::fn_impl::*;
 
 use opcua::puffin::types::{OpcuaDescriptorConfig, OpcuaProtocolTypes};
 
+use opcua::types::{ByteString, NodeId, UAString};
 use puffin::agent::AgentName;
 use puffin::{input_action, term};
 use puffin::trace::{Action, InputAction, Step, Trace};
@@ -504,7 +505,7 @@ pub fn seed_d_client_create_session (
                     fn_message (
                         (fn_msg_header(
                             fn_basic256sha256,
-                            (fn_header(fn_final, ((server, 10)[None]/u32))),  // needs channel id!
+                            (fn_header(fn_final, ((server, 10)[None]/u32))),
                             (fn_service(
                                 (fn_sequence_header(fn_seq_1, fn_seq_1)),
                                 (fn_create_request(
@@ -535,7 +536,7 @@ pub fn seed_d_client_create_session (
                                 (fn_data_to_mac(
                                     (fn_msg_header(
                                         fn_basic256sha256,
-                                        (fn_header(fn_final, ((server, 10)[None]/u32))),  // needs channel id!
+                                        (fn_header(fn_final, ((server, 10)[None]/u32))),
                                         (fn_service(
                                             (fn_sequence_header(fn_seq_1, fn_seq_1)),
                                             (fn_create_request(
@@ -561,6 +562,136 @@ pub fn seed_d_client_create_session (
                                             fn_bob_endpoint,
                                             fn_session_nonce_1,
                                             fn_mallory_cert
+                                        ))
+                                    ))
+                                )),
+                                fn_basic256sha256,
+                                (fn_client_mac_key(
+                                    fn_basic256sha256,
+                                    fn_channel_nonce_1,
+                                    (fn_get_server_nonce(
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                ((server, 1)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
+                                    ))
+                                ))
+                            ))
+                        ))
+                    )
+                    }
+                }),
+            },
+
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_message (
+                        (fn_msg_header(
+                            fn_basic256sha256,
+                            (fn_header(fn_final, ((server, 10)[None]/u32))),
+                            (fn_service(
+                                (fn_sequence_header(fn_seq_2, fn_seq_2)),
+                                (fn_activate_request(
+                                    (fn_request_header(((server, 3)[None]/NodeId), fn_seq_2)), // SA_token!
+                                    fn_basic256sha256,
+                                    (fn_sign(
+                                        (fn_signature_data(
+                                            fn_bob_cert,
+                                            ((server, 0)[None]/ByteString) // S_nonce!
+                                        )),
+                                        fn_basic256sha256,
+                                        fn_mallory_cert,
+                                        fn_mallory_sk
+                                    )),
+                                    (fn_anonymous(
+                                        ((server, 33)[None]/UAString)
+                                    )),
+                                    fn_no_bytes
+                                ))
+                            ))
+                        )),
+                        (fn_body(
+                            (fn_get_channel_token(
+                                (fn_decrypted_body(
+                                    (fn_asym_decrypt(
+                                        ((server, 1)[None]/EncryptedBody),
+                                        fn_mallory_sk)),
+                                    fn_mallory_sk
+                                ))
+                            )),
+                            (fn_sequence_header(fn_seq_2, fn_seq_2)),
+                            (fn_activate_request(
+                                (fn_request_header(((server, 3)[None]/NodeId), fn_seq_2)),
+                                fn_basic256sha256,
+                                (fn_sign(
+                                    (fn_signature_data(
+                                        fn_bob_cert,
+                                        ((server, 0)[None]/ByteString)
+                                    )),
+                                    fn_basic256sha256,
+                                    fn_mallory_cert,
+                                    fn_mallory_sk
+                                )),
+                                (fn_anonymous(
+                                    ((server, 33)[None]/UAString)
+                                )),
+                                fn_no_bytes
+                            )),
+                            (fn_mac(
+                                (fn_data_to_mac(
+                                    (fn_msg_header(
+                                        fn_basic256sha256,
+                                        (fn_header(fn_final, ((server, 10)[None]/u32))),
+                                        (fn_service(
+                                            (fn_sequence_header(fn_seq_2, fn_seq_2)),
+                                            (fn_activate_request(
+                                                (fn_request_header(((server, 3)[None]/NodeId), fn_seq_2)),
+                                                fn_basic256sha256,
+                                                (fn_sign(
+                                                    (fn_signature_data(
+                                                        fn_bob_cert,
+                                                        ((server, 0)[None]/ByteString)
+                                                    )),
+                                                    fn_basic256sha256,
+                                                    fn_mallory_cert,
+                                                    fn_mallory_sk
+                                                )),
+                                                (fn_anonymous(
+                                                    ((server, 33)[None]/UAString)
+                                                )),
+                                                fn_no_bytes
+                                            ))
+                                        ))
+                                    )),
+                                    (fn_get_channel_token(
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                ((server, 1)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
+                                    )),
+                                    (fn_service(
+                                        (fn_sequence_header(fn_seq_2, fn_seq_2)),
+                                        (fn_activate_request(
+                                            (fn_request_header(((server, 3)[None]/NodeId), fn_seq_2)), // SA_token!
+                                            fn_basic256sha256,
+                                            (fn_sign(
+                                                (fn_signature_data(
+                                                    fn_bob_cert,
+                                                    ((server, 0)[None]/ByteString)
+                                                )),
+                                                fn_basic256sha256,
+                                                fn_mallory_cert,
+                                                fn_mallory_sk
+                                            )),
+                                            (fn_anonymous(
+                                                ((server, 33)[None]/UAString)
+                                            )),
+                                            fn_no_bytes
                                         ))
                                     ))
                                 )),
