@@ -8,7 +8,7 @@ use opcua::puffin::signature::fn_impl::fn_constants::{
     fn_open, fn_sa_token_zero,
     fn_security_policy_none, fn_seq_0};
 use opcua::puffin::signature::fn_impl::fn_uasc::{
-    fn_asym_decrypt, fn_asym_encrypt, fn_data_to_encrypt, fn_client_mac_key, fn_client_open, fn_decrypted_body,
+    fn_asym_decrypt, fn_asym_encrypt, fn_asym_header, fn_data_to_encrypt, fn_client_mac_key, fn_client_open, fn_decrypted_body,
     fn_header, fn_mac, fn_open_message, fn_open_header, fn_request_header,
     fn_sequence_header, fn_service, fn_sign};
 
@@ -204,8 +204,12 @@ pub fn test_encrypt() {
         fn_decrypted_body(
             (fn_asym_decrypt(
                 (fn_asym_encrypt(
+                    (fn_asym_header(
+                        fn_basic256sha256,
+                        fn_mallory_cert,
+                        fn_bob_cert
+                    )),
                     fn_basic256sha256,
-                    fn_mallory_cert,
                     fn_bob_cert,
                     (fn_data_to_encrypt(
                         fn_basic256sha256,
@@ -286,8 +290,12 @@ pub fn test_open() {
                 ))
             )),
             (fn_asym_encrypt(
+                (fn_asym_header(
+                    fn_security_policy_none,
+                    fn_null_cert,
+                    fn_null_cert                    
+                )),
                 fn_security_policy_none,
-                fn_null_cert,
                 fn_null_cert,
                 (fn_data_to_encrypt(
                     fn_security_policy_none,
