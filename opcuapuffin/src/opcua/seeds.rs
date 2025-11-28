@@ -4,7 +4,7 @@
 #![allow(dead_code)]
 
 use opcua::puffin::messages::EncryptedBody;
-//use opcua::puffin::query::OpcuaQueryMatcher;
+use opcua::puffin::query::OpcuaQueryMatcher;
 use opcua::puffin::signature::{fn_acknowledge, fn_client_hello, fn_server_hello};
 use opcua::puffin::signature::fn_impl::*;
 
@@ -416,31 +416,37 @@ pub fn seed_d_client_activate_session (
     };
     let activate_anonymous = term! {
         fn_activate_request(
-            (fn_request_header(((server, 3)[None]/NodeId), fn_seq_2)), // SA_token!
+            (fn_request_header(
+                ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
+                fn_seq_2
+            )),
             fn_basic256sha256,
             (fn_sign(
                 (fn_signature_data(
                     fn_bob_cert,
-                    ((server, 0)[None]/ByteString) // S_nonce!
+                    ((server, 0)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/ByteString) // S_nonce!
                 )),
                 fn_basic256sha256,
                 fn_mallory_cert,
                 fn_mallory_sk
             )),
             (fn_anonymous(
-                ((server, 33)[None]/UAString)  // PolicyId!
+                ((server, 33)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/UAString)  // PolicyId!
             )),
             fn_no_bytes
         )
     };
     let activate_password = term! {
         fn_activate_request(
-            (fn_request_header(((server, 3)[None]/NodeId), fn_seq_2)), // SA_token!
+            (fn_request_header(
+                ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
+                fn_seq_2
+            )),
             fn_basic256sha256,
             (fn_sign(
                 (fn_signature_data(
                     fn_bob_cert,
-                    ((server, 0)[None]/ByteString) // S_nonce!
+                    ((server, 0)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/ByteString) // S_nonce!
                 )),
                 fn_basic256sha256,
                 fn_mallory_cert,
@@ -460,25 +466,28 @@ pub fn seed_d_client_activate_session (
     };
     let activate_certificate = term! {
         fn_activate_request(
-            (fn_request_header(((server, 3)[None]/NodeId), fn_seq_2)), // SA_token!
+            (fn_request_header(
+                ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
+                fn_seq_2
+            )),
             fn_basic256sha256,
             (fn_sign(
                 (fn_signature_data(
                     fn_bob_cert,
-                    ((server, 0)[None]/ByteString) // S_nonce!
+                    ((server, 0)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/ByteString) // S_nonce!
                 )),
                 fn_basic256sha256,
                 fn_mallory_cert,
                 fn_mallory_sk
             )),
             (fn_user_cert(
-              ((server, 37)[None]/UAString), // PolicyId!
+              ((server, 37)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/UAString), // PolicyId!
               fn_mallory_cert
             )),
             (fn_sign(
                 (fn_signature_data(
                     fn_bob_cert,
-                    ((server, 0)[None]/ByteString) // S_nonce!
+                    ((server, 0)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/ByteString) // S_nonce!
                 )),
                 fn_basic256sha256,
                 fn_mallory_cert,
