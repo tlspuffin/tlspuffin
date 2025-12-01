@@ -7,13 +7,12 @@
 #[cfg(feature = "rust-put")]
 mod rust_put;
 
-mod harnesses;
-
 //pub mod debug;
 pub mod claims;
 pub mod opcua;
 pub mod protocol;
 pub mod put;
+mod puts;
 pub mod put_registry;
 
 //#[cfg(feature = "test-utils")]
