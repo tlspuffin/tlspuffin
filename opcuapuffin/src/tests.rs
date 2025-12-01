@@ -203,12 +203,8 @@ pub fn test_encrypt() {
     let encrypt_term: Term<OpcuaProtocolTypes> = term! {
         fn_decrypted_body(
             (fn_asym_decrypt(
+                fn_basic256sha256,
                 (fn_asym_encrypt(
-                    (fn_asym_header(
-                        fn_basic256sha256,
-                        fn_mallory_cert,
-                        fn_bob_cert
-                    )),
                     fn_basic256sha256,
                     fn_bob_cert,
                     (fn_data_to_encrypt(
@@ -273,7 +269,7 @@ pub fn test_open() {
         [79, 80, 78, 70, 132, 0, 0, 0, 0, 0, 0, 0, 47, 0, 0, 0, 104, 116, 116, 112, 58, 47, 47, 111, 112, 99, 102, 111, 117, 110, 100, 97, 116, 105, 111, 110, 46, 111, 114, 103, 47, 85, 65, 47, 83, 101, 99, 117, 114, 105, 116, 121, 80, 111, 108, 105, 99, 121, 35, 78, 111, 110, 101, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 190, 1, 0, 0, 128, 192, 12, 163, 36, 93, 220, 1, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, 224, 147, 4, 0];
 
     let open_term: Term<OpcuaProtocolTypes> = term! {
-        fn_open_message (
+        fn_open_message(
             (fn_open_header(
                 (fn_header(fn_open, fn_seq_0)),
                 fn_security_policy_none,
@@ -289,12 +285,12 @@ pub fn test_open() {
                     ))
                 ))
             )),
+            (fn_asym_header(
+                fn_security_policy_none,
+                fn_null_cert,
+                fn_null_cert
+            )),
             (fn_asym_encrypt(
-                (fn_asym_header(
-                    fn_security_policy_none,
-                    fn_null_cert,
-                    fn_null_cert                    
-                )),
                 fn_security_policy_none,
                 fn_null_cert,
                 (fn_data_to_encrypt(

@@ -96,12 +96,12 @@ pub fn seed_ap_client_open_unsecure_channel (
                             fn_null_cert,
                             (@open_request)
                         )),
+                        (fn_asym_header(
+                            fn_security_policy_none,
+                            fn_null_cert,
+                            fn_null_cert
+                        )),
                         (fn_asym_encrypt(
-                            (fn_asym_header(
-                                fn_security_policy_none,
-                                fn_null_cert,
-                                fn_null_cert
-                            )),
                             fn_security_policy_none,
                             fn_null_cert,
                             (fn_data_to_encrypt(
@@ -127,6 +127,7 @@ pub fn seed_ap_client_open_unsecure_channel (
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
                                     (fn_asym_decrypt(
+                                        fn_security_policy_none,
                                         ((server, 1)[None]/EncryptedBody),
                                         fn_no_bytes)),
                                     fn_no_bytes
@@ -198,12 +199,12 @@ pub fn seed_b_client_open_secure_channel (
                             fn_bob_cert,
                             (@open_request)
                         )),
+                        (fn_asym_header(
+                            fn_basic256sha256,
+                            fn_mallory_cert,
+                            fn_bob_cert
+                        )),
                         (fn_asym_encrypt(
-                            (fn_asym_header(
-                                fn_basic256sha256,
-                                fn_mallory_cert,
-                                fn_bob_cert
-                            )),
                             fn_basic256sha256,
                             fn_bob_cert,
                             (fn_data_to_encrypt(
@@ -248,6 +249,7 @@ pub fn seed_b_client_open_secure_channel (
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
                                     (fn_asym_decrypt(
+                                        fn_basic256sha256,
                                         ((server, 1)[None]/EncryptedBody),
                                         fn_mallory_sk)),
                                     fn_mallory_sk
@@ -267,6 +269,7 @@ pub fn seed_b_client_open_secure_channel (
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
+                                                fn_basic256sha256,
                                                 ((server, 1)[None]/EncryptedBody),
                                                 fn_mallory_sk)),
                                             fn_mallory_sk
@@ -281,6 +284,7 @@ pub fn seed_b_client_open_secure_channel (
                                     (fn_get_server_nonce(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
+                                                fn_basic256sha256,
                                                 ((server, 1)[None]/EncryptedBody),
                                                 fn_mallory_sk)),
                                             fn_mallory_sk
@@ -353,12 +357,12 @@ pub fn seed_c_server_open_unsecure_channel (
                             fn_null_cert,
                             (@open_request)
                         )),
+                        (fn_asym_header(
+                            fn_security_policy_none,
+                            fn_null_cert,
+                            fn_null_cert
+                        )),
                         (fn_asym_encrypt(
-                            (fn_asym_header(
-                                fn_security_policy_none,
-                                fn_null_cert,
-                                fn_null_cert
-                            )),
                             fn_security_policy_none,
                             fn_null_cert,
                             (fn_data_to_encrypt(
@@ -407,6 +411,7 @@ pub fn seed_d_client_activate_session (
             (fn_get_server_nonce(
                 (fn_decrypted_body(
                     (fn_asym_decrypt(
+                        fn_basic256sha256,
                         ((server, 1)[None]/EncryptedBody),
                         fn_mallory_sk)),
                     fn_mallory_sk
@@ -516,7 +521,7 @@ pub fn seed_d_client_activate_session (
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    fn_open_message (
+                    fn_open_message(
                         (fn_open_header(
                             (fn_header(fn_open, fn_seq_0)),
                             fn_basic256sha256,
@@ -524,12 +529,12 @@ pub fn seed_d_client_activate_session (
                             fn_bob_cert,
                             (@open_request)
                         )),
+                        (fn_asym_header(
+                            fn_basic256sha256,
+                            fn_mallory_cert,
+                            fn_bob_cert
+                        )),
                         (fn_asym_encrypt(
-                            (fn_asym_header(
-                                fn_basic256sha256,
-                                fn_mallory_cert,
-                                fn_bob_cert
-                            )),
                             fn_basic256sha256,
                             fn_bob_cert,
                             (fn_data_to_encrypt(
@@ -574,6 +579,7 @@ pub fn seed_d_client_activate_session (
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
                                     (fn_asym_decrypt(
+                                        fn_basic256sha256,
                                         ((server, 1)[None]/EncryptedBody),
                                         fn_mallory_sk)),
                                     fn_mallory_sk
@@ -596,6 +602,7 @@ pub fn seed_d_client_activate_session (
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
+                                                fn_basic256sha256,
                                                 ((server, 1)[None]/EncryptedBody),
                                                 fn_mallory_sk)),
                                             fn_mallory_sk
@@ -628,6 +635,7 @@ pub fn seed_d_client_activate_session (
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
                                     (fn_asym_decrypt(
+                                        fn_basic256sha256,
                                         ((server, 1)[None]/EncryptedBody),
                                         fn_mallory_sk)),
                                     fn_mallory_sk
@@ -648,6 +656,7 @@ pub fn seed_d_client_activate_session (
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
+                                                fn_basic256sha256,
                                                 ((server, 1)[None]/EncryptedBody),
                                                 fn_mallory_sk)),
                                             fn_mallory_sk
