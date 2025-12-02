@@ -66,7 +66,7 @@ impl Put<OpcuaProtocolBehavior> for Agent {
     }
 
     fn version() -> String {
-        "???".to_string()
+        "1.0".to_string()
     }
 
     fn shutdown(&mut self) -> String {
@@ -79,64 +79,63 @@ impl Put<OpcuaProtocolBehavior> for Agent {
     }
 }
 
+#[derive(Debug, Clone)]
 struct OpcTcpFactory {}
 
-    impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
-        fn create(
-            &self,
-            agent_descriptor: &AgentDescriptor<OpcuaDescriptorConfig>,
-            _claims: &GlobalClaimList<OpcuaClaim>,
-            _options: &PutOptions,
-        ) -> Result<Box<dyn Put<OpcuaProtocolBehavior>>, Error> {
+impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
+    fn create(
+        &self,
+        agent_descriptor: &AgentDescriptor<OpcuaDescriptorConfig>,
+        _claims: &GlobalClaimList<OpcuaClaim>,
+        _options: &PutOptions,
+    ) -> Result<Box<dyn Put<OpcuaProtocolBehavior>>, Error> {
 
-            let host = Ipv4Addr::LOCALHOST;
-            let port = match agent_descriptor.protocol_config.kind {
-                AgentType::Server => 4840,
-                AgentType::Client => 4841,
-                _ => 53530
-            };
+        let host = Ipv4Addr::LOCALHOST;
+        let port = match agent_descriptor.protocol_config.kind {
+            AgentType::Server => 4840,
+            AgentType::Client => 4841,
+            _ => 53530
+        };
 
-            match agent_descriptor.protocol_config.kind {
-                AgentType::Server | AgentType::Client => {
-                    // 1. create a TCP server listening on localhost:port
-                    // 2. connect to the TCP server:
-                    let fuzz_stream = TcpStream::connect((host, port))
-                    .map_err(|e| {
-                        log::warn!("Failed to connect to TCP server at {}:{}: {}", host, port, e);
-                        Error::IO(e.to_string())
-                    })?;
-                    log::warn!("Connected to TCP server at {}:{}", host, port);
+        match agent_descriptor.protocol_config.kind {
+            AgentType::Server | AgentType::Client => {
+                // 2. connect to the TCP server listening on localhost:port
+                let fuzz_stream = TcpStream::connect((host, port))
+                .map_err(|e| {
+                    log::warn!("Failed to connect to TCP server at {}:{}: {}", host, port, e);
+                    Error::IO(e.to_string())
+                })?;
+                log::warn!("Connected to TCP server at {}:{}", host, port);
 
-                    fuzz_stream.set_read_timeout(Some(Duration::from_millis(1000)))
-                        .map_err(|e| { Error::IO(e.to_string()) })?;
-                    fuzz_stream.set_nodelay(true)
-                        .map_err(|e| { Error::IO(e.to_string()) })?;
+                fuzz_stream.set_read_timeout(Some(Duration::from_millis(1000)))
+                    .map_err(|e| { Error::IO(e.to_string()) })?;
+                fuzz_stream.set_nodelay(true)
+                    .map_err(|e| { Error::IO(e.to_string()) })?;
 
-                    Ok(Box::new(Agent{
-                        agent_descriptor: agent_descriptor.clone(),
-                        fuzz_stream,
-                    }))
-                },
-                _ => unimplemented!()
-            }
+                Ok(Box::new(Agent{
+                    agent_descriptor: agent_descriptor.clone(),
+                    fuzz_stream,
+                }))
+            },
+            _ => unimplemented!()
         }
-
-        fn name(&self) -> String {String::from(OPC_TCP)}
-
-        fn versions(&self) -> Vec<(String, String)>{
-            vec![
-                ("harness".to_string(), "1.0".to_string()),
-                ("library".to_string(), "???".to_string()),
-            ]
-        }
-
-        fn supports(&self, _capability: &str) -> bool {false}
-
-        fn clone_factory(&self) -> Box<dyn Factory<OpcuaProtocolBehavior>>{
-            Box::new(OpcTcpFactory {})
-        }
-
     }
+
+    fn name(&self) -> String {String::from(OPC_TCP)}
+
+    fn versions(&self) -> Vec<(String, String)>{
+        vec![
+            ("harness".to_string(), "1.0".to_string()),
+            ("library".to_string(), "???".to_string()),
+        ]
+    }
+
+    fn supports(&self, _capability: &str) -> bool {false}
+
+    fn clone_factory(&self) -> Box<dyn Factory<OpcuaProtocolBehavior>>{
+        Box::new(self.clone())
+    }
+}
 
 pub fn new_opcua_factory() -> Box<dyn Factory<OpcuaProtocolBehavior>> {
     Box::new(OpcTcpFactory {})
