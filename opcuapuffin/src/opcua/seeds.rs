@@ -457,7 +457,7 @@ pub fn seed_d_client_activate_session (
                 fn_mallory_cert,
                 fn_mallory_sk
             )),
-            (fn_user_pwd(
+            (fn_legacy_user_pwd(
                 ((server, 41)[None]/UAString), // PolicyId!
                 fn_basic256sha256,
                 fn_username,
