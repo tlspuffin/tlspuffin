@@ -51,7 +51,7 @@ pub type Channel = io::Cursor<Vec<u8>>;
 /// This makes it possible for an [`crate::agent::Agent`] to treat a [`MemoryStream`] like a TLS
 /// socket! By writing to this socket you are sending data out. By reading from it you receive data.
 ///
-/// **Note: There need to be two separate buffer! Else for example a TLS socket would read and write
+/// **Note: There need to be two separate buffers! Else for example a TLS socket would read and write
 /// into the same buffer**
 #[derive(Default, Debug)]
 pub struct MemoryStream {
