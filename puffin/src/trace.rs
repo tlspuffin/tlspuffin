@@ -1307,7 +1307,7 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
 
         let mut flight = None;
 
-        agent.take_message_from_outbound(&mut flight)?;
+        let res = agent.take_message_from_outbound(&mut flight);
 
         if let Some(opaque_flight) = flight {
             ctx.knowledge_store.add_raw_knowledge(
@@ -1334,7 +1334,7 @@ impl<PT: ProtocolTypes> OutputAction<PT> {
             }
         }
 
-        Ok(())
+        res
     }
 }
 
