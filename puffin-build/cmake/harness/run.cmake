@@ -9,6 +9,10 @@ if(NOT INCLUDE_DIRS)
 endif()
 string(REPLACE "," ";" INCLUDE_DIRS "${INCLUDE_DIRS}")
 
+if(NOT PROTOCOL)
+  message(FATAL_ERROR "Missing mandatory argument 'LIBRARY'")
+endif()
+
 if(NOT LINK_LIBRARIES)
   message(FATAL_ERROR "Missing mandatory argument 'LINK_LIBRARIES'")
 endif()
@@ -37,8 +41,7 @@ target_include_directories(${PUT} PRIVATE "${HARNESS}/include")
 target_include_directories(${PUT} PRIVATE ${INCLUDE_DIRS})
 target_link_libraries(${PUT} PRIVATE ${LINK_LIBRARIES})
 
-target_include_directories(${PUT} PRIVATE "${LIBRARY}/include")
-target_include_directories(${PUT} PRIVATE "${PUFFIN_PROJECT_PATH}/tlspuffin/include")
+target_include_directories(${PUT} PRIVATE "${PUFFIN_PROJECT_PATH}/${PROTOCOL}puffin/include")
 target_include_directories(${PUT} PRIVATE "${PUFFIN_PROJECT_PATH}/puffin/include")
 target_include_directories(${PUT} PRIVATE "${PUFFIN_PROJECT_PATH}/tlspuffin-claims")
 
