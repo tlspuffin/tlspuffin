@@ -4,14 +4,10 @@
 //! predefined encoders for OPC UA packets, cryptographic primitives, as well as higher level
 //! cryptographic operations specific for OPC UA.
 
-#[cfg(feature = "rust-put")]
-mod rust_put;
-
 //pub mod debug;
 pub mod claims;
 pub mod opcua;
 pub mod protocol;
-pub mod put;
 mod puts;
 pub mod put_registry;
 

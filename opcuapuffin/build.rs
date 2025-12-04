@@ -11,6 +11,8 @@ use puffin_build::{harness, vendor_dir};
 
 fn main() {
 
+    /* binding for include/puffin/opcua.h */
+
     let out_dir =  PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR is required!"));
     let bindings_path = out_dir.join("bindings.rs");
 
@@ -42,23 +44,24 @@ fn main() {
         bindings_path.to_string_lossy()
     );
 
+    /* build bundle */
+
     let out_dir = Path::new(&std::env::var("OUT_DIR").unwrap()).join("harness_bundle");
     let puts: Vec<Put> = vendor_dir::from_env()
         .all()
         .iter()
-        .filter_map(opcua_harness)
+        .filter_map(identifiy_opcua_harness)
         .collect();
 
-    let bundle = harness::bundle(puts).build(out_dir);
+    let bundle = harness::bundle(puts.clone()).build(out_dir);
     bundle.print_cargo_metadata();
 
 }
 
-fn opcua_harness(library: &Library) -> Option<Put> {
-    let out_dir =
-        Path::new(&std::env::var("OUT_DIR").unwrap()).join(format!("harness_{}", library.id()));
-
-    let kind = harness::Kind::C;
-    Harness::harness_for("opcua", library.clone(), kind)
-        .map(|harness| harness.wrap(out_dir).unwrap())
+fn identifiy_opcua_harness(library: &Library) -> Option<Put> {
+    let out_dir = 
+        Path::new(&std::env::var("OUT_DIR").unwrap())
+        .join(format!("harness_{}", library.id()));
+    let harness = Harness::harness_for("opcua", library.clone(), harness::Kind::C)?;
+    harness.wrap(out_dir).ok()
 }

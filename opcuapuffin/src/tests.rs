@@ -13,7 +13,7 @@ use opcua::puffin::signature::fn_impl::fn_uasc::{
     fn_sequence_header, fn_service, fn_sign};
 
 use opcua::puffin::messages::Message;
-use opcua::puffin::types::{OpcuaDescriptorConfig, OpcuaProtocolTypes};
+use opcua::puffin::types::{ApplicationConfig, OpcuaProtocolTypes};
 
 use puffin::agent::{AgentDescriptor, ProtocolDescriptorConfig};
 use puffin::algebra::{Term, TermType};
@@ -96,7 +96,7 @@ pub struct TestFactory;
     impl Factory<OpcuaProtocolBehavior> for TestFactory {
         fn create(
             &self,
-            _agent_descriptor: &AgentDescriptor<OpcuaDescriptorConfig>,
+            _agent_descriptor: &AgentDescriptor<ApplicationConfig>,
             _claims: &GlobalClaimList<<OpcuaProtocolBehavior as ProtocolBehavior>::Claim>,
             _options: &PutOptions,
         ) -> Result<Box<dyn Put<OpcuaProtocolBehavior>>, Error> {

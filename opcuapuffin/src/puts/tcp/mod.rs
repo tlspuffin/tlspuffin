@@ -12,14 +12,14 @@ use puffin::put_registry::Factory;
 use puffin::stream::Stream;
 
 use opcua::puffin::messages::{MAX_WIRE_SIZE, MessageFlight};
-use opcua::puffin::types::{AgentType, OpcuaDescriptorConfig};
+use opcua::puffin::types::{AgentType, ApplicationConfig};
 
 use crate::claims::OpcuaClaim;
 use crate::protocol::OpcuaProtocolBehavior;
 use crate::put_registry::OPC_TCP;
 
 struct Agent {
-    agent_descriptor: AgentDescriptor<OpcuaDescriptorConfig>,
+    application: AgentDescriptor<ApplicationConfig>,
     fuzz_stream: TcpStream,
 }
 
@@ -53,8 +53,8 @@ impl Put<OpcuaProtocolBehavior> for Agent {
         Ok(())
     }
 
-    fn descriptor(&self) -> &AgentDescriptor<OpcuaDescriptorConfig> {
-        &self.agent_descriptor
+    fn descriptor(&self) -> &AgentDescriptor<ApplicationConfig> {
+        &self.application
     }
 
     fn describe_state(&self) -> String {
@@ -85,19 +85,18 @@ struct OpcTcpFactory {}
 impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
     fn create(
         &self,
-        agent_descriptor: &AgentDescriptor<OpcuaDescriptorConfig>,
+        application: &AgentDescriptor<ApplicationConfig>,
         _claims: &GlobalClaimList<OpcuaClaim>,
         _options: &PutOptions,
     ) -> Result<Box<dyn Put<OpcuaProtocolBehavior>>, Error> {
 
         let host = Ipv4Addr::LOCALHOST;
-        let port = match agent_descriptor.protocol_config.kind {
+        let port = match application.protocol_config.kind {
             AgentType::Server => 4840,
             AgentType::Client => 4841,
-            _ => 53530
         };
 
-        match agent_descriptor.protocol_config.kind {
+        match application.protocol_config.kind {
             AgentType::Server | AgentType::Client => {
                 // 2. connect to the TCP server listening on localhost:port
                 let fuzz_stream = TcpStream::connect((host, port))
@@ -113,11 +112,10 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
                     .map_err(|e| { Error::IO(e.to_string()) })?;
 
                 Ok(Box::new(Agent{
-                    agent_descriptor: agent_descriptor.clone(),
+                    application: application.clone(),
                     fuzz_stream,
                 }))
-            },
-            _ => unimplemented!()
+            }
         }
     }
 

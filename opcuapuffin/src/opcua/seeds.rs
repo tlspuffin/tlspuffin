@@ -8,7 +8,7 @@ use opcua::puffin::query::OpcuaQueryMatcher;
 use opcua::puffin::signature::{fn_acknowledge, fn_client_hello, fn_server_hello};
 use opcua::puffin::signature::fn_impl::*;
 
-use opcua::puffin::types::{OpcuaDescriptorConfig, OpcuaProtocolTypes};
+use opcua::puffin::types::{ApplicationConfig, OpcuaProtocolTypes};
 
 use opcua::types::{ByteString, NodeId, UAString};
 use puffin::agent::AgentName;
@@ -35,7 +35,7 @@ pub fn seed_a_hello_bob (
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            OpcuaDescriptorConfig::new_server(server)
+            ApplicationConfig::new_server(server)
         ],
         steps: vec![
             Step {
@@ -71,7 +71,7 @@ pub fn seed_ap_client_open_unsecure_channel (
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            OpcuaDescriptorConfig::new_server(server)
+            ApplicationConfig::new_server(server)
         ],
         steps: vec![
             Step {
@@ -174,7 +174,7 @@ pub fn seed_b_client_open_secure_channel (
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            OpcuaDescriptorConfig::new_server(server)
+            ApplicationConfig::new_server(server)
         ],
         steps: vec![
             Step {
@@ -321,7 +321,7 @@ pub fn seed_c_server_open_unsecure_channel (
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            OpcuaDescriptorConfig::new_client(client)
+            ApplicationConfig::new_client(client)
         ],
         steps: vec![
             Step {
@@ -504,7 +504,7 @@ pub fn seed_d_client_activate_session (
     Trace {
         prior_traces: vec![],
         descriptors: vec![
-            OpcuaDescriptorConfig::new_server(server)
+            ApplicationConfig::new_server(server)
         ],
         steps: vec![
             Step {

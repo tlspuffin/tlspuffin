@@ -2,5 +2,6 @@
 
 //#[cfg_attr(feature = "open62541-binding", path = "open62541/mod.rs")]
 // #[cfg(open62541)]
+pub mod opcua_sys;
 pub mod open62541;
 pub mod tcp;

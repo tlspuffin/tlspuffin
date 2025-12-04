@@ -1,11 +1,6 @@
-// This is the raw interface to the library "Open62541"
+// This is the raw C interface to the PUT, described in harness/open62541/include/put.h
+use crate::puts::opcua_sys::OPCUA_PUT_INTERFACE;
 
-//use open62541_sys;
-//Cargo.toml: [dependencies] open62541-sys = "0.4.18"
-
-//#[link(name = "open62541")]
-//extern {
-
-//}
-// build.rs: println!(r"cargo:rustc-link-search=native= vendor/open62541/build/bin")
-
+extern "C" {
+    pub fn open62541() -> OPCUA_PUT_INTERFACE;
+}
