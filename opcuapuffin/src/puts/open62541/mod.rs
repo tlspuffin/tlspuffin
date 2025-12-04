@@ -9,19 +9,24 @@ use puffin::put_registry::Factory;
 use puffin::stream::{MemoryStream, Stream};
 
 use opcua::puffin::messages::MessageFlight;
-use opcua::puffin::types::{AgentType, OpcuaDescriptorConfig};
+use opcua::puffin::types::{AgentType, ApplicationConfig};
 
 use crate::claims::OpcuaClaim;
 use crate::protocol::OpcuaProtocolBehavior;
 use crate::put_registry::OPEN62541;
+use crate::puts::opcua_sys;
 
 mod raw;
 
+// An agent is a virtual opc.tcp channel that is used by the fuzzer to communicate
+// with an OPC UA application instantiated in the library open62541.
 struct Agent {
-    agent_descriptor: AgentDescriptor<OpcuaDescriptorConfig>,
+    application: AgentDescriptor<ApplicationConfig>,
     _capabilities: HashSet<String>,
     _claims: GlobalClaimList<OpcuaClaim>,
-    fuzz_stream: MemoryStream
+    fuzz_stream: MemoryStream,
+    c_agent: opcua_sys::AGENT,
+    c_agent_interface: opcua_sys::AGENT_INTERFACE
 }
 
 impl Agent {}
@@ -39,15 +44,20 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
 
 impl Put<OpcuaProtocolBehavior> for Agent {
     fn progress(&mut self) -> Result<(), Error> {
-        Ok(())
+        if let Some(agent_progress) = self.c_agent_interface.progress {
+            unsafe { agent_progress(self.c_agent) };
+            Ok(())
+        } else {
+            Err(Error::Put("Open62541 Agent: progress unavailable!".to_string()))
+        }
     }
 
     fn reset(&mut self, _new_name: AgentName) -> Result<(), Error> {
         Ok(())
     }
 
-    fn descriptor(&self) -> &AgentDescriptor<OpcuaDescriptorConfig> {
-        &self.agent_descriptor
+    fn descriptor(&self) -> &AgentDescriptor<ApplicationConfig> {
+        &self.application
     }
 
     fn describe_state(&self) -> String {
@@ -63,32 +73,67 @@ impl Put<OpcuaProtocolBehavior> for Agent {
     }
 
     fn shutdown(&mut self) -> String {
-        "Memory stream to open62541 is shut down!".to_string()
+        format!("Open62541 agent: {} is shutting down", self.application.name)
     }
 }
 
+impl Drop for Agent {
+    fn drop(&mut self) {
+        if let Some(destroy) = self.c_agent_interface.destroy {
+            unsafe { destroy(self.c_agent) }
+    }}
+}
+
 #[derive(Clone)]
-struct Open62541Factory {}
+struct Open62541Factory {
+    raw: opcua_sys::OPCUA_PUT_INTERFACE
+}
 
 impl Factory<OpcuaProtocolBehavior> for Open62541Factory {
+
+    // Creates an Agent, viewed as an object implementing the trait Put,
+    // and hence manipulable by puffin.
     fn create(
         &self,
-        agent_descriptor: &AgentDescriptor<OpcuaDescriptorConfig>,
+        application: &AgentDescriptor<ApplicationConfig>,
         claims: &GlobalClaimList<OpcuaClaim>,
         _options: &PutOptions,
     ) -> Result<Box<dyn Put<OpcuaProtocolBehavior>>, Error> {
 
-        match agent_descriptor.protocol_config.kind {
-            AgentType::Server | AgentType::Client => {
+        let c_application_descriptor = match application.protocol_config.kind{
+            AgentType::Client => opcua_sys::APPLICATION_DESCRIPTOR {
+                id: u8::from(application.name),
+                role: opcua_sys::OPCUA_AGENT_ROLE::CLIENT,
+                version: opcua_sys::version_of(application.protocol_config.version),
+                cert: &opcua_sys::ALICE_CERTIFICATE,
+                pkey: &opcua_sys::ALICE_PRIVATE_KEY,
+                store: &opcua_sys::VOID_STORE,
+                store_length: 0,
+            },
+            AgentType::Server => opcua_sys::APPLICATION_DESCRIPTOR {
+                id: u8::from(application.name),
+                role: opcua_sys::OPCUA_AGENT_ROLE::SERVER,
+                version: opcua_sys::version_of(application.protocol_config.version),
+                cert: &opcua_sys::BOB_CERTIFICATE,
+                pkey: &opcua_sys::BOB_PRIVATE_KEY,
+                store: &opcua_sys::VOID_STORE,
+                store_length: 0,
+            }
+        };
 
+        unsafe {
+            if let Some(create_agent) = self.raw.create {
                 Ok(Box::new(Agent{
-                    agent_descriptor: agent_descriptor.clone(),
+                    application: application.clone(),
                     _capabilities: HashSet::new(),
                     _claims: claims.clone(),
-                    fuzz_stream: MemoryStream::new()
+                    fuzz_stream: MemoryStream::new(),
+                    c_agent: create_agent(&c_application_descriptor),
+                    c_agent_interface: self.raw.agent_interface
                 }))
-            },
-            _ => unimplemented!()
+            } else {
+                Err(Error::Put("Open62541 Factory: create Agent unavailable!".to_string()))
+            }
         }
     }
 
@@ -110,5 +155,9 @@ impl Factory<OpcuaProtocolBehavior> for Open62541Factory {
 }
 
 pub fn new_opcua_factory() -> Box<dyn Factory<OpcuaProtocolBehavior>> {
-    Box::new(Open62541Factory {})
+    unsafe {
+        Box::new(Open62541Factory {
+            raw: raw::open62541()
+        })
+    }
 }

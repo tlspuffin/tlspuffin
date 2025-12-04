@@ -26,10 +26,10 @@ typedef struct {
     const size_t length;
 } PEM;
 
-// describes the agent to be created by the PUT.
+// Describes the application to be created by the PUT.
 // Owned by the caller (Puffin).
 typedef struct {
-    uint8_t name;
+    uint8_t id;
 
     OPCUA_AGENT_ROLE role;
     OPCUA_VERSION version;
@@ -39,21 +39,23 @@ typedef struct {
 
     const PEM *const *const store;
     const size_t store_length;
-} OPCUA_AGENT_DESCRIPTOR;
+} APPLICATION_DESCRIPTOR;
 
 
 typedef struct OPCUA_PUT_INTERFACE {
     /*
-     * Creates a new agent following the specification in the <descriptor>.
+     * An agent is a virtual opc.tcp channel that is used by the fuzzer to communicate
+     * with an OPC UA application instantiated in the PUT.
      *
+     * Creates a new agent for the application described in the <descriptor>.
      * Returns a pointer to an opaque object representing the created agent or
      * NULL if an error occurred.
      *
      * Note that the caller keeps ownership of the input <descriptor>. The
      * created agent should copy any data it needs in the future and not keep
-     * any reference to the <descriptor>'s memory.
+     * any reference to the <descriptor>'s memory, except its unique id.
      */
-    AGENT (*const create)(const OPCUA_AGENT_DESCRIPTOR *descriptor);
+    AGENT (*const create)(const APPLICATION_DESCRIPTOR *descriptor);
 
     /*
      * Reseed PUT RNG
@@ -65,7 +67,11 @@ typedef struct OPCUA_PUT_INTERFACE {
      */
     bool (*const supports)(const char *capability);
 
+    /*
+     * Interface for the fuzzer
+     */
     AGENT_INTERFACE agent_interface;
+
 } OPCUA_PUT_INTERFACE;
 
 #ifdef __cplusplus

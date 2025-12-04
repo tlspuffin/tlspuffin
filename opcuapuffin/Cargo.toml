@@ -22,6 +22,7 @@ byteorder = "1.4"
 chrono = { version = "0.4.38", features = ["serde"] }
 hashbrown = "^0.15"
 lazy_static = "1.5.0"
+libc = { workspace = true }
 log = { workspace = true }
 puffin = { path = "../puffin" }
 puffin-macros = { path = "../puffin-macros" }
@@ -31,9 +32,10 @@ uuid = { version = "1.2", features = ["v4"] }
 
 
 [build-dependencies]
-puffin-build = { path = "../puffin-build" }
-itertools = { workspace = true }
 bindgen = { workspace = true }
+itertools = { workspace = true }
+puffin-build = { path = "../puffin-build" }
+
 
 [[bin]]
 name = "opcuapuffin"
