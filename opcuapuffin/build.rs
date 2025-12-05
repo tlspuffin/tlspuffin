@@ -44,24 +44,23 @@ fn main() {
         bindings_path.to_string_lossy()
     );
 
-    /* build bundle */
+    /* build bundle by filtering the libraries found in vendor/ */
 
     let out_dir = Path::new(&std::env::var("OUT_DIR").unwrap()).join("harness_bundle");
     let puts: Vec<Put> = vendor_dir::from_env()
         .all()
         .iter()
-        .filter_map(identifiy_opcua_harness)
+        .filter_map(compile_opcua_harness)
         .collect();
-
-    let bundle = harness::bundle(puts.clone()).build(out_dir);
+    let bundle = harness::bundle(puts).build(out_dir);
     bundle.print_cargo_metadata();
 
 }
 
-fn identifiy_opcua_harness(library: &Library) -> Option<Put> {
+fn compile_opcua_harness(library: &Library) -> Option<Put> {
     let out_dir = 
         Path::new(&std::env::var("OUT_DIR").unwrap())
         .join(format!("harness_{}", library.id()));
-    let harness = Harness::harness_for("opcua", library.clone(), harness::Kind::C)?;
-    harness.wrap(out_dir).ok()
+    Harness::harness_for("opcua", library.clone(), harness::Kind::C).
+        map(|harness| harness.wrap(out_dir).unwrap())
 }
