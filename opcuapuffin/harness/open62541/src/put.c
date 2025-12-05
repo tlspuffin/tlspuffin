@@ -50,3 +50,31 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
         descriptor->id);
    return NULL;
 };
+
+void open62541_destroy(AGENT agent) {
+    ;
+}
+
+RESULT open62541_progress(AGENT agent){
+    return PUFFIN.make_result(RESULT_OK, "Unimplemented!");
+};
+
+RESULT open62541_reset(AGENT agent, uint8_t new_name, uint8_t use_clear){
+    return PUFFIN.make_result(RESULT_ERROR_OTHER, "Unimplemented!");
+};
+
+const char* open62541_describe_state(AGENT agent){
+    return "I feel good";
+}
+
+bool open62541_is_state_successful(AGENT agent) {
+    return true;
+};
+void open62541_register_claimer(AGENT agent, const CLAIMER_CB *callback) {};
+
+RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written){
+    return PUFFIN.make_result(RESULT_ERROR_OTHER, "Unimplemented!");
+};
+RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes){
+    return PUFFIN.make_result(RESULT_ERROR_OTHER, "Unimplemented!");
+};
