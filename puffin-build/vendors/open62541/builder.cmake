@@ -5,7 +5,7 @@ cmake_builder(
     install
 
   CMAKE_FLAGS
-    -DUA_ARCHITECTURE=puffin
+    -DUA_ARCHITECTURE=posix
     -DUA_ENABLE_DA=OFF
     -DUA_BUILD_EXAMPLES=OFF
     -DUA_ENABLE_ENCRYPTION=OPENSSL
