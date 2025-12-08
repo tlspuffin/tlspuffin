@@ -22,8 +22,8 @@ typedef enum {
 
 // PEM encoded certs and public keys.
 typedef struct {
-    const uint8_t *const bytes;
     const size_t length;
+    const uint8_t *const bytes;
 } PEM;
 
 // Describes the application to be created by the PUT.

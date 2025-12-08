@@ -18,7 +18,6 @@ use crate::puts::opcua_sys::{AGENT, AGENT_INTERFACE, APPLICATION_DESCRIPTOR,
     OPCUA_AGENT_ROLE, OPCUA_PUT_INTERFACE, VOID_STORE, version_of,
     ALICE_CERTIFICATE, ALICE_PRIVATE_KEY, BOB_CERTIFICATE, BOB_PRIVATE_KEY};
 
-mod open62541_sys;
 mod raw;
 
 // An agent is a virtual TCP channel that is used by the fuzzer to communicate
@@ -174,7 +173,7 @@ impl Factory<OpcuaProtocolBehavior> for Open62541Factory {
 pub fn new_opcua_factory() -> Box<dyn Factory<OpcuaProtocolBehavior>> {
     unsafe {
         Box::new(Open62541Factory {
-            put_interface: open62541_sys::open62541(),
+            put_interface: raw::open62541(),
         })
     }
 }

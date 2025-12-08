@@ -20,8 +20,8 @@ pub fn version_of(version: OpcuaVersion) -> OPCUA_VERSION {
 macro_rules! pem {
     ($pemder: ident) => {
         pub const $pemder: PEM = PEM {
-            bytes: static_certs::$pemder.0.as_ptr(),
             length: static_certs::$pemder.0.len(),
+            bytes: static_certs::$pemder.0.as_ptr(),
         };
     }
 }
