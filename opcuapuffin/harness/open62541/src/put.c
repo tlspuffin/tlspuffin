@@ -33,15 +33,22 @@ const OPCUA_PUT_INTERFACE open62541() {
     return open62541_vtable;
 };
 
+/* An APPLICATION is either a UA_Client or UA_Server,
+   depending on role */
+typedef struct Client_or_Server* APPLICATION;
+
 /* private AGENT type */
 struct AGENT_TYPE {
     uint8_t id;
 
-    //BIO *in;
-    //BIO *out;
+    OPCUA_AGENT_ROLE role;
+    APPLICATION application;
+
+    void* connexion_manager;
 
     //const CLAIMER_CB *claimer;
 };
+
 
 
 AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
@@ -55,25 +62,25 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
     if (descriptor->role == SERVER) {
         UA_Server *server = UA_Server_new();
         UA_ServerConfig *config = UA_Server_getConfig(server);
-        /* Do not care about timestamps ! */
+        /* Do not care about timestamps! */
         config->verifyRequestTimestamp = UA_RULEHANDLING_ACCEPT;
 
+        /* no need to UA_malloc, memcopy and then UA_ByteString_clear */
+        /* the certificates and private keys are owned by the caller in open62541 */
         UA_ByteString certificate = UA_BYTESTRING_NULL;
         if (descriptor->cert->length > 0) {
-            certificate.data = (UA_Byte*) UA_malloc(descriptor->cert->length);
+            certificate.data = (UA_Byte*) descriptor->cert->bytes;
             if (certificate.data) {
                 certificate.length = descriptor->cert->length;
-                memcpy(certificate.data, descriptor->cert->bytes, certificate.length);
             } else {
                 certificate.data = (UA_Byte*) UA_EMPTY_ARRAY_SENTINEL;
             }
         }
         UA_ByteString privateKey = UA_BYTESTRING_NULL;
         if (descriptor->pkey->length > 0) {
-            privateKey.data = (UA_Byte*) UA_malloc(descriptor->pkey->length);
+            privateKey.data = (UA_Byte*) descriptor->pkey->bytes;
             if (privateKey.data) {
                 privateKey.length = descriptor->pkey->length;
-                memcpy(privateKey.data, descriptor->pkey->bytes, privateKey.length);
             } else {
                 privateKey.data = (UA_Byte*) UA_EMPTY_ARRAY_SENTINEL;
             }
@@ -94,11 +101,17 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
             issuerList, issuerListSize,
             revocationList, revocationListSize);
 
-        UA_ByteString_clear(&certificate);
-        UA_ByteString_clear(&privateKey);
-        /**/
-        _log(PUFFIN.error, "Server unimplemented!");
-        return NULL;
+        /* /!\ TODO: get a puffin connexion manager through id */
+        _log(PUFFIN.error, "Connexion Manager is unimplemented!");
+
+        retval = UA_Server_run_startup(server);
+
+        AGENT agent = (AGENT) UA_malloc(sizeof(AGENT));
+        agent->id = descriptor->id;
+        agent->role = descriptor->role;
+        agent->application = (APPLICATION) server;
+        agent->connexion_manager = NULL; //!\ TODO!
+        return agent;
     }
 
     _log(PUFFIN.error,
@@ -109,12 +122,27 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
 };
 
 void open62541_destroy(AGENT agent) {
-    ;
+    if (agent->role == CLIENT) {
+        _log(PUFFIN.error,"Client unimplemented!");
+    }
+    if (agent->role == SERVER) {
+        UA_Server *server = (UA_Server*) agent->application;
+        UA_StatusCode status = 0;
+        status = UA_Server_run_shutdown(server);
+        status = UA_Server_delete(server);
+        UA_free(agent);
+    }
 }
 
 RESULT open62541_progress(AGENT agent){
-    return PUFFIN.make_result(RESULT_OK, "Unimplemented!");
-};
+    if (agent->role == CLIENT) {
+        return PUFFIN.make_result(RESULT_ERROR_OTHER, "Client unimplemented!");
+    }
+    if (agent->role == SERVER) {
+        UA_Server_run_iterate((UA_Server*) agent->application, false);
+    }
+    return PUFFIN.make_result(RESULT_OK, "");
+}
 
 RESULT open62541_reset(AGENT agent, uint8_t new_name, uint8_t use_clear){
     return PUFFIN.make_result(RESULT_ERROR_OTHER, "Unimplemented!");
@@ -134,8 +162,4 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
 };
 RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes){
     return PUFFIN.make_result(RESULT_ERROR_OTHER, "Unimplemented!");
-};
-
-RESULT open62541_start_application(const APPLICATION_DESCRIPTOR *descriptor) {
-    return PUFFIN.make_result(RESULT_OK, "Unimplemented!");
 };

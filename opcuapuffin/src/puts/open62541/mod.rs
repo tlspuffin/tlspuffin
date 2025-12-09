@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::ConcreteMessage;
@@ -86,14 +86,6 @@ impl Drop for Agent {
     }}
 }
 
-// We only insert applications, we never remove them so taking references is ok.
-struct Open62541State {
-    pub applications: BTreeMap<u8, APPLICATION_DESCRIPTOR>
-}
-static mut PUT_STATE: Open62541State = Open62541State {
-    applications: BTreeMap::new()
-};
-
 #[derive(Clone)]
 struct Open62541Factory {
     put_interface: OPCUA_PUT_INTERFACE,
@@ -112,31 +104,27 @@ impl Factory<OpcuaProtocolBehavior> for Open62541Factory {
 
         let id = u8::from(application.name);
         unsafe {
-            let c_application_descriptor: &APPLICATION_DESCRIPTOR =
-                PUT_STATE.applications.entry(id).or_insert_with( | | {
-                    let descriptor =
-                    match application.protocol_config.kind{
-                        AgentType::Client => APPLICATION_DESCRIPTOR {
-                            id,
-                            role: OPCUA_AGENT_ROLE::CLIENT,
-                            version: version_of(application.protocol_config.version),
-                            cert: &ALICE_CERTIFICATE,
-                            pkey: &ALICE_PRIVATE_KEY,
-                            store: &VOID_STORE,
-                            store_length: 0,
-                        },
-                        AgentType::Server => APPLICATION_DESCRIPTOR {
-                            id,
-                            role: OPCUA_AGENT_ROLE::SERVER,
-                            version: version_of(application.protocol_config.version),
-                            cert: &BOB_CERTIFICATE,
-                            pkey: &BOB_PRIVATE_KEY,
-                            store: &VOID_STORE,
-                            store_length: 0,
-                        }
-                    };
-                    //let _result = raw::open62541_start_application(&descriptor);
-                    descriptor});
+            let c_application_descriptor: APPLICATION_DESCRIPTOR =
+                match application.protocol_config.kind{
+                    AgentType::Client => APPLICATION_DESCRIPTOR {
+                        id,
+                        role: OPCUA_AGENT_ROLE::CLIENT,
+                        version: version_of(application.protocol_config.version),
+                        cert: &ALICE_CERTIFICATE,
+                        pkey: &ALICE_PRIVATE_KEY,
+                        store: &VOID_STORE,
+                        store_length: 0,
+                    },
+                    AgentType::Server => APPLICATION_DESCRIPTOR {
+                        id,
+                        role: OPCUA_AGENT_ROLE::SERVER,
+                        version: version_of(application.protocol_config.version),
+                        cert: &BOB_CERTIFICATE,
+                        pkey: &BOB_PRIVATE_KEY,
+                        store: &VOID_STORE,
+                        store_length: 0,
+                    }
+                };
 
             if let Some(create_agent) = self.put_interface.create {
                 Ok(Box::new(Agent{
@@ -144,7 +132,7 @@ impl Factory<OpcuaProtocolBehavior> for Open62541Factory {
                     _capabilities: HashSet::new(),
                     _claims: claims.clone(),
                     fuzz_stream: MemoryStream::new(),
-                    c_agent: create_agent(c_application_descriptor),
+                    c_agent: create_agent(&c_application_descriptor),
                     c_agent_interface: self.put_interface.agent_interface
                 }))
             } else {
