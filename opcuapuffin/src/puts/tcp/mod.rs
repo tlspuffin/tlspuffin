@@ -1,5 +1,9 @@
+use std::ffi::OsStr;
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, Shutdown, TcpStream};
+use std::path::Path;
+use std::process::{Child, Command, Stdio};
+use std::thread;
 use std::time::Duration;
 
 use puffin::agent::{AgentDescriptor, AgentName};
@@ -21,6 +25,7 @@ use crate::put_registry::OPC_TCP;
 struct Agent {
     application: AgentDescriptor<ApplicationConfig>,
     fuzz_stream: TcpStream,
+    _process: Option<OpcuaProcess>,
 }
 
 impl Agent {}
@@ -62,7 +67,7 @@ impl Put<OpcuaProtocolBehavior> for Agent {
     }
 
     fn is_state_successful(&self) -> bool {
-        false
+        true
     }
 
     fn version() -> String {
@@ -96,9 +101,22 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
             AgentType::Client => 4841,
         };
 
+        // 1. Start the OPC UA Server:
+        // (Disable these lines if you launch manually the server)
+        let process = if application.protocol_config.kind == AgentType::Server {
+            Some(OpcuaProcess::new(
+                "./vendor/open62541/build/bin/examples/ci_server",
+                &(format!("{} ", port) +
+                "crates/opcua-mapper/lib/src/puffin/assets/bob_cert.pem " +
+                "crates/opcua-mapper/lib/src/puffin/assets/bob_key.pem"),
+                Some(".")))
+        } else {
+            None
+        };
+
+        // 2. Connect to the TCP server listening on localhost:port
         match application.protocol_config.kind {
             AgentType::Server | AgentType::Client => {
-                // Connect to the TCP server listening on localhost:port
                 let fuzz_stream = TcpStream::connect((host, port))
                 .map_err(|e| {
                     log::warn!("Failed to connect to TCP server at {}:{}: {}", host, port, e);
@@ -114,6 +132,7 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
                 Ok(Box::new(Agent{
                     application: application.clone(),
                     fuzz_stream,
+                    _process: process,
                 }))
             }
         }
@@ -137,4 +156,78 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
 
 pub fn new_opcua_factory() -> Box<dyn Factory<OpcuaProtocolBehavior>> {
     Box::new(OpcTcpFactory {})
+}
+
+// The OPC UA application process launcher.
+// Manually create a new process launcher for each target.
+
+pub struct OpcuaProcess {
+    child: Option<Child>,
+    output: Option<String>,
+}
+
+impl OpcuaProcess {
+    pub fn new<P: AsRef<Path>>(prog: &str, args: &str, cwd: Option<P>) -> Self {
+        let child = Self {
+            child: Some(execute_command(prog, args.split(' '), cwd)),
+            output: None,
+        };
+        thread::sleep(Duration::from_millis(500));
+        child
+    }
+
+    pub fn shutdown(&mut self) -> Option<String> {
+        self.output = if let Some(mut child) = self.child.take() {
+            child.kill().expect("failed to stop process");
+
+            Some(collect_output(child))
+        } else {
+            None
+        };
+
+        self.output.clone()
+    }
+}
+
+impl Drop for OpcuaProcess {
+    fn drop(&mut self) {
+        if let Some(output) = self.shutdown() {
+            println!(
+                "OPC UA Process was not shutdown manually. Output:\n{}",
+                output
+            );
+        }
+    }
+}
+
+pub fn collect_output(child: Child) -> String {
+    let output = child.wait_with_output().expect("failed to wait on child");
+    let mut complete = "--- start stderr\n".to_string();
+
+    complete.push_str(std::str::from_utf8(&output.stderr).unwrap());
+    complete.push_str("\n--- end stderr\n");
+    complete.push_str("--- start stdout\n");
+    complete.push_str(std::str::from_utf8(&output.stdout).unwrap());
+    complete.push_str("\n--- end stdout\n");
+
+    complete
+}
+
+pub fn execute_command<I, S, P: AsRef<Path>>(prog: &str, args: I, cwd: Option<P>) -> Child
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    let mut cmd = Command::new(prog);
+
+    if let Some(cwd) = cwd {
+        cmd.current_dir(cwd);
+    }
+
+    cmd.args(args)
+        .stdin(Stdio::piped()) // needed!
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("failed to execute OPC UA application process")
 }

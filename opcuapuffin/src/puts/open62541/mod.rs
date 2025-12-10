@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::ffi::CStr;
 
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::ConcreteMessage;
@@ -144,9 +145,20 @@ impl Factory<OpcuaProtocolBehavior> for Open62541Factory {
     fn name(&self) -> String {String::from(OPEN62541)}
 
     fn versions(&self) -> Vec<(String, String)>{
+        let put_version =
+            if let Some(get_put_version) = self.put_interface.version {
+                let cstr = unsafe { CStr::from_ptr(get_put_version()) };
+                Some(cstr.to_string_lossy().into_owned())
+            } else {
+                None
+            };
+        let library_version = match put_version {
+            Some(version) => version,
+            None => "unavailable!".to_string()
+        };
         vec![
             ("harness".to_string(), "0.0".to_string()),
-            ("library".to_string(), "1.5".to_string()),
+            ("library".to_string(), library_version),
         ]
     }
 

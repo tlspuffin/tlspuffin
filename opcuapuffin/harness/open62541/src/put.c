@@ -11,12 +11,13 @@ bool open62541_is_state_successful(AGENT agent);
 void open62541_register_claimer(AGENT agent, const CLAIMER_CB *callback);
 RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written);
 RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
+const char* open62541_version();
 
 static const OPCUA_PUT_INTERFACE open62541_vtable = {
     .create = open62541_create,
     .rng_reseed = NULL,
     .supports = NULL,
-
+    .version = open62541_version,
     .agent_interface = {
         .destroy = open62541_destroy,
         .progress = open62541_progress,
@@ -162,4 +163,8 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
 };
 RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes){
     return PUFFIN.make_result(RESULT_ERROR_OTHER, "Unimplemented!");
+};
+
+const char* open62541_version() {
+    return UA_OPEN62541_VERSION;
 };
