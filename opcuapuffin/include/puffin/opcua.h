@@ -72,6 +72,11 @@ typedef struct OPCUA_PUT_INTERFACE {
      */
     AGENT_INTERFACE agent_interface;
 
+    /*
+     * PUT version
+    */
+    const char* (*const version)();
+
 } OPCUA_PUT_INTERFACE;
 
 #ifdef __cplusplus

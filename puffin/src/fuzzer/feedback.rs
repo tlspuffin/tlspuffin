@@ -70,7 +70,9 @@ where
         EM: EventFirer<State = SC>,
         OT: ObserversTuple<SC>,
     {
-        Ok(false)
+        // Patch for OPC UA puffin.
+        // Ok(false)
+        Ok(true)
     }
 
     fn is_interesting_introspection<EM, OT>(
@@ -85,7 +87,9 @@ where
         EM: EventFirer<State = SC>,
         OT: ObserversTuple<SC>,
     {
-        Ok(false)
+        // Patch for OPC UA puffin.
+        // Ok(false)
+        Ok(true)
     }
 
     /// Append to the testcase the generated metadata in case of a new corpus item
