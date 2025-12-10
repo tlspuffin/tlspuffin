@@ -67,7 +67,14 @@ pub fn seed_ap_client_open_unsecure_channel (
             ))
         )
     };
-
+    let close_request = term! {
+        fn_service(
+            (fn_sequence_header(fn_seq_0, fn_seq_0)),
+            (fn_client_close(
+                (fn_request_header(fn_sa_token_zero, fn_seq_0))
+            ))
+        )
+    };
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -121,7 +128,7 @@ pub fn seed_ap_client_open_unsecure_channel (
                         (fn_msg_header(
                             fn_security_policy_none,
                             (fn_header(fn_close, ((server, 10)[None]/u32))),  // needs channel id!
-                            (@open_request)
+                            (@close_request)
                         )),
                         (fn_body(
                             (fn_get_channel_token(
@@ -436,7 +443,7 @@ pub fn seed_d_client_activate_session (
                 fn_mallory_sk
             )),
             (fn_anonymous(
-                ((server, 33)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/UAString)  // PolicyId!
+                ((server, 0)[Some(OpcuaQueryMatcher::PolicyIdAnonymous)]/UAString) // PolicyId!
             )),
             fn_no_bytes
         )
@@ -458,7 +465,7 @@ pub fn seed_d_client_activate_session (
                 fn_mallory_sk
             )),
             (fn_legacy_user_pwd(
-                ((server, 41)[None]/UAString), // PolicyId!
+                ((server, 0)[Some(OpcuaQueryMatcher::PolicyIdPassword)]/UAString), // PolicyId!
                 fn_basic256sha256,
                 fn_username,
                 fn_password,
@@ -486,7 +493,7 @@ pub fn seed_d_client_activate_session (
                 fn_mallory_sk
             )),
             (fn_user_cert(
-              ((server, 37)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/UAString), // PolicyId!
+              ((server, 0)[Some(OpcuaQueryMatcher::PolicyIdCertificate)]/UAString), // PolicyId!
               fn_mallory_cert
             )),
             (fn_sign(
@@ -500,7 +507,20 @@ pub fn seed_d_client_activate_session (
             ))
         )
     };
-
+    let close_session = term! {
+        fn_close_request(
+            (fn_request_header(
+                ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
+                fn_seq_3))
+        )
+    };
+    let close_channel = term! {
+        fn_client_close(
+            (fn_request_header(
+                ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
+                fn_seq_4))
+        )
+    };
     Trace {
         prior_traces: vec![],
         descriptors: vec![
@@ -676,6 +696,118 @@ pub fn seed_d_client_activate_session (
                 }),
             },
 
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_message (
+                        (fn_msg_header(
+                            fn_basic256sha256,
+                            (fn_header(fn_final, ((server, 10)[None]/u32))),
+                            (fn_service(
+                                (fn_sequence_header(fn_seq_3, fn_seq_3)),
+                                (@close_session)
+                            ))
+                        )),
+                        (fn_body(
+                            (fn_get_channel_token(
+                                (fn_decrypted_body(
+                                    (fn_asym_decrypt(
+                                        fn_basic256sha256,
+                                        ((server, 1)[None]/EncryptedBody),
+                                        fn_mallory_sk)),
+                                    fn_mallory_sk
+                                ))
+                            )),
+                            (fn_sequence_header(fn_seq_3, fn_seq_3)),
+                            (@close_session),
+                            (fn_mac(
+                                (fn_data_to_mac(
+                                    (fn_msg_header(
+                                        fn_basic256sha256,
+                                        (fn_header(fn_final, ((server, 10)[None]/u32))),
+                                        (fn_service(
+                                            (fn_sequence_header(fn_seq_3, fn_seq_3)),
+                                            (@close_session)
+                                        ))
+                                    )),
+                                    (fn_get_channel_token(
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                fn_basic256sha256,
+                                                ((server, 1)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
+                                    )),
+                                    (fn_service(
+                                        (fn_sequence_header(fn_seq_3, fn_seq_3)),
+                                        (@close_session)
+                                    ))
+                                )),
+                                fn_basic256sha256,
+                                (@hmac_key)
+                            ))
+                        ))
+                    )
+                    }
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_message (
+                        (fn_msg_header(
+                            fn_basic256sha256,
+                            (fn_header(fn_close, ((server, 10)[None]/u32))),
+                            (fn_service(
+                                (fn_sequence_header(fn_seq_4, fn_seq_4)),
+                                (@close_channel)
+                            ))
+                        )),
+                        (fn_body(
+                            (fn_get_channel_token(
+                                (fn_decrypted_body(
+                                    (fn_asym_decrypt(
+                                        fn_basic256sha256,
+                                        ((server, 1)[None]/EncryptedBody),
+                                        fn_mallory_sk)),
+                                    fn_mallory_sk
+                                ))
+                            )),
+                            (fn_sequence_header(fn_seq_4, fn_seq_4)),
+                            (@close_channel),
+                            (fn_mac(
+                                (fn_data_to_mac(
+                                    (fn_msg_header(
+                                        fn_basic256sha256,
+                                        (fn_header(fn_close, ((server, 10)[None]/u32))),
+                                        (fn_service(
+                                            (fn_sequence_header(fn_seq_4, fn_seq_4)),
+                                            (@close_channel)
+                                        ))
+                                    )),
+                                    (fn_get_channel_token(
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                fn_basic256sha256,
+                                                ((server, 1)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
+                                    )),
+                                    (fn_service(
+                                        (fn_sequence_header(fn_seq_4, fn_seq_4)),
+                                        (@close_channel)
+                                    ))
+                                )),
+                                fn_basic256sha256,
+                                (@hmac_key)
+                            ))
+                        ))
+                    )
+                    }
+                }),
+            },
         ]
     }
 }
