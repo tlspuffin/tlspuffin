@@ -62,7 +62,7 @@ impl Put<OpcuaProtocolBehavior> for Agent {
     }
 
     fn is_state_successful(&self) -> bool {
-        true
+        false
     }
 
     fn version() -> String {
@@ -98,7 +98,7 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
 
         match application.protocol_config.kind {
             AgentType::Server | AgentType::Client => {
-                // 2. connect to the TCP server listening on localhost:port
+                // Connect to the TCP server listening on localhost:port
                 let fuzz_stream = TcpStream::connect((host, port))
                 .map_err(|e| {
                     log::warn!("Failed to connect to TCP server at {}:{}: {}", host, port, e);
