@@ -70,7 +70,7 @@ where
         EM: EventFirer<State = SC>,
         OT: ObserversTuple<SC>,
     {
-        Ok(true)
+        Ok(false)
     }
 
     fn is_interesting_introspection<EM, OT>(
@@ -85,7 +85,7 @@ where
         EM: EventFirer<State = SC>,
         OT: ObserversTuple<SC>,
     {
-        Ok(true)
+        Ok(false)
     }
 
     /// Append to the testcase the generated metadata in case of a new corpus item
