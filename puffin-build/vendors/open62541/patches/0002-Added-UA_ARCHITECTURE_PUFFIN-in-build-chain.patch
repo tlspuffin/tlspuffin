@@ -1,4 +1,4 @@
-From 4568449bc6e75df86b50a37fd46172b67db060bb Mon Sep 17 00:00:00 2001
+From 97b8a122cec7c0238bee0b2f46a464ab261f164c Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
 Date: Fri, 28 Nov 2025 18:38:07 +0100
 Subject: [PATCH 2/2] Added UA_ARCHITECTURE_PUFFIN in build chain
@@ -7,14 +7,16 @@ Subject: [PATCH 2/2] Added UA_ARCHITECTURE_PUFFIN in build chain
  CMakeLists.txt                           |   17 +-
  arch/puffin/clock_puffin.c               |   65 ++
  arch/puffin/eventloop_puffin.c           | 1107 +++++++++++++++++++
- arch/puffin/eventloop_puffin.h           |  367 +++++++
+ arch/puffin/eventloop_puffin.h           |  368 +++++++
  arch/puffin/eventloop_puffin_interrupt.c |  444 ++++++++
  arch/puffin/eventloop_puffin_tcp.c       | 1267 ++++++++++++++++++++++
+ examples/ci_server.c                     |    2 +-
  include/open62541/config.h.in            |    8 +-
  include/open62541/plugin/eventloop.h     |   11 +
+ plugins/crypto/ua_filestore_common.c     |    2 +-
  plugins/crypto/ua_filestore_common.h     |    8 +-
  plugins/ua_config_default.c              |   30 +-
- 10 files changed, 3314 insertions(+), 10 deletions(-)
+ 12 files changed, 3317 insertions(+), 12 deletions(-)
  create mode 100644 arch/puffin/clock_puffin.c
  create mode 100644 arch/puffin/eventloop_puffin.c
  create mode 100644 arch/puffin/eventloop_puffin.h
@@ -1249,10 +1251,10 @@ index 000000000..4bd5c866b
 +#endif
 diff --git a/arch/puffin/eventloop_puffin.h b/arch/puffin/eventloop_puffin.h
 new file mode 100644
-index 000000000..7d417f5e0
+index 000000000..90a915237
 --- /dev/null
 +++ b/arch/puffin/eventloop_puffin.h
-@@ -0,0 +1,367 @@
+@@ -0,0 +1,368 @@
 +/* This Source Code Form is subject to the terms of the Mozilla Public
 + * License, v. 2.0. If a copy of the MPL was not distributed with this
 + * file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -1420,7 +1422,6 @@ index 000000000..7d417f5e0
 +#define UA_PATH_MAX PATH_MAX
 +#define UA_FILENAME_MAX FILENAME_MAX
 +
-+#endif
 +
 +/***********************/
 +/* General Definitions */
@@ -1532,7 +1533,7 @@ index 000000000..7d417f5e0
 +     * All listening sockets will be closed. */
 +    UA_Boolean maxSocketsLimitReached;
 +
-+#if defined(UA_ARCHITECTURE_PUFFIN) && !defined(__APPLE__) && !defined(__MACH__)
++#if !defined(__APPLE__) && !defined(__MACH__)
 +    /* Clocks for the eventloop's time domain */
 +    UA_Int32 clockSource;
 +    UA_Int32 clockSourceMonotonic;
@@ -1618,6 +1619,8 @@ index 000000000..7d417f5e0
 +                                     UA_DelayedCallback *dc);
 +
 +_UA_END_DECLS
++
++#endif /* defined(UA_ARCHITECTURE_PUFFIN) */
 +
 +#endif /* UA_EVENTLOOP_PUFFIN_H_ */
 diff --git a/arch/puffin/eventloop_puffin_interrupt.c b/arch/puffin/eventloop_puffin_interrupt.c
@@ -3343,6 +3346,19 @@ index 000000000..29f8e621e
 +}
 +
 +#endif
+diff --git a/examples/ci_server.c b/examples/ci_server.c
+index bb381cc07..2320c6b6f 100644
+--- a/examples/ci_server.c
++++ b/examples/ci_server.c
+@@ -179,7 +179,7 @@ int main(int argc, char* argv[]) {
+                                                        trustList, trustListSize,
+                                                        issuerList, issuerListSize,
+                                                        revocationList, revocationListSize);
+-                                                           UA_ByteString_clear(&certificate);
++    UA_ByteString_clear(&certificate);
+     UA_ByteString_clear(&privateKey);
+     for(size_t i = 0; i < trustListSize; i++)
+         UA_ByteString_clear(&trustList[i]);
 diff --git a/include/open62541/config.h.in b/include/open62541/config.h.in
 index 55f6c25c5..d12eb739c 100644
 --- a/include/open62541/config.h.in
@@ -3401,6 +3417,19 @@ index b55299a7f..133994ef0 100644
  #endif
  
  _UA_END_DECLS
+diff --git a/plugins/crypto/ua_filestore_common.c b/plugins/crypto/ua_filestore_common.c
+index 5010c37d0..381d2ae68 100644
+--- a/plugins/crypto/ua_filestore_common.c
++++ b/plugins/crypto/ua_filestore_common.c
+@@ -9,7 +9,7 @@
+ 
+ #ifdef UA_ENABLE_ENCRYPTION
+ 
+-#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
++#if defined(UA_ARCHITECTURE_POSIX) || defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__) || defined(UA_ARCHITECTURE_PUFFIN)
+ 
+ #ifdef UA_ARCHITECTURE_WIN32
+ /* TODO: Replace with a proper dirname implementation. This is a just minimal
 diff --git a/plugins/crypto/ua_filestore_common.h b/plugins/crypto/ua_filestore_common.h
 index 5f9f0eae2..ab476b1ed 100644
 --- a/plugins/crypto/ua_filestore_common.h
