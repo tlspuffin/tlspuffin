@@ -5,7 +5,7 @@ cmake_builder(
     install
 
   CMAKE_FLAGS
-    -DUA_ARCHITECTURE=posix
+    -DUA_ARCHITECTURE=none
     -DUA_ENABLE_DA=OFF
     -DUA_BUILD_EXAMPLES=OFF
     -DUA_ENABLE_ENCRYPTION=OPENSSL
