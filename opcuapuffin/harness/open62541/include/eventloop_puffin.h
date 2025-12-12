@@ -16,11 +16,8 @@
 
 #include "timer.h"
 #include "eventloop_common.h"
-#include "mp_printf.h"
-
-#if !defined(__QNX__)
-# include "open62541_queue.h"
-#endif
+//#include "mp_printf.h"
+#include "open62541_queue.h"
 
 _UA_BEGIN_DECLS
 
@@ -343,7 +340,7 @@ UA_EventLoopPOSIX_setReusable(UA_FD sockfd);
 
 /* Windows has no pipes. Use a local TCP connection for the self-pipe trick.
  * https://stackoverflow.com/a/3333565 */
-#if defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
+#if defined(__APPLE__)
 int UA_EventLoopPOSIX_pipe(SOCKET fds[2]);
 #elif defined(__QNX__)
 int UA_EventLoopPOSIX_pipe(int fds[2]);

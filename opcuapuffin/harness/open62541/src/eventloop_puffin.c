@@ -6,10 +6,8 @@
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-#include "eventloop_posix.h"
+#include "eventloop_puffin.h"
 #include "open62541/plugin/eventloop.h"
-
-#if defined(UA_ARCHITECTURE_POSIX) && !defined(UA_ARCHITECTURE_LWIP) || defined(UA_ARCHITECTURE_WIN32)
 
 /*********/
 /* Timer */
@@ -187,14 +185,6 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
         }
         el->clockSourceMonotonic = *csm;
     }
-
-#if !defined(UA_ARCHITECTURE_POSIX)
-    if(cs || csm) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                       "Eventloop\t| Setting a different clock source ",
-                       "not supported for this architecture");
-    }
-#endif
 
     /* Create the self-pipe */
     int err = UA_EventLoopPOSIX_pipe(el->selfpipe);
@@ -461,21 +451,16 @@ UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
 
 static UA_DateTime
 UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
-#if defined(UA_ARCHITECTURE_POSIX)
     UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
     struct timespec ts;
     int res = clock_gettime(pel->clockSource, &ts);
     if(UA_UNLIKELY(res != 0))
         return 0;
     return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
-#else
-    return UA_DateTime_now();
-#endif
 }
 
 static UA_DateTime
 UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
-#if defined(UA_ARCHITECTURE_POSIX)
     UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
     struct timespec ts;
     int res = clock_gettime(pel->clockSourceMonotonic, &ts);
@@ -484,9 +469,6 @@ UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
     /* Also add the unix epoch for the monotonic clock. So we get a "normal"
      * output when a "normal" source is configured. */
     return (ts.tv_sec * UA_DATETIME_SEC) + (ts.tv_nsec / 100) + UA_DATETIME_UNIX_EPOCH;
-#else
-    return UA_DateTime_nowMonotonic();
-#endif
 }
 
 static UA_Int64
@@ -525,11 +507,6 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     /* Process remaining delayed callbacks */
     processDelayed(el);
 
-#ifdef UA_ARCHITECTURE_WIN32
-    /* Stop the Windows networking subsystem */
-    WSACleanup();
-#endif
-
     UA_KeyValueMap_clear(&el->eventLoop.params);
 
     /* Clean up */
@@ -562,24 +539,16 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     el->delayedTail = &el->delayedHead1;
     el->delayedHead2 = (UA_DelayedCallback*)0x01; /* sentinel value */
 
-#ifdef UA_ARCHITECTURE_WIN32
-    /* Start the WSA networking subsystem on Windows */
-    WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
-#endif
-
     /* Set the public EventLoop content */
     el->eventLoop.logger = logger;
 
     /* Initialize the clock source to the default */
-#if defined(UA_ARCHITECTURE_POSIX)
     el->clockSource = CLOCK_REALTIME;
 # ifdef CLOCK_MONOTONIC_RAW
     el->clockSourceMonotonic = CLOCK_MONOTONIC_RAW;
 # else
     el->clockSourceMonotonic = CLOCK_MONOTONIC;
 # endif
-#endif
 
     /* Set the method pointers for the interface */
     el->eventLoop.start = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_start;
@@ -709,17 +678,11 @@ UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd) {
 UA_StatusCode
 UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
     int enableReuseVal = 1;
-#ifndef UA_ARCHITECTURE_WIN32
     int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
                             (const char*)&enableReuseVal, sizeof(enableReuseVal));
     res |= UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
                             (const char*)&enableReuseVal, sizeof(enableReuseVal));
     return (res == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
-#else
-    int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
-                            (const char*)&enableReuseVal, sizeof(enableReuseVal));
-    return (res == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
-#endif
 }
 
 /************************/
@@ -730,14 +693,10 @@ UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
 static void
 flushSelfPipe(UA_SOCKET s) {
     char buf[128];
-#ifdef UA_ARCHITECTURE_WIN32
-    recv(s, buf, 128, 0);
-#else
     ssize_t i;
     do {
         i = read(s, buf, 128);
     } while(i > 0);
-#endif
 }
 
 #if !defined(UA_HAVE_EPOLL)
@@ -851,13 +810,8 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
     }
 
     struct timeval tmptv = {
-#ifndef UA_ARCHITECTURE_WIN32
-        (time_t)(listenTimeout / UA_DATETIME_SEC),
-        (suseconds_t)((listenTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
-#else
         (long)(listenTimeout / UA_DATETIME_SEC),
         (long)((listenTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
-#endif
     };
 
     UA_UNLOCK(&el->elMutex);
@@ -1044,7 +998,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 
 #endif /* defined(UA_HAVE_EPOLL) */
 
-#if defined(UA_ARCHITECTURE_WIN32) || defined(__APPLE__)
+#if defined(__APPLE__)
 int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     struct sockaddr_in inaddr;
     memset(&inaddr, 0, sizeof(inaddr));
@@ -1064,9 +1018,6 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     fds[0] = socket(AF_INET, SOCK_STREAM, 0);
     int err = connect(fds[0], (struct sockaddr*)&addr, len);
     fds[1] = accept(lst, 0, 0);
-#ifdef UA_ARCHITECTURE_WIN32
-    closesocket(lst);
-#endif
 #ifdef __APPLE__
     close(lst);
 #endif
@@ -1079,19 +1030,6 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     UA_EventLoopPOSIX_setNonBlocking(fds[1]);
     return err;
 }
-#elif defined(__QNX__)
-int UA_EventLoopPOSIX_pipe(int fds[2]) {
-    int err = pipe(fds); 
-    if(err == -1) {
-      return err;
-    }
-
-    err = fcntl(fds[0], F_SETFL, O_NONBLOCK);
-    if(err == -1) {
-      return err;
-    }
-    return err;
-}
 #endif
 
 void
@@ -1101,11 +1039,7 @@ UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el) {
         return;
 
     /* Trigger the self-pipe */
-#ifdef UA_ARCHITECTURE_WIN32
-    int err = send(el->selfpipe[1], ".", 1, 0);
-#else
     ssize_t err = write(el->selfpipe[1], ".", 1);
-#endif
     if(err <= 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -1113,4 +1047,3 @@ UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el) {
     }
 }
 
-#endif

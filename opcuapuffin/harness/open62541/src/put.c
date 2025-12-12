@@ -1,5 +1,22 @@
 #include <put.h>
-#include <wrapper.h>
+
+#include <open62541/types.h>
+#include <open62541/client.h>
+#include <open62541/client_config_default.h>
+//#include <open62541/client_highlevel.h>
+//#include <open62541/client_highlevel_async.h>
+//#include <open62541/client_subscriptions.h>
+#include <open62541/server.h>
+#include <open62541/server_config_default.h>
+//#include <open62541/plugin/accesscontrol.h>
+//#include <open62541/plugin/accesscontrol_default.h>
+#include <open62541/plugin/log.h>
+#include <open62541/plugin/log_stdout.h>
+//#include <open62541/plugin/pki.h>
+//#include <open62541/plugin/pki_default.h>
+#include <open62541/plugin/securitypolicy.h>
+//#include <open62541/plugin/create_certificate.h>
+#include <open62541/plugin/securitypolicy_default.h>
 
 /* OPC UA PUT interface for Open62541 */
 AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor);
