@@ -588,11 +588,11 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
 /***************************/
 
 UA_StatusCode
-UA_EventLoopPOSIX_allocNetworkBuffer(UA_ConnectionManager *cm,
+UA_EventLoopPuffin_allocNetworkBuffer(UA_ConnectionManager *cm,
                                      uintptr_t connectionId,
                                      UA_ByteString *buf,
                                      size_t bufSize) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     if(pcm->txBuffer.length == 0)
         return UA_ByteString_allocBuffer(buf, bufSize);
     if(pcm->txBuffer.length < bufSize)
@@ -603,10 +603,10 @@ UA_EventLoopPOSIX_allocNetworkBuffer(UA_ConnectionManager *cm,
 }
 
 void
-UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
+UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     uintptr_t connectionId,
                                     UA_ByteString *buf) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     if(pcm->txBuffer.data == buf->data)
         UA_ByteString_init(buf);
     else
@@ -614,7 +614,7 @@ UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_allocateStaticBuffers(UA_POSIXConnectionManager *pcm) {
+UA_EventLoopPOSIX_allocateStaticBuffers(UA_PuffinConnectionManager *pcm) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
     const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)

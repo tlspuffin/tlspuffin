@@ -8,15 +8,14 @@
  *    Copyright 2021 (c) Fraunhofer IOSB (Author: Jan Hermes)
  */
 
-#ifndef UA_EVENTLOOP_POSIX_H_
-#define UA_EVENTLOOP_POSIX_H_
+#ifndef UA_EVENTLOOP_PUFFIN_H_
+#define UA_EVENTLOOP_PUFFIN_H_
 
 #include <open62541/config.h>
 #include <open62541/plugin/eventloop.h>
 
 #include "timer.h"
 #include "eventloop_common.h"
-//#include "mp_printf.h"
 #include "open62541_queue.h"
 
 _UA_BEGIN_DECLS
@@ -227,9 +226,8 @@ typedef struct UA_DeregisteredListenFD {
 
 typedef LIST_HEAD(UA_DeregisteredListenFDList, UA_DeregisteredListenFD) UA_DeregisteredListenFDList;
 
-/* All ConnectionManager in the POSIX EventLoop can be cast to
- * UA_ConnectionManagerPOSIX. They carry a sorted tree of their open
- * sockets/file-descriptors. */
+/* Puffin connection manager, similar to POSIX connection manager but */
+/* the rx and tx buffers are directly used by the puffin agent */
 typedef struct {
     UA_ConnectionManager cm;
 
@@ -241,9 +239,12 @@ typedef struct {
     size_t fdsSize;
     UA_FDTree fds;
 
-    /* Closed listening sockets queued for later reopening */
-    UA_DeregisteredListenFDList listenFDs;
-} UA_POSIXConnectionManager;
+} UA_PuffinConnectionManager;
+
+/* A static variable is set by UA_ConnectionManager_new_POSIX_TCP,
+   and contains the last connection manager created. It is only read
+   when a new puffin agent is created, and reading resets the variable. */
+UA_PuffinConnectionManager *take_last_puffin_connection_manager();
 
 typedef struct {
     UA_EventLoop eventLoop;
@@ -312,16 +313,16 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout);
 /* Helper functions across EventSources */
 
 UA_StatusCode
-UA_EventLoopPOSIX_allocateStaticBuffers(UA_POSIXConnectionManager *pcm);
+UA_EventLoopPOSIX_allocateStaticBuffers(UA_PuffinConnectionManager *pcm);
 
 UA_StatusCode
-UA_EventLoopPOSIX_allocNetworkBuffer(UA_ConnectionManager *cm,
+UA_EventLoopPuffin_allocNetworkBuffer(UA_ConnectionManager *cm,
                                      uintptr_t connectionId,
                                      UA_ByteString *buf,
                                      size_t bufSize);
 
 void
-UA_EventLoopPOSIX_freeNetworkBuffer(UA_ConnectionManager *cm,
+UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     uintptr_t connectionId,
                                     UA_ByteString *buf);
 
@@ -358,4 +359,4 @@ UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
 
 _UA_END_DECLS
 
-#endif /* UA_EVENTLOOP_POSIX_H_ */
+#endif /* UA_EVENTLOOP_PUFFIN_H_ */

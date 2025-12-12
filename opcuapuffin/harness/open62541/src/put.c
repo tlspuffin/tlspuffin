@@ -18,6 +18,8 @@
 //#include <open62541/plugin/create_certificate.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
+#include "eventloop_puffin.h"
+
 /* OPC UA PUT interface for Open62541 */
 AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor);
 void open62541_destroy(AGENT agent);
@@ -62,7 +64,7 @@ struct AGENT_TYPE {
     OPCUA_AGENT_ROLE role;
     APPLICATION application;
 
-    void* connexion_manager;
+    UA_PuffinConnectionManager *connexion_manager;
 
     //const CLAIMER_CB *claimer;
 };
@@ -119,16 +121,21 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
             issuerList, issuerListSize,
             revocationList, revocationListSize);
 
-        /* /!\ TODO: get a puffin connexion manager through id */
-        _log(PUFFIN.error, "Connexion Manager is unimplemented!");
-
         retval = UA_Server_run_startup(server);
+        if (retval) {
+            _log(PUFFIN.error, "UA Server startup returned %u", retval);
+        }
 
         AGENT agent = (AGENT) UA_malloc(sizeof(AGENT));
         agent->id = descriptor->id;
         agent->role = descriptor->role;
         agent->application = (APPLICATION) server;
-        agent->connexion_manager = NULL; //!\ TODO!
+        UA_PuffinConnectionManager *pcm = take_last_puffin_connection_manager();
+        if (pcm) {
+            agent->connexion_manager = pcm;
+        } else {
+            _log(PUFFIN.error, "Puffin Connection Manager is unavailable!");
+        }
         return agent;
     }
 
@@ -176,9 +183,11 @@ bool open62541_is_state_successful(AGENT agent) {
 void open62541_register_claimer(AGENT agent, const CLAIMER_CB *callback) {};
 
 RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written){
+    /* Drop the txBuffer and fills the rxBuffer */
     return PUFFIN.make_result(RESULT_ERROR_OTHER, "Unimplemented!");
 };
 RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes){
+    /* read the TxBuffer from the PuffinConnexionManager associated to the agent */
     return PUFFIN.make_result(RESULT_ERROR_OTHER, "Unimplemented!");
 };
 

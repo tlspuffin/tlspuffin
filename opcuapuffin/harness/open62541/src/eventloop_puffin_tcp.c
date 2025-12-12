@@ -44,7 +44,7 @@ static void
 TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn);
 
 static UA_StatusCode
-TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
+TCP_registerListenSockets(UA_PuffinConnectionManager *pcm, const char *hostname,
                           UA_UInt16 port, void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate, UA_Boolean reuseaddr);
@@ -61,7 +61,7 @@ TCP_setNoNagle(UA_FD sockfd) {
 
 /* Test if the ConnectionManager can be stopped */
 static void
-TCP_checkStopped(UA_POSIXConnectionManager *pcm) {
+TCP_checkStopped(UA_PuffinConnectionManager *pcm) {
     UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex);
 
     if(pcm->fdsSize == 0 &&
@@ -72,75 +72,18 @@ TCP_checkStopped(UA_POSIXConnectionManager *pcm) {
     }
 }
 
-static void
-TCP_delayedReopen(void *application, void *context) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
-    UA_ConnectionManager *cm = &pcm->cm;
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
-    UA_DeregisteredListenFD *listenRfd = (UA_DeregisteredListenFD*)context;
-    UA_RegisteredFD *rfd = listenRfd->listenFd;
-    TCP_FD *conn = (TCP_FD*)rfd;
-
-    UA_LOCK(&el->elMutex);
-
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                 "TCP %u\t| Delayed reopen of the listen socket",
-                 (unsigned)conn->rfd.fd);
-
-    char hostname[UA_MAXHOSTNAME_LENGTH] = {0};
-    mp_snprintf(hostname, UA_MAXHOSTNAME_LENGTH, "%.*s",
-                (int)rfd->hostname.length, (char*)rfd->hostname.data);
-
-    TCP_registerListenSockets(pcm, hostname, rfd->port, conn->application,
-                              conn->context, conn->applicationCB, false, rfd->reuseaddr);
-
-    LIST_REMOVE(listenRfd, pointers);
-    UA_String_clear(&listenRfd->listenFd->hostname);
-    UA_free(listenRfd->listenFd);
-    UA_free(listenRfd);
-
-    if(!pcm->listenFDs.lh_first) {
-        el->maxSocketsLimitReached = false;
-    }
-
-    UA_UNLOCK(&el->elMutex);
-}
-
 static UA_StatusCode
 addListenSockets(void *application) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)application;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
 
-    UA_DeregisteredListenFD *listenFd;
-    LIST_FOREACH(listenFd, &pcm->listenFDs, pointers) {
-        if(listenFd->listenFd->dc.callback) {
-            UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                         "TCP %u\t| Cannot close - already closing",
-                         (unsigned)listenFd->listenFd->fd);
-            return UA_STATUSCODE_BADINTERNALERROR;
-        }
-
-        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-             "TCP %u\t| Reopen listen socket triggered",
-             (unsigned)listenFd->listenFd->fd);
-
-        /* Add to the delayed callback list. Will be cleaned up in the next
-         * iteration. */
-        UA_DelayedCallback *dc = &listenFd->listenFd->dc;
-        dc->callback = TCP_delayedReopen;
-        dc->application = application;
-        dc->context = listenFd;
-
-        /* Adding a delayed callback does not take a lock */
-        UA_EventLoopPOSIX_addDelayedCallback(pcm->cm.eventSource.eventLoop, dc);
-    }
     return UA_STATUSCODE_GOOD;
 }
 
 static void
 TCP_delayedClose(void *application, void *context) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)application;
     UA_ConnectionManager *cm = &pcm->cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     TCP_FD *conn = (TCP_FD*)context;
@@ -260,7 +203,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
                  (unsigned)conn->rfd.fd);
 
     /* Use the already allocated receive-buffer */
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_ByteString response = pcm->rxBuffer;
 
     /* Receive */
@@ -298,28 +241,13 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
 
 static void *
 removeListenSockets(void *application, UA_RegisteredFD *rfd) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)application;
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)application;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
     int optval;
     socklen_t optlen = sizeof(optval);
 
     if(UA_getsockopt(rfd->fd, SOL_SOCKET, SO_ACCEPTCONN, &optval, &optlen) == 0 && optval) {
         TCP_FD *fd = (TCP_FD*)rfd;
-        /* Check if it's already listed for reopening */
-        UA_Boolean alreadyAdded = UA_FALSE;
-        UA_DeregisteredListenFD *listenFd;
-        LIST_FOREACH(listenFd, &pcm->listenFDs, pointers) {
-            if(UA_String_equal(&listenFd->listenFd->hostname, &rfd->hostname)){
-                alreadyAdded = UA_TRUE;
-                break;
-            }
-        }
-
-        if(!alreadyAdded) {
-            listenFd = (UA_DeregisteredListenFD*)UA_calloc(1, sizeof(UA_DeregisteredListenFD));
-            listenFd->listenFd = rfd;
-            LIST_INSERT_HEAD(&pcm->listenFDs, listenFd, pointers);
-        }
 
         /* Ensure reuse is possible right away. Port-stealing is no longer an issue
          * as the socket gets closed anyway. And we do not want to wait for the
@@ -351,11 +279,9 @@ removeListenSockets(void *application, UA_RegisteredFD *rfd) {
                               (unsigned)rfd->fd, errno_str));
         }
 
-        if(alreadyAdded) {
-            UA_String_clear(&rfd->hostname);
-            UA_free(rfd);
-        }
-    }
+        UA_String_clear(&rfd->hostname);
+        UA_free(rfd);
+}
 
     return NULL;
 }
@@ -363,7 +289,7 @@ removeListenSockets(void *application, UA_RegisteredFD *rfd) {
 /* Gets called when a new connection opens or if the listenSocket is closed */
 static void
 TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
 
@@ -487,7 +413,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
 }
 
 static UA_StatusCode
-TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
+TCP_registerListenSocket(UA_PuffinConnectionManager *pcm, struct addrinfo *ai,
                          const char *hostname, UA_UInt16 port,
                          void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback,
@@ -703,7 +629,7 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
 }
 
 static UA_StatusCode
-TCP_registerListenSockets(UA_POSIXConnectionManager *pcm, const char *hostname,
+TCP_registerListenSockets(UA_PuffinConnectionManager *pcm, const char *hostname,
                           UA_UInt16 port, void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate, UA_Boolean reuseaddr) {
@@ -783,7 +709,7 @@ TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
 
 static UA_StatusCode
 TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)cm->eventSource.eventLoop;
     UA_LOCK(&el->elMutex);
 
@@ -849,7 +775,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     } while(nWritten < buf->length);
 
     /* Clean up and return */
-    UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
+    UA_EventLoopPuffin_freeNetworkBuffer(cm, connectionId, buf);
     return UA_STATUSCODE_GOOD;
 
  shutdown:
@@ -859,13 +785,13 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                     "TCP %u\t| Send failed with error %s",
                     (unsigned)connectionId, errno_str));
     TCP_shutdownConnection(cm, connectionId);
-    UA_EventLoopPOSIX_freeNetworkBuffer(cm, connectionId, buf);
+    UA_EventLoopPuffin_freeNetworkBuffer(cm, connectionId, buf);
     return UA_STATUSCODE_BADCONNECTIONCLOSED;
 }
 
 /* Create a listen-socket that waits for incoming connections */
 static UA_StatusCode
-TCP_openPassiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *params,
+TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *params,
                           void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate) {
@@ -926,7 +852,7 @@ TCP_openPassiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *
 
 /* Open a TCP connection to a remote host */
 static UA_StatusCode
-TCP_openActiveConnection(UA_POSIXConnectionManager *pcm, const UA_KeyValueMap *params,
+TCP_openActiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *params,
                          void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback,
                          UA_Boolean validate) {
@@ -1089,7 +1015,7 @@ static UA_StatusCode
 TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     UA_LOCK(&el->elMutex);
 
@@ -1143,7 +1069,7 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 
 static UA_StatusCode
 TCP_eventSourceStart(UA_ConnectionManager *cm) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     if(!el)
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -1189,7 +1115,7 @@ TCP_shutdownCB(void *application, UA_RegisteredFD *rfd) {
 
 static void
 TCP_eventSourceStop(UA_ConnectionManager *cm) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
     (void)el;
 
@@ -1212,7 +1138,7 @@ TCP_eventSourceStop(UA_ConnectionManager *cm) {
 
 static UA_StatusCode
 TCP_eventSourceDelete(UA_ConnectionManager *cm) {
-    UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     if(cm->eventSource.state >= UA_EVENTSOURCESTATE_STARTING) {
         UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_EVENTLOOP,
                      "TCP\t| The EventSource must be stopped before it can be deleted");
@@ -1230,10 +1156,12 @@ TCP_eventSourceDelete(UA_ConnectionManager *cm) {
 
 static const char *tcpName = "tcp";
 
+UA_PuffinConnectionManager *LAST_PUFFIN_CONNECTION_MANAGER = NULL;
+
 UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
-    UA_POSIXConnectionManager *cm = (UA_POSIXConnectionManager*)
-        UA_calloc(1, sizeof(UA_POSIXConnectionManager));
+    UA_PuffinConnectionManager *cm = (UA_PuffinConnectionManager*)
+        UA_calloc(1, sizeof(UA_PuffinConnectionManager));
     if(!cm)
         return NULL;
 
@@ -1244,10 +1172,18 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
     cm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))TCP_eventSourceDelete;
     cm->cm.protocol = UA_STRING((char*)(uintptr_t)tcpName);
     cm->cm.openConnection = TCP_openConnection;
-    cm->cm.allocNetworkBuffer = UA_EventLoopPOSIX_allocNetworkBuffer;
-    cm->cm.freeNetworkBuffer = UA_EventLoopPOSIX_freeNetworkBuffer;
+    cm->cm.allocNetworkBuffer = UA_EventLoopPuffin_allocNetworkBuffer;
+    cm->cm.freeNetworkBuffer = UA_EventLoopPuffin_freeNetworkBuffer;
     cm->cm.sendWithConnection = TCP_sendWithConnection;
     cm->cm.closeConnection = TCP_shutdownConnection;
+
+    /* Addition for Puffin */
+    LAST_PUFFIN_CONNECTION_MANAGER = cm;
+
     return &cm->cm;
 }
 
+UA_PuffinConnectionManager *take_last_puffin_connection_manager() {
+    UA_PuffinConnectionManager *result = LAST_PUFFIN_CONNECTION_MANAGER;
+    LAST_PUFFIN_CONNECTION_MANAGER = NULL;
+};
