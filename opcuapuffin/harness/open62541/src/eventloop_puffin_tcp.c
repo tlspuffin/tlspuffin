@@ -49,15 +49,6 @@ TCP_registerListenSockets(UA_PuffinConnectionManager *pcm, const char *hostname,
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate, UA_Boolean reuseaddr);
 
-/* Do not merge packets on the socket (disable Nagle's algorithm) */
-static UA_StatusCode
-TCP_setNoNagle(UA_FD sockfd) {
-    int val = 1;
-    int res = UA_setsockopt(sockfd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
-    if(res < 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-    return UA_STATUSCODE_GOOD;
-}
 
 /* Test if the ConnectionManager can be stopped */
 static void
@@ -340,7 +331,6 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     /* res |= UA_EventLoopPOSIX_setNonBlocking(newsockfd); Inherited from the listen-socket */
     res |= UA_EventLoopPOSIX_setNoSigPipe(newsockfd); /* Supress interrupts from the socket */
-    res |= TCP_setNoNagle(newsockfd);     /* Disable Nagle's algorithm */
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
@@ -637,7 +627,7 @@ TCP_registerListenSockets(UA_PuffinConnectionManager *pcm, const char *hostname,
 
     /* Create a string for the port */
     char portstr[6];
-    mp_snprintf(portstr, sizeof(portstr), "%d", port);
+    //mp_snprintf(portstr, sizeof(portstr), "%d", port);
 
     /* Get all the interface and IPv4/6 combinations for the configured hostname */
     struct addrinfo hints, *res;
@@ -816,37 +806,50 @@ TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap 
             addrsSize = addrs->arrayLength;
     }
 
-    /* Get the reuseaddr parameter */
-    UA_Boolean reuseaddr = false;
-    const UA_Boolean *reuseaddrTmp = (const UA_Boolean*)
-        UA_KeyValueMap_getScalar(params, tcpConnectionParams[TCP_PARAMINDEX_REUSE].name,
-                                 &UA_TYPES[UA_TYPES_BOOLEAN]);
-    if(reuseaddrTmp)
-        reuseaddr = *reuseaddrTmp;
+    /* Initialize the Puffin connexion manager,
+     * that manages the single connection with the fuzzer */
+    pcm->port = *port;
+    pcm->application = application;
+    pcm->context = context;
+    pcm->applicationCB = connectionCallback;
+
+    /* Set up the callback parameters */
+    UA_KeyValuePair cb_params[2];
+    cb_params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
+    UA_Variant_setScalar(&cb_params[0].value, port, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* Undefined or empty addresses array -> listen on all interfaces */
     UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
     if(addrsSize == 0) {
-        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                    "TCP\t| Listening on all interfaces");
-        if(TCP_registerListenSockets(pcm, NULL, *port, application,
-                                     context, connectionCallback, validate, reuseaddr) == UA_STATUSCODE_GOOD)
-            retval = UA_STATUSCODE_GOOD;
-        return retval;
-    }
-
-    /* Iterate over the configured hostnames */
-    UA_String *hostStrings = (UA_String*)addrs->data;
+        UA_String listenAddress = UA_STRING("localhost");
+        cb_params[1].key = UA_QUALIFIEDNAME(0, "listen-address");
+        UA_Variant_setScalar(&cb_params[1].value, &listenAddress, &UA_TYPES[UA_TYPES_STRING]);
+        retval = UA_STATUSCODE_GOOD;
+    };
     for(size_t i = 0; i < addrsSize; i++) {
         char hostname[512];
+        UA_String *hostStrings = (UA_String*)addrs->data;
         if(hostStrings[i].length >= sizeof(hostname))
             continue;
         memcpy(hostname, hostStrings[i].data, hostStrings->length);
         hostname[hostStrings->length] = '\0';
-        if(TCP_registerListenSockets(pcm, hostname, *port, application,
-                                     context, connectionCallback, validate, reuseaddr) == UA_STATUSCODE_GOOD)
-            retval = UA_STATUSCODE_GOOD;
+        UA_String listenAddress = UA_STRING(hostname);
+        cb_params[1].key = UA_QUALIFIEDNAME(0, "listen-address");
+        UA_Variant_setScalar(&cb_params[1].value, &listenAddress, &UA_TYPES[UA_TYPES_STRING]);
+        retval = UA_STATUSCODE_GOOD;
+        break;
+    };
+    if (retval != UA_STATUSCODE_GOOD) {
+        return retval;
     }
+    UA_KeyValueMap paramMap = {2, cb_params};
+
+    /* Announce the listen-socket in the application */
+    connectionCallback(&pcm->cm, (uintptr_t) &pcm->port,
+        application, &context,
+        UA_CONNECTIONSTATE_ESTABLISHED,
+        &paramMap, UA_BYTESTRING_NULL);
+
     return retval;
 }
 
@@ -878,7 +881,7 @@ TCP_openActiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *
         UA_KeyValueMap_getScalar(params, tcpConnectionParams[TCP_PARAMINDEX_PORT].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
     UA_assert(port); /* existence is checked before */
-    mp_snprintf(portStr, UA_MAXPORTSTR_LENGTH, "%d", *port);
+    //mp_snprintf(portStr, UA_MAXPORTSTR_LENGTH, "%d", *port);
 
     /* Prepare the hostname string */
     const UA_String *addr = (const UA_String*)
@@ -933,7 +936,6 @@ TCP_openActiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     res |= UA_EventLoopPOSIX_setNonBlocking(newSock);
     res |= UA_EventLoopPOSIX_setNoSigPipe(newSock);
-    res |= TCP_setNoNagle(newSock);
     if(res != UA_STATUSCODE_GOOD) {
         UA_LOG_SOCKET_ERRNO_WRAP(
             UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -1177,7 +1179,7 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
     cm->cm.sendWithConnection = TCP_sendWithConnection;
     cm->cm.closeConnection = TCP_shutdownConnection;
 
-    /* Addition for Puffin */
+    /* Addition for the Puffin agent */
     LAST_PUFFIN_CONNECTION_MANAGER = cm;
 
     return &cm->cm;
