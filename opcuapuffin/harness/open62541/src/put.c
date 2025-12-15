@@ -183,9 +183,25 @@ bool open62541_is_state_successful(AGENT agent) {
 void open62541_register_claimer(AGENT agent, const CLAIMER_CB *callback) {};
 
 RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written){
-    /* Drop the txBuffer and fills the rxBuffer */
-    return PUFFIN.make_result(RESULT_ERROR_OTHER, "Unimplemented!");
+    UA_PuffinConnectionManager *cm = agent->connexion_manager;
+    /* Fills the rxBuffer */
+    UA_ByteString response = cm->rxBuffer;
+    if (length > response.length) {
+        return PUFFIN.make_result(RESULT_ERROR_OTHER, "rxBuffer is too small!");
+    }
+    memcpy(response.data, bytes, length);
+    response.length = length;
+    *written = length;
+
+    /* notify application */
+    cm->applicationCB(&cm->cm, (uintptr_t) &cm->port,
+        cm->application, cm->context,
+        UA_CONNECTIONSTATE_ESTABLISHED,
+        &UA_KEYVALUEMAP_NULL, response);
+    return PUFFIN.make_result(RESULT_OK, "");
 };
+
+
 RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes){
     /* read the TxBuffer from the PuffinConnexionManager associated to the agent */
     return PUFFIN.make_result(RESULT_ERROR_OTHER, "Unimplemented!");

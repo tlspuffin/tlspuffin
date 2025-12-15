@@ -231,9 +231,14 @@ typedef LIST_HEAD(UA_DeregisteredListenFDList, UA_DeregisteredListenFD) UA_Dereg
 typedef struct {
     UA_ConnectionManager cm;
 
-    /* Statically allocated buffers */
-    UA_ByteString rxBuffer;
-    UA_ByteString txBuffer;
+    UA_ByteString rxBuffer; /* statically allocated */
+    UA_ByteString txBuffer; /* allocated by the caller */
+
+    UA_UInt16 port;
+
+    UA_ConnectionManager_connectionCallback applicationCB;
+    void *application;
+    void *context;
 
     /* Sorted tree of the FDs */
     size_t fdsSize;
