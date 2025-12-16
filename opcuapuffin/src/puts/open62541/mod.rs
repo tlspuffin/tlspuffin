@@ -7,7 +7,7 @@ use puffin::claims::GlobalClaimList;
 use puffin::error::Error;
 use puffin::put::{Put, PutOptions};
 use puffin::put_registry::Factory;
-use puffin::stream::{MemoryStream, Stream};
+use puffin::stream::Stream;
 
 use opcua::puffin::messages::MessageFlight;
 use opcua::puffin::types::{AgentType, ApplicationConfig};
@@ -23,11 +23,11 @@ mod raw;
 
 // An agent is a virtual TCP channel that is used by the fuzzer to communicate
 // with an OPC UA application instantiated in the library open62541.
+#[derive(Debug)]
 struct Agent {
     application: AgentDescriptor<ApplicationConfig>,
     _capabilities: HashSet<String>,
     _claims: GlobalClaimList<OpcuaClaim>,
-    fuzz_stream: MemoryStream,
     c_agent: AGENT,
     c_agent_interface: AGENT_INTERFACE
 }
@@ -36,12 +36,30 @@ impl Agent {}
 
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
-        log::warn!("Added a new message to the PUT of size {}", message.len());
-        <MemoryStream as Stream<OpcuaProtocolBehavior>>::add_to_inbound(&mut self.fuzz_stream, message);
+        log::error!("Add to imbound, agent: {:?}", &self);
+        log::error!("Open62541 Agent: try to add {} bytes!", message.len());
+        if let Some(c_add_inbound) = self.c_agent_interface.add_inbound {
+            unsafe {
+                let mut written: usize = 0;
+                c_add_inbound(self.c_agent, message.as_ptr(), message.len(), &mut written);
+                if message.len() != written {
+                    log::error!("Open62541 Agent: added to inbound only {} bytes out of {}!",
+                                written, message.len());
+                } else {
+                    log::warn!("Added a new message to the PUT of size {}", message.len());
+                }}
+        } else {
+            log::error!("Open62541 Agent: add_inbound unavailable!")
+        }
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
-        <MemoryStream as Stream<OpcuaProtocolBehavior>>::take_message_from_outbound(&mut self.fuzz_stream)
+        if let Some(c_take_outbound) = self.c_agent_interface.take_outbound {
+            Err(Error::Put("Open62541 Agent: take_outbound unavailable!".to_string()))
+        } else {
+            Err(Error::Put("Open62541 Agent: take_outbound unavailable!".to_string()))
+        }
+
     }
 }
 
@@ -132,7 +150,6 @@ impl Factory<OpcuaProtocolBehavior> for Open62541Factory {
                     application: application.clone(),
                     _capabilities: HashSet::new(),
                     _claims: claims.clone(),
-                    fuzz_stream: MemoryStream::new(),
                     c_agent: create_agent(&c_application_descriptor),
                     c_agent_interface: self.put_interface.agent_interface
                 }))

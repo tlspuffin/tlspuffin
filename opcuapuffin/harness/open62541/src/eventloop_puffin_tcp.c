@@ -722,61 +722,20 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 static UA_StatusCode
 TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        const UA_KeyValueMap *params, UA_ByteString *buf) {
-    /* We may not have a lock. But we need not take it. As the connectionId is
-     * the fd, no need to do a lookup and access internal data strucures. */
 
-    /* Prevent OS signals when sending to a closed socket */
-    int flags = MSG_NOSIGNAL;
-
-    struct pollfd tmp_poll_fd;
-    tmp_poll_fd.fd = (UA_FD)connectionId;
-    tmp_poll_fd.events = UA_POLLOUT;
-
-    /* Send the full buffer. This may require several calls to send */
-    size_t nWritten = 0;
-    do {
-        ssize_t n = 0;
-        do {
-            UA_RESET_ERRNO;
-            UA_LOG_DEBUG(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                         "TCP %u\t| Attempting to send", (unsigned)connectionId);
-            size_t bytes_to_send = buf->length - nWritten;
-            n = UA_send((UA_FD)connectionId,
-                        (const char*)buf->data + nWritten,
-                        bytes_to_send, flags);
-            if(n < 0) {
-                /* An error we cannot recover from? */
-                if(UA_ERRNO != UA_INTERRUPTED && UA_ERRNO != UA_WOULDBLOCK &&
-                   UA_ERRNO != UA_AGAIN)
-                    goto shutdown;
-
-                /* Poll for the socket resources to become available and retry
-                 * (blocking) */
-                int poll_ret;
-                do {
-                    UA_RESET_ERRNO;
-                    poll_ret = UA_poll(&tmp_poll_fd, 1, 100);
-                    if(poll_ret < 0 && UA_ERRNO != UA_INTERRUPTED)
-                        goto shutdown;
-                } while(poll_ret <= 0);
-            }
-        } while(n < 0);
-        nWritten += (size_t)n;
-    } while(nWritten < buf->length);
-
-    /* Clean up and return */
-    UA_EventLoopPuffin_freeNetworkBuffer(cm, connectionId, buf);
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*) cm;
+    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
+    if(pcm->txBuffer.data != buf->data) {
+        UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+            "TCP bytes to send are copied into the txBuffer");
+        UA_ByteString_clear(&pcm->txBuffer);
+        res = UA_ByteString_allocBuffer(&pcm->txBuffer, buf->length);
+        if (res != UA_STATUSCODE_GOOD) return res;
+        UA_ByteString_copy(buf, &pcm->txBuffer);
+        UA_ByteString_clear(buf);
+    };
     return UA_STATUSCODE_GOOD;
-
- shutdown:
-    /* Error -> shutdown the connection  */
-    UA_LOG_SOCKET_ERRNO_WRAP(
-       UA_LOG_ERROR(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                    "TCP %u\t| Send failed with error %s",
-                    (unsigned)connectionId, errno_str));
-    TCP_shutdownConnection(cm, connectionId);
-    UA_EventLoopPuffin_freeNetworkBuffer(cm, connectionId, buf);
-    return UA_STATUSCODE_BADCONNECTIONCLOSED;
 }
 
 /* Create a listen-socket that waits for incoming connections */
@@ -816,7 +775,7 @@ TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap 
     /* Set up the callback parameters */
     UA_KeyValuePair cb_params[2];
     cb_params[0].key = UA_QUALIFIEDNAME(0, "listen-port");
-    UA_Variant_setScalar(&cb_params[0].value, port, &UA_TYPES[UA_TYPES_UINT16]);
+    UA_Variant_setScalar(&cb_params[0].value, &pcm->port, &UA_TYPES[UA_TYPES_UINT16]);
 
     /* Undefined or empty addresses array -> listen on all interfaces */
     UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
@@ -1103,6 +1062,10 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
     /* Set the EventSource to the started state */
     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
 
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        "TCP\t| EventSource is started and rxBuffer allocated (at: %p, of size: %u).",
+        (void*) pcm, (void*) pcm->rxBuffer.data, pcm->rxBuffer.length);
+
  finish:
     UA_UNLOCK(&el->elMutex);
     return res;
@@ -1162,30 +1125,31 @@ UA_PuffinConnectionManager *LAST_PUFFIN_CONNECTION_MANAGER = NULL;
 
 UA_ConnectionManager *
 UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
-    UA_PuffinConnectionManager *cm = (UA_PuffinConnectionManager*)
+    UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)
         UA_calloc(1, sizeof(UA_PuffinConnectionManager));
-    if(!cm)
+    if(!pcm)
         return NULL;
 
-    cm->cm.eventSource.eventSourceType = UA_EVENTSOURCETYPE_CONNECTIONMANAGER;
-    UA_String_copy(&eventSourceName, &cm->cm.eventSource.name);
-    cm->cm.eventSource.start = (UA_StatusCode (*)(UA_EventSource *))TCP_eventSourceStart;
-    cm->cm.eventSource.stop = (void (*)(UA_EventSource *))TCP_eventSourceStop;
-    cm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))TCP_eventSourceDelete;
-    cm->cm.protocol = UA_STRING((char*)(uintptr_t)tcpName);
-    cm->cm.openConnection = TCP_openConnection;
-    cm->cm.allocNetworkBuffer = UA_EventLoopPuffin_allocNetworkBuffer;
-    cm->cm.freeNetworkBuffer = UA_EventLoopPuffin_freeNetworkBuffer;
-    cm->cm.sendWithConnection = TCP_sendWithConnection;
-    cm->cm.closeConnection = TCP_shutdownConnection;
+    pcm->cm.eventSource.eventSourceType = UA_EVENTSOURCETYPE_CONNECTIONMANAGER;
+    UA_String_copy(&eventSourceName, &pcm->cm.eventSource.name);
+    pcm->cm.eventSource.start = (UA_StatusCode (*)(UA_EventSource *))TCP_eventSourceStart;
+    pcm->cm.eventSource.stop = (void (*)(UA_EventSource *))TCP_eventSourceStop;
+    pcm->cm.eventSource.free = (UA_StatusCode (*)(UA_EventSource *))TCP_eventSourceDelete;
+    pcm->cm.protocol = UA_STRING((char*)(uintptr_t)tcpName);
+    pcm->cm.openConnection = TCP_openConnection;
+    pcm->cm.allocNetworkBuffer = UA_EventLoopPuffin_allocNetworkBuffer;
+    pcm->cm.freeNetworkBuffer = UA_EventLoopPuffin_freeNetworkBuffer;
+    pcm->cm.sendWithConnection = TCP_sendWithConnection;
+    pcm->cm.closeConnection = TCP_shutdownConnection;
 
     /* Addition for the Puffin agent */
-    LAST_PUFFIN_CONNECTION_MANAGER = cm;
+    LAST_PUFFIN_CONNECTION_MANAGER = pcm;
 
-    return &cm->cm;
+    return &pcm->cm;
 }
 
 UA_PuffinConnectionManager *take_last_puffin_connection_manager() {
     UA_PuffinConnectionManager *result = LAST_PUFFIN_CONNECTION_MANAGER;
     LAST_PUFFIN_CONNECTION_MANAGER = NULL;
+    return result;
 };

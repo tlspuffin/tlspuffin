@@ -82,6 +82,13 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
     if (descriptor->role == SERVER) {
         UA_Server *server = UA_Server_new();
         UA_ServerConfig *config = UA_Server_getConfig(server);
+
+        /* Exchange the logger */
+        UA_LogLevel log_level = UA_LOGLEVEL_TRACE;
+        UA_Logger logger = UA_Log_Stdout_withLevel( log_level );
+        logger.clear = config->logging->clear;
+        *config->logging = logger;
+
         /* Do not care about timestamps! */
         config->verifyRequestTimestamp = UA_RULEHANDLING_ACCEPT;
 
@@ -120,20 +127,27 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
             trustList, trustListSize,
             issuerList, issuerListSize,
             revocationList, revocationListSize);
+        if (retval) {
+            _log(PUFFIN.error, "UA Server config returned %u", retval);
+        }
 
         retval = UA_Server_run_startup(server);
         if (retval) {
             _log(PUFFIN.error, "UA Server startup returned %u", retval);
         }
 
-        AGENT agent = (AGENT) UA_malloc(sizeof(AGENT));
+        AGENT agent = (AGENT) UA_malloc(sizeof(struct AGENT_TYPE));
         agent->id = descriptor->id;
         agent->role = descriptor->role;
         agent->application = (APPLICATION) server;
         UA_PuffinConnectionManager *pcm = take_last_puffin_connection_manager();
         if (pcm) {
             agent->connexion_manager = pcm;
+            UA_Server_run_iterate(server, false);
+            _log(PUFFIN.error, "Server run ...");
+
         } else {
+            agent->connexion_manager = NULL;
             _log(PUFFIN.error, "Puffin Connection Manager is unavailable!");
         }
         return agent;
@@ -160,13 +174,12 @@ void open62541_destroy(AGENT agent) {
 }
 
 RESULT open62541_progress(AGENT agent){
-    if (agent->role == CLIENT) {
-        return PUFFIN.make_result(RESULT_ERROR_OTHER, "Client unimplemented!");
-    }
     if (agent->role == SERVER) {
         UA_Server_run_iterate((UA_Server*) agent->application, false);
+        _log(PUFFIN.error, "Server run ...");
+        return PUFFIN.make_result(RESULT_OK, "");
     }
-    return PUFFIN.make_result(RESULT_OK, "");
+    return PUFFIN.make_result(RESULT_ERROR_OTHER, "Client unimplemented!");
 }
 
 RESULT open62541_reset(AGENT agent, uint8_t new_name, uint8_t use_clear){
@@ -180,31 +193,51 @@ const char* open62541_describe_state(AGENT agent){
 bool open62541_is_state_successful(AGENT agent) {
     return true;
 };
+
 void open62541_register_claimer(AGENT agent, const CLAIMER_CB *callback) {};
 
+
 RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written){
-    UA_PuffinConnectionManager *cm = agent->connexion_manager;
+
+    UA_PuffinConnectionManager *pcm = agent->connexion_manager;
+    if (!pcm) return PUFFIN.make_result(RESULT_ERROR_OTHER, "Connection Manager unavailable.");
+
     /* Fills the rxBuffer */
-    UA_ByteString response = cm->rxBuffer;
-    if (length > response.length) {
+    UA_ByteString buffer = pcm->rxBuffer;
+    if (length > buffer.length) {
         return PUFFIN.make_result(RESULT_ERROR_OTHER, "rxBuffer is too small!");
     }
-    memcpy(response.data, bytes, length);
-    response.length = length;
+
+    memcpy(buffer.data, bytes, length);
+    buffer.length = length;
     *written = length;
 
     /* notify application */
-    cm->applicationCB(&cm->cm, (uintptr_t) &cm->port,
-        cm->application, cm->context,
+    _log(PUFFIN.error, "Added %u bytes in rxBuffer.", *written);
+    pcm->applicationCB(&pcm->cm, (uintptr_t) &pcm->port,
+        pcm->application, &pcm->context,
         UA_CONNECTIONSTATE_ESTABLISHED,
-        &UA_KEYVALUEMAP_NULL, response);
+        &UA_KEYVALUEMAP_NULL, buffer);
+
     return PUFFIN.make_result(RESULT_OK, "");
 };
 
 
 RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes){
+
+    _log(PUFFIN.error, "open62541_take_outbound");
+
     /* read the TxBuffer from the PuffinConnexionManager associated to the agent */
-    return PUFFIN.make_result(RESULT_ERROR_OTHER, "Unimplemented!");
+    UA_PuffinConnectionManager *pcm = agent->connexion_manager;
+
+    if (pcm->txBuffer.length > max_length) {
+        return PUFFIN.make_result(RESULT_ERROR_OTHER, "Too many bytes to take from the outbound.");
+    };
+    readbytes = &pcm->txBuffer.length;
+    bytes = pcm->txBuffer.data;
+
+    // UA_EventLoopPuffin_freeNetworkBuffer(&pcm->cm, (uintptr_t) &pcm->port, &pcm->txBuffer);
+    return PUFFIN.make_result(RESULT_OK, "");
 };
 
 const char* open62541_version() {
