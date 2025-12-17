@@ -24,7 +24,7 @@ pub fn create_corpus(
         (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
         (seed_ap_client_open_unsecure_channel(AgentName::first()), "seed_ap_client_open_unsecure_channel"),
         (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel"),
-      //(seed_c_server_open_unsecure_channel(AgentName::first()), "seed_c_server_open_unsecure_channel"),
+        (seed_c_server_open_unsecure_channel(AgentName::first()), "seed_c_server_open_unsecure_channel"),
         (seed_d_client_activate_session(AgentName::first()), "seed_d_client_activate_session"),
     ]
 }
