@@ -72,8 +72,69 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
 
     if (descriptor->role == CLIENT)
     {
-        _log(PUFFIN.error, "Client unimplemented!");
-        return NULL;
+        /* Create the server and set its config */
+        UA_Client *client = UA_Client_new(); /* Registers a null event source ?? Why ?? */
+        UA_ClientConfig *config = UA_Client_getConfig(client);
+
+        /* Exchange the logger */
+        UA_LogLevel log_level = UA_LOGLEVEL_TRACE;
+        UA_Logger logger = UA_Log_Stdout_withLevel( log_level );
+        logger.clear = config->logging->clear;
+        *config->logging = logger;
+
+        /* Set securityMode and securityPolicyUri */
+        config->securityMode = UA_MESSAGESECURITYMODE_SIGN;
+        config->securityPolicyUri = UA_String_fromChars("http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256");
+
+        /* no need to UA_malloc, memcopy and then UA_ByteString_clear */
+        /* the certificates and private keys are owned by the caller in open62541 */
+        UA_ByteString certificate = UA_BYTESTRING_NULL;
+        if (descriptor->cert->length > 0) {
+            certificate.data = (UA_Byte*) descriptor->cert->bytes;
+            if (certificate.data) {
+                certificate.length = descriptor->cert->length;
+            } else {
+                certificate.data = (UA_Byte*) UA_EMPTY_ARRAY_SENTINEL;
+            }
+        }
+        UA_ByteString privateKey = UA_BYTESTRING_NULL;
+        if (descriptor->pkey->length > 0) {
+            privateKey.data = (UA_Byte*) descriptor->pkey->bytes;
+            if (privateKey.data) {
+                privateKey.length = descriptor->pkey->length;
+            } else {
+                privateKey.data = (UA_Byte*) UA_EMPTY_ARRAY_SENTINEL;
+            }
+        }
+        UA_UInt16 port = 4840 + 256 + (UA_UInt16) descriptor->id;
+
+        UA_StatusCode retval = UA_ClientConfig_setDefaultEncryption(
+            config, certificate, privateKey, NULL, 0, NULL, 0);
+        if (retval) {
+            _log(PUFFIN.error, "UA Client config returned %u", retval);
+        }
+        UA_CertificateGroup_AcceptAll(&config->certificateVerification);
+
+        config->timeout = 100000; // ms = 100s
+        const UA_String listenHost = UA_STRING_STATIC("127.0.0.1");
+        retval = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, port);
+        if (retval != UA_STATUSCODE_GOOD) {
+            _log(PUFFIN.error,"Client listen for reverse connect, error: %u", retval);
+        };
+        _log(PUFFIN.error,"Client create");
+
+        AGENT agent = (AGENT) UA_malloc(sizeof(struct AGENT_TYPE));
+        agent->id = descriptor->id;
+        agent->role = descriptor->role;
+        agent->application = (Application*) client;
+        UA_PuffinConnectionManager *pcm = take_last_puffin_connection_manager();
+        if (pcm) {
+            agent->connexion_manager = pcm;
+        } else {
+            agent->connexion_manager = NULL;
+            _log(PUFFIN.error, "Puffin Connection Manager is unavailable!");
+        }
+        return agent;
     }
 
     if (descriptor->role == SERVER) {
@@ -156,7 +217,9 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
 
 void open62541_destroy(AGENT agent) {
     if (agent->role == CLIENT) {
-        _log(PUFFIN.error,"Client unimplemented!");
+        UA_Client *client = (UA_Client*) agent->application;
+        UA_Client_disconnect(client);
+        UA_Client_delete(client);
     }
     if (agent->role == SERVER) {
         UA_Server *server = (UA_Server*) agent->application;
@@ -165,11 +228,15 @@ void open62541_destroy(AGENT agent) {
         if (status) _log(PUFFIN.error, "UA Server shutdown returned %u", status);
         status = UA_Server_delete(server);
         if (status) _log(PUFFIN.error, "UA Server delete returned %u", status);
-        UA_free(agent);
     }
+    UA_free(agent);
 }
 
 RESULT open62541_progress(AGENT agent){
+    if (agent->role == CLIENT) {
+        UA_Client_run_iterate((UA_Client*) agent->application, 1);
+        return PUFFIN.make_result(RESULT_OK, "");
+    }
     if (agent->role == SERVER) {
         UA_Server_run_iterate((UA_Server*) agent->application, false);
         return PUFFIN.make_result(RESULT_OK, "");

@@ -388,6 +388,13 @@ UA_EventLoopPOSIX_registerEventSource(UA_EventLoopPOSIX *el,
                                       UA_EventSource *es) {
     UA_LOCK(&el->elMutex);
 
+    if(!es) {
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                        "Cannot register a null EventSource!");
+        UA_UNLOCK(&el->elMutex);
+        return UA_STATUSCODE_BADINTERNALERROR;
+    }
+
     /* Already registered? */
     if(es->state != UA_EVENTSOURCESTATE_FRESH) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -633,10 +640,6 @@ UA_EventLoopPOSIX_allocateStaticBuffers(UA_PuffinConnectionManager *pcm) {
     if(pcm->rxBuffer.length != rxBufSize) {
         UA_ByteString_clear(&pcm->rxBuffer);
         res = UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
-        if (!res) {
-            UA_LOG_ERROR(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                "Allocated rxBuffer of size %u at %p", pcm->rxBuffer.length, pcm->rxBuffer.data);
-        }
     }
 
     const UA_UInt32 *txBufSize = (const UA_UInt32 *)
