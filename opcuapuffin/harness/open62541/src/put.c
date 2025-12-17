@@ -4,8 +4,6 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
 //#include <open62541/client_highlevel.h>
-//#include <open62541/client_highlevel_async.h>
-//#include <open62541/client_subscriptions.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
 //#include <open62541/plugin/accesscontrol.h>
@@ -15,7 +13,6 @@
 //#include <open62541/plugin/pki.h>
 //#include <open62541/plugin/pki_default.h>
 #include <open62541/plugin/securitypolicy.h>
-//#include <open62541/plugin/create_certificate.h>
 #include <open62541/plugin/securitypolicy_default.h>
 
 #include "eventloop_puffin.h"
@@ -55,14 +52,14 @@ const OPCUA_PUT_INTERFACE open62541() {
 
 /* An APPLICATION is either a UA_Client or UA_Server,
    depending on role */
-typedef struct Client_or_Server* APPLICATION;
+typedef struct Client_or_Server Application;
 
 /* private AGENT type */
 struct AGENT_TYPE {
     uint8_t id;
 
     OPCUA_AGENT_ROLE role;
-    APPLICATION application;
+    Application *application;
 
     UA_PuffinConnectionManager *connexion_manager;
 
@@ -139,13 +136,10 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
         AGENT agent = (AGENT) UA_malloc(sizeof(struct AGENT_TYPE));
         agent->id = descriptor->id;
         agent->role = descriptor->role;
-        agent->application = (APPLICATION) server;
+        agent->application = (Application*) server;
         UA_PuffinConnectionManager *pcm = take_last_puffin_connection_manager();
         if (pcm) {
             agent->connexion_manager = pcm;
-            UA_Server_run_iterate(server, false);
-            _log(PUFFIN.error, "Server run ...");
-
         } else {
             agent->connexion_manager = NULL;
             _log(PUFFIN.error, "Puffin Connection Manager is unavailable!");
@@ -166,9 +160,11 @@ void open62541_destroy(AGENT agent) {
     }
     if (agent->role == SERVER) {
         UA_Server *server = (UA_Server*) agent->application;
-        UA_StatusCode status = 0;
+        UA_StatusCode status;
         status = UA_Server_run_shutdown(server);
+        if (status) _log(PUFFIN.error, "UA Server shutdown returned %u", status);
         status = UA_Server_delete(server);
+        if (status) _log(PUFFIN.error, "UA Server delete returned %u", status);
         UA_free(agent);
     }
 }
@@ -176,7 +172,6 @@ void open62541_destroy(AGENT agent) {
 RESULT open62541_progress(AGENT agent){
     if (agent->role == SERVER) {
         UA_Server_run_iterate((UA_Server*) agent->application, false);
-        _log(PUFFIN.error, "Server run ...");
         return PUFFIN.make_result(RESULT_OK, "");
     }
     return PUFFIN.make_result(RESULT_ERROR_OTHER, "Client unimplemented!");
@@ -197,6 +192,8 @@ bool open62541_is_state_successful(AGENT agent) {
 void open62541_register_claimer(AGENT agent, const CLAIMER_CB *callback) {};
 
 
+#define RX_BUFFER_MAX_SIZE (2u << 16)
+
 RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written){
 
     UA_PuffinConnectionManager *pcm = agent->connexion_manager;
@@ -204,7 +201,7 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
 
     /* Fills the rxBuffer */
     UA_ByteString buffer = pcm->rxBuffer;
-    if (length > buffer.length) {
+    if (length > RX_BUFFER_MAX_SIZE) {
         return PUFFIN.make_result(RESULT_ERROR_OTHER, "rxBuffer is too small!");
     }
 
@@ -213,8 +210,10 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
     *written = length;
 
     /* notify application */
-    _log(PUFFIN.error, "Added %u bytes in rxBuffer.", *written);
-    pcm->applicationCB(&pcm->cm, (uintptr_t) &pcm->port,
+    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                 "TCP %u\t| Received message of size %u", pcm->connectionId, *written);
+    pcm->applicationCB(&pcm->cm, (uintptr_t) (pcm->connectionId),
         pcm->application, &pcm->context,
         UA_CONNECTIONSTATE_ESTABLISHED,
         &UA_KEYVALUEMAP_NULL, buffer);
@@ -225,18 +224,21 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
 
 RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes){
 
-    _log(PUFFIN.error, "open62541_take_outbound");
-
     /* read the TxBuffer from the PuffinConnexionManager associated to the agent */
     UA_PuffinConnectionManager *pcm = agent->connexion_manager;
 
     if (pcm->txBuffer.length > max_length) {
         return PUFFIN.make_result(RESULT_ERROR_OTHER, "Too many bytes to take from the outbound.");
     };
-    readbytes = &pcm->txBuffer.length;
-    bytes = pcm->txBuffer.data;
-
-    // UA_EventLoopPuffin_freeNetworkBuffer(&pcm->cm, (uintptr_t) &pcm->port, &pcm->txBuffer);
+    if (pcm->txBuffer.length > 8) {
+        // UATCP messages start with MessageType (3 bytes), IsFinal(1 byte), MessageSize
+        UA_UInt32 *message_size = (pcm->txBuffer.data + 4);
+        memcpy(bytes, pcm->txBuffer.data, (size_t) *message_size);
+        *readbytes = (size_t) *message_size;
+        UA_EventLoopPuffin_freeNetworkBuffer(&pcm->cm, (uintptr_t) pcm->connectionId, &pcm->txBuffer);
+    } else {
+        *readbytes = 0;
+    };
     return PUFFIN.make_result(RESULT_OK, "");
 };
 

@@ -232,9 +232,10 @@ typedef struct {
     UA_ConnectionManager cm;
 
     UA_ByteString rxBuffer; /* statically allocated */
-    UA_ByteString txBuffer; /* allocated by the caller */
+    UA_ByteString txBuffer; /* allocated by the caller? */
 
     UA_UInt16 port;
+    uintptr_t connectionId;
 
     UA_ConnectionManager_connectionCallback applicationCB;
     void *application;
