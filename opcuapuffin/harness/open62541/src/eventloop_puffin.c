@@ -593,12 +593,14 @@ UA_EventLoopPuffin_allocNetworkBuffer(UA_ConnectionManager *cm,
                                      UA_ByteString *buf,
                                      size_t bufSize) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
-    if(pcm->txBuffer.length == 0)
-        return UA_ByteString_allocBuffer(buf, bufSize);
-    if(pcm->txBuffer.length < bufSize)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    *buf = pcm->txBuffer;
-    buf->length = bufSize;
+    if(pcm->txBuffer.length == 0) {
+        UA_StatusCode status = UA_ByteString_allocBuffer(buf, bufSize);
+        if (status) return status;
+        if(buf->length < bufSize) return UA_STATUSCODE_BADOUTOFMEMORY;
+        pcm->txBuffer = *buf;
+        UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+            "TCP %u\t| Allocated txBuffer of size %u at %p", (unsigned)connectionId, pcm->txBuffer.length, pcm->txBuffer.data);
+    }
     return UA_STATUSCODE_GOOD;
 }
 
@@ -607,10 +609,15 @@ UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     uintptr_t connectionId,
                                     UA_ByteString *buf) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
-    if(pcm->txBuffer.data == buf->data)
+    if(pcm->txBuffer.data == buf->data) {
+        UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+            "TCP %u\t| Free txBuffer (init) of size %u, at %p", (unsigned)connectionId, buf->length, buf->data);
         UA_ByteString_init(buf);
-    else
+    } else {
+        UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+            "TCP %u\t| Free txBuffer (clear) of size %u, at %p", (unsigned)connectionId, buf->length, buf->data);
         UA_ByteString_clear(buf);
+    }
 }
 
 UA_StatusCode
@@ -626,6 +633,10 @@ UA_EventLoopPOSIX_allocateStaticBuffers(UA_PuffinConnectionManager *pcm) {
     if(pcm->rxBuffer.length != rxBufSize) {
         UA_ByteString_clear(&pcm->rxBuffer);
         res = UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
+        if (!res) {
+            UA_LOG_ERROR(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                "Allocated rxBuffer of size %u at %p", pcm->rxBuffer.length, pcm->rxBuffer.data);
+        }
     }
 
     const UA_UInt32 *txBufSize = (const UA_UInt32 *)

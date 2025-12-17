@@ -720,10 +720,12 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
 }
 
 static UA_StatusCode
-TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
+Puffin_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        const UA_KeyValueMap *params, UA_ByteString *buf) {
 
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*) cm;
+    UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+        "TCP %u\t| Attempting to send", (unsigned)connectionId);
     UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
     if(pcm->txBuffer.data != buf->data) {
         UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
@@ -740,7 +742,7 @@ TCP_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 /* Create a listen-socket that waits for incoming connections */
 static UA_StatusCode
-TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *params,
+Puffin_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *params,
                           void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate) {
@@ -768,6 +770,7 @@ TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap 
     /* Initialize the Puffin connexion manager,
      * that manages the single connection with the fuzzer */
     pcm->port = *port;
+    pcm->connectionId = (uintptr_t) (*port - 4839);
     pcm->application = application;
     pcm->context = context;
     pcm->applicationCB = connectionCallback;
@@ -779,10 +782,9 @@ TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap 
 
     /* Undefined or empty addresses array -> listen on all interfaces */
     UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
+    UA_String listenAddress;
     if(addrsSize == 0) {
-        UA_String listenAddress = UA_STRING("localhost");
-        cb_params[1].key = UA_QUALIFIEDNAME(0, "listen-address");
-        UA_Variant_setScalar(&cb_params[1].value, &listenAddress, &UA_TYPES[UA_TYPES_STRING]);
+        listenAddress = UA_STRING("localhost");
         retval = UA_STATUSCODE_GOOD;
     };
     for(size_t i = 0; i < addrsSize; i++) {
@@ -793,21 +795,42 @@ TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap 
         memcpy(hostname, hostStrings[i].data, hostStrings->length);
         hostname[hostStrings->length] = '\0';
         UA_String listenAddress = UA_STRING(hostname);
-        cb_params[1].key = UA_QUALIFIEDNAME(0, "listen-address");
-        UA_Variant_setScalar(&cb_params[1].value, &listenAddress, &UA_TYPES[UA_TYPES_STRING]);
         retval = UA_STATUSCODE_GOOD;
         break;
     };
     if (retval != UA_STATUSCODE_GOOD) {
         return retval;
     }
+    cb_params[1].key = UA_QUALIFIEDNAME(0, "listen-address");
+    UA_Variant_setScalar(&cb_params[1].value, &listenAddress, &UA_TYPES[UA_TYPES_STRING]);
     UA_KeyValueMap paramMap = {2, cb_params};
 
+    UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        "TCP %u\t| Creating Puffin listen socket for \"%s\" on port %u",
+                (unsigned) pcm->connectionId, listenAddress.data, pcm->port);
+
     /* Announce the listen-socket in the application */
-    connectionCallback(&pcm->cm, (uintptr_t) &pcm->port,
-        application, &context,
+    connectionCallback(&pcm->cm, (uintptr_t) (pcm->connectionId),
+        application, &pcm->context,
         UA_CONNECTIONSTATE_ESTABLISHED,
         &paramMap, UA_BYTESTRING_NULL);
+
+    /* Forward the remote hostname to the application */
+    UA_KeyValuePair kvp;
+    kvp.key = UA_QUALIFIEDNAME(0, "remote-address");
+    UA_String hostName = UA_STRING("localhost");
+    UA_Variant_setScalar(&kvp.value, &hostName, &UA_TYPES[UA_TYPES_STRING]);
+
+    UA_KeyValueMap kvm;
+    kvm.mapSize = 1;
+    kvm.map = &kvp;
+
+    /* The socket has opened. Signal it to the application. */
+    /* connection context is updated by the callback! */
+    connectionCallback(&pcm->cm, pcm->connectionId,
+        application, &pcm->context,
+        UA_CONNECTIONSTATE_ESTABLISHED,
+        &kvm, UA_BYTESTRING_NULL);
 
     return retval;
 }
@@ -840,7 +863,6 @@ TCP_openActiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *
         UA_KeyValueMap_getScalar(params, tcpConnectionParams[TCP_PARAMINDEX_PORT].name,
                                  &UA_TYPES[UA_TYPES_UINT16]);
     UA_assert(port); /* existence is checked before */
-    //mp_snprintf(portStr, UA_MAXPORTSTR_LENGTH, "%d", *port);
 
     /* Prepare the hostname string */
     const UA_String *addr = (const UA_String*)
@@ -1017,7 +1039,7 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         listen = *listenParam;
 
     if(listen) {
-        res = TCP_openPassiveConnection(pcm, params, application, context,
+        res = Puffin_openPassiveConnection(pcm, params, application, context,
                                         connectionCallback, validate);
     } else {
         res = TCP_openActiveConnection(pcm, params, application, context,
@@ -1139,7 +1161,7 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
     pcm->cm.openConnection = TCP_openConnection;
     pcm->cm.allocNetworkBuffer = UA_EventLoopPuffin_allocNetworkBuffer;
     pcm->cm.freeNetworkBuffer = UA_EventLoopPuffin_freeNetworkBuffer;
-    pcm->cm.sendWithConnection = TCP_sendWithConnection;
+    pcm->cm.sendWithConnection = Puffin_sendWithConnection;
     pcm->cm.closeConnection = TCP_shutdownConnection;
 
     /* Addition for the Puffin agent */

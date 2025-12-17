@@ -1,15 +1,18 @@
 use std::collections::HashSet;
 use std::ffi::CStr;
+use std::mem::transmute;
+use std::ptr::NonNull;
 
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::ConcreteMessage;
 use puffin::claims::GlobalClaimList;
+use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
 use puffin::put::{Put, PutOptions};
 use puffin::put_registry::Factory;
 use puffin::stream::Stream;
 
-use opcua::puffin::messages::MessageFlight;
+use opcua::puffin::messages::{Message, MessageFlight};
 use opcua::puffin::types::{AgentType, ApplicationConfig};
 
 use crate::claims::OpcuaClaim;
@@ -32,12 +35,12 @@ struct Agent {
     c_agent_interface: AGENT_INTERFACE
 }
 
-impl Agent {}
+impl Agent {
+    const MAX_BUFFER_CAPACITY: usize = 2 << 32;
+}
 
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
-        log::error!("Add to imbound, agent: {:?}", &self);
-        log::error!("Open62541 Agent: try to add {} bytes!", message.len());
         if let Some(c_add_inbound) = self.c_agent_interface.add_inbound {
             unsafe {
                 let mut written: usize = 0;
@@ -54,8 +57,19 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
-        if let Some(c_take_outbound) = self.c_agent_interface.take_outbound {
-            Err(Error::Put("Open62541 Agent: take_outbound unavailable!".to_string()))
+        if let Some(c_take_outbound) = self.c_agent_interface.
+        take_outbound {
+            let mut buffer: Vec<u8> = vec![0; Agent::MAX_BUFFER_CAPACITY];
+            unsafe {
+                let mut read: usize = 0;
+                let bytes: *mut u8 = buffer.as_mut_ptr();
+                c_take_outbound(self.c_agent, bytes, Agent::MAX_BUFFER_CAPACITY, &mut read);
+                if read > 0 {
+                    let mut rd = Reader::init(&buffer[0..read]);
+                    Ok(MessageFlight::read(&mut rd))
+                } else {
+                    Ok(None)
+                }}
         } else {
             Err(Error::Put("Open62541 Agent: take_outbound unavailable!".to_string()))
         }
