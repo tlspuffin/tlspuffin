@@ -49,8 +49,13 @@ TCP_checkStopped(UA_PuffinConnectionManager *pcm) {
     if(//pcm->fdsSize == 0 &&
        pcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING) {
         UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                     "TCP\t| All sockets closed, the EventLoop has stopped");
+                     "TCP\t| All sockets closed, the EventSource is stopped");
         pcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
+        // pcm->cm.eventSource.eventLoop->stop((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop);
+    } else {
+        UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+            "TCP\t| EventSource is STOPPING");
+        // pcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
     }
 }
 
@@ -205,15 +210,17 @@ static UA_StatusCode
 TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)cm->eventSource.eventLoop;
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Shutdown triggered",
-        (unsigned)connectionId);
-    
+
     /* Signal closing to the application */
-    pcm->applicationCB(cm, pcm->connectionId,
+    if (!pcm) pcm->applicationCB(cm, pcm->connectionId,
         pcm->application, &pcm->context,
         UA_CONNECTIONSTATE_CLOSING,
         &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        "TCP %u\t| Socket closed",
+        (unsigned)connectionId);
+
+    TCP_checkStopped(pcm);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -512,7 +519,6 @@ static void
 TCP_eventSourceStop(UA_ConnectionManager *cm) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
-    (void)el;
 
     UA_LOCK(&el->elMutex);
 
@@ -523,7 +529,7 @@ TCP_eventSourceStop(UA_ConnectionManager *cm) {
     cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
 
     /* Shutdown all existing connection */
-    ZIP_ITER(UA_FDTree, &pcm->fds, TCP_shutdownCB, cm);
+    // ZIP_ITER(UA_FDTree, &pcm->fds, TCP_shutdownCB, cm);
 
     /* All sockets closed? Otherwise iterate some more. */
     TCP_checkStopped(pcm);

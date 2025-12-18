@@ -258,12 +258,12 @@ checkClosed(UA_EventLoopPOSIX *el) {
     }
 
     /* Not closed until all delayed callbacks are processed */
-    if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
-        return;
+   // if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
+   //     return;
 
     /* Close the self-pipe when everything else is done */
-    UA_close(el->selfpipe[0]);
-    UA_close(el->selfpipe[1]);
+   // UA_close(el->selfpipe[0]);
+   // UA_close(el->selfpipe[1]);
 
     /* Dirty-write the state that is const "from the outside" */
     *(UA_EventLoopState*)(uintptr_t)&el->eventLoop.state =
@@ -271,7 +271,7 @@ checkClosed(UA_EventLoopPOSIX *el) {
 
     /* Close the epoll/IOCP socket once all EventSources have shut down */
 #ifdef UA_HAVE_EPOLL
-    UA_close(el->epollfd);
+    //UA_close(el->epollfd);
 #endif
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
@@ -354,21 +354,21 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
      * itself). In that case we don't want to wait (indefinitely) for an event
      * to happen. Process queued events but don't sleep. Then process the
      * delayed callbacks in the next iteration. */
-    if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
-        timeout = 0;
+    // if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
+    //     timeout = 0;
 
     /* Compute the remaining time */
-    UA_DateTime maxDate = dateBefore + (timeout * UA_DATETIME_MSEC);
-    if(dateNext > maxDate)
-        dateNext = maxDate;
-    UA_DateTime listenTimeout =
-        dateNext - el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
-    if(listenTimeout < 0)
-        listenTimeout = 0;
+    // UA_DateTime maxDate = dateBefore + (timeout * UA_DATETIME_MSEC);
+    // if(dateNext > maxDate)
+    //     dateNext = maxDate;
+    // UA_DateTime listenTimeout =
+    //     dateNext - el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
+    // if(listenTimeout < 0)
+    //     listenTimeout = 0;
 
     /* Listen on the active file-descriptors (sockets) from the
      * ConnectionManagers */
-    UA_StatusCode rv = UA_EventLoopPOSIX_pollFDs(el, listenTimeout);
+    //UA_StatusCode rv = UA_EventLoopPOSIX_pollFDs(el, listenTimeout);
 
     /* Check if the last EventSource was successfully stopped */
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPING)
@@ -376,7 +376,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
 
     el->executing = false;
     UA_UNLOCK(&el->elMutex);
-    return rv;
+    return UA_STATUSCODE_GOOD;
 }
 
 /*****************************/
