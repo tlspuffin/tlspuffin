@@ -3,6 +3,7 @@
 #include <open62541/types.h>
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
+#include <open62541/plugin/certificategroup_default.h>
 //#include <open62541/client_highlevel.h>
 #include <open62541/server.h>
 #include <open62541/server_config_default.h>
@@ -121,7 +122,6 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
         if (retval != UA_STATUSCODE_GOOD) {
             _log(PUFFIN.error,"Client listen for reverse connect, error: %u", retval);
         };
-        _log(PUFFIN.error,"Client create");
 
         AGENT agent = (AGENT) UA_malloc(sizeof(struct AGENT_TYPE));
         agent->id = descriptor->id;
@@ -179,19 +179,19 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
         UA_ByteString *revocationList = NULL;
         UA_STACKARRAY(UA_ByteString, trustList, trustListSize+1);
 
-        UA_StatusCode retval = UA_ServerConfig_setDefaultWithSecurityPolicies(
+        UA_StatusCode status = UA_ServerConfig_setDefaultWithSecurityPolicies(
             config, port,
             &certificate, &privateKey,
             trustList, trustListSize,
             issuerList, issuerListSize,
             revocationList, revocationListSize);
-        if (retval) {
-            _log(PUFFIN.error, "UA Server config returned %u", retval);
+        if (status) {
+            _log(PUFFIN.error, "UA Server config returned %s", UA_StatusCode_name(status));
         }
 
-        retval = UA_Server_run_startup(server);
-        if (retval) {
-            _log(PUFFIN.error, "UA Server startup returned %u", retval);
+        status = UA_Server_run_startup(server);
+        if (status) {
+            _log(PUFFIN.error, "UA Server startup returned %s", UA_StatusCode_name(status));
         }
 
         AGENT agent = (AGENT) UA_malloc(sizeof(struct AGENT_TYPE));
@@ -216,18 +216,19 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
 };
 
 void open62541_destroy(AGENT agent) {
+    UA_StatusCode status = UA_STATUSCODE_GOOD;
     if (agent->role == CLIENT) {
         UA_Client *client = (UA_Client*) agent->application;
         UA_Client_disconnect(client);
+        if (status) _log(PUFFIN.error, "UA Client disconnect returned %s", UA_StatusCode_name(status));
         UA_Client_delete(client);
     }
     if (agent->role == SERVER) {
         UA_Server *server = (UA_Server*) agent->application;
-        UA_StatusCode status;
-        status = UA_Server_run_shutdown(server);
-        if (status) _log(PUFFIN.error, "UA Server shutdown returned %u", status);
+        status = UA_Server_run_shutdown(server);  // /!\ DOES NOT MANAGE TO STOP COMPONENTS
+        if (status) _log(PUFFIN.error, "UA Server shutdown returned %s", UA_StatusCode_name(status));
         status = UA_Server_delete(server);
-        if (status) _log(PUFFIN.error, "UA Server delete returned %u", status);
+        if (status) _log(PUFFIN.error, "UA Server delete returned %s", UA_StatusCode_name(status));
     }
     UA_free(agent);
 }
@@ -299,7 +300,7 @@ RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, s
     };
     if (pcm->txBuffer.length > 8) {
         // UATCP messages start with MessageType (3 bytes), IsFinal(1 byte), MessageSize
-        UA_UInt32 *message_size = (pcm->txBuffer.data + 4);
+        UA_UInt32 *message_size = (UA_UInt32*) (pcm->txBuffer.data + 4);
         memcpy(bytes, pcm->txBuffer.data, (size_t) *message_size);
         *readbytes = (size_t) *message_size;
         UA_EventLoopPuffin_freeNetworkBuffer(&pcm->cm, (uintptr_t) pcm->connectionId, &pcm->txBuffer);
