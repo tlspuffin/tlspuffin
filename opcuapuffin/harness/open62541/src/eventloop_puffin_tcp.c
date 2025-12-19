@@ -44,14 +44,14 @@ typedef struct {
 /* Test if the ConnectionManager can be stopped */
 static void
 TCP_checkStopped(UA_PuffinConnectionManager *pcm) {
-    UA_LOCK_ASSERT(&((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop)->elMutex);
+    UA_LOCK_ASSERT(&((UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop)->elMutex);
 
     if(//pcm->fdsSize == 0 &&
        pcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING) {
         UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| All sockets closed, the EventSource is stopped");
         pcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
-        // pcm->cm.eventSource.eventLoop->stop((UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop);
+        // pcm->cm.eventSource.eventLoop->stop((UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop);
     } else {
         UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
             "TCP\t| EventSource is STOPPING");
@@ -63,7 +63,7 @@ static void
 TCP_delayedClose(void *application, void *context) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)application;
     UA_ConnectionManager *cm = &pcm->cm;
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
     TCP_FD *conn = (TCP_FD*)context;
 
     UA_LOCK(&el->elMutex);
@@ -73,7 +73,7 @@ TCP_delayedClose(void *application, void *context) {
                  (unsigned)pcm->connectionId);
 
     /* Deregister from the EventLoop */
-    UA_EventLoopPOSIX_deregisterFD(el, &conn->rfd);
+    UA_EventLoopPuffin_deregisterFD(el, &conn->rfd);
 
     /* Deregister internally */
     ZIP_REMOVE(UA_FDTree, &pcm->fds, &conn->rfd);
@@ -121,7 +121,7 @@ getSockError(TCP_FD *conn) {
 static void
 TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
                              short event) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -155,7 +155,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
 
         /* Now we are interested in read-events. */
         conn->rfd.listenEvents = UA_FDEVENT_IN;
-        UA_EventLoopPOSIX_modifyFD(el, &conn->rfd);
+        UA_EventLoopPuffin_modifyFD(el, &conn->rfd);
 
         /* A new socket has opened. Signal it to the application. */
         conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
@@ -209,7 +209,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
 static UA_StatusCode
 TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX *)cm->eventSource.eventLoop;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin *)cm->eventSource.eventLoop;
 
     /* Signal closing to the application */
     if (!pcm) pcm->applicationCB(cm, pcm->connectionId,
@@ -234,7 +234,7 @@ Puffin_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
         "TCP %u\t| Attempting to send", (unsigned)connectionId);
     UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
     if(pcm->txBuffer.data != buf->data) {
-        UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
+        UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
             "TCP bytes to send are copied into the txBuffer");
         UA_ByteString_clear(&pcm->txBuffer);
@@ -252,7 +252,7 @@ Puffin_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueM
                           void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
 
     /* Get the port parameter */
@@ -352,7 +352,7 @@ Puffin_openActiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMa
                          void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback,
                          UA_Boolean validate) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
     UA_LOCK_ASSERT(&el->elMutex);
 
     /* Get the connection parameters */
@@ -416,7 +416,7 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                    void *application, void *context,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
     UA_LOCK(&el->elMutex);
 
     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STARTED) {
@@ -470,7 +470,7 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
 static UA_StatusCode
 TCP_eventSourceStart(UA_ConnectionManager *cm) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
     if(!el)
         return UA_STATUSCODE_BADINTERNALERROR;
 
@@ -494,7 +494,7 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
         goto finish;
 
     /* Allocate the rx buffer */
-    res = UA_EventLoopPOSIX_allocateStaticBuffers(pcm);
+    res = UA_EventLoopPuffin_allocateStaticBuffers(pcm);
     if(res != UA_STATUSCODE_GOOD)
         goto finish;
 
@@ -518,7 +518,7 @@ TCP_shutdownCB(void *application, UA_RegisteredFD *rfd) {
 static void
 TCP_eventSourceStop(UA_ConnectionManager *cm) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)cm->eventSource.eventLoop;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
 
     UA_LOCK(&el->elMutex);
 

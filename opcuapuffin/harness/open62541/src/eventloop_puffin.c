@@ -14,8 +14,8 @@
 /*********/
 
 static UA_DateTime
-UA_EventLoopPOSIX_nextTimer(UA_EventLoop *public_el) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+UA_EventLoopPuffin_nextTimer(UA_EventLoop *public_el) {
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)public_el;
     if(el->delayedHead1 > (UA_DelayedCallback *)0x01 ||
        el->delayedHead2 > (UA_DelayedCallback *)0x01)
         return el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
@@ -23,39 +23,39 @@ UA_EventLoopPOSIX_nextTimer(UA_EventLoop *public_el) {
 }
 
 static UA_StatusCode
-UA_EventLoopPOSIX_addTimer(UA_EventLoop *public_el, UA_Callback cb,
+UA_EventLoopPuffin_addTimer(UA_EventLoop *public_el, UA_Callback cb,
                            void *application, void *data, UA_Double interval_ms,
                            UA_DateTime *baseTime, UA_TimerPolicy timerPolicy,
                            UA_UInt64 *callbackId) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)public_el;
     return UA_Timer_add(&el->timer, cb, application, data, interval_ms,
                         public_el->dateTime_nowMonotonic(public_el),
                         baseTime, timerPolicy, callbackId);
 }
 
 static UA_StatusCode
-UA_EventLoopPOSIX_modifyTimer(UA_EventLoop *public_el,
+UA_EventLoopPuffin_modifyTimer(UA_EventLoop *public_el,
                               UA_UInt64 callbackId,
                               UA_Double interval_ms,
                               UA_DateTime *baseTime,
                               UA_TimerPolicy timerPolicy) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)public_el;
     return UA_Timer_modify(&el->timer, callbackId, interval_ms,
                            public_el->dateTime_nowMonotonic(public_el),
                            baseTime, timerPolicy);
 }
 
 static void
-UA_EventLoopPOSIX_removeTimer(UA_EventLoop *public_el,
+UA_EventLoopPuffin_removeTimer(UA_EventLoop *public_el,
                               UA_UInt64 callbackId) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)public_el;
     UA_Timer_remove(&el->timer, callbackId);
 }
 
 void
-UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
+UA_EventLoopPuffin_addDelayedCallback(UA_EventLoop *public_el,
                                      UA_DelayedCallback *dc) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)public_el;
     dc->next = NULL;
 
     /* el->delayedTail points either to prev->next or to the head.
@@ -73,7 +73,7 @@ UA_EventLoopPOSIX_addDelayedCallback(UA_EventLoop *public_el,
 
 /* Resets the delayed queue and returns the previous head and tail */
 static void
-resetDelayedQueue(UA_EventLoopPOSIX *el, UA_DelayedCallback **oldHead,
+resetDelayedQueue(UA_EventLoopPuffin *el, UA_DelayedCallback **oldHead,
                   UA_DelayedCallback **oldTail) {
     if(el->delayedHead1 <= (UA_DelayedCallback *)0x01 &&
        el->delayedHead2 <= (UA_DelayedCallback *)0x01)
@@ -99,9 +99,9 @@ resetDelayedQueue(UA_EventLoopPOSIX *el, UA_DelayedCallback **oldHead,
 }
 
 static void
-UA_EventLoopPOSIX_removeDelayedCallback(UA_EventLoop *public_el,
+UA_EventLoopPuffin_removeDelayedCallback(UA_EventLoop *public_el,
                                         UA_DelayedCallback *dc) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)public_el;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)public_el;
     UA_LOCK(&el->elMutex);
 
     /* Reset and get the old head and tail */
@@ -118,14 +118,14 @@ UA_EventLoopPOSIX_removeDelayedCallback(UA_EventLoop *public_el,
             next = (UA_DelayedCallback *)UA_atomic_load((void**)&cur->next);
         if(cur == dc)
             continue;
-        UA_EventLoopPOSIX_addDelayedCallback(public_el, cur);
+        UA_EventLoopPuffin_addDelayedCallback(public_el, cur);
     }
 
     UA_UNLOCK(&el->elMutex);
 }
 
 static void
-processDelayed(UA_EventLoopPOSIX *el) {
+processDelayed(UA_EventLoopPuffin *el) {
     UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Process delayed callbacks");
 
@@ -152,7 +152,7 @@ processDelayed(UA_EventLoopPOSIX *el) {
 /***********************/
 
 static UA_StatusCode
-UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
+UA_EventLoopPuffin_start(UA_EventLoopPuffin *el) {
     UA_LOCK(&el->elMutex);
 
     if(el->eventLoop.state != UA_EVENTLOOPSTATE_FRESH &&
@@ -187,7 +187,7 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
     }
 
     /* Create the self-pipe */
-    int err = UA_EventLoopPOSIX_pipe(el->selfpipe);
+    int err = UA_EventLoopPuffin_pipe(el->selfpipe);
     if(err != 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -247,7 +247,7 @@ UA_EventLoopPOSIX_start(UA_EventLoopPOSIX *el) {
 }
 
 static void
-checkClosed(UA_EventLoopPOSIX *el) {
+checkClosed(UA_EventLoopPuffin *el) {
     UA_LOCK_ASSERT(&el->elMutex);
 
     UA_EventSource *es = el->eventLoop.eventSources;
@@ -279,7 +279,7 @@ checkClosed(UA_EventLoopPOSIX *el) {
 }
 
 static void
-UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
+UA_EventLoopPuffin_stop(UA_EventLoopPuffin *el) {
     UA_LOCK(&el->elMutex);
 
     if(el->eventLoop.state != UA_EVENTLOOPSTATE_STARTED) {
@@ -312,7 +312,7 @@ UA_EventLoopPOSIX_stop(UA_EventLoopPOSIX *el) {
 }
 
 static UA_StatusCode
-UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
+UA_EventLoopPuffin_run(UA_EventLoopPuffin *el, UA_UInt32 timeout) {
     UA_LOCK(&el->elMutex);
 
     if(el->executing) {
@@ -335,7 +335,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
     }
 
     UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                 "Iterate the EventLoop");
+                 "Iterate the Puffin EventLoop");
 
     /* Process cyclic callbacks */
     UA_DateTime dateBefore =
@@ -368,7 +368,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
 
     /* Listen on the active file-descriptors (sockets) from the
      * ConnectionManagers */
-    //UA_StatusCode rv = UA_EventLoopPOSIX_pollFDs(el, listenTimeout);
+    //UA_StatusCode rv = UA_EventLoopPuffin_pollFDs(el, listenTimeout);
 
     /* Check if the last EventSource was successfully stopped */
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPING)
@@ -384,7 +384,7 @@ UA_EventLoopPOSIX_run(UA_EventLoopPOSIX *el, UA_UInt32 timeout) {
 /*****************************/
 
 static UA_StatusCode
-UA_EventLoopPOSIX_registerEventSource(UA_EventLoopPOSIX *el,
+UA_EventLoopPuffin_registerEventSource(UA_EventLoopPuffin *el,
                                       UA_EventSource *es) {
     UA_LOCK(&el->elMutex);
 
@@ -422,7 +422,7 @@ UA_EventLoopPOSIX_registerEventSource(UA_EventLoopPOSIX *el,
 }
 
 static UA_StatusCode
-UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
+UA_EventLoopPuffin_deregisterEventSource(UA_EventLoopPuffin *el,
                                         UA_EventSource *es) {
     UA_LOCK(&el->elMutex);
 
@@ -457,8 +457,8 @@ UA_EventLoopPOSIX_deregisterEventSource(UA_EventLoopPOSIX *el,
 /***************/
 
 static UA_DateTime
-UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
-    UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
+UA_EventLoopPuffin_DateTime_now(UA_EventLoop *el) {
+    UA_EventLoopPuffin *pel = (UA_EventLoopPuffin*)el;
     struct timespec ts;
     int res = clock_gettime(pel->clockSource, &ts);
     if(UA_UNLIKELY(res != 0))
@@ -467,8 +467,8 @@ UA_EventLoopPOSIX_DateTime_now(UA_EventLoop *el) {
 }
 
 static UA_DateTime
-UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
-    UA_EventLoopPOSIX *pel = (UA_EventLoopPOSIX*)el;
+UA_EventLoopPuffin_DateTime_nowMonotonic(UA_EventLoop *el) {
+    UA_EventLoopPuffin *pel = (UA_EventLoopPuffin*)el;
     struct timespec ts;
     int res = clock_gettime(pel->clockSourceMonotonic, &ts);
     if(UA_UNLIKELY(res != 0))
@@ -479,7 +479,7 @@ UA_EventLoopPOSIX_DateTime_nowMonotonic(UA_EventLoop *el) {
 }
 
 static UA_Int64
-UA_EventLoopPOSIX_DateTime_localTimeUtcOffset(UA_EventLoop *el) {
+UA_EventLoopPuffin_DateTime_localTimeUtcOffset(UA_EventLoop *el) {
     /* TODO: Fix for custom clock sources */
     return UA_DateTime_localTimeUtcOffset();
 }
@@ -489,7 +489,7 @@ UA_EventLoopPOSIX_DateTime_localTimeUtcOffset(UA_EventLoop *el) {
 /*************************/
 
 static UA_StatusCode
-UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
+UA_EventLoopPuffin_free(UA_EventLoopPuffin *el) {
     UA_LOCK(&el->elMutex);
 
     /* Check if the EventLoop can be deleted */
@@ -504,7 +504,7 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
     /* Deregister and delete all the EventSources */
     while(el->eventLoop.eventSources) {
         UA_EventSource *es = el->eventLoop.eventSources;
-        UA_EventLoopPOSIX_deregisterEventSource(el, es);
+        UA_EventLoopPuffin_deregisterEventSource(el, es);
         es->free(es);
     }
 
@@ -524,18 +524,18 @@ UA_EventLoopPOSIX_free(UA_EventLoopPOSIX *el) {
 }
 
 static void
-UA_EventLoopPOSIX_lock(UA_EventLoop *public_el) {
-    UA_LOCK(&((UA_EventLoopPOSIX*)public_el)->elMutex);
+UA_EventLoopPuffin_lock(UA_EventLoop *public_el) {
+    UA_LOCK(&((UA_EventLoopPuffin*)public_el)->elMutex);
 }
 static void
-UA_EventLoopPOSIX_unlock(UA_EventLoop *public_el) {
-    UA_UNLOCK(&((UA_EventLoopPOSIX*)public_el)->elMutex);
+UA_EventLoopPuffin_unlock(UA_EventLoop *public_el) {
+    UA_UNLOCK(&((UA_EventLoopPuffin*)public_el)->elMutex);
 }
 
 UA_EventLoop *
 UA_EventLoop_new_POSIX(const UA_Logger *logger) {
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)
-        UA_calloc(1, sizeof(UA_EventLoopPOSIX));
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)
+        UA_calloc(1, sizeof(UA_EventLoopPuffin));
     if(!el)
         return NULL;
 
@@ -558,34 +558,34 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
 # endif
 
     /* Set the method pointers for the interface */
-    el->eventLoop.start = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_start;
-    el->eventLoop.stop = (void (*)(UA_EventLoop*))UA_EventLoopPOSIX_stop;
-    el->eventLoop.free = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPOSIX_free;
-    el->eventLoop.run = (UA_StatusCode (*)(UA_EventLoop*, UA_UInt32))UA_EventLoopPOSIX_run;
-    el->eventLoop.cancel = (void (*)(UA_EventLoop*))UA_EventLoopPOSIX_cancel;
+    el->eventLoop.start = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPuffin_start;
+    el->eventLoop.stop = (void (*)(UA_EventLoop*))UA_EventLoopPuffin_stop;
+    el->eventLoop.free = (UA_StatusCode (*)(UA_EventLoop*))UA_EventLoopPuffin_free;
+    el->eventLoop.run = (UA_StatusCode (*)(UA_EventLoop*, UA_UInt32))UA_EventLoopPuffin_run;
+    el->eventLoop.cancel = (void (*)(UA_EventLoop*))UA_EventLoopPuffin_cancel;
 
-    el->eventLoop.dateTime_now = UA_EventLoopPOSIX_DateTime_now;
+    el->eventLoop.dateTime_now = UA_EventLoopPuffin_DateTime_now;
     el->eventLoop.dateTime_nowMonotonic =
-        UA_EventLoopPOSIX_DateTime_nowMonotonic;
+        UA_EventLoopPuffin_DateTime_nowMonotonic;
     el->eventLoop.dateTime_localTimeUtcOffset =
-        UA_EventLoopPOSIX_DateTime_localTimeUtcOffset;
+        UA_EventLoopPuffin_DateTime_localTimeUtcOffset;
 
-    el->eventLoop.nextTimer = UA_EventLoopPOSIX_nextTimer;
-    el->eventLoop.addTimer = UA_EventLoopPOSIX_addTimer;
-    el->eventLoop.modifyTimer = UA_EventLoopPOSIX_modifyTimer;
-    el->eventLoop.removeTimer = UA_EventLoopPOSIX_removeTimer;
-    el->eventLoop.addDelayedCallback = UA_EventLoopPOSIX_addDelayedCallback;
-    el->eventLoop.removeDelayedCallback = UA_EventLoopPOSIX_removeDelayedCallback;
+    el->eventLoop.nextTimer = UA_EventLoopPuffin_nextTimer;
+    el->eventLoop.addTimer = UA_EventLoopPuffin_addTimer;
+    el->eventLoop.modifyTimer = UA_EventLoopPuffin_modifyTimer;
+    el->eventLoop.removeTimer = UA_EventLoopPuffin_removeTimer;
+    el->eventLoop.addDelayedCallback = UA_EventLoopPuffin_addDelayedCallback;
+    el->eventLoop.removeDelayedCallback = UA_EventLoopPuffin_removeDelayedCallback;
 
     el->eventLoop.registerEventSource =
         (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))
-        UA_EventLoopPOSIX_registerEventSource;
+        UA_EventLoopPuffin_registerEventSource;
     el->eventLoop.deregisterEventSource =
         (UA_StatusCode (*)(UA_EventLoop*, UA_EventSource*))
-        UA_EventLoopPOSIX_deregisterEventSource;
+        UA_EventLoopPuffin_deregisterEventSource;
 
-    el->eventLoop.lock = UA_EventLoopPOSIX_lock;
-    el->eventLoop.unlock = UA_EventLoopPOSIX_unlock;
+    el->eventLoop.lock = UA_EventLoopPuffin_lock;
+    el->eventLoop.unlock = UA_EventLoopPuffin_unlock;
 
     return &el->eventLoop;
 }
@@ -628,7 +628,7 @@ UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_allocateStaticBuffers(UA_PuffinConnectionManager *pcm) {
+UA_EventLoopPuffin_allocateStaticBuffers(UA_PuffinConnectionManager *pcm) {
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_UInt32 rxBufSize = 2u << 16; /* The default is 64kb */
     const UA_UInt32 *configRxBufSize = (const UA_UInt32 *)
@@ -665,7 +665,7 @@ cmpFD(const UA_FD *a, const UA_FD *b) {
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_setNonBlocking(UA_FD sockfd) {
+UA_EventLoopPuffin_setNonBlocking(UA_FD sockfd) {
 #ifndef UA_ARCHITECTURE_WIN32
     int opts = fcntl(sockfd, F_GETFL);
     if(opts < 0 || fcntl(sockfd, F_SETFL, opts | O_NONBLOCK) < 0)
@@ -679,7 +679,7 @@ UA_EventLoopPOSIX_setNonBlocking(UA_FD sockfd) {
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd) {
+UA_EventLoopPuffin_setNoSigPipe(UA_FD sockfd) {
 #ifdef SO_NOSIGPIPE
     int val = 1;
     int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_NOSIGPIPE, &val, sizeof(val));
@@ -690,7 +690,7 @@ UA_EventLoopPOSIX_setNoSigPipe(UA_FD sockfd) {
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_setReusable(UA_FD sockfd) {
+UA_EventLoopPuffin_setReusable(UA_FD sockfd) {
     int enableReuseVal = 1;
     int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
                             (const char*)&enableReuseVal, sizeof(enableReuseVal));
@@ -716,7 +716,7 @@ flushSelfPipe(UA_SOCKET s) {
 #if !defined(UA_HAVE_EPOLL)
 
 UA_StatusCode
-UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+UA_EventLoopPuffin_registerFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
     UA_LOCK_ASSERT(&el->elMutex);
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Registering fd: %u", (unsigned)rfd->fd);
@@ -736,14 +736,14 @@ UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+UA_EventLoopPuffin_modifyFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
     /* Do nothing, it is enough if the data was changed in the rfd */
     UA_LOCK_ASSERT(&el->elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
 void
-UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+UA_EventLoopPuffin_deregisterFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
     UA_LOCK_ASSERT(&el->elMutex);
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Unregistering fd: %u", (unsigned)rfd->fd);
@@ -778,7 +778,7 @@ UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
 }
 
 static UA_FD
-setFDSets(UA_EventLoopPOSIX *el, fd_set *readset, fd_set *writeset, fd_set *errset) {
+setFDSets(UA_EventLoopPuffin *el, fd_set *readset, fd_set *writeset, fd_set *errset) {
     UA_LOCK_ASSERT(&el->elMutex);
 
     FD_ZERO(readset);
@@ -809,7 +809,7 @@ setFDSets(UA_EventLoopPOSIX *el, fd_set *readset, fd_set *writeset, fd_set *errs
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
+UA_EventLoopPuffin_pollFDs(UA_EventLoopPuffin *el, UA_DateTime listenTimeout) {
     UA_assert(listenTimeout >= 0);
     UA_LOCK_ASSERT(&el->elMutex);
 
@@ -882,7 +882,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 #else /* defined(UA_HAVE_EPOLL) */
 
 UA_StatusCode
-UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+UA_EventLoopPuffin_registerFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
     struct epoll_event event;
     memset(&event, 0, sizeof(struct epoll_event));
     event.data.ptr = rfd;
@@ -904,7 +904,7 @@ UA_EventLoopPOSIX_registerFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+UA_EventLoopPuffin_modifyFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
     struct epoll_event event;
     memset(&event, 0, sizeof(struct epoll_event));
     event.data.ptr = rfd;
@@ -926,7 +926,7 @@ UA_EventLoopPOSIX_modifyFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
 }
 
 void
-UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
+UA_EventLoopPuffin_deregisterFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
     int res = epoll_ctl(el->epollfd, EPOLL_CTL_DEL, rfd->fd, NULL);
     if(res != 0) {
         UA_LOG_SOCKET_ERRNO_WRAP(
@@ -937,7 +937,7 @@ UA_EventLoopPOSIX_deregisterFD(UA_EventLoopPOSIX *el, UA_RegisteredFD *rfd) {
 }
 
 UA_StatusCode
-UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
+UA_EventLoopPuffin_pollFDs(UA_EventLoopPuffin *el, UA_DateTime listenTimeout) {
     UA_assert(listenTimeout >= 0);
 
     /* If there is a positive timeout, wait at least one millisecond, the
@@ -1013,7 +1013,7 @@ UA_EventLoopPOSIX_pollFDs(UA_EventLoopPOSIX *el, UA_DateTime listenTimeout) {
 #endif /* defined(UA_HAVE_EPOLL) */
 
 #if defined(__APPLE__)
-int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
+int UA_EventLoopPuffin_pipe(SOCKET fds[2]) {
     struct sockaddr_in inaddr;
     memset(&inaddr, 0, sizeof(inaddr));
     inaddr.sin_family = AF_INET;
@@ -1036,18 +1036,18 @@ int UA_EventLoopPOSIX_pipe(SOCKET fds[2]) {
     close(lst);
 #endif
 
-    UA_EventLoopPOSIX_setNoSigPipe(fds[0]);
-    UA_EventLoopPOSIX_setReusable(fds[0]);
-    UA_EventLoopPOSIX_setNonBlocking(fds[0]);
-    UA_EventLoopPOSIX_setNoSigPipe(fds[1]);
-    UA_EventLoopPOSIX_setReusable(fds[1]);
-    UA_EventLoopPOSIX_setNonBlocking(fds[1]);
+    UA_EventLoopPuffin_setNoSigPipe(fds[0]);
+    UA_EventLoopPuffin_setReusable(fds[0]);
+    UA_EventLoopPuffin_setNonBlocking(fds[0]);
+    UA_EventLoopPuffin_setNoSigPipe(fds[1]);
+    UA_EventLoopPuffin_setReusable(fds[1]);
+    UA_EventLoopPuffin_setNonBlocking(fds[1]);
     return err;
 }
 #endif
 
 void
-UA_EventLoopPOSIX_cancel(UA_EventLoopPOSIX *el) {
+UA_EventLoopPuffin_cancel(UA_EventLoopPuffin *el) {
     /* Nothing to do if the EventLoop is not executing */
     if(!el->executing)
         return;

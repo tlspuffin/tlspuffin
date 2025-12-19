@@ -225,7 +225,7 @@ void open62541_destroy(AGENT agent) {
     }
     if (agent->role == SERVER) {
         UA_Server *server = (UA_Server*) agent->application;
-        status = UA_Server_run_shutdown(server);  // /!\ DOES NOT MANAGE TO STOP COMPONENTS
+        status = UA_Server_run_shutdown(server);
         if (status) _log(PUFFIN.error, "UA Server shutdown returned %s", UA_StatusCode_name(status));
         status = UA_Server_delete(server);
         if (status) _log(PUFFIN.error, "UA Server delete returned %s", UA_StatusCode_name(status));
@@ -239,6 +239,7 @@ RESULT open62541_progress(AGENT agent){
         return PUFFIN.make_result(RESULT_OK, "");
     }
     if (agent->role == SERVER) {
+        _log(PUFFIN.error,"Server run ...");
         UA_Server_run_iterate((UA_Server*) agent->application, false);
         return PUFFIN.make_result(RESULT_OK, "");
     }
@@ -278,7 +279,7 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
     *written = length;
 
     /* notify application */
-    UA_EventLoopPOSIX *el = (UA_EventLoopPOSIX*)pcm->cm.eventSource.eventLoop;
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Received message of size %u", pcm->connectionId, *written);
     pcm->applicationCB(&pcm->cm, (uintptr_t) (pcm->connectionId),
