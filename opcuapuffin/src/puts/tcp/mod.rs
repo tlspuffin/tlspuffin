@@ -103,15 +103,24 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
 
         // 1. Start the OPC UA Server:
         // (Disable these lines if you launch manually the server)
-        let process = if application.protocol_config.kind == AgentType::Server {
-            Some(OpcuaProcess::new(
-                "./vendor/open62541/build/bin/examples/ci_server",
-                &(format!("{} ", port) +
-                "crates/opcua-mapper/lib/src/puffin/assets/bob_cert.pem " +
-                "crates/opcua-mapper/lib/src/puffin/assets/bob_key.pem"),
-                Some(".")))
-        } else {
-            None
+        let process = match application.protocol_config.kind {
+            AgentType::Client => {
+                Some(OpcuaProcess::new(
+                    "./vendor/open62541/build/bin/examples/client_connect",
+                    &("-username peter -password peter123 ".to_owned() +
+                    "-cert crates/opcua-mapper/lib/src/puffin/assets/alice_cert.der " +
+                    "-key crates/opcua-mapper/lib/src/puffin/assets/alice_key.der " +
+                    "-securityMode 2 -securityPolicy http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256 " +
+                    &format!("-reverse opc.tcp://localhost:{} ", port)),
+                    Some("."))) },
+            AgentType::Server => {
+                Some(OpcuaProcess::new(
+                    "./vendor/open62541/build/bin/examples/ci_server",
+                    &(format!("{} ", port) +
+                    "crates/opcua-mapper/lib/src/puffin/assets/bob_cert.pem " +
+                    "crates/opcua-mapper/lib/src/puffin/assets/bob_key.pem"),
+                    Some("."))) },
+            _ => None
         };
 
         // 2. Connect to the TCP server listening on localhost:port
