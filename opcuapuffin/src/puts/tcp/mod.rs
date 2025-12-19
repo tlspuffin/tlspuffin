@@ -119,8 +119,7 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
                     &(format!("{} ", port) +
                     "crates/opcua-mapper/lib/src/puffin/assets/bob_cert.pem " +
                     "crates/opcua-mapper/lib/src/puffin/assets/bob_key.pem"),
-                    Some("."))) },
-            _ => None
+                    Some("."))) }
         };
 
         // 2. Connect to the TCP server listening on localhost:port
