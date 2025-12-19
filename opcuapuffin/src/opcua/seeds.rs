@@ -127,7 +127,9 @@ pub fn seed_ap_client_open_unsecure_channel (
                     fn_message (
                         (fn_msg_header(
                             fn_security_policy_none,
-                            (fn_header(fn_close, ((server, 10)[None]/u32))),  // needs channel id!
+                            (fn_header(
+                                fn_close, // needs channel id:
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                             (@close_request)
                         )),
                         (fn_body(
@@ -249,7 +251,8 @@ pub fn seed_b_client_open_secure_channel (
                     fn_message (
                         (fn_msg_header(
                             fn_basic256sha256,
-                            (fn_header(fn_close, ((server, 10)[None]/u32))),  // needs channel id!
+                            (fn_header(fn_close, // needs channel id:
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                             (@close_request)
                         )),
                         (fn_body(
@@ -270,7 +273,8 @@ pub fn seed_b_client_open_secure_channel (
                                 (fn_data_to_mac(
                                     (fn_msg_header(
                                         fn_basic256sha256,
-                                        (fn_header(fn_close, ((server, 10)[None]/u32))),  // needs channel id!
+                                        (fn_header(fn_close, // needs channel id:
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                                         (@close_request)
                                     )),
                                     (fn_get_channel_token(
@@ -592,7 +596,8 @@ pub fn seed_d_client_activate_session (
                     fn_message (
                         (fn_msg_header(
                             fn_basic256sha256,
-                            (fn_header(fn_final, ((server, 10)[None]/u32))),
+                            (fn_header(fn_final,
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                             (@create_request)
                         )),
                         (fn_body(
@@ -616,7 +621,8 @@ pub fn seed_d_client_activate_session (
                                 (fn_data_to_mac(
                                     (fn_msg_header(
                                         fn_basic256sha256,
-                                        (fn_header(fn_final, ((server, 10)[None]/u32))),
+                                        (fn_header(fn_final,
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                                         (@create_request)
                                     )),
                                     (fn_get_channel_token(
@@ -645,7 +651,8 @@ pub fn seed_d_client_activate_session (
                     fn_message (
                         (fn_msg_header(
                             fn_basic256sha256,
-                            (fn_header(fn_final, ((server, 10)[None]/u32))),
+                            (fn_header(fn_final,
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                             (fn_service(
                                 (fn_sequence_header(fn_seq_2, fn_seq_2)),
                                 (@activate_certificate)
@@ -667,7 +674,8 @@ pub fn seed_d_client_activate_session (
                                 (fn_data_to_mac(
                                     (fn_msg_header(
                                         fn_basic256sha256,
-                                        (fn_header(fn_final, ((server, 10)[None]/u32))),
+                                        (fn_header(fn_final,
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                                         (fn_service(
                                             (fn_sequence_header(fn_seq_2, fn_seq_2)),
                                             (@activate_certificate)
@@ -702,7 +710,8 @@ pub fn seed_d_client_activate_session (
                     fn_message (
                         (fn_msg_header(
                             fn_basic256sha256,
-                            (fn_header(fn_final, ((server, 10)[None]/u32))),
+                            (fn_header(fn_final,
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                             (fn_service(
                                 (fn_sequence_header(fn_seq_3, fn_seq_3)),
                                 (@close_session)
@@ -724,7 +733,8 @@ pub fn seed_d_client_activate_session (
                                 (fn_data_to_mac(
                                     (fn_msg_header(
                                         fn_basic256sha256,
-                                        (fn_header(fn_final, ((server, 10)[None]/u32))),
+                                        (fn_header(fn_final,
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                                         (fn_service(
                                             (fn_sequence_header(fn_seq_3, fn_seq_3)),
                                             (@close_session)
@@ -758,7 +768,8 @@ pub fn seed_d_client_activate_session (
                     fn_message (
                         (fn_msg_header(
                             fn_basic256sha256,
-                            (fn_header(fn_close, ((server, 10)[None]/u32))),
+                            (fn_header(fn_close,
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                             (fn_service(
                                 (fn_sequence_header(fn_seq_4, fn_seq_4)),
                                 (@close_channel)
@@ -780,7 +791,8 @@ pub fn seed_d_client_activate_session (
                                 (fn_data_to_mac(
                                     (fn_msg_header(
                                         fn_basic256sha256,
-                                        (fn_header(fn_close, ((server, 10)[None]/u32))),
+                                        (fn_header(fn_close,
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                                         (fn_service(
                                             (fn_sequence_header(fn_seq_4, fn_seq_4)),
                                             (@close_channel)

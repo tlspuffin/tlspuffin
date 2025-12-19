@@ -250,7 +250,7 @@ typedef struct {
 /* A static variable is set by UA_ConnectionManager_new_POSIX_TCP,
    and contains the last connection manager created. It is only read
    when a new puffin agent is created, and reading resets the variable. */
-UA_PuffinConnectionManager *take_last_puffin_connection_manager();
+UA_PuffinConnectionManager *take_last_puffin_connection_manager(void);
 
 typedef struct {
     UA_EventLoop eventLoop;

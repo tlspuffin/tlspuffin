@@ -338,7 +338,7 @@ Puffin_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueM
 
     /* The socket has opened. Signal it to the application. */
     /* connection context is updated by the callback! */
-    connectionCallback(&pcm->cm, pcm->connectionId,
+    connectionCallback(&pcm->cm, pcm->connectionId+1,
         application, &pcm->context,
         UA_CONNECTIONSTATE_ESTABLISHED,
         &kvm, UA_BYTESTRING_NULL);
@@ -584,7 +584,7 @@ UA_ConnectionManager_new_POSIX_TCP(const UA_String eventSourceName) {
     return &pcm->cm;
 }
 
-UA_PuffinConnectionManager *take_last_puffin_connection_manager() {
+UA_PuffinConnectionManager *take_last_puffin_connection_manager(void) {
     UA_PuffinConnectionManager *result = LAST_PUFFIN_CONNECTION_MANAGER;
     LAST_PUFFIN_CONNECTION_MANAGER = NULL;
     return result;
