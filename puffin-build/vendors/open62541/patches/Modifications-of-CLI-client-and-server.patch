@@ -1,0 +1,183 @@
+From b02616e8d28b91dd7d9ac37c2044a1dc1739b06c Mon Sep 17 00:00:00 2001
+From: vdh-anssi <vincent.diemunsch@inria.fr>
+Date: Fri, 2 Jan 2026 15:25:51 +0100
+Subject: [PATCH 1/2] Modifications of CLI client and server used by Puffin
+
+---
+ examples/ci_server.c      | 18 ++++++++++----
+ examples/client_connect.c | 51 +++++++++++++++++++++++++++++++++++----
+ 2 files changed, 59 insertions(+), 10 deletions(-)
+
+diff --git a/examples/ci_server.c b/examples/ci_server.c
+index 655072153..cfa7fc13d 100644
+--- a/examples/ci_server.c
++++ b/examples/ci_server.c
+@@ -130,6 +130,14 @@ int main(int argc, char* argv[]) {
+     UA_Server *server = UA_Server_new();
+     UA_ServerConfig *config = UA_Server_getConfig(server);
+ 
++    /* Exchange the logger */
++    UA_LogLevel log_level = UA_LOGLEVEL_DEBUG;
++    UA_Logger logger = UA_Log_Stdout_withLevel( log_level );
++    logger.clear = config->logging->clear;
++    *config->logging = logger;
++    /* Do not care about timestamps ! */
++    config->verifyRequestTimestamp = UA_RULEHANDLING_ACCEPT;
++
+ #ifdef UA_ENABLE_ENCRYPTION
+     UA_ByteString certificate = UA_BYTESTRING_NULL;
+     UA_ByteString privateKey = UA_BYTESTRING_NULL;
+@@ -139,10 +147,10 @@ int main(int argc, char* argv[]) {
+         port = (UA_UInt16) atoi(argv[1]);
+         certificate = loadFile(argv[2]);
+         privateKey = loadFile(argv[3]);
+-        // print the certificat and private key
++        // print the certificate and private key
+         printf("certificate: %.*s\n", (int)certificate.length, certificate.data);
+     } else {
+-        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
++        UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                      "Missing arguments. Arguments are "
+                      "<port> <server-certificate.der> <private-key.der> "
+                      "[<trustlist1.crl>, ...]");
+@@ -171,19 +179,18 @@ int main(int argc, char* argv[]) {
+                                                        trustList, trustListSize,
+                                                        issuerList, issuerListSize,
+                                                        revocationList, revocationListSize);
+-                                                           UA_ByteString_clear(&certificate);
++    UA_ByteString_clear(&certificate);
+     UA_ByteString_clear(&privateKey);
+     for(size_t i = 0; i < trustListSize; i++)
+         UA_ByteString_clear(&trustList[i]);
+     if(retval != UA_STATUSCODE_GOOD)
+-        goto cleanup;   
++        goto cleanup;
+ 
+ #endif
+     retval = UA_AccessControl_default(config, true,
+              &config->securityPolicies[config->securityPoliciesSize-1].policyUri, 3, logins);
+     if(retval != UA_STATUSCODE_GOOD)
+         goto cleanup;
+-        
+     addHelloWorldMethod(server);
+     addVariable(server);
+     writeVariable(server);
+@@ -192,6 +199,7 @@ int main(int argc, char* argv[]) {
+ 
+     if(retval != UA_STATUSCODE_GOOD)
+         goto cleanup;
++
+  cleanup:
+     UA_Server_delete(server);
+     return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
+diff --git a/examples/client_connect.c b/examples/client_connect.c
+index e07548ebc..f06458176 100644
+--- a/examples/client_connect.c
++++ b/examples/client_connect.c
+@@ -14,7 +14,7 @@ static void usage(void) {
+     printf("[-cert certfile.der] [-key keyfile.der] "
+            "[-securityMode <0-3>] [-securityPolicy policyUri] ");
+ #endif
+-    printf("opc.tcp://<host>:<port>\n");
++    printf("[-reverse] opc.tcp://<host>:<port>\n");
+ }
+ 
+ int main(int argc, char *argv[]) {
+@@ -23,6 +23,7 @@ int main(int argc, char *argv[]) {
+     char *serverurl = NULL;
+     char *username = NULL;
+     char *password = NULL;
++    bool reverse = false;
+ #ifdef UA_ENABLE_ENCRYPTION
+     char *certfile = NULL;
+     char *keyfile = NULL;
+@@ -64,6 +65,12 @@ int main(int argc, char *argv[]) {
+             continue;
+         }
+ 
++        if(strcmp(argv[argpos], "-reverse") == 0) {
++            argpos++;
++            reverse = true;
++            continue;
++        }
++
+ #ifdef UA_ENABLE_ENCRYPTION
+         if(strcmp(argv[argpos], "-cert") == 0) {
+             argpos++;
+@@ -123,6 +130,12 @@ int main(int argc, char *argv[]) {
+     cc->securityMode = securityMode;
+     cc->securityPolicyUri = securityPolicyUri;
+ 
++    /* Exchange the logger */
++    UA_LogLevel log_level = UA_LOGLEVEL_DEBUG;
++    UA_Logger logger = UA_Log_Stdout_withLevel( log_level );
++    logger.clear = cc->logging->clear;
++    *cc->logging = logger;
++
+ #ifdef UA_ENABLE_ENCRYPTION
+     if(certfile) {
+         UA_ByteString certificate = loadFile(certfile);
+@@ -155,7 +168,35 @@ int main(int argc, char *argv[]) {
+ 
+     /* Connect to the server */
+     UA_StatusCode retval = UA_STATUSCODE_GOOD;
+-    if(username) {
++    if(reverse) {
++        cc->timeout = 100000; // ms = 100s
++        const UA_String listenHost = UA_STRING_STATIC("127.0.0.1");
++        while (true) {
++            retval = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, 4841);
++            if (retval != UA_STATUSCODE_GOOD) break;
++            for(int i = 0; i < 5; ++i) {
++                UA_Client_run_iterate(client, 1);
++            }
++            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Connected!");
++
++            /* Read the server-time */
++            UA_Variant value;
++            UA_Variant_init(&value);
++            UA_Client_readValueAttribute(client, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &value);
++            if(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
++                UA_DateTimeStruct dts = UA_DateTime_toStruct(*(UA_DateTime *)value.data);
++                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
++                            "The server date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
++                            dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
++            }
++            UA_Variant_clear(&value);
++        };
++        /* Clean up */
++        UA_Client_disconnect(client);
++        UA_Client_delete(client);
++        return 0;
++    }
++    else if(username) {
+         UA_ClientConfig_setAuthenticationUsername(cc, username, password);
+         retval = UA_Client_connect(client, serverurl);
+         /* Alternative */
+@@ -175,12 +216,12 @@ int main(int argc, char *argv[]) {
+     else
+         retval = UA_Client_connect(client, serverurl);
+     if(retval != UA_STATUSCODE_GOOD) {
+-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Could not connect");
++        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Could not connect");
+         UA_Client_delete(client);
+         return 0;
+     }
+ 
+-    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Connected!");
++    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Connected!");
+ 
+     /* Read the server-time */
+     UA_Variant value;
+@@ -188,7 +229,7 @@ int main(int argc, char *argv[]) {
+     UA_Client_readValueAttribute(client, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &value);
+     if(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
+         UA_DateTimeStruct dts = UA_DateTime_toStruct(*(UA_DateTime *)value.data);
+-        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
++        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
+                     "The server date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
+                     dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
+     }
+-- 
+2.51.0
+

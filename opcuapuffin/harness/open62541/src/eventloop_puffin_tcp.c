@@ -55,7 +55,7 @@ TCP_checkStopped(UA_PuffinConnectionManager *pcm) {
     } else {
         UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
             "TCP\t| EventSource is STOPPING");
-        // pcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
+        pcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
     }
 }
 
@@ -212,10 +212,10 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin *)cm->eventSource.eventLoop;
 
     /* Signal closing to the application */
-    if (!pcm) pcm->applicationCB(cm, pcm->connectionId,
-        pcm->application, &pcm->context,
-        UA_CONNECTIONSTATE_CLOSING,
-        &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
+    // if (pcm) pcm->applicationCB(cm, pcm->connectionId,
+    //     pcm->application, &pcm->context,
+    //     UA_CONNECTIONSTATE_CLOSING,
+    //     &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
         "TCP %u\t| Socket closed",
         (unsigned)connectionId);
