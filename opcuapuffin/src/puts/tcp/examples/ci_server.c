@@ -147,7 +147,7 @@ int main(int argc, char* argv[]) {
         port = (UA_UInt16) atoi(argv[1]);
         certificate = loadFile(argv[2]);
         privateKey = loadFile(argv[3]);
-        // print the certificat and private key
+        // print the certificate and private key
         printf("certificate: %.*s\n", (int)certificate.length, certificate.data);
     } else {
         UA_LOG_FATAL(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
@@ -179,7 +179,7 @@ int main(int argc, char* argv[]) {
                                                        trustList, trustListSize,
                                                        issuerList, issuerListSize,
                                                        revocationList, revocationListSize);
-                                                           UA_ByteString_clear(&certificate);
+    UA_ByteString_clear(&certificate);
     UA_ByteString_clear(&privateKey);
     for(size_t i = 0; i < trustListSize; i++)
         UA_ByteString_clear(&trustList[i]);

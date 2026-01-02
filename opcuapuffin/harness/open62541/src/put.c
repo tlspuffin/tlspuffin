@@ -51,8 +51,8 @@ const OPCUA_PUT_INTERFACE open62541() {
     return open62541_vtable;
 };
 
-/* An APPLICATION is either a UA_Client or UA_Server,
-   depending on role */
+/* An APPLICATION is either an UA_Client or an UA_Server,
+   depending on its role */
 typedef struct Client_or_Server Application;
 
 /* private AGENT type */
@@ -225,8 +225,10 @@ void open62541_destroy(AGENT agent) {
     }
     if (agent->role == SERVER) {
         UA_Server *server = (UA_Server*) agent->application;
+        _log(PUFFIN.error,"Sever run shutdown ...");
         status = UA_Server_run_shutdown(server);
         if (status) _log(PUFFIN.error, "UA Server shutdown returned %s", UA_StatusCode_name(status));
+        _log(PUFFIN.error,"Sever delete ...");
         status = UA_Server_delete(server);
         if (status) _log(PUFFIN.error, "UA Server delete returned %s", UA_StatusCode_name(status));
     }
@@ -241,6 +243,7 @@ RESULT open62541_progress(AGENT agent){
     if (agent->role == SERVER) {
         _log(PUFFIN.error,"Server run ...");
         UA_Server_run_iterate((UA_Server*) agent->application, false);
+        _log(PUFFIN.error,"Server run RESULT_OK");
         return PUFFIN.make_result(RESULT_OK, "");
     }
     return PUFFIN.make_result(RESULT_ERROR_OTHER, "Client unimplemented!");
@@ -265,6 +268,8 @@ void open62541_register_claimer(AGENT agent, const CLAIMER_CB *callback) {};
 
 RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written){
 
+    _log(PUFFIN.error,"Add inbound ...");
+
     UA_PuffinConnectionManager *pcm = agent->connexion_manager;
     if (!pcm) return PUFFIN.make_result(RESULT_ERROR_OTHER, "Connection Manager unavailable.");
 
@@ -281,17 +286,21 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
     /* notify application */
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                 "TCP %u\t| Received message of size %u", pcm->connectionId, *written);
+                 "Harness: Added to connexion %u, a message of size %u", pcm->connectionId, *written);
     pcm->applicationCB(&pcm->cm, (uintptr_t) (pcm->connectionId),
         pcm->application, &pcm->context,
         UA_CONNECTIONSTATE_ESTABLISHED,
         &UA_KEYVALUEMAP_NULL, buffer);
+
+    _log(PUFFIN.error,"Add inbound OK");
 
     return PUFFIN.make_result(RESULT_OK, "");
 };
 
 
 RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes){
+
+    _log(PUFFIN.error,"Take outbound ...");
 
     /* read the TxBuffer from the PuffinConnexionManager associated to the agent */
     UA_PuffinConnectionManager *pcm = agent->connexion_manager;
@@ -308,6 +317,7 @@ RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, s
     } else {
         *readbytes = 0;
     };
+    _log(PUFFIN.error,"Take outbound OK");
     return PUFFIN.make_result(RESULT_OK, "");
 };
 

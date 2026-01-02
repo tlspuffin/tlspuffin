@@ -75,6 +75,9 @@ UA_EventLoopPuffin_addDelayedCallback(UA_EventLoop *public_el,
 static void
 resetDelayedQueue(UA_EventLoopPuffin *el, UA_DelayedCallback **oldHead,
                   UA_DelayedCallback **oldTail) {
+
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        "Reset delayed Queue");
     if(el->delayedHead1 <= (UA_DelayedCallback *)0x01 &&
        el->delayedHead2 <= (UA_DelayedCallback *)0x01)
         return; /* The queue is empty */
@@ -102,6 +105,8 @@ static void
 UA_EventLoopPuffin_removeDelayedCallback(UA_EventLoop *public_el,
                                         UA_DelayedCallback *dc) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)public_el;
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        "Removed delayed Callback");
     UA_LOCK(&el->elMutex);
 
     /* Reset and get the old head and tail */
@@ -248,12 +253,19 @@ UA_EventLoopPuffin_start(UA_EventLoopPuffin *el) {
 
 static void
 checkClosed(UA_EventLoopPuffin *el) {
+
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        "Check if EventLoop can be stopped");
+
     UA_LOCK_ASSERT(&el->elMutex);
 
     UA_EventSource *es = el->eventLoop.eventSources;
     while(es) {
-        if(es->state != UA_EVENTSOURCESTATE_STOPPED)
+        if(es->state != UA_EVENTSOURCESTATE_STOPPED) {
+            UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+                "Cannot stop the EventLoop due to an unstopped event source");
             return;
+        }
         es = es->next;
     }
 
@@ -349,13 +361,15 @@ UA_EventLoopPuffin_run(UA_EventLoopPuffin *el, UA_UInt32 timeout) {
      *   cyclic callback. So we want to do little work between the timeout
      *   running out and executing the due cyclic callbacks. */
     processDelayed(el);
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+        "Delayed callbacks are processed");
 
     /* A delayed callback could create another delayed callback (or re-add
      * itself). In that case we don't want to wait (indefinitely) for an event
      * to happen. Process queued events but don't sleep. Then process the
      * delayed callbacks in the next iteration. */
-    // if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
-    //     timeout = 0;
+    if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
+        timeout = 0;
 
     /* Compute the remaining time */
     // UA_DateTime maxDate = dateBefore + (timeout * UA_DATETIME_MSEC);
@@ -618,11 +632,11 @@ UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     if(pcm->txBuffer.data == buf->data) {
         UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-            "TCP %u\t| Free txBuffer (init) of size %u, at %p", (unsigned)connectionId, buf->length, buf->data);
+            "Connexion %u: Free txBuffer (init) of size %u, at %p", (unsigned)connectionId, buf->length, buf->data);
         UA_ByteString_init(buf);
     } else {
         UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-            "TCP %u\t| Free txBuffer (clear) of size %u, at %p", (unsigned)connectionId, buf->length, buf->data);
+            "Connexion %u: Free txBuffer (clear) of size %u, at %p", (unsigned)connectionId, buf->length, buf->data);
         UA_ByteString_clear(buf);
     }
 }

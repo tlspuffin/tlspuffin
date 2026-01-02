@@ -14,7 +14,7 @@ static void usage(void) {
     printf("[-cert certfile.der] [-key keyfile.der] "
            "[-securityMode <0-3>] [-securityPolicy policyUri] ");
 #endif
-    printf("opc.tcp://<host>:<port>\n");
+    printf("[-reverse] opc.tcp://<host>:<port>\n");
 }
 
 int main(int argc, char *argv[]) {
