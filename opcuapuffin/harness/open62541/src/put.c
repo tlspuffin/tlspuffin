@@ -225,10 +225,10 @@ void open62541_destroy(AGENT agent) {
     }
     if (agent->role == SERVER) {
         UA_Server *server = (UA_Server*) agent->application;
-        _log(PUFFIN.error,"Sever run shutdown ...");
+        //_log(PUFFIN.error,"Server run shutdown ...");
         status = UA_Server_run_shutdown(server);
         if (status) _log(PUFFIN.error, "UA Server shutdown returned %s", UA_StatusCode_name(status));
-        _log(PUFFIN.error,"Sever delete ...");
+        //_log(PUFFIN.error,"Server delete ...");
         status = UA_Server_delete(server);
         if (status) _log(PUFFIN.error, "UA Server delete returned %s", UA_StatusCode_name(status));
     }
@@ -241,9 +241,9 @@ RESULT open62541_progress(AGENT agent){
         return PUFFIN.make_result(RESULT_OK, "");
     }
     if (agent->role == SERVER) {
-        _log(PUFFIN.error,"Server run ...");
+        //_log(PUFFIN.error,"Server run ...");
         UA_Server_run_iterate((UA_Server*) agent->application, false);
-        _log(PUFFIN.error,"Server run RESULT_OK");
+        //_log(PUFFIN.error,"Server run RESULT_OK");
         return PUFFIN.make_result(RESULT_OK, "");
     }
     return PUFFIN.make_result(RESULT_ERROR_OTHER, "Client unimplemented!");
@@ -267,9 +267,7 @@ void open62541_register_claimer(AGENT agent, const CLAIMER_CB *callback) {};
 #define RX_BUFFER_MAX_SIZE (2u << 16)
 
 RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written){
-
-    _log(PUFFIN.error,"Add inbound ...");
-
+    //_log(PUFFIN.error,"Add inbound ...");
     UA_PuffinConnectionManager *pcm = agent->connexion_manager;
     if (!pcm) return PUFFIN.make_result(RESULT_ERROR_OTHER, "Connection Manager unavailable.");
 
@@ -292,15 +290,13 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
         UA_CONNECTIONSTATE_ESTABLISHED,
         &UA_KEYVALUEMAP_NULL, buffer);
 
-    _log(PUFFIN.error,"Add inbound OK");
-
+    //_log(PUFFIN.error,"Add inbound OK");
     return PUFFIN.make_result(RESULT_OK, "");
 };
 
 
 RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes){
-
-    _log(PUFFIN.error,"Take outbound ...");
+    //_log(PUFFIN.error,"Take outbound ...");
 
     /* read the TxBuffer from the PuffinConnexionManager associated to the agent */
     UA_PuffinConnectionManager *pcm = agent->connexion_manager;
@@ -317,7 +313,7 @@ RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, s
     } else {
         *readbytes = 0;
     };
-    _log(PUFFIN.error,"Take outbound OK");
+    //_log(PUFFIN.error,"Take outbound OK");
     return PUFFIN.make_result(RESULT_OK, "");
 };
 

@@ -15,7 +15,7 @@ pub fn opcua_registry() -> PutRegistry<OpcuaProtocolBehavior> {
         [(OPEN62541, crate::puts::open62541::new_opcua_factory()),
                (OPC_TCP, crate::puts::tcp::new_opcua_factory()),
         ],
-        OPC_TCP,
+        OPEN62541,
     )
 }
 
