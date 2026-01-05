@@ -281,7 +281,7 @@ Puffin_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 
 /* Create a listen-socket that waits for incoming connections */
 static UA_StatusCode
-Puffin_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *params,
+TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *params,
                           void *application, void *context,
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate) {
@@ -381,7 +381,7 @@ Puffin_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueM
 
 /* Open a TCP connection to a remote host */
 static UA_StatusCode
-Puffin_openActiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *params,
+TCP_openActiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *params,
                          void *application, void *context,
                          UA_ConnectionManager_connectionCallback connectionCallback,
                          UA_Boolean validate) {
@@ -489,10 +489,10 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
         listen = *listenParam;
 
     if(listen) {
-        res = Puffin_openPassiveConnection(pcm, params, application, context,
+        res = TCP_openPassiveConnection(pcm, params, application, context,
                                         connectionCallback, validate);
     } else {
-        res = Puffin_openActiveConnection(pcm, params, application, context,
+        res = TCP_openActiveConnection(pcm, params, application, context,
                                        connectionCallback, validate);
     }
 
