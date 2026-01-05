@@ -1,7 +1,5 @@
 use std::collections::HashSet;
 use std::ffi::CStr;
-use std::mem::transmute;
-use std::ptr::NonNull;
 
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::ConcreteMessage;
@@ -42,14 +40,13 @@ impl Agent {
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         if let Some(c_add_inbound) = self.c_agent_interface.add_inbound {
+            log::warn!("Adding a new message to the PUT of size {}", message.len());
             unsafe {
                 let mut written: usize = 0;
                 c_add_inbound(self.c_agent, message.as_ptr(), message.len(), &mut written);
                 if message.len() != written {
                     log::error!("Open62541 Agent: added to inbound only {} bytes out of {}!",
                                 written, message.len());
-                } else {
-                    log::warn!("Added a new message to the PUT of size {}", message.len());
                 }}
         } else {
             log::error!("Open62541 Agent: add_inbound unavailable!")

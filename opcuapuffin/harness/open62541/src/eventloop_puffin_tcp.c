@@ -205,23 +205,56 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
                         &UA_KEYVALUEMAP_NULL, response);
 }
 
+static void
+TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
+    /* Already closing - nothing to do */
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
+    UA_LOCK_ASSERT(&el->elMutex);
+
+    if(conn->rfd.dc.callback) {
+        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                     "TCP %u\t| Cannot close - already closing",
+                     (unsigned)conn->rfd.fd);
+        return;
+    }
+
+    /* Shutdown the socket to cancel the current select/epoll */
+    UA_shutdown(conn->rfd.fd, UA_SHUT_RDWR);
+
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                 "TCP %u\t| Shutdown triggered",
+                 (unsigned)conn->rfd.fd);
+
+    /* Add to the delayed callback list. Will be cleaned up in the next
+     * iteration. */
+    UA_DelayedCallback *dc = &conn->rfd.dc;
+    dc->callback = TCP_delayedClose;
+    dc->application = cm;
+    dc->context = conn;
+
+    /* Adding a delayed callback does not take a lock */
+    UA_EventLoopPuffin_addDelayedCallback((UA_EventLoop*)el, dc);
+}
 
 static UA_StatusCode
 TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin *)cm->eventSource.eventLoop;
+    UA_LOCK(&el->elMutex);
 
-    /* Signal closing to the application */
-    // if (pcm) pcm->applicationCB(cm, pcm->connectionId,
-    //     pcm->application, &pcm->context,
-    //     UA_CONNECTIONSTATE_CLOSING,
-    //     &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Socket closed",
-        (unsigned)connectionId);
+    UA_FD fd = (UA_FD)connectionId;
+    TCP_FD *conn = (TCP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
+    if(!conn) {
+        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                       "TCP\t| Cannot close TCP connection %u - not found",
+                       (unsigned)connectionId);
+        UA_UNLOCK(&el->elMutex);
+        return UA_STATUSCODE_BADNOTFOUND;
+    }
 
-    TCP_checkStopped(pcm);
+    TCP_shutdown(cm, conn);
 
+    UA_UNLOCK(&el->elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
