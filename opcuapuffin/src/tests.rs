@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use opcua::puffin::signature::{fn_server_hello, fn_client_hello, fn_acknowledge};
 use opcua::puffin::signature::fn_impl::fn_constants::{
     fn_basic256sha256, fn_bob_cert, fn_bob_endpoint, fn_bob_sk, fn_channel_nonce_1, fn_channel_nonce_2,
-    fn_default_size, fn_issue, fn_mode_none, fn_mode_sign, fn_mallory_cert, fn_no_bytes, fn_no_nonce, fn_null_cert,
+    fn_default_size, fn_issue, fn_mode_none, fn_mode_sign, fn_no_bytes, fn_no_nonce, fn_null_cert,
     fn_open, fn_sa_token_zero,
     fn_security_policy_none, fn_seq_0};
 use opcua::puffin::signature::fn_impl::fn_uasc::{
