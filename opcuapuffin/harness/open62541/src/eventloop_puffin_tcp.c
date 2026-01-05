@@ -241,21 +241,11 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin *)cm->eventSource.eventLoop;
     UA_LOCK(&el->elMutex);
-
-    UA_FD fd = (UA_FD)connectionId;
-    TCP_FD *conn = (TCP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
-    if(!conn) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Cannot close TCP connection %u - not found",
-                       (unsigned)connectionId);
-        UA_UNLOCK(&el->elMutex);
-        return UA_STATUSCODE_BADNOTFOUND;
-    }
-
-    TCP_shutdown(cm, conn);
-
+    UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+            "TCP %u\t| Cannot close TCP connection - not found",
+            (unsigned)connectionId);
     UA_UNLOCK(&el->elMutex);
-    return UA_STATUSCODE_GOOD;
+    return UA_STATUSCODE_BADNOTFOUND;
 }
 
 static UA_StatusCode
@@ -264,7 +254,7 @@ Puffin_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
 
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*) cm;
     UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Attempting to send", (unsigned)connectionId);
+        "TCP %u\t| Sends a message", (unsigned)connectionId);
     UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
     if(pcm->txBuffer.data != buf->data) {
         UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
