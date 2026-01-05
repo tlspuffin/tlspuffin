@@ -1,13 +1,12 @@
-From 5c5a85a719a792c62bd05186a6830c0db0d7a0a0 Mon Sep 17 00:00:00 2001
+From 42b91a927346aebf5637e23b46ee7f10aad87dfd Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
 Date: Fri, 2 Jan 2026 15:42:42 +0100
 Subject: [PATCH 2/2] Added instrumentation to debug...
 
 ---
  src/server/ua_server.c        | 31 +++++++++++++++++++++++++++++--
- src/server/ua_server_binary.c |  2 ++
- src/ua_securechannel.c        |  1 +
- 3 files changed, 32 insertions(+), 2 deletions(-)
+ src/server/ua_server_binary.c |  6 +++++-
+ 2 files changed, 34 insertions(+), 3 deletions(-)
 
 diff --git a/src/server/ua_server.c b/src/server/ua_server.c
 index 979ba40e7..4a9f6eb25 100644
@@ -99,30 +98,22 @@ index 979ba40e7..4a9f6eb25 100644
      while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
            el->state != UA_EVENTLOOPSTATE_FRESH &&
 diff --git a/src/server/ua_server_binary.c b/src/server/ua_server_binary.c
-index 3d35798ba..0d3f30a88 100644
+index 3d35798ba..a7acd7c06 100644
 --- a/src/server/ua_server_binary.c
 +++ b/src/server/ua_server_binary.c
-@@ -1492,6 +1492,8 @@ UA_BinaryProtocolManager_stop(UA_ServerComponent *comp) {
+@@ -1491,7 +1491,11 @@ UA_BinaryProtocolManager_stop(UA_ServerComponent *comp) {
+        TAILQ_EMPTY(&bpm->channels)) {
          setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STOPPED);
      } else {
-         setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STOPPING);
-+        UA_LOG_DEBUG(bpm->logging, UA_LOGCATEGORY_SERVER,
-+            "Binary Protocol Manager cannot be stopped due to remaining open sockets.");
+-        setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STOPPING);
++        //setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STOPPING);
++        UA_LOG_ERROR(bpm->logging, UA_LOGCATEGORY_SERVER,
++            "Binary Protocol Manager stopped with remaining open sockets.");
++        bpm->serverConnectionsSize = 0;
++        setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STOPPED);
      }
  }
  
-diff --git a/src/ua_securechannel.c b/src/ua_securechannel.c
-index 8f399152d..4a171bd2a 100644
---- a/src/ua_securechannel.c
-+++ b/src/ua_securechannel.c
-@@ -159,6 +159,7 @@ UA_SecureChannel_deleteBuffered(UA_SecureChannel *channel) {
- void
- UA_SecureChannel_shutdown(UA_SecureChannel *channel,
-                           UA_ShutdownReason shutdownReason) {
-+    printf("UA_SecureChannel_shutdown...\n");
-     /* No open socket or already closing -> nothing to do */
-     if(!UA_SecureChannel_isConnected(channel))
-         return;
 -- 
 2.51.0
 
