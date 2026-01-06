@@ -107,7 +107,6 @@ UA_EventLoopPuffin_removeDelayedCallback(UA_EventLoop *public_el,
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)public_el;
     UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
         "Removed delayed Callback");
-    UA_LOCK(&el->elMutex);
 
     /* Reset and get the old head and tail */
     UA_DelayedCallback *cur = NULL, *tail = NULL;
@@ -125,16 +124,12 @@ UA_EventLoopPuffin_removeDelayedCallback(UA_EventLoop *public_el,
             continue;
         UA_EventLoopPuffin_addDelayedCallback(public_el, cur);
     }
-
-    UA_UNLOCK(&el->elMutex);
 }
 
 static void
 processDelayed(UA_EventLoopPuffin *el) {
     UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Process delayed callbacks");
-
-    UA_LOCK_ASSERT(&el->elMutex);
 
     /* Reset and get the old head and tail */
     UA_DelayedCallback *dc = NULL, *tail = NULL;
@@ -158,11 +153,9 @@ processDelayed(UA_EventLoopPuffin *el) {
 
 static UA_StatusCode
 UA_EventLoopPuffin_start(UA_EventLoopPuffin *el) {
-    UA_LOCK(&el->elMutex);
 
     if(el->eventLoop.state != UA_EVENTLOOPSTATE_FRESH &&
        el->eventLoop.state != UA_EVENTLOOPSTATE_STOPPED) {
-        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -198,7 +191,6 @@ UA_EventLoopPuffin_start(UA_EventLoopPuffin *el) {
     //        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
     //                       "Eventloop\t| Could not create the self-pipe (%s)",
     //                       errno_str));
-    //     UA_UNLOCK(&el->elMutex);
     //     return UA_STATUSCODE_BADINTERNALERROR;
     // }
 
@@ -216,7 +208,6 @@ UA_EventLoopPuffin_start(UA_EventLoopPuffin *el) {
     *(UA_EventLoopState*)(uintptr_t)&el->eventLoop.state =
         UA_EVENTLOOPSTATE_STARTED;
 
-    UA_UNLOCK(&el->elMutex);
     return res;
 }
 
@@ -225,8 +216,6 @@ checkClosed(UA_EventLoopPuffin *el) {
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
         "Check if EventLoop can be stopped");
-
-    UA_LOCK_ASSERT(&el->elMutex);
 
     UA_EventSource *es = el->eventLoop.eventSources;
     while(es) {
@@ -258,12 +247,9 @@ checkClosed(UA_EventLoopPuffin *el) {
 
 static void
 UA_EventLoopPuffin_stop(UA_EventLoopPuffin *el) {
-    UA_LOCK(&el->elMutex);
-
     if(el->eventLoop.state != UA_EVENTLOOPSTATE_STARTED) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                        "The EventLoop is not running, cannot be stopped");
-        UA_UNLOCK(&el->elMutex);
         return;
     }
 
@@ -285,19 +271,14 @@ UA_EventLoopPuffin_stop(UA_EventLoopPuffin *el) {
 
     /* Set to STOPPED if all EventSources are STOPPED */
     checkClosed(el);
-
-    UA_UNLOCK(&el->elMutex);
 }
 
 static UA_StatusCode
 UA_EventLoopPuffin_run(UA_EventLoopPuffin *el, UA_UInt32 timeout) {
-    UA_LOCK(&el->elMutex);
-
     if(el->executing) {
         UA_LOG_ERROR(el->eventLoop.logger,
                      UA_LOGCATEGORY_EVENTLOOP,
                      "Cannot run EventLoop from the run method itself");
-        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -308,7 +289,6 @@ UA_EventLoopPuffin_run(UA_EventLoopPuffin *el, UA_UInt32 timeout) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                        "Cannot run a stopped EventLoop");
         el->executing = false;
-        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -355,7 +335,6 @@ UA_EventLoopPuffin_run(UA_EventLoopPuffin *el, UA_UInt32 timeout) {
         checkClosed(el);
 
     el->executing = false;
-    UA_UNLOCK(&el->elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -366,12 +345,9 @@ UA_EventLoopPuffin_run(UA_EventLoopPuffin *el, UA_UInt32 timeout) {
 static UA_StatusCode
 UA_EventLoopPuffin_registerEventSource(UA_EventLoopPuffin *el,
                                       UA_EventSource *es) {
-    UA_LOCK(&el->elMutex);
-
     if(!es) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                         "Cannot register a null EventSource!");
-        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -381,7 +357,6 @@ UA_EventLoopPuffin_registerEventSource(UA_EventLoopPuffin *el,
                      "Cannot register the EventSource \"%.*s\": "
                      "already registered",
                      (int)es->name.length, (char*)es->name.data);
-        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -397,21 +372,17 @@ UA_EventLoopPuffin_registerEventSource(UA_EventLoopPuffin *el,
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_STARTED)
         res = es->start(es);
 
-    UA_UNLOCK(&el->elMutex);
     return res;
 }
 
 static UA_StatusCode
 UA_EventLoopPuffin_deregisterEventSource(UA_EventLoopPuffin *el,
                                         UA_EventSource *es) {
-    UA_LOCK(&el->elMutex);
-
     if(es->state != UA_EVENTSOURCESTATE_STOPPED) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                        "Cannot deregister the EventSource %.*s: "
                        "Has to be stopped first",
                        (int)es->name.length, es->name.data);
-        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -427,8 +398,6 @@ UA_EventLoopPuffin_deregisterEventSource(UA_EventLoopPuffin *el,
 
     /* Set the state to non-registered */
     es->state = UA_EVENTSOURCESTATE_FRESH;
-
-    UA_UNLOCK(&el->elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -470,14 +439,11 @@ UA_EventLoopPuffin_DateTime_localTimeUtcOffset(UA_EventLoop *el) {
 
 static UA_StatusCode
 UA_EventLoopPuffin_free(UA_EventLoopPuffin *el) {
-    UA_LOCK(&el->elMutex);
-
     /* Check if the EventLoop can be deleted */
     if(el->eventLoop.state != UA_EVENTLOOPSTATE_STOPPED &&
        el->eventLoop.state != UA_EVENTLOOPSTATE_FRESH) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                        "Cannot delete a running EventLoop");
-        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -497,20 +463,15 @@ UA_EventLoopPuffin_free(UA_EventLoopPuffin *el) {
     UA_KeyValueMap_clear(&el->eventLoop.params);
 
     /* Clean up */
-    UA_UNLOCK(&el->elMutex);
-    UA_LOCK_DESTROY(&el->elMutex);
     UA_free(el);
     return UA_STATUSCODE_GOOD;
 }
 
 static void
-UA_EventLoopPuffin_lock(UA_EventLoop *public_el) {
-    UA_LOCK(&((UA_EventLoopPuffin*)public_el)->elMutex);
-}
+UA_EventLoopPuffin_lock(UA_EventLoop *public_el) {}
+
 static void
-UA_EventLoopPuffin_unlock(UA_EventLoop *public_el) {
-    UA_UNLOCK(&((UA_EventLoopPuffin*)public_el)->elMutex);
-}
+UA_EventLoopPuffin_unlock(UA_EventLoop *public_el) {}
 
 UA_EventLoop *
 UA_EventLoop_new_POSIX(const UA_Logger *logger) {
@@ -519,7 +480,6 @@ UA_EventLoop_new_POSIX(const UA_Logger *logger) {
     if(!el)
         return NULL;
 
-    UA_LOCK_INIT(&el->elMutex);
     UA_Timer_init(&el->timer);
 
     /* Initialize the queue */
@@ -665,19 +625,12 @@ UA_EventLoopPuffin_setReusable(UA_FD sockfd) {
 
 /* Re-arm the self-pipe socket for the next signal by reading from it */
 static void
-flushSelfPipe(UA_SOCKET s) {
-    char buf[128];
-    ssize_t i;
-    do {
-        i = read(s, buf, 128);
-    } while(i > 0);
-}
+flushSelfPipe(UA_SOCKET s) {}
 
 #if !defined(UA_HAVE_EPOLL)
 
 UA_StatusCode
 UA_EventLoopPuffin_registerFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
-    UA_LOCK_ASSERT(&el->elMutex);
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Registering fd: %u", (unsigned)rfd->fd);
 
@@ -698,13 +651,11 @@ UA_EventLoopPuffin_registerFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
 UA_StatusCode
 UA_EventLoopPuffin_modifyFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
     /* Do nothing, it is enough if the data was changed in the rfd */
-    UA_LOCK_ASSERT(&el->elMutex);
     return UA_STATUSCODE_GOOD;
 }
 
 void
 UA_EventLoopPuffin_deregisterFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
-    UA_LOCK_ASSERT(&el->elMutex);
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "Unregistering fd: %u", (unsigned)rfd->fd);
 
@@ -739,7 +690,6 @@ UA_EventLoopPuffin_deregisterFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
 
 static UA_FD
 setFDSets(UA_EventLoopPuffin *el, fd_set *readset, fd_set *writeset, fd_set *errset) {
-    UA_LOCK_ASSERT(&el->elMutex);
 
     FD_ZERO(readset);
     FD_ZERO(writeset);
@@ -771,7 +721,6 @@ setFDSets(UA_EventLoopPuffin *el, fd_set *readset, fd_set *writeset, fd_set *err
 UA_StatusCode
 UA_EventLoopPuffin_pollFDs(UA_EventLoopPuffin *el, UA_DateTime listenTimeout) {
     // UA_assert(listenTimeout >= 0);
-    // UA_LOCK_ASSERT(&el->elMutex);
 
     // fd_set readset, writeset, errset;
     // UA_FD highestfd = setFDSets(el, &readset, &writeset, &errset);
@@ -788,9 +737,7 @@ UA_EventLoopPuffin_pollFDs(UA_EventLoopPuffin *el, UA_DateTime listenTimeout) {
     //     (long)((listenTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
     // };
 
-    // // UA_UNLOCK(&el->elMutex);
     // // int selectStatus = UA_select(highestfd+1, &readset, &writeset, &errset, &tmptv);
-    // // UA_LOCK(&el->elMutex);
     // // if(selectStatus < 0) {
     // //     /* We will retry, only log the error */
     // //     UA_LOG_SOCKET_ERRNO_WRAP(
