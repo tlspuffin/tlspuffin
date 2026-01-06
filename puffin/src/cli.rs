@@ -96,7 +96,7 @@ where
                 .arg(arg!(-t --host [h] "The host to connect to, or the server host"))
                 .arg(arg!(-p --port [n] "The client port to connect to, or the server port")
                     .value_parser(value_parser!(u16).range(1..))),
-            Command::new("differential_exec")
+            Command::new("differential-execute")
                 .about("Execute a trace on multiple targets")
                 .arg(arg!(<first_target> "The first target to fuzz"))
                 .arg(arg!(<second_target> "The second target to fuzz"))
@@ -105,7 +105,13 @@ where
             Command::new("differential")
                 .about("Start a differential fuzzing campaign")
                 .arg(arg!(<first_target> "The first target to fuzz"))
+                .arg(arg!(<second_target> "The second target to fuzz")),
+            Command::new("differential-experiment").about("Starts a new differential fuzzing experiment and writes the results out")
+                .arg(arg!(<first_target> "The first target to fuzz"))
                 .arg(arg!(<second_target> "The second target to fuzz"))
+                .arg(arg!(-t --title <t> "Title of the experiment"))
+                .arg(arg!(-d --description [d] "Description of the experiment"))
+            ,
         ])
 }
 
@@ -188,6 +194,27 @@ where
             (true, experiments_root.join(&title))
         } else {
             if let Some(matches) = matches.subcommand_matches("experiment") {
+                let git_ref = "_".to_string();
+                let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
+                let experiments_root = PathBuf::new().join("experiments");
+                let title = format_title(
+                    Some(title),
+                    None,
+                    &put_registry,
+                    without_bit_level,
+                    without_dy_mutations,
+                    without_truncation,
+                    put_use_clear,
+                    minimizer,
+                    num_cores,
+                );
+                let experiment_path = experiments_root.join(title);
+                assert!(
+                    !experiment_path.as_path().exists(),
+                    "Experiment already exists. Consider creating a new experiment."
+                );
+                (true, experiment_path)
+            } else if let Some(matches) = matches.subcommand_matches("differential-experiment") {
                 let git_ref = "_".to_string();
                 let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
                 let experiments_root = PathBuf::new().join("experiments");
@@ -463,7 +490,7 @@ where
         log::info!("{}", shutdown);
 
         return ExitCode::SUCCESS;
-    } else if let Some(matches) = matches.subcommand_matches("differential_exec") {
+    } else if let Some(matches) = matches.subcommand_matches("differential-execute") {
         // differential fuzzing here
         let first_put: &String = matches.get_one("first_target").unwrap();
         let second_put: &String = matches.get_one("second_target").unwrap();
@@ -523,7 +550,10 @@ where
             }
         };
     } else {
-        let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
+        let experiment_path = if let Some(matches) = matches
+            .subcommand_matches("experiment")
+            .or(matches.subcommand_matches("differential-experiment"))
+        {
             let git_ref = "_".to_string();
             let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
             let format_t = format_title(
@@ -592,9 +622,12 @@ where
         }
 
         // Differential fuzzing
-        let target = if let Some(matches) = matches.subcommand_matches("differential") {
-            let first_put: &String = matches.get_one("first_target").unwrap();
-            let second_put: &String = matches.get_one("second_target").unwrap();
+        let target = if let Some(submatches) = matches
+            .subcommand_matches("differential")
+            .or(matches.subcommand_matches("differential-experiment"))
+        {
+            let first_put: &String = submatches.get_one("first_target").unwrap();
+            let second_put: &String = submatches.get_one("second_target").unwrap();
 
             if let Err((available_puts, non_available_puts)) =
                 check_if_puts_exist(&put_registry, &[first_put, second_put])
