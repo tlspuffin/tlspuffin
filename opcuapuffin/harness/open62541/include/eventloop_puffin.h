@@ -20,8 +20,6 @@
 
 _UA_BEGIN_DECLS
 
-#include <errno.h>
-
 /*********************/
 /* POSIX Definitions */
 /*********************/
@@ -32,151 +30,15 @@ _UA_BEGIN_DECLS
 /* Network Definitions */
 /*---------------------*/
 
-#include <sys/socket.h>
-#include <sys/select.h>
-#include <sys/ioctl.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <netdb.h>
-#include <net/if.h>
-#include <poll.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <ifaddrs.h>
-
-#if defined(__unix__) || (defined(__APPLE__) && defined(__MACH__))
-# include <sys/param.h>
-# if defined(BSD)
-#  include <sys/socket.h>
-# endif
-#endif
-
-#if defined (__APPLE__)
-typedef int SOCKET;
-#endif
-
-#define UA_IPV6 1
 #define UA_SOCKET int
 #define UA_INVALID_SOCKET -1
-#define UA_RESET_ERRNO do { errno = 0; } while(0)
-#define UA_ERRNO errno
-#define UA_INTERRUPTED EINTR
-#define UA_AGAIN EAGAIN /* the same as wouldblock on nearly every system */
-#define UA_INPROGRESS EINPROGRESS
-#define UA_WOULDBLOCK EWOULDBLOCK
-#define UA_CONNABORTED ECONNABORTED
-#define UA_MFILE EMFILE
-#define UA_NFILE ENFILE
-#define UA_NOBUFS ENOBUFS
-#define UA_POLLIN POLLIN
-#define UA_POLLOUT POLLOUT
-#define UA_SHUT_RDWR SHUT_RDWR
-
-#define UA_IS_TEMPORARY_ACCEPT_ERROR(err) \
-    ((err) == UA_INTERRUPTED || (err) == UA_CONNABORTED || (err) == UA_MFILE || (err) == UA_NFILE || (err) == UA_NOBUFS)
-
-#define UA_getnameinfo(sa, salen, host, hostlen, serv, servlen, flags) \
-    getnameinfo(sa, salen, host, hostlen, serv, servlen, flags)
-#define UA_poll poll
-#define UA_send send
-#define UA_recv recv
-#define UA_sendto sendto
-#define UA_close close
-#define UA_select select
-#define UA_connect connect
-#define UA_getsockopt getsockopt
-#define UA_setsockopt setsockopt
-#define UA_inet_pton inet_pton
-#define UA_if_nametoindex if_nametoindex
-#define UA_socket socket
-#define UA_bind bind
-#define UA_recvfrom recvfrom
-#define UA_accept accept
-#define UA_listen listen
-#define UA_shutdown shutdown
-#define UA_getaddrinfo getaddrinfo
-#define UA_freeaddrinfo freeaddrinfo
-#define UA_inet_ntop inet_ntop
-#define UA_getsockname getsockname
-#define UA_gethostname gethostname
-
-#define UA_clean_errno(STR_FUN) \
-    (errno == 0 ? (char*) "None" : (STR_FUN)(errno))
-#define UA_LOG_SOCKET_ERRNO_WRAP(LOG) \
-    do { char *errno_str = UA_clean_errno(strerror); LOG; errno = 0; } while (0)
-#define UA_LOG_SOCKET_ERRNO_GAI_WRAP(LOG) \
-    do { const char *errno_str = UA_clean_errno(gai_strerror); LOG; errno = 0; } while (0)
-
-/* epoll_pwait returns bogus data with the tc compiler */
-#if defined(__linux__) && !defined(__TINYC__)
-# define UA_HAVE_EPOLL
-# include <sys/epoll.h>
-#endif
-
-/*---------------------------*/
-/* File Handling Definitions */
-/*---------------------------*/
-
-#include <dirent.h>
-#include <libgen.h>
-#include <limits.h>
-#include <stdio.h>
-#ifndef __APPLE__
-# include <sys/inotify.h>
-#endif /* !__APPLE__ */
-#include <sys/stat.h>
-
-#ifndef __ANDROID__
-#ifndef __APPLE__
-#include <bits/stdio_lim.h>
-#endif /* !__APPLE__ */
-#endif /* !__ANDROID__ */
-
-#define UA_STAT stat
-#define UA_DIR DIR
-#define UA_DIRENT dirent
-#define UA_FILE FILE
-#define UA_MODE mode_t
-
-#define UA_stat stat
-#define UA_opendir opendir
-#define UA_readdir readdir
-#define UA_rewinddir rewinddir
-#define UA_closedir closedir
-#define UA_mkdir mkdir
-#define UA_fopen fopen
-#define UA_fread fread
-#define UA_fwrite fwrite
-#define UA_fseek fseek
-#define UA_ftell ftell
-#define UA_fclose fclose
-#define UA_remove remove
-#define UA_dirname dirname
-
-#define UA_SEEK_END SEEK_END
-#define UA_SEEK_SET SEEK_SET
-#define UA_DT_REG DT_REG
-#define UA_DT_DIR DT_DIR
-#define UA_PATH_MAX PATH_MAX
-#define UA_FILENAME_MAX FILENAME_MAX
-
 
 /***********************/
 /* General Definitions */
 /***********************/
 
-#define UA_MAXBACKLOG 100
 #define UA_MAXHOSTNAME_LENGTH 256
 #define UA_MAXPORTSTR_LENGTH 6
-
-#ifndef MSG_NOSIGNAL
-#define MSG_NOSIGNAL 0
-#endif
-
-#ifndef MSG_DONTWAIT
-#define MSG_DONTWAIT 0
-#endif
 
 /* POSIX events are based on sockets / file descriptors. The EventSources can
  * register their fd in the EventLoop so that they are considered by the
@@ -284,12 +146,8 @@ typedef struct {
     UA_Int32 clockSource;
     UA_Int32 clockSourceMonotonic;
 
-#if defined(UA_HAVE_EPOLL)
-    UA_FD epollfd;
-#else
     UA_RegisteredFD **fds;
     size_t fdsSize;
-#endif
 
     /* Self-pipe to cancel blocking wait */
     UA_FD selfpipe[2]; /* 0: read, 1: write */
@@ -347,13 +205,11 @@ UA_EventLoopPuffin_setReusable(UA_FD sockfd);
 
 /* Windows has no pipes. Use a local TCP connection for the self-pipe trick.
  * https://stackoverflow.com/a/3333565 */
-#if defined(__APPLE__)
-int UA_EventLoopPuffin_pipe(SOCKET fds[2]);
-#elif defined(__QNX__)
-int UA_EventLoopPuffin_pipe(int fds[2]);
-#else
-# define UA_EventLoopPuffin_pipe(fds) pipe2(fds, O_NONBLOCK)
-#endif
+// #if defined(__APPLE__)
+// int UA_EventLoopPuffin_pipe(SOCKET fds[2]);
+// #else
+// # define UA_EventLoopPuffin_pipe(fds) pipe2(fds, O_NONBLOCK)
+// #endif
 
 /* Cancel the current _run by sending to the self-pipe */
 void
