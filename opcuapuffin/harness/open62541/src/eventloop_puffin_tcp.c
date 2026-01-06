@@ -44,8 +44,6 @@ typedef struct {
 /* Test if the ConnectionManager can be stopped */
 static void
 TCP_checkStopped(UA_PuffinConnectionManager *pcm) {
-    UA_LOCK_ASSERT(&((UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop)->elMutex);
-
     if(//pcm->fdsSize == 0 &&
        pcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING) {
         UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
@@ -65,8 +63,6 @@ TCP_delayedClose(void *application, void *context) {
     UA_ConnectionManager *cm = &pcm->cm;
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
     TCP_FD *conn = (TCP_FD*)context;
-
-    UA_LOCK(&el->elMutex);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "TCP %u\t| Delayed closing of the connection",
@@ -105,8 +101,6 @@ TCP_delayedClose(void *application, void *context) {
 
     /* Check if this was the last connection for a closing ConnectionManager */
     TCP_checkStopped(pcm);
-
-    UA_UNLOCK(&el->elMutex);
 }
 
 // static int
@@ -122,7 +116,6 @@ static void
 TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
                              short event) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Activity on the socket",
@@ -209,7 +202,6 @@ static void
 TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
     /* Already closing - nothing to do */
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex);
 
     if(conn->rfd.dc.callback) {
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -240,11 +232,9 @@ static UA_StatusCode
 TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin *)cm->eventSource.eventLoop;
-    UA_LOCK(&el->elMutex);
     UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
             "TCP %u\t| Cannot close TCP connection - not found",
             (unsigned)connectionId);
-    UA_UNLOCK(&el->elMutex);
     return UA_STATUSCODE_BADNOTFOUND;
 }
 
@@ -276,7 +266,6 @@ TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap 
                           UA_ConnectionManager_connectionCallback connectionCallback,
                           UA_Boolean validate) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex);
 
     /* Get the port parameter */
     const UA_UInt16 *port = (const UA_UInt16*)
@@ -376,7 +365,6 @@ TCP_openActiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *
                          UA_ConnectionManager_connectionCallback connectionCallback,
                          UA_Boolean validate) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
-    UA_LOCK_ASSERT(&el->elMutex);
 
     /* Get the connection parameters */
     char hostname[UA_MAXHOSTNAME_LENGTH];
@@ -440,13 +428,11 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                    UA_ConnectionManager_connectionCallback connectionCallback) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
-    UA_LOCK(&el->elMutex);
 
     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STARTED) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| Cannot open a connection for a "
                      "ConnectionManager that is not started");
-        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -456,7 +442,6 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                                         tcpConnectionParams,
                                         TCP_PARAMETERSSIZE, params);
     if(res != UA_STATUSCODE_GOOD) {
-        UA_UNLOCK(&el->elMutex);
         return res;
     }
 
@@ -486,7 +471,6 @@ TCP_openConnection(UA_ConnectionManager *cm, const UA_KeyValueMap *params,
                                        connectionCallback, validate);
     }
 
-    UA_UNLOCK(&el->elMutex);
     return res;
 }
 
@@ -497,14 +481,11 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
     if(!el)
         return UA_STATUSCODE_BADINTERNALERROR;
 
-    UA_LOCK(&el->elMutex);
-
     /* Check the state */
     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STOPPED) {
         UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| To start the ConnectionManager, it has to be "
                      "registered in an EventLoop and not started yet");
-        UA_UNLOCK(&el->elMutex);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
 
@@ -529,7 +510,6 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
         (void*) pcm, (void*) pcm->rxBuffer.data, pcm->rxBuffer.length);
 
  finish:
-    UA_UNLOCK(&el->elMutex);
     return res;
 }
 
@@ -543,8 +523,6 @@ TCP_eventSourceStop(UA_ConnectionManager *cm) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
 
-    UA_LOCK(&el->elMutex);
-
     UA_LOG_DEBUG(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                  "TCP\t| Shutting down the ConnectionManager");
 
@@ -556,8 +534,6 @@ TCP_eventSourceStop(UA_ConnectionManager *cm) {
 
     /* All sockets closed? Otherwise iterate some more. */
     TCP_checkStopped(pcm);
-
-    UA_UNLOCK(&el->elMutex);
 }
 
 static UA_StatusCode

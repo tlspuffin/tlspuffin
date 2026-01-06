@@ -152,9 +152,6 @@ typedef struct {
     /* Self-pipe to cancel blocking wait */
     UA_FD selfpipe[2]; /* 0: read, 1: write */
 
-#if UA_MULTITHREADING >= 100
-    UA_Lock elMutex;
-#endif
 } UA_EventLoopPuffin;
 
 /* The following functions differ between epoll and normal select */
