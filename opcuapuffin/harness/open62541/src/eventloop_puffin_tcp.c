@@ -87,17 +87,17 @@ TCP_delayedClose(void *application, void *context) {
                         &UA_KEYVALUEMAP_NULL, UA_BYTESTRING_NULL);
 
     /* Close the socket */
-    UA_RESET_ERRNO;
-    int ret = UA_close(conn->rfd.fd);
-    if(ret == 0) {
+    // UA_RESET_ERRNO;
+    // int ret = UA_close(conn->rfd.fd);
+    // if(ret == 0) {
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP %u\t| Socket closed", (unsigned)conn->rfd.fd);
-    } else {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP %u\t| Could not close the socket (%s)",
-                          (unsigned)conn->rfd.fd, errno_str));
-    }
+    // } else {
+    //     UA_LOG_SOCKET_ERRNO_WRAP(
+    //        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+    //                       "TCP %u\t| Could not close the socket (%s)",
+    //                       (unsigned)conn->rfd.fd, errno_str));
+    // }
 
 
     UA_String_clear(&conn->rfd.hostname);
@@ -109,13 +109,13 @@ TCP_delayedClose(void *application, void *context) {
     UA_UNLOCK(&el->elMutex);
 }
 
-static int
-getSockError(TCP_FD *conn) {
-    int error = 0;
-    socklen_t errlen = sizeof(int);
-    int err = UA_getsockopt(conn->rfd.fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
-    return (err == 0) ? error : err;
-}
+// static int
+// getSockError(TCP_FD *conn) {
+//     int error = 0;
+//     socklen_t errlen = sizeof(int);
+//     int err = UA_getsockopt(conn->rfd.fd, SOL_SOCKET, SO_ERROR, &error, &errlen);
+//     return (err == 0) ? error : err;
+// }
 
 /* Gets called when a connection socket opens, receives data or closes */
 static void
@@ -130,9 +130,9 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
 
     /* Error. The connection has closed. */
     if(event == UA_FDEVENT_ERR) {
-        UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                    "TCP %u\t| The connection closes with error %i",
-                    (unsigned)conn->rfd.fd, getSockError(conn));
+        // UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        //             "TCP %u\t| The connection closes with error %i",
+        //             (unsigned)conn->rfd.fd, getSockError(conn));
         return;
     }
 
@@ -141,13 +141,13 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
      * initiate the connection. So we check manually for error conditions on
      * the socket. */
     if(event == UA_FDEVENT_OUT) {
-        int error = getSockError(conn);
-        if(error != 0) {
-            UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                        "TCP %u\t| The connection closes with error %i",
-                        (unsigned)conn->rfd.fd, error);
-            return;
-        }
+        // int error = getSockError(conn);
+        // if(error != 0) {
+        //     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        //                 "TCP %u\t| The connection closes with error %i",
+        //                 (unsigned)conn->rfd.fd, error);
+        //     return;
+        // }
 
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP %u\t| Opening a new connection",
@@ -174,35 +174,35 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
     UA_ByteString response = pcm->rxBuffer;
 
     /* Receive */
-    UA_RESET_ERRNO;
-    int ret = UA_recv(conn->rfd.fd, (char*)response.data,
-                      response.length, MSG_DONTWAIT);
+    // UA_RESET_ERRNO;
+    // int ret = UA_recv(conn->rfd.fd, (char*)response.data,
+    //                   response.length, MSG_DONTWAIT);
 
     /* Receive has failed */
-    if(ret <= 0) {
-        if(UA_ERRNO == UA_INTERRUPTED ||
-           UA_ERRNO == UA_WOULDBLOCK ||
-           UA_ERRNO == UA_AGAIN)
-            return; /* Temporary error on an non-blocking socket */
+    // if(ret <= 0) {
+    //     if(UA_ERRNO == UA_INTERRUPTED ||
+    //        UA_ERRNO == UA_WOULDBLOCK ||
+    //        UA_ERRNO == UA_AGAIN)
+    //         return; /* Temporary error on an non-blocking socket */
 
-        /* Orderly shutdown of the socket */
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                        "TCP %u\t| recv signaled the socket was shutdown (%s)",
-                        (unsigned)conn->rfd.fd, errno_str));
-        return;
-    }
+    //     /* Orderly shutdown of the socket */
+    //     UA_LOG_SOCKET_ERRNO_WRAP(
+    //        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+    //                     "TCP %u\t| recv signaled the socket was shutdown (%s)",
+    //                     (unsigned)conn->rfd.fd, errno_str));
+    //     return;
+    // }
 
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                 "TCP %u\t| Received message of size %u",
-                 (unsigned)conn->rfd.fd, (unsigned)ret);
+    // UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+    //              "TCP %u\t| Received message of size %u",
+    //              (unsigned)conn->rfd.fd, (unsigned)ret);
 
-    /* Callback to the application layer */
-    response.length = (size_t)ret; /* Set the length of the received buffer */
-    conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
-                        conn->application, &conn->context,
-                        UA_CONNECTIONSTATE_ESTABLISHED,
-                        &UA_KEYVALUEMAP_NULL, response);
+    // /* Callback to the application layer */
+    // response.length = (size_t)ret; /* Set the length of the received buffer */
+    // conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
+    //                     conn->application, &conn->context,
+    //                     UA_CONNECTIONSTATE_ESTABLISHED,
+    //                     &UA_KEYVALUEMAP_NULL, response);
 }
 
 static void
@@ -219,7 +219,7 @@ TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
     }
 
     /* Shutdown the socket to cancel the current select/epoll */
-    UA_shutdown(conn->rfd.fd, UA_SHUT_RDWR);
+    // UA_shutdown(conn->rfd.fd, UA_SHUT_RDWR);
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Shutdown triggered",

@@ -192,48 +192,17 @@ UA_EventLoopPuffin_start(UA_EventLoopPuffin *el) {
     }
 
     /* Create the self-pipe */
-    int err = UA_EventLoopPuffin_pipe(el->selfpipe);
-    if(err != 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "Eventloop\t| Could not create the self-pipe (%s)",
-                          errno_str));
-        UA_UNLOCK(&el->elMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
+    // int err = UA_EventLoopPuffin_pipe(el->selfpipe);
+    // if(err != 0) {
+    //     UA_LOG_SOCKET_ERRNO_WRAP(
+    //        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+    //                       "Eventloop\t| Could not create the self-pipe (%s)",
+    //                       errno_str));
+    //     UA_UNLOCK(&el->elMutex);
+    //     return UA_STATUSCODE_BADINTERNALERROR;
+    // }
 
     /* Create the epoll socket */
-#ifdef UA_HAVE_EPOLL
-    el->epollfd = epoll_create1(0);
-    if(el->epollfd == -1) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "Eventloop\t| Could not create the epoll socket (%s)",
-                          errno_str));
-        UA_close(el->selfpipe[0]);
-        UA_close(el->selfpipe[1]);
-        UA_UNLOCK(&el->elMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* epoll always listens on the self-pipe. This is the only epoll_event that
-     * has a NULL data pointer. */
-    struct epoll_event event;
-    memset(&event, 0, sizeof(struct epoll_event));
-    event.events = EPOLLIN;
-    err = epoll_ctl(el->epollfd, EPOLL_CTL_ADD, el->selfpipe[0], &event);
-    if(err != 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "Eventloop\t| Could not register the self-pipe for epoll (%s)",
-                          errno_str));
-        UA_close(el->selfpipe[0]);
-        UA_close(el->selfpipe[1]);
-        close(el->epollfd);
-        UA_UNLOCK(&el->elMutex);
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-#endif
 
     /* Start the EventSources */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
@@ -282,9 +251,6 @@ checkClosed(UA_EventLoopPuffin *el) {
         UA_EVENTLOOPSTATE_STOPPED;
 
     /* Close the epoll/IOCP socket once all EventSources have shut down */
-#ifdef UA_HAVE_EPOLL
-    //UA_close(el->epollfd);
-#endif
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "The EventLoop has stopped");
@@ -680,37 +646,17 @@ cmpFD(const UA_FD *a, const UA_FD *b) {
 
 UA_StatusCode
 UA_EventLoopPuffin_setNonBlocking(UA_FD sockfd) {
-#ifndef UA_ARCHITECTURE_WIN32
-    int opts = fcntl(sockfd, F_GETFL);
-    if(opts < 0 || fcntl(sockfd, F_SETFL, opts | O_NONBLOCK) < 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-#else
-    u_long iMode = 1;
-    if(ioctlsocket(sockfd, FIONBIO, &iMode) != NO_ERROR)
-        return UA_STATUSCODE_BADINTERNALERROR;
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_EventLoopPuffin_setNoSigPipe(UA_FD sockfd) {
-#ifdef SO_NOSIGPIPE
-    int val = 1;
-    int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_NOSIGPIPE, &val, sizeof(val));
-    if(res < 0)
-        return UA_STATUSCODE_BADINTERNALERROR;
-#endif
     return UA_STATUSCODE_GOOD;
 }
 
 UA_StatusCode
 UA_EventLoopPuffin_setReusable(UA_FD sockfd) {
-    int enableReuseVal = 1;
-    int res = UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR,
-                            (const char*)&enableReuseVal, sizeof(enableReuseVal));
-    res |= UA_setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT,
-                            (const char*)&enableReuseVal, sizeof(enableReuseVal));
-    return (res == 0) ? UA_STATUSCODE_GOOD : UA_STATUSCODE_BADINTERNALERROR;
+    return UA_STATUSCODE_GOOD;
 }
 
 /************************/
@@ -824,254 +770,113 @@ setFDSets(UA_EventLoopPuffin *el, fd_set *readset, fd_set *writeset, fd_set *err
 
 UA_StatusCode
 UA_EventLoopPuffin_pollFDs(UA_EventLoopPuffin *el, UA_DateTime listenTimeout) {
-    UA_assert(listenTimeout >= 0);
-    UA_LOCK_ASSERT(&el->elMutex);
+    // UA_assert(listenTimeout >= 0);
+    // UA_LOCK_ASSERT(&el->elMutex);
 
-    fd_set readset, writeset, errset;
-    UA_FD highestfd = setFDSets(el, &readset, &writeset, &errset);
+    // fd_set readset, writeset, errset;
+    // UA_FD highestfd = setFDSets(el, &readset, &writeset, &errset);
 
-    /* Nothing to do? */
-    if(highestfd == UA_INVALID_FD) {
-        UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "No valid FDs for processing");
-        return UA_STATUSCODE_GOOD;
-    }
+    // /* Nothing to do? */
+    // if(highestfd == UA_INVALID_FD) {
+    //     UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+    //                  "No valid FDs for processing");
+    //     return UA_STATUSCODE_GOOD;
+    // }
 
-    struct timeval tmptv = {
-        (long)(listenTimeout / UA_DATETIME_SEC),
-        (long)((listenTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
-    };
+    // struct timeval tmptv = {
+    //     (long)(listenTimeout / UA_DATETIME_SEC),
+    //     (long)((listenTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
+    // };
 
-    UA_UNLOCK(&el->elMutex);
-    int selectStatus = UA_select(highestfd+1, &readset, &writeset, &errset, &tmptv);
-    UA_LOCK(&el->elMutex);
-    if(selectStatus < 0) {
-        /* We will retry, only log the error */
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                           "Error during select: %s", errno_str));
-        return UA_STATUSCODE_GOOD;
-    }
+    // // UA_UNLOCK(&el->elMutex);
+    // // int selectStatus = UA_select(highestfd+1, &readset, &writeset, &errset, &tmptv);
+    // // UA_LOCK(&el->elMutex);
+    // // if(selectStatus < 0) {
+    // //     /* We will retry, only log the error */
+    // //     UA_LOG_SOCKET_ERRNO_WRAP(
+    // //         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+    // //                        "Error during select: %s", errno_str));
+    // //     return UA_STATUSCODE_GOOD;
+    // // }
 
-    /* The self-pipe has received. Clear the buffer by reading. */
-    if(UA_UNLIKELY(FD_ISSET(el->selfpipe[0], &readset)))
-        flushSelfPipe(el->selfpipe[0]);
+    // /* The self-pipe has received. Clear the buffer by reading. */
+    // // if(UA_UNLIKELY(FD_ISSET(el->selfpipe[0], &readset)))
+    // //     flushSelfPipe(el->selfpipe[0]);
 
-    /* Loop over all registered FD to see if an event arrived. Yes, this is why
-     * select is slow for many open sockets. */
-    for(size_t i = 0; i < el->fdsSize; i++) {
-        UA_RegisteredFD *rfd = el->fds[i];
+    // /* Loop over all registered FD to see if an event arrived. Yes, this is why
+    //  * select is slow for many open sockets. */
+    // for(size_t i = 0; i < el->fdsSize; i++) {
+    //     UA_RegisteredFD *rfd = el->fds[i];
 
-        /* The rfd is already registered for removal. Don't process incoming
-         * events any longer. */
-        if(rfd->dc.callback)
-            continue;
+    //     /* The rfd is already registered for removal. Don't process incoming
+    //      * events any longer. */
+    //     if(rfd->dc.callback)
+    //         continue;
 
-        /* Event signaled for the fd? */
-        short event = 0;
-        if(FD_ISSET(rfd->fd, &readset)) {
-            event = UA_FDEVENT_IN;
-        } else if(FD_ISSET(rfd->fd, &writeset)) {
-            event = UA_FDEVENT_OUT;
-        } else if(FD_ISSET(rfd->fd, &errset)) {
-            event = UA_FDEVENT_ERR;
-        } else {
-            continue;
-        }
+    //     /* Event signaled for the fd? */
+    //     short event = 0;
+    //     if(FD_ISSET(rfd->fd, &readset)) {
+    //         event = UA_FDEVENT_IN;
+    //     } else if(FD_ISSET(rfd->fd, &writeset)) {
+    //         event = UA_FDEVENT_OUT;
+    //     } else if(FD_ISSET(rfd->fd, &errset)) {
+    //         event = UA_FDEVENT_ERR;
+    //     } else {
+    //         continue;
+    //     }
 
-        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                     "Processing event %u on fd %u", (unsigned)event,
-                     (unsigned)rfd->fd);
+    //     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+    //                  "Processing event %u on fd %u", (unsigned)event,
+    //                  (unsigned)rfd->fd);
 
-        /* Call the EventSource callback */
-        rfd->eventSourceCB(rfd->es, rfd, event);
+    //     /* Call the EventSource callback */
+    //     rfd->eventSourceCB(rfd->es, rfd, event);
 
-        /* The fd has removed itself */
-        if(i == el->fdsSize || rfd != el->fds[i])
-            i--;
-    }
+    //     /* The fd has removed itself */
+    //     if(i == el->fdsSize || rfd != el->fds[i])
+    //         i--;
+    // }
     return UA_STATUSCODE_GOOD;
 }
 
 #else /* defined(UA_HAVE_EPOLL) */
 
-UA_StatusCode
-UA_EventLoopPuffin_registerFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
-    struct epoll_event event;
-    memset(&event, 0, sizeof(struct epoll_event));
-    event.data.ptr = rfd;
-    event.events = 0;
-    if(rfd->listenEvents & UA_FDEVENT_IN)
-        event.events |= EPOLLIN;
-    if(rfd->listenEvents & UA_FDEVENT_OUT)
-        event.events |= EPOLLOUT;
-
-    int err = epoll_ctl(el->epollfd, EPOLL_CTL_ADD, rfd->fd, &event);
-    if(err != 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP %u\t| Could not register for epoll (%s)",
-                          rfd->fd, errno_str));
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_EventLoopPuffin_modifyFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
-    struct epoll_event event;
-    memset(&event, 0, sizeof(struct epoll_event));
-    event.data.ptr = rfd;
-    event.events = 0;
-    if(rfd->listenEvents & UA_FDEVENT_IN)
-        event.events |= EPOLLIN;
-    if(rfd->listenEvents & UA_FDEVENT_OUT)
-        event.events |= EPOLLOUT;
-
-    int err = epoll_ctl(el->epollfd, EPOLL_CTL_MOD, rfd->fd, &event);
-    if(err != 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP %u\t| Could not modify for epoll (%s)",
-                          rfd->fd, errno_str));
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
-void
-UA_EventLoopPuffin_deregisterFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
-    int res = epoll_ctl(el->epollfd, EPOLL_CTL_DEL, rfd->fd, NULL);
-    if(res != 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP %u\t| Could not deregister from epoll (%s)",
-                          rfd->fd, errno_str));
-    }
-}
-
-UA_StatusCode
-UA_EventLoopPuffin_pollFDs(UA_EventLoopPuffin *el, UA_DateTime listenTimeout) {
-    UA_assert(listenTimeout >= 0);
-
-    /* If there is a positive timeout, wait at least one millisecond, the
-     * minimum for blocking epoll_wait. This prevents a busy-loop, as the
-     * open62541 library allows even smaller timeouts, which can result in a
-     * zero timeout due to rounding to an integer here. */
-    int timeout = (int)(listenTimeout / UA_DATETIME_MSEC);
-    if(timeout == 0 && listenTimeout > 0)
-        timeout = 1;
-
-    /* Poll the registered sockets */
-    struct epoll_event epoll_events[64];
-    UA_UNLOCK(&el->elMutex);
-    int events = epoll_wait(el->epollfd, epoll_events, 64, timeout);
-    UA_LOCK(&el->elMutex);
-
-    /* TODO: Replace with pwait2 for higher-precision timeouts once this is
-     * available in the standard library.
-     *
-     * struct timespec precisionTimeout = {
-     *  (long)(listenTimeout / UA_DATETIME_SEC),
-     *   (long)((listenTimeout % UA_DATETIME_SEC) * 100)
-     * };
-     * int events = epoll_pwait2(epollfd, epoll_events, 64,
-     *                        precisionTimeout, NULL); */
-
-    /* Handle error conditions */
-    if(events == -1) {
-        if(errno == EINTR) {
-            /* We will retry, only log the error */
-            UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                         "Timeout during poll");
-            return UA_STATUSCODE_GOOD;
-        }
-        UA_LOG_SOCKET_ERRNO_WRAP(
-           UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                          "TCP\t| Error %s, closing the server socket",
-                          errno_str));
-        return UA_STATUSCODE_BADINTERNALERROR;
-    }
-
-    /* Process all received events */
-    for(int i = 0; i < events; i++) {
-        UA_RegisteredFD *rfd = (UA_RegisteredFD*)epoll_events[i].data.ptr;
-
-        /* The self-pipe has received */
-        if(!rfd) {
-            flushSelfPipe(el->selfpipe[0]);
-            continue;
-        }
-
-        /* The rfd is already registered for removal. Don't process incoming
-         * events any longer. */
-        if(rfd->dc.callback)
-            continue;
-
-        /* Get the event */
-        short revent = 0;
-        if((epoll_events[i].events & EPOLLIN) == EPOLLIN) {
-            revent = UA_FDEVENT_IN;
-        } else if((epoll_events[i].events & EPOLLOUT) == EPOLLOUT) {
-            revent = UA_FDEVENT_OUT;
-        } else {
-            revent = UA_FDEVENT_ERR;
-        }
-
-        /* Call the EventSource callback */
-        rfd->eventSourceCB(rfd->es, rfd, revent);
-    }
-    return UA_STATUSCODE_GOOD;
-}
-
 #endif /* defined(UA_HAVE_EPOLL) */
 
-#if defined(__APPLE__)
-int UA_EventLoopPuffin_pipe(SOCKET fds[2]) {
-    struct sockaddr_in inaddr;
-    memset(&inaddr, 0, sizeof(inaddr));
-    inaddr.sin_family = AF_INET;
-    inaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    inaddr.sin_port = 0;
+// #if defined(__APPLE__)
+// int UA_EventLoopPuffin_pipe(SOCKET fds[2]) {
+//     struct sockaddr_in inaddr;
+//     memset(&inaddr, 0, sizeof(inaddr));
+//     inaddr.sin_family = AF_INET;
+//     inaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+//     inaddr.sin_port = 0;
 
-    SOCKET lst = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    bind(lst, (struct sockaddr *)&inaddr, sizeof(inaddr));
-    listen(lst, 1);
+//     SOCKET lst = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+//     bind(lst, (struct sockaddr *)&inaddr, sizeof(inaddr));
+//     listen(lst, 1);
 
-    struct sockaddr_storage addr;
-    memset(&addr, 0, sizeof(addr));
-    int len = sizeof(addr);
-    getsockname(lst, (struct sockaddr*)&addr, &len);
+//     struct sockaddr_storage addr;
+//     memset(&addr, 0, sizeof(addr));
+//     int len = sizeof(addr);
+//     getsockname(lst, (struct sockaddr*)&addr, &len);
 
-    fds[0] = socket(AF_INET, SOCK_STREAM, 0);
-    int err = connect(fds[0], (struct sockaddr*)&addr, len);
-    fds[1] = accept(lst, 0, 0);
-#ifdef __APPLE__
-    close(lst);
-#endif
+//     fds[0] = socket(AF_INET, SOCK_STREAM, 0);
+//     int err = connect(fds[0], (struct sockaddr*)&addr, len);
+//     fds[1] = accept(lst, 0, 0);
+// #ifdef __APPLE__
+//     close(lst);
+// #endif
 
-    UA_EventLoopPuffin_setNoSigPipe(fds[0]);
-    UA_EventLoopPuffin_setReusable(fds[0]);
-    UA_EventLoopPuffin_setNonBlocking(fds[0]);
-    UA_EventLoopPuffin_setNoSigPipe(fds[1]);
-    UA_EventLoopPuffin_setReusable(fds[1]);
-    UA_EventLoopPuffin_setNonBlocking(fds[1]);
-    return err;
-}
-#endif
+//     UA_EventLoopPuffin_setNoSigPipe(fds[0]);
+//     UA_EventLoopPuffin_setReusable(fds[0]);
+//     UA_EventLoopPuffin_setNonBlocking(fds[0]);
+//     UA_EventLoopPuffin_setNoSigPipe(fds[1]);
+//     UA_EventLoopPuffin_setReusable(fds[1]);
+//     UA_EventLoopPuffin_setNonBlocking(fds[1]);
+//     return err;
+// }
+// #endif
 
 void
-UA_EventLoopPuffin_cancel(UA_EventLoopPuffin *el) {
-    /* Nothing to do if the EventLoop is not executing */
-    if(!el->executing)
-        return;
-
-    /* Trigger the self-pipe */
-    ssize_t err = write(el->selfpipe[1], ".", 1);
-    if(err <= 0) {
-        UA_LOG_SOCKET_ERRNO_WRAP(
-            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                           "Eventloop\t| Error signaling self-pipe (%s)", errno_str));
-    }
-}
+UA_EventLoopPuffin_cancel(UA_EventLoopPuffin *el) {}
 
