@@ -12,7 +12,7 @@ use puffin::claims::GlobalClaimList;
 use puffin::codec::Codec;
 use puffin::error::Error;
 use puffin::put::{Put, PutOptions};
-use puffin::put_registry::Factory;
+use puffin::put_registry::{Factory, TCP_PUT};
 use puffin::stream::Stream;
 
 use opcua::puffin::messages::{MAX_WIRE_SIZE, MessageFlight};
@@ -20,7 +20,6 @@ use opcua::puffin::types::{AgentType, ApplicationConfig};
 
 use crate::claims::OpcuaClaim;
 use crate::protocol::OpcuaProtocolBehavior;
-use crate::put_registry::OPC_TCP;
 
 struct Agent {
     application: AgentDescriptor<ApplicationConfig>,
@@ -92,34 +91,50 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
         &self,
         application: &AgentDescriptor<ApplicationConfig>,
         _claims: &GlobalClaimList<OpcuaClaim>,
-        _options: &PutOptions,
+        options: &PutOptions,
     ) -> Result<Box<dyn Put<OpcuaProtocolBehavior>>, Error> {
 
         let host = Ipv4Addr::LOCALHOST;
-        let port = match application.protocol_config.kind {
-            AgentType::Server => 4840,
-            AgentType::Client => 4841,
-        };
+        let port =
+            if let Some(port_arg) = options.get_option("port") {
+                u16::from_str_radix(port_arg, 10).expect("Invalid port number")
+            } else {
+                match application.protocol_config.kind {
+                    AgentType::Server => 4840,
+                    AgentType::Client => 4841,
+                }
+            };
 
         // 1. Start the OPC UA Server:
-        // (Disable these lines if you launch manually the server)
-        let process = match application.protocol_config.kind {
-            AgentType::Client => {
-                Some(OpcuaProcess::new(
-                    "./vendor/open62541/build/bin/examples/client_connect",
-                    &("-username peter -password peter123 ".to_owned() +
-                    "-cert crates/opcua-mapper/lib/src/puffin/assets/alice_cert.der " +
-                    "-key crates/opcua-mapper/lib/src/puffin/assets/alice_key.der " +
-                    "-securityMode 2 -securityPolicy http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256 " +
-                    &format!("-reverse opc.tcp://localhost:{} ", port)),
-                    Some("."))) },
-            AgentType::Server => {
-                Some(OpcuaProcess::new(
-                    "./vendor/open62541/build/bin/examples/ci_server",
-                    &(format!("{} ", port) +
-                    "crates/opcua-mapper/lib/src/puffin/assets/bob_cert.pem " +
-                    "crates/opcua-mapper/lib/src/puffin/assets/bob_key.pem"),
-                    Some("."))) }
+        let process = if options.get_option("prog").is_some() {
+            let prog = options.get_option("prog").unwrap();
+            let args = options.get_option("args").unwrap_or("");
+            let cwd = options.get_option("cwd");
+            match application.protocol_config.kind {
+                AgentType::Client => {
+                    Some(OpcuaProcess::new(prog, args, cwd)) },
+                AgentType::Server => {
+                    Some(OpcuaProcess::new(prog, args, cwd)) },
+            }
+        } else {
+             match application.protocol_config.kind {
+                AgentType::Client => {
+                    Some(OpcuaProcess::new(
+                        "./vendor/open62541/build/bin/examples/client_connect",
+                        &("-username peter -password peter123 ".to_owned() +
+                        "-cert crates/opcua-mapper/lib/src/puffin/assets/alice_cert.der " +
+                        "-key crates/opcua-mapper/lib/src/puffin/assets/alice_key.der " +
+                        "-securityMode 2 -securityPolicy http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256 " +
+                        &format!("-reverse opc.tcp://localhost:{} ", port)),
+                        Some("."))) },
+                AgentType::Server => {
+                    Some(OpcuaProcess::new(
+                        "./vendor/open62541/build/bin/examples/ci_server",
+                        &(format!("{} ", port) +
+                        "crates/opcua-mapper/lib/src/puffin/assets/bob_cert.pem " +
+                        "crates/opcua-mapper/lib/src/puffin/assets/bob_key.pem"),
+                        Some("."))) }
+            }
         };
 
         // 2. Connect to the TCP server listening on localhost:port
@@ -146,7 +161,7 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
         }
     }
 
-    fn name(&self) -> String {String::from(OPC_TCP)}
+    fn name(&self) -> String {String::from(TCP_PUT)}
 
     fn versions(&self) -> Vec<(String, String)>{
         vec![
