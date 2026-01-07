@@ -556,15 +556,9 @@ UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     uintptr_t connectionId,
                                     UA_ByteString *buf) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
-    if(pcm->txBuffer.data == buf->data) {
-        UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-            "TCP %u\t| Free txBuffer (init) of size %u, at %p", (unsigned)connectionId, buf->length, buf->data);
-        UA_ByteString_init(buf);
-    } else {
-        UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-            "TCP %u\t| Free txBuffer (clear) of size %u, at %p", (unsigned)connectionId, buf->length, buf->data);
-        UA_ByteString_clear(buf);
-    }
+    UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+        "TCP %u\t| Free txBuffer (clear) of size %u, at %p", (unsigned)connectionId, buf->length, buf->data);
+    UA_ByteString_clear(buf);
 }
 
 UA_StatusCode
