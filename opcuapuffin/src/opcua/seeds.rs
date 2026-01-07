@@ -26,6 +26,7 @@ pub fn create_corpus(
         (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel"),
         // (seed_c_server_open_unsecure_channel(AgentName::first()), "seed_c_server_open_unsecure_channel"),
         (seed_d_client_activate_session(AgentName::first()), "seed_d_client_activate_session"),
+        (seed_e_client_simple_request(AgentName::first()), "seed_e_client_simple_request"),
     ]
 }
 
@@ -809,6 +810,504 @@ pub fn seed_d_client_activate_session (
                                     )),
                                     (fn_service(
                                         (fn_sequence_header(fn_seq_4, fn_seq_4)),
+                                        (@close_channel)
+                                    ))
+                                )),
+                                fn_basic256sha256,
+                                (@hmac_key)
+                            ))
+                        ))
+                    )
+                    }
+                }),
+            },
+        ]
+    }
+}
+
+pub fn seed_e_client_simple_request (
+    server: AgentName,
+) -> Trace<OpcuaProtocolTypes> {
+    let open_request = term! {
+        fn_service(
+            (fn_sequence_header(fn_seq_0, fn_seq_0)),
+            (fn_client_open(
+                (fn_request_header(fn_sa_token_zero, fn_seq_0)),
+                fn_issue,
+                fn_mode_sign,
+                fn_channel_nonce_1
+            ))
+        )
+    };
+    let create_request = term! {
+        fn_service(
+            (fn_sequence_header(fn_seq_1, fn_seq_1)),
+            (fn_create_request(
+                (fn_request_header(fn_sa_token_zero, fn_seq_1)),
+                fn_bob_endpoint,
+                fn_session_nonce_1,
+                fn_mallory_cert
+            ))
+        )
+    };
+    let hmac_key = term! {
+        fn_client_mac_key(
+            fn_basic256sha256,
+            fn_channel_nonce_1,
+            (fn_get_server_nonce(
+                (fn_decrypted_body(
+                    (fn_asym_decrypt(
+                        fn_basic256sha256,
+                        ((server, 1)[None]/EncryptedBody),
+                        fn_mallory_sk)),
+                    fn_mallory_sk
+                ))
+            ))
+        )
+    };
+    let _activate_anonymous = term! {
+        fn_activate_request(
+            (fn_request_header(
+                ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
+                fn_seq_2
+            )),
+            fn_basic256sha256,
+            (fn_sign(
+                (fn_signature_data(
+                    fn_bob_cert,
+                    ((server, 0)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/ByteString) // S_nonce!
+                )),
+                fn_basic256sha256,
+                fn_mallory_cert,
+                fn_mallory_sk
+            )),
+            (fn_anonymous(
+                ((server, 0)[Some(OpcuaQueryMatcher::PolicyIdAnonymous)]/UAString) // PolicyId!
+            )),
+            fn_no_bytes
+        )
+    };
+    let _activate_password = term! {
+        fn_activate_request(
+            (fn_request_header(
+                ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
+                fn_seq_2
+            )),
+            fn_basic256sha256,
+            (fn_sign(
+                (fn_signature_data(
+                    fn_bob_cert,
+                    ((server, 0)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/ByteString) // S_nonce!
+                )),
+                fn_basic256sha256,
+                fn_mallory_cert,
+                fn_mallory_sk
+            )),
+            (fn_legacy_user_pwd(
+                ((server, 0)[Some(OpcuaQueryMatcher::PolicyIdPassword)]/UAString), // PolicyId!
+                fn_basic256sha256,
+                fn_username,
+                fn_password,
+                fn_bob_cert,
+                ((server, 0)[None]/ByteString)
+            )),
+            fn_no_bytes
+        )
+
+    };
+    let activate_certificate = term! {
+        fn_activate_request(
+            (fn_request_header(
+                ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
+                fn_seq_2
+            )),
+            fn_basic256sha256,
+            (fn_sign(
+                (fn_signature_data(
+                    fn_bob_cert,
+                    ((server, 0)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/ByteString) // S_nonce!
+                )),
+                fn_basic256sha256,
+                fn_mallory_cert,
+                fn_mallory_sk
+            )),
+            (fn_user_cert(
+              ((server, 0)[Some(OpcuaQueryMatcher::PolicyIdCertificate)]/UAString), // PolicyId!
+              fn_mallory_cert
+            )),
+            (fn_sign(
+                (fn_signature_data(
+                    fn_bob_cert,
+                    ((server, 0)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/ByteString) // S_nonce!
+                )),
+                fn_basic256sha256,
+                fn_mallory_cert,
+                fn_mallory_sk
+            ))
+        )
+    };
+    let simple_request = term! {
+        fn_read_current_time(
+            (fn_request_header(
+                ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
+                fn_seq_3
+            ))
+        )
+    };
+    let close_session = term! {
+        fn_close_request(
+            (fn_request_header(
+                ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
+                fn_seq_4))
+        )
+    };
+    let close_channel = term! {
+        fn_client_close(
+            (fn_request_header(
+                ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
+                fn_seq_5))
+        )
+    };
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            ApplicationConfig::new_server(server)
+        ],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_client_hello (
+                            fn_bob_endpoint,
+                            fn_default_size,
+                            fn_default_size
+                        )
+                    }
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_open_message(
+                        (fn_open_header(
+                            (fn_header(fn_open, fn_seq_0)),
+                            fn_basic256sha256,
+                            fn_mallory_cert,
+                            fn_bob_cert,
+                            (@open_request)
+                        )),
+                        (fn_asym_header(
+                            fn_basic256sha256,
+                            fn_mallory_cert,
+                            fn_bob_cert
+                        )),
+                        (fn_asym_encrypt(
+                            fn_basic256sha256,
+                            fn_bob_cert,
+                            (fn_data_to_encrypt(
+                                fn_basic256sha256,
+                                fn_bob_cert,
+                                (@open_request),
+                                (fn_sign(
+                                    (fn_data_to_sign(
+                                        (fn_open_header(
+                                            (fn_header(fn_open, fn_seq_0)),
+                                            fn_basic256sha256,
+                                            fn_mallory_cert,
+                                            fn_bob_cert,
+                                            (@open_request)
+                                        )),
+                                        fn_basic256sha256,
+                                        fn_mallory_cert,
+                                        fn_bob_cert,
+                                        (@open_request)
+                                    )),
+                                    fn_basic256sha256,
+                                    fn_mallory_cert,
+                                    fn_mallory_sk
+                                ))
+                           ))
+                        ))
+                    )
+                    }
+                }),
+            },
+
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_message (
+                        (fn_msg_header(
+                            fn_basic256sha256,
+                            (fn_header(fn_final,
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
+                            (@create_request)
+                        )),
+                        (fn_body(
+                            (fn_get_channel_token(
+                                (fn_decrypted_body(
+                                    (fn_asym_decrypt(
+                                        fn_basic256sha256,
+                                        ((server, 1)[None]/EncryptedBody),
+                                        fn_mallory_sk)),
+                                    fn_mallory_sk
+                                ))
+                            )),
+                            (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                            (fn_create_request(
+                                (fn_request_header(fn_sa_token_zero, fn_seq_1)),
+                                fn_bob_endpoint,
+                                fn_session_nonce_1,
+                                fn_mallory_cert
+                            )),
+                            (fn_mac(
+                                (fn_data_to_mac(
+                                    (fn_msg_header(
+                                        fn_basic256sha256,
+                                        (fn_header(fn_final,
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
+                                        (@create_request)
+                                    )),
+                                    (fn_get_channel_token(
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                fn_basic256sha256,
+                                                ((server, 1)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
+                                    )),
+                                    (@create_request)
+                                )),
+                                fn_basic256sha256,
+                                (@hmac_key)
+                            ))
+                        ))
+                    )
+                    }
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_message (
+                        (fn_msg_header(
+                            fn_basic256sha256,
+                            (fn_header(fn_final,
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
+                            (fn_service(
+                                (fn_sequence_header(fn_seq_2, fn_seq_2)),
+                                (@activate_certificate)
+                            ))
+                        )),
+                        (fn_body(
+                            (fn_get_channel_token(
+                                (fn_decrypted_body(
+                                    (fn_asym_decrypt(
+                                        fn_basic256sha256,
+                                        ((server, 1)[None]/EncryptedBody),
+                                        fn_mallory_sk)),
+                                    fn_mallory_sk
+                                ))
+                            )),
+                            (fn_sequence_header(fn_seq_2, fn_seq_2)),
+                            (@activate_certificate),
+                            (fn_mac(
+                                (fn_data_to_mac(
+                                    (fn_msg_header(
+                                        fn_basic256sha256,
+                                        (fn_header(fn_final,
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
+                                        (fn_service(
+                                            (fn_sequence_header(fn_seq_2, fn_seq_2)),
+                                            (@activate_certificate)
+                                        ))
+                                    )),
+                                    (fn_get_channel_token(
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                fn_basic256sha256,
+                                                ((server, 1)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
+                                    )),
+                                    (fn_service(
+                                        (fn_sequence_header(fn_seq_2, fn_seq_2)),
+                                        (@activate_certificate)
+                                    ))
+                                )),
+                                fn_basic256sha256,
+                                (@hmac_key)
+                            ))
+                        ))
+                    )
+                    }
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_message (
+                        (fn_msg_header(
+                            fn_basic256sha256,
+                            (fn_header(fn_final,
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
+                            (fn_service(
+                                (fn_sequence_header(fn_seq_3, fn_seq_3)),
+                                (@simple_request)
+                            ))
+                        )),
+                        (fn_body(
+                            (fn_get_channel_token(
+                                (fn_decrypted_body(
+                                    (fn_asym_decrypt(
+                                        fn_basic256sha256,
+                                        ((server, 1)[None]/EncryptedBody),
+                                        fn_mallory_sk)),
+                                    fn_mallory_sk
+                                ))
+                            )),
+                            (fn_sequence_header(fn_seq_3, fn_seq_3)),
+                            (@simple_request),
+                            (fn_mac(
+                                (fn_data_to_mac(
+                                    (fn_msg_header(
+                                        fn_basic256sha256,
+                                        (fn_header(fn_final,
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
+                                        (fn_service(
+                                            (fn_sequence_header(fn_seq_3, fn_seq_3)),
+                                            (@simple_request)
+                                        ))
+                                    )),
+                                    (fn_get_channel_token(
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                fn_basic256sha256,
+                                                ((server, 1)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
+                                    )),
+                                    (fn_service(
+                                        (fn_sequence_header(fn_seq_3, fn_seq_3)),
+                                        (@simple_request)
+                                    ))
+                                )),
+                                fn_basic256sha256,
+                                (@hmac_key)
+                            ))
+                        ))
+                    )
+                    }
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_message (
+                        (fn_msg_header(
+                            fn_basic256sha256,
+                            (fn_header(fn_final,
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
+                            (fn_service(
+                                (fn_sequence_header(fn_seq_4, fn_seq_4)),
+                                (@close_session)
+                            ))
+                        )),
+                        (fn_body(
+                            (fn_get_channel_token(
+                                (fn_decrypted_body(
+                                    (fn_asym_decrypt(
+                                        fn_basic256sha256,
+                                        ((server, 1)[None]/EncryptedBody),
+                                        fn_mallory_sk)),
+                                    fn_mallory_sk
+                                ))
+                            )),
+                            (fn_sequence_header(fn_seq_4, fn_seq_4)),
+                            (@close_session),
+                            (fn_mac(
+                                (fn_data_to_mac(
+                                    (fn_msg_header(
+                                        fn_basic256sha256,
+                                        (fn_header(fn_final,
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
+                                        (fn_service(
+                                            (fn_sequence_header(fn_seq_4, fn_seq_4)),
+                                            (@close_session)
+                                        ))
+                                    )),
+                                    (fn_get_channel_token(
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                fn_basic256sha256,
+                                                ((server, 1)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
+                                    )),
+                                    (fn_service(
+                                        (fn_sequence_header(fn_seq_4, fn_seq_4)),
+                                        (@close_session)
+                                    ))
+                                )),
+                                fn_basic256sha256,
+                                (@hmac_key)
+                            ))
+                        ))
+                    )
+                    }
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_message (
+                        (fn_msg_header(
+                            fn_basic256sha256,
+                            (fn_header(fn_close,
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
+                            (fn_service(
+                                (fn_sequence_header(fn_seq_5, fn_seq_5)),
+                                (@close_channel)
+                            ))
+                        )),
+                        (fn_body(
+                            (fn_get_channel_token(
+                                (fn_decrypted_body(
+                                    (fn_asym_decrypt(
+                                        fn_basic256sha256,
+                                        ((server, 1)[None]/EncryptedBody),
+                                        fn_mallory_sk)),
+                                    fn_mallory_sk
+                                ))
+                            )),
+                            (fn_sequence_header(fn_seq_5, fn_seq_5)),
+                            (@close_channel),
+                            (fn_mac(
+                                (fn_data_to_mac(
+                                    (fn_msg_header(
+                                        fn_basic256sha256,
+                                        (fn_header(fn_close,
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
+                                        (fn_service(
+                                            (fn_sequence_header(fn_seq_5, fn_seq_5)),
+                                            (@close_channel)
+                                        ))
+                                    )),
+                                    (fn_get_channel_token(
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                fn_basic256sha256,
+                                                ((server, 1)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
+                                    )),
+                                    (fn_service(
+                                        (fn_sequence_header(fn_seq_5, fn_seq_5)),
                                         (@close_channel)
                                     ))
                                 )),
