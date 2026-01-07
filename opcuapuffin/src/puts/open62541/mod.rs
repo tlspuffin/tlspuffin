@@ -10,7 +10,7 @@ use puffin::put::{Put, PutOptions};
 use puffin::put_registry::Factory;
 use puffin::stream::Stream;
 
-use opcua::puffin::messages::{Message, MessageFlight};
+use opcua::puffin::messages::MessageFlight;
 use opcua::puffin::types::{AgentType, ApplicationConfig};
 
 use crate::claims::OpcuaClaim;
