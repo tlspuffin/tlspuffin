@@ -64,10 +64,38 @@ struct AGENT_TYPE {
 
     UA_PuffinConnectionManager *connexion_manager;
 
-    //const CLAIMER_CB *claimer;
+    const CLAIMER_CB *claimer;
 };
 
+static void default_claimer_notify(void *context, Claim *claim)
+{
+    _log(PUFFIN.trace, "call to default claimer `notify`");
+};
 
+static void default_claimer_destroy(void *context)
+{
+    _log(PUFFIN.trace, "call to default claimer `destroy`");
+};
+
+static const CLAIMER_CB DEFAULT_CLAIMER_CB = {.context = NULL,
+                                              .notify = default_claimer_notify,
+                                              .destroy = default_claimer_destroy};
+
+
+void open62541_register_claimer(AGENT agent, const CLAIMER_CB *callback) {
+    if (agent->claimer != NULL)
+    {
+        agent->claimer->destroy(agent->claimer->context);
+    }
+
+    CLAIMER_CB *new_claimer = malloc(sizeof(CLAIMER_CB));
+    memcpy(new_claimer, callback, sizeof(CLAIMER_CB));
+    agent->claimer = new_claimer;
+
+#ifdef HAS_CLAIMS
+    register_claimer(agent->ssl, _inner_claimer, agent);
+#endif
+};
 
 AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
 
@@ -127,6 +155,7 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
         agent->id = descriptor->id;
         agent->role = descriptor->role;
         agent->application = (Application*) client;
+        open62541_register_claimer(agent, &DEFAULT_CLAIMER_CB);
         UA_PuffinConnectionManager *pcm = take_last_puffin_connection_manager();
         if (pcm) {
             agent->connexion_manager = pcm;
@@ -225,10 +254,10 @@ void open62541_destroy(AGENT agent) {
     }
     if (agent->role == SERVER) {
         UA_Server *server = (UA_Server*) agent->application;
-        //_log(PUFFIN.error,"Server run shutdown ...");
+        _log(PUFFIN.trace,"Server run shutdown ...");
         status = UA_Server_run_shutdown(server);
         if (status) _log(PUFFIN.error, "UA Server shutdown returned %s", UA_StatusCode_name(status));
-        //_log(PUFFIN.error,"Server delete ...");
+        _log(PUFFIN.trace,"Server delete ...");
         status = UA_Server_delete(server);
         if (status) _log(PUFFIN.error, "UA Server delete returned %s", UA_StatusCode_name(status));
     }
@@ -241,9 +270,9 @@ RESULT open62541_progress(AGENT agent){
         return PUFFIN.make_result(RESULT_OK, "");
     }
     if (agent->role == SERVER) {
-        //_log(PUFFIN.error,"Server run ...");
-        // UA_Server_run_iterate((UA_Server*) agent->application, false);
-        //_log(PUFFIN.error,"Server run RESULT_OK");
+        _log(PUFFIN.trace,"Server run ...");
+        UA_Server_run_iterate((UA_Server*) agent->application, false);
+        _log(PUFFIN.trace,"Server run RESULT_OK");
         return PUFFIN.make_result(RESULT_OK, "");
     }
     return PUFFIN.make_result(RESULT_ERROR_OTHER, "Client unimplemented!");
@@ -261,13 +290,11 @@ bool open62541_is_state_successful(AGENT agent) {
     return true;
 };
 
-void open62541_register_claimer(AGENT agent, const CLAIMER_CB *callback) {};
-
 
 #define RX_BUFFER_MAX_SIZE (2u << 16)
 
 RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written){
-    //_log(PUFFIN.error,"Add inbound ...");
+    _log(PUFFIN.trace,"Add inbound ...");
     UA_PuffinConnectionManager *pcm = agent->connexion_manager;
     if (!pcm) return PUFFIN.make_result(RESULT_ERROR_OTHER, "Connection Manager unavailable.");
 
@@ -290,13 +317,13 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
         UA_CONNECTIONSTATE_ESTABLISHED,
         &UA_KEYVALUEMAP_NULL, buffer);
 
-    //_log(PUFFIN.error,"Add inbound OK");
+    _log(PUFFIN.trace,"Add inbound OK");
     return PUFFIN.make_result(RESULT_OK, "");
 };
 
 
 RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes){
-    //_log(PUFFIN.error,"Take outbound ...");
+    _log(PUFFIN.trace,"Take outbound ...");
 
     /* read the TxBuffer from the PuffinConnexionManager associated to the agent */
     UA_PuffinConnectionManager *pcm = agent->connexion_manager;
@@ -304,7 +331,7 @@ RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, s
     if (pcm->txBuffer.length > max_length) {
         return PUFFIN.make_result(RESULT_ERROR_OTHER, "Too many bytes to take from the outbound.");
     };
-    if (pcm->txBuffer.length > 8) {
+    if (pcm->txBuffer.data && pcm->txBuffer.length > 8) {
         // UATCP messages start with MessageType (3 bytes), IsFinal(1 byte), MessageSize
         UA_UInt32 *message_size = (UA_UInt32*) (pcm->txBuffer.data + 4);
         memcpy(bytes, pcm->txBuffer.data, (size_t) *message_size);
@@ -313,7 +340,7 @@ RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, s
     } else {
         *readbytes = 0;
     };
-    //_log(PUFFIN.error,"Take outbound OK");
+    _log(PUFFIN.trace,"Take outbound OK");
     return PUFFIN.make_result(RESULT_OK, "");
 };
 
