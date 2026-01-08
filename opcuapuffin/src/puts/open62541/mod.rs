@@ -6,6 +6,7 @@ use puffin::algebra::ConcreteMessage;
 use puffin::claims::GlobalClaimList;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
+use puffin::harness::CError;
 use puffin::put::{Put, PutOptions};
 use puffin::put_registry::Factory;
 use puffin::stream::Stream;
@@ -43,7 +44,11 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
             log::warn!("Adding a new message to the PUT of size {}", message.len());
             unsafe {
                 let mut written: usize = 0;
-                c_add_inbound(self.c_agent, message.as_ptr(), message.len(), &mut written);
+                let res = c_add_inbound(self.c_agent, message.as_ptr(), message.len(), &mut written);
+                let result = Box::from_raw(res as *mut Result<String, CError>);
+                if let Err(cerror) = *result {
+                    log::error!("Open62541 Agent: add_inbound failed: {}", cerror.reason);
+                }
                 if message.len() != written {
                     log::error!("Open62541 Agent: added to inbound only {} bytes out of {}!",
                                 written, message.len());
@@ -60,7 +65,11 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
             unsafe {
                 let mut read: usize = 0;
                 let bytes: *mut u8 = buffer.as_mut_ptr();
-                c_take_outbound(self.c_agent, bytes, Agent::MAX_BUFFER_CAPACITY, &mut read);
+                let res = c_take_outbound(self.c_agent, bytes, Agent::MAX_BUFFER_CAPACITY, &mut read);
+                let result = Box::from_raw(res as *mut Result<String, CError>);
+                if let Err(cerror) = *result {
+                    log::error!("Open62541 Agent: take_outbound failed: {}", cerror.reason);
+                }
                 if read > 0 {
                     let mut rd = Reader::init(&buffer[0..read]);
                     Ok(MessageFlight::read(&mut rd))
@@ -77,7 +86,13 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
 impl Put<OpcuaProtocolBehavior> for Agent {
     fn progress(&mut self) -> Result<(), Error> {
         if let Some(agent_progress) = self.c_agent_interface.progress {
-            unsafe { agent_progress(self.c_agent) };
+            unsafe {
+                let res = agent_progress(self.c_agent);
+                let result = Box::from_raw(res as *mut Result<String, CError>);
+                if let Err(cerror) = *result {
+                    log::error!("Open62541 Agent: progress failed: {}", cerror.reason);
+                }
+            };
             Ok(())
         } else {
             Err(Error::Put("Open62541 Agent: progress unavailable!".to_string()))
@@ -85,7 +100,7 @@ impl Put<OpcuaProtocolBehavior> for Agent {
     }
 
     fn reset(&mut self, _new_name: AgentName) -> Result<(), Error> {
-        Ok(())
+        Err(Error::Put("Open62541 Agent: reset unavailable!".to_string()))
     }
 
     fn descriptor(&self) -> &AgentDescriptor<ApplicationConfig> {
