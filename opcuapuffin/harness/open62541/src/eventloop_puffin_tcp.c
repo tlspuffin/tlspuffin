@@ -210,9 +210,6 @@ TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
         return;
     }
 
-    /* Shutdown the socket to cancel the current select/epoll */
-    // UA_shutdown(conn->rfd.fd, UA_SHUT_RDWR);
-
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Shutdown triggered",
                  (unsigned)conn->rfd.fd);
@@ -530,7 +527,7 @@ TCP_eventSourceStop(UA_ConnectionManager *cm) {
     cm->eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
 
     /* Shutdown all existing connection */
-    // ZIP_ITER(UA_FDTree, &pcm->fds, TCP_shutdownCB, cm);
+    ZIP_ITER(UA_FDTree, &pcm->fds, TCP_shutdownCB, cm);
 
     /* All sockets closed? Otherwise iterate some more. */
     TCP_checkStopped(pcm);

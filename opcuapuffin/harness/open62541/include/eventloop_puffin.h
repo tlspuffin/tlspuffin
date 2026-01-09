@@ -149,27 +149,7 @@ typedef struct {
     UA_RegisteredFD **fds;
     size_t fdsSize;
 
-    /* Self-pipe to cancel blocking wait */
-    UA_FD selfpipe[2]; /* 0: read, 1: write */
-
 } UA_EventLoopPuffin;
-
-/* The following functions differ between epoll and normal select */
-
-/* Register to start receiving events */
-UA_StatusCode
-UA_EventLoopPuffin_registerFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd);
-
-/* Modify the events that the fd listens on */
-UA_StatusCode
-UA_EventLoopPuffin_modifyFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd);
-
-/* Deregister but do not close the fd. No further events are received. */
-void
-UA_EventLoopPuffin_deregisterFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd);
-
-UA_StatusCode
-UA_EventLoopPuffin_pollFDs(UA_EventLoopPuffin *el, UA_DateTime listenTimeout);
 
 /* Helper functions across EventSources */
 
@@ -187,28 +167,6 @@ UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     uintptr_t connectionId,
                                     UA_ByteString *buf);
 
-/* Set the socket non-blocking. If the listen-socket is nonblocking, incoming
- * connections inherit this state. */
-UA_StatusCode
-UA_EventLoopPuffin_setNonBlocking(UA_FD sockfd);
-
-/* Don't have the socket create interrupt signals */
-UA_StatusCode
-UA_EventLoopPuffin_setNoSigPipe(UA_FD sockfd);
-
-/* Enables sharing of the same listening address on different sockets */
-UA_StatusCode
-UA_EventLoopPuffin_setReusable(UA_FD sockfd);
-
-/* Windows has no pipes. Use a local TCP connection for the self-pipe trick.
- * https://stackoverflow.com/a/3333565 */
-// #if defined(__APPLE__)
-// int UA_EventLoopPuffin_pipe(SOCKET fds[2]);
-// #else
-// # define UA_EventLoopPuffin_pipe(fds) pipe2(fds, O_NONBLOCK)
-// #endif
-
-/* Cancel the current _run by sending to the self-pipe */
 void
 UA_EventLoopPuffin_cancel(UA_EventLoopPuffin *el);
 
