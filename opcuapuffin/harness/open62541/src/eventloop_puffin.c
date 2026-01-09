@@ -184,18 +184,6 @@ UA_EventLoopPuffin_start(UA_EventLoopPuffin *el) {
         el->clockSourceMonotonic = *csm;
     }
 
-    /* Create the self-pipe */
-    // int err = UA_EventLoopPuffin_pipe(el->selfpipe);
-    // if(err != 0) {
-    //     UA_LOG_SOCKET_ERRNO_WRAP(
-    //        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-    //                       "Eventloop\t| Could not create the self-pipe (%s)",
-    //                       errno_str));
-    //     return UA_STATUSCODE_BADINTERNALERROR;
-    // }
-
-    /* Create the epoll socket */
-
     /* Start the EventSources */
     UA_StatusCode res = UA_STATUSCODE_GOOD;
     UA_EventSource *es = el->eventLoop.eventSources;
@@ -228,18 +216,12 @@ checkClosed(UA_EventLoopPuffin *el) {
     }
 
     /* Not closed until all delayed callbacks are processed */
-   // if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
-   //     return;
-
-    /* Close the self-pipe when everything else is done */
-   // UA_close(el->selfpipe[0]);
-   // UA_close(el->selfpipe[1]);
+    if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
+       return;
 
     /* Dirty-write the state that is const "from the outside" */
     *(UA_EventLoopState*)(uintptr_t)&el->eventLoop.state =
         UA_EVENTLOOPSTATE_STOPPED;
-
-    /* Close the epoll/IOCP socket once all EventSources have shut down */
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "The EventLoop has stopped");
@@ -309,26 +291,6 @@ UA_EventLoopPuffin_run(UA_EventLoopPuffin *el, UA_UInt32 timeout) {
     processDelayed(el);
     UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
         "Delayed callbacks are processed");
-
-    /* A delayed callback could create another delayed callback (or re-add
-     * itself). In that case we don't want to wait (indefinitely) for an event
-     * to happen. Process queued events but don't sleep. Then process the
-     * delayed callbacks in the next iteration. */
-    if(el->delayedHead1 != NULL && el->delayedHead2 != NULL)
-        timeout = 0;
-
-    /* Compute the remaining time */
-    // UA_DateTime maxDate = dateBefore + (timeout * UA_DATETIME_MSEC);
-    // if(dateNext > maxDate)
-    //     dateNext = maxDate;
-    // UA_DateTime listenTimeout =
-    //     dateNext - el->eventLoop.dateTime_nowMonotonic(&el->eventLoop);
-    // if(listenTimeout < 0)
-    //     listenTimeout = 0;
-
-    /* Listen on the active file-descriptors (sockets) from the
-     * ConnectionManagers */
-    //UA_StatusCode rv = UA_EventLoopPuffin_pollFDs(el, listenTimeout);
 
     /* Check if the last EventSource was successfully stopped */
     if(el->eventLoop.state == UA_EVENTLOOPSTATE_STOPPING)
@@ -587,236 +549,12 @@ UA_EventLoopPuffin_allocateStaticBuffers(UA_PuffinConnectionManager *pcm) {
     return res;
 }
 
-/******************/
-/* Socket Options */
-/******************/
-
 enum ZIP_CMP
 cmpFD(const UA_FD *a, const UA_FD *b) {
     if(*a == *b)
         return ZIP_CMP_EQ;
     return (*a < *b) ? ZIP_CMP_LESS : ZIP_CMP_MORE;
 }
-
-UA_StatusCode
-UA_EventLoopPuffin_setNonBlocking(UA_FD sockfd) {
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_EventLoopPuffin_setNoSigPipe(UA_FD sockfd) {
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_EventLoopPuffin_setReusable(UA_FD sockfd) {
-    return UA_STATUSCODE_GOOD;
-}
-
-/************************/
-/* Select / epoll Logic */
-/************************/
-
-/* Re-arm the self-pipe socket for the next signal by reading from it */
-static void
-flushSelfPipe(UA_SOCKET s) {}
-
-#if !defined(UA_HAVE_EPOLL)
-
-UA_StatusCode
-UA_EventLoopPuffin_registerFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                 "Registering fd: %u", (unsigned)rfd->fd);
-
-    /* Realloc */
-    UA_RegisteredFD **fds_tmp = (UA_RegisteredFD**)
-        UA_realloc(el->fds, sizeof(UA_RegisteredFD*) * (el->fdsSize + 1));
-    if(!fds_tmp) {
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    }
-    el->fds = fds_tmp;
-
-    /* Add to the last entry */
-    el->fds[el->fdsSize] = rfd;
-    el->fdsSize++;
-    return UA_STATUSCODE_GOOD;
-}
-
-UA_StatusCode
-UA_EventLoopPuffin_modifyFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
-    /* Do nothing, it is enough if the data was changed in the rfd */
-    return UA_STATUSCODE_GOOD;
-}
-
-void
-UA_EventLoopPuffin_deregisterFD(UA_EventLoopPuffin *el, UA_RegisteredFD *rfd) {
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                 "Unregistering fd: %u", (unsigned)rfd->fd);
-
-    /* Find the entry */
-    size_t i = 0;
-    for(; i < el->fdsSize; i++) {
-        if(el->fds[i] == rfd)
-            break;
-    }
-
-    /* Not found? */
-    if(i == el->fdsSize)
-        return;
-
-    if(el->fdsSize > 1) {
-        /* Move the last entry in the ith slot and realloc. */
-        el->fdsSize--;
-        el->fds[i] = el->fds[el->fdsSize];
-        UA_RegisteredFD **fds_tmp = (UA_RegisteredFD**)
-            UA_realloc(el->fds, sizeof(UA_RegisteredFD*) * el->fdsSize);
-        /* if realloc fails the fds are still in a correct state with
-         * possibly lost memory, so failing silently here is ok */
-        if(fds_tmp)
-            el->fds = fds_tmp;
-    } else {
-        /* Remove the last entry */
-        UA_free(el->fds);
-        el->fds = NULL;
-        el->fdsSize = 0;
-    }
-}
-
-static UA_FD
-setFDSets(UA_EventLoopPuffin *el, fd_set *readset, fd_set *writeset, fd_set *errset) {
-
-    FD_ZERO(readset);
-    FD_ZERO(writeset);
-    FD_ZERO(errset);
-
-    /* Always listen on the read-end of the pipe */
-    UA_FD highestfd = el->selfpipe[0];
-    FD_SET(el->selfpipe[0], readset);
-
-    for(size_t i = 0; i < el->fdsSize; i++) {
-        UA_FD currentFD = el->fds[i]->fd;
-
-        /* Add to the fd_sets */
-        if(el->fds[i]->listenEvents & UA_FDEVENT_IN)
-            FD_SET(currentFD, readset);
-        if(el->fds[i]->listenEvents & UA_FDEVENT_OUT)
-            FD_SET(currentFD, writeset);
-
-        /* Always return errors */
-        FD_SET(currentFD, errset);
-
-        /* Highest fd? */
-        if(currentFD > highestfd)
-            highestfd = currentFD;
-    }
-    return highestfd;
-}
-
-UA_StatusCode
-UA_EventLoopPuffin_pollFDs(UA_EventLoopPuffin *el, UA_DateTime listenTimeout) {
-    // UA_assert(listenTimeout >= 0);
-
-    // fd_set readset, writeset, errset;
-    // UA_FD highestfd = setFDSets(el, &readset, &writeset, &errset);
-
-    // /* Nothing to do? */
-    // if(highestfd == UA_INVALID_FD) {
-    //     UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-    //                  "No valid FDs for processing");
-    //     return UA_STATUSCODE_GOOD;
-    // }
-
-    // struct timeval tmptv = {
-    //     (long)(listenTimeout / UA_DATETIME_SEC),
-    //     (long)((listenTimeout % UA_DATETIME_SEC) / UA_DATETIME_USEC)
-    // };
-
-    // // int selectStatus = UA_select(highestfd+1, &readset, &writeset, &errset, &tmptv);
-    // // if(selectStatus < 0) {
-    // //     /* We will retry, only log the error */
-    // //     UA_LOG_SOCKET_ERRNO_WRAP(
-    // //         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-    // //                        "Error during select: %s", errno_str));
-    // //     return UA_STATUSCODE_GOOD;
-    // // }
-
-    // /* The self-pipe has received. Clear the buffer by reading. */
-    // // if(UA_UNLIKELY(FD_ISSET(el->selfpipe[0], &readset)))
-    // //     flushSelfPipe(el->selfpipe[0]);
-
-    // /* Loop over all registered FD to see if an event arrived. Yes, this is why
-    //  * select is slow for many open sockets. */
-    // for(size_t i = 0; i < el->fdsSize; i++) {
-    //     UA_RegisteredFD *rfd = el->fds[i];
-
-    //     /* The rfd is already registered for removal. Don't process incoming
-    //      * events any longer. */
-    //     if(rfd->dc.callback)
-    //         continue;
-
-    //     /* Event signaled for the fd? */
-    //     short event = 0;
-    //     if(FD_ISSET(rfd->fd, &readset)) {
-    //         event = UA_FDEVENT_IN;
-    //     } else if(FD_ISSET(rfd->fd, &writeset)) {
-    //         event = UA_FDEVENT_OUT;
-    //     } else if(FD_ISSET(rfd->fd, &errset)) {
-    //         event = UA_FDEVENT_ERR;
-    //     } else {
-    //         continue;
-    //     }
-
-    //     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-    //                  "Processing event %u on fd %u", (unsigned)event,
-    //                  (unsigned)rfd->fd);
-
-    //     /* Call the EventSource callback */
-    //     rfd->eventSourceCB(rfd->es, rfd, event);
-
-    //     /* The fd has removed itself */
-    //     if(i == el->fdsSize || rfd != el->fds[i])
-    //         i--;
-    // }
-    return UA_STATUSCODE_GOOD;
-}
-
-#else /* defined(UA_HAVE_EPOLL) */
-
-#endif /* defined(UA_HAVE_EPOLL) */
-
-// #if defined(__APPLE__)
-// int UA_EventLoopPuffin_pipe(SOCKET fds[2]) {
-//     struct sockaddr_in inaddr;
-//     memset(&inaddr, 0, sizeof(inaddr));
-//     inaddr.sin_family = AF_INET;
-//     inaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-//     inaddr.sin_port = 0;
-
-//     SOCKET lst = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-//     bind(lst, (struct sockaddr *)&inaddr, sizeof(inaddr));
-//     listen(lst, 1);
-
-//     struct sockaddr_storage addr;
-//     memset(&addr, 0, sizeof(addr));
-//     int len = sizeof(addr);
-//     getsockname(lst, (struct sockaddr*)&addr, &len);
-
-//     fds[0] = socket(AF_INET, SOCK_STREAM, 0);
-//     int err = connect(fds[0], (struct sockaddr*)&addr, len);
-//     fds[1] = accept(lst, 0, 0);
-// #ifdef __APPLE__
-//     close(lst);
-// #endif
-
-//     UA_EventLoopPuffin_setNoSigPipe(fds[0]);
-//     UA_EventLoopPuffin_setReusable(fds[0]);
-//     UA_EventLoopPuffin_setNonBlocking(fds[0]);
-//     UA_EventLoopPuffin_setNoSigPipe(fds[1]);
-//     UA_EventLoopPuffin_setReusable(fds[1]);
-//     UA_EventLoopPuffin_setNonBlocking(fds[1]);
-//     return err;
-// }
-// #endif
 
 void
 UA_EventLoopPuffin_cancel(UA_EventLoopPuffin *el) {}

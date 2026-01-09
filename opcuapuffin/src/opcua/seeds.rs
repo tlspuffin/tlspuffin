@@ -931,7 +931,7 @@ pub mod tests {
 
     #[test]
     fn test_postcard_of_seed_d() {
-        let trace = seed_d_client_activate_session.build_trace();
+        let trace = seed_d_client_simple_request.build_trace();
         test_postcard_serialization(trace);
     }
 
