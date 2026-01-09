@@ -1,12 +1,11 @@
-From 42b91a927346aebf5637e23b46ee7f10aad87dfd Mon Sep 17 00:00:00 2001
+From 7a3acfa7103f58f066805f678bf0d3ab26433f11 Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
-Date: Fri, 2 Jan 2026 15:42:42 +0100
+Date: Fri, 9 Jan 2026 18:37:02 +0100
 Subject: [PATCH 2/2] Added instrumentation to debug...
 
 ---
- src/server/ua_server.c        | 31 +++++++++++++++++++++++++++++--
- src/server/ua_server_binary.c |  6 +++++-
- 2 files changed, 34 insertions(+), 3 deletions(-)
+ src/server/ua_server.c | 31 +++++++++++++++++++++++++++++--
+ 1 file changed, 29 insertions(+), 2 deletions(-)
 
 diff --git a/src/server/ua_server.c b/src/server/ua_server.c
 index 979ba40e7..4a9f6eb25 100644
@@ -97,23 +96,6 @@ index 979ba40e7..4a9f6eb25 100644
      el->stop(el);
      while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
            el->state != UA_EVENTLOOPSTATE_FRESH &&
-diff --git a/src/server/ua_server_binary.c b/src/server/ua_server_binary.c
-index 3d35798ba..a7acd7c06 100644
---- a/src/server/ua_server_binary.c
-+++ b/src/server/ua_server_binary.c
-@@ -1491,7 +1491,11 @@ UA_BinaryProtocolManager_stop(UA_ServerComponent *comp) {
-        TAILQ_EMPTY(&bpm->channels)) {
-         setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STOPPED);
-     } else {
--        setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STOPPING);
-+        //setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STOPPING);
-+        UA_LOG_ERROR(bpm->logging, UA_LOGCATEGORY_SERVER,
-+            "Binary Protocol Manager stopped with remaining open sockets.");
-+        bpm->serverConnectionsSize = 0;
-+        setBinaryProtocolManagerState(bpm, UA_LIFECYCLESTATE_STOPPED);
-     }
- }
- 
 -- 
 2.51.0
 

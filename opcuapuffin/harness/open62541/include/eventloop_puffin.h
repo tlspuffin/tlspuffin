@@ -68,11 +68,6 @@ struct UA_RegisteredFD {
     UA_FD fd;
     short listenEvents; /* UA_FDEVENT_IN | UA_FDEVENT_OUT*/
 
-    /* Information to reopen listen socket */
-    UA_String hostname;
-    UA_UInt16 port;
-    UA_Boolean reuseaddr;
-
     UA_EventSource *es; /* Backpointer to the EventSource */
     UA_FDCallback eventSourceCB;
 };
@@ -97,9 +92,9 @@ typedef struct {
     UA_ByteString txBuffer; /* allocated by the caller? */
 
     UA_UInt16 port;
-    uintptr_t connectionId;
 
     UA_ConnectionManager_connectionCallback applicationCB;
+    uintptr_t connectionId;
     void *application;
     void *context;
 
