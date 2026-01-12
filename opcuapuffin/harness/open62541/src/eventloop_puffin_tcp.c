@@ -44,16 +44,11 @@ typedef struct {
 /* Test if the ConnectionManager can be stopped */
 static void
 TCP_checkStopped(UA_PuffinConnectionManager *pcm) {
-    if(//pcm->fdsSize == 0 &&
+    if(pcm->fdsSize == 0 &&
        pcm->cm.eventSource.state == UA_EVENTSOURCESTATE_STOPPING) {
         UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                      "TCP\t| All sockets closed, the EventSource is stopped");
         pcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPED;
-        // pcm->cm.eventSource.eventLoop->stop((UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop);
-    } else {
-        UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-            "TCP\t| EventSource is STOPPING");
-        pcm->cm.eventSource.state = UA_EVENTSOURCESTATE_STOPPING;
     }
 }
 
@@ -72,6 +67,9 @@ TCP_delayedClose(void *application, void *context) {
     ZIP_REMOVE(UA_FDTree, &pcm->fds, &conn->rfd);
     UA_assert(pcm->fdsSize > 0);
     pcm->fdsSize--;
+    if (pcm->connectionId == (uintptr_t) conn->rfd.fd) {
+        pcm->connectionId = NULL;
+    }
 
     /* Signal closing to the application */
     conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
@@ -131,20 +129,19 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_ByteString response = pcm->rxBuffer;
     UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Received message of size %u",
+        "TCP %u\t| Connection socket callback eceived a message of size %u",
         (unsigned)conn->rfd.fd, (unsigned)response.length);
-
 }
 
 void
-TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm) {
+TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
-    UA_ByteString response = pcm->rxBuffer;
-
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                 "TCP %u\t| Received message of size %u",
-                 (unsigned)pcm->connectionId, (unsigned)response.length);
+        "TCP %u\t| Use already allocated receive buffer (%u bytes at %p)",
+        (unsigned)pcm->connectionId, pcm->rxBuffer.length, pcm->rxBuffer.data);
 
+    UA_ByteString response = pcm->rxBuffer;
+    response.length = length;
     pcm->applicationCB(&pcm->cm, pcm->connectionId,
                         pcm->application, &pcm->context,
                         UA_CONNECTIONSTATE_ESTABLISHED,
@@ -164,6 +161,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
 
     /* Try to accept a new connection */
     UA_FD newsockfd = 2;
+    pcm->connectionId = (uintptr_t) newsockfd;
 
     /* Log the name of the remote host */
     char hoststr[] = "puffin";
@@ -384,7 +382,7 @@ TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap 
     /* Initialize the Puffin connexion manager,
      * that manages the single connection with the fuzzer */
     pcm->port = *port;
-    pcm->connectionId = (uintptr_t) (*port - 4840 +2);
+    pcm->connectionId = NULL;
     pcm->application = application;
     pcm->context = context;
     pcm->applicationCB = connectionCallback;
