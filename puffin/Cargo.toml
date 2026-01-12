@@ -25,6 +25,11 @@ with-min-scheduler = []
 
 introspection = ["libafl/introspection"]
 
+ddyf-disable-status = []
+ddyf-disable-claims = []
+ddyf-disable-knowledges = []
+ddyf-disable-decryption = []
+
 [dependencies]
 
 puffin-build = { path = "../puffin-build" }

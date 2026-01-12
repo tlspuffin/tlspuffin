@@ -220,6 +220,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
                 .execute(&mut second_ctx, &mut 0, check_security_violation);
 
         // check status fist
+        #[cfg(not(feature = "ddyf-disable-status"))]
         match (&first_trace_status, &second_trace_status) {
             (Err(Error::Put(put1_error)), Err(Error::Put(put2_error))) => {
                 // If both PUT fail at the same step we consider that they fail for the same
