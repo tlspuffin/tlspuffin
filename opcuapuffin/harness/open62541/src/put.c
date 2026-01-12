@@ -299,23 +299,18 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
     if (!pcm) return PUFFIN.make_result(RESULT_ERROR_OTHER, "Connection Manager unavailable.");
 
     /* Fills the rxBuffer */
-    UA_ByteString buffer = pcm->rxBuffer;
     if (length > RX_BUFFER_MAX_SIZE) {
         return PUFFIN.make_result(RESULT_ERROR_OTHER, "rxBuffer is too small!");
     }
-
-    memcpy(buffer.data, bytes, length);
-    buffer.length = length;
+    memcpy(pcm->rxBuffer.data, bytes, length);
+    pcm->rxBuffer.length = length;
     *written = length;
 
     /* notify application */
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "Harness: Added to connexion %u, a message of size %u", pcm->connectionId, *written);
-    pcm->applicationCB(&pcm->cm, (uintptr_t) (pcm->connectionId),
-        pcm->application, &pcm->context,
-        UA_CONNECTIONSTATE_ESTABLISHED,
-        &UA_KEYVALUEMAP_NULL, buffer);
+    TCP_PuffinConnectionCallback(pcm);
 
     _log(PUFFIN.trace,"Add inbound OK");
     return PUFFIN.make_result(RESULT_OK, "");

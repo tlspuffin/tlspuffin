@@ -171,4 +171,7 @@ UA_EventLoopPuffin_addDelayedCallback(UA_EventLoop *public_el,
 
 _UA_END_DECLS
 
+void
+TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm);
+
 #endif /* UA_EVENTLOOP_PUFFIN_H_ */
