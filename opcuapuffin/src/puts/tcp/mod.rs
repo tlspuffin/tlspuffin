@@ -99,6 +99,7 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
             if let Some(port_arg) = options.get_option("port") {
                 u16::from_str_radix(port_arg, 10).expect("Invalid port number")
             } else {
+                /* Only for --put tcp */
                 match application.protocol_config.kind {
                     AgentType::Server => 4840,
                     AgentType::Client => 4841,
@@ -117,23 +118,28 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
                     Some(OpcuaProcess::new(prog, args, cwd)) },
             }
         } else {
-             match application.protocol_config.kind {
-                AgentType::Client => {
-                    Some(OpcuaProcess::new(
-                        "./vendor/open62541/build/bin/examples/client_connect",
-                        &("-username peter -password peter123 ".to_owned() +
-                        "-cert crates/opcua-mapper/lib/src/puffin/assets/alice_cert.der " +
-                        "-key crates/opcua-mapper/lib/src/puffin/assets/alice_key.der " +
-                        "-securityMode 2 -securityPolicy http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256 " +
-                        &format!("-reverse opc.tcp://localhost:{} ", port)),
-                        Some("."))) },
-                AgentType::Server => {
-                    Some(OpcuaProcess::new(
-                        "./vendor/open62541/build/bin/examples/ci_server",
-                        &(format!("{} ", port) +
-                        "crates/opcua-mapper/lib/src/puffin/assets/bob_cert.pem " +
-                        "crates/opcua-mapper/lib/src/puffin/assets/bob_key.pem"),
-                        Some("."))) }
+            if options.get_option("port").is_some() {
+                match application.protocol_config.kind {
+                    AgentType::Client => {
+                        Some(OpcuaProcess::new(
+                            "./vendor/open62541/build/bin/examples/client_connect",
+                            &("-username peter -password peter123 ".to_owned() +
+                            "-cert crates/opcua-mapper/lib/src/puffin/assets/alice_cert.der " +
+                            "-key crates/opcua-mapper/lib/src/puffin/assets/alice_key.der " +
+                            "-securityMode 2 -securityPolicy http://opcfoundation.org/UA/SecurityPolicy#Basic256Sha256 " +
+                            &format!("-reverse opc.tcp://localhost:{} ", port)),
+                            Some("."))) },
+                    AgentType::Server => {
+                        Some(OpcuaProcess::new(
+                            "./vendor/open62541/build/bin/examples/ci_server",
+                            &(format!("{} ", port) +
+                            "crates/opcua-mapper/lib/src/puffin/assets/bob_cert.pem " +
+                            "crates/opcua-mapper/lib/src/puffin/assets/bob_key.pem"),
+                            Some("."))) }
+                }
+            } else {
+                /* Only for --put tcp: call of an external server on default port */
+                None
             }
         };
 
