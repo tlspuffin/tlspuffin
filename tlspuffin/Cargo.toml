@@ -339,6 +339,11 @@ enable-guards = []
 # utility functions for testing tlspuffin
 test-utils = ["tempfile"]
 
+ddyf-disable-status = ["puffin/ddyf-disable-status"]
+ddyf-disable-claims = ["puffin/ddyf-disable-claims"]
+ddyf-disable-knowledges = ["puffin/ddyf-disable-knowledges"]
+ddyf-disable-decryption = ["puffin/ddyf-disable-decryption"]
+
 [dependencies]
 
 puffin = { path = "../puffin" }

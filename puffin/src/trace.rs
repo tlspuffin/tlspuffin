@@ -617,6 +617,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         }
 
         // Comparing the claims
+        #[cfg(not(feature = "ddyf-disable-claims"))]
         res.extend(
             self.claims
                 .compare(&other.claims)
@@ -625,6 +626,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         );
 
         // Comparing the knowledges
+        #[cfg(not(feature = "ddyf-disable-knowledges"))]
         res.extend(
             self.knowledge_store
                 .compare(&other.knowledge_store)
@@ -633,6 +635,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         );
 
         // Comparing the computed terms
+        #[cfg(not(feature = "ddyf-disable-decryption"))]
         res.extend(self_store.compare(&other_store).err().map_or(vec![], |x| x));
 
         res
