@@ -180,10 +180,16 @@ class CheckAgentC(BucketCondition):
 
 
 class StatusC(BucketCondition):
+    """
+    Check the error status of a PUT and the number of executed steps
+
+    `first_to_fail` checks that `put_num` is the first PUT to fail when executing the trace
+    """
     put_num: int
     in_error: str | None
     first_executed_steps: Callable[[int], bool] | None
     second_executed_steps: Callable[[int], bool] | None
+    first_to_fail: bool
 
     def __init__(
         self,
@@ -191,11 +197,13 @@ class StatusC(BucketCondition):
         in_error: str | None = None,
         first_executed_steps: Callable[[int], bool] | None = None,
         second_executed_steps: Callable[[int], bool] | None = None,
+        first_to_fail: bool = True
     ):
         self.put_num = put_num
         self.in_error = in_error
         self.first_executed_steps = first_executed_steps
         self.second_executed_steps = second_executed_steps
+        self.first_to_fail = first_to_fail
 
     def check_condition(self, exec_stat: ExecutionStatus) -> bool:
         status = exec_stat.put1()
@@ -203,6 +211,21 @@ class StatusC(BucketCondition):
             status = exec_stat.put2()
 
         error = status["error"]
+
+        if self.first_to_fail:
+            if len(exec_stat.errors) > 0:
+                s= exec_stat.errors[0].get("Status")
+                if s is None:
+                    return False
+                (error, put_num) = get_error_from_status(s)
+                if put_num != self.put_num:
+                    return False
+            else:
+                return False
+
+
+        if error is None:
+            return False
 
         if (self.in_error is not None) and (self.in_error not in error):
             return False
@@ -215,7 +238,6 @@ class StatusC(BucketCondition):
         ) and not self.second_executed_steps(exec_stat.put2()["execution"]["executed_until"]):
             return False
         return True
-
 
 
 class InnerKnowledgeC(BucketCondition):

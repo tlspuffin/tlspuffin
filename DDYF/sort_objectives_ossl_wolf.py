@@ -22,7 +22,7 @@ OSSL = 1
 WOLF = 2
 FIRST_PUT = "openssl340"
 SECOND_PUT = "wolfssl580"
-PARALLELISM = 20
+PARALLELISM = 10
 
 buckets: dict[str, BucketCondition] = {
     # No differences reported --> flakyness
@@ -32,6 +32,16 @@ buckets: dict[str, BucketCondition] = {
         StatusC(
             OSSL,
             in_error="tls1_set_server_sigalgs:no shared signature algorithms",
+        ),
+    ),
+    # tls 1.2 alerts are encrypted but are in unencrypted records
+    "tls12_encrypted_alerts/": AllC(
+        CheckAgentC(["protocol_config", "tls_version"], "V1_2"),
+        StepC(
+            lambda a, b, _: a >= 2
+        ),  # we need at least to have some encrypted messages
+        InnerKnowledgeC(
+            "BothAlert"
         ),
     ),
     # TLS 1.2 traces discared for now
@@ -182,6 +192,7 @@ buckets: dict[str, BucketCondition] = {
     # "unexpected_byte/": StatusC(OSSL, in_error="ssl3_read_bytes:unexpected"),
     # a CH containing (fn_al_protocol_negotiation((fn_make_payload_u8_vec_u16(fn_empty_payload_u8_vec)))) will trigger a bad_extension error on OpenSSL
     # and be ignored by wolfssl
+    # likely due to the activated extension in wolfssl
     "ctos_alpn_bad_ext/": AllC(
         StatusC(OSSL, in_error="tls_parse_ctos_alpn:bad extension"),
         TermContainsC(OSSL, "fn_al_protocol_negotiation", last_input_executed=True),
@@ -203,6 +214,7 @@ buckets: dict[str, BucketCondition] = {
     # fn_renegotiation_info_server_extension,
     # fn_signed_certificate_timestamp_server_extension in serverhello will trigger the
     # error on ossl side
+    # likely due to the activated extension in wolfssl
     "server_hello_bad_ext/": AllC(
         AnyC(
             StatusC(OSSL, in_error="tls_process_server_hello:bad extension"),
@@ -248,8 +260,12 @@ buckets: dict[str, BucketCondition] = {
     ),
     # hrr with changing cipher
     "hrr_changing_cipher/": AllC(
-        StatusC(WOLF, in_error="AES-GCM Authentication check fail"),
-        StatusC(OSSL, "set_client_ciphersuite:wrong cipher returned"),
+        StatusC(
+            WOLF, in_error="AES-GCM Authentication check fail", first_to_fail=False
+        ),
+        StatusC(
+            OSSL, "set_client_ciphersuite:wrong cipher returned", first_to_fail=False
+        ),
         TermContainsC(OSSL, "fn_hello_retry_request_random"),
         TermContainsReC(
             OSSL,
@@ -284,7 +300,7 @@ buckets: dict[str, BucketCondition] = {
         KnowledgeContainsC(WOLF, "ServerHelloPayload"),
     ),
     # missing sigalgs extension in certificate request make openssl return an error and not wolf
-    "no_sigalgs_in_cert_request/": AnyC(
+    "no_sigalgs_in_cert_request/": AllC(
         StatusC(OSSL, in_error="missing sigalgs"),
         TermContainsC(OSSL, "fn_certificate_request13", last_input_executed=True),
     ),
@@ -311,9 +327,11 @@ buckets: dict[str, BucketCondition] = {
         StatusC(OSSL, in_error="binder does not verify"),
         TermContainsC(OSSL, "fn_derive_psk", last_input_executed=True),
     ),
+    # TODO
     "no_suitable_keyshare/": StatusC(
         OSSL, in_error="final_key_share:no suitable key share"
     ),
+    # TODO
     "no_shared_cipher/": StatusC(
         OSSL, in_error="tls_post_process_client_hello:no shared cipher"
     ),
@@ -325,8 +343,12 @@ buckets: dict[str, BucketCondition] = {
     # encrypted out of order message triggers no alert for wolfssl
     "encrypted_out_of_order/": AllC(
         KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
-        StatusC(WOLF, in_error="Out of order message, fatal"),
-        StatusC(OSSL, "ossl_statem_client_read_transition:unexpected message"),
+        StatusC(WOLF, in_error="Out of order message, fatal", first_to_fail=False),
+        StatusC(
+            OSSL,
+            "ossl_statem_client_read_transition:unexpected message",
+            first_to_fail=False,
+        ),
         TermContainsReC(
             OSSL,
             r"fn_encrypt_handshake\(\s*",
@@ -344,6 +366,7 @@ buckets: dict[str, BucketCondition] = {
             last_input_executed=True,
         ),
     ),
+    # race condition
     "alert_illegal_param_vs_proto_version/": InnerKnowledgeC(
         "BothAlert([Description(Different(IllegalParameter, ProtocolVersion))])"
     ),

@@ -1,104 +1,116 @@
-# DY Fuzzing: Formal Dolev-Yao Models Meet Cryptographic Protocol Fuzz Testing
+# DDYF
 
-[![unstable](http://badges.github.io/stability-badges/dist/unstable.svg)](http://github.com/badges/stability-badges)[![CI Status](https://img.shields.io/github/actions/workflow/status/tlspuffin/tlspuffin/on-pr-merged.yml?branch=main&style=flat-square&label=CI)](https://github.com/tlspuffin/tlspuffin/actions/workflows/on-pr-merged.yml)
+To ensure reproductibility, all experiments should be run inside a Nix shell environment:
 
-## What is `puffin`?
+```bash
+nix-shell shell.nix
+```
 
-The `puffin` fuzzer is the reference implementation for the [Dolev-Yao fuzzing approach](https://www.computer.org/csdl/pds/api/csdl/proceedings/download-article/1Ub234bjuWA/pdf) (eprint publicly accessible [here](https://eprint.iacr.org/2023/57)).
-It aims at fuzzing cryptographic protocol implementations. For now, it is shipped with harnesses for several TLS implementations (OpenSSL, BoringSSL, LibreSSL, and wolfSSL) and
-preliminary versions of a harness for OpenSSH. We built `puffin` so that new protocols and protocol implementations can be added.
-Internally, `puffin` uses the library [LibAFL](https://aflplus.plus/libafl-book/) to drive the fuzzing loop.
+Most script contains variables such as `TIMEOUT`, `CORES`, `RUNS` that can be edited. Default values corresponds to the parameters used in the paper.
 
-We sometimes use `tlspuffin` instead of `puffin` to name the fuzzer and this project. This is because the first protocol we implemented was TLS. However, `puffin` and DY fuzzing in general are not limited to the TLS protocol.
+Python triaging scripts (`sort_objectives_ossl_wolf.py`, `ablatation_study_sort.py`, `find_known_cve.py`) contains a `PARALLELISM` variable to select how much files should be triaged in parallel (recommended maximum 2x core count).
 
-## Building and using `puffin`
-Please refer to the up-to-date [user manual](https://tlspuffin.github.io/docs/overview).
-We also provide a [quickstart guide](https://tlspuffin.github.io/docs/guides/quickstart) for a fast setup.
+> For more information about the usage of the puffin fuzzer the puffin README is now PUFFIN_README.md
 
-## License
+## Running a differential fuzzing campaign
 
-Licensed under either of
+Build the desired PUTs (e.g. OpenSSL 3.4.0 and wolfSSL 5.8.0)
+```bash
+./tools/mk_vendor make openssl:openssl340
+./tools/mk_vendor make wolfssl:wolfssl580
+```
 
-* Apache License, Version 2.0
-  ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license
-  ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/blog/license/mit)
+Build the fuzzer:
+```bash
+cargo build --release --bin tlspuffin --features cputs
+```
 
-at your option.
-Note that tlspuffin also contains code/modification from external projects. See [THIRD_PARTY](THIRD_PARTY) for more details.
+Generate the seeds:
+```bash
+./target/release/tlspuffin seed --differential
+```
 
-## Contributing to `puffin`
-We welcome any external contributions through [pull requests](https://github.com/tlspuffin/tlspuffin/pulls), see for example the [list](https://github.com/tlspuffin/tlspuffin/issues?q=is%3Aissue%20state%3Aopen%20(label%3A%22help%20wanted%22%20OR%20label%3A%22good%20first%20issue%22%20)%20) of "good first issues".  
-Please refer to the up-to-date [developer documentation](https://tlspuffin.github.io/docs/overview).
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
-dual licensed as above, without any additional terms or conditions.
+Run the campaign:
 
+```bash
+./target/release/tlspuffin differential-experiment openssl340 wolfssl580 -t "my_experiment" 
+```
 
-## Background on DY Fuzzing
-Critical and widely used cryptographic protocols have repeatedly been found to contain flaws in their design and implementation. A prominent class of such vulnerabilities is **logical attacks**, e.g., attacks that exploit flawed protocol logic. Automated formal verification methods, based on the **Dolev-Yao (DY) attacker** (shown in green in the Figure below), formally define and excel at finding such flaws but operate only on abstract specification models. Fully automated verification of existing protocol implementations is today still out of reach. This leaves open whether such implementations are secure. Unfortunately, this blind spot hides numerous attacks, such as recent logical attacks on widely used TLS implementations introduced by implementation bugs.
+The results will be in the experiments folder.
 
-### Challenges in Detecting Implementation-Level Logical Attacks
+To run the triaging script on the results:
 
-We are concerned with finding implementation-level logical attacks in large cryptographic protocol code bases. For this, we build on **fuzz testing**. However, state-of-the-art fuzzers (shown on the left in the Figure) cannot capture the class of logical attacks for two main reasons. First, they fail to effectively **capture the DY attacker**, particularly the ability of structural modifications on the term representation of messages in DY models (e.g., re-signing a message with some adversarial-controlled key), a prerequisite to capture logical attacks. We emphasize that logical attacks may trigger protocol or memory vulnerabilities. Second, they cannot detect **protocol vulnerabilities**, which are security violations at the protocol level, e.g., for the attacks that trigger protocol vulnerabilities, which are not memory-related, such as an authentication bypass.
+```bash
+# this script only works for campaigns between OpenSSL and WolfSSL
+python -m DDYF.sort_objectives_ossl_wolf path_to_experiment/objective
 
-###  DY Model-Guided Fuzzing
+# list the content of the buckets
+./DDYF/list_buckets path_to_experiment/objective
+```
 
-We answer in [1] by proposing a novel and effective technique called DY model-guided fuzzing, which precludes logical attacks against protocol implementations. The main idea is to consider as possible test cases the set of abstract DY executions of the DY attacker, and use a novel mutation-based fuzzer to explore this set (shown in the middle of the Figure). The DY fuzzer concretizes each abstract execution to test it on the program under test. This approach enables reasoning at a more structural and security-related level of messages represented as formal terms (e.g., decrypt a message and re-encrypt it with a different key) instead of random bit-level modifications that are much less likely to produce relevant logical adversarial behaviors.
+## Executing one trace with differential fuzzing
 
+```bash
+./target/release/tlspuffin differential-execute put1 put2 path/to/trace
+```
 
-<center><img src="https://tlspuffin.github.io/assets/images/DYF_illustrations-7f3ce4e536a9e941373f30a7de1e1b94.png" width="900"></center>
-<center>The gap filled by DY fuzzing and tlspuffin (shown in the middle).</center>
+## CVE reproduction benchmark
 
+Run the fuzzing campaigns using `reproducing_cves.sh` script after activation the Nix shell environment.
 
-### Implementation
+You can edit the `TIMEOUT`, `RUNS` and `CORES` variables to setup the duration, number of campaigns and cores per campaigns.
 
-[tlspuffin](https://github.com/tlspuffin/tlspuffin) is our reference implementation of such a DY fuzzer. It is built modularly so that new protocols and Programs Under Test (PUTs) can be integrated and tested. We have already integrated the TLS protocol and the OpenSSL, BoringSSL, WolfSSL, and LibreSSL PUTs. tlspuffin has already found 8 CVEs (see table below), including five new ones (including a critical one) that were all acknowledged and patched.
-Interestingly and as a witness to the claims above,
-those five newly found bugs are not currently found by state-of-the-art fuzzers [1].
+```bash
+./DDYF/reproducing_cves.sh
+```
 
+Generate a CSV file of all the traces triggering CVEs :
 
-| CVE ID                                                             | CVSS | Type         | Novel                                   | Version   |
-|--------------------------------------------------------------------|-----|--------------|-----------------------------------------|---------|
-| [2021-3449](https://www.cve.org/CVERecord?id=CVE-2021-3449)        | 5.9 | Server DoS | ❌                                       | 1.1.1j   |
-| [2022-25638](https://www.cve.org/CVERecord?id=CVE-2022-25638)      | 6.5 | Auth. Bypass | ❌                                       | 5.1.0   |
-| [2022-25640](https://www.cve.org/CVERecord?id=CVE-2022-25640)      | ️7.5❗ | Auth. Bypass | ❌                                      | 5.1.0     |
-| [2022-38152](https://www.cve.org/CVERecord?id=CVE-2022-38152)      | 7.5❗ | Server DoS | ✅                                       | 5.4.0     |
-| [2022-38153](https://www.cve.org/CVERecord?id=CVE-2022-38153)      | 5.9 | Client DoS | ✅ | 5.3.0     |
-| [2022-39173](https://www.cve.org/CVERecord?id=CVE-2022-39173)      | 7.5❗ | Server DoS | ✅ | 5.5.0    |
-| [2022-42905](https://www.cve.org/CVERecord?id=CVE-2022-42905)      | 9.1❗ | Info. Leak | ✅ | 5.5.0   |
-| [2023-6936](https://www.cve.org/CVERecord?id=CVE-2023-6936)      | 5.3 | Info. Leak | ✅ | 5.6.6     |
+```bash
+./DDYF/listing_reproduced_cves.sh
+```
 
-
-Some features:
-* Uses the [LibAFL fuzzing framework](https://github.com/AFLplusplus/LibAFL)
-* Fuzzer which is inspired by the [Dolev-Yao models](https://en.wikipedia.org/wiki/Dolev%E2%80%93Yao_model) used in protocol verification
-* Domain specific mutators for Protocol Fuzzing!
-* Supported Libraries Under Test:
-  * OpenSSL 1.0.1f, 1.0.2u, 1.1.1k
-  * LibreSSL 3.3.3
-  * wolfSSL 5.1.0 - 5.4.0
-  * BoringSSL (last commit tested 368d0d87d0bd00f8227f74ce18e8e4384eaf6afa)
-    - Disclaimer : there is a bug will building in debug mode with asan (set `lto=true` in `Cargo.toml` to circumvent)
-* Reproducible for each LUT. We use sources from fresh git clone of vendor libraries.
-* 70% Test Coverage
-* Written in Rust!
+This should create a `cve_list.csv` file.
 
 
+Analyze the file:
 
-## Team
+```bash
+python -m venv DDYF/.venv
+source DDYF/.venv/bin/activate
+pip install pandas
+python -m DDYF.cves_stats
+```
 
-- [Tom Gouville](https://github.com/aeyno) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Lucca Hirschi](https://members.loria.fr/LHirschi/) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Steve Kremer](https://members.loria.fr/SKremer/) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Michael Mera](https://github.com/michaelmera) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Max Ammann](https://github.com/maxammann)
 
-This project is partially funded by the [ANR JCJC project ProtoFuzz](https://project.inria.fr/protofuzz/).
-We are still looking to hire motivated students/postdocs/engineers in Nancy, France as part of this project.
+## Measuring performances
 
-## References
+To measure the performances of DDYF run:
 
-[1] [M. Ammann, L. Hirschi and S. Kremer, "DY Fuzzing: Formal Dolev-Yao Models Meet Cryptographic Protocol Fuzz Testing," in 2024 IEEE Symposium on Security and Privacy (SP), San Francisco, CA, USA, 2024 pp. 99-99.](https://www.computer.org/csdl/pds/api/csdl/proceedings/download-article/1Ub234bjuWA/pdf)
+```bash
+./DDYF/perf_bench_DDYF.sh 
+```
 
-[2] [DY Fuzzing Poster](https://tlspuffin.github.io/assets/files/SP24_Poster-f90cdd5b2df492a64fa18089c98a7b2e.pdf)
+To measure the original performances of Puffin go to the main branch and run
+
+```bash
+./DDYF/perf_bench_puffin.sh 
+```
+
+
+## Ablation study
+
+After running a differential fuzzing campaign
+
+```bash
+./DDYF/ablation_study.sh path/to/objectives
+```
+
+This will produce 5 files: `ablation-all.txt`, \ablation-no-status.txt`, \ablation-no-knowledges.txt`, \ablation-no-decryption.txt` and \ablation-no-claims.txt`. Each file contains 3 lines:
+
+```txt
+non triaged : XXX # traces that could be detected with component deactivated
+objective/no_errors : XXX # traces that could not be detected
+total: XXX # total number of traces
+```
+

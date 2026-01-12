@@ -13,7 +13,6 @@ get_execution_number () {
 }
 
 
-
 echo 'Cleaning previous data'
 cargo clean
 rm -rf objectives seeds corpus
@@ -24,16 +23,12 @@ echo 'Building fuzzer'
 ./tools/mk_vendor make openssl:openssl340
 cargo build --release --bin tlspuffin --features cputs
 
-echo 'Generate seeds for diff fuzzing'
-./target/release/tlspuffin seed --differential
+echo 'Generate seeds'
+./target/release/tlspuffin seed
 
 
 PIPENAME="pipe_1"
 mkfifo $PIPENAME
-
-# Run the diff fuzzing campaign
-timeout -s KILL $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORES differential-experiment wolfssl580 openssl340 --title "perf_ossl_vs_wolf" 2>&1 | tee -i $PIPENAME &
-diff_run="$(grep -oP "stats_file: \"\K(.*?)\"" < $PIPENAME | sed "s/\"//")"
 
 timeout -s KILL $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORES --put wolfssl580 experiment --title "perf_wolfssl" 2>&1 | tee -i $PIPENAME &
 wolf_run="$(grep -oP "stats_file: \"\K(.*?)\"" < $PIPENAME | sed "s/\"//")"
@@ -44,6 +39,5 @@ ossl_run="$(grep -oP "stats_file: \"\K(.*?)\"" < $PIPENAME | sed "s/\"//")"
 
 rm $PIPENAME
 
-get_execution_number "$diff_run" "Differential run"
 get_execution_number "$wolf_run" "wolfSSL run"
 get_execution_number "$ossl_run" "OpenSSL run"
