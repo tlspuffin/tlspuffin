@@ -8,6 +8,7 @@
 
 #include "eventloop_puffin.h"
 #include "open62541/plugin/eventloop.h"
+#include <stdio.h>
 
 /*********/
 /* Timer */
@@ -508,7 +509,8 @@ UA_EventLoopPuffin_allocNetworkBuffer(UA_ConnectionManager *cm,
         if(buf->length < bufSize) return UA_STATUSCODE_BADOUTOFMEMORY;
         pcm->txBuffer = *buf;
         UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-            "TCP %u\t| Allocated txBuffer of size %u at %p", (unsigned)connectionId, pcm->txBuffer.length, pcm->txBuffer.data);
+            "TCP %u\t| Allocated txBuffer of size %u at %p",
+            (unsigned)connectionId, pcm->txBuffer.length, pcm->txBuffer.data);
     }
     return UA_STATUSCODE_GOOD;
 }
@@ -519,7 +521,8 @@ UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     UA_ByteString *buf) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Free txBuffer (clear) of size %u, at %p", (unsigned)connectionId, buf->length, buf->data);
+        "TCP\t| Free txBuffer (clear) of size %u, at %p",
+        buf->length, buf->data);
     UA_ByteString_clear(buf);
 }
 
@@ -537,6 +540,8 @@ UA_EventLoopPuffin_allocateStaticBuffers(UA_PuffinConnectionManager *pcm) {
         UA_ByteString_clear(&pcm->rxBuffer);
         res = UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
     }
+    printf("Allocated static buffer of size %u at %p\n",
+        pcm->rxBuffer.length, pcm->rxBuffer.data);
 
     const UA_UInt32 *txBufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
