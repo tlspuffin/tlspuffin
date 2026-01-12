@@ -126,29 +126,30 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
         return;
     }
 
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                 "TCP %u\t| Allocate receive buffer",
-                 (unsigned)conn->rfd.fd);
-
+    /* Receive */
     /* Use the already allocated receive-buffer */
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_ByteString response = pcm->rxBuffer;
+    UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        "TCP %u\t| Received message of size %u",
+        (unsigned)conn->rfd.fd, (unsigned)response.length);
 
-    /* Receive */
-    // UA_RESET_ERRNO;
-    // int ret = UA_recv(conn->rfd.fd, (char*)response.data,
-    //                   response.length, MSG_DONTWAIT);
+}
 
-    // UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-    //              "TCP %u\t| Received message of size %u",
-    //              (unsigned)conn->rfd.fd, (unsigned)ret);
+void
+TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm) {
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
+    UA_ByteString response = pcm->rxBuffer;
 
-    // /* Callback to the application layer */
-    // response.length = (size_t)ret; /* Set the length of the received buffer */
-    // conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
-    //                     conn->application, &conn->context,
-    //                     UA_CONNECTIONSTATE_ESTABLISHED,
-    //                     &UA_KEYVALUEMAP_NULL, response);
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                 "TCP %u\t| Received message of size %u",
+                 (unsigned)pcm->connectionId, (unsigned)response.length);
+
+    pcm->applicationCB(&pcm->cm, pcm->connectionId,
+                        pcm->application, &pcm->context,
+                        UA_CONNECTIONSTATE_ESTABLISHED,
+                        &UA_KEYVALUEMAP_NULL, response);
+    return;
 }
 
 /* Gets called when a new connection opens or if the listenSocket is closed */
