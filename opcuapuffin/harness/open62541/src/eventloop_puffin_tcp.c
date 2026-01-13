@@ -59,7 +59,7 @@ TCP_delayedClose(void *application, void *context) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
     TCP_FD *conn = (TCP_FD*)context;
 
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
                  "TCP %u\t| Delayed closing of the connection",
                  (unsigned)conn->rfd.fd);
 
@@ -94,7 +94,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
                              short event) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
 
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Activity on the socket",
                  (unsigned)conn->rfd.fd);
 
@@ -129,7 +129,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_ByteString response = pcm->rxBuffer;
     UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Connection socket callback eceived a message of size %lu",
+        "TCP %u\t| Connection socket callback received a message of size %lu",
         (unsigned)conn->rfd.fd, (unsigned)response.length);
 }
 
@@ -137,9 +137,10 @@ void
 TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Use already allocated receive buffer (%lu bytes at %p)",
-        (unsigned)pcm->connectionId, pcm->rxBuffer.length, pcm->rxBuffer.data);
+        "TCP %u\t| Received message of size %u in rxBuffer (%lu bytes at %p)",
+        (unsigned)pcm->connectionId, length, pcm->rxBuffer.length, pcm->rxBuffer.data);
 
+    /* Callback to the application layer */
     UA_ByteString response = pcm->rxBuffer;
     response.length = length;
     pcm->applicationCB(&pcm->cm, pcm->connectionId,
@@ -155,7 +156,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
 
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Callback on server socket",
                  (unsigned)conn->rfd.fd);
 
@@ -292,7 +293,7 @@ TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
 
     if(conn->rfd.dc.callback) {
-        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                      "TCP %u\t| Cannot close - already closing",
                      (unsigned)conn->rfd.fd);
         return;
@@ -339,16 +340,18 @@ Puffin_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*) cm;
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
 
+     /* Send the full buffer in txBuffer */
     if(buf->length > 0 && buf->data && pcm->txBuffer.data != buf->data) {
-        UA_ByteString_clear(&pcm->txBuffer);
+        if (pcm->txBuffer.data) UA_ByteString_clear(&pcm->txBuffer);
         pcm->txBuffer = *buf;
         UA_ByteString_init(buf);
-        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-            "TCP %u\t| Sends a message in txBuffer (%lu bytes at %p)",
-            (unsigned)connectionId, pcm->txBuffer.length, pcm->txBuffer.data);
     };
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        "TCP %u\t| Sends a message in txBuffer (%lu bytes at %p)",
+        (unsigned)connectionId, pcm->txBuffer.length, pcm->txBuffer.data);
 
-    /* Clean up of txBuffer will be performed by open62541_take_outbound */
+    /* Clean up of txBuffer will be performed by open62541_take_outbound,
+       by calling UA_EventLoopPuffin_freeNetworkBuffer */
     return UA_STATUSCODE_GOOD;
 }
 
@@ -560,7 +563,7 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
     /* Set the EventSource to the started state */
     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
 
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
         "TCP\t| EventSource is started and rxBuffer allocated (at: %p, of size: %u).",
         (void*) pcm, (void*) pcm->rxBuffer.data, pcm->rxBuffer.length);
 
