@@ -540,7 +540,7 @@ UA_EventLoopPuffin_allocateStaticBuffers(UA_PuffinConnectionManager *pcm) {
         UA_ByteString_clear(&pcm->rxBuffer);
         res = UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
     }
-    printf("Allocated static buffer of size %u at %p\n",
+    printf("Allocated static buffer of size %lu at %p\n",
         pcm->rxBuffer.length, pcm->rxBuffer.data);
 
     const UA_UInt32 *txBufSize = (const UA_UInt32 *)
