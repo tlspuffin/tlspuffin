@@ -509,7 +509,7 @@ UA_EventLoopPuffin_allocNetworkBuffer(UA_ConnectionManager *cm,
         if(buf->length < bufSize) return UA_STATUSCODE_BADOUTOFMEMORY;
         pcm->txBuffer = *buf;
         UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-            "TCP %u\t| Allocated txBuffer of size %u at %p",
+            "TCP %u\t| Allocated txBuffer of size %lu at %p",
             (unsigned)connectionId, pcm->txBuffer.length, pcm->txBuffer.data);
     }
     return UA_STATUSCODE_GOOD;
@@ -521,7 +521,7 @@ UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     UA_ByteString *buf) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-        "TCP\t| Free txBuffer (clear) of size %u, at %p",
+        "TCP\t| Free txBuffer (clear) of size %lu, at %p",
         buf->length, buf->data);
     UA_ByteString_clear(buf);
 }

@@ -50,7 +50,7 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                     log::error!("Open62541 Agent: add_inbound failed: {}", cerror.reason);
                 }
                 if message.len() != written {
-                    log::error!("Open62541 Agent: added to inbound only {} bytes out of {}!",
+                    log::warn!("Open62541 Agent: added to inbound only {} bytes out of {}!",
                                 written, message.len());
                 }}
         } else {

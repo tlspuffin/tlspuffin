@@ -68,7 +68,7 @@ TCP_delayedClose(void *application, void *context) {
     UA_assert(pcm->fdsSize > 0);
     pcm->fdsSize--;
     if (pcm->connectionId == (uintptr_t) conn->rfd.fd) {
-        pcm->connectionId = NULL;
+        pcm->connectionId = (uintptr_t) NULL;
     }
 
     /* Signal closing to the application */
@@ -129,7 +129,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_ByteString response = pcm->rxBuffer;
     UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Connection socket callback eceived a message of size %u",
+        "TCP %u\t| Connection socket callback eceived a message of size %lu",
         (unsigned)conn->rfd.fd, (unsigned)response.length);
 }
 
@@ -137,7 +137,7 @@ void
 TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Use already allocated receive buffer (%u bytes at %p)",
+        "TCP %u\t| Use already allocated receive buffer (%lu bytes at %p)",
         (unsigned)pcm->connectionId, pcm->rxBuffer.length, pcm->rxBuffer.data);
 
     UA_ByteString response = pcm->rxBuffer;
@@ -382,7 +382,7 @@ TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap 
     /* Initialize the Puffin connexion manager,
      * that manages the single connection with the fuzzer */
     pcm->port = *port;
-    pcm->connectionId = NULL;
+    pcm->connectionId = (uintptr_t) NULL;
     pcm->application = application;
     pcm->context = context;
     pcm->applicationCB = connectionCallback;

@@ -271,7 +271,7 @@ RESULT open62541_progress(AGENT agent){
     }
     if (agent->role == SERVER) {
         _log(PUFFIN.trace,"Server run ...");
-        UA_Server_run_iterate((UA_Server*) agent->application, false);
+        //UA_Server_run_iterate((UA_Server*) agent->application, false);
         _log(PUFFIN.trace,"Server run RESULT_OK");
         return PUFFIN.make_result(RESULT_OK, "");
     }
