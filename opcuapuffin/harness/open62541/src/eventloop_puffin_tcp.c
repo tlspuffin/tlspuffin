@@ -337,19 +337,18 @@ Puffin_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
                        const UA_KeyValueMap *params, UA_ByteString *buf) {
 
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*) cm;
-    UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Sends a message", (unsigned)connectionId);
-    UA_StatusCode res = UA_STATUSCODE_BADINTERNALERROR;
-    if(pcm->txBuffer.data != buf->data) {
-        UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-            "TCP bytes to send are copied into the txBuffer");
+    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
+
+    if(buf->length > 0 && buf->data && pcm->txBuffer.data != buf->data) {
         UA_ByteString_clear(&pcm->txBuffer);
-        res = UA_ByteString_allocBuffer(&pcm->txBuffer, buf->length);
-        if (res != UA_STATUSCODE_GOOD) return res;
-        UA_ByteString_copy(buf, &pcm->txBuffer);
-        UA_ByteString_clear(buf);
+        pcm->txBuffer = *buf;
+        UA_ByteString_init(buf);
+        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+            "TCP %u\t| Sends a message in txBuffer (%lu bytes at %p)",
+            (unsigned)connectionId, pcm->txBuffer.length, pcm->txBuffer.data);
     };
+
+    /* Clean up of txBuffer will be performed by open62541_take_outbound */
     return UA_STATUSCODE_GOOD;
 }
 
