@@ -91,7 +91,7 @@ To measure the performances of DDYF run:
 ./DDYF/perf_bench_DDYF.sh 
 ```
 
-To measure the original performances of Puffin go to the main branch and run
+To measure the original performances of Puffin clone the original [Puffin repo](https://github.com/tlspuffin/tlspuffin) and run in main branch
 
 ```bash
 ./DDYF/perf_bench_puffin.sh 
