@@ -143,6 +143,9 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
             _log(PUFFIN.error, "UA Client config returned %u", retval);
         }
         UA_CertificateGroup_AcceptAll(&config->certificateVerification);
+        UA_ByteString_clear(&config->clientDescription.applicationUri);
+        config->clientDescription.applicationUri =
+            UA_STRING_ALLOC("opc.tcp://localhost:4840/opcuapuffin.alice");
 
         config->timeout = 100000; // ms = 100s
         const UA_String listenHost = UA_STRING_STATIC("127.0.0.1");
@@ -179,7 +182,7 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
         /* Do not care about timestamps! */
         config->verifyRequestTimestamp = UA_RULEHANDLING_ACCEPT;
 
-        /* no need to UA_malloc, memcopy and then UA_ByteString_clear */
+        /* No need to UA_malloc, memcopy and then UA_ByteString_clear, */
         /* the certificates and private keys are owned by the caller in open62541 */
         UA_ByteString certificate = UA_BYTESTRING_NULL;
         if (descriptor->cert->length > 0) {
@@ -217,6 +220,9 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
         if (status) {
             _log(PUFFIN.error, "UA Server config returned %s", UA_StatusCode_name(status));
         }
+        UA_ByteString_clear(&config->applicationDescription.applicationUri);
+        config->applicationDescription.applicationUri =
+            UA_STRING_ALLOC("opc.tcp://localhost:4840/opcuapuffin.bob");
 
         status = UA_Server_run_startup(server);
         if (status) {
