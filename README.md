@@ -1,9 +1,11 @@
 # DDYF
 
-To ensure reproductibility, all experiments should be run inside a Nix shell environment:
+All experiments with DDYF where done on Linux, all other operating system may not work.
+
+To ensure reproductibility, experiments should be run inside a [Nix shell](https://nixos.wiki/wiki/Development_environment_with_nix-shell) environment:
 
 ```bash
-nix-shell shell.nix
+nix-shell ./shell.nix
 ```
 
 Most script contains variables such as `TIMEOUT`, `CORES`, `RUNS` that can be edited. Default values corresponds to the parameters used in the paper.
