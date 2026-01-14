@@ -503,19 +503,30 @@ UA_EventLoopPuffin_allocNetworkBuffer(UA_ConnectionManager *cm,
                                      UA_ByteString *buf,
                                      size_t bufSize) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
-    if(pcm->txBuffer.length == 0) {
+    if (pcm->txBuffer_index > 0) {
+        UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+            "TCP %u\t| txBuffer is not empty (size %lu at %p)",
+            (unsigned)connectionId, pcm->txBuffer_index, pcm->txBuffer.data);
         UA_StatusCode status = UA_ByteString_allocBuffer(buf, bufSize);
         if (status) return status;
         if(buf->length < bufSize) return UA_STATUSCODE_BADOUTOFMEMORY;
-        pcm->txBuffer = *buf;
         UA_LOG_TRACE(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-            "TCP %u\t| Allocated txBuffer of size %lu at %p",
-            (unsigned)connectionId, pcm->txBuffer.length, pcm->txBuffer.data);
-    }
-    if(pcm->txBuffer.length < bufSize)
-        return UA_STATUSCODE_BADOUTOFMEMORY;
-    *buf = pcm->txBuffer;
-    buf->length = bufSize;
+            "TCP %u\t| Allocated extra buffer of size %lu at %p",
+            (unsigned)connectionId, buf->length, buf->data);
+    } else {
+        if(pcm->txBuffer.length < bufSize) {
+            if (pcm->txBuffer.data) UA_ByteString_clear(&pcm->txBuffer);
+            UA_StatusCode status = UA_ByteString_allocBuffer(buf, bufSize);
+            if (status) return status;
+            if(buf->length < bufSize) return UA_STATUSCODE_BADOUTOFMEMORY;
+            pcm->txBuffer = *buf;
+            UA_LOG_TRACE(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+                "TCP %u\t| Allocated txBuffer of size %lu at %p",
+                (unsigned)connectionId, pcm->txBuffer.length, pcm->txBuffer.data);
+        }
+        *buf = pcm->txBuffer;
+        buf->length = bufSize;
+    };
     return UA_STATUSCODE_GOOD;
 }
 
@@ -525,6 +536,7 @@ UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     UA_ByteString *buf) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     if(pcm->txBuffer.data == buf->data) {
+        pcm->txBuffer_index = 0;
         if (buf != &pcm->txBuffer) { // /!\ Memory leak if &txBuffer == buf
             UA_LOG_TRACE(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                 "TCP\t| Reinit of buffer at %p, of size %lu", buf->data, buf->length);
@@ -551,8 +563,6 @@ UA_EventLoopPuffin_allocateStaticBuffers(UA_PuffinConnectionManager *pcm) {
         UA_ByteString_clear(&pcm->rxBuffer);
         res = UA_ByteString_allocBuffer(&pcm->rxBuffer, rxBufSize);
     }
-    printf("Allocated static rxBuffer of size %lu at %p\n",
-        pcm->rxBuffer.length, pcm->rxBuffer.data);
 
     const UA_UInt32 *txBufSize = (const UA_UInt32 *)
         UA_KeyValueMap_getScalar(&pcm->cm.eventSource.params,
@@ -562,10 +572,7 @@ UA_EventLoopPuffin_allocateStaticBuffers(UA_PuffinConnectionManager *pcm) {
         UA_ByteString_clear(&pcm->txBuffer);
         res |= UA_ByteString_allocBuffer(&pcm->txBuffer, *txBufSize);
     }
-
-    printf("Allocated statict txBuffer of size %lu at %p\n",
-        pcm->txBuffer.length, pcm->txBuffer.data);
-
+    pcm->txBuffer_index = 0;
     return res;
 }
 

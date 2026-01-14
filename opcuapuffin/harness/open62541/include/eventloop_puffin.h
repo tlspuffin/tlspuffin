@@ -89,7 +89,8 @@ typedef struct {
     UA_ConnectionManager cm;
 
     UA_ByteString rxBuffer; /* statically allocated */
-    UA_ByteString txBuffer; /* allocated by the caller? */
+    UA_ByteString txBuffer; /* allocated by allocNetworkBuffer */
+    size_t txBuffer_index;
 
     UA_UInt16 port;
 
