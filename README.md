@@ -10,7 +10,7 @@ Most script contains variables such as `TIMEOUT`, `CORES`, `RUNS` that can be ed
 
 Python triaging scripts (`sort_objectives_ossl_wolf.py`, `ablatation_study_sort.py`, `find_known_cve.py`) contains a `PARALLELISM` variable to select how much files should be triaged in parallel (recommended maximum 2x core count).
 
-> For more information about the usage of the puffin fuzzer the puffin README is now PUFFIN_README.md
+> For more information about the usage of the puffin fuzzer you can find its original documentation at `https[://]tlspuffin[.]github[.]io/docs/overview/`
 
 ## Running a differential fuzzing campaign
 
@@ -91,7 +91,7 @@ To measure the performances of DDYF run:
 ./DDYF/perf_bench_DDYF.sh 
 ```
 
-To measure the original performances of Puffin clone the original [Puffin repo](https://github.com/tlspuffin/tlspuffin) and run in main branch
+To measure the original performances of Puffin clone the original Puffin repo `https[://]github[.]com/tlspuffin/tlspuffin` and run in main branch
 
 ```bash
 ./DDYF/perf_bench_puffin.sh 
@@ -106,7 +106,7 @@ After running a differential fuzzing campaign
 ./DDYF/ablation_study.sh path/to/objectives
 ```
 
-This will produce 5 files: `ablation-all.txt`, \ablation-no-status.txt`, \ablation-no-knowledges.txt`, \ablation-no-decryption.txt` and \ablation-no-claims.txt`. Each file contains 3 lines:
+This will produce 5 files: `ablation-all.txt`, `ablation-no-status.txt`, `ablation-no-knowledges.txt`, `ablation-no-decryption.txt` and `ablation-no-claims.txt`. Each file contains 3 lines:
 
 ```txt
 non triaged : XXX # traces that could be detected with component deactivated
