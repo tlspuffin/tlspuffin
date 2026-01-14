@@ -324,14 +324,12 @@ RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, s
     /* read the TxBuffer from the PuffinConnexionManager associated to the agent */
     UA_PuffinConnectionManager *pcm = agent->connexion_manager;
 
-    if (pcm->txBuffer.length > max_length) {
+    if (pcm->txBuffer_index > max_length) {
         return PUFFIN.make_result(RESULT_ERROR_OTHER, "Too many bytes to take from the outbound.");
     };
-    if (pcm->txBuffer.data && pcm->txBuffer.length > 8) {
-        // UATCP messages start with MessageType (3 bytes), IsFinal(1 byte), MessageSize
-        UA_UInt32 *message_size = (UA_UInt32*) (pcm->txBuffer.data + 4);
-        memcpy(bytes, pcm->txBuffer.data, (size_t) *message_size);
-        *readbytes = (size_t) *message_size;
+    if (pcm->txBuffer.data) {
+        memcpy(bytes, pcm->txBuffer.data, pcm->txBuffer_index);
+        *readbytes = pcm->txBuffer_index;
         UA_EventLoopPuffin_freeNetworkBuffer(&pcm->cm, (uintptr_t) pcm->connectionId, &pcm->txBuffer);
     } else {
         *readbytes = 0;

@@ -341,14 +341,18 @@ Puffin_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
 
      /* Send the full buffer in txBuffer */
-    if(buf->length > 0 && buf->data && pcm->txBuffer.data != buf->data) {
-        if (pcm->txBuffer.data) UA_ByteString_clear(&pcm->txBuffer);
-        pcm->txBuffer = *buf;
-        UA_ByteString_init(buf);
+    if(buf->length > 0 && buf->data) {
+        if (pcm->txBuffer.data != buf->data) {
+            memcpy(pcm->txBuffer.data + pcm->txBuffer_index, buf->data, buf->length);
+            pcm->txBuffer_index += buf->length;
+            UA_EventLoopPuffin_freeNetworkBuffer(&pcm->cm, connectionId, buf);
+        } else {
+            pcm->txBuffer_index = buf->length;
+        };
     };
     UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Sends a message in txBuffer (%lu bytes at %p)",
-        (unsigned)connectionId, pcm->txBuffer.length, pcm->txBuffer.data);
+        "TCP %u\t| Send messages in txBuffer (%lu bytes at %p)",
+        (unsigned)connectionId, pcm->txBuffer_index, pcm->txBuffer.data);
 
     /* Clean up of txBuffer will be performed by open62541_take_outbound,
        by calling UA_EventLoopPuffin_freeNetworkBuffer */
