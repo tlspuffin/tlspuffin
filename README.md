@@ -26,10 +26,10 @@ chmod +x ./DDYF/*sh
 
 
 
-Most scripts contain variables such as `TIMEOUT`, `CORES`, `RUNS` that can be edited. Default values corresponds to the parameters used in the paper. 
-Python triaging scripts (`sort_objectives_ossl_wolf.py`, `ablatation_study_sort.py`, `find_known_cve.py`) contain a `PARALLELISM` variable to select how much files should be triaged in parallel (recommended maximum 2x core count).
+Most scripts contain variables such as `TIMEOUT`, `CORES`, `RUNS` that can be edited. Default values correspond to the parameters used in the paper. 
+Python triaging scripts (`sort_objectives_ossl_wolf.py`, `ablatation_study_sort.py`, `find_known_cve.py`) contain a `PARALLELISM` variable to select how much files should be triaged in parallel (recommended maximum is 2x core count).
 
-If not running in a nix-shell (highly discouraged), make sure to have at least `cargo`, `Python 3`, `autoconf`, `automake`, `just`, `cmake`, and `clang` installed on your computer. And run the following environment variable export in your terminal before running the fuzzer:
+If not running in a nix-shell (highly discouraged), make sure to have at least `cargo`, `Python 3`, `autoconf`, `automake`, `just`, `cmake`, and `clang` installed on your computer. Also run the following environment variable export in your terminal before running the fuzzer:
 
 ```bash
 export LIBAFL_EDGES_MAP_SIZE=262144
@@ -51,7 +51,7 @@ cargo build --release --bin tlspuffin --features cputs
 
 If you want to build the fuzzer with an other set of PUTs, run `cargo clean` before starting a new build.
 
-Generate the seeds with:
+Generate the seed traces with:
 ```bash
 ./target/release/tlspuffin seed --differential
 ```
@@ -74,7 +74,7 @@ python -m DDYF.sort_objectives_ossl_wolf path_to_experiment/objective
 
 ## Executing one trace with differential fuzzing
 
-To execute one trace (for example `path_to_trace`) on OpenSSL 3.4.0 and WolfSSL 5.8.0 and display the differences:
+To execute one trace (for example `path_to_trace`) on both OpenSSL 3.4.0 and WolfSSL 5.8.0 and display the differences:
 ```bash
 ./target/release/tlspuffin differential-execute openssl340 wolfssl580 path_to_trace
 ```
