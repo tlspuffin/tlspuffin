@@ -111,6 +111,7 @@ This should create a `cve_list.csv` file.
 
 Analyze the file:
 
+> Due to an incompatibility between the Python version provided with the nix-shell and the pandas library, do not execute the following commands inside the nix environment and instead execute it directly with your system's python (make sure to use a version >= 3.12)
 ```bash
 python -m venv DDYF/.venv
 source DDYF/.venv/bin/activate
