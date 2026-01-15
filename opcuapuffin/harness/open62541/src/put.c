@@ -336,6 +336,7 @@ RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, s
     if (pcm->txBuffer.data) {
         memcpy(bytes, pcm->txBuffer.data, pcm->txBuffer_index);
         *readbytes = pcm->txBuffer_index;
+        pcm->txBuffer_index = 0;
         UA_EventLoopPuffin_freeNetworkBuffer(&pcm->cm, (uintptr_t) pcm->connectionId, &pcm->txBuffer);
     } else {
         *readbytes = 0;

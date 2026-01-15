@@ -11,7 +11,7 @@ use puffin::put::{Put, PutOptions};
 use puffin::put_registry::Factory;
 use puffin::stream::Stream;
 
-use opcua::puffin::messages::MessageFlight;
+use opcua::puffin::messages::{MAX_WIRE_SIZE, MessageFlight};
 use opcua::puffin::types::{AgentType, ApplicationConfig};
 
 use crate::claims::OpcuaClaim;
@@ -34,9 +34,7 @@ struct Agent {
     c_agent_interface: AGENT_INTERFACE
 }
 
-impl Agent {
-    const MAX_BUFFER_CAPACITY: usize = 2 << 32;
-}
+impl Agent { }
 
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
@@ -61,11 +59,11 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
         if let Some(c_take_outbound) = self.c_agent_interface.
         take_outbound {
-            let mut buffer: Vec<u8> = vec![0; Agent::MAX_BUFFER_CAPACITY];
+            let mut buffer: Vec<u8> = vec![0; MAX_WIRE_SIZE];
             unsafe {
                 let mut read: usize = 0;
                 let bytes: *mut u8 = buffer.as_mut_ptr();
-                let res = c_take_outbound(self.c_agent, bytes, Agent::MAX_BUFFER_CAPACITY, &mut read);
+                let res = c_take_outbound(self.c_agent, bytes, MAX_WIRE_SIZE, &mut read);
                 let result = Box::from_raw(res as *mut Result<String, CError>);
                 if let Err(cerror) = *result {
                     log::error!("Open62541 Agent: take_outbound failed: {}", cerror.reason);
