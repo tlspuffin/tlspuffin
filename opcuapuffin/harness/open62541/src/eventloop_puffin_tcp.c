@@ -157,7 +157,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
 
     UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                 "TCP %u\t| Callback on server socket",
+                 "TCP %u\t| Callback on listen socket",
                  (unsigned)conn->rfd.fd);
 
     /* Try to accept a new connection */
@@ -167,7 +167,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
     /* Log the name of the remote host */
     char hoststr[] = "puffin";
     UA_LOG_INFO(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                "TCP %u\t| Connection opened from \"%s\" via the server socket %u",
+                "TCP %u\t| Connection opened from \"%s\" via the listen socket %u",
                 (unsigned)newsockfd, hoststr, (unsigned)conn->rfd.fd);
 
     /* Configure the new socket */
