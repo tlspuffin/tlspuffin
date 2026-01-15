@@ -31,16 +31,16 @@ impl Agent {}
 
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
-        log::warn!("Added a new message to the PUT of size {}", message.len());
-        self.fuzz_stream.write_all(message).map_err(|e| log::warn!("Error while trying to put bytes in the PUT: {}!", e)).ok();
-        self.fuzz_stream.flush().map_err(|e| log::warn!("Error while trying to flush the PUT: {}!", e)).ok();
+        log::warn!("Adding a new message of size {}", message.len());
+        self.fuzz_stream.write_all(message).map_err(|e| log::warn!("TCP: error while trying to send bytes: {}!", e)).ok();
+        self.fuzz_stream.flush().map_err(|e| log::warn!("Error while trying to flush the TCP stream: {}!", e)).ok();
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
         let mut buf = vec![0; MAX_WIRE_SIZE];
         let size = self.fuzz_stream.read(&mut buf).map_err(|e| {
-            log::error!("Error while trying to take bytes from the PUT: {}!", e);
-            Error::Put("Error while trying to take bytes from the PUT!".to_string())
+            log::error!("TCP: error while trying to take bytes: {}!", e);
+            Error::Put("TCP: error while trying to take bytes!".to_string())
         })?;
         Ok(MessageFlight::read_bytes(&buf[0..size]))
     }

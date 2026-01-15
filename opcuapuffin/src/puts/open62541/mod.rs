@@ -39,20 +39,20 @@ impl Agent { }
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         if let Some(c_add_inbound) = self.c_agent_interface.add_inbound {
-            log::warn!("Adding a new message to the PUT of size {}", message.len());
+            log::warn!("Adding a new message of size {}", message.len());
             unsafe {
                 let mut written: usize = 0;
                 let res = c_add_inbound(self.c_agent, message.as_ptr(), message.len(), &mut written);
                 let result = Box::from_raw(res as *mut Result<String, CError>);
                 if let Err(cerror) = *result {
-                    log::error!("Open62541 Agent: add_inbound failed: {}", cerror.reason);
+                    log::error!("Open62541: error while trying to add bytes: {}", cerror.reason);
                 }
                 if message.len() != written {
-                    log::warn!("Open62541 Agent: added to inbound only {} bytes out of {}!",
+                    log::warn!("Open62541: added to inbound only {} bytes out of {}!",
                                 written, message.len());
                 }}
         } else {
-            log::error!("Open62541 Agent: add_inbound unavailable!")
+            log::error!("Open62541 PUT: add_inbound unavailable!")
         }
     }
 
@@ -66,7 +66,7 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                 let res = c_take_outbound(self.c_agent, bytes, MAX_WIRE_SIZE, &mut read);
                 let result = Box::from_raw(res as *mut Result<String, CError>);
                 if let Err(cerror) = *result {
-                    log::error!("Open62541 Agent: take_outbound failed: {}", cerror.reason);
+                    log::error!("Open62541: error while trying to take bytes: {}", cerror.reason);
                 }
                 if read > 0 {
                     let mut rd = Reader::init(&buffer[0..read]);
@@ -75,7 +75,7 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                     Ok(None)
                 }}
         } else {
-            Err(Error::Put("Open62541 Agent: take_outbound unavailable!".to_string()))
+            Err(Error::Put("Open62541 PUT: take_outbound unavailable!".to_string()))
         }
 
     }
@@ -198,7 +198,7 @@ impl Factory<OpcuaProtocolBehavior> for Open62541Factory {
             None => "unavailable!".to_string()
         };
         vec![
-            ("harness".to_string(), "0.0".to_string()),
+            ("harness".to_string(), "1.0".to_string()),
             ("library".to_string(), library_version),
         ]
     }

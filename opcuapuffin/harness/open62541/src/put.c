@@ -158,7 +158,7 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
         agent->id = descriptor->id;
         agent->role = descriptor->role;
         agent->application = (Application*) client;
-        open62541_register_claimer(agent, &DEFAULT_CLAIMER_CB);
+        //open62541_register_claimer(agent, &DEFAULT_CLAIMER_CB);
         UA_PuffinConnectionManager *pcm = take_last_puffin_connection_manager();
         if (pcm) {
             agent->connexion_manager = pcm;
@@ -174,7 +174,7 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
         UA_ServerConfig *config = UA_Server_getConfig(server);
 
         /* Exchange the logger */
-        UA_LogLevel log_level = UA_LOGLEVEL_TRACE;
+        UA_LogLevel log_level = UA_LOGLEVEL_ERROR;
         UA_Logger logger = UA_Log_Stdout_withLevel( log_level );
         logger.clear = config->logging->clear;
         *config->logging = logger;
