@@ -507,6 +507,8 @@ UA_EventLoopPuffin_allocNetworkBuffer(UA_ConnectionManager *cm,
         UA_LOG_WARNING(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
             "TCP %u\t| txBuffer is not empty (size %lu at %p)",
             (unsigned)connectionId, pcm->txBuffer_index, pcm->txBuffer.data);
+        if(pcm->txBuffer.length < pcm->txBuffer_index + bufSize)
+            return UA_STATUSCODE_BADOUTOFMEMORY;
         UA_StatusCode status = UA_ByteString_allocBuffer(buf, bufSize);
         if (status) return status;
         if(buf->length < bufSize) return UA_STATUSCODE_BADOUTOFMEMORY;
@@ -536,7 +538,6 @@ UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
                                     UA_ByteString *buf) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     if(pcm->txBuffer.data == buf->data) {
-        pcm->txBuffer_index = 0;
         if (buf != &pcm->txBuffer) { // /!\ Memory leak if &txBuffer == buf
             UA_LOG_TRACE(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                 "TCP\t| Reinit of buffer at %p, of size %lu", buf->data, buf->length);

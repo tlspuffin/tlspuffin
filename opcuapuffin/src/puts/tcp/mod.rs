@@ -37,13 +37,11 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
-        let mut buf = vec![];
-        buf.resize(MAX_WIRE_SIZE, 0);
+        let mut buf = vec![0; MAX_WIRE_SIZE];
         let size = self.fuzz_stream.read(&mut buf).map_err(|e| {
-            log::warn!("Error while trying to take bytes from the PUT: {}!", e);
+            log::error!("Error while trying to take bytes from the PUT: {}!", e);
             Error::Put("Error while trying to take bytes from the PUT!".to_string())
         })?;
-        log::warn!("Took {size} bytes from the PUT");
         Ok(MessageFlight::read_bytes(&buf[0..size]))
     }
 }
