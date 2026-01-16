@@ -135,20 +135,24 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
                 privateKey.data = (UA_Byte*) UA_EMPTY_ARRAY_SENTINEL;
             }
         }
-        UA_UInt16 port = 4840 + 256 + (UA_UInt16) descriptor->id;
+        UA_ByteString_clear(&config->clientDescription.applicationUri);
+        config->clientDescription.applicationUri =
+            UA_STRING_ALLOC("opc.tcp://localhost:4840/opcuapuffin.alice");
 
+        /* no trust list, all certificates are accepted */
         UA_StatusCode retval = UA_ClientConfig_setDefaultEncryption(
             config, certificate, privateKey, NULL, 0, NULL, 0);
         if (retval) {
             _log(PUFFIN.error, "UA Client config returned %u", retval);
         }
         UA_CertificateGroup_AcceptAll(&config->certificateVerification);
-        UA_ByteString_clear(&config->clientDescription.applicationUri);
-        config->clientDescription.applicationUri =
-            UA_STRING_ALLOC("opc.tcp://localhost:4840/opcuapuffin.alice");
+
+        /* user certificate authentication */
+        UA_ClientConfig_setAuthenticationCert(config, certificate, privateKey);
 
         config->timeout = 100000; // ms = 100s
         const UA_String listenHost = UA_STRING_STATIC("127.0.0.1");
+        const UA_UInt16 port = 4840 + 256 + (UA_UInt16) descriptor->id;
         retval = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, port);
         if (retval != UA_STATUSCODE_GOOD) {
             _log(PUFFIN.error,"Client listen for reverse connect, error: %u", retval);
