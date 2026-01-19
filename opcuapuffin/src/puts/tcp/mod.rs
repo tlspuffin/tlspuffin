@@ -31,7 +31,7 @@ impl Agent {}
 
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
-        log::warn!("Add message of size {}", message.len());
+        log::warn!("Add message, {} bytes", message.len());
         self.fuzz_stream.write_all(message).map_err(|e| log::warn!("TCP: error while trying to send bytes: {}!", e)).ok();
         self.fuzz_stream.flush().map_err(|e| log::warn!("Error while trying to flush the TCP stream: {}!", e)).ok();
     }

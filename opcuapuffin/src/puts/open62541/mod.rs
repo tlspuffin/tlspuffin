@@ -39,17 +39,18 @@ impl Agent { }
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         if let Some(c_add_inbound) = self.c_agent_interface.add_inbound {
-            log::warn!("Add message of size {}", message.len());
             unsafe {
                 let mut written: usize = 0;
                 let res = c_add_inbound(self.c_agent, message.as_ptr(), message.len(), &mut written);
                 let result = Box::from_raw(res as *mut Result<String, CError>);
                 if let Err(cerror) = *result {
-                    log::error!("Open62541: error while trying to add bytes: {}", cerror.reason);
+                    log::error!("Open62541: error while trying to add bytes: {}", cerror.reason)
                 }
                 if message.len() != written {
-                    log::warn!("Open62541: added to inbound only {} bytes out of {}!",
-                                written, message.len());
+                    log::error!("Added to inbound only {} bytes out of {}!",
+                                written, message.len())
+                } else {
+                    log::warn!("Add message, {} bytes", message.len())
                 }}
         } else {
             log::error!("Open62541 PUT: add_inbound unavailable!")
