@@ -8,6 +8,16 @@ extern "C"
 {
 #endif
 
+// Rust log level
+typedef enum {
+    RUST_LOG_OFF = 0,
+    RUST_LOG_ERROR = 1,
+    RUST_LOG_WARN = 2,
+    RUST_LOG_INFO = 3,
+    RUST_LOG_DEBUG = 4,
+    RUST_LOG_TRACE = 5
+} RustLogFilter;
+
 // OPC UA version 1.03, 1.04 and 1.05
 typedef enum {
     V1_3,
@@ -33,6 +43,7 @@ typedef struct {
 
     OPCUA_AGENT_ROLE role;
     OPCUA_VERSION version;
+    RustLogFilter log_level;
 
     const PEM *cert;
     const PEM *pkey;

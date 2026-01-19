@@ -67,6 +67,15 @@ struct AGENT_TYPE {
     const CLAIMER_CB *claimer;
 };
 
+/* convent to open62541 UA_LogLevel */
+UA_LogLevel open62541_log_level(RustLogFilter level) {
+    if (level == RUST_LOG_ERROR)  return UA_LOGLEVEL_ERROR;
+    if (level == RUST_LOG_WARN)   return UA_LOGLEVEL_WARNING;
+    if (level == RUST_LOG_INFO)   return UA_LOGLEVEL_INFO;
+    if (level == RUST_LOG_DEBUG)  return UA_LOGLEVEL_DEBUG;
+    else                          return UA_LOGLEVEL_TRACE;
+}
+
 static void default_claimer_notify(void *context, Claim *claim)
 {
     _log(PUFFIN.trace, "call to default claimer `notify`");
@@ -106,8 +115,8 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
         UA_ClientConfig *config = UA_Client_getConfig(client);
 
         /* Exchange the logger */
-        UA_LogLevel log_level = UA_LOGLEVEL_TRACE;
-        UA_Logger logger = UA_Log_Stdout_withLevel( log_level );
+        UA_Logger logger = UA_Log_Stdout_withLevel(
+            open62541_log_level(descriptor->log_level));
         logger.clear = config->logging->clear;
         *config->logging = logger;
 
@@ -178,8 +187,8 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
         UA_ServerConfig *config = UA_Server_getConfig(server);
 
         /* Exchange the logger */
-        UA_LogLevel log_level = UA_LOGLEVEL_ERROR;
-        UA_Logger logger = UA_Log_Stdout_withLevel( log_level );
+        UA_Logger logger = UA_Log_Stdout_withLevel(
+            open62541_log_level(descriptor->log_level));
         logger.clear = config->logging->clear;
         *config->logging = logger;
 

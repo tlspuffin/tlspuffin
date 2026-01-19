@@ -18,7 +18,7 @@ use crate::claims::OpcuaClaim;
 use crate::protocol::OpcuaProtocolBehavior;
 use crate::put_registry::OPEN62541;
 use crate::puts::opcua_sys::{AGENT, AGENT_INTERFACE, APPLICATION_DESCRIPTOR,
-    OPCUA_AGENT_ROLE, OPCUA_PUT_INTERFACE, VOID_STORE, version_of,
+    OPCUA_AGENT_ROLE, OPCUA_PUT_INTERFACE, VOID_STORE, version_of, RustLogFilter,
     ALICE_CERTIFICATE, ALICE_PRIVATE_KEY, BOB_CERTIFICATE, BOB_PRIVATE_KEY};
 
 mod raw;
@@ -39,7 +39,7 @@ impl Agent { }
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
         if let Some(c_add_inbound) = self.c_agent_interface.add_inbound {
-            log::warn!("Adding a new message of size {}", message.len());
+            log::warn!("Add message of size {}", message.len());
             unsafe {
                 let mut written: usize = 0;
                 let res = c_add_inbound(self.c_agent, message.as_ptr(), message.len(), &mut written);
@@ -146,13 +146,16 @@ impl Factory<OpcuaProtocolBehavior> for Open62541Factory {
     ) -> Result<Box<dyn Put<OpcuaProtocolBehavior>>, Error> {
 
         let id = u8::from(application.name);
+        let log_level: RustLogFilter = unsafe { std::mem::transmute(log::max_level() as u32) };
+        let version = version_of(application.protocol_config.version);
         unsafe {
             let c_application_descriptor: APPLICATION_DESCRIPTOR =
                 match application.protocol_config.kind{
                     AgentType::Client => APPLICATION_DESCRIPTOR {
                         id,
                         role: OPCUA_AGENT_ROLE::CLIENT,
-                        version: version_of(application.protocol_config.version),
+                        version,
+                        log_level,
                         cert: &ALICE_CERTIFICATE,
                         pkey: &ALICE_PRIVATE_KEY,
                         store: &VOID_STORE,
@@ -161,7 +164,8 @@ impl Factory<OpcuaProtocolBehavior> for Open62541Factory {
                     AgentType::Server => APPLICATION_DESCRIPTOR {
                         id,
                         role: OPCUA_AGENT_ROLE::SERVER,
-                        version: version_of(application.protocol_config.version),
+                        version,
+                        log_level,
                         cert: &BOB_CERTIFICATE,
                         pkey: &BOB_PRIVATE_KEY,
                         store: &VOID_STORE,
