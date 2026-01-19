@@ -13,7 +13,11 @@ keywords.workspace = true
 categories.workspace = true
 
 [features]
+default = ["sancov", "introspection"]
 rust-put = []
+
+sancov = ["puffin/sancov"]
+introspection = ["puffin/introspection"]
 
 [dependencies]
 base64 = "0.21"
