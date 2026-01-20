@@ -1,4 +1,4 @@
-From b0a9f5fc5e05b41fa36b7da6adc570dcd0197cd1 Mon Sep 17 00:00:00 2001
+From 7dbfed1320015bd18468a2feded47ff1a5fc6875 Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
 Date: Tue, 20 Jan 2026 10:09:19 +0100
 Subject: [PATCH 3/3] Added a memory leak to test ASAN
@@ -8,15 +8,15 @@ Subject: [PATCH 3/3] Added a memory leak to test ASAN
  1 file changed, 3 insertions(+)
 
 diff --git a/src/server/ua_server_binary.c b/src/server/ua_server_binary.c
-index 81363e7f1..58441d3fe 100644
+index 81363e7f1..fcfe0311d 100644
 --- a/src/server/ua_server_binary.c
 +++ b/src/server/ua_server_binary.c
 @@ -217,6 +217,9 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
                 channel->state != UA_SECURECHANNELSTATE_RHE_SENT))
          return UA_STATUSCODE_BADINTERNALERROR;
  
-+    UA_LOG_WARNING(server->config.logging, "Adding a memory leak");
 +    UA_String leak = UA_STRING_ALLOC("Adding a memory leak");
++    UA_LOG_WARNING(server->config.logging,  UA_LOGCATEGORY_SERVER, (const char*) leak.data);
 +
      size_t offset = 0; /* Go to the beginning of the TcpHelloMessage */
      UA_TcpHelloMessage helloMessage;
