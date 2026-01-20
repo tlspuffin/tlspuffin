@@ -2,7 +2,7 @@ use_languages(C)
 
 patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Modifications-of-CLI-client-and-server.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Instrumentation-to-debug.patch)
-patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Memory-leak.patch)
+#patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Memory-leak.patch)
 
 cmake_builder(
   TARGETS
