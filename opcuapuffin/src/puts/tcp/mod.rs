@@ -170,7 +170,6 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
     fn versions(&self) -> Vec<(String, String)>{
         vec![
             ("harness".to_string(), "1.0".to_string()),
-            ("library".to_string(), "???".to_string()),
         ]
     }
 
