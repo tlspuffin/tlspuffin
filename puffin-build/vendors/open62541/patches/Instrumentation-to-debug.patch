@@ -1,14 +1,56 @@
-From 7a3acfa7103f58f066805f678bf0d3ab26433f11 Mon Sep 17 00:00:00 2001
+From a4271b123e7bdefe98f825fa7030570ff3dbc6e4 Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
-Date: Fri, 9 Jan 2026 18:37:02 +0100
-Subject: [PATCH 2/2] Added instrumentation to debug...
+Date: Tue, 20 Jan 2026 10:08:45 +0100
+Subject: [PATCH 2/3] Instrumentation for debug
 
 ---
- src/server/ua_server.c | 31 +++++++++++++++++++++++++++++--
- 1 file changed, 29 insertions(+), 2 deletions(-)
+ arch/posix/eventloop_posix_tcp.c | 13 +++++++++----
+ src/server/ua_server.c           | 31 +++++++++++++++++++++++++++++--
+ 2 files changed, 38 insertions(+), 6 deletions(-)
 
+diff --git a/arch/posix/eventloop_posix_tcp.c b/arch/posix/eventloop_posix_tcp.c
+index b0fb9b3df..ced553916 100644
+--- a/arch/posix/eventloop_posix_tcp.c
++++ b/arch/posix/eventloop_posix_tcp.c
+@@ -263,13 +263,12 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
+         return;
+     }
+ 
+-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+-                 "TCP %u\t| Allocate receive buffer",
+-                 (unsigned)conn->rfd.fd);
+-
+     /* Use the already allocated receive-buffer */
+     UA_POSIXConnectionManager *pcm = (UA_POSIXConnectionManager*)cm;
+     UA_ByteString response = pcm->rxBuffer;
++    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
++        "TCP %u\t| Use already allocated receive buffer (%lu bytes at %p)",
++        (unsigned)conn->rfd.fd, pcm->rxBuffer.length, pcm->rxBuffer.data);
+ 
+     /* Receive */
+     UA_RESET_ERRNO;
+@@ -1162,6 +1161,8 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
+         return UA_STATUSCODE_BADINTERNALERROR;
+ 
+     UA_LOCK(&el->elMutex);
++    UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
++        "TCP\t| EventSource starts");
+ 
+     /* Check the state */
+     if(cm->eventSource.state != UA_EVENTSOURCESTATE_STOPPED) {
+@@ -1188,6 +1189,10 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
+     /* Set the EventSource to the started state */
+     cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
+ 
++    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
++        "TCP\t| EventSource is started and rxBuffer allocated (at: %p, of size: %u).",
++        (void*) pcm, (void*) pcm->rxBuffer.data, pcm->rxBuffer.length);
++
+  finish:
+     UA_UNLOCK(&el->elMutex);
+     return res;
 diff --git a/src/server/ua_server.c b/src/server/ua_server.c
-index 979ba40e7..4a9f6eb25 100644
+index 51c2e4bd3..f25773364 100644
 --- a/src/server/ua_server.c
 +++ b/src/server/ua_server.c
 @@ -466,7 +466,11 @@ UA_Server_delete(UA_Server *server) {
@@ -24,7 +66,7 @@ index 979ba40e7..4a9f6eb25 100644
          top->clear(top);
          ZIP_REMOVE(UA_ServerComponentTree, &server->serverComponents, top);
          UA_free(top);
-@@ -1350,6 +1354,8 @@ UA_StatusCode
+@@ -1364,6 +1368,8 @@ UA_StatusCode
  UA_Server_run_shutdown(UA_Server *server) {
      if(server == NULL)
          return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -33,7 +75,7 @@ index 979ba40e7..4a9f6eb25 100644
  
      lockServer(server);
  
-@@ -1362,6 +1368,8 @@ UA_Server_run_shutdown(UA_Server *server) {
+@@ -1376,6 +1382,8 @@ UA_Server_run_shutdown(UA_Server *server) {
  
      /* Set to stopping and notify the application */
      setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
@@ -42,7 +84,7 @@ index 979ba40e7..4a9f6eb25 100644
  
  #if UA_MULTITHREADING >= 100
      /* Stop regular callback for async operation processing */
-@@ -1373,14 +1381,21 @@ UA_Server_run_shutdown(UA_Server *server) {
+@@ -1387,14 +1395,21 @@ UA_Server_run_shutdown(UA_Server *server) {
          removeCallback(server, server->houseKeepingCallbackId);
          server->houseKeepingCallbackId = 0;
      }
@@ -64,7 +106,7 @@ index 979ba40e7..4a9f6eb25 100644
      }
  
      /* Only stop the EventLoop if it is coupled to the server lifecycle  */
-@@ -1392,18 +1407,30 @@ UA_Server_run_shutdown(UA_Server *server) {
+@@ -1406,18 +1421,30 @@ UA_Server_run_shutdown(UA_Server *server) {
      /* Unlock and do one "normal" iteration. This allows threads waiting for the
       * server lock to proceed before the server lock is destroyed. */
      unlockServer(server);
