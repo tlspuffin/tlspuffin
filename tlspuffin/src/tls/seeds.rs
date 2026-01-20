@@ -2592,6 +2592,16 @@ pub mod tests {
     }
 
     #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    fn test_seed_server_attacker_full_coalesced(put: &str) {
+        let runner = default_runner_for(put);
+        let trace = seed_server_attacker_full_coalesced.build_trace();
+
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+
+        assert!(ctx.agents_successful());
+    }
+
+    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
     fn test_seed_server_attacker_with_hello_retry_request(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker_with_hello_retry_request.build_trace();
