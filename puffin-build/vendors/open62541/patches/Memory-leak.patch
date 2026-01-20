@@ -1,22 +1,27 @@
-From 3af375d8791816d663b96d9e33a23b06201edf02 Mon Sep 17 00:00:00 2001
+From f5ef418a397a0935a64e36745c0476a0df7d06b8 Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
 Date: Tue, 20 Jan 2026 10:09:19 +0100
 Subject: [PATCH 3/3] Added a memory leak to test ASAN
 
 ---
- src/server/ua_server_binary.c | 3 +++
- 1 file changed, 3 insertions(+)
+ src/server/ua_server_binary.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
 
 diff --git a/src/server/ua_server_binary.c b/src/server/ua_server_binary.c
-index 81363e7f1..04eaca7c0 100644
+index 81363e7f1..a7e6db8e1 100644
 --- a/src/server/ua_server_binary.c
 +++ b/src/server/ua_server_binary.c
-@@ -217,6 +217,9 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
+@@ -217,6 +217,14 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
                 channel->state != UA_SECURECHANNELSTATE_RHE_SENT))
          return UA_STATUSCODE_BADINTERNALERROR;
  
-+    UA_String leak = UA_STRING_ALLOC("Adding a memory leak");
-+    UA_LOG_WARNING(server->config.logging,  UA_LOGCATEGORY_SERVER, "Adding a memory leak");
++    UA_String leak = UA_STRING_ALLOC("Adding a memory leak!");
++    UA_String tmp = UA_STRING_NULL;
++    tmp.data = (UA_Byte*) UA_realloc(tmp.data, leak.length +1);
++    memcpy(&tmp.data, leak.data, leak.length);
++    tmp.data[leak.length] = '\0';
++    UA_LOG_WARNING(server->config.logging,  UA_LOGCATEGORY_SERVER, (const char*) tmp.data);
++    UA_String_clear(&tmp);
 +
      size_t offset = 0; /* Go to the beginning of the TcpHelloMessage */
      UA_TcpHelloMessage helloMessage;
