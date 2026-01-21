@@ -1,12 +1,12 @@
-From 8eb3d791efe855772209be52da7b93f90ce2d5ef Mon Sep 17 00:00:00 2001
+From 0c5299aa763fff02971d1657db0de095317c2294 Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
-Date: Tue, 20 Jan 2026 10:06:23 +0100
+Date: Wed, 21 Jan 2026 16:58:15 +0100
 Subject: [PATCH 1/3] Modifications of CLI client and server used by Puffin
 
 ---
- examples/ci_server.c      | 52 +++++++++++++++++++---------
- examples/client_connect.c | 71 ++++++++++++++++++++++++++++++++++++---
- 2 files changed, 102 insertions(+), 21 deletions(-)
+ examples/ci_server.c      | 52 +++++++++++++++++++++++++++------------
+ examples/client_connect.c | 49 ++++++++++++++++++++++++++++++++++--
+ 2 files changed, 83 insertions(+), 18 deletions(-)
 
 diff --git a/examples/ci_server.c b/examples/ci_server.c
 index 655072153..1cde798f7 100644
@@ -118,7 +118,7 @@ index 655072153..1cde798f7 100644
      UA_Server_delete(server);
      return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 diff --git a/examples/client_connect.c b/examples/client_connect.c
-index e07548ebc..866e2db41 100644
+index e07548ebc..2301c2d28 100644
 --- a/examples/client_connect.c
 +++ b/examples/client_connect.c
 @@ -14,7 +14,7 @@ static void usage(void) {
@@ -169,82 +169,49 @@ index e07548ebc..866e2db41 100644
  #ifdef UA_ENABLE_ENCRYPTION
      if(certfile) {
          UA_ByteString certificate = loadFile(certfile);
-@@ -155,7 +173,50 @@ int main(int argc, char *argv[]) {
+@@ -166,14 +184,41 @@ int main(int argc, char *argv[]) {
+         UA_ByteString certificateAuth = loadFile(certAuthFile);
+         UA_ByteString privateKeyAuth  = loadFile(keyAuthFile);
+         UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
+-        retval = UA_Client_connect(client, serverurl);
  
-     /* Connect to the server */
-     UA_StatusCode retval = UA_STATUSCODE_GOOD;
--    if(username) {
-+    if(reverse) {
++        if(reverse) {
++            /* Set endpoint URL */
++            cc->endpointUrl = UA_String_fromChars("opc.tcp://localhost:4840/opcuapuffin.oscar");
++            cc->timeout = 100000; // ms = 100s
++            const UA_String listenHost = UA_STRING_STATIC("127.0.0.1");
 +
-+        UA_ByteString certificateAuth = loadFile(certAuthFile);
-+        UA_ByteString privateKeyAuth  = loadFile(keyAuthFile);
-+        UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
-+
-+        cc->timeout = 100000; // ms = 100s
-+        const UA_String listenHost = UA_STRING_STATIC("127.0.0.1");
-+
-+        /* find second ":" in reverse and get port number */
-+        char *found = NULL;
-+        found = strchr(reverse, ':');
-+        if(found) found = strchr(found+1, ':');
-+        int port = 4841;
-+        if (found) port = atoi(found+1);
-+
-+        while (true) {
++            /* How do I configure the endpoint that the client has to use here?
++                Otherwise the client starts with a discovery on a unsecure channel! */
++    
++            /* find second ":" in reverse and get port number */
++            char *found = NULL;
++            found = strchr(reverse, ':');
++            if(found) found = strchr(found+1, ':');
++            int port = 4841;
++            if (found) port = atoi(found+1);
++    
 +            retval = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, port);
-+            if (retval != UA_STATUSCODE_GOOD) break;
-+            for(int i = 0; i < 5; ++i) {
-+                UA_Client_run_iterate(client, 1);
-+            }
-+            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Connected!");
-+
-+            /* Read the server-time */
-+            UA_Variant value;
-+            UA_Variant_init(&value);
-+            UA_Client_readValueAttribute(client, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &value);
-+            if(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
-+                UA_DateTimeStruct dts = UA_DateTime_toStruct(*(UA_DateTime *)value.data);
-+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-+                            "The server date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
-+                            dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
-+            }
-+            UA_Variant_clear(&value);
-+        };
-+        /* Clean up */
-+        UA_ByteString_clear(&certificateAuth);
-+        UA_ByteString_clear(&privateKeyAuth);
-+        UA_Client_disconnect(client);
-+        UA_Client_delete(client);
-+        return 0;
-+    }
-+    else if(username) {
-         UA_ClientConfig_setAuthenticationUsername(cc, username, password);
-         retval = UA_Client_connect(client, serverurl);
-         /* Alternative */
-@@ -175,12 +236,12 @@ int main(int argc, char *argv[]) {
++            if (retval  == UA_STATUSCODE_GOOD) {
++                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Reverse connection to %S!",
++                    cc->endpointUrl);
++            } else {
++                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Reverse connect error: (%s)",
++                   UA_StatusCode_name(retval));
++            };
++        } else {
++            retval = UA_Client_connect(client, serverurl);
++        }
+         UA_ByteString_clear(&certificateAuth);
+         UA_ByteString_clear(&privateKeyAuth);
+     }
+ #endif
      else
          retval = UA_Client_connect(client, serverurl);
++
      if(retval != UA_STATUSCODE_GOOD) {
--        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Could not connect");
-+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Could not connect");
+         UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Could not connect");
          UA_Client_delete(client);
-         return 0;
-     }
- 
--    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Connected!");
-+    UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Connected!");
- 
-     /* Read the server-time */
-     UA_Variant value;
-@@ -188,7 +249,7 @@ int main(int argc, char *argv[]) {
-     UA_Client_readValueAttribute(client, UA_NS0ID(SERVER_SERVERSTATUS_CURRENTTIME), &value);
-     if(UA_Variant_hasScalarType(&value, &UA_TYPES[UA_TYPES_DATETIME])) {
-         UA_DateTimeStruct dts = UA_DateTime_toStruct(*(UA_DateTime *)value.data);
--        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION,
-+        UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND,
-                     "The server date is: %02u-%02u-%04u %02u:%02u:%02u.%03u",
-                     dts.day, dts.month, dts.year, dts.hour, dts.min, dts.sec, dts.milliSec);
-     }
 -- 
 2.51.0
 
