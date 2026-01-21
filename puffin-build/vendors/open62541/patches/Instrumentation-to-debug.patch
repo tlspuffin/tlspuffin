@@ -1,15 +1,16 @@
-From a4271b123e7bdefe98f825fa7030570ff3dbc6e4 Mon Sep 17 00:00:00 2001
+From abbca6714cc2c63c454a7c699840cacad7e500f9 Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
-Date: Tue, 20 Jan 2026 10:08:45 +0100
+Date: Wed, 21 Jan 2026 17:02:18 +0100
 Subject: [PATCH 2/3] Instrumentation for debug
 
 ---
- arch/posix/eventloop_posix_tcp.c | 13 +++++++++----
+ arch/posix/eventloop_posix_tcp.c | 19 +++++++++++++------
+ src/client/ua_client_connect.c   |  3 ++-
  src/server/ua_server.c           | 31 +++++++++++++++++++++++++++++--
- 2 files changed, 38 insertions(+), 6 deletions(-)
+ 3 files changed, 44 insertions(+), 9 deletions(-)
 
 diff --git a/arch/posix/eventloop_posix_tcp.c b/arch/posix/eventloop_posix_tcp.c
-index b0fb9b3df..ced553916 100644
+index b0fb9b3df..1b3b6ef34 100644
 --- a/arch/posix/eventloop_posix_tcp.c
 +++ b/arch/posix/eventloop_posix_tcp.c
 @@ -263,13 +263,12 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
@@ -29,7 +30,20 @@ index b0fb9b3df..ced553916 100644
  
      /* Receive */
      UA_RESET_ERRNO;
-@@ -1162,6 +1161,8 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
+@@ -625,8 +624,10 @@ TCP_registerListenSocket(UA_POSIXConnectionManager *pcm, struct addrinfo *ai,
+            UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                           "TCP %u\t| Error binding the socket to the address %s (%s)",
+                           (unsigned)listenSocket, hostname, errno_str));
+-        UA_close(listenSocket);
+-        return UA_STATUSCODE_BADINTERNALERROR;
++        if (errno != 48) {
++            UA_close(listenSocket);
++            return UA_STATUSCODE_BADINTERNALERROR;
++        };
+     }
+ 
+     /* Only validate, don't actually start listening */
+@@ -1162,6 +1163,8 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
          return UA_STATUSCODE_BADINTERNALERROR;
  
      UA_LOCK(&el->elMutex);
@@ -38,7 +52,7 @@ index b0fb9b3df..ced553916 100644
  
      /* Check the state */
      if(cm->eventSource.state != UA_EVENTSOURCESTATE_STOPPED) {
-@@ -1188,6 +1189,10 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
+@@ -1188,6 +1191,10 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
      /* Set the EventSource to the started state */
      cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
  
@@ -49,6 +63,20 @@ index b0fb9b3df..ced553916 100644
   finish:
      UA_UNLOCK(&el->elMutex);
      return res;
+diff --git a/src/client/ua_client_connect.c b/src/client/ua_client_connect.c
+index 9507d7317..043aed9a9 100644
+--- a/src/client/ua_client_connect.c
++++ b/src/client/ua_client_connect.c
+@@ -2029,7 +2029,8 @@ initConnect(UA_Client *client) {
+         UA_parseEndpointUrl(&client->config.endpointUrl, &hostname, &port, &path);
+     if(client->connectStatus != UA_STATUSCODE_GOOD) {
+         UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
+-                       "Endpoint URL is invalid: %S", client->config.endpointUrl);
++                       "Endpoint URL is invalid: %S (%s)", client->config.endpointUrl,
++                       UA_StatusCode_name(client->connectStatus) );
+         return;
+     }
+ 
 diff --git a/src/server/ua_server.c b/src/server/ua_server.c
 index 51c2e4bd3..f25773364 100644
 --- a/src/server/ua_server.c
