@@ -113,7 +113,7 @@ fn test_seed_cve_2022_25638(put: &str) {
 fn test_seed_cve_2022_38152(put: &str) {
     expect_trace_crash(
         seed_session_resumption_dhe_full.build_trace(),
-        default_runner_for(puffin::put::PutDescriptor::new(
+        default_runner_for_desc(puffin::put::PutDescriptor::new(
             put,
             vec![("use_clear", "true")],
         )),
@@ -668,7 +668,7 @@ fn tcp_wolfssl_cve_2022_39173() {
     let port = 44338;
     let guard = wolfssl_server(port, TLSVersion::V1_3);
     let trace = seed_cve_2022_39173_full.build_trace();
-    let runner = default_runner_for(PutDescriptor::new(TCP_PUT, guard.build_options()));
+    let runner = default_runner_for_desc(PutDescriptor::new(TCP_PUT, guard.build_options()));
     let server = trace.descriptors[0].name;
 
     let mut context = runner.execute(trace, &mut 0).unwrap();
