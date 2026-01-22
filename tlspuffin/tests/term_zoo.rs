@@ -152,7 +152,7 @@ fn test_term_read_encode() {
     let mut read_success = 0;
     let mut read_fail = 0;
     let mut read_wrong = 0;
-    let ignored_functions = ignore_read();
+    let ignored_functions = ignore_eval();
     let mut closure = |term: &Term<TLSProtocolTypes>,
                        ctx: &TraceContext<TLSProtocolBehavior>,
                        _: &mut RomuDuoJrRand| {

@@ -21,8 +21,12 @@ pub struct TermConstraints {
     pub weighted_depth: bool,
     // only select root terms
     pub must_be_root: bool,
+    // when true: only look for readable terms
+    pub not_readable: bool,
     // Number of terms to generate for each type
     pub zoo_gen_how_many: usize,
+    // Max number of paylaods per term (limiting further MakeMessage)
+    pub threshold_max_payloads_per_term: usize,
 }
 
 /// Default values which represent no constraint
@@ -38,10 +42,12 @@ impl Default for TermConstraints {
             not_inside_list: false,
             weighted_depth: false,
             must_be_root: false,
+            not_readable: false,
             zoo_gen_how_many: 10, /* Over-approximates 1/10 of the threshold obtained from
                                    * `test_term_payloads_eval`, making sure we successfully
                                    * generate, MakeMessage,
                                    * and evaluate after 10 expansions of TermZoo. Was 1 initially */
+            threshold_max_payloads_per_term: 10,
         }
     }
 }
@@ -129,22 +135,33 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
 
                 while let Some((term, path)) = stack.pop() {
                     // push next terms onto stack
-                    match &term.term {
-                        DYTerm::Variable(_) => {
-                            // reached leaf
-                        }
-                        DYTerm::Application(_, subterms) => {
-                            // inner node, recursively continue
-                            for (path_index, subterm) in subterms.iter().enumerate() {
-                                let mut new_path = path.clone();
-                                new_path.1.push(path_index); // invert because of .iter().rev()
-                                stack.push((subterm, new_path));
+
+                    if term.is_symbolic() && !constraints.must_be_root {
+                        // if not, we reached a leaf (real leaf or a term with payloads)
+                        match &term.term {
+                            DYTerm::Variable(_) => {
+                                // reached leaf
+                            }
+                            DYTerm::Application(_, subterms) => {
+                                // inner node, recursively continue
+                                for (path_index, subterm) in subterms.iter().enumerate() {
+                                    let mut new_path = path.clone();
+                                    new_path.1.push(path_index); // invert because of .iter().rev()
+                                    stack.push((subterm, new_path));
+                                }
                             }
                         }
                     }
 
                     // sample
-                    if filter(term) {
+                    if filter(term)
+                        && (!constraints.must_be_symbolic || term.is_symbolic())
+                        && (!constraints.no_payload_in_subterm // TODO: currently not used!
+                        || (term.is_symbolic() && !term.has_payload_to_replace())
+                        || (!term.is_symbolic() && !term.has_payload_to_replace_wo_root()))
+                        && (!constraints.not_inside_list || !term.is_list())
+                        && (!constraints.not_readable || !term.is_readable())
+                    {
                         visited += 1;
 
                         // consider in sampling

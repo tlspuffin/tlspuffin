@@ -20,15 +20,16 @@ fn test_seed_freak(put: &str) {
     );
 }
 
-#[apply(test_puts, filter = all(CVE_2014_0160, tls12, asan))]
-fn test_seed_heartbleed(put: &str) {
-    expect_trace_crash(
-        seed_heartbleed.build_trace(),
-        default_runner_for(put),
-        std::time::Duration::from_secs(20),
-        Some(20),
-    );
-}
+// See why this is now omitted at the def of `seed_heartbleed`
+// #[apply(test_puts, filter = all(CVE_2014_0160, tls12, asan))]
+// fn test_seed_heartbleed(put: &str) {
+//     expect_trace_crash(
+//         seed_heartbleed.build_trace(),
+//         default_runner_for(put),
+//         std::time::Duration::from_secs(20),
+//         Some(20),
+//     );
+// }
 
 #[apply(test_puts, filter = all(CVE_2021_3449, tls12))]
 fn test_seed_cve_2021_3449(put: &str) {
