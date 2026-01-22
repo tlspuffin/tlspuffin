@@ -3,7 +3,6 @@ use puffin::fuzzer::bit_mutations::{havoc_mutations_dy, MakeMessage, ReadMessage
 use puffin::fuzzer::mutations::MutationConfig;
 use puffin::fuzzer::stages::FocusScheduledMutator;
 use puffin::fuzzer::utils::{find_term, find_term_mut};
-use puffin::fuzzer::FuzzerConfig;
 use puffin::libafl::corpus::InMemoryCorpus;
 use puffin::libafl::inputs::HasBytesVec;
 use puffin::libafl::mutators::{MutationResult, MutatorsTuple, ScheduledMutator};
@@ -173,13 +172,13 @@ fn test_seed_cve_2022_38153(put: &str) {
 // 2. Applying HAVOC mutations randomly
 // 3. For each batch of HAVOC mutations, then apply ReadMessage and execute
 
-// #[apply(test_puts,
-//     filter = all(
-//         CVE_2022_38153,
-//         tls12,
-//         tls12_session_resumption,
-//     )
-// )]
+#[apply(test_puts,
+    filter = all(
+        CVE_2022_38153,
+        tls12,
+        tls12_session_resumption,
+    )
+)]
 #[ignore]
 fn test_seed_bitmut_cve_2022_38153(put: &str) {
     let timeout_secs = 60 * 10 as u64;
@@ -458,7 +457,7 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
             if all_tries < max_all_tries {
                 let config = MutationConfig {
                     with_focus: true,
-                    ..Default::default()
+                    ..MutationConfig::default_with_bit()
                 };
                 let mut mutator_bit_focus = FocusScheduledMutator::new(
                     tuple_list!(MakeMessage::new(config, &registry)),

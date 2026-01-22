@@ -636,6 +636,7 @@ pub fn test_mutations(
         MutationConfig {
             with_bit_level,
             with_dy,
+            with_focus: false,
             ..MutationConfig::default()
         },
         TLSProtocolTypes::signature(),
