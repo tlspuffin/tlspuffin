@@ -191,7 +191,11 @@ impl<PT: ProtocolTypes> Term<PT> {
                         if term.is_symbolic() {
                             remove_fn_prefix(&remove_prefix(func.name()))
                         } else {
-                            format!("BS//{}", remove_fn_prefix(&remove_prefix(func.name())))
+                            if term.is_readable() {
+                                format!("BS-RD//{}", remove_fn_prefix(&remove_prefix(func.name())))
+                            } else {
+                                format!("BS//{}", remove_prefix(func.name()))
+                            }
                         },
                         color,
                         shape,

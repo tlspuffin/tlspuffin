@@ -16,6 +16,11 @@ pub struct TlsTranscript(pub [u8; 64], pub i32);
 
 impl codec::Codec for TlsTranscript {
     fn encode(&self, b: &mut Vec<u8>) {
+        if self.1 > 64 {
+            // We should never encode transcripts of size != 64
+            return;
+        }
+
         b.push(self.1 as u8);
         b.extend(&self.0[..self.1 as usize]);
     }
@@ -26,8 +31,9 @@ impl codec::Codec for TlsTranscript {
             return None;
         }
         let mut t = [0u8; 64];
-        let bytes = r.take(length as usize)?;
-        t[..bytes.len()].copy_from_slice(&bytes);
+        if let Some(bytes) = r.take(length as usize) {
+            t[..bytes.len()].copy_from_slice(&bytes);
+        }
         Some(TlsTranscript(t, length as i32))
     }
 }
@@ -44,7 +50,7 @@ impl Transcript for TranscriptClientHello {
 
 impl codec::Codec for TranscriptClientHello {
     fn encode(&self, b: &mut Vec<u8>) {
-        b.extend(self.as_slice())
+        self.0.encode(b);
     }
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
@@ -65,7 +71,7 @@ impl Transcript for TranscriptPartialClientHello {
 
 impl codec::Codec for TranscriptPartialClientHello {
     fn encode(&self, b: &mut Vec<u8>) {
-        b.extend(self.as_slice())
+        self.0.encode(b);
     }
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
@@ -87,7 +93,7 @@ impl Transcript for TranscriptServerHello {
 
 impl codec::Codec for TranscriptServerHello {
     fn encode(&self, b: &mut Vec<u8>) {
-        b.extend(self.as_slice())
+        self.0.encode(b)
     }
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
@@ -108,7 +114,7 @@ impl Transcript for TranscriptServerFinished {
 
 impl codec::Codec for TranscriptServerFinished {
     fn encode(&self, b: &mut Vec<u8>) {
-        b.extend(self.as_slice())
+        self.0.encode(b);
     }
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
@@ -129,7 +135,7 @@ impl Transcript for TranscriptClientFinished {
 
 impl codec::Codec for TranscriptClientFinished {
     fn encode(&self, b: &mut Vec<u8>) {
-        b.extend(self.as_slice())
+        self.0.encode(b);
     }
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
@@ -151,7 +157,7 @@ dummy_extract_knowledge!(TLSProtocolTypes, TranscriptCertificate);
 
 impl codec::Codec for TranscriptCertificate {
     fn encode(&self, b: &mut Vec<u8>) {
-        b.extend(self.as_slice())
+        self.0.encode(b);
     }
 
     fn read(r: &mut codec::Reader) -> Option<Self> {
