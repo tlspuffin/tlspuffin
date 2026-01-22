@@ -7,8 +7,11 @@ use std::{fs, io};
 use chrono::Local;
 use clap::ArgMatches;
 use itertools::Itertools;
+use libafl_bolts::bolts_prelude::Cores;
 use puffin_build::puffin;
 
+use crate::fuzzer::config::{FuzzerConfig, MutationStageConfig};
+use crate::fuzzer::mutations::MutationConfig;
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
 
@@ -17,20 +20,38 @@ pub fn format_title<PB: ProtocolBehavior>(
     title: Option<&str>,
     index: Option<usize>,
     put_registry: &PutRegistry<PB>,
-    without_bit_level: bool,
-    without_dy_mutations: bool,
-    without_truncation: bool,
-    put_use_clear: bool,
-    minimizer: bool,
-    num_cores: usize,
+    fuzzer_config: &FuzzerConfig,
 ) -> String {
+    let FuzzerConfig {
+        mutation_config,
+        mutation_stage_config,
+        core_definition,
+        put_use_clear,
+        minimizer,
+        ..
+    } = fuzzer_config;
+    let MutationStageConfig {
+        with_truncation, ..
+    } = mutation_stage_config;
+    let MutationConfig {
+        with_bit_level,
+        with_dy,
+        with_focus,
+        ..
+    } = mutation_config;
+    let num_cores = Cores::from_cmdline(core_definition.as_str())
+        .unwrap()
+        .ids
+        .len();
+
     let date = Local::now().format("%Y-%m-%d");
     let hour = Local::now().format("%H-%M-%S");
-    let without_bit_level = if without_bit_level { "_wo-bit" } else { "" };
-    let without_dy_mutations = if without_dy_mutations { "_wo-dy" } else { "" };
-    let without_truncation = if without_truncation { "_wo-trunc" } else { "" };
-    let put_use_clear = if put_use_clear { "_put-use-clear" } else { "" };
-    let minimizer = if minimizer { "_minimizer" } else { "" };
+    let with_bit_level = if *with_bit_level { "_with-bit" } else { "" };
+    let without_dy_mutations = if !*with_dy { "_wo-dy" } else { "" };
+    let without_focus = if !*with_focus { "_wo-focus" } else { "" };
+    let with_truncation = if *with_truncation { "_with-trunc" } else { "" };
+    let put_use_clear = if *put_use_clear { "_put-use-clear" } else { "" };
+    let minimizer = if *minimizer { "_with_minimizer" } else { "" };
     let default_put: &str = &put_registry
         .default()
         .versions()
@@ -42,7 +63,7 @@ pub fn format_title<PB: ProtocolBehavior>(
         .join("-");
     format!(
         "{date}\
-        --{default_put}-{num_cores}c{without_bit_level}{without_dy_mutations}{without_truncation}{put_use_clear}{minimizer}__\
+        --{default_put}-{num_cores}c{with_bit_level}{without_dy_mutations}{without_focus}{with_truncation}{put_use_clear}{minimizer}\
         {title}--{hour}--{index}",
         date = date,
         title = title.unwrap_or(&puffin::git_ref().unwrap_or_default()),

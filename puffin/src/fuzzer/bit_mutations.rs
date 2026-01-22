@@ -16,7 +16,8 @@ use libafl_bolts::rands::Rand;
 use libafl_bolts::Named;
 
 use super::utils::{
-    choose_filtered, choose_term_path_filtered, find_term_mut, TermConstraints, TracePath,
+    choose_filtered, choose_term_path_filtered, find_term, find_term_mut, TermConstraints,
+    TracePath,
 };
 use crate::algebra::{Term, TermType};
 use crate::fuzzer::utils::choose_term_filtered_mut;
@@ -257,16 +258,15 @@ where
     log::debug!("make_message_term: executing until path.0: {}", path.0);
     // Only execute shorter trace: trace[0..step_index])
     // execute the PUT on the first step_index steps and store the resulting trace context
-    tr.execute_until_step(ctx, path.0, &mut 0).err().map(|e| {
+    tr.execute_until_step(ctx, path.0, &mut 0).map_err(|e| {
         // 20% to 50% MakeMessage mutations fail, so this is a bit costly :(
         // TODO: we could memoize the term evaluation in a Option<ConcreteMessage> and use that here
         log::debug!("mutation::MakeMessage trace is not executable until step {},\
             could only happen if this mutation is scheduled with other mutations that create a non-executable trace.\
-            Error: {e}", path.0);
+            Error: {e}. Skipped MakeMessage...", path.0);
         log::trace!("{}", &tr);
-        log::debug!("       Skipped MakeMessage");
-        Ok::<MutationResult, Error>(MutationResult::Skipped)
-    });
+        e
+    })?;
 
     let t = find_term_mut(tr, path).expect("make_message_term - Should never happen.");
     t.make_payload(ctx)?;
@@ -290,6 +290,21 @@ where
             log::debug!("[Mutation-bit] Mutate MakeMessage skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
         }
+        let nb_payloads = trace.all_payloads().len();
+        let nb_payloads_no_readable = trace
+            .all_payloads()
+            .iter()
+            .filter(|p| !p.metadata.readable)
+            .count();
+        let nb_terms = trace.steps.len();
+        let payloads_term_ratio = nb_payloads / std::cmp::max(1, nb_terms);
+        let no_more_new_payloads =
+            payloads_term_ratio > self.config.term_constraints.threshold_max_payloads_per_term;
+        if no_more_new_payloads {
+            log::debug!("[MakeMessage] on a trace with too many payloads: {trace}")
+        } else {
+            log::debug!("[MakeMessage] Do a regular MakeMessage")
+        }
         let rand = state.rand_mut();
         let mut constraints_make_message = TermConstraints {
             must_be_symbolic: true, /* we exclude non-symbolic terms, which were already mutated
@@ -302,6 +317,8 @@ where
             // shotgun small mutations on a small term to make the trace progress with possibly more
             // actions and then do larger mutations on a larger term from there
             // (might have an impact later). TODO: balance out this trade-off
+            must_payload_in_subterm: no_more_new_payloads, /* change to true when there are too
+                                                            * many payloads already */
             not_inside_list: true, /* true means we are not picking terms inside list (like
                                     * fn_append in the middle) */
             // we set it to true since it would otherwise be redundant with picking each of the item
@@ -309,19 +326,64 @@ where
             weighted_depth: false, /* true means we select a sub-term by giving higher-priority
                                     * to deeper sub-terms */
             // Set two lasts to false now as this allows to find more case for now.
-            // TODO: fix reservori sampling and set this to true (as well as in
+            // TODO: fix reservoir sampling and set this to true (as well as in
             // integration_test/term_zoo.rs)
+            not_readable: true,
             ..self.config.term_constraints
         };
         if !self.config.with_dy {
             constraints_make_message.must_be_root = true;
         }
 
+        // If debug mode, test that trace has no focus and panic otherwise
+        #[cfg(any(debug_assertions, feature = "debug"))]
+        if trace.get_focus().is_some() {
+            log::error!(
+                "[MakeMessage] with_focus is set but trace has a focus already: {:?}. Trace:\n{trace}",
+                trace.get_focus().unwrap()
+            );
+            return Ok(MutationResult::Skipped);
+        }
+
         // choose a random sub term
-        if let Some((chosen_term, trace_path)) =
+        if let Some(trace_path) = if self.config.with_focus {
+            if nb_payloads > 0 && payloads_term_ratio > 1 {
+                if nb_payloads_no_readable == 0 {
+                    log::debug!("[MakeMessage] With focus and enough existing payloads but all are readable. Skipping...");
+                    return Ok(MutationResult::Skipped);
+                }
+                log::debug!(
+                    "[MakeMessage] With focus and enough existing payloads: randomly picking one"
+                );
+                constraints_make_message.must_be_symbolic = false;
+                constraints_make_message.must_payload_in_subterm = false;
+                if let Some((_, trace_path)) = choose_filtered(
+                    trace,
+                    &constraints_make_message,
+                    |t| !t.is_symbolic(),
+                    state.rand_mut(),
+                ) {
+                    log::debug!("[MakeMessage] Picked existing payload and focus set to it: {trace_path:?}. Mutated.");
+                    trace.set_focus(trace_path.clone());
+                    Some(trace_path)
+                } else {
+                    log::error!("[MakeMessage] Skipped as we failed selecting a term with existing payloads while there is at least one payload. Trace: {trace}. Constraints: {:?}.", constraints_make_message);
+                    return Ok(MutationResult::Skipped);
+                }
+            } else {
+                log::debug!("[MakeMessage] With focus and no enough existing payloads, picking a random term");
+                choose_filtered(trace, &constraints_make_message, |t| !t.is_no_bit(), rand)
+                    .map(|(_, p)| p)
+            }
+        } else {
+            log::debug!("[MakeMessage] Without focus, picking a random term");
             choose_filtered(trace, &constraints_make_message, |t| !t.is_no_bit(), rand)
-        {
-            log::debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", chosen_term);
+                .map(|(_, p)| p)
+        } {
+            log::debug!(
+                "[Mutation-bit] Mutate MakeMessage on term\n{}",
+                find_term(trace, &trace_path).expect("make_message_term - Should never happen.")
+            );
             let spawner = Spawner::new(self.put_registry.clone());
             // log::trace!("Using self.put_registry {:?} to compute ctx",
             // self.put_registry.default().name());
@@ -332,20 +394,28 @@ where
                     ..Default::default()
                 },
             );
+            if self.config.with_focus {
+                MM_EXEC.increment();
+            }
             BIT_EXEC.increment();
             match make_message_term(trace, &trace_path, &mut ctx) {
                 // TODO: possibly we would need to make sure the mutated trace can be executed (if
                 // not directly dropped by the feedback loop once executed).
-                // TODO: maybe add a consitency check: same encoding by reading /encoding
+                // TODO: maybe add a consistency check: same encoding by reading/encoding
                 Ok(()) => {
                     log::debug!("mutation::MakeMessage successful!");
+                    if self.config.with_focus {
+                        MM_EXEC_SUCCESS.increment();
+                        log::debug!("mutation::MakeMessage set focus on {trace_path:?}");
+                        trace.set_focus(trace_path);
+                    }
                     BIT_EXEC_SUCCESS.increment();
                     Ok(MutationResult::Mutated)
                 }
                 Err(e) => {
                     log::warn!(
                         "mutation::MakeMessage failed (with_focus: {}) due to {e}",
-                        false
+                        self.config.with_focus
                     );
                     log::debug!("mutation::MakeMessage failed due to {e}");
                     log::debug!("       Skipped {}", self.name());
@@ -393,6 +463,53 @@ impl<'a, PB> ReadMessage<'a, PB> {
     }
 }
 
+/// `ReadMessage` on the term at path `path` in `tr`.
+fn read_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
+    tr: &mut Trace<PT>,
+    path: &TracePath,
+    ctx: &mut TraceContext<PB>,
+) -> Result<(), crate::error::Error>
+where
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
+{
+    // Only execute shorter trace: trace[0..step_index])
+    // execute the PUT on the first step_index steps and store the resulting trace context
+    log::debug!("Try eval until path.0: {}", path.0);
+    tr.execute_until_step(ctx, path.0, &mut 0).map_err(|e| {
+        log::debug!("mutation::ReadMessage trace is not executable until step {}, \
+            could only happen if this mutation is scheduled with other mutations that create a non-executable trace. Skipped ReadMessage\
+            Error: {e}. Skipping ReadMessage...", path.0);
+        log::trace!("{}", &tr);
+        e
+    })?;
+
+    let t = find_term_mut(tr, path).expect("read_message_term - Should never happen.");
+    log::debug!(
+        "[mutation::ReadMessage] [read_message_term] Mutate ReadMessage on term\n{}\n Trying read for type shape: {} and type id : {:?}",
+        t, t.get_type_shape(), t.term.type_id()
+    );
+    // Evaluate the term and try to read it into the term type
+    let eval = t.evaluate(ctx)?; // We do not measure failure or not for this specific eval (less costly than trace execution)
+    let read_term = PB::try_read_bytes(&*eval, t.get_type_shape().clone().into())?; // skip if try_read fails
+
+    // The evaluation of this readable term eval_read is likely NOT the original evaluation itself
+    // eval. What we keep here is eval_read since we aim to store the re-interpretation of the
+    // payload. Note that when eval != eval_read, it likely means that `t` is length-prefixed or has
+    // some headers and that havoc mutations have messed up with those or the payload length. We
+    // will loose part of this. However, it is likely that we could have ReadMessage a
+    // strict-subterm instead to avoid this.
+    let eval_read = read_term.get_encoding();
+
+    #[cfg(any(debug_assertions, feature = "debug"))]
+    if PB::try_read_bytes(&*eval_read, t.get_type_shape().clone().into()).is_err() {
+        log::error!("[mutation::ReadMessage] [read_message_term] Failed to read eval_read\n - t: {t}\n - eval: {eval:?}\n - read_term: {read_term:?}\n - eval_read: {eval_read:?}\n - type shape: {:?} and type id : {:?}",
+            t.get_type_shape(), t.term.type_id());
+    }
+
+    t.add_payload_readable(eval_read);
+    Ok(())
+}
+
 impl<'a, S, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>> Mutator<Trace<PT>, S>
     for ReadMessage<'a, PB>
 where
@@ -405,8 +522,135 @@ where
         trace: &mut Trace<PT>,
         _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
-        // Nothing for now
-        Ok(MutationResult::Skipped)
+        log::debug!("[Bit] Start mutate with {}", self.name());
+        let focus = trace.get_focus().map(|p| p.clone());
+        if self.config.with_focus {
+            trace.clear_focus(); // to save a bit of memory (no need to serialize focus in the
+                                 // corpus!)
+        }
+        if !self.config.with_bit_level {
+            log::debug!("[Mutation-bit] Mutate ReadMessage skipped because bit-level mutations are disabled");
+            return Ok(MutationResult::Skipped);
+        }
+        let rand = state.rand_mut();
+        let mut constraints_read_message = TermConstraints {
+            no_payload_in_subterm: false, /* change to true to exclude picking a term with a
+                                           * payload in a sub-term */
+            not_inside_list: true, /* true means we are not picking terms inside list (like
+                                    * fn_append in the middle) */
+            weighted_depth: false, /* true means we select a sub-term by giving higher-priority
+                                    * to deeper sub-terms */
+            not_readable: true,
+            must_be_det: true, // do not make read on a non det term !
+            ..self.config.term_constraints
+        };
+        if !self.config.with_dy {
+            constraints_read_message.must_be_root = true;
+        }
+        let chosen_path = if self.config.with_focus {
+            if let Some(trace_path) = focus {
+                // We skip ReadMessage with proba 1/4 in focus mode!
+                let proba = 1.0 / 4.0;
+                let max_range = (1_000_000_000.0 * proba) as u64;
+                if !rand.between(0, 1_000_000_000 - 1) < max_range {
+                    log::debug!("read_message_term: skipping as we do in 3/4 of times");
+                    return Ok(MutationResult::Skipped);
+                }
+                // If focus was already set, we use it as is!
+                // TODO: investigate whether we still want to explore application on parents
+                log::debug!("read_message_term::mutate - Using focus {trace_path:?}");
+                trace_path.clone()
+            } else {
+                log::debug!("read_message_term::mutate - No focus set and yet with_focus config. Should only happen when initial MakeMessage failed! Skipping...");
+                return Ok(MutationResult::Skipped); // First MakeMessage failed, we won't apply
+                                                    // further mutations then
+            }
+        } else {
+            // Randomly choose a random sub term
+            // Specifically for ReadMessage, we should prioritize terms close to a sub-term with
+            // payloads. We first randomly pick a term with payload. With proba p:=1/2 we pick
+            // that one. With proba. p:=p/2 we pick the parent term, etc.
+            if let Some(mut chosen_path) = choose_term_path_filtered(
+                trace,
+                |x| x.is_symbolic().not(),
+                &constraints_read_message,
+                rand,
+            ) {
+                log::debug!("[ReadMessage] Initially picked term at {chosen_path:?}");
+                let term = find_term_mut(trace, &chosen_path)
+                    .expect("mutation::ReadMessage::mutate - Should never happen!");
+                let payloads = term.payloads.as_ref().expect(
+                    "mutation::ReadMessage::mutate - Should never happen, we should have filtered out symbolic terms",
+                );
+                if !payloads.has_changed() {
+                    // Extremely likely that payload.payload == payload.payload0 then!
+                    log::debug!("       Skipped {} because payload unchanged", self.name());
+                    return Ok(MutationResult::Skipped);
+                }
+                let mut proba = 1.0 / 2.0;
+                while !chosen_path.1.is_empty() {
+                    let max_range = (1_000_000_000.0 * proba) as u64;
+                    if rand.between(0, 1_000_000_000 - 1) < max_range {
+                        log::trace!("[ReadMessage] Going up, proba was {proba}");
+                        proba = proba / 2.0;
+                        chosen_path.1.pop();
+                    } else {
+                        break;
+                    }
+                }
+                log::debug!("[ReadMessage] Finally picked term at {chosen_path:?}");
+                chosen_path
+            } else {
+                log::trace!(
+                    "[mutation::ReadMessage] Failed to choose term with payload in trace:\n {}",
+                    &trace
+                );
+                log::warn!(
+                    "       Skipped {} as we failed to choose a term with payload in the trace.",
+                    self.name()
+                );
+                return Ok(MutationResult::Skipped);
+            }
+        };
+        let term =
+            find_term_mut(trace, &chosen_path).expect("read_message_term - Should never happen.");
+        if term.is_list() || term.is_readable() || term.has_no_det() {
+            log::debug!(
+                "[ReadMessage] Skipping ReadMessage on term\n{term:?}, because it is a list or already readable or has no det"
+            );
+            return Ok(MutationResult::Skipped);
+        }
+
+        let spawner = Spawner::new(self.put_registry.clone());
+        // log::trace!("Using self.put_registry {:?} to compute ctx",
+        // self.put_registry.default().name());
+        let mut ctx = TraceContext::new_config(
+            spawner,
+            ConfigTrace {
+                with_bit_level: self.config.with_bit_level,
+                ..Default::default()
+            },
+        );
+        if self.config.with_focus {
+            MM_EXEC.increment();
+        }
+        BIT_EXEC.increment();
+        match read_message_term(trace, &chosen_path, &mut ctx) {
+            Ok(_) => {
+                if self.config.with_focus {
+                    MM_EXEC_SUCCESS.increment();
+                }
+                BIT_EXEC_SUCCESS.increment();
+                log::debug!("[ReadMessage] Path chosen: {chosen_path:?}");
+                log::debug!("[mutation::ReadMessage] successful!");
+                Ok(MutationResult::Mutated)
+            }
+            Err(e) => {
+                log::debug!("[mutation::ReadMessage] failed due to {e}");
+                log::debug!("       Skipped {}", self.name());
+                Ok(MutationResult::Skipped)
+            }
+        }
     }
 }
 
@@ -486,10 +730,10 @@ impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S>
             trace,
             state,
             &self.config.term_constraints,
-            false,
+            self.config.with_focus,
         ) {
             Some(to_mutate) => {
-                log::debug!("[Mutation-bit] Mutate {} on term {to_mutate}", self.name(),);
+                log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
                 if let Some(payloads) = &mut to_mutate.payloads {
                     $mutation.mutate(state, &mut payloads.payload, stage_idx)
                               .and_then(|r| {
@@ -613,9 +857,14 @@ where
             log::debug!("[Mutation-bit] Mutate BytesSwapMutatorDY skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
         }
-        match choose_term_with_payload_mut(trace, state, &self.config.term_constraints, false) {
+        match choose_term_with_payload_mut(
+            trace,
+            state,
+            &self.config.term_constraints,
+            self.config.with_focus,
+        ) {
             Some(to_mutate) => {
-                log::debug!("[Mutation-bit] Mutate {} on term {to_mutate}", self.name(),);
+                log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
                 if let Some(payloads) = &mut to_mutate.payloads {
                     BytesSwapMutator::mutate(
                         &mut self.tmp_buf,
@@ -695,9 +944,14 @@ where
             log::debug!("[Mutation-bit] Mutate BytesInsertCopyMutatorDY skipped because bit-level mutations are disabled");
             return Ok(MutationResult::Skipped);
         }
-        match choose_term_with_payload_mut(trace, state, &self.config.term_constraints, false) {
+        match choose_term_with_payload_mut(
+            trace,
+            state,
+            &self.config.term_constraints,
+            self.config.with_focus,
+        ) {
             Some(to_mutate) => {
-                log::debug!("[Mutation-bit] Mutate {} on term {to_mutate}", self.name(),);
+                log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
                 if let Some(payloads) = &mut to_mutate.payloads {
                     BytesInsertCopyMutator::mutate(
                         &mut self.tmp_buf,
@@ -747,15 +1001,54 @@ where
     S: HasRand + HasMaxSize,
     PT: ProtocolTypes,
 {
-    let res = choose_term_filtered_mut(
-        trace,
-        |x| x.is_symbolic().not(),
-        term_constraints,
-        state.rand_mut(),
-    );
-    log::debug!("choose_term_with_payload_mut -- Chosen term, not focus");
-    res
+    if with_focus {
+        if let Some(path_trace) = trace.get_focus() {
+            log::debug!("choose_term_with_payload_mut -- Focused path: {path_trace:?}");
+            let term = find_term_mut(trace, &path_trace.clone())
+                .expect("choose_term_with_payload_mut -- should never happen");
+            Some(term)
+        } else {
+            log::debug!("choose_term_with_payload_mut -- No focus set and yet with_focus config. Skipping...");
+            None // First MakeMessage failed, we won't apply further mutations then
+        }
+    } else {
+        let res = choose_term_filtered_mut(
+            trace,
+            |x| x.is_symbolic().not(),
+            term_constraints,
+            state.rand_mut(),
+        );
+        log::debug!("choose_term_with_payload_mut -- Chosen term, not focus");
+        res
+    }
 }
+
+/* When !with_focus, possibly randomly choose a payload among the all_payloads vec instead. The distribution won't be the same. Investigate what's best.
+
+/// Randomly choose a payload and its index (nth) in a trace (mutable reference), if there is any
+/// and if it has at least 2 bytes. Also returns a mutable ref to the payload metadata.
+pub fn choose_payload_mut<'a, PT, S>(
+    trace: &'a mut Trace<PT>,
+    state: &mut S,
+) -> Option<(&'a mut Vec<u8>, usize, &'a mut PayloadMetadata)>
+where
+    S: HasCorpus + HasRand + HasMaxSize,
+    PT: ProtocolTypes,
+{
+    let mut all_payloads: Vec<&'a mut Payloads> = trace.all_payloads_mut();
+    if all_payloads.is_empty() {
+        return None;
+    }
+    let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
+    let input = all_payloads.remove(idx);
+    let metada = &mut input.metadata;
+    let input = input.payload.bytes_mut();
+    if input.len() < 2 {
+        return None;
+    }
+    Some((input, idx, metada))
+}
+*/
 
 pub fn choose_payload_mut<'a, PT, S>(
     trace: &'a mut Trace<PT>,
@@ -766,7 +1059,7 @@ where
     S: HasRand + HasMaxSize,
     PT: ProtocolTypes,
 {
-    match choose_term_with_payload_mut(trace, state, &config.term_constraints, false) {
+    match choose_term_with_payload_mut(trace, state, &config.term_constraints, config.with_focus) {
         Some(term) => {
             let payloads = term
                 .payloads
@@ -786,6 +1079,81 @@ where
         None => None,
     }
 }
+
+// /// Returns the focused payload or randomly choose over a vector of all payloads a payload in a
+// /// trace (mutable reference), if there is any and if it has at least 2 bytes. Also returns a
+// /// mutable ref to the payload metadata.
+// pub fn choose_payload_mut_<'a, PT, S>(
+//     trace: &'a mut Trace<PT>,
+//     state: &mut S,
+//     config: &MutationConfig,
+// ) -> Option<(&'a mut Vec<u8>, &'a mut PayloadMetadata)>
+// where
+//     S: HasRand + HasMaxSize,
+//     PT: ProtocolTypes,
+// {
+//     if let (true, Some(path_trace)) = (config.with_focus, trace.get_focus()) {
+//         let term = find_term_mut(trace, &path_trace.clone())
+//             .expect("[choose_payload_mut] should never happen");
+//         let payloads = term
+//             .payloads
+//             .as_mut()
+//             .expect("[choose_payload_mut] should never happen");
+//         let input = payloads.payload.bytes_mut();
+//         if input.len() < 2 {
+//             return None;
+//         }
+//         Some((input, &mut payloads.metadata))
+//     } else {
+//         let mut all_payloads: Vec<&'a mut Payloads> = trace.all_payloads_mut();
+//         if all_payloads.is_empty() {
+//             return None;
+//         }
+//         let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
+//         let input = all_payloads.remove(idx);
+//         let metada = &mut input.metadata;
+//         let input = input.payload.bytes_mut();
+//         if input.len() < 2 {
+//             return None;
+//         }
+//         Some((input, metada))
+//     }
+// }
+
+// Randomly choose a payload and its index (n-th) in a trace, if there is any and if it has at
+// least 2 bytes
+// fn choose_payload<'a, PT, S>(trace: &'a Trace<PT>, state: &mut S) -> Option<(&'a [u8], usize)>
+// where
+//     S: HasCorpus + HasRand + HasMaxSize,
+//     PT: ProtocolTypes,
+// {
+//     let all_payloads = trace.all_payloads();
+//     if all_payloads.is_empty() {
+//         return None;
+//     }
+//     let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
+//     let input = all_payloads[idx].payload.bytes();
+//     if input.len() < 2 {
+//         return None;
+//     }
+//     Some((input, idx))
+// }
+
+// Access the n-th payload of a trace, if it exists
+// fn get_payload<PT>(trace: &Trace<PT>, idx: usize) -> Option<&[u8]>
+// where
+//     PT: ProtocolTypes,
+// {
+//     let all_payloads = trace.all_payloads();
+//     if all_payloads.len() <= idx {
+//         return None;
+//     }
+//     let input = all_payloads[idx].payload.bytes();
+//     if input.len() < 2 {
+//         return None;
+//     }
+//     Some(input)
+// }
 
 /// Copied from `libafl::mutators::mutations`
 /// Returns the first and last diff position between the given vectors, stopping at the min len
@@ -1295,6 +1663,7 @@ where
             );
         }
         log::trace!("After mutation, length is: {}", input.bytes().len());
+
         Ok(MutationResult::Mutated)
     }
 }

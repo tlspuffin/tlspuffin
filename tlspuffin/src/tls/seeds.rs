@@ -1016,6 +1016,7 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 

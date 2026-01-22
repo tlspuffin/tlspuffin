@@ -7,7 +7,6 @@ use std::{env, fs};
 use clap::parser::ValuesRef;
 use clap::{arg, crate_authors, crate_name, value_parser, Command};
 use libafl::inputs::Input;
-use libafl_bolts::prelude::Cores;
 use log::LevelFilter;
 use puffin_build::puffin;
 
@@ -15,8 +14,9 @@ use crate::agent::AgentName;
 use crate::algebra::TermType;
 use crate::execution::{ForkedRunner, Runner, TraceRunner};
 use crate::experiment::{format_title, write_experiment_markdown};
+use crate::fuzzer::config::FuzzerConfig;
 use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
-use crate::fuzzer::{start, FuzzerConfig};
+use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
 use crate::protocol::ProtocolBehavior;
@@ -45,8 +45,9 @@ where
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
         .arg(arg!(--"with-bit" "Enable bit-level mutations"))
+        .arg(arg!(--"with-trunc" "Enables failed trace steps truncation"))
         .arg(arg!(--"wo-dy" "Disable DY mutations"))
-        .arg(arg!(--"wo-trunc" "Disable failed trace steps truncation"))
+        .arg(arg!(--"wo-focus" "Disables focus bit-level mutational stage"))
         .arg(arg!(-v --verbosity [l] "Verbosity level for (quick) experiments")
             .value_parser(value_parser!(LevelFilter)))
         .subcommands(vec![
@@ -105,10 +106,6 @@ where
 
     let first_core = "0".to_string();
     let core_definition = matches.get_one("cores").unwrap_or(&first_core);
-    let num_cores = Cores::from_cmdline(core_definition.as_str())
-        .unwrap()
-        .ids
-        .len();
     let port: u16 = *matches.get_one::<u16>("port").unwrap_or(&1337u16);
     let static_seed: Option<u64> = matches.get_one("seed").copied();
     let max_iters: Option<u64> = matches.get_one("max-iters").copied();
@@ -116,9 +113,10 @@ where
     let tui = matches.get_flag("tui");
     let no_launcher = matches.get_flag("no-launcher");
     let put_use_clear = matches.get_flag("put-use-clear");
-    let without_bit_level = !matches.get_flag("with-bit");
+    let with_bit_level = matches.get_flag("with-bit");
     let without_dy_mutations = matches.get_flag("wo-dy");
-    let without_truncation = matches.get_flag("wo-trunc");
+    let with_truncation = matches.get_flag("with-trunc");
+    let without_focus = matches.get_flag("wo-focus");
     let target_put: Option<&String> = matches.get_one("put");
     let verbosity: LevelFilter = *matches
         .get_one::<LevelFilter>("verbosity")
@@ -137,76 +135,6 @@ where
         let _ = put_registry.set_default(name);
     };
 
-    // Setup Logging
-    // We need to create the log directory before initializing the logger
-    let (is_experiment, base_directory): (bool, PathBuf) =
-        if let Some(_matches) = matches.subcommand_matches("quick-experiment") {
-            let experiments_root = PathBuf::from("experiments");
-            let title = format_title(
-                None,
-                None,
-                &put_registry,
-                without_bit_level,
-                without_dy_mutations,
-                without_truncation,
-                put_use_clear,
-                minimizer,
-                num_cores,
-            );
-            let mut experiment_path = experiments_root.join(&title);
-
-            let mut i = 1;
-            while experiment_path.as_path().exists() {
-                let title = format_title(
-                    None,
-                    Some(i),
-                    &put_registry,
-                    without_bit_level,
-                    without_dy_mutations,
-                    without_truncation,
-                    put_use_clear,
-                    minimizer,
-                    num_cores,
-                );
-                experiment_path = experiments_root.join(title);
-                i += 1;
-            }
-            (true, experiments_root.join(&title))
-        } else {
-            if let Some(matches) = matches.subcommand_matches("experiment") {
-                let git_ref = "_".to_string();
-                let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
-                let experiments_root = PathBuf::new().join("experiments");
-                let title = format_title(
-                    Some(title),
-                    None,
-                    &put_registry,
-                    without_bit_level,
-                    without_dy_mutations,
-                    without_truncation,
-                    put_use_clear,
-                    minimizer,
-                    num_cores,
-                );
-                let experiment_path = experiments_root.join(title);
-                assert!(
-                    !experiment_path.as_path().exists(),
-                    "Experiment already exists. Consider creating a new experiment."
-                );
-                (true, experiment_path)
-            } else {
-                // Case of non-experiment: plain fuzzing, trace executions, etc.
-                (false, env::current_dir().unwrap())
-            }
-        };
-    let handle = match log4rs::init_config(config_default(&*base_directory.join("./log"))) {
-        Ok(handle) => handle,
-        Err(err) => {
-            eprintln!("error: failed to initialize logging: {err:?}");
-            return ExitCode::FAILURE;
-        }
-    };
-
     log::info!("Version: {}", puffin::full_version());
     log::info!("Put Versions:");
     for (id, put) in put_registry.puts() {
@@ -221,13 +149,94 @@ where
     setup_asan_env();
 
     // Initialize global state
-
     let mut options: Vec<(String, String)> = Vec::new();
     if put_use_clear {
         options.push(("use_clear".to_string(), put_use_clear.to_string()));
     }
 
     let default_put = PutDescriptor::new(put_registry.default().name(), options);
+
+    // Set up config
+    let mut config = FuzzerConfig {
+        static_seed,
+        max_iters,
+        core_definition: core_definition.to_string(),
+        broker_port: port,
+        minimizer,
+        tui,
+        no_launcher,
+        verbosity,
+        ..Default::default()
+    };
+
+    if !with_bit_level && without_dy_mutations {
+        log::error!("Both bit-level and DY mutations are disabled. This is not supported.");
+        return ExitCode::FAILURE;
+    }
+    if put_use_clear {
+        config.put_use_clear = true;
+    }
+    if with_bit_level {
+        config.mutation_config.with_bit_level = true;
+    }
+    if without_dy_mutations {
+        config.mutation_config.with_dy = false;
+        config.mutation_config.term_constraints.must_be_root = true;
+    }
+    if without_focus {
+        config.mutation_config.with_focus = false;
+    }
+    if with_truncation {
+        config.mutation_stage_config.with_truncation = true;
+    }
+
+    // Setup Logging
+    // We need to create the log directory before initializing the logger
+    let (is_experiment, base_directory): (bool, PathBuf) =
+        if let Some(_matches) = matches.subcommand_matches("quick-experiment") {
+            let experiments_root = PathBuf::from("experiments");
+            let title = format_title(None, None, &put_registry, &config);
+            let mut experiment_path = experiments_root.join(&title);
+
+            let mut i = 1;
+            while experiment_path.as_path().exists() {
+                let title = format_title(None, Some(i), &put_registry, &config);
+                experiment_path = experiments_root.join(title);
+                i += 1;
+            }
+            (true, experiments_root.join(&title))
+        } else {
+            if let Some(matches) = matches.subcommand_matches("experiment") {
+                let git_ref = "_".to_string();
+                let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
+                let experiments_root = PathBuf::new().join("experiments");
+                let title = format_title(Some(title), None, &put_registry, &config);
+                let experiment_path = experiments_root.join(title);
+                assert!(
+                    !experiment_path.as_path().exists(),
+                    "Experiment already exists. Consider creating a new experiment."
+                );
+                (true, experiment_path)
+            } else {
+                // Case of non-experiment: plain fuzzing, trace executions, etc.
+                (false, env::current_dir().unwrap())
+            }
+        };
+    if is_experiment {
+        log::info!("Running in experiment mode");
+        config.is_experiment = is_experiment;
+        config.corpus_dir = base_directory.join("corpus");
+        config.objective_dir = base_directory.join("objective");
+        config.stats_file = base_directory.join("log/stats.json");
+        config.log_folder = base_directory.join("log/");
+    }
+    let handle = match log4rs::init_config(config_default(&*base_directory.join("./log"))) {
+        Ok(handle) => handle,
+        Err(err) => {
+            eprintln!("error: failed to initialize logging: {err:?}");
+            return ExitCode::FAILURE;
+        }
+    };
 
     if let Some(_matches) = matches.subcommand_matches("seed") {
         if let Err(err) = seed(&put_registry, default_put) {
@@ -249,7 +258,6 @@ where
     } else if let Some(matches) = matches.subcommand_matches("execute") {
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let index: usize = *matches.get_one("index").unwrap_or(&0);
-        let without_bit_level = matches.get_flag("wo-bit");
 
         let mut paths = inputs
             .flat_map(|input| {
@@ -307,10 +315,10 @@ where
         );
 
         let config_trace = ConfigTrace {
-            with_bit_level: !without_bit_level,
+            with_bit_level,
             ..Default::default()
         };
-        if without_bit_level {
+        if !with_bit_level {
             log::info!("Execution without payload evaluations...");
         }
         for path in lookup_paths {
@@ -437,17 +445,7 @@ where
         let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
             let git_ref = "_".to_string();
             let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
-            let format_t = format_title(
-                Some(title),
-                None,
-                &put_registry,
-                without_bit_level,
-                without_dy_mutations,
-                without_truncation,
-                put_use_clear,
-                minimizer,
-                num_cores,
-            );
+            let format_t = format_title(Some(title), None, &put_registry, &config);
             let experiment_path = base_directory;
 
             let base_dec = format_t;
@@ -469,17 +467,7 @@ where
             let description = "No Description, because this is a quick experiment.";
             let experiment_path = base_directory;
 
-            let title = format_title(
-                None,
-                None,
-                &put_registry,
-                without_bit_level,
-                without_dy_mutations,
-                without_truncation,
-                put_use_clear,
-                minimizer,
-                num_cores,
-            );
+            let title = format_title(None, None, &put_registry, &config);
 
             if let Err(err) = write_experiment_markdown(
                 &experiment_path,
@@ -502,39 +490,6 @@ where
             return ExitCode::FAILURE;
         }
 
-        let mut config = FuzzerConfig {
-            initial_corpus_dir: PathBuf::from("./seeds"),
-            static_seed,
-            max_iters,
-            core_definition: core_definition.to_string(),
-            corpus_dir: experiment_path.join("corpus"),
-            objective_dir: experiment_path.join("objective"),
-            broker_port: port,
-            stats_file: experiment_path.join("log/stats.json"),
-            log_folder: experiment_path.join("log/"),
-            minimizer,
-            tui,
-            no_launcher,
-            is_experiment,
-            verbosity,
-            ..Default::default()
-        };
-
-        if without_bit_level && without_dy_mutations {
-            log::error!("Both bit-level and DY mutations are disabled. This is not supported.");
-            return ExitCode::FAILURE;
-        }
-
-        if without_bit_level {
-            config.mutation_config.with_bit_level = false;
-        }
-        if without_dy_mutations {
-            config.mutation_config.with_dy = false;
-            config.mutation_config.term_constraints.must_be_root = true;
-        }
-        if without_truncation {
-            config.mutation_stage_config.with_truncation = false;
-        }
         if let Err(err) = start::<PB>(&put_registry, default_put, config, handle) {
             match err {
                 libafl::Error::ShuttingDown => {

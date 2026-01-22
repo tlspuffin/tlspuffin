@@ -55,7 +55,6 @@ itertools = { workspace = true }
 serde_json = { workspace = true }
 nix = { workspace = true, features = ["process", "signal"] }
 signal-hook = { workspace = true, features = ["iterator", "extended-siginfo"] }
-anyhow = { workspace = true }
 derivative = { workspace = true }
 paste = { workspace = true }
 

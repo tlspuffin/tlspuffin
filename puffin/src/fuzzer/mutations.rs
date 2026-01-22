@@ -24,7 +24,7 @@ pub struct MutationConfig {
     pub term_constraints: TermConstraints,
     pub with_bit_level: bool,
     pub with_dy: bool,
-    // Focus on one payload at a time for a whole StdMutationalStage
+    /// Focus on one payload at a time for a whole StdMutationalStage
     pub with_focus: bool,
 }
 
@@ -36,20 +36,29 @@ impl Default for MutationConfig {
             max_trace_length: 15,
             min_trace_length: 2,
             term_constraints: TermConstraints::default(),
-            with_bit_level: true,
+            with_bit_level: false,
             with_dy: true,
-            with_focus: false,
+            with_focus: true,
         }
     }
 }
 
+impl MutationConfig {
+    pub fn default_with_bit() -> Self {
+        MutationConfig {
+            with_bit_level: true,
+            with_focus: false,
+            ..Self::default()
+        }
+    }
+}
 pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
 // DY mutations
-      RepeatMutator<S>,
-      SkipMutator<S>,
-      ReplaceReuseMutator<S>,
-      ReplaceMatchMutator<S, PT>,
-      RemoveAndLiftMutator<S>,
+    RepeatMutator<S>,
+    SkipMutator<S>,
+    ReplaceReuseMutator<S>,
+    ReplaceMatchMutator<S, PT>,
+    RemoveAndLiftMutator<S>,
     GenerateMutator<'harness, S, PB>,
     SwapMutator<S>,
 );
@@ -147,7 +156,6 @@ where
             if let Some(trace_path_b) = choose_term_path_filtered(
                 trace,
                 |term: &Term<PT>| term.get_type_shape() == term_a.get_type_shape(),
-                // TODO-bitlevel: maybe also check that both terms are .is_symbolic()
                 &self.constraints,
                 rand,
             ) {
@@ -221,19 +229,21 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        let filter = |term: &Term<PT>| match &term.term {
-            DYTerm::Variable(_) => false,
-            DYTerm::Application(_, subterms) =>
-            // TODO-bitlevel: maybe add: term.is_symbolic() &&
-            {
-                subterms
-                    .find_subterm(|subterm| match &subterm.term {
-                        DYTerm::Variable(_) => false,
-                        DYTerm::Application(_, grand_subterms) => {
-                            grand_subterms.find_subterm_same_shape(subterm).is_some()
-                        }
-                    })
-                    .is_some()
+        let filter = |term: &Term<PT>| {
+            term.is_symbolic() && // exclude terms with payloads since we aim to modify its internal structure
+            match &term.term {
+                DYTerm::Variable(_) => false,
+                DYTerm::Application(_, subterms) =>
+                    {
+                        subterms
+                            .find_subterm(|subterm| match &subterm.term {
+                                DYTerm::Variable(_) => false,
+                                DYTerm::Application(_, grand_subterms) => {
+                                    grand_subterms.find_subterm_same_shape(subterm).is_some()
+                                }
+                            })
+                            .is_some()
+                    }
             }
         };
         if let Some(to_mutate) = choose_term_filtered_mut(trace, filter, &self.constraints, rand) {
@@ -305,7 +315,10 @@ where
         with_dy: bool,
     ) -> Self {
         Self {
-            constraints,
+            constraints: TermConstraints {
+                must_be_symbolic: true, // forbid replacing function symbols in terms with payloads
+                ..constraints
+            },
             signature,
             phantom_s: std::marker::PhantomData,
             with_dy,
@@ -331,7 +344,6 @@ where
         if let Some(to_mutate) = choose_term_mut(trace, &self.constraints, rand) {
             log::debug!("[Mutation] ReplaceMatchMutator on term\n{}", to_mutate);
             match &mut to_mutate.term {
-                // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
                 DYTerm::Variable(variable) => {
                     if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
                         |(shape, _)| variable.typ == shape.return_type && shape.is_constant(),
@@ -423,6 +435,11 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
+        let (trace_nb_payloads, nb_terms) = if self.with_bit {
+            (trace.all_payloads().len(), trace.steps.len())
+        } else {
+            (0, 0)
+        };
         if let Some(replacement) = choose_term(trace, &self.constraints, rand).cloned() {
             if let Some(to_replace) = choose_term_filtered_mut(
                 trace,
@@ -430,6 +447,17 @@ where
                 &self.constraints,
                 rand,
             ) {
+                if self.with_bit {
+                    let nb_payloads = trace_nb_payloads + replacement.all_payloads().len()
+                        - to_replace.all_payloads().len();
+                    let no_more_new_payloads = nb_payloads / std::cmp::max(1, nb_terms)
+                        > self.constraints.threshold_max_payloads_per_term;
+                    if no_more_new_payloads {
+                        log::debug!("[ReplaceReuseMutator] Skipped as the chosen replacement would yield too many payloads.");
+                        log::debug!("       Skipped {}", self.name());
+                        return Ok(MutationResult::Skipped);
+                    }
+                }
                 log::debug!(
                     "[Mutation] Mutate ReplaceReuseMutator on terms\n {} and\n{}",
                     to_replace,
