@@ -174,7 +174,9 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         .expect("[find_unique_match_rec] path_to_search should exist in eval_tree");
 
     // For later debugging
+    #[cfg(any(debug_assertions, feature = "debug"))]
     let eval_root_orig: Vec<u8>;
+    #[cfg(any(debug_assertions, feature = "debug"))]
     let eval_to_search_orig: Vec<u8>;
     #[cfg(any(debug_assertions, feature = "debug"))]
     {
