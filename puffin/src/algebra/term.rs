@@ -116,6 +116,11 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
                             &e
                         );
                         EVAL_ERR_TERMBUG.increment();
+                        #[cfg(any(debug_assertions, feature = "debug"))]
+                        {
+                            // we panic in debug or test mode
+                            panic!("[evaluate_config_wrap] Panic! {}", e);
+                        }
                     }
                     _ => {
                         panic!("[evaluate] downcast error failed! {e:?}");
@@ -352,9 +357,21 @@ impl<PT: ProtocolTypes> Term<PT> {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        let eval = self.evaluate_symbolic(ctx)?;
-        self.add_payload(eval);
-        Ok(())
+        log::debug!("make_payload: about to symbolic evaluate to get eval_0...");
+        let eval_0 = self.evaluate_symbolic(ctx)?; // we compute the original encoding, without payloads!
+        if self.has_payload_to_replace() {
+            // specific case: we will directly put the evaluation (with existing payloads in
+            // payload.payload)
+            log::debug!(
+                "make_payload: self has payload to replace, evaluate the term to get payload"
+            );
+            let eval = self.evaluate(ctx)?; // we compute the original encoding, without payloads!
+            self.add_payload_with_new(eval_0, eval, None);
+            Ok(())
+        } else {
+            self.add_payload(eval_0);
+            Ok(())
+        }
     }
 
     /// Return all payloads contains in a term, even under opaque terms.
