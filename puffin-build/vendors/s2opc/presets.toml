@@ -1,0 +1,5 @@
+[s2opc]
+sources = { repo = "https://github.com/systerel/S2OPC.git", commit = "S2OPC_Toolkit_1.7.0", version = "1.7.0" }
+builder = { type = "builtin", name = "s2opc" }
+asan = false
+sancov = true

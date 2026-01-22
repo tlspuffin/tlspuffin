@@ -1,5 +1,5 @@
 [open62541]
-sources = { repo = "git@github.com:open62541/open62541.git", branch = "master", version = "1.4.14" }
+sources = { repo = "https://github.com/open62541/open62541.git", branch = "master", version = "1.4.14" }
 builder = { type = "builtin", name = "open62541" }
 asan = true
 sancov = true
