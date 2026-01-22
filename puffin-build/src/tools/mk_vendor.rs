@@ -49,7 +49,7 @@ pub fn main() -> std::process::ExitCode {
             force,
         } => {
             let Some(config) = library::Config::preset(&vendor, &preset) else {
-                log::error!("configuration vendor '{vendor}' and (or) preset '{preset}' not found");
+                log::error!("configuration not found for vendor '{vendor}' and preset '{preset}'");
                 return std::process::ExitCode::FAILURE;
             };
 
