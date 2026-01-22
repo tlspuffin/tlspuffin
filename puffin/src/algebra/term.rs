@@ -359,19 +359,8 @@ impl<PT: ProtocolTypes> Term<PT> {
     {
         log::debug!("make_payload: about to symbolic evaluate to get eval_0...");
         let eval_0 = self.evaluate_symbolic(ctx)?; // we compute the original encoding, without payloads!
-        if self.has_payload_to_replace() {
-            // specific case: we will directly put the evaluation (with existing payloads in
-            // payload.payload)
-            log::debug!(
-                "make_payload: self has payload to replace, evaluate the term to get payload"
-            );
-            let eval = self.evaluate(ctx)?; // we compute the original encoding, without payloads!
-            self.add_payload_with_new(eval_0, eval, None);
-            Ok(())
-        } else {
-            self.add_payload(eval_0);
-            Ok(())
-        }
+        self.add_payload(eval_0);
+        Ok(())
     }
 
     /// Add a payload at the root position, erase payloads in strict sub-terms and make the payload

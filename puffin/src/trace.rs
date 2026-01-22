@@ -966,7 +966,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
 
     /// Remove the steps after (excluding) `after_step`
     pub fn truncate_at_step(&mut self, after_step: usize) {
-        log::error!("Truncating trace at step {after_step}");
+        log::debug!("Truncating trace at step {after_step}");
         self.steps.truncate(after_step);
     }
 
