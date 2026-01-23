@@ -43,10 +43,10 @@ impl Config {
                 .join(vendor.as_ref())
                 .join("presets.toml"),
         )
-        .unwrap();
+        .ok()?;
 
         toml::from_str::<HashMap<String, Config>>(&configs_str)
-            .unwrap()
+            .ok()?
             .get(name.as_ref())
             .cloned()
     }

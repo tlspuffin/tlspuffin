@@ -445,7 +445,7 @@ mod tests {
         let guard = openssl_server(port, TLSVersion::V1_3);
         let trace = seed_session_resumption_dhe_full.build_trace();
         let server = trace.descriptors[0].name;
-        let runner = default_runner_for(PutDescriptor::new(TCP_PUT, guard.build_options()));
+        let runner = default_runner_for_desc(PutDescriptor::new(TCP_PUT, guard.build_options()));
 
         let mut context = runner.execute(trace, &mut 0).unwrap();
 
@@ -458,7 +458,7 @@ mod tests {
     fn test_openssl_seed_client_attacker_full() {
         let port = 44331;
         let guard = openssl_server(port, TLSVersion::V1_3);
-        let runner = default_runner_for(PutDescriptor::new(TCP_PUT, guard.build_options()));
+        let runner = default_runner_for_desc(PutDescriptor::new(TCP_PUT, guard.build_options()));
         let trace = seed_client_attacker_full.build_trace();
         let server = trace.descriptors[0].name;
 

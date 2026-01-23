@@ -101,9 +101,9 @@ define_signature!(
     fn_encrypted_extensions // Just a wrapper, not encrypting per se
     fn_finished
     fn_heartbeat
-    fn_heartbeat_fake_length// TODO: Was [get] but that was an error. TO TEST
+    // fn_heartbeat_fake_length // Now subsumed by bit-level mutations
     fn_hello_request
-    fn_hello_retry_request
+    fn_hello_retry_request [get] // because some compressions get lost
     fn_hello_retry_request_random
     fn_key_update
     fn_key_update_not_requested
@@ -125,10 +125,11 @@ define_signature!(
     fn_hello_retry_extensions_append [list]
     fn_cert_req_extensions_new [list]
     fn_cert_req_extensions_append [list]
+    fn_cert_extensions_make
     fn_cert_extensions_new [list]
     fn_cert_extensions_append [list]
-    fn_new_session_ticket_extensions_new [list]
-    fn_new_session_ticket_extensions_append [list]
+    fn_new_session_ticket_extensions_new
+    fn_new_session_ticket_extensions_append
     fn_server_name_extension
     fn_server_name_server_extension
     fn_status_request_extension
@@ -185,7 +186,7 @@ define_signature!(
     fn_unknown_server_extension
     fn_unknown_hello_retry_extension
     fn_unknown_cert_request_extension
-    fn_new_session_ticket_extensions
+    fn_new_session_ticket_extensions [list]
     fn_unknown_new_session_ticket_extension
     fn_unknown_certificate_extension
     // fields
@@ -217,9 +218,9 @@ define_signature!(
     fn_support_group_extension_make
     fn_support_group_extension_append [list]
     // utils
-    fn_new_flight [list]
+    fn_new_flight
     fn_append_flight [list]
-    fn_new_opaque_flight [list]
+    fn_new_opaque_flight
     fn_append_opaque_flight [list]
     fn_new_transcript
     fn_new_hrr_transcript [opaque]
@@ -252,12 +253,11 @@ define_signature!(
     fn_new_certificate
     fn_new_certificates [list]
     fn_append_certificate [list]
-    fn_new_certificate_entries
-    fn_append_certificate_entry [list]
     fn_named_group_secp256r1
     fn_named_group_secp384r1
     fn_named_group_x25519
     fn_u64_to_u32 [get]
+    fn_u32_to_u16 [get]
     fn_payload_u8
     fn_payload_u16
     fn_payload_u24
@@ -280,16 +280,18 @@ define_signature!(
     fn_eve_cert
     fn_random_ec_cert
     fn_random_ec_key
-    fn_certificate_entry
+    fn_certificate_entry_extensions
     fn_empty_certificate_chain
-    fn_new_certificate_entries [list]
+    fn_new_certificate_entries
+    fn_append_certificate_entries [list]
     fn_certificate_entries_make
     fn_chain_append_certificate_entry [list]
     fn_get_context [get]
     fn_eve_pkcs1_signature
     fn_rsa_sign_client [opaque]
     fn_rsa_sign_server [opaque]
-    fn_ecdsa_sign_client [opaque]
+    fn_ecdsa_sign_client [opaque] [no_det] // fn_ecdsa_sign_client has built-in randomness
+    // TODO: replace this with explicit term
     fn_ecdsa_sign_server [opaque]
     fn_rsa_pss_signature_algorithm
     fn_rsa_pkcs1_signature_algorithm

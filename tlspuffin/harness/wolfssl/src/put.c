@@ -88,10 +88,12 @@ static ClaimKeyType map_keysum_claimkeytype(enum Key_Sum key)
         return CLAIM_KEY_TYPE_X448;
     case DHk:
         return CLAIM_KEY_TYPE_DH;
+#if LIBWOLFSSL_VERSION_HEX >= 0x05001000
     case FALCON_LEVEL1k:
         return CLAIM_KEY_TYPE_UNKNOWN;
     case FALCON_LEVEL5k:
         return CLAIM_KEY_TYPE_UNKNOWN;
+#endif
     default:
         return CLAIM_KEY_TYPE_UNKNOWN;
     }
@@ -529,6 +531,7 @@ wolfssl_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *re
     RESULT_CODE result_code = RESULT_ERROR_OTHER;
     char *reason = get_result_information(agent->ssl,
                                           ret >= 0 ? WOLFSSL_SUCCESS : WOLFSSL_FAILURE,
+                                          // WOLFSSL_SUCCESS,
                                           &result_code);
     RESULT result = PUFFIN.make_result(result_code, reason);
     free(reason);

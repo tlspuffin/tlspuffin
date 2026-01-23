@@ -1,23 +1,25 @@
 use core::time::Duration;
 use std::fmt;
 use std::marker::PhantomData;
-use std::path::PathBuf;
 
 use libafl::corpus::ondisk::OnDiskMetadataFormat;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
-use log::LevelFilter;
 use log4rs::Handle;
 
 use super::harness;
+use crate::fuzzer::bit_mutations::{
+    bit_mutations_dy, havoc_mutations_dy, MakeMessage, ReadMessage,
+};
+pub(crate) use crate::fuzzer::config::FuzzerConfig;
+use crate::fuzzer::config::{MIN_BIT_CORPUS, MIN_BIT_EXECS};
 use crate::fuzzer::feedback::MinimizingFeedback;
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
-use crate::fuzzer::stages::PuffinMutationalStage;
+use crate::fuzzer::stages::{FocusScheduledMutator, PuffinMutationalStage};
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
 use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
-use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
 use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 
@@ -27,70 +29,6 @@ const EDGES_OBSERVER_NAME: &str = "edges_observer";
 type ConcreteExecutor<'harness, H, OT, S> = TimeoutExecutor<InProcessExecutor<'harness, H, OT, S>>;
 
 type ConcreteState<C, R, SC, I> = StdState<I, C, R, SC>;
-
-#[derive(Clone, Debug)]
-pub struct FuzzerConfig {
-    pub initial_corpus_dir: PathBuf,
-    pub static_seed: Option<u64>,
-    pub max_iters: Option<u64>,
-    pub core_definition: String,
-    pub stats_file: PathBuf,
-    pub corpus_dir: PathBuf,
-    pub objective_dir: PathBuf,
-    pub broker_port: u16,
-    pub minimizer: bool, // FIXME: support this property
-    pub mutation_stage_config: MutationStageConfig,
-    pub mutation_config: MutationConfig,
-    pub tui: bool,
-    pub no_launcher: bool,
-    pub log_folder: PathBuf,
-    pub is_experiment: bool,
-    pub verbosity: LevelFilter, // level for the client logging
-}
-
-impl Default for FuzzerConfig {
-    fn default() -> Self {
-        Self {
-            initial_corpus_dir: PathBuf::from("corpus"),
-            static_seed: None,
-            max_iters: None,
-            core_definition: "1".to_string(),
-            stats_file: PathBuf::from("stats.json"),
-            corpus_dir: PathBuf::from("corpus"),
-            objective_dir: PathBuf::from("objective_corpus"),
-            broker_port: 1337,
-            minimizer: false,
-            tui: false,
-            no_launcher: false,
-            log_folder: PathBuf::from("logs"),
-            is_experiment: false,
-            verbosity: LevelFilter::Info, // default verbosity
-            mutation_stage_config: Default::default(),
-            mutation_config: Default::default(),
-        }
-    }
-}
-#[derive(Clone, Copy, Debug)]
-pub struct MutationStageConfig {
-    /// How many iterations each stage gets, as an upper bound
-    /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
-    pub max_iterations_per_stage: u64,
-    pub max_mutations_pow_per_iteration: u64,
-    // Whether to truncate the input after mutations, prior to adding it to the corpus
-    pub with_truncation: bool,
-}
-
-impl Default for MutationStageConfig {
-    //  TODO:EVAL: evaluate modifications of this config
-    fn default() -> Self {
-        Self {
-            max_iterations_per_stage: 128,
-            max_mutations_pow_per_iteration: 7,
-            with_truncation: true,
-            // Default for StdMutationalStage and StdMutationalStage (=HavocScheduledMutator)
-        }
-    }
-}
 
 struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PT>
 where
@@ -225,21 +163,50 @@ where
             ..
         } = self.config;
 
+        /*
+        Standard AFL-like configuration:
+        A: Main mutator with StdScheduledMutator
+            1. Compute the number `im` of iterations of stacked mutations: 1 << (1 + rand(0 <= r <= 7))
+            2. For each time (0..im) : Apply randomly a mutation from the given list (here havoc)
+          ==> let mutator = StdScheduledMutator::new(havoc_mutations());
+        B: Main mutational stage with StdMutationalStage:
+            1. Take the scheduled input from the corpus
+            2. Pick a random iterations is between 1 and 128 (default)
+            3. For each 0..is: clone input, mutate using mutator, execute
+          ==> let mut stages = tuple_list!(StdMutationalStage::new(mutator));
+        C: We provide a list of stages: all of them are run one after the other, on the same scheduled testcase though.
+        Note: We might want to add more stages in the future, in particular https://docs.rs/libafl/0.15.0/libafl/stages/tmin/struct.StdTMinMutationalStage.html; see https://docs.rs/libafl/0.15.0/libafl/stages/index.html#modules
+        ------------
+        We adapt this to our specific setup:
+           ==> let mut stages = tuple_list!(stage_dy, stage_bit);
+        where:
+         - stage_dy is a StdScheduledMutator stage over DY mutations, enabled when DY mutations are
+         - stage_bit is a StdScheduledMutator with only 1 run stage over bit-level mutations, enabled
+         when bit mutations are enabled and when sufficiently many executions and corpus testcases have been done/found
+
+         We refine this initial design below with the addition of a Focused stage where the payload
+         on which we'll apply HAVOC mutations is first randomly chosen for the whole mutational stage.
+        */
+
         // ==== DY mutational stage
+        let mutation_config_dy = MutationConfig {
+            with_focus: false,
+            ..mutation_config
+        };
         let mutator_dy = StdScheduledMutator::new(dy_mutations(
-            mutation_config,
+            mutation_config_dy,
             <PT>::signature(),
             put_registry,
         ));
         // Always run DY mutations (if enabled)
         let cb_dy =
             |_: &mut _, _: &mut _, _: &mut _, _: &mut _, _idx: CorpusId| -> Result<bool, Error> {
-                if mutation_config.with_dy {
+                return if mutation_config.with_dy {
                     log::debug!("[*] DY StdMutationalStage");
-                    return Ok(true);
+                    Ok(true)
                 } else {
-                    return Ok(false);
-                }
+                    Ok(false)
+                };
             };
         let stage_dy = IfStage::new(
             cb_dy,
@@ -249,6 +216,71 @@ where
             )),
         );
 
+        // ==== Bit-level mutational stage
+        let mutation_config_bit = MutationConfig {
+            with_focus: false,
+            ..mutation_config
+        };
+        let mutator_bit = StdScheduledMutator::new(bit_mutations_dy::<
+            StdState<Trace<PT>, C, R, SC>,
+            PB,
+        >(mutation_config_bit, put_registry));
+        // Run bit-level muts. if bit-level enabled + already sufficiently advanced (to save a bit
+        // of time)
+        let cb_bit_level = |_: &mut _,
+                            _: &mut _,
+                            state: &mut ConcreteState<C, R, SC, Trace<PT>>,
+                            _: &mut _,
+                            _idx: CorpusId|
+         -> Result<bool, Error> {
+            if !mutation_config.with_bit_level {
+                return Ok(false);
+            }
+            // Return false if the campaign is not advanced enough (per client/core), except if no
+            // DY
+            if !mutation_config.with_dy
+                || (*state.executions() > MIN_BIT_EXECS && state.corpus().count() > MIN_BIT_CORPUS)
+            {
+                log::debug!("[*] BIT StdMutationalStage");
+                return Ok(true);
+            } else {
+                return Ok(false);
+            }
+        };
+        let mutation_config_focus = mutation_config; // focus is already sets to the wanted value
+        let mutator_bit_focus = FocusScheduledMutator::new(
+            tuple_list!(MakeMessage::new(mutation_config_focus, put_registry)),
+            havoc_mutations_dy::<StdState<Trace<PT>, C, R, SC>>(mutation_config_focus),
+            tuple_list!(ReadMessage::new(mutation_config_focus, put_registry)),
+        );
+        let cb_focus_bit_level = |_: &mut _,
+                                  _: &mut _,
+                                  _: &mut ConcreteState<C, R, SC, Trace<PT>>,
+                                  _: &mut _,
+                                  _idx: CorpusId|
+         -> Result<bool, Error> {
+            if !mutation_config.with_focus {
+                return Ok(false);
+            }
+            log::debug!("[*] BIT FocusScheduledMutator");
+            return Ok(true);
+        };
+        let stage_bit = IfStage::new(
+            cb_bit_level,
+            tuple_list!(
+                PuffinMutationalStage::new(
+                    mutator_bit,
+                    self.config.mutation_stage_config.max_iterations_per_stage
+                ), // Old-style HAVOC stage
+                IfStage::new(
+                    cb_focus_bit_level,
+                    tuple_list!(PuffinMutationalStage::new(
+                        mutator_bit_focus,
+                        self.config.mutation_stage_config.max_iterations_per_stage
+                    ),)
+                ),
+            ), // Focus stage, first MakeMessage, then HAVOC, then ReadMessage
+        );
         // A stage that only enables in introspection mode and executes each testcase in corpus
         // prior to executing other stages on it
         let stage_test_input = ClosureStage::new(
@@ -309,7 +341,7 @@ where
         );
 
         // ==== All stages put together
-        let mut stages = tuple_list!(stage_test_input, stage_dy, StatsStage::new());
+        let mut stages = tuple_list!(stage_test_input, stage_dy, stage_bit, StatsStage::new());
 
         let mut fuzzer: StdFuzzer<CS, F, OF, OT> =
             StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);
@@ -527,7 +559,6 @@ where
 /// Starts the fuzzing loop
 pub fn start<'harness, PB>(
     put_registry: &'harness PutRegistry<PB>,
-    put: PutDescriptor,
     config: FuzzerConfig,
     log_handle: Handle,
 ) -> Result<(), Error>
@@ -570,7 +601,7 @@ where
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder
-            .with_initial_inputs(PB::create_corpus(put.clone()))
+            .with_initial_inputs(PB::create_corpus(put_registry.default_put().clone()))
             .with_rand(StdRand::new())
             .with_corpus(
                 //InMemoryCorpus::new(),

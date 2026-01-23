@@ -13,16 +13,18 @@ use crate::trace::Trace;
 pub mod harness;
 mod libafl_setup;
 pub mod sanitizer;
-mod stages;
+pub mod stages;
 mod stats_monitor;
 pub mod stats_stage;
 pub mod term_zoo;
 // Public for benchmarks
+pub mod bit_mutations;
+pub mod config;
 pub mod feedback;
 pub mod mutations;
 pub mod utils;
 
-pub use libafl_setup::{start, FuzzerConfig};
+pub use libafl_setup::start;
 
 // LibAFL support
 impl<PT: ProtocolTypes> Input for Trace<PT> {

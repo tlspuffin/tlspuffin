@@ -106,6 +106,12 @@ pub fn fn_cert_extensions_append(
     Ok(new_extensions)
 }
 
+pub fn fn_cert_extensions_make(
+    extensions: &Vec<CertificateExtension>,
+) -> Result<CertificateExtensions, FnError> {
+    Ok(CertificateExtensions(extensions.clone()))
+}
+
 pub fn fn_new_session_ticket_extensions_new() -> Result<Vec<NewSessionTicketExtension>, FnError> {
     Ok(vec![])
 }
@@ -429,17 +435,17 @@ pub fn fn_preshared_keys_extension_empty_binder(
     )))
 }
 
-pub fn fn_preshared_keys_server_extension(identities: &u64) -> Result<ServerExtension, FnError> {
-    Ok(ServerExtension::PresharedKey(*identities as u16))
+pub fn fn_preshared_keys_server_extension(identities: &u16) -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::PresharedKey(*identities))
 }
 /// EarlyData => 0x002a,
 pub fn fn_early_data_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::EarlyData)
 }
 pub fn fn_early_data_new_session_ticket_extension(
-    early_data: &u64,
+    early_data: &u32,
 ) -> Result<NewSessionTicketExtension, FnError> {
-    Ok(NewSessionTicketExtension::EarlyData(*early_data as u32))
+    Ok(NewSessionTicketExtension::EarlyData(*early_data))
 }
 pub fn fn_early_data_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::EarlyData)
@@ -538,11 +544,11 @@ pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnErro
 pub fn fn_key_share_deterministic_extension(
     group: &NamedGroup,
 ) -> Result<ClientExtension, FnError> {
-    fn_key_share_extension(&PayloadU16::new(deterministic_key_share(group)?), group)
+    fn_key_share_extension(group, &PayloadU16::new(deterministic_key_share(group)?))
 }
 pub fn fn_key_share_extension(
-    key_share: &PayloadU16,
     group: &NamedGroup,
+    key_share: &PayloadU16,
 ) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::KeyShare(KeyShareEntries(vec![
         KeyShareEntry {
@@ -554,11 +560,11 @@ pub fn fn_key_share_extension(
 pub fn fn_key_share_deterministic_server_extension(
     group: &NamedGroup,
 ) -> Result<ServerExtension, FnError> {
-    fn_key_share_server_extension(&PayloadU16::new(deterministic_key_share(group)?), group)
+    fn_key_share_server_extension(group, &PayloadU16::new(deterministic_key_share(group)?))
 }
 pub fn fn_key_share_server_extension(
-    key_share: &PayloadU16,
     group: &NamedGroup,
+    key_share: &PayloadU16,
 ) -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::KeyShare(KeyShareEntry {
         group: *group,
@@ -636,41 +642,41 @@ pub fn fn_transport_parameters_draft_server_extension(
 pub fn fn_unknown_client_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
-        payload: Payload::new([42; 7000]),
+        payload: Payload::new([42; 10]),
     }))
 }
 
 pub fn fn_unknown_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
-        payload: Payload::new([42; 7000]),
+        payload: Payload::new([42; 10]),
     }))
 }
 
 pub fn fn_unknown_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
     Ok(HelloRetryExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
-        payload: Payload::new([42; 7000]),
+        payload: Payload::new([42; 10]),
     }))
 }
 
 pub fn fn_unknown_cert_request_extension() -> Result<CertReqExtension, FnError> {
     Ok(CertReqExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
-        payload: Payload::new([42; 7000]),
+        payload: Payload::new([42; 10]),
     }))
 }
 
 pub fn fn_unknown_new_session_ticket_extension() -> Result<NewSessionTicketExtension, FnError> {
     Ok(NewSessionTicketExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
-        payload: Payload::new([42; 7000]),
+        payload: Payload::new([42; 10]),
     }))
 }
 
 pub fn fn_unknown_certificate_extension() -> Result<CertificateExtension, FnError> {
     Ok(CertificateExtension::Unknown(UnknownExtension {
         typ: ExtensionType::Unknown(0xFFFF),
-        payload: Payload::new([42; 7000]),
+        payload: Payload::new([42; 10]),
     }))
 }
