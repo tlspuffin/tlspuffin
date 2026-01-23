@@ -9,6 +9,7 @@ cmake_builder(
   CMAKE_FLAGS
     -DENABLE_SAMPLES=OFF
     -DENABLE_TESTING=OFF
+    -DS2OPC_NANO_PROFILE=ON
     -DS2OPC_CLIENTSERVER_ONLY=ON
     -DS2OPC_CRYPTO_MBEDTLS=ON
     -DWITH_ASAN=OFF # Mutually exclusive with source coverage why???
