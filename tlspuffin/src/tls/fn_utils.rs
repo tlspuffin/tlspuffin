@@ -52,17 +52,20 @@ pub fn fn_new_hrr_transcript(original_client_hello: &Message) -> Result<Handshak
     Ok(transcript)
 }
 
+/// Coalesce a `MessageFlight` into a single `OpaqueMessage`
+///
+/// This functions takes a flight of TLS messages and put them into a single TLS Record
 pub fn fn_coalesced_flight(flight: &MessageFlight) -> Result<OpaqueMessage, FnError> {
     let mut payload = Payload::empty();
 
-    if flight.messages.len() == 0 {
+    if flight.messages.is_empty() {
         return Err(FnError::Malformed(
             "Could not coalesce messages from empty flight".into(),
         ));
     }
     let version = flight.messages[0].version;
     let typ = flight.messages[0].payload.content_type();
-    for m in flight.messages.clone() {
+    for m in &flight.messages {
         m.payload.encode(&mut payload.0);
     }
 
@@ -380,6 +383,13 @@ pub fn fn_encrypt_handshake(
     Ok(application_data)
 }
 
+/// Encrypt a handshake record that is already represented as an `OpaqueMessage`.
+///
+/// This differs from [`fn_encrypt_handshake`], which takes a parsed TLS `Message`
+/// and converts it into a `PlainMessage` before encryption. Use this variant when
+/// you already have an opaque TLS handshake record (for example, a coalesced or
+/// pre-encoded handshake flight) and just need to apply the TLS 1.3 handshake
+/// traffic keys for encryption.
 pub fn fn_encrypt_handshake_opaque(
     some_message: &OpaqueMessage,
     server_hello: &HandshakeHash,
@@ -411,7 +421,9 @@ pub fn fn_encrypt_handshake_opaque(
             some_message.clone().into_plain_message().borrow(),
             *sequence,
         )
-        .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt_handshake".to_string()))?;
+        .map_err(|_err| {
+            FnError::Crypto("Failed to encrypt it fn_encrypt_handshake_opaque".to_string())
+        })?;
     Ok(application_data)
 }
 
