@@ -4,4 +4,5 @@
 // #[cfg(open62541)]
 pub mod opcua_sys;
 pub mod open62541;
+pub mod s2opc;
 pub mod tcp;

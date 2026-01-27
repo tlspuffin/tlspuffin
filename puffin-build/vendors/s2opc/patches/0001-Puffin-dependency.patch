@@ -1,0 +1,104 @@
+From 28ef6f9f1337c693d92c82b8b623216643838468 Mon Sep 17 00:00:00 2001
+From: vdh-anssi <vincent.diemunsch@inria.fr>
+Date: Wed, 28 Jan 2026 16:13:32 +0100
+Subject: [PATCH] Puffin dependency
+
+---
+ src/Common/CMakeLists.txt      | 18 +++++++++++++-----
+ src/Common/MbedTLSConfig.cmake | 29 +++++++++++++++++++++++++++++
+ 2 files changed, 42 insertions(+), 5 deletions(-)
+ create mode 100644 src/Common/MbedTLSConfig.cmake
+
+diff --git a/src/Common/CMakeLists.txt b/src/Common/CMakeLists.txt
+index 82ecef3ad..f36ca0a41 100644
+--- a/src/Common/CMakeLists.txt
++++ b/src/Common/CMakeLists.txt
+@@ -11,6 +11,7 @@ endif()
+ 
+ ### Dependencies ###
+ include (CheckTypeSize)
++include (MbedTLSConfig.cmake)
+ 
+ if (S2OPC_CRYPTO_CYCLONE)
+   find_package(CYCLONE_CRYPTO REQUIRED)
+@@ -33,7 +34,10 @@ s2opc_gen_build_info(${CMAKE_CURRENT_SOURCE_DIR}/configuration/sopc_common_build
+ ## Platform dependent source files and library dependencies ##
+ 
+ # Define platform dependent source files and libraries/definitions associated
+-if(UNIX)
++if(PUFFIN)
++  set(THREAD_LIB pthread rt)
++  set(MATH_LIB m)
++elseif(UNIX)
+   set(PLATFORM_DIR linux)
+   set(THREAD_LIB pthread rt)
+   set(MATH_LIB m)
+@@ -56,7 +60,11 @@ elseif(S2OPC_CRYPTO_MBEDTLS)
+ endif()
+ list(APPEND S2OPC_COMMON_PUBLIC_LINK_LIBRARIES ${MATH_LIB} ${THREAD_LIB} ${SOCK_LIB})
+ 
+-file(GLOB PLATFORM_SRCS "helpers_platform_dep/*.c" "helpers_platform_dep/${PLATFORM_DIR}/*.c")
++if(PUFFIN)
++  file(GLOB PLATFORM_SRCS "helpers_platform_dep/*.c")
++else()
++  file(GLOB PLATFORM_SRCS "helpers_platform_dep/*.c" "helpers_platform_dep/${PLATFORM_DIR}/*.c")
++endif()
+ 
+ # Set specialized compilation flags for platform dependent source files
+ if(UNIX)
+@@ -125,13 +133,13 @@ target_link_libraries(s2opc_common PUBLIC ${S2OPC_LINKER_FLAGS} ${S2OPC_LINK_LIB
+ 
+ target_include_directories(s2opc_common
+   PUBLIC
+-  "$<BUILD_INTERFACE:${S2OPC_COMMON_PUBLIC_INCLUDES}>" # when building (quotes needed to interpret list correclty)
++  "$<BUILD_INTERFACE:${S2OPC_COMMON_PUBLIC_INCLUDES}>" # when building (quotes needed to interpret list correctly)
+   $<INSTALL_INTERFACE:include/s2opc/common> # when installed
+   PRIVATE ${S2OPC_COMMON_PRIVATE_INCLUDES})
+ 
+ # Needed if we want to use the objects in a shared library
+-set_target_properties(s2opc_common PROPERTIES POSITION_INDEPENDENT_CODE ON)
+-set_target_properties(s2opc_common PROPERTIES INTERFACE_POSITION_INDEPENDENT_CODE ON)
++set_target_properties(s2opc_common PROPERTIES POSITION_INDEPENDENT_CODE OFF)
++set_target_properties(s2opc_common PROPERTIES INTERFACE_POSITION_INDEPENDENT_CODE OFF)
+ 
+ ### Installation and export of S2OPC common library ###
+ foreach(dir ${S2OPC_COMMON_PUBLIC_INCLUDES})
+diff --git a/src/Common/MbedTLSConfig.cmake b/src/Common/MbedTLSConfig.cmake
+new file mode 100644
+index 000000000..99b372960
+--- /dev/null
++++ b/src/Common/MbedTLSConfig.cmake
+@@ -0,0 +1,29 @@
++include(FetchContent)
++
++set(MBEDTLS_BUILD_TESTS OFF CACHE BOOL "" FORCE)
++set(MBEDTLS_BUILD_PROGRAMS OFF CACHE BOOL "" FORCE)
++set(MBEDTLS_TLS1_3 ON CACHE BOOL "" FORCE)
++
++FetchContent_Declare(
++  MbedTLS
++  GIT_REPOSITORY https://github.com/Mbed-TLS/mbedtls.git
++  GIT_TAG v3.6.5
++  )
++
++FetchContent_MakeAvailable(MbedTLS)
++add_custom_target(MBEDTLS)
++
++set(MBEDTLS_INCLUDE_DIR "${mbedtls_SOURCE_DIR}/include")
++set(MBEDTLS_LIBRARY "${mbedtls_SOURCE_DIR}/library")
++set(MBEDX509_LIBRARY "${mbedtls_SOURCE_DIR}/library")
++set(MBEDCRYPTO_LIBRARY "${mbedtls_SOURCE_DIR}/library")
++
++# Export MbedTLS targets
++install(
++  TARGETS mbedtls mbedx509 mbedcrypto everest p256m
++  EXPORT s2opc_common-export
++  LIBRARY DESTINATION lib
++  ARCHIVE DESTINATION lib
++  RUNTIME DESTINATION lib
++  PUBLIC_HEADER DESTINATION include/s2opc/common
++)
+\ No newline at end of file
+-- 
+2.51.0
+

@@ -137,10 +137,7 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
                 u16::from_str_radix(port_arg, 10).expect("Invalid port number")
             } else {
                 /* Only for --put tcp */
-                match application.protocol_config.kind {
-                    AgentType::Server => 4840,
-                    AgentType::Client => 4841,
-                }
+                4840
             };
 
         // 1. Start the OPC UA Server:
