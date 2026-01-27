@@ -310,8 +310,6 @@ bool open62541_is_state_successful(AGENT agent) {
 };
 
 
-#define RX_BUFFER_MAX_SIZE (2u << 16)
-
 RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written){
     _log(PUFFIN.trace,"Add inbound ...");
     UA_PuffinConnectionManager *pcm = agent->connexion_manager;
@@ -319,7 +317,7 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
     if (!pcm->connectionId) return PUFFIN.make_result(RESULT_OK, "Puffin Connection unavailable.");
 
     /* Fills the rxBuffer */
-    if (length > RX_BUFFER_MAX_SIZE) {
+    if (length > pcm->rxBuffer.length) {
         return PUFFIN.make_result(RESULT_ERROR_OTHER, "rxBuffer is too small!");
     }
     memcpy(pcm->rxBuffer.data, bytes, length);
