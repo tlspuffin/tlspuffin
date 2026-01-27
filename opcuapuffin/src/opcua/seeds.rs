@@ -26,7 +26,7 @@ pub fn create_corpus(
         // (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel"),
         // (seed_c_server_open_unsecure_channel(AgentName::first()), "seed_c_server_open_unsecure_channel"),
         (seed_d_client_simple_request(AgentName::first()), "seed_d_client_simple_request"),
-        (seed_e_client_reopen(AgentName::first()), "seed_e_client_reopen"),
+        (seed_e_client_reopen_reactivate(AgentName::first()), "seed_e_client_reopen_reactivate"),
     ]
 }
 
@@ -918,7 +918,7 @@ pub fn seed_d_client_simple_request (
 }
 
 
-pub fn seed_e_client_reopen (
+pub fn seed_e_client_reopen_reactivate (
     server: AgentName,
 ) -> Trace<OpcuaProtocolTypes> {
     let open_request = term! {
@@ -1017,18 +1017,49 @@ pub fn seed_e_client_reopen (
             ))
         )
     };
+    let activate_certificate = term! {
+        fn_activate_request(
+            (fn_request_header(
+                ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
+                fn_seq_5
+            )),
+            fn_basic256sha256,
+            (fn_sign(
+                (fn_signature_data(
+                    fn_bob_cert,
+                    ((server, 0)[Some(OpcuaQueryMatcher::ActivateSessionResponse)]/ByteString) // S_nonce!
+                )),
+                fn_basic256sha256,
+                fn_mallory_cert,
+                fn_mallory_sk
+            )),
+            (fn_user_cert(
+              ((server, 0)[Some(OpcuaQueryMatcher::PolicyIdCertificate)]/UAString), // PolicyId!
+              fn_mallory_cert
+            )),
+            (fn_sign(
+                (fn_signature_data(
+                    fn_bob_cert,
+                    ((server, 0)[Some(OpcuaQueryMatcher::ActivateSessionResponse)]/ByteString) // S_nonce!
+                )),
+                fn_basic256sha256,
+                fn_mallory_cert,
+                fn_mallory_sk
+            ))
+        )
+    };
     let close_session = term! {
         fn_close_request(
             (fn_request_header(
                 ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
-                fn_seq_5))
+                fn_seq_6))
         )
     };
     let close_channel = term! {
         fn_client_close(
             (fn_request_header(
                 ((server, 3)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/NodeId), // SA_Token!
-                fn_seq_6))
+                fn_seq_7))
         )
     };
     Trace {
@@ -1315,6 +1346,7 @@ pub fn seed_e_client_reopen (
                     }
                 }),
             },
+            /* Reactivate session */
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
@@ -1325,7 +1357,7 @@ pub fn seed_e_client_reopen (
                                 ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                             (fn_service(
                                 (fn_sequence_header(fn_seq_5, fn_seq_5)),
-                                (@close_session)
+                                (@activate_certificate)
                             ))
                         )),
                         (fn_body(
@@ -1339,7 +1371,7 @@ pub fn seed_e_client_reopen (
                                 ))
                             )),
                             (fn_sequence_header(fn_seq_5, fn_seq_5)),
-                            (@close_session),
+                            (@activate_certificate),
                             (fn_mac(
                                 (fn_data_to_mac(
                                     (fn_msg_header(
@@ -1348,7 +1380,7 @@ pub fn seed_e_client_reopen (
                                             ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                                         (fn_service(
                                             (fn_sequence_header(fn_seq_5, fn_seq_5)),
-                                            (@close_session)
+                                            (@activate_certificate)
                                         ))
                                     )),
                                     (fn_get_channel_token(
@@ -1362,6 +1394,64 @@ pub fn seed_e_client_reopen (
                                     )),
                                     (fn_service(
                                         (fn_sequence_header(fn_seq_5, fn_seq_5)),
+                                        (@activate_certificate)
+                                    ))
+                                )),
+                                fn_basic256sha256,
+                                (@hmac_key_2)
+                            ))
+                        ))
+                    )
+                    }
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_message (
+                        (fn_msg_header(
+                            fn_basic256sha256,
+                            (fn_header(fn_final,
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
+                            (fn_service(
+                                (fn_sequence_header(fn_seq_6, fn_seq_6)),
+                                (@close_session)
+                            ))
+                        )),
+                        (fn_body(
+                            (fn_get_channel_token(
+                                (fn_decrypted_body(
+                                    (fn_asym_decrypt(
+                                        fn_basic256sha256,
+                                        ((server, 2)[None]/EncryptedBody),
+                                        fn_mallory_sk)),
+                                    fn_mallory_sk
+                                ))
+                            )),
+                            (fn_sequence_header(fn_seq_6, fn_seq_6)),
+                            (@close_session),
+                            (fn_mac(
+                                (fn_data_to_mac(
+                                    (fn_msg_header(
+                                        fn_basic256sha256,
+                                        (fn_header(fn_final,
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
+                                        (fn_service(
+                                            (fn_sequence_header(fn_seq_6, fn_seq_6)),
+                                            (@close_session)
+                                        ))
+                                    )),
+                                    (fn_get_channel_token(
+                                        (fn_decrypted_body(
+                                            (fn_asym_decrypt(
+                                                fn_basic256sha256,
+                                                ((server, 2)[None]/EncryptedBody),
+                                                fn_mallory_sk)),
+                                            fn_mallory_sk
+                                        ))
+                                    )),
+                                    (fn_service(
+                                        (fn_sequence_header(fn_seq_6, fn_seq_6)),
                                         (@close_session)
                                     ))
                                 )),
@@ -1382,7 +1472,7 @@ pub fn seed_e_client_reopen (
                             (fn_header(fn_close,
                                 ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                             (fn_service(
-                                (fn_sequence_header(fn_seq_6, fn_seq_6)),
+                                (fn_sequence_header(fn_seq_7, fn_seq_7)),
                                 (@close_channel)
                             ))
                         )),
@@ -1396,7 +1486,7 @@ pub fn seed_e_client_reopen (
                                     fn_mallory_sk
                                 ))
                             )),
-                            (fn_sequence_header(fn_seq_6, fn_seq_6)),
+                            (fn_sequence_header(fn_seq_7, fn_seq_7)),
                             (@close_channel),
                             (fn_mac(
                                 (fn_data_to_mac(
@@ -1405,7 +1495,7 @@ pub fn seed_e_client_reopen (
                                         (fn_header(fn_close,
                                             ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                                         (fn_service(
-                                            (fn_sequence_header(fn_seq_6, fn_seq_6)),
+                                            (fn_sequence_header(fn_seq_7, fn_seq_7)),
                                             (@close_channel)
                                         ))
                                     )),
@@ -1419,7 +1509,7 @@ pub fn seed_e_client_reopen (
                                         ))
                                     )),
                                     (fn_service(
-                                        (fn_sequence_header(fn_seq_6, fn_seq_6)),
+                                        (fn_sequence_header(fn_seq_7, fn_seq_7)),
                                         (@close_channel)
                                     ))
                                 )),
