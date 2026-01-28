@@ -192,7 +192,8 @@ impl<PB: ProtocolBehavior> Stream<PB> for Agent<PB> {
 
     fn take_message_from_outbound(
         &mut self,
-    ) -> Result<Option<PB::OpaqueProtocolMessageFlight>, Error> {
-        self.put.take_message_from_outbound()
+        output_flight: &mut Option<PB::OpaqueProtocolMessageFlight>,
+    ) -> Result<(), Error> {
+        self.put.take_message_from_outbound(output_flight)
     }
 }

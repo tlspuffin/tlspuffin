@@ -2353,6 +2353,8 @@ pub fn create_corpus(
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
+    use puffin::put::{PutDescriptor, PutOptions};
+    use puffin::trace::Query;
 
     use super::*;
     #[allow(unused_imports)]
@@ -2914,5 +2916,63 @@ pub mod tests {
             let opaque_message = OpaqueMessage::read(&mut Reader::init(out.as_slice())).unwrap();
             create_message(opaque_message);
         }
+    }
+
+    /// Check if Messages sent at a failing step are captured
+    #[cfg(not(feature = "wolfssl430"))]
+    #[apply(test_puts, filter = all(tls13))]
+    fn test_trigger_alert(put: &str) {
+        // sending an incorrect message
+        let trace = Trace {
+            prior_traces: vec![],
+            descriptors: vec![AgentDescriptor::from_config(
+                AgentName::first(),
+                TLSDescriptorConfig {
+                    tls_version: TLSVersion::V1_3,
+                    typ: AgentType::Server,
+                    ..TLSDescriptorConfig::default()
+                },
+            )],
+            steps: vec![Step {
+                agent: AgentName::first(),
+                action: Action::Input(input_action! { term! {
+                    // Broken ClientHello
+                    fn_client_hello(
+                        fn_protocol_version12,
+                        fn_new_random,
+                        fn_new_session_id,
+                        (fn_cipher_suites_make(
+                              fn_new_cipher_suites
+                        )),
+                        fn_compressions,
+                        (fn_client_extensions_make(
+                            fn_client_extensions_new
+                        ))
+                    )
+                    }
+                }),
+            }],
+            ..Default::default()
+        };
+
+        let mut ctx = puffin::trace::TraceContext::new(
+            puffin::trace::Spawner::new(tls_registry()).with_mapping(&[(
+                AgentName::first(),
+                PutDescriptor::new(put, PutOptions::empty()),
+            )]),
+        );
+        let _ = trace.execute(&mut ctx, &mut 0);
+
+        // Try to find an alert message in the knowledges
+        let alert = ctx.find_variable(
+            TypeShape::of::<Message>(),
+            &Query {
+                source: None,
+                matcher: Some(TlsQueryMatcher::Alert),
+                counter: 0,
+            },
+        );
+
+        assert!(alert.is_some());
     }
 }
