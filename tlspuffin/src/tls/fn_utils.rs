@@ -11,7 +11,7 @@ use crate::tls::key_schedule::*;
 use crate::tls::rustls::conn::Side;
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::Certificate;
-use crate::tls::rustls::msgs::base::PayloadU8;
+use crate::tls::rustls::msgs::base::{Payload, PayloadU8};
 use crate::tls::rustls::msgs::enums::{CipherSuite, HandshakeType, NamedGroup};
 use crate::tls::rustls::msgs::handshake::{
     CertificateEntries, CertificateEntry, HandshakeMessagePayload, HandshakePayload, Random,
@@ -52,6 +52,34 @@ pub fn fn_new_hrr_transcript(original_client_hello: &Message) -> Result<Handshak
     Ok(transcript)
 }
 
+/// Coalesce a `MessageFlight` into a single `OpaqueMessage`
+///
+/// This functions takes a flight of TLS messages and put them into a single TLS Record
+/// The type and version of the flight will use the type and version of the first messages included
+/// in the input flight.
+/// The resulting `OpaqueMessage` is not encrypted but is considered opaque as it doesn't contains
+/// only one message but multiple payloads with a common header.
+pub fn fn_coalesced_flight(flight: &MessageFlight) -> Result<OpaqueMessage, FnError> {
+    let mut payload = Payload::empty();
+
+    if flight.messages.is_empty() {
+        return Err(FnError::Malformed(
+            "Could not coalesce messages from empty flight".into(),
+        ));
+    }
+    let version = flight.messages[0].version;
+    let typ = flight.messages[0].payload.content_type();
+    for m in &flight.messages {
+        m.payload.encode(&mut payload.0);
+    }
+
+    Ok(OpaqueMessage {
+        version,
+        typ,
+        payload,
+    })
+}
+
 pub fn fn_new_flight() -> Result<MessageFlight, FnError> {
     Ok(MessageFlight::new())
 }
@@ -86,7 +114,13 @@ pub fn suite_as_supported_suite(suite: &CipherSuite) -> Result<SupportedCipherSu
     }
 }
 
-/// Decrypt a whole flight of handshake messages and return a Vec of decrypted messages
+/// Decrypt encrypted handshake messages from a `MessageFlight` and return a Flight of decrypted
+/// messages.
+///
+/// This functions takes a `MessageFlight` and search for `ApplicationData` containing handshake
+/// related messages. The decrypted messages are put in an output `MessageFlight`. If some encrypted
+/// messages are coalesced messages, they will be split in different decrypted messages in the
+/// resulting `MessageFlight`
 pub fn fn_decrypt_handshake_flight(
     flight: &MessageFlight,
     server_hello_transcript: &HandshakeHash,
@@ -327,6 +361,7 @@ pub fn fn_decrypt_application(
         .map_err(|_err| FnError::Crypto("Failed to create Message from decrypted data".to_string()))
 }
 
+/// Encrypt a single handshake `Message` and return an `OpaqueMessage`
 pub fn fn_encrypt_handshake(
     some_message: &Message,
     server_hello: &HandshakeHash,
@@ -356,6 +391,51 @@ pub fn fn_encrypt_handshake(
     let application_data = encrypter
         .encrypt(PlainMessage::from(some_message.clone()).borrow(), *sequence)
         .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt_handshake".to_string()))?;
+    Ok(application_data)
+}
+
+/// Encrypt a handshake record that is already represented as an `OpaqueMessage`.
+///
+/// This differs from [`fn_encrypt_handshake`], which takes a parsed TLS `Message`
+/// and converts it into an encrypted `OpaqueMessage`.
+///
+/// Use this variant when you already have an opaque TLS handshake record (for
+/// example, a coalesced or pre-encoded handshake flight) and just need to apply
+/// the TLS 1.3 handshake encryption.
+pub fn fn_encrypt_handshake_opaque(
+    some_message: &OpaqueMessage,
+    server_hello: &HandshakeHash,
+    server_key_share: &Option<Vec<u8>>,
+    psk: &Option<Vec<u8>>,
+    group: &NamedGroup,
+    client: &bool,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<OpaqueMessage, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let (key, _) = tls13_handshake_traffic_secret(
+        server_hello,
+        server_key_share,
+        psk,
+        *client,
+        group,
+        client_random,
+        &supported_suite,
+    )?;
+    let encrypter = supported_suite
+        .tls13()
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
+        .derive_encrypter(&key);
+    let application_data = encrypter
+        .encrypt(
+            some_message.clone().into_plain_message().borrow(),
+            *sequence,
+        )
+        .map_err(|_err| {
+            FnError::Crypto("Failed to encrypt it fn_encrypt_handshake_opaque".to_string())
+        })?;
     Ok(application_data)
 }
 
