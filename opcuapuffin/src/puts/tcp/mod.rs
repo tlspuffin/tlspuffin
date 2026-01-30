@@ -23,6 +23,7 @@ use crate::protocol::OpcuaProtocolBehavior;
 
 struct Agent {
     application: AgentDescriptor<ApplicationConfig>,
+    port: u16,
     fuzz_stream: TcpStream,
     _process: Option<OpcuaProcess>,
 }
@@ -31,9 +32,31 @@ impl Agent {}
 
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
-        log::warn!("Add message, {} bytes", message.len());
-        self.fuzz_stream.write_all(message).map_err(|e| log::warn!("TCP: error while trying to send bytes: {}!", e)).ok();
-        self.fuzz_stream.flush().map_err(|e| log::warn!("Error while trying to flush the TCP stream: {}!", e)).ok();
+
+        // Try to send the message. Try to reconnect in case of error.
+        if let Err(e) = self.fuzz_stream.write_all(message) {
+            log::warn!("TCP Error '{}'. Trying to reconnect!", e);
+            if let Ok(new_stream) = TcpStream::connect((Ipv4Addr::LOCALHOST, self.port)) {
+                let _ = new_stream.set_read_timeout(Some(Duration::from_millis(1000)));
+                let _ = new_stream.set_nodelay(true);
+                self.fuzz_stream = new_stream;
+            } else {
+                log::error!("Failed to reconnect to TCP server at localhost:{}", self.port);
+                return
+            }
+            self.fuzz_stream.write_all(message)
+                .map_err(|e| log::warn!("TCP: error while trying to send bytes: {}!", e)).ok();
+        };
+
+        // UA TCP closes the connection if a CLO message is sent
+        const CLOSE_SECURE_CHANNEL_MESSAGE: &[u8] = b"CLO";
+        if &message[0..3] == CLOSE_SECURE_CHANNEL_MESSAGE {
+            log::warn!("Close connection, {} bytes", message.len());
+            let _ = self.fuzz_stream.shutdown(Shutdown::Both);
+        } else {
+            log::warn!("Add message, {} bytes", message.len());
+            self.fuzz_stream.flush().map_err(|e| log::warn!("Error while trying to flush the TCP stream: {}!", e)).ok();
+        }
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
@@ -145,10 +168,10 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
         match application.protocol_config.kind {
             AgentType::Server | AgentType::Client => {
                 let fuzz_stream = TcpStream::connect((host, port))
-                .map_err(|e| {
-                    log::warn!("Failed to connect to TCP server at {}:{}: {}", host, port, e);
-                    Error::IO(e.to_string())
-                })?;
+                    .map_err(|e| {
+                        log::warn!("Failed to connect to TCP server at {}:{}: {}", host, port, e);
+                        Error::IO(e.to_string())
+                    })?;
                 log::warn!("Connected to TCP server at {}:{}", host, port);
 
                 fuzz_stream.set_read_timeout(Some(Duration::from_millis(1000)))
@@ -158,6 +181,7 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
 
                 Ok(Box::new(Agent{
                     application: application.clone(),
+                    port,
                     fuzz_stream,
                     _process: process,
                 }))
@@ -169,7 +193,7 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
 
     fn versions(&self) -> Vec<(String, String)>{
         vec![
-            ("harness".to_string(), "1.0".to_string()),
+            ("harness".to_string(), "1.1".to_string()),
         ]
     }
 
