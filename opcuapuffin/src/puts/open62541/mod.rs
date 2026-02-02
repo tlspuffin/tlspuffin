@@ -203,7 +203,7 @@ impl Factory<OpcuaProtocolBehavior> for Open62541Factory {
             None => "unavailable!".to_string()
         };
         vec![
-            ("harness".to_string(), "1.0".to_string()),
+            ("harness".to_string(), "1.1".to_string()),
             ("library".to_string(), library_version),
         ]
     }

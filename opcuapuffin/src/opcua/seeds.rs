@@ -332,6 +332,11 @@ pub fn seed_c_server_open_unsecure_channel (
                 (fn_response_header(fn_seq_2)) // request id
         )
     };
+    let close_response = term! {
+        fn_server_close(
+                (fn_response_header(fn_seq_3)) // request id
+        )
+    };
 
     Trace {
         prior_traces: vec![],
@@ -405,6 +410,28 @@ pub fn seed_c_server_open_unsecure_channel (
                             (fn_channel_token(fn_seq_1)),
                             (fn_sequence_header(fn_seq_1, fn_seq_2)),
                             (@get_endpoints_response),
+                            fn_no_bytes
+                        ))
+                    )
+                }}),
+            },
+            // We expect a close secure channel from the client!
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                    fn_message(
+                        (fn_msg_header(
+                            fn_security_policy_none,
+                            (fn_header(fn_final, fn_seq_1)),  // channel id 1
+                            (fn_service(
+                                (fn_sequence_header(fn_seq_1, fn_seq_3)),
+                                (@close_response)
+                            ))
+                        )),
+                        (fn_body(
+                            (fn_channel_token(fn_seq_1)),
+                            (fn_sequence_header(fn_seq_1, fn_seq_3)),
+                            (@close_response),
                             fn_no_bytes
                         ))
                     )
