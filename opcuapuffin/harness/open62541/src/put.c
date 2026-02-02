@@ -108,10 +108,9 @@ void open62541_register_claimer(AGENT agent, const CLAIMER_CB *callback) {
 
 AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
 
-    if (descriptor->role == CLIENT)
-    {
+    if (descriptor->role == CLIENT) {
         /* Create the server and set its config */
-        UA_Client *client = UA_Client_new(); /* Registers a null event source ?? Why ?? */
+        UA_Client *client = UA_Client_new();
         UA_ClientConfig *config = UA_Client_getConfig(client);
 
         /* Exchange the logger */
@@ -290,7 +289,7 @@ RESULT open62541_progress(AGENT agent){
     }
     if (agent->role == SERVER) {
         _log(PUFFIN.trace,"Server run ...");
-        //UA_Server_run_iterate((UA_Server*) agent->application, false);
+        UA_Server_run_iterate((UA_Server*) agent->application, false);
         _log(PUFFIN.trace,"Server run RESULT_OK");
         return PUFFIN.make_result(RESULT_OK, "");
     }
@@ -314,7 +313,6 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
     _log(PUFFIN.trace,"Add inbound ...");
     UA_PuffinConnectionManager *pcm = agent->connexion_manager;
     if (!pcm) return PUFFIN.make_result(RESULT_ERROR_OTHER, "Connection Manager unavailable.");
-    if (!pcm->connectionId) return PUFFIN.make_result(RESULT_OK, "Puffin Connection unavailable.");
 
     /* Fills the rxBuffer */
     if (length > pcm->rxBuffer.length) {
@@ -325,9 +323,6 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
 
     /* notify application */
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                 "Harness: Added to connexion %u, a message of size %u, at %p",
-                 pcm->connectionId, *written, pcm->rxBuffer.data);
     TCP_PuffinConnectionCallback(pcm, *written);
 
     _log(PUFFIN.trace,"Add inbound OK");

@@ -133,20 +133,54 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
         (unsigned)conn->rfd.fd, (unsigned)response.length);
 }
 
+static void
+TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event);
+
 void
 TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
+
+    if (!pcm->connectionId) {
+        /* Get the listen connection */
+        UA_FD fd = (UA_FD) 1;
+        TCP_FD *conn = (TCP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
+        if(!conn) {
+            UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                           "TCP\t| Cannot find the listen connection");
+            return;
+        };
+        /* open a new connection */
+        TCP_listenSocketCallback(&pcm->cm, conn, 0);
+    }
+
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
         "TCP %u\t| Received message of size %u in rxBuffer (%lu bytes at %p)",
         (unsigned)pcm->connectionId, length, pcm->rxBuffer.length, pcm->rxBuffer.data);
 
-    /* Callback to the application layer */
     UA_ByteString response = pcm->rxBuffer;
     response.length = length;
+
+    /* Detect an UA TCP CLO message */
+    bool is_close_message = false;
+    if (length > 3) {
+        if (strstr((const char*) response.data, "CLO")) {
+            is_close_message = true;
+        }
+    }
+
+    /* Callback to the application layer */
     pcm->applicationCB(&pcm->cm, pcm->connectionId,
                         pcm->application, &pcm->context,
                         UA_CONNECTIONSTATE_ESTABLISHED,
                         &UA_KEYVALUEMAP_NULL, response);
+
+    if (is_close_message) {
+        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+            "Close connexion %u, %lu bytes", pcm->connectionId, length);
+        //pcm->cm.closeConnection(&pcm->cm, pcm->connectionId);
+        pcm->connectionId = 0;
+    };
+
     return;
 }
 
@@ -281,7 +315,8 @@ TCP_registerListenSocket(UA_PuffinConnectionManager *pcm,
                        UA_CONNECTIONSTATE_ESTABLISHED,
                        &paramMap, UA_BYTESTRING_NULL);
 
-    /* -- Direct call of the TCP_listenSocketCallback -- */
+    /* Direct call of the TCP_listenSocketCallback,
+       to signal the opening of a new connection -- */
     TCP_listenSocketCallback(&pcm->cm, newConn, UA_FDEVENT_IN);
 
     return UA_STATUSCODE_GOOD;

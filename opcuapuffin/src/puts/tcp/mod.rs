@@ -49,7 +49,7 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
         };
 
         // UA TCP closes the connection if a CLO message is sent
-        const CLOSE_SECURE_CHANNEL_MESSAGE: &[u8] = b"CLO";
+        const CLOSE_SECURE_CHANNEL_MESSAGE: &'static [u8; 3] = b"CLO";
         if &message[0..3] == CLOSE_SECURE_CHANNEL_MESSAGE {
             log::warn!("Close connection, {} bytes", message.len());
             let _ = self.fuzz_stream.shutdown(Shutdown::Both);
