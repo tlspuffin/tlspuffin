@@ -161,10 +161,12 @@ TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length) {
     response.length = length;
 
     /* Detect an UA TCP CLO message */
-    bool is_close_message = false;
-    if (length > 3) {
-        if (strstr((const char*) response.data, "CLO")) {
-            is_close_message = true;
+    bool is_close_message = true;
+    const char CLO[3] = "CLO";
+    for (int i = 0; i < 3; i++) {
+        if ((char) response.data[i] != CLO[i]) {
+            is_close_message = false;
+            break;
         }
     }
 
@@ -176,8 +178,7 @@ TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length) {
 
     if (is_close_message) {
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-            "Close connexion %u, %lu bytes", pcm->connectionId, length);
-        //pcm->cm.closeConnection(&pcm->cm, pcm->connectionId);
+            "TCP %u\t| Close connexion, %lu bytes", pcm->connectionId, length);
         pcm->connectionId = 0;
     };
 
