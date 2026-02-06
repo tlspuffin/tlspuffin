@@ -146,7 +146,7 @@ pub fn fn_new_session_ticket_extensions_append(
 /// ServerName => 0x0000,
 pub fn fn_server_name_extension() -> Result<ClientExtension, FnError> {
     let dns_name = "inria.fr";
-    Ok(ClientExtension::ServerName(ServerNameRequest(vec![
+    Ok(ClientExtension::ServerName(ServerNameRequest(vec![  // here
         ServerName {
             typ: ServerNameType::HostName,
             payload: ServerNamePayload::HostName((
@@ -235,12 +235,12 @@ pub fn fn_support_group_extension_append(
 
 // ECPointFormats => 0x000b,
 pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::ECPointFormats(ECPointFormatList(vec![
+    Ok(ClientExtension::ECPointFormats(ECPointFormatList(vec![  // here
         ECPointFormat::Uncompressed,
     ])))
 }
 pub fn fn_ec_point_formats_server_extension() -> Result<ServerExtension, FnError> {
-    Ok(ServerExtension::ECPointFormats(ECPointFormatList(vec![
+    Ok(ServerExtension::ECPointFormats(ECPointFormatList(vec![  // here
         ECPointFormat::Uncompressed,
     ])))
 }
@@ -250,7 +250,7 @@ nyi_fn! {
 /// SignatureAlgorithms => 0x000d,
 pub fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SignatureAlgorithms(
-        SupportedSignatureSchemes(vec![
+        SupportedSignatureSchemes(vec![ // here
             SignatureScheme::RSA_PKCS1_SHA256,
             SignatureScheme::RSA_PSS_SHA256,
         ]),
@@ -258,7 +258,7 @@ pub fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
 }
 pub fn fn_signature_algorithm_cert_req_extension() -> Result<CertReqExtension, FnError> {
     Ok(CertReqExtension::SignatureAlgorithms(
-        SupportedSignatureSchemes(vec![
+        SupportedSignatureSchemes(vec![ // here
             SignatureScheme::RSA_PKCS1_SHA256,
             SignatureScheme::RSA_PSS_SHA256,
         ]),
@@ -496,7 +496,7 @@ pub fn fn_psk_exchange_mode_dhe_ke_extension() -> Result<ClientExtension, FnErro
 }
 pub fn fn_psk_exchange_mode_ke_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::PresharedKeyModes(PSKKeyExchangeModes(
-        vec![PSKKeyExchangeMode::PSK_KE],
+        vec![PSKKeyExchangeMode::PSK_KE],  // here
     )))
 }
 nyi_fn! {
@@ -550,7 +550,7 @@ pub fn fn_key_share_extension(
     group: &NamedGroup,
     key_share: &PayloadU16,
 ) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::KeyShare(KeyShareEntries(vec![
+    Ok(ClientExtension::KeyShare(KeyShareEntries(vec![ // TODO: make list here,
         KeyShareEntry {
             group: *group,
             payload: key_share.clone(),
