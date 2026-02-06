@@ -40,7 +40,17 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_signature_schemes_make(
+                                (fn_signature_schemes_append(
+                                    (fn_signature_schemes_append(
+                                        fn_signature_schemes_new,
+                                        fn_rsa_pkcs1_signature_algorithm
+                                    )),
+                                    fn_rsa_pss_signature_algorithm
+                                ))
+                            ))
+                        ))
                     )),
                     (fn_key_share_extension(
                         (fn_key_share_entries_make(
@@ -224,7 +234,17 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_signature_schemes_make(
+                                (fn_signature_schemes_append(
+                                    (fn_signature_schemes_append(
+                                        fn_signature_schemes_new,
+                                        fn_rsa_pkcs1_signature_algorithm
+                                    )),
+                                    fn_rsa_pss_signature_algorithm
+                                ))
+                            ))
+                        ))
                     )),
                     (fn_key_share_extension(
                         (fn_key_share_entries_make(
@@ -377,7 +397,14 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
                                     ))
                                 ))
                             )),
-                            fn_ec_point_formats_extension
+                            (fn_ec_point_formats_extension(
+                                (fn_ec_point_formats_make(
+                                    (fn_ec_point_formats_append(
+                                        fn_ec_point_formats_new,
+                                        fn_ec_point_format_uncompressed
+                                    ))
+                                ))
+                            ))
                         )),
                         fn_signed_certificate_timestamp_extension
                     )),
@@ -385,7 +412,17 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
                     (fn_renegotiation_info_extension((fn_payload_u8((@client_verify_data)))))
                 )),
                 // Add signature cert extension
-                fn_signature_algorithm_cert_extension
+                (fn_signature_algorithm_cert_extension(
+                    (fn_signature_schemes_make(
+                        (fn_signature_schemes_append(
+                            (fn_signature_schemes_append(
+                                fn_signature_schemes_new,
+                                fn_rsa_pkcs1_signature_algorithm
+                            )),
+                            fn_rsa_pss_signature_algorithm
+                        ))
+                    ))
+                ))
             ))
         )))
     };
@@ -608,7 +645,17 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_signature_schemes_make(
+                                (fn_signature_schemes_append(
+                                    (fn_signature_schemes_append(
+                                        fn_signature_schemes_new,
+                                        fn_rsa_pkcs1_signature_algorithm
+                                    )),
+                                    fn_rsa_pss_signature_algorithm
+                                ))
+                            ))
+                        ))
                     )),
                     (fn_key_share_extension(
                         (fn_key_share_entries_make(
@@ -969,7 +1016,17 @@ pub fn seed_cve_2022_39173(
                                 // CHANGED from:     (fn_support_group_extension(fn_named_group_secp384r1))
                                 // CHANGED from: )),
                                 // ^ lacks of the above makes the server enter a `SERVER_HELLO_RETRY_REQUEST_COMPLETE` state
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_signature_schemes_make(
+                                        (fn_signature_schemes_append(
+                                            (fn_signature_schemes_append(
+                                                fn_signature_schemes_new,
+                                                fn_rsa_pkcs1_signature_algorithm
+                                            )),
+                                            fn_rsa_pss_signature_algorithm
+                                        ))
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
@@ -982,7 +1039,14 @@ pub fn seed_cve_2022_39173(
                         ))
                     ))
                     )),
-                    fn_psk_exchange_mode_dhe_ke_extension
+                    (fn_psk_exchange_modes_extension(
+                        (fn_psk_exchange_modes_make(
+                            (fn_psk_exchange_modes_append(
+                                fn_psk_exchange_modes_new,
+                                fn_psk_exchange_mode_dhe_ke
+                            ))
+                        ))
+                    ))
                 )),
                 // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
                 // must be last in client_hello, and initially empty until filled by fn_fill_binder
@@ -1119,7 +1183,17 @@ pub fn seed_cve_2022_39173_full(
                                 // CHANGED from:     fn_client_extensions_new,
                                 // CHANGED from:     (fn_support_group_extension(fn_named_group_secp384r1))
                                 // CHANGED from: )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_signature_schemes_make(
+                                        (fn_signature_schemes_append(
+                                            (fn_signature_schemes_append(
+                                                fn_signature_schemes_new,
+                                                fn_rsa_pkcs1_signature_algorithm
+                                            )),
+                                            fn_rsa_pss_signature_algorithm
+                                        ))
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
@@ -1132,7 +1206,14 @@ pub fn seed_cve_2022_39173_full(
                         ))
                     ))
                     )),
-                    fn_psk_exchange_mode_dhe_ke_extension
+                    (fn_psk_exchange_modes_extension(
+                        (fn_psk_exchange_modes_make(
+                            (fn_psk_exchange_modes_append(
+                                fn_psk_exchange_modes_new,
+                                fn_psk_exchange_mode_dhe_ke
+                            ))
+                        ))
+                    ))
                 )),
                 // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
                 // must be last in client_hello, and initially empty until filled by fn_fill_binder
@@ -1258,7 +1339,17 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
                                 // CHANGED from:     (fn_support_group_extension(fn_named_group_secp384r1))
                                 // CHANGED from: )),
                                 // ^ lacks of the above makes the server enter a `SERVER_HELLO_RETRY_REQUEST_COMPLETE` state
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_signature_schemes_make(
+                                        (fn_signature_schemes_append(
+                                            (fn_signature_schemes_append(
+                                                fn_signature_schemes_new,
+                                                fn_rsa_pkcs1_signature_algorithm
+                                            )),
+                                            fn_rsa_pss_signature_algorithm
+                                        ))
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
@@ -1271,7 +1362,14 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
                         ))
                     ))
                     )),
-                    fn_psk_exchange_mode_dhe_ke_extension
+                    (fn_psk_exchange_modes_extension(
+                        (fn_psk_exchange_modes_make(
+                            (fn_psk_exchange_modes_append(
+                                fn_psk_exchange_modes_new,
+                                fn_psk_exchange_mode_dhe_ke
+                            ))
+                        ))
+                    ))
                 )),
                 // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
                 // must be last in client_hello, and initially empty until filled by fn_fill_binder

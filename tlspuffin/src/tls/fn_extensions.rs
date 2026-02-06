@@ -144,19 +144,38 @@ pub fn fn_new_session_ticket_extensions_append(
 //
 
 /// ServerName => 0x0000,
-pub fn fn_server_name_extension() -> Result<ClientExtension, FnError> {
+pub fn fn_server_name_entry() -> Result<ServerName, FnError> {
     let dns_name = "inria.fr";
-    Ok(ClientExtension::ServerName(ServerNameRequest(vec![  // here
-        ServerName {
-            typ: ServerNameType::HostName,
-            payload: ServerNamePayload::HostName((
-                PayloadU16(dns_name.to_string().into_bytes()),
-                DnsNameRef::try_from_ascii_str(dns_name)
-                    .map_err(|err| FnError::Codec(err.to_string()))?
-                    .to_owned(),
-            )),
-        },
-    ])))
+    Ok(ServerName {
+        typ: ServerNameType::HostName,
+        payload: ServerNamePayload::HostName((
+            PayloadU16(dns_name.to_string().into_bytes()),
+            DnsNameRef::try_from_ascii_str(dns_name)
+                .map_err(|err| FnError::Codec(err.to_string()))?
+                .to_owned(),
+        )),
+    })
+}
+pub fn fn_server_names_new() -> Result<Vec<ServerName>, FnError> {
+    Ok(vec![])
+}
+pub fn fn_server_names_append(
+    names: &Vec<ServerName>,
+    name: &ServerName,
+) -> Result<Vec<ServerName>, FnError> {
+    let mut new_names = names.clone();
+    new_names.push(name.clone());
+    Ok(new_names)
+}
+pub fn fn_server_names_make(
+    names: &Vec<ServerName>,
+) -> Result<ServerNameRequest, FnError> {
+    Ok(ServerNameRequest(names.clone()))
+}
+pub fn fn_server_name_extension(
+    request: &ServerNameRequest,
+) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::ServerName(request.clone()))
 }
 pub fn fn_server_name_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::ServerNameAck)
@@ -234,35 +253,64 @@ pub fn fn_support_group_extension_append(
 }
 
 // ECPointFormats => 0x000b,
-pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::ECPointFormats(ECPointFormatList(vec![  // here
-        ECPointFormat::Uncompressed,
-    ])))
+pub fn fn_ec_point_format_uncompressed() -> Result<ECPointFormat, FnError> {
+    Ok(ECPointFormat::Uncompressed)
 }
-pub fn fn_ec_point_formats_server_extension() -> Result<ServerExtension, FnError> {
-    Ok(ServerExtension::ECPointFormats(ECPointFormatList(vec![  // here
-        ECPointFormat::Uncompressed,
-    ])))
+pub fn fn_ec_point_formats_new() -> Result<Vec<ECPointFormat>, FnError> {
+    Ok(vec![])
+}
+pub fn fn_ec_point_formats_append(
+    formats: &Vec<ECPointFormat>,
+    format: &ECPointFormat,
+) -> Result<Vec<ECPointFormat>, FnError> {
+    let mut new_formats = formats.clone();
+    new_formats.push(format.clone());
+    Ok(new_formats)
+}
+pub fn fn_ec_point_formats_make(
+    formats: &Vec<ECPointFormat>,
+) -> Result<ECPointFormatList, FnError> {
+    Ok(ECPointFormatList(formats.clone()))
+}
+pub fn fn_ec_point_formats_extension(
+    list: &ECPointFormatList,
+) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::ECPointFormats(list.clone()))
+}
+pub fn fn_ec_point_formats_server_extension(
+    list: &ECPointFormatList,
+) -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::ECPointFormats(list.clone()))
 }
 nyi_fn! {
     /// SRP => 0x000c,
 }
 /// SignatureAlgorithms => 0x000d,
-pub fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::SignatureAlgorithms(
-        SupportedSignatureSchemes(vec![ // here
-            SignatureScheme::RSA_PKCS1_SHA256,
-            SignatureScheme::RSA_PSS_SHA256,
-        ]),
-    ))
+pub fn fn_signature_schemes_new() -> Result<Vec<SignatureScheme>, FnError> {
+    Ok(vec![])
 }
-pub fn fn_signature_algorithm_cert_req_extension() -> Result<CertReqExtension, FnError> {
-    Ok(CertReqExtension::SignatureAlgorithms(
-        SupportedSignatureSchemes(vec![ // here
-            SignatureScheme::RSA_PKCS1_SHA256,
-            SignatureScheme::RSA_PSS_SHA256,
-        ]),
-    ))
+pub fn fn_signature_schemes_append(
+    schemes: &Vec<SignatureScheme>,
+    scheme: &SignatureScheme,
+) -> Result<Vec<SignatureScheme>, FnError> {
+    let mut new_schemes = schemes.clone();
+    new_schemes.push(*scheme);
+    Ok(new_schemes)
+}
+pub fn fn_signature_schemes_make(
+    schemes: &Vec<SignatureScheme>,
+) -> Result<SupportedSignatureSchemes, FnError> {
+    Ok(SupportedSignatureSchemes(schemes.clone()))
+}
+pub fn fn_signature_algorithm_extension(
+    schemes: &SupportedSignatureSchemes,
+) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::SignatureAlgorithms(schemes.clone()))
+}
+pub fn fn_signature_algorithm_cert_req_extension(
+    schemes: &SupportedSignatureSchemes,
+) -> Result<CertReqExtension, FnError> {
+    Ok(CertReqExtension::SignatureAlgorithms(schemes.clone()))
 }
 nyi_fn! {
     /// UseSRTP => 0x000e,
@@ -489,15 +537,32 @@ pub fn fn_cookie_hello_retry_extension(
     Ok(HelloRetryExtension::Cookie(cookie.clone()))
 }
 /// PSKKeyExchangeModes => 0x002d,
-pub fn fn_psk_exchange_mode_dhe_ke_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::PresharedKeyModes(PSKKeyExchangeModes(
-        vec![PSKKeyExchangeMode::PSK_DHE_KE],
-    )))
+pub fn fn_psk_exchange_mode_dhe_ke() -> Result<PSKKeyExchangeMode, FnError> {
+    Ok(PSKKeyExchangeMode::PSK_DHE_KE)
 }
-pub fn fn_psk_exchange_mode_ke_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::PresharedKeyModes(PSKKeyExchangeModes(
-        vec![PSKKeyExchangeMode::PSK_KE],  // here
-    )))
+pub fn fn_psk_exchange_mode_ke() -> Result<PSKKeyExchangeMode, FnError> {
+    Ok(PSKKeyExchangeMode::PSK_KE)
+}
+pub fn fn_psk_exchange_modes_new() -> Result<Vec<PSKKeyExchangeMode>, FnError> {
+    Ok(vec![])
+}
+pub fn fn_psk_exchange_modes_append(
+    modes: &Vec<PSKKeyExchangeMode>,
+    mode: &PSKKeyExchangeMode,
+) -> Result<Vec<PSKKeyExchangeMode>, FnError> {
+    let mut new_modes = modes.clone();
+    new_modes.push(*mode);
+    Ok(new_modes)
+}
+pub fn fn_psk_exchange_modes_make(
+    modes: &Vec<PSKKeyExchangeMode>,
+) -> Result<PSKKeyExchangeModes, FnError> {
+    Ok(PSKKeyExchangeModes(modes.clone()))
+}
+pub fn fn_psk_exchange_modes_extension(
+    modes: &PSKKeyExchangeModes,
+) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::PresharedKeyModes(modes.clone()))
 }
 nyi_fn! {
     /// TicketEarlyDataInfo => 0x002e,
@@ -521,24 +586,10 @@ nyi_fn! {
     /// PostHandshakeAuth => 0x0031,
 }
 /// SignatureAlgorithmsCert => 0x0032,
-pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::SignatureAlgorithmsCert(
-        SupportedSignatureSchemes(vec![
-            SignatureScheme::RSA_PKCS1_SHA1,
-            SignatureScheme::ECDSA_SHA1_Legacy,
-            SignatureScheme::ECDSA_NISTP256_SHA256,
-            SignatureScheme::RSA_PKCS1_SHA384,
-            SignatureScheme::ECDSA_NISTP384_SHA384,
-            SignatureScheme::RSA_PKCS1_SHA512,
-            SignatureScheme::ECDSA_NISTP521_SHA512,
-            SignatureScheme::RSA_PSS_SHA384,
-            SignatureScheme::RSA_PSS_SHA512,
-            SignatureScheme::ED25519,
-            SignatureScheme::ED448,
-            SignatureScheme::RSA_PKCS1_SHA256,
-            SignatureScheme::RSA_PSS_SHA256,
-        ]),
-    ))
+pub fn fn_signature_algorithm_cert_extension(
+    schemes: &SupportedSignatureSchemes,
+) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::SignatureAlgorithmsCert(schemes.clone()))
 }
 /// KeyShare => 0x0033,
 pub fn fn_key_share_entry(

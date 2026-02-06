@@ -17,15 +17,16 @@ use crate::tls::rustls::msgs::ccs::ChangeCipherSpecPayload;
 use crate::tls::rustls::msgs::enums::ContentType::ApplicationData;
 use crate::tls::rustls::msgs::enums::ProtocolVersion::TLSv1_3;
 use crate::tls::rustls::msgs::enums::{
-    AlertDescription, AlertLevel, CipherSuite, Compression, ContentType, HandshakeType, NamedGroup,
-    ProtocolVersion, SignatureScheme,
+    AlertDescription, AlertLevel, CipherSuite, Compression, ContentType, ECPointFormat,
+    HandshakeType, NamedGroup, PSKKeyExchangeMode, ProtocolVersion, SignatureScheme,
 };
 use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension,
     CertificateExtensions, CipherSuites, ClientExtension, ClientExtensions, Compressions,
-    HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions, KeyShareEntry,
-    NewSessionTicketExtension, NewSessionTicketExtensions, PresharedKeyIdentity, Random,
-    ServerExtension, ServerExtensions, SessionID, VecU16OfPayloadU16, VecU16OfPayloadU8,
+    ECPointFormatList, HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions,
+    KeyShareEntry, NewSessionTicketExtension, NewSessionTicketExtensions, PSKKeyExchangeModes,
+    PresharedKeyIdentity, Random, ServerExtension, ServerExtensions, ServerName, ServerNameRequest,
+    SessionID, SupportedSignatureSchemes, VecU16OfPayloadU16, VecU16OfPayloadU8,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 
@@ -421,6 +422,10 @@ impl VecCodecWoSize for CipherSuite {} // u16
 impl VecCodecWoSize for PresharedKeyIdentity {} //u16
 impl VecCodecWoSize for NamedGroup {} //u16
 impl VecCodecWoSize for KeyShareEntry {} //u16
+impl VecCodecWoSize for ECPointFormat {} //u8
+impl VecCodecWoSize for PSKKeyExchangeMode {} //u8
+impl VecCodecWoSize for SignatureScheme {} //u16
+impl VecCodecWoSize for ServerName {} //u16
 
 #[macro_export]
 macro_rules! try_read {
@@ -542,6 +547,17 @@ pub fn try_read_bytes(
         Vec<u8>,
         Option<Vec<u8>>,
         Vec<NamedGroup>,
+        ECPointFormatList,
+        Vec<ECPointFormat>,
+        ECPointFormat,
+        PSKKeyExchangeModes,
+        Vec<PSKKeyExchangeMode>,
+        PSKKeyExchangeMode,
+        SupportedSignatureSchemes,
+        Vec<SignatureScheme>,
+        ServerNameRequest,
+        Vec<ServerName>,
+        ServerName,
         Vec<Vec<u8>>,
         bool,
         NamedGroup /* Option<Vec<Vec<u8>>>,
