@@ -613,7 +613,9 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
               (fn_server_extensions_append(
                   (fn_server_extensions_append(
                       fn_server_extensions_new,
-                      (fn_key_share_deterministic_server_extension((@curve)))
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
                   )),
                   fn_supported_versions13_server_extension
             ))))
@@ -809,7 +811,9 @@ pub fn seed_server_attacker_full_coalesced(client: AgentName) -> Trace<TLSProtoc
               (fn_server_extensions_append(
                   (fn_server_extensions_append(
                       fn_server_extensions_new,
-                      (fn_key_share_deterministic_server_extension((@curve)))
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
                   )),
                   fn_supported_versions13_server_extension
             ))))
@@ -993,7 +997,9 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
               (fn_server_extensions_append(
                   (fn_server_extensions_append(
                       fn_server_extensions_new,
-                      (fn_key_share_deterministic_server_extension((@curve)))
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
                   )),
                   fn_supported_versions13_server_extension
             ))))
@@ -1207,7 +1213,12 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -1378,7 +1389,12 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -1817,7 +1833,12 @@ pub fn seed_session_resumption_dhe(
                             )),
                             fn_supported_versions13_extension
                         )),
-                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                     )),
                     fn_psk_exchange_mode_dhe_ke_extension
                 )),
@@ -1961,7 +1982,12 @@ pub fn seed_session_resumption_ke(
                             )),
                             fn_supported_versions13_extension
                         )),
-                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                        (fn_key_share_extension_make(
+                            (fn_key_share_extension_append(
+                                fn_key_share_extension_new,
+                                (fn_key_share_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
                     )),
                     fn_psk_exchange_mode_ke_extension
                 )),
@@ -2088,7 +2114,12 @@ pub fn _seed_client_attacker_full(
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -2282,7 +2313,12 @@ pub fn _seed_client_attacker_full_precomputation(
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))))
@@ -2493,7 +2529,12 @@ pub fn seed_session_resumption_dhe_full(
                             )),
                             fn_supported_versions13_extension
                         )),
-                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                        (fn_key_share_extension_make(
+                            (fn_key_share_extension_append(
+                                fn_key_share_extension_new,
+                                (fn_key_share_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
                     )),
                     fn_psk_exchange_mode_dhe_ke_extension
                 )),
