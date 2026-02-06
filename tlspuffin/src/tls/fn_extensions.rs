@@ -147,6 +147,7 @@ pub fn fn_new_session_ticket_extensions_append(
 pub fn fn_server_name_extension() -> Result<ClientExtension, FnError> {
     let dns_name = "inria.fr";
     Ok(ClientExtension::ServerName(ServerNameRequest(vec![
+        // here
         ServerName {
             typ: ServerNameType::HostName,
             payload: ServerNamePayload::HostName((
@@ -236,11 +237,13 @@ pub fn fn_support_group_extension_append(
 // ECPointFormats => 0x000b,
 pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::ECPointFormats(ECPointFormatList(vec![
+        // here
         ECPointFormat::Uncompressed,
     ])))
 }
 pub fn fn_ec_point_formats_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::ECPointFormats(ECPointFormatList(vec![
+        // here
         ECPointFormat::Uncompressed,
     ])))
 }
@@ -251,6 +254,7 @@ nyi_fn! {
 pub fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SignatureAlgorithms(
         SupportedSignatureSchemes(vec![
+            // here
             SignatureScheme::RSA_PKCS1_SHA256,
             SignatureScheme::RSA_PSS_SHA256,
         ]),
@@ -259,6 +263,7 @@ pub fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
 pub fn fn_signature_algorithm_cert_req_extension() -> Result<CertReqExtension, FnError> {
     Ok(CertReqExtension::SignatureAlgorithms(
         SupportedSignatureSchemes(vec![
+            // here
             SignatureScheme::RSA_PKCS1_SHA256,
             SignatureScheme::RSA_PSS_SHA256,
         ]),
@@ -502,7 +507,7 @@ pub fn fn_psk_exchange_mode_dhe_ke_extension() -> Result<ClientExtension, FnErro
 }
 pub fn fn_psk_exchange_mode_ke_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::PresharedKeyModes(PSKKeyExchangeModes(
-        vec![PSKKeyExchangeMode::PSK_KE],
+        vec![PSKKeyExchangeMode::PSK_KE], // here
     )))
 }
 nyi_fn! {
@@ -547,36 +552,48 @@ pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnErro
     ))
 }
 /// KeyShare => 0x0033,
-pub fn fn_key_share_deterministic_extension(
-    group: &NamedGroup,
-) -> Result<ClientExtension, FnError> {
-    fn_key_share_extension(group, &PayloadU16::new(deterministic_key_share(group)?))
+
+pub fn fn_key_share_deterministic(group: &NamedGroup) -> Result<KeyShareEntry, FnError> {
+    Ok(KeyShareEntry {
+        group: *group,
+        payload: PayloadU16::new(deterministic_key_share(group)?),
+    })
 }
+
+pub fn fn_key_share_extension_make(
+    key_shares: &KeyShareEntries,
+) -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::KeyShare(key_shares.clone()))
+}
+
+pub fn fn_key_share_extension_new() -> Result<KeyShareEntries, FnError> {
+    Ok(KeyShareEntries { 0: vec![] })
+}
+
+pub fn fn_key_share_extension_append(
+    key_shares: &KeyShareEntries,
+    key_share_entry: &KeyShareEntry,
+) -> Result<KeyShareEntries, FnError> {
+    let mut new_key_shares = key_shares.clone();
+    new_key_shares.0.push(key_share_entry.clone());
+
+    Ok(new_key_shares)
+}
+
 pub fn fn_key_share_extension(
     group: &NamedGroup,
     key_share: &PayloadU16,
-) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::KeyShare(KeyShareEntries(vec![
-        KeyShareEntry {
-            group: *group,
-            payload: key_share.clone(),
-        },
-    ])))
-}
-pub fn fn_key_share_deterministic_server_extension(
-    group: &NamedGroup,
-) -> Result<ServerExtension, FnError> {
-    fn_key_share_server_extension(group, &PayloadU16::new(deterministic_key_share(group)?))
-}
-pub fn fn_key_share_server_extension(
-    group: &NamedGroup,
-    key_share: &PayloadU16,
-) -> Result<ServerExtension, FnError> {
-    Ok(ServerExtension::KeyShare(KeyShareEntry {
+) -> Result<KeyShareEntry, FnError> {
+    Ok(KeyShareEntry {
         group: *group,
         payload: key_share.clone(),
-    }))
+    })
 }
+
+pub fn fn_key_share_server_extension(entry: &KeyShareEntry) -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::KeyShare(entry.clone()))
+}
+
 pub fn fn_key_share_hello_retry_extension(
     group: &NamedGroup,
 ) -> Result<HelloRetryExtension, FnError> {

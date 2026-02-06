@@ -328,7 +328,7 @@ fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
                         )),
                         fn_signature_algorithm_extension
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_deterministic(fn_named_group_secp384r1))
                 )),
                 fn_supported_versions13_extension
             ))
