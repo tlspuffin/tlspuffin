@@ -174,9 +174,11 @@ define_signature!(
     fn_psk_exchange_mode_ke_extension
     fn_certificate_authorities_extension
     fn_signature_algorithm_cert_extension
-    fn_key_share_deterministic_extension
+    fn_key_share_deterministic
+    fn_key_share_extension_make
+    fn_key_share_extension_new [list]
+    fn_key_share_extension_append [list]
     fn_key_share_extension
-    fn_key_share_deterministic_server_extension
     fn_key_share_server_extension
     fn_key_share_hello_retry_extension
     fn_transport_parameters_extension
