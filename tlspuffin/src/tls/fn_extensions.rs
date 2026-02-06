@@ -541,21 +541,38 @@ pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnErro
     ))
 }
 /// KeyShare => 0x0033,
-pub fn fn_key_share_deterministic_extension(
-    group: &NamedGroup,
-) -> Result<ClientExtension, FnError> {
-    fn_key_share_extension(group, &PayloadU16::new(deterministic_key_share(group)?))
-}
-pub fn fn_key_share_extension(
+pub fn fn_key_share_entry(
     group: &NamedGroup,
     key_share: &PayloadU16,
+) -> Result<KeyShareEntry, FnError> {
+    Ok(KeyShareEntry {
+        group: *group,
+        payload: key_share.clone(),
+    })
+}
+pub fn fn_key_share_entry_deterministic(group: &NamedGroup) -> Result<KeyShareEntry, FnError> {
+    fn_key_share_entry(group, &PayloadU16::new(deterministic_key_share(group)?))
+}
+pub fn fn_key_share_entries_new() -> Result<Vec<KeyShareEntry>, FnError> {
+    Ok(vec![])
+}
+pub fn fn_key_share_entries_append(
+    entries: &Vec<KeyShareEntry>,
+    entry: &KeyShareEntry,
+) -> Result<Vec<KeyShareEntry>, FnError> {
+    let mut new_entries = entries.clone();
+    new_entries.push(entry.clone());
+    Ok(new_entries)
+}
+pub fn fn_key_share_entries_make(
+    entries: &Vec<KeyShareEntry>,
+) -> Result<KeyShareEntries, FnError> {
+    Ok(KeyShareEntries(entries.clone()))
+}
+pub fn fn_key_share_extension(
+    entries: &KeyShareEntries,
 ) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::KeyShare(KeyShareEntries(vec![ // TODO: make list here,
-        KeyShareEntry {
-            group: *group,
-            payload: key_share.clone(),
-        },
-    ])))
+    Ok(ClientExtension::KeyShare(entries.clone()))
 }
 pub fn fn_key_share_deterministic_server_extension(
     group: &NamedGroup,

@@ -23,9 +23,9 @@ use crate::tls::rustls::msgs::enums::{
 use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension,
     CertificateExtensions, CipherSuites, ClientExtension, ClientExtensions, Compressions,
-    HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions, NewSessionTicketExtension,
-    NewSessionTicketExtensions, PresharedKeyIdentity, Random, ServerExtension, ServerExtensions,
-    SessionID, VecU16OfPayloadU16, VecU16OfPayloadU8,
+    HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions, KeyShareEntry,
+    NewSessionTicketExtension, NewSessionTicketExtensions, PresharedKeyIdentity, Random,
+    ServerExtension, ServerExtensions, SessionID, VecU16OfPayloadU16, VecU16OfPayloadU8,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 
@@ -420,6 +420,7 @@ impl VecCodecWoSize for CertificateEntry {} // u24
 impl VecCodecWoSize for CipherSuite {} // u16
 impl VecCodecWoSize for PresharedKeyIdentity {} //u16
 impl VecCodecWoSize for NamedGroup {} //u16
+impl VecCodecWoSize for KeyShareEntry {} //u16
 
 #[macro_export]
 macro_rules! try_read {
