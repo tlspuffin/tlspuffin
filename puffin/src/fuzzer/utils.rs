@@ -36,8 +36,8 @@ impl Default for TermConstraints {
     fn default() -> Self {
         Self {
             min_term_size: 0,
-            max_term_size: 300, /* was 9000 but we were rewriting this to 300 anyway when
-                                 * instantiating the fuzzer */
+            max_term_size: 2000, /* was 9000 but we were rewriting this to 300 anyway when
+                                  * instantiating the fuzzer */
             must_be_symbolic: false,
             no_payload_in_subterm: false,
             must_payload_in_subterm: false,

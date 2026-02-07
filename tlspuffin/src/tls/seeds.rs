@@ -2894,7 +2894,7 @@ pub mod tests {
                         // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
-                            terms < 300,
+                            terms < 2000,
                             "{} has step with too large term size {}!",
                             name,
                             terms
@@ -2937,7 +2937,7 @@ pub mod tests {
                         // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
-                            terms < 300,
+                            terms < 2000,
                             "{} has step with too large term size {}!",
                             name,
                             terms

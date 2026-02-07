@@ -69,7 +69,7 @@ fn benchmark_mutations(c: &mut Criterion) {
         let mut mutator = ReplaceReuseMutator::new(
             TermConstraints {
                 min_term_size: 0,
-                max_term_size: 200,
+                max_term_size: 2000,
                 no_payload_in_subterm: false,
                 not_inside_list: false,
                 weighted_depth: false,
