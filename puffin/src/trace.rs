@@ -235,7 +235,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         &self,
         query_type_shape: TypeShape<PT>,
         query: &Query<PT::Matcher>,
-    ) -> Option<&(dyn EvaluatedTerm<PT>)> {
+    ) -> Option<&dyn EvaluatedTerm<PT>> {
         log::trace!(
             "Looking for variable {:?} with query_type_shape {:?} and query {:?}",
             self,
@@ -247,7 +247,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         let mut possibilities: Vec<Knowledge<PT>> = self
             .raw_knowledge
             .iter()
-            .filter(|raw| (query.source.is_none() || query.source.as_ref().unwrap() == &raw.source))
+            .filter(|raw| query.source.is_none() || query.source.as_ref().unwrap() == &raw.source)
             .flatten()
             .filter(|knowledge| {
                 query_type_id == knowledge.data.type_id()
@@ -551,7 +551,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         &self,
         query_type_shape: TypeShape<PB::ProtocolTypes>,
         query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
-    ) -> Option<&(dyn EvaluatedTerm<PB::ProtocolTypes>)> {
+    ) -> Option<&dyn EvaluatedTerm<PB::ProtocolTypes>> {
         log::trace!(
             "Looking for variable in {:?} with query {:?}",
             self.knowledge_store,
@@ -660,18 +660,13 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
     }
 }
 
-#[derive(Clone, Deserialize, Serialize, Hash)]
+#[derive(Clone, Deserialize, Serialize, Hash, Default)]
 pub struct MetadataTrace {
     /// The path focus of the trace, which is used to focus on a specific part of the trace for
     /// HAVOC mutations during a FocusScheduledMutator
     path_focus: Option<TracePath>,
 }
 
-impl Default for MetadataTrace {
-    fn default() -> Self {
-        Self { path_focus: None }
-    }
-}
 #[derive(Clone, Deserialize, Serialize, Hash)]
 #[serde(bound = "PT: ProtocolTypes")]
 pub struct Trace<PT: ProtocolTypes> {
@@ -824,8 +819,8 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
 
             steps.push(StepExecution {
                 step_number: idx,
-                action: ActionType::from(step.action.clone(), export_terms, export_raw, &ctx),
-                agent: step.agent.into(),
+                action: ActionType::from(step.action.clone(), export_terms, export_raw, ctx),
+                agent: step.agent,
                 knowledges,
                 claims,
             });
@@ -873,7 +868,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
             .prior_traces
             .iter()
             .fold(0, |acc, p| acc + Self::count_prior_traces(p));
-        return 1 + prior;
+        1 + prior
     }
 
     pub fn print(&self, f: &mut std::fmt::Formatter<'_>, depth: usize) -> std::fmt::Result {
@@ -904,7 +899,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
             }
         }
 
-        writeln!(f, "")
+        writeln!(f)
     }
 }
 
@@ -1021,7 +1016,7 @@ impl<PT: ProtocolTypes> StepExecution<PT> {
             }
         }
 
-        writeln!(f, "")
+        writeln!(f)
     }
 }
 
@@ -1031,13 +1026,10 @@ impl<PT: ProtocolTypes> StepExecution<PT> {
 /// server or client role and a specific TLs version. Essentially they are an [`Agent`] without a
 /// stream.
 impl<PT: ProtocolTypes> Trace<PT> {
-    pub fn spawn_agents<PB: ProtocolBehavior>(
+    pub fn spawn_agents<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         ctx: &mut TraceContext<PB>,
-    ) -> Result<(), Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>,
-    {
+    ) -> Result<(), Error> {
         for descriptor in &self.descriptors {
             if let Some(reusable) = ctx
                 .agents
@@ -1131,10 +1123,8 @@ impl<PT: ProtocolTypes> Trace<PT> {
         }
 
         ALL_EXEC_SUCCESS.increment();
-        if cfg!(feature = "introspection") {
-            if ctx.agents_successful() {
-                ALL_EXEC_AGENT_SUCCESS.increment();
-            }
+        if cfg!(feature = "introspection") && ctx.agents_successful() {
+            ALL_EXEC_AGENT_SUCCESS.increment();
         }
 
         Ok(())
@@ -1428,7 +1418,7 @@ pub struct InputAction<PT: ProtocolTypes> {
 /// Processes messages in the inbound channel. Uses the recipe field to evaluate to a rustls Message
 /// or a `MultiMessage`.
 impl<PT: ProtocolTypes> InputAction<PT> {
-    pub const fn new_step(agent: AgentName, recipe: Term<PT>) -> Step<PT> {
+    pub fn new_step(agent: AgentName, recipe: Term<PT>) -> Step<PT> {
         Step {
             agent,
             action: Action::Input(Self {

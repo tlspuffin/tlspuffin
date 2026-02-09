@@ -225,35 +225,33 @@ where
                 i += 1;
             }
             (true, experiments_root.join(&title))
+        } else if let Some(matches) = matches.subcommand_matches("experiment") {
+            let git_ref = "_".to_string();
+            let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
+            let experiments_root = PathBuf::new().join("experiments");
+            let title = format_title(Some(title), None, &put_registry, &config);
+            let experiment_path = experiments_root.join(title);
+            assert!(
+                !experiment_path.as_path().exists(),
+                "Experiment already exists. Consider creating a new experiment."
+            );
+            (true, experiment_path)
+        } else if let Some(matches) = matches.subcommand_matches("differential-experiment") {
+            let git_ref = "_".to_string();
+            let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
+            let experiments_root = PathBuf::new().join("experiments");
+            let title = format_title(Some(title), None, &put_registry, &config);
+            let experiment_path = experiments_root.join(title);
+            assert!(
+                !experiment_path.as_path().exists(),
+                "Experiment already exists. Consider creating a new experiment."
+            );
+            (true, experiment_path)
         } else {
-            if let Some(matches) = matches.subcommand_matches("experiment") {
-                let git_ref = "_".to_string();
-                let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
-                let experiments_root = PathBuf::new().join("experiments");
-                let title = format_title(Some(title), None, &put_registry, &config);
-                let experiment_path = experiments_root.join(title);
-                assert!(
-                    !experiment_path.as_path().exists(),
-                    "Experiment already exists. Consider creating a new experiment."
-                );
-                (true, experiment_path)
-            } else if let Some(matches) = matches.subcommand_matches("differential-experiment") {
-                let git_ref = "_".to_string();
-                let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
-                let experiments_root = PathBuf::new().join("experiments");
-                let title = format_title(Some(title), None, &put_registry, &config);
-                let experiment_path = experiments_root.join(title);
-                assert!(
-                    !experiment_path.as_path().exists(),
-                    "Experiment already exists. Consider creating a new experiment."
-                );
-                (true, experiment_path)
-            } else {
-                // Case of non-experiment: plain fuzzing, trace executions, etc.
-                (false, env::current_dir().unwrap())
-            }
+            // Case of non-experiment: plain fuzzing, trace executions, etc.
+            (false, env::current_dir().unwrap())
         };
-    let handle = match log4rs::init_config(config_default(&*base_directory.join("./log"))) {
+    let handle = match log4rs::init_config(config_default(&base_directory.join("./log"))) {
         Ok(handle) => handle,
         Err(err) => {
             eprintln!("error: failed to initialize logging: {err:?}");

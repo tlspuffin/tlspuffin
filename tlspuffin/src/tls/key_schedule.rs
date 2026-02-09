@@ -22,7 +22,7 @@ pub fn tls13_handshake_traffic_secret(
     client_random: &Random,
     suite: &SupportedCipherSuite,
 ) -> Result<(Prk, KeyScheduleHandshake), FnError> {
-    let key_schedule = dhe_key_schedule(&suite, group, server_key_share, psk)?;
+    let key_schedule = dhe_key_schedule(suite, group, server_key_share, psk)?;
 
     let (hs, client_secret, server_secret) = key_schedule.derive_handshake_secrets(
         &server_hello.get_current_hash_raw(),
