@@ -24,9 +24,10 @@ use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntries, CertificateEntry, CertificateExtension,
     CertificateExtensions, CipherSuites, ClientExtension, ClientExtensions, Compressions,
     ECPointFormatList, HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions,
-    KeyShareEntry, NewSessionTicketExtension, NewSessionTicketExtensions, PSKKeyExchangeModes,
-    PresharedKeyIdentity, Random, ServerExtension, ServerExtensions, ServerName, ServerNameRequest,
-    SessionID, SupportedSignatureSchemes, VecU16OfPayloadU16, VecU16OfPayloadU8,
+    KeyShareEntries, KeyShareEntry, NewSessionTicketExtension, NewSessionTicketExtensions,
+    PSKKeyExchangeModes, PresharedKeyIdentity, Random, ServerExtension, ServerExtensions,
+    ServerName, ServerNameRequest, SessionID, SupportedSignatureSchemes, VecU16OfPayloadU16,
+    VecU16OfPayloadU8,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 
@@ -558,6 +559,9 @@ pub fn try_read_bytes(
         ServerNameRequest,
         Vec<ServerName>,
         ServerName,
+        KeyShareEntries,
+        Vec<KeyShareEntry>,
+        KeyShareEntry,
         Vec<Vec<u8>>,
         bool,
         NamedGroup /* Option<Vec<Vec<u8>>>,
