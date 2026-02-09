@@ -67,7 +67,7 @@ impl VendorDir {
         self.path.join(name.as_ref())
     }
 
-    pub fn library_dir(&'_ self, name: impl AsRef<str>) -> Result<LibraryDir<'_>> {
+    pub fn library_dir(&self, name: impl AsRef<str>) -> Result<LibraryDir<'_>> {
         Ok(LibraryDir {
             vendor_dir: self,
             path: self.path_for(&name),

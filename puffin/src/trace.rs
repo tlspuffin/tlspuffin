@@ -247,8 +247,9 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         let mut possibilities: Vec<Knowledge<PT>> = self
             .raw_knowledge
             .iter()
-            // These parentheses seem relevant for readability
-            .filter(|raw| (query.source.is_none() || query.source.as_ref().unwrap() == &raw.source))
+            .filter(|raw| {
+                query.source.is_none() || query.source.as_ref().unwrap() == &raw.source
+            })
             .flatten()
             .filter(|knowledge| {
                 query_type_id == knowledge.data.type_id()
