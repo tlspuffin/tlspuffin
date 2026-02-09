@@ -144,15 +144,12 @@ pub fn test_hello() {
        PutRegistry::<OpcuaProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
     let spawner = Spawner::new(registry);
     let context = TraceContext::new(spawner);
-//context
-//    .knowledge_store
-//    .add_raw_knowledge(data, Source::Agent(AgentName::first()), None);
 
     let hello_message: Vec<u8> = hello_term.evaluate_symbolic(&context).unwrap();
     let hello_msg : Vec<u8> = vec![
-        72,69,76,70,67,0,0,0,0,0,0,0,0,160,0,0,0,160,0,0,0,0,0,0,0,0,0,0,35,0,0,0,
+        72,69,76,70,72,0,0,0,0,0,0,0,0,160,0,0,0,160,0,0,0,0,0,0,0,0,0,0,40,0,0,0,
         111,112,99,46,116,99,112,58,47,47,108,111,99,97,108,104,111,115,116,58,52,
-        56,52,48,47,98,111,98,95,115,101,114,118,101,114];
+        56,52,48,47,111,112,99,117,97,112,117,102,102,105,110,46,98,111,98];
     assert_eq!(&hello_message, &hello_msg);
 
     let ack_term: Term<OpcuaProtocolTypes> = term! {
