@@ -139,6 +139,10 @@ define_signature!(
     fn_status_request_certificate_extension
     fn_ec_point_formats_extension
     fn_ec_point_formats_server_extension
+    fn_supported_signature_schemes_extension_new [list]
+    fn_supported_signature_schemes_extension_append [list]
+    fn_sig_scheme_rsa_pkcs1_sha256
+    fn_sig_scheme_rsa_pss_sha256
     fn_signature_algorithm_extension
     fn_signature_algorithm_cert_req_extension
     fn_empty_vec_of_vec
