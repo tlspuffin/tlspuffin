@@ -440,6 +440,7 @@ impl VecCodecWoSize for CertificateEntry {} // u24
 impl VecCodecWoSize for CipherSuite {} // u16
 impl VecCodecWoSize for PresharedKeyIdentity {} //u16
 impl VecCodecWoSize for NamedGroup {} //u16
+                                      // impl VecCodecWoSize for SignatureScheme {} //u16
 
 #[macro_export]
 macro_rules! try_read {

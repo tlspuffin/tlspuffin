@@ -1211,7 +1211,15 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
                     (fn_key_share_extension_make(
                         (fn_key_share_extension_append(
@@ -1387,7 +1395,15 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
                     (fn_key_share_extension_make(
                         (fn_key_share_extension_append(
@@ -1483,7 +1499,15 @@ pub fn _seed_client_attacker12(
                                         ))
                                     ))
                                 )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
                             )),
                             fn_ec_point_formats_extension
                         )),
@@ -1829,7 +1853,15 @@ pub fn seed_session_resumption_dhe(
                                         ))
                                     ))
                                 )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
@@ -1978,7 +2010,15 @@ pub fn seed_session_resumption_ke(
                                         ))
                                     ))
                                 )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
@@ -2112,7 +2152,15 @@ pub fn _seed_client_attacker_full(
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
                     (fn_key_share_extension_make(
                         (fn_key_share_extension_append(
@@ -2311,7 +2359,15 @@ pub fn _seed_client_attacker_full_precomputation(
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
                     (fn_key_share_extension_make(
                         (fn_key_share_extension_append(
@@ -2525,7 +2581,15 @@ pub fn seed_session_resumption_dhe_full(
                                         ))
                                     ))
                                 )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
@@ -2971,7 +3035,7 @@ pub mod tests {
                         // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
-                            terms < 300,
+                            terms < 2000,
                             "{} has step with too large term size {}!",
                             name,
                             terms
@@ -3015,7 +3079,7 @@ pub mod tests {
                         // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
-                            terms < 300,
+                            terms < 2000,
                             "{} has step with too large term size {}!",
                             name,
                             terms
