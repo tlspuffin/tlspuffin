@@ -6,7 +6,7 @@ set shell := ["bash", "-c"]
 set positional-arguments := true
 
 export MINRUST_TOOLCHAIN := "1.70"
-export NIGHTLY_TOOLCHAIN := "nightly-2024-09-05"
+export NIGHTLY_TOOLCHAIN := "nightly-2025-12-05"
 
 export DEFAULT_TOOLCHAIN := env_var_or_default("RUSTUP_TOOLCHAIN", NIGHTLY_TOOLCHAIN)
 export CARGO_TARGET_DIR := env_var_or_default("CARGO_TARGET_DIR", justfile_directory() / "target")

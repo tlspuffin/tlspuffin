@@ -201,12 +201,12 @@ where
         // Always run DY mutations (if enabled)
         let cb_dy =
             |_: &mut _, _: &mut _, _: &mut _, _: &mut _, _idx: CorpusId| -> Result<bool, Error> {
-                return if mutation_config.with_dy {
+                if mutation_config.with_dy {
                     log::debug!("[*] DY StdMutationalStage");
                     Ok(true)
                 } else {
                     Ok(false)
-                };
+                }
             };
         let stage_dy = IfStage::new(
             cb_dy,
@@ -242,9 +242,9 @@ where
                 || (*state.executions() > MIN_BIT_EXECS && state.corpus().count() > MIN_BIT_CORPUS)
             {
                 log::debug!("[*] BIT StdMutationalStage");
-                return Ok(true);
+                Ok(true)
             } else {
-                return Ok(false);
+                Ok(false)
             }
         };
         let mutation_config_focus = mutation_config; // focus is already sets to the wanted value
@@ -263,7 +263,7 @@ where
                 return Ok(false);
             }
             log::debug!("[*] BIT FocusScheduledMutator");
-            return Ok(true);
+            Ok(true)
         };
         let stage_bit = IfStage::new(
             cb_bit_level,
@@ -558,8 +558,8 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start<'harness, PB>(
-    put_registry: &'harness PutRegistry<PB>,
+pub fn start<PB>(
+    put_registry: &PutRegistry<PB>,
     config: FuzzerConfig,
     log_handle: Handle,
 ) -> Result<(), Error>

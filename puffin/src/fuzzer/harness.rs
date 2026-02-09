@@ -52,10 +52,8 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     let mut fail_at_step = 0;
     if let Ok(ctx) = runner.execute(input, &mut fail_at_step) {
         HARNESS_EXEC_SUCCESS.increment();
-        if cfg!(feature = "introspection") {
-            if ctx.agents_successful() {
-                HARNESS_EXEC_AGENT_SUCCESS.increment();
-            }
+        if cfg!(feature = "introspection") && ctx.agents_successful() {
+            HARNESS_EXEC_AGENT_SUCCESS.increment();
         }
     }
 

@@ -246,7 +246,7 @@ pub fn find_term_mut<'a, PT: ProtocolTypes>(
     if let Some(step) = step {
         match &mut step.action {
             Action::Input(input) => {
-                find_term_by_term_path_mut(&mut input.recipe, &mut term_path.clone())
+                find_term_by_term_path_mut(&mut input.recipe, &term_path.clone())
             }
             Action::Output(_) => None,
         }
@@ -265,7 +265,7 @@ pub fn find_term<'a, PT: ProtocolTypes>(
     let step: Option<&Step<PT>> = trace.steps.get(*step_index);
     if let Some(step) = step {
         match &step.action {
-            Action::Input(input) => find_term_by_term_path(&input.recipe, &mut term_path.clone()),
+            Action::Input(input) => find_term_by_term_path(&input.recipe, &term_path.clone()),
             Action::Output(_) => None,
         }
     } else {

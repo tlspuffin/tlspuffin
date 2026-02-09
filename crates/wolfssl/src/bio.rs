@@ -235,7 +235,7 @@ impl<'a> Drop for MemBioSlice<'a> {
 
 impl<'a> MemBioSlice<'a> {
     pub fn new(buf: &'a [u8]) -> Result<MemBioSlice<'a>, ErrorStack> {
-        assert!(buf.len() <= c_int::max_value() as usize);
+        assert!(buf.len() <= c_int::MAX as usize);
         let bio = unsafe {
             cvt_p(wolfssl_sys::wolfSSL_BIO_new_mem_buf(
                 buf.as_ptr() as *const _,
@@ -275,10 +275,12 @@ impl MemBio {
         self.0
     }
 
+    #[allow(invalid_null_arguments)]
     pub fn get_buf(&self) -> &[u8] {
         unsafe {
             let ptr = ptr::null_mut();
             let len = wolfssl_sys::wolfSSL_BIO_get_mem_data(self.0, ptr);
+            assert!(!ptr.is_null());
             slice::from_raw_parts(ptr as *const _ as *const _, len as usize)
         }
     }

@@ -226,27 +226,25 @@ where
                 i += 1;
             }
             experiments_root.join(&title)
+        } else if let Some(matches) = matches
+            .subcommand_matches("experiment")
+            .or(matches.subcommand_matches("differential-experiment"))
+        {
+            log::info!("Running in experiment mode");
+            config.is_experiment = true;
+            let git_ref = "_".to_string();
+            let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
+            let experiments_root = PathBuf::new().join("experiments");
+            let title = format_title(Some(title), None, &put_registry, &config);
+            let experiment_path = experiments_root.join(title);
+            assert!(
+                !experiment_path.as_path().exists(),
+                "Experiment already exists. Consider creating a new experiment."
+            );
+            experiment_path
         } else {
-            if let Some(matches) = matches
-                .subcommand_matches("experiment")
-                .or(matches.subcommand_matches("differential-experiment"))
-            {
-                log::info!("Running in experiment mode");
-                config.is_experiment = true;
-                let git_ref = "_".to_string();
-                let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
-                let experiments_root = PathBuf::new().join("experiments");
-                let title = format_title(Some(title), None, &put_registry, &config);
-                let experiment_path = experiments_root.join(title);
-                assert!(
-                    !experiment_path.as_path().exists(),
-                    "Experiment already exists. Consider creating a new experiment."
-                );
-                experiment_path
-            } else {
-                // Case of non-experiment: plain fuzzing, trace executions, etc.
-                env::current_dir().unwrap()
-            }
+            // Case of non-experiment: plain fuzzing, trace executions, etc.
+            env::current_dir().unwrap()
         };
 
     config.corpus_dir = base_directory.join("corpus");
@@ -254,7 +252,7 @@ where
     config.stats_file = base_directory.join("log/stats.json");
     config.log_folder = base_directory.join("log/");
 
-    let handle = match log4rs::init_config(config_default(&*base_directory.join("./log"))) {
+    let handle = match log4rs::init_config(config_default(&base_directory.join("./log"))) {
         Ok(handle) => handle,
         Err(err) => {
             eprintln!("error: failed to initialize logging: {err:?}");

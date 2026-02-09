@@ -228,7 +228,7 @@ pub fn fn_support_group_extension_append(
     group: &NamedGroup,
 ) -> Result<Vec<NamedGroup>, FnError> {
     let mut new_groups = groups.clone();
-    new_groups.push(group.clone());
+    new_groups.push(*group);
 
     Ok(new_groups)
 }

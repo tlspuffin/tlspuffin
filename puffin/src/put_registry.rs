@@ -25,7 +25,7 @@ pub struct PutRegistry<PB> {
 impl<PB> PutRegistry<PB> {
     #[must_use]
     pub fn set_default_factory(&mut self, name: &str) -> Result<(), String> {
-        if self.factories.get(name).is_none() {
+        if !self.factories.contains_key(name) {
             return Err(format!("PUT {} not found in registry", name));
         }
         self.default_put.factory = String::from(name);
@@ -87,7 +87,7 @@ impl<PB: ProtocolBehavior> PutRegistry<PB> {
         };
 
         // check that the default PUT is actually in the registry
-        let _ = result.find_by_id(&result.default_put_name());
+        let _ = result.find_by_id(result.default_put_name());
 
         result
     }
