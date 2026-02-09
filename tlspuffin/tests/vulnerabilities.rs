@@ -460,8 +460,8 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
                     tuple_list!(MakeMessage::new(config, &registry)),
                     havoc_mutations_dy::<
                         StdState<
-                            Trace<TLSProtocolTypes>,
                             InMemoryCorpus<Trace<TLSProtocolTypes>>,
+                            Trace<TLSProtocolTypes>,
                             RomuDuoJrRand,
                             InMemoryCorpus<Trace<TLSProtocolTypes>>,
                         >,
