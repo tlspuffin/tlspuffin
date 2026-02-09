@@ -235,7 +235,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         &self,
         query_type_shape: TypeShape<PT>,
         query: &Query<PT::Matcher>,
-    ) -> Option<&(dyn EvaluatedTerm<PT>)> {
+    ) -> Option<&dyn EvaluatedTerm<PT>> {
         log::trace!(
             "Looking for variable {:?} with query_type_shape {:?} and query {:?}",
             self,
@@ -247,6 +247,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         let mut possibilities: Vec<Knowledge<PT>> = self
             .raw_knowledge
             .iter()
+            // These parentheses seem relevant for readability
             .filter(|raw| (query.source.is_none() || query.source.as_ref().unwrap() == &raw.source))
             .flatten()
             .filter(|knowledge| {
@@ -551,7 +552,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         &self,
         query_type_shape: TypeShape<PB::ProtocolTypes>,
         query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
-    ) -> Option<&(dyn EvaluatedTerm<PB::ProtocolTypes>)> {
+    ) -> Option<&dyn EvaluatedTerm<PB::ProtocolTypes>> {
         log::trace!(
             "Looking for variable in {:?} with query {:?}",
             self.knowledge_store,
