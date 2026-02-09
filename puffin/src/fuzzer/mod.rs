@@ -28,7 +28,7 @@ pub use libafl_setup::start;
 
 // LibAFL support
 impl<PT: ProtocolTypes> Input for Trace<PT> {
-    fn generate_name(&self, _idx: usize) -> String {
+    fn generate_name(&self, _idx: Option<libafl::corpus::CorpusId>) -> String {
         let now = Utc::now();
         let mut hasher = ahash::RandomState::with_seeds(0, 0, 0, 0).build_hasher();
         self.hash(&mut hasher);

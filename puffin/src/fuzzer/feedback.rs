@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::cell::Cell;
 use std::default::Default;
 
@@ -5,9 +6,9 @@ use libafl::corpus::Testcase;
 use libafl::events::EventFirer;
 use libafl::executors::ExitKind;
 use libafl::feedbacks::Feedback;
-use libafl::inputs::UsesInput;
+use libafl::feedbacks::StateInitializer;
 use libafl::observers::ObserversTuple;
-use libafl::prelude::{HasCorpus, HasMaxSize, HasRand, State};
+use libafl::prelude::{Corpus, HasCorpus, HasMaxSize, HasRand, StdState};
 use libafl_bolts::{Error, Named};
 use serde::{Deserialize, Serialize};
 
@@ -24,16 +25,16 @@ thread_local! {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct MinimizingFeedback<SC, PT>
 where
-    SC: HasCorpus + HasRand + HasMaxSize + UsesInput<Input = Trace<PT>> + State,
-    PT: ProtocolTypes + 'static,
+    SC: HasRand + HasMaxSize,
+    PT: ProtocolTypes + 'static
 {
     enabled: bool,
-    pub(crate) phantom: std::marker::PhantomData<SC>,
+    pub(crate) phantom: std::marker::PhantomData<(SC, PT)>,
 }
 
 impl<SC, PT> MinimizingFeedback<SC, PT>
 where
-    SC: HasCorpus + HasRand + HasMaxSize + UsesInput<Input = Trace<PT>> + State,
+    SC: HasRand + HasMaxSize,
     PT: ProtocolTypes + 'static,
 {
     pub fn new(with_truncation: bool) -> Self {
@@ -45,59 +46,61 @@ where
 }
 impl<SC, PT> Named for MinimizingFeedback<SC, PT>
 where
-    SC: HasCorpus + HasRand + HasMaxSize + UsesInput<Input = Trace<PT>> + State,
+    SC: HasRand + HasMaxSize,
     PT: ProtocolTypes + 'static,
 {
-    fn name(&self) -> &str {
-        "MinimizingFeedback"
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("MinimizingFeedback")
     }
 }
 
-impl<SC, PT> Feedback<SC> for MinimizingFeedback<SC, PT>
+impl<SC, PT> StateInitializer<SC> for MinimizingFeedback<SC, PT>
 where
-    SC: HasCorpus + HasRand + HasMaxSize + UsesInput<Input = Trace<PT>> + State,
+    SC: HasRand + HasMaxSize,
     PT: ProtocolTypes + 'static,
 {
-    fn is_interesting<EM, OT>(
+    fn init_state(&mut self, _state: &mut SC) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl<EM, OT, SC, PT> Feedback<EM, Trace<PT>, OT, SC> for MinimizingFeedback<SC, PT>
+where
+    SC: HasRand + HasMaxSize,
+    PT: ProtocolTypes + 'static,
+    EM: EventFirer<Trace<PT>, SC>,
+    OT: ObserversTuple<Trace<PT>, SC>,
+{
+    fn is_interesting(
         &mut self,
         _: &mut SC,
         _: &mut EM,
         _: &Trace<PT>,
         _: &OT,
         _: &ExitKind,
-    ) -> Result<bool, Error>
-    where
-        EM: EventFirer<State = SC>,
-        OT: ObserversTuple<SC>,
-    {
+    ) -> Result<bool, Error> {
         Ok(false)
     }
 
-    fn is_interesting_introspection<EM, OT>(
+    fn is_interesting_introspection(
         &mut self,
         _: &mut SC,
         _: &mut EM,
-        _: &SC::Input,
+        _: &Trace<PT>,
         _: &OT,
         _: &ExitKind,
-    ) -> Result<bool, Error>
-    where
-        EM: EventFirer<State = SC>,
-        OT: ObserversTuple<SC>,
-    {
+    ) -> Result<bool, Error> {
         Ok(false)
     }
 
     /// Append to the testcase the generated metadata in case of a new corpus item
-    fn append_metadata<EM, OT>(
+    fn append_metadata(
         &mut self,
         _state: &mut SC,
         _manager: &mut EM,
         _observers: &OT,
         testcase: &mut Testcase<Trace<PT>>,
     ) -> Result<(), Error>
-    where
-        OT: ObserversTuple<SC>,
     {
         if self.enabled {
             let possibly_failed_at_step = FAIL_AT_STEP.get();
@@ -122,10 +125,6 @@ where
                 );
             }
         }
-        Ok(())
-    }
-
-    fn discard_metadata(&mut self, _state: &mut SC, _input: &SC::Input) -> Result<(), Error> {
         Ok(())
     }
 }

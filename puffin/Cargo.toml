@@ -36,9 +36,9 @@ ddyf-disable-decryption = []
 puffin-build = { path = "../puffin-build" }
 
 # LibAFL
-libafl = { version = "0.12.0", features = ["introspection"] }
-libafl_targets = "0.12.0"
-libafl_bolts = "0.12.0"
+libafl = { version = "0.15.4", features = ["introspection", "prelude", "tui_monitor"] }
+libafl_targets = "0.15.4"
+libafl_bolts = { version = "0.15.4", features = ["prelude"] }
 
 # LibAFL/Fuzzer
 ahash = "0.8.11"
