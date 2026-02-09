@@ -167,14 +167,10 @@ pub fn fn_server_names_append(
     new_names.push(name.clone());
     Ok(new_names)
 }
-pub fn fn_server_names_make(
-    names: &Vec<ServerName>,
-) -> Result<ServerNameRequest, FnError> {
+pub fn fn_server_names_make(names: &Vec<ServerName>) -> Result<ServerNameRequest, FnError> {
     Ok(ServerNameRequest(names.clone()))
 }
-pub fn fn_server_name_extension(
-    request: &ServerNameRequest,
-) -> Result<ClientExtension, FnError> {
+pub fn fn_server_name_extension(request: &ServerNameRequest) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::ServerName(request.clone()))
 }
 pub fn fn_server_name_server_extension() -> Result<ServerExtension, FnError> {
@@ -272,9 +268,7 @@ pub fn fn_ec_point_formats_make(
 ) -> Result<ECPointFormatList, FnError> {
     Ok(ECPointFormatList(formats.clone()))
 }
-pub fn fn_ec_point_formats_extension(
-    list: &ECPointFormatList,
-) -> Result<ClientExtension, FnError> {
+pub fn fn_ec_point_formats_extension(list: &ECPointFormatList) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::ECPointFormats(list.clone()))
 }
 pub fn fn_ec_point_formats_server_extension(
@@ -615,14 +609,10 @@ pub fn fn_key_share_entries_append(
     new_entries.push(entry.clone());
     Ok(new_entries)
 }
-pub fn fn_key_share_entries_make(
-    entries: &Vec<KeyShareEntry>,
-) -> Result<KeyShareEntries, FnError> {
+pub fn fn_key_share_entries_make(entries: &Vec<KeyShareEntry>) -> Result<KeyShareEntries, FnError> {
     Ok(KeyShareEntries(entries.clone()))
 }
-pub fn fn_key_share_extension(
-    entries: &KeyShareEntries,
-) -> Result<ClientExtension, FnError> {
+pub fn fn_key_share_extension(entries: &KeyShareEntries) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::KeyShare(entries.clone()))
 }
 pub fn fn_key_share_deterministic_server_extension(

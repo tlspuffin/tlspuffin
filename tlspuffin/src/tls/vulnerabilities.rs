@@ -1407,6 +1407,7 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
+    use puffin::fuzzer::utils::TermConstraints;
 
     #[allow(unused_imports)]
     use crate::{test_utils::prelude::*, tls::vulnerabilities::*};
@@ -1435,7 +1436,7 @@ pub mod tests {
                         // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
-                            terms < 2000,
+                            terms < TermConstraints::default().max_term_size,
                             "{} has step with too large term size {}!",
                             name,
                             terms

@@ -342,7 +342,7 @@ pub fn fn_certificate_request() -> Result<Message, FnError> {
             typ: HandshakeType::CertificateRequest,
             payload: HandshakePayload::CertificateRequest(CertificateRequestPayload {
                 certtypes: ClientCertificateTypes(vec![ClientCertificateType::RSASign]),
-                sigschemes: SupportedSignatureSchemes(vec![SignatureScheme::ED25519]),  // here
+                sigschemes: SupportedSignatureSchemes(vec![SignatureScheme::ED25519]), // here
                 canames: VecU16OfPayloadU16(vec![PayloadU16::new(
                     "some ca name?".as_bytes().to_vec(),
                 )]),
