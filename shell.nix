@@ -38,8 +38,13 @@ pkgs.llvmPackages_14.stdenv.mkDerivation {
 
   # Hardening is not really important for tlspuffin and might introduce weird compiler flags
   hardeningDisable = [ "all" ];
-  
+
+  RUST_SRC_PATH = "${pkgs.rust.packages.stable.rustPlatform.rustLibSrc}";
+
   shellHook = ''
+    echo "Rust version: $(rustc --version)"
+    echo "Cargo version: $(cargo --version)"
+    echo "RUST_SRC_PATH: $RUST_SRC_PATH"
     export LIBCLANG_PATH="${pkgs.llvmPackages_14.libclang.lib}/lib";
     export LIBAFL_EDGES_MAP_SIZE=262144 # 2^18
   '';
