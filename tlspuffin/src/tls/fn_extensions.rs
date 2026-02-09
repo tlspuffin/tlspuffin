@@ -251,24 +251,45 @@ nyi_fn! {
     /// SRP => 0x000c,
 }
 /// SignatureAlgorithms => 0x000d,
-pub fn fn_signature_algorithm_extension() -> Result<ClientExtension, FnError> {
+pub fn fn_supported_signature_schemes_extension_new() -> Result<SupportedSignatureSchemes, FnError>
+{
+    Ok(SupportedSignatureSchemes { 0: vec![] })
+}
+
+pub fn fn_supported_signature_schemes_extension_append(
+    signature_schemes: &SupportedSignatureSchemes,
+    signature_scheme: &SignatureScheme,
+) -> Result<SupportedSignatureSchemes, FnError> {
+    let mut new_signature_algorithms = signature_schemes.clone();
+    new_signature_algorithms.0.push(signature_scheme.clone());
+
+    Ok(new_signature_algorithms)
+}
+
+pub fn fn_signature_algorithm_extension(
+    supported_signature_schemes: &SupportedSignatureSchemes,
+) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SignatureAlgorithms(
-        SupportedSignatureSchemes(vec![
-            // here
-            SignatureScheme::RSA_PKCS1_SHA256,
-            SignatureScheme::RSA_PSS_SHA256,
-        ]),
+        supported_signature_schemes.clone(),
     ))
 }
-pub fn fn_signature_algorithm_cert_req_extension() -> Result<CertReqExtension, FnError> {
+
+pub fn fn_signature_algorithm_cert_req_extension(
+    supported_signature_schemes: &SupportedSignatureSchemes,
+) -> Result<CertReqExtension, FnError> {
     Ok(CertReqExtension::SignatureAlgorithms(
-        SupportedSignatureSchemes(vec![
-            // here
-            SignatureScheme::RSA_PKCS1_SHA256,
-            SignatureScheme::RSA_PSS_SHA256,
-        ]),
+        supported_signature_schemes.clone(),
     ))
 }
+
+pub fn fn_sig_scheme_rsa_pkcs1_sha256() -> Result<SignatureScheme, FnError> {
+    Ok(SignatureScheme::RSA_PKCS1_SHA256)
+}
+
+pub fn fn_sig_scheme_rsa_pss_sha256() -> Result<SignatureScheme, FnError> {
+    Ok(SignatureScheme::RSA_PSS_SHA256)
+}
+
 nyi_fn! {
     /// UseSRTP => 0x000e,
 }
