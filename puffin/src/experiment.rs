@@ -58,7 +58,6 @@ pub fn format_title<PB: ProtocolBehavior>(
         .last()
         .unwrap()
         .1
-        .trim()
         .split_whitespace()
         .join("-");
     format!(
@@ -97,7 +96,6 @@ pub fn write_experiment_markdown<PB: ProtocolBehavior>(
             .last()
             .unwrap()
             .1
-            .trim()
             .split_whitespace()
             .join("-"),
         put_versions = put_registry

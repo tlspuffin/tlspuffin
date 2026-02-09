@@ -97,7 +97,7 @@ impl VendorDir {
         })
         .map_err(|(_, e)| Error::VendorDirUnavailable {
             dir: self.clone(),
-            reason: io::Error::new(io::ErrorKind::Other, e),
+            reason: io::Error::other(e),
         })
     }
 }

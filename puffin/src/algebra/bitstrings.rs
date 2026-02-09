@@ -16,19 +16,10 @@ const THRESHOLD_SIZE: usize = 3; // minimum size of a payload to be directly sea
 const THRESHOLD_RATIO: usize = 100; // maximum ratio for root_eval/too_search for a direct search
 
 /// `TermMetadata` stores some metadata about terms.
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash, Default)]
 pub struct PayloadMetadata {
     pub(crate) readable: bool, // true when the payload is readable and whole term should be read
     pub(crate) has_changed: bool, // true when the payload has been modified at least once
-}
-
-impl Default for PayloadMetadata {
-    fn default() -> Self {
-        Self {
-            readable: false,
-            has_changed: false,
-        }
-    }
 }
 
 /// `Term`s are `Term`s equipped with optional `Payloads` when they no longer are treated as
@@ -44,6 +35,10 @@ impl Payloads {
     #[must_use]
     pub fn len(&self) -> usize {
         self.payload_0.bytes().len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     #[must_use]
@@ -151,12 +146,7 @@ pub fn find_unique_match<PT: ProtocolTypes>(
     whole_term: &Term<PT>,
     is_to_search_in_list: bool,
 ) -> Result<(usize, bool), Error> {
-    Ok(find_unique_match_rec(
-        path_to_search,
-        eval_tree,
-        whole_term,
-        is_to_search_in_list,
-    )?)
+    find_unique_match_rec(path_to_search, eval_tree, whole_term, is_to_search_in_list)
 }
 
 /// Goal: locate byte position of `to_search := eval_tree[path_to_search].encode` in
@@ -166,7 +156,7 @@ pub fn find_unique_match<PT: ProtocolTypes>(
 ///   node
 /// - there can be headers of arbitrary length
 /// - no trailer (no bytes added after the last argument encoding)
-///  Also returns a boolean flag envcountered_get_symbol indicating whether a get symbol is between
+/// Also returns a boolean flag envcountered_get_symbol indicating whether a get symbol is between
 /// the root and the path_to_search, in which case, inconsistencies might occur.
 pub fn find_unique_match_rec<PT: ProtocolTypes>(
     path_to_search: &[usize],
@@ -230,7 +220,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
 
         // [STEP 1: DIRECT SEARCH] Directly search for eval_too_search in root_eval
         // We apply this fast heuristics if the likelyhood of a unique match seems high enough
-        if eval_to_search.len() > 0
+        if !eval_to_search.is_empty()
             && (eval_to_search.len() > THRESHOLD_SIZE
                 || eval_parent.len() / eval_to_search.len() < THRESHOLD_RATIO)
             && !encountered_get_symbol
@@ -241,7 +231,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 log::debug!(
                     "[find_unique_match_rec] [S1] Directly found unique match in root: {unique_pos}"
                 );
-                start_pos = start_pos + unique_pos;
+                start_pos += unique_pos;
                 break;
             } else {
                 log::debug!("[find_unique_match_rec] [S1] Direct found is not unique!");
@@ -291,7 +281,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 log::debug!(
                     "[find_unique_match_rec] [S2:special-list] [pos=1] Found position: {pos}"
                 );
-                start_pos = start_pos + pos;
+                start_pos += pos;
                 break;
             }
 
@@ -326,7 +316,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 log::debug!(
                     "[find_unique_match_rec] [S2:special-list] [skip] Found position: {pos}"
                 );
-                start_pos = start_pos + pos;
+                start_pos += pos;
                 break;
             }
         }

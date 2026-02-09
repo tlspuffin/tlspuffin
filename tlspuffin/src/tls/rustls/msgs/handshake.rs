@@ -1136,7 +1136,7 @@ impl ClientHelloPayload {
         self.extensions
             .0
             .last()
-            .map_or(false, |ext| ext.get_type() == ExtensionType::PreSharedKey)
+            .is_some_and(|ext| ext.get_type() == ExtensionType::PreSharedKey)
     }
 
     pub fn get_psk_modes(&self) -> Option<&PSKKeyExchangeModes> {

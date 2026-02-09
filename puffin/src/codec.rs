@@ -378,10 +378,10 @@ impl Codec for [u8; 16] {
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        <Vec<u8> as Codec>::read(r).and_then(|v| {
+        <Vec<u8> as Codec>::read(r).map(|v| {
             let mut ret = [0u8; 16];
             ret.copy_from_slice(&v);
-            Some(ret)
+            ret
         })
     }
 }

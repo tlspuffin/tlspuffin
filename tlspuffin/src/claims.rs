@@ -33,7 +33,7 @@ impl codec::Codec for TlsTranscript {
         }
         let mut t = [0u8; 64];
         if let Some(bytes) = r.take(length as usize) {
-            t[..bytes.len()].copy_from_slice(&bytes);
+            t[..bytes.len()].copy_from_slice(bytes);
         }
         Some(TlsTranscript(t, length as i32))
     }

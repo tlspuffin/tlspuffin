@@ -151,9 +151,8 @@ where
             data: self,
         });
 
-        match self {
-            Some(x) => x.extract_knowledge(knowledges, matcher, source)?,
-            None => (),
+        if let Some(x) = self {
+            x.extract_knowledge(knowledges, matcher, source)?
         }
         Ok(())
     }

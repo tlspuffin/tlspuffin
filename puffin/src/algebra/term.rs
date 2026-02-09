@@ -60,23 +60,18 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     /// Evaluate terms into `ConcreteMessage` and `EvaluatedTerm` (considering Payloads or not
     /// depending on `with_payloads`) With `with_payloads, the returned `EvaluatedTerm` is
     /// without payload replacements; use the `ConcreteMessage` instead.
-    fn evaluate_config<PB: ProtocolBehavior>(
+    fn evaluate_config<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>;
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>;
 
     /// Wrap `evaluate_config` with error stats and logging handling
-    fn evaluate_config_wrap<PB: ProtocolBehavior>(
+    fn evaluate_config_wrap<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>,
-    {
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error> {
         ALL_TERM_EVAL.increment();
         match self.evaluate_config(context, with_payloads) {
             Ok(cm) => {
@@ -132,13 +127,10 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     }
 
     /// Evaluate terms into `ConcreteMessage` (considering Payloads)
-    fn evaluate<PB: ProtocolBehavior>(
+    fn evaluate<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         ctx: &TraceContext<PB>,
-    ) -> Result<ConcreteMessage, Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>,
-    {
+    ) -> Result<ConcreteMessage, Error> {
         Ok(self
             .evaluate_config_wrap(ctx, ctx.config_trace.with_bit_level)?
             .0)
@@ -146,25 +138,19 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
 
     /// Evaluate terms into `ConcreteMessage` considering all sub-terms as symbolic (even those with
     /// Payloads)
-    fn evaluate_symbolic<PB: ProtocolBehavior>(
+    fn evaluate_symbolic<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         ctx: &TraceContext<PB>,
-    ) -> Result<ConcreteMessage, Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>,
-    {
+    ) -> Result<ConcreteMessage, Error> {
         Ok(self.evaluate_config_wrap(ctx, false)?.0)
     }
 
     /// Evaluate terms into `EvaluatedTerm`  considering all sub-terms as symbolic (even those with
     /// Payloads)
-    fn evaluate_dy<PB: ProtocolBehavior>(
+    fn evaluate_dy<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         ctx: &TraceContext<PB>,
-    ) -> Result<Box<dyn EvaluatedTerm<PT>>, Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>,
-    {
+    ) -> Result<Box<dyn EvaluatedTerm<PT>>, Error> {
         Ok(self.evaluate_config_wrap(ctx, false)?.1)
     }
 }
@@ -362,7 +348,7 @@ impl<PT: ProtocolTypes> Term<PT> {
             Payloads {
                 payload_0: payload_0.into(),
                 payload: payload_new.into(),
-                metadata: with_metadata.unwrap_or_else(|| PayloadMetadata::default()),
+                metadata: with_metadata.unwrap_or_else(PayloadMetadata::default),
             }
         });
         self.erase_payloads_subterms(false);
@@ -564,14 +550,11 @@ fn append_eval<'a, PT: ProtocolTypes>(term_eval: &'a Term<PT>, v: &mut Vec<&'a T
 
 impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
     /// Evaluate terms into bitstrings and `EvaluatedTerm` (considering Payloads)
-    fn evaluate_config<PB: ProtocolBehavior>(
+    fn evaluate_config<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>,
-    {
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error> {
         log::trace!("[evaluate_config] About to evaluate term (with_payloads: {with_payloads}):\n{}\n===================================================================", &self);
         let mut eval_tree = EvalTree::empty();
         let (m, all_payloads) = self.eval_until_opaque(
@@ -697,7 +680,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
                 if args.len() <= nb {
                     return Err(Error::TermBug(format!(
                         "--> [get] Should never happen! self.args.len() <= nb. Term: {self}\n, path: {path:?}"
-                    )));
+                    )))
                 }
                 args[nb].get(path)
             }

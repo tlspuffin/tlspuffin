@@ -205,7 +205,7 @@ impl CAgent {
             .protocol_config
             .groups
             .clone()
-            .map_or(None, |x| Some(CString::new(x.clone()).unwrap()));
+            .map(|x| CString::new(x.clone()).unwrap());
 
         let descriptor = match config.descriptor.protocol_config.typ {
             AgentType::Server => make_descriptor(
