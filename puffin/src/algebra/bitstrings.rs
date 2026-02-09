@@ -577,7 +577,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         with_payloads: bool,
         sibling_has_payloads: bool,
         type_term: &TypeShape<PT>,
-    ) -> Result<(Box<dyn EvaluatedTerm<PT>>, Vec<PayloadContext<PT>>), Error>
+    ) -> Result<(Box<dyn EvaluatedTerm<PT>>, Vec<PayloadContext<'_, PT>>), Error>
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {

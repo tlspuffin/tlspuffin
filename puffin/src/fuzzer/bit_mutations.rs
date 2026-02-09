@@ -202,7 +202,7 @@ pub fn havoc_mutations_dy<S: HasRand + HasMaxSize + HasCorpus>(
 pub fn bit_mutations_dy<S: HasRand + HasMaxSize + HasCorpus, PB>(
     mutation_config: MutationConfig,
     put_registry: &PutRegistry<PB>,
-) -> BitMutations<PB, S>
+) -> BitMutations<'_, PB, S>
 where
     PB: ProtocolBehavior,
 {
