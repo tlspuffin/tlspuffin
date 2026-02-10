@@ -140,12 +140,7 @@ impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for SwapMutator<S>
 where
     S: HasRand,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
@@ -218,12 +213,7 @@ impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for RemoveAndLiftMutator<S>
 where
     S: HasRand,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
@@ -330,12 +320,7 @@ impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for ReplaceMatchMutator<S, PT>
 where
     S: HasRand,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
@@ -424,12 +409,7 @@ impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for ReplaceReuseMutator<S>
 where
     S: HasRand,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
@@ -508,12 +488,7 @@ impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for SkipMutator<S>
 where
     S: HasRand,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
@@ -570,12 +545,7 @@ impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for RepeatMutator<S>
 where
     S: HasRand,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
@@ -655,7 +625,6 @@ where
         &mut self,
         state: &mut S,
         trace: &mut Trace<PB::ProtocolTypes>,
-        _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
@@ -756,7 +725,7 @@ mod tests {
 
         loop {
             let mut trace = setup_simple_trace();
-            mutator.mutate(&mut state, &mut trace, 0).unwrap();
+            mutator.mutate(&mut state, &mut trace).unwrap();
 
             let length = trace.steps.len();
             if let Some(last) = trace.steps.get(length - 1) {
@@ -780,7 +749,7 @@ mod tests {
 
         loop {
             let mut trace = setup_simple_trace();
-            mutator.mutate(&mut state, &mut trace, 0).unwrap();
+            mutator.mutate(&mut state, &mut trace).unwrap();
 
             if let Some(last) = trace.steps.iter().last() {
                 match &last.action {
@@ -815,7 +784,7 @@ mod tests {
         loop {
             let mut trace = setup_simple_trace();
             let before_mutation = sum_extension_appends(&trace);
-            let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
+            let result = mutator.mutate(&mut state, &mut trace).unwrap();
 
             if result == MutationResult::Mutated {
                 let after_mutation = sum_extension_appends(&trace);
@@ -843,7 +812,7 @@ mod tests {
 
         loop {
             let mut trace = setup_simple_trace();
-            let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
+            let result = mutator.mutate(&mut state, &mut trace).unwrap();
 
             if result == MutationResult::Mutated {
                 let client_hellos = count_client_hello(&trace);
@@ -865,7 +834,7 @@ mod tests {
         loop {
             let mut trace = setup_simple_trace();
             let before_len = trace.steps.len();
-            mutator.mutate(&mut state, &mut trace, 0).unwrap();
+            mutator.mutate(&mut state, &mut trace).unwrap();
 
             if before_len - 1 == trace.steps.len() {
                 break;
@@ -880,7 +849,7 @@ mod tests {
 
         loop {
             let mut trace = setup_simple_trace();
-            mutator.mutate(&mut state, &mut trace, 0).unwrap();
+            mutator.mutate(&mut state, &mut trace).unwrap();
 
             let is_first_not_ch = if let Some(first) = trace.steps.first() {
                 match &first.action {

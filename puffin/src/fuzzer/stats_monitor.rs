@@ -171,7 +171,7 @@ impl Monitor for StatsMonitor {
         self.monitor.set_start_time(time);
     }
 
-    fn display(&mut self, event_msg: String, sender_id: ClientId) {
+    fn display(&mut self, event_msg: &str, sender_id: ClientId) {
         let global_stats = self.global();
         let client_stats = self.client(sender_id);
         self.dispatch(sender_id, &event_msg, &global_stats);

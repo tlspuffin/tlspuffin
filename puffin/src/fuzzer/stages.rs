@@ -61,13 +61,8 @@ where
     S: HasRand,
 {
     #[inline]
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        input: &mut I,
-        stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
-        self.scheduled_mutate(state, input, stage_idx)
+    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, Error> {
+        self.scheduled_mutate(state, input)
     }
 }
 
@@ -110,18 +105,12 @@ where
 
     /// New default implementation for mutate.
     /// Implementations must forward `mutate()` to this method
-    fn scheduled_mutate(
-        &mut self,
-        state: &mut S,
-        input: &mut I,
-        stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn scheduled_mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, Error> {
         let mut r = MutationResult::Skipped;
         let num = self.iterations(state, input);
         log::debug!(
-            "FocusScheduledMutator: num: {},  stage_idx: {}, max_stack_pow: {}",
+            "FocusScheduledMutator: num: {}, max_stack_pow: {}",
             num,
-            stage_idx,
             self.max_stack_pow
         );
         // Pre-mutation: schedule exactly once
@@ -130,9 +119,7 @@ where
         // stored in the input metadata for the later, HAVOC, and ReadMessage mutations.
         let idx = self.schedule_pre(state, input);
         log::debug!("FocusScheduledMutator: PRE idx: {}", idx);
-        let outcome = self
-            .mutations_pre_mut()
-            .get_and_mutate(idx, state, input, stage_idx)?;
+        let outcome = self.mutations_pre_mut().get_and_mutate(idx, state, input)?;
         if outcome == MutationResult::Mutated {
             r = MutationResult::Mutated;
         }
@@ -140,13 +127,10 @@ where
         // Core mutations
         for _ in 0..num {
             let idx = self.schedule_core(state, input);
-            log::debug!(
-                "FocusScheduledMutator: CORE idx: {}, stage_idx: {stage_idx}",
-                idx
-            );
+            log::debug!("FocusScheduledMutator: CORE idx: {}", idx);
             let outcome = self
                 .mutations_core_mut()
-                .get_and_mutate(idx, state, input, stage_idx)?;
+                .get_and_mutate(idx, state, input)?;
             if outcome == MutationResult::Mutated {
                 r = MutationResult::Mutated;
             }
@@ -159,7 +143,7 @@ where
         log::debug!("FocusScheduledMutator: POST idx: {}", idx);
         let outcome = self
             .mutations_post_mut()
-            .get_and_mutate(idx, state, input, stage_idx)?;
+            .get_and_mutate(idx, state, input)?;
         if outcome == MutationResult::Mutated {
             r = MutationResult::Mutated;
         }
@@ -247,13 +231,8 @@ where
         &mut self.mutations_post
     }
 
-    pub fn mutate(
-        &mut self,
-        state: &mut S,
-        input: &mut I,
-        stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
-        self.scheduled_mutate(state, input, stage_idx)
+    pub fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, Error> {
+        self.scheduled_mutate(state, input)
     }
 }
 
@@ -300,8 +279,13 @@ where
     }
 
     /// Gets the number of iterations as a random number
-    fn iterations(&self, state: &mut Z::State, _corpus_idx: CorpusId) -> Result<u64, Error> {
+    fn iterations(&self, state: &mut Z::State) -> Result<u64, Error> {
         Ok(1 + state.rand_mut().below(self.max_iterations_per_stage))
+    }
+
+    fn execs_since_progress_start(&mut self, state: &mut Z::State) -> Result<u64, Error> {
+        // Will be removed with further increase of LibAFL
+        todo!()
     }
 }
 
@@ -314,6 +298,16 @@ where
     Z::State: HasClientPerfMonitor + HasCorpus + HasRand,
     I: MutatedTransform<Self::Input, Self::State> + Clone,
 {
+    fn restart_progress_should_run(&mut self, state: &mut Self::State) -> Result<bool, Error> {
+        // Will be removed with further increase of LibAFL
+        todo!()
+    }
+
+    fn clear_restart_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
+        // Will be removed with further increase of LibAFL
+        todo!()
+    }
+
     #[inline]
     #[allow(clippy::let_and_return)]
     fn perform(
@@ -322,9 +316,8 @@ where
         executor: &mut E,
         state: &mut Z::State,
         manager: &mut EM,
-        corpus_idx: CorpusId,
     ) -> Result<(), Error> {
-        let ret = self.perform_mutational(fuzzer, executor, state, manager, corpus_idx);
+        let ret = self.perform_mutational(fuzzer, executor, state, manager);
 
         #[cfg(feature = "introspection")]
         state.introspection_monitor_mut().finish_stage();
@@ -400,13 +393,8 @@ where
     S: HasRand,
 {
     #[inline]
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        input: &mut I,
-        stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
-        self.scheduled_mutate(state, input, stage_idx)
+    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, Error> {
+        self.scheduled_mutate(state, input)
     }
 }
 
