@@ -320,7 +320,7 @@ fn test_term_payloads_mutate_eval() {
                 let payload_to_mutate_orig = payload_to_mutate.payload_0.clone();
                 let payload_to_mutate = &mut payload_to_mutate.payload;
                 match libafl::mutators::mutations::BitFlipMutator
-                    .mutate(&mut state, payload_to_mutate, 0)
+                    .mutate(&mut state, payload_to_mutate)
                     .unwrap()
                 {
                     MutationResult::Mutated => {

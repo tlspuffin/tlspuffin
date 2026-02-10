@@ -81,7 +81,7 @@ fn benchmark_mutations(c: &mut Criterion) {
         let mut trace = seed_client_attacker12.build_trace();
 
         b.iter(|| {
-            mutator.mutate(&mut state, &mut trace, 0).unwrap();
+            mutator.mutate(&mut state, &mut trace).unwrap();
         })
     });
 }
@@ -297,7 +297,7 @@ fn benchmark_test_term_payloads_mutate_eval(c: &mut Criterion) {
                 let payload_to_mutate_orig = payload_to_mutate.payload_0.clone();
                 let payload_to_mutate = &mut payload_to_mutate.payload;
                 match libafl::mutators::mutations::BitFlipMutator
-                    .mutate(&mut state, payload_to_mutate, 0)
+                    .mutate(&mut state, payload_to_mutate)
                     .unwrap()
                 {
                     MutationResult::Mutated => {
