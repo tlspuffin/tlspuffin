@@ -330,6 +330,16 @@ where
     EM: UsesState<State = Z::State>,
     Z: Evaluator<E, EM>,
 {
+    fn restart_progress_should_run(&mut self, state: &mut Self::State) -> Result<bool, Error> {
+        // Will be removed with further increase of LibAFL
+        todo!()
+    }
+
+    fn clear_restart_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
+        // Will be removed with further increase of LibAFL
+        todo!()
+    }
+
     #[inline]
     #[allow(clippy::let_and_return)]
     fn perform(
@@ -338,7 +348,6 @@ where
         _executor: &mut E,
         state: &mut Z::State,
         manager: &mut EM,
-        _corpus_idx: CorpusId,
     ) -> Result<(), Error> {
         if cfg!(feature = "introspection") {
             for stat in &STATS {

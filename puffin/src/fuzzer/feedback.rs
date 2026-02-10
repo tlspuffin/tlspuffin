@@ -89,9 +89,10 @@ where
     }
 
     /// Append to the testcase the generated metadata in case of a new corpus item
-    fn append_metadata<OT>(
+    fn append_metadata<EM, OT>(
         &mut self,
         _state: &mut SC,
+        _manager: &mut EM,
         _observers: &OT,
         testcase: &mut Testcase<Trace<PT>>,
     ) -> Result<(), Error>

@@ -65,7 +65,7 @@ fn test_mutators() {
                     // log::debug!(".");
                     let mut mutant = input.clone();
                     match mutations
-                        .get_and_mutate(idx.into(), &mut state, &mut mutant, 0)
+                        .get_and_mutate(idx.into(), &mut state, &mut mutant)
                         .unwrap()
                     {
                         MutationResult::Mutated => {
@@ -102,7 +102,7 @@ fn test_mutators() {
             for c in 0..15 {
                 // log::debug!(".");
                 match mutations
-                    .get_and_mutate(idx.into(), &mut state, &mut mutant, 0)
+                    .get_and_mutate(idx.into(), &mut state, &mut mutant)
                     .unwrap()
                 {
                     MutationResult::Mutated => {
@@ -160,7 +160,7 @@ fn test_mutators() {
                     // log::debug!(".");
                     let mut mutant = input.clone();
                     match mutations
-                        .get_and_mutate(idx.into(), &mut state, &mut mutant, 0)
+                        .get_and_mutate(idx.into(), &mut state, &mut mutant)
                         .unwrap()
                     {
                         MutationResult::Mutated => {
@@ -197,7 +197,7 @@ fn test_make_message(put: &str) {
     let mut trace = seed_client_attacker_full.build_trace();
 
     loop {
-        mutator.mutate(&mut state, &mut trace, 0).unwrap();
+        mutator.mutate(&mut state, &mut trace).unwrap();
 
         let all_payloads = if let Some(first) = trace.steps.get(0) {
             match &first.action {
@@ -236,7 +236,7 @@ fn test_byte_remove_payloads(put: &str) {
 
     while i < max {
         i += 1;
-        mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
+        mutator_make.mutate(&mut state, &mut trace).unwrap();
 
         if let Some(first) = trace.steps.get(0) {
             match &first.action {
@@ -269,7 +269,7 @@ fn test_byte_remove_payloads(put: &str) {
     i = 0;
     while i < max {
         i += 1;
-        mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
+        mutator_make.mutate(&mut state, &mut trace).unwrap();
 
         if let Some(first) = trace.steps.get(0) {
             match &first.action {
@@ -322,7 +322,7 @@ fn test_byte_simple(put: &str) {
 
     while i < max {
         i += 1;
-        mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
+        mutator_make.mutate(&mut state, &mut trace).unwrap();
 
         let all_payloads = if let Some(first) = trace.steps.get(0) {
             match &first.action {
@@ -350,7 +350,7 @@ fn test_byte_simple(put: &str) {
     while i < max {
         println!("START");
         i += 1;
-        mutator_byte.mutate(&mut state, &mut trace, 0).unwrap();
+        mutator_byte.mutate(&mut state, &mut trace).unwrap();
 
         if let Some(first) = trace.steps.get(0) {
             match &first.action {
@@ -393,7 +393,7 @@ fn test_byte_interesting(put: &str) {
 
     while i < max {
         i += 1;
-        mutator_make.mutate(&mut state, &mut trace, 0).unwrap();
+        mutator_make.mutate(&mut state, &mut trace).unwrap();
 
         let all_payloads = if let Some(first) = trace.steps.get(0) {
             match &first.action {
@@ -433,7 +433,7 @@ fn test_byte_interesting(put: &str) {
         i += 1;
         log::error!("Test attempt {i}");
         mutator_byte_interesting
-            .mutate(&mut state, &mut trace, 0)
+            .mutate(&mut state, &mut trace)
             .unwrap();
 
         if let Some(first) = trace.steps.get(0) {
@@ -504,7 +504,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
     for _i in 0..loop_tries {
         attempts += 1;
         let mut mutate = trace.clone();
-        mutator.mutate(state, &mut mutate, 0).unwrap();
+        mutator.mutate(state, &mut mutate).unwrap();
 
         let length = mutate.steps.len();
         if length > 5 {
@@ -536,7 +536,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
     for _i in 0..loop_tries {
         attempts += 1;
         let mut mutate = trace.clone();
-        mutator.mutate(state, &mut mutate, 0).unwrap();
+        mutator.mutate(state, &mut mutate).unwrap();
 
         if let Some(last) = mutate.steps.iter().last() {
             match &last.action {
@@ -573,7 +573,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
     for _i in 0..loop_tries {
         attempts += 1;
         let mut mutate = trace.clone();
-        mutator.mutate(state, &mut mutate, 0).unwrap();
+        mutator.mutate(state, &mut mutate).unwrap();
 
         if let Some(last) = mutate.steps.iter().last() {
             match &last.action {
@@ -615,7 +615,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
     for _i in 0..loop_tries {
         attempts += 1;
         let mut mutate = trace.clone();
-        let result = mutator.mutate(state, &mut mutate, 0).unwrap();
+        let result = mutator.mutate(state, &mut mutate).unwrap();
         if let MutationResult::Mutated = result {
             if let Some(last) = mutate.steps.iter().last() {
                 match &last.action {
@@ -662,7 +662,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
     for _i in 0..loop_tries {
         attempts += 1;
         let mut mutate = trace.clone();
-        mutator.mutate(state, &mut mutate, 0).unwrap();
+        mutator.mutate(state, &mut mutate).unwrap();
 
         if let Some(last) = mutate.steps.iter().last() {
             match &last.action {

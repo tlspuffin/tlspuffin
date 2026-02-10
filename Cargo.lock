@@ -171,29 +171,6 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.68.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "726e4313eb6ec35d2730258ad4e15b547ee75d6afaa1361a922e78e59b7d8078"
-dependencies = [
- "bitflags 2.6.0",
- "cexpr",
- "clang-sys",
- "lazy_static",
- "lazycell",
- "log",
- "peeking_take_while",
- "prettyplease",
- "proc-macro2",
- "quote",
- "regex",
- "rustc-hash",
- "shlex",
- "syn 2.0.87",
- "which",
-]
-
-[[package]]
-name = "bindgen"
 version = "0.69.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "271383c67ccabffb7381723dea0672a673f292304fcb45c01cc648c7a8d58088"
@@ -242,7 +219,7 @@ dependencies = [
 name = "boringssl-src"
 version = "0.1.0"
 dependencies = [
- "bindgen 0.69.5",
+ "bindgen",
  "cmake",
  "puffin-build",
 ]
@@ -251,7 +228,7 @@ dependencies = [
 name = "boringssl-sys"
 version = "0.1.0"
 dependencies = [
- "bindgen 0.69.5",
+ "bindgen",
  "boringssl-src",
  "libc",
 ]
@@ -491,6 +468,35 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "const_format"
+version = "0.2.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7faa7469a93a566e9ccc1c73fe783b4a65c274c5ace346038dca9c39fe0030ad"
+dependencies = [
+ "const_format_proc_macros",
+]
+
+[[package]]
+name = "const_format_proc_macros"
+version = "0.2.34"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1d57c2eccfb16dbac1f4e61e206105db5820c9d26c3c472bc17c774259ef7744"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-xid",
+]
+
+[[package]]
+name = "const_panic"
+version = "0.2.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e262cdaac42494e3ae34c43969f9cdeb7da178bdb4b66fa6a1ea2edb4c8ae652"
+dependencies = [
+ "typewit",
 ]
 
 [[package]]
@@ -1173,14 +1179,16 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libafl"
-version = "0.11.2"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a820f5d1bc8e52c719c023bd9b89b93e399cf3164f0a9876391e9d4d2c987c58"
+checksum = "b577c50df6fb08952eded62a6284cf1db685ac8f8e23ff056536ae3d93a95658"
 dependencies = [
  "ahash",
  "backtrace",
  "bincode",
  "c2rust-bitfields",
+ "const_format",
+ "const_panic",
  "crossterm",
  "hashbrown 0.14.5",
  "libafl_bolts",
@@ -1189,7 +1197,7 @@ dependencies = [
  "libm",
  "log",
  "meminterval",
- "nix 0.26.4",
+ "nix 0.27.1",
  "num-traits",
  "postcard",
  "ratatui",
@@ -1207,9 +1215,9 @@ dependencies = [
 
 [[package]]
 name = "libafl_bolts"
-version = "0.11.2"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "043cd82830f9df1775d97f53c508cf6b4957c88a973da00e09f1e72219ed07f2"
+checksum = "7e0b17b6f7364411f6c5e8f06b6fe5c7e0bea8bdcbc2d587814c96ae53ce19bf"
 dependencies = [
  "ahash",
  "backtrace",
@@ -1221,7 +1229,7 @@ dependencies = [
  "libc",
  "log",
  "miniz_oxide 0.7.1",
- "nix 0.26.4",
+ "nix 0.27.1",
  "num_enum",
  "postcard",
  "rand_core",
@@ -1229,6 +1237,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
+ "static_assertions",
  "tuple_list",
  "uds",
  "uuid",
@@ -1238,9 +1247,9 @@ dependencies = [
 
 [[package]]
 name = "libafl_derive"
-version = "0.11.2"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c849878dcc707721a16fd5ec2af449301c1da5e3f31682593d60f5e6ccb7568"
+checksum = "9320196e4428641515112bfe41c7e51118ed63acd39516dcfbe89538d21f93c5"
 dependencies = [
  "quote",
  "syn 2.0.87",
@@ -1248,11 +1257,11 @@ dependencies = [
 
 [[package]]
 name = "libafl_targets"
-version = "0.11.2"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdf0ba56577924aa627d7913cfb9de8da62da034ab2d1045aacc142ff422e0bd"
+checksum = "396b31448918d6081ec2c628acce569cfa51f4fd039d0dfe3df25cb623960890"
 dependencies = [
- "bindgen 0.68.1",
+ "bindgen",
  "cc",
  "libafl",
  "libafl_bolts",
@@ -1297,7 +1306,7 @@ dependencies = [
 name = "libssh-sys"
 version = "0.1.0"
 dependencies = [
- "bindgen 0.69.5",
+ "bindgen",
  "puffin-build",
 ]
 
@@ -1398,18 +1407,18 @@ dependencies = [
 
 [[package]]
 name = "memoffset"
-version = "0.7.1"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5de893c32cde5f383baa4c04c5d6dbdd735cfd4a794b0debdb2bb1b421da5ff4"
+checksum = "d61c719bcfbcf5d62b3a09efa6088de8c54bc0bfcd3ea7ae39fcc186108b8de1"
 dependencies = [
  "autocfg",
 ]
 
 [[package]]
 name = "memoffset"
-version = "0.8.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d61c719bcfbcf5d62b3a09efa6088de8c54bc0bfcd3ea7ae39fcc186108b8de1"
+checksum = "488016bfae457b036d996092f6cb448677611ce4449e970ceaf42695203f218a"
 dependencies = [
  "autocfg",
 ]
@@ -1461,15 +1470,14 @@ dependencies = [
 
 [[package]]
 name = "nix"
-version = "0.26.4"
+version = "0.27.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "598beaf3cc6fdd9a5dfb1630c2800c7acd31df7aaf0f565796fba2b53ca1af1b"
+checksum = "2eb04e9c688eff1c89d72b407f168cf79bb9e867a9d3323ed6c01519eb9cc053"
 dependencies = [
- "bitflags 1.3.2",
+ "bitflags 2.6.0",
  "cfg-if",
  "libc",
- "memoffset 0.7.1",
- "pin-utils",
+ "memoffset 0.9.1",
 ]
 
 [[package]]
@@ -1651,18 +1659,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "57c0d7b74b563b49d38dae00a0c37d4d6de9b432382b2892f0574ddcae73fd0a"
 
 [[package]]
-name = "peeking_take_while"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19b17cddbe7ec3f8bc800887bab5e717348c95ea2ca0b1bf0837fb964dc67099"
-
-[[package]]
-name = "pin-utils"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
-
-[[package]]
 name = "pkg-config"
 version = "0.3.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1747,7 +1743,7 @@ name = "puffin"
 version = "0.1.0"
 dependencies = [
  "ahash",
- "bindgen 0.69.5",
+ "bindgen",
  "cc",
  "cfg-if",
  "chrono",
@@ -2030,7 +2026,7 @@ dependencies = [
 name = "security-claims"
 version = "0.1.0"
 dependencies = [
- "bindgen 0.69.5",
+ "bindgen",
  "hex",
 ]
 
@@ -2198,7 +2194,7 @@ dependencies = [
 name = "sshpuffin"
 version = "0.1.0"
 dependencies = [
- "bindgen 0.69.5",
+ "bindgen",
  "cmake",
  "comparable",
  "env_logger",
@@ -2217,6 +2213,12 @@ name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
+
+[[package]]
+name = "static_assertions"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "strsim"
@@ -2357,7 +2359,7 @@ dependencies = [
 name = "tlspuffin"
 version = "0.1.0"
 dependencies = [
- "bindgen 0.69.5",
+ "bindgen",
  "boring",
  "boringssl-sys",
  "comparable",
@@ -2475,6 +2477,12 @@ checksum = "a68c24b707f02dd18f1e4ccceb9d49f2058c2fb86384ef9972592904d7a28867"
 dependencies = [
  "unsafe-any-ors",
 ]
+
+[[package]]
+name = "typewit"
+version = "1.14.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8c1ae7cc0fdb8b842d65d127cb981574b0d2b249b74d1c7a2986863dc134f71"
 
 [[package]]
 name = "uds"
@@ -2890,7 +2898,7 @@ dependencies = [
 name = "wolfssl-sys"
 version = "0.1.7"
 dependencies = [
- "bindgen 0.69.5",
+ "bindgen",
  "libc",
  "log",
  "wolfssl-src",

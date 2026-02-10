@@ -10,6 +10,7 @@ use puffin::libafl::prelude::{HasRand, StdState};
 use puffin::libafl::Error;
 use puffin::libafl_bolts::bolts_prelude::{tuple_list, Rand, RomuDuoJrRand};
 use puffin::libafl_bolts::tuples::HasConstLen;
+use puffin::libafl_bolts::HasLen;
 use puffin::put::PutDescriptor;
 use puffin::put_registry::TCP_PUT;
 use puffin::trace::{ConfigTrace, Spawner, Trace};
@@ -238,7 +239,7 @@ fn test_seed_bitmut_cve_2022_38153(put: &str) {
                         as usize;
                     if mut_idx != 1000 {
                         match mutations
-                            .get_and_mutate(mut_idx.into(), &mut state, &mut mutant, 0)
+                            .get_and_mutate(mut_idx.into(), &mut state, &mut mutant)
                             .unwrap()
                         {
                             MutationResult::Mutated => {
@@ -300,12 +301,7 @@ fn test_seed_bitmut_cve_2022_38153(put: &str) {
 
                 let read_message_idx = 8; // ReadMessage mutation
                 match mutations
-                    .get_and_mutate(
-                        read_message_idx.into(),
-                        &mut state,
-                        &mut trace_to_execute,
-                        0,
-                    )
+                    .get_and_mutate(read_message_idx.into(), &mut state, &mut trace_to_execute)
                     .unwrap()
                 {
                     MutationResult::Mutated => {
@@ -472,7 +468,7 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
                     tuple_list!(ReadMessage::new(config, &registry)),
                 );
                 all_tries += 1;
-                match mutator_bit_focus.mutate(&mut state, &mut mutant, 3) {
+                match mutator_bit_focus.mutate(&mut state, &mut mutant) {
                     Ok(r) => match r {
                         MutationResult::Mutated => {
                             log::info!("[Focus] Success");
