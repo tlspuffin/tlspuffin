@@ -18,7 +18,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
-#include <threads.h>
+// Use compiler-supported thread_local without relying on <threads.h>,
+// which is unavailable on macOS with some toolchains.
+#ifndef thread_local
+#define thread_local _Thread_local
+#endif
 
 #if LIBWOLFSSL_VERSION_HEX >= 0x05005001
 #define TYPETIME sword64
@@ -36,7 +40,9 @@
 // int s = snprintf(buf, 128, "Entering %s\n", __func__); write(file, buf, s); }
 
 static thread_local uint8_t rng_have_custom_seed = 0;
+#ifdef __linux__
 static thread_local struct drand48_data rng_states = {};
+#endif
 #define CUSTOM_SEED_SIZE 256
 #ifdef USE_CUSTOM_PRNG
 static TYPETIME clock_value = 0;
@@ -1041,7 +1047,11 @@ static int myCryptoCb_Func(int devId, wc_CryptoInfo *info, void *ctx)
     for (size_t i = 0; i < info->seed.sz; ++i)
     {
         double value = 0;
+#ifdef __linux__
         drand48_r(&rng_states, &value);
+#else
+        value = drand48();
+#endif
         uint8_t byte = value * 255.0;
         if (seen[byte] != 0)
         {
@@ -1368,7 +1378,11 @@ static void wolfssl_rng_reseed(uint8_t const *buffer, size_t length)
         {
             memcpy(&seed, buffer, sizeof(unsigned int));
         }
+#ifdef __linux__
         srand48_r(seed, &rng_states);
+#else
+        srand48((long)seed);
+#endif
         rng_have_custom_seed = 1;
     }
     else
