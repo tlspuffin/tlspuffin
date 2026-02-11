@@ -391,6 +391,7 @@ openssl-src = { version = "*", features = [], optional = true }
 puffin-build = { path = "../puffin-build" }
 itertools = { workspace = true }
 bindgen = { workspace = true }
+cc = "1.0.79"
 
 [dev-dependencies]
 test-log = { workspace = true }
