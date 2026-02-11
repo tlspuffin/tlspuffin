@@ -237,8 +237,7 @@ where
             // Return false if the campaign is not advanced enough (per client/core), except if no
             // DY
             if !mutation_config.with_dy
-                || (*state.executions() > MIN_BIT_EXECS as u64
-                    && state.corpus().count() > MIN_BIT_CORPUS)
+                || (*state.executions() > MIN_BIT_EXECS && state.corpus().count() > MIN_BIT_CORPUS)
             {
                 log::debug!("[*] BIT StdMutationalStage");
                 Ok(true)
@@ -290,11 +289,14 @@ where
                 if cfg!(feature = "introspection") {
                     CORPUS_EXEC.increment();
                     log::debug!("[*] Introspection stage");
-                    // Are We sure there is always a current testcase ?
-                    let current_testcase = cs
-                        .corpus()
-                        .get(cs.corpus().current().unwrap())?
-                        .borrow_mut();
+
+                    // If there is no current testcase (e.g., empty corpus / no scheduled item),
+                    // just skip.
+                    let Some(current_idx) = cs.corpus().current() else {
+                        return Ok(());
+                    };
+
+                    let current_testcase = cs.corpus().get(*current_idx)?.borrow_mut();
                     // Input will already be loaded.
                     let current_input = current_testcase.input().as_ref().unwrap();
                     let spawner = Spawner::new(put_registry.clone());

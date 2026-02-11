@@ -6,7 +6,7 @@ use crate::fuzzer::mutations::MutationConfig;
 use crate::put::PutDescriptor;
 
 /// Minimum of executions before starting to run bit-level mutations
-pub const MIN_BIT_EXECS: usize = 5_000; // one 1 core
+pub const MIN_BIT_EXECS: u64 = 5_000; // one 1 core
 /// Minimum of test cases in corpus before starting to run bit-level mutations
 pub const MIN_BIT_CORPUS: usize = 200; // on 1 core
 
