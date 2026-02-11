@@ -3,7 +3,7 @@ use std::fmt;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
-use libafl::prelude::mutational::MutatedTransform;
+
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
@@ -66,17 +66,12 @@ where
         self.scheduled_mutate(state, input)
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
 
-impl<I, MT, MtPre, MtPost, S> ComposedByMutations
-    for FocusScheduledMutator<I, MT, MtPre, MtPost, S>
+impl<I, MT, MtPre, MtPost, S> ComposedByMutations for FocusScheduledMutator<I, MT, MtPre, MtPost, S>
 where
     MT: MutatorsTuple<I, S>,
     MtPre: MutatorsTuple<I, S>,
@@ -106,7 +101,9 @@ where
 {
     /// Compute the number of iterations used to apply stacked mutations
     fn iterations(&self, state: &mut S, _: &I) -> u64 {
-        1 << (1 + state.rand_mut().below((self.max_stack_pow as usize).try_into().unwrap()))
+        1 << (1 + state
+            .rand_mut()
+            .below((self.max_stack_pow as usize).try_into().unwrap()))
     }
 
     /// Get the next mutation to apply (base implementation)
@@ -247,162 +244,6 @@ where
     }
 }
 
-/* --------------------- OLD STUFF ------------------------------- */
-/*
-/// The default mutational stage
-#[derive(Clone, Debug)]
-pub struct PuffinMutationalStage<E, EM, I, M, Z, S> {
-    mutator: M,
-    #[allow(clippy::type_complexity)]
-    phantom: PhantomData<(E, EM, I, Z, S)>,
-    max_iterations_per_stage: u64,
-}
-
-
-impl<E, EM, I, M, Z, S> MutationalStage<S> for PuffinMutationalStage<E, EM, I, M, Z, S>
-where
-    EM: EventFirer<I, S>,
-    E: Executor<EM, I, S, Z>,
-    Z: Evaluator<E, EM, I, S>,
-    I: Input,
-    M: Mutator<I, S>,
-    S: HasClientPerfMonitor + HasCorpus<I> + HasRand,
-    I: MutatedTransform<I, S> + Clone,
-{
-    type Mutator = M;
-
-    /// The mutator, added to this stage
-    #[inline]
-    fn mutator(&self) -> &Self::Mutator {
-        &self.mutator
-    }
-
-    /// The list of mutators, added to this stage (as mutable ref)
-    #[inline]
-    fn mutator_mut(&mut self) -> &mut Self::Mutator {
-        &mut self.mutator
-    }
-
-    /// Gets the number of iterations as a random number
-    fn iterations(&self, state: &mut S) -> Result<usize, Error> {
-        Ok(1 + state.rand_mut().below((self.max_iterations_per_stage as usize).try_into()?))
-    }
-
-    fn execs_since_progress_start(&mut self, state: &mut Z::State) -> Result<u64, Error> {
-        Ok(0)
-    }
-}
-
-impl<E, EM, I, M, Z, S> Stage<E, EM, S, Z> for PuffinMutationalStage<E, EM, I, M, Z, S>
-where
-    EM: EventFirer<I, S>,
-    E: Executor<EM, I, S, Z>,
-    Z: Evaluator<E, EM, I, S>,
-    I: Input,
-    M: Mutator<I, S>,
-    S: HasClientPerfMonitor + HasCorpus<I> + HasRand,
-    I: MutatedTransform<I, S> + Clone,
-{
-    fn restart_progress_should_run(&mut self, state: &mut Self::State) -> Result<bool, Error> {
-        // Will be removed with further increase of LibAFL
-        Ok(true)
-    }
-
-    fn clear_restart_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
-        // Will be removed with further increase of LibAFL
-        Ok(())
-    }
-
-    #[inline]
-    #[allow(clippy::let_and_return)]
-    fn perform(
-        &mut self,
-        fuzzer: &mut Z,
-        executor: &mut E,
-        state: &mut S,
-        manager: &mut EM,
-    ) -> Result<(), Error> {
-        let ret = self.perform_mutational(fuzzer, executor, state, manager);
-
-        #[cfg(feature = "introspection")]
-        state.introspection_monitor_mut().finish_stage();
-
-        ret
-    }
-}
-
-impl<E, EM, I, M, Z, S> PuffinMutationalStage<E, EM, I, M, Z, S>
-where
-    EM: EventFirer<I, S>,
-    E: Executor<EM, I, S, Z>,
-    Z: Evaluator<E, EM, I, S>,
-    I: Input,
-    M: Mutator<I, S>,
-    S: HasClientPerfMonitor + HasCorpus<I> + HasRand,
-    I: MutatedTransform<I, S> + Clone,
-{
-    #[allow(dead_code)]
-    /// Creates a new default mutational stage
-    pub const fn new(mutator: M, max_iterations_per_stage: u64) -> Self {
-        Self {
-            mutator,
-            phantom: PhantomData,
-            max_iterations_per_stage,
-        }
-    }
-
-    /// The function was removed from
-    fn perform_mutational(
-        &mut self,
-        fuzzer: &mut Z,
-        executor: &mut E,
-        state: &mut S,
-        manager: &mut EM,
-    ) -> Result<(), Error> {
-        start_timer!(state);
-
-        // Here saturating_sub is needed as self.iterations() might be actually smaller than the previous value before reset.
-        /*
-        let num = self
-            .iterations(state)?
-            .saturating_sub(self.execs_since_progress_start(state)?);
-        */
-        let num = self.iterations(state)?;
-        let mut testcase = state.current_testcase_mut()?;
-
-        let Ok(input) = I1::try_transform_from(&mut testcase, state) else {
-            return Ok(());
-        };
-        drop(testcase);
-        mark_feature_time!(state, PerfFeature::GetInputFromCorpus);
-
-        for _ in 0..num {
-            let mut input = input.clone();
-
-            start_timer!(state);
-            let mutated = self.mutator_mut().mutate(state, &mut input)?;
-            mark_feature_time!(state, PerfFeature::Mutate);
-
-            if mutated == MutationResult::Skipped {
-                continue;
-            }
-
-            let (untransformed, post) = input.try_transform_into(state)?;
-            let (_, corpus_id) =
-                fuzzer.evaluate_filtered(state, executor, manager, &untransformed)?;
-
-            start_timer!(state);
-            self.mutator_mut().post_exec(state, corpus_id)?;
-            post.post_exec(state, corpus_id)?;
-            mark_feature_time!(state, PerfFeature::MutatePostExec);
-        }
-
-        Ok(())
-    }
-}
-*/
-//-----------------------------
-
 /// A [`Mutator`] that schedules one of the embedded mutations on each call.
 pub struct PuffinScheduledMutator<I, MT, S>
 where
@@ -453,11 +294,7 @@ where
         self.scheduled_mutate(state, input)
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -483,7 +320,6 @@ where
     }
 }
 
-
 impl<I, MT, S> ScheduledMutator<I, S> for PuffinScheduledMutator<I, MT, S>
 where
     I: Input,
@@ -492,13 +328,24 @@ where
 {
     /// Compute the number of iterations used to apply stacked mutations
     fn iterations(&self, state: &mut S, _: &I) -> u64 {
-        state.rand_mut().below((self.max_mutations_per_iteration as usize).try_into().unwrap()).try_into().unwrap()
+        state
+            .rand_mut()
+            .below(
+                (self.max_mutations_per_iteration as usize)
+                    .try_into()
+                    .unwrap(),
+            )
+            .try_into()
+            .unwrap()
     }
 
     /// Get the next mutation to apply
     fn schedule(&self, state: &mut S, _: &I) -> MutationId {
         debug_assert!(!self.mutations().is_empty());
-        state.rand_mut().below(NonZeroUsize::try_from(self.mutations().len()).unwrap()).into()
+        state
+            .rand_mut()
+            .below(NonZeroUsize::try_from(self.mutations().len()).unwrap())
+            .into()
     }
 }
 

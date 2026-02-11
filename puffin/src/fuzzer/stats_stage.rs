@@ -2,8 +2,8 @@ use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
-use libafl::prelude::*;
 use libafl::monitors::stats::*;
+use libafl::prelude::*;
 use libafl_bolts::Named;
 
 pub enum RuntimeStats {
@@ -315,7 +315,6 @@ static mut STATS_STAGE_ID: usize = 0;
 /// The name for closure stage
 pub static STATS_STAGE_NAME: &str = "StatsStage";
 
-
 #[derive(Clone, Debug)]
 pub struct StatsStage<E, EM, Z, S, I> {
     #[allow(clippy::type_complexity)]
@@ -329,7 +328,6 @@ impl<E, EM, Z, S, I> Named for StatsStage<E, EM, Z, S, I> {
     }
 }
 
-
 impl<E, EM, S, Z, I> Stage<E, EM, S, Z> for StatsStage<E, EM, S, Z, I>
 where
     EM: EventFirer<I, S>,
@@ -338,16 +336,6 @@ where
     I: Input,
     S: HasExecutions,
 {
-    fn restart_progress_should_run(&mut self, state: &mut Self::State) -> Result<bool, Error> {
-        // Will be removed with further increase of LibAFL
-        Ok(true)
-    }
-
-    fn clear_restart_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
-        // Will be removed with further increase of LibAFL
-        Ok(())
-    }
-
     #[inline]
     #[allow(clippy::let_and_return)]
     fn perform(
@@ -368,8 +356,8 @@ where
                                 value: stats,
                                 phantom: Default::default(),
                             },
-                            *state.executions()
-                        )
+                            *state.executions(),
+                        ),
                     )
                 })?;
             }
@@ -387,6 +375,7 @@ where
     I: Input,
     S: HasExecutions + HasNamedMetadata,
 {
+    // Copied from an example in the Libafl library, might need to change it later
     fn should_restart(&mut self, state: &mut S) -> Result<bool, Error> {
         Ok(true)
     }
@@ -402,7 +391,7 @@ where
     EM: EventFirer<I, S>,
     E: Executor<EM, I, S, Z>,
     Z: Evaluator<E, EM, I, S>,
-    I: Input
+    I: Input,
 {
     pub fn new() -> Self {
         // unsafe but impossible that you create two threads both instantiating this instance
@@ -423,7 +412,7 @@ where
     EM: EventFirer<I, S>,
     E: Executor<EM, I, S, Z>,
     Z: Evaluator<E, EM, I, S>,
-    I: Input
+    I: Input,
 {
     fn default() -> Self {
         Self::new()

@@ -1,6 +1,6 @@
 use std::fmt::Display;
-use std::io::Read;
-use libafl::inputs::{BytesInput};
+
+use libafl::inputs::BytesInput;
 use libafl_bolts::HasLen;
 use serde::{Deserialize, Serialize};
 
@@ -766,7 +766,9 @@ impl<PT: ProtocolTypes> Term<PT> {
                 if let (true, Some(payload)) = (with_payloads, &self.payloads) {
                     log::trace!("[eval_until_opaque] Checking consistency of new evaluation!");
                     let new_payload_0 = PB::any_get_encoding(result.as_ref());
-                    if <Vec<u8> as AsRef<Vec<u8>>>::as_ref(&new_payload_0) != payload.payload_0.as_ref() {
+                    if <Vec<u8> as AsRef<Vec<u8>>>::as_ref(&new_payload_0)
+                        != payload.payload_0.as_ref()
+                    {
                         let ft = format!("--> [eval_until_opaque] [term has variable:{}] Failed consistency check payload_0 versus new encoding.\n\
                                     - term: {}\n\
                                     - payload_0:    {:?}\n\

@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
@@ -63,14 +64,6 @@ pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
     GenerateMutator<'harness, S, PB>,
     SwapMutator<S>,
 );
-
-pub(crate) fn remove_prefix_and_type(str: &str) -> &str {
-    str.splitn(2, '<').collect::<Vec<&str>>()[0]
-        .split(':')
-        .collect::<Vec<&str>>()
-        .last()
-        .unwrap()
-}
 
 #[must_use]
 pub fn dy_mutations<'harness, S, PT: ProtocolTypes, PB>(
@@ -175,11 +168,7 @@ where
         Ok(MutationResult::Skipped)
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -278,11 +267,7 @@ where
         }
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -384,11 +369,7 @@ where
         }
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -476,11 +457,7 @@ where
         Ok(MutationResult::Skipped)
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -542,11 +519,7 @@ where
         Ok(MutationResult::Mutated)
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -608,11 +581,7 @@ where
         Ok(MutationResult::Mutated)
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -721,11 +690,7 @@ where
         }
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }

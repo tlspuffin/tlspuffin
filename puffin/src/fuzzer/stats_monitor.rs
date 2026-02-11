@@ -7,11 +7,10 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use dyn_clone::DynClone;
-use libafl::monitors::tui::ui::TuiUi;
-use libafl::monitors::tui::TuiMonitor;
 use libafl::monitors::stats::*;
+use libafl::monitors::tui::TuiMonitor;
 use libafl::prelude::*;
-use libafl_bolts::prelude::{ClientId, current_time};
+use libafl_bolts::prelude::{current_time, ClientId};
 use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
@@ -32,10 +31,12 @@ pub struct StatsMonitor {
 
 impl StatsMonitor {
     pub fn with_tui_output(stats_file: PathBuf) -> Self {
-        let monitor = Box::new(TuiMonitor::new(TuiUi::new(
-            String::from("tlspuffin [press q to exit]"),
-            false,
-        )));
+        let monitor = Box::new(
+            TuiMonitor::builder()
+                .title(String::from("tlspuffin [press q to exit]"))
+                .enhanced_graphics(false)
+                .build(),
+        );
         let handlers: Vec<Box<dyn EventHandler>> =
             vec![Box::new(JSONEventHandler::new(stats_file))];
 
@@ -56,7 +57,11 @@ impl StatsMonitor {
         Self { monitor, handlers }
     }
 
-    fn client(&mut self, client_stats_manager: &mut ClientStatsManager, id: ClientId) -> Statistics {
+    fn client(
+        &mut self,
+        client_stats_manager: &mut ClientStatsManager,
+        id: ClientId,
+    ) -> Statistics {
         let client = client_stats_manager.client_stats_for(id).unwrap();
         let mut cur_client_clone = client.clone();
 
@@ -161,13 +166,14 @@ impl Monitor for StatsMonitor {
         &mut self,
         client_stats_manager: &mut ClientStatsManager,
         event_msg: &str,
-        sender_id: ClientId
+        sender_id: ClientId,
     ) -> Result<(), Error> {
         let global_stats = self.global(client_stats_manager);
         let client_stats = self.client(client_stats_manager, sender_id);
         self.dispatch(sender_id, &event_msg, &global_stats);
         self.dispatch(sender_id, &event_msg, &client_stats);
-        self.monitor.display(client_stats_manager, event_msg, sender_id)?;
+        self.monitor
+            .display(client_stats_manager, event_msg, sender_id)?;
         Ok(())
     }
 }
