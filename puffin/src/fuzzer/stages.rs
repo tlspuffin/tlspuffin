@@ -284,8 +284,7 @@ where
     }
 
     fn execs_since_progress_start(&mut self, state: &mut Z::State) -> Result<u64, Error> {
-        // Will be removed with further increase of LibAFL
-        todo!()
+        Ok(0)
     }
 }
 
@@ -300,12 +299,12 @@ where
 {
     fn restart_progress_should_run(&mut self, state: &mut Self::State) -> Result<bool, Error> {
         // Will be removed with further increase of LibAFL
-        todo!()
+        Ok(true)
     }
 
     fn clear_restart_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
         // Will be removed with further increase of LibAFL
-        todo!()
+        Ok(())
     }
 
     #[inline]
