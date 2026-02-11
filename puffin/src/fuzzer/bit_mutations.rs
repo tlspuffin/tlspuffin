@@ -426,11 +426,7 @@ where
     }
 
     #[inline]
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -647,11 +643,7 @@ where
         }
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -674,8 +666,8 @@ use paste::paste;
 use crate::algebra::bitstrings::PayloadMetadata;
 use crate::algebra::signature::Signature;
 use crate::fuzzer::mutations::{
-    dy_mutations, remove_prefix_and_type, GenerateMutator, MutationConfig, RemoveAndLiftMutator,
-    RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator, SwapMutator,
+    dy_mutations, GenerateMutator, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
+    ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator, SwapMutator,
 };
 use crate::fuzzer::stats_stage::{BIT_EXEC, BIT_EXEC_SUCCESS, MM_EXEC, MM_EXEC_SUCCESS};
 use crate::put_registry::PutRegistry;
@@ -892,11 +884,7 @@ where
         }
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -977,11 +965,7 @@ where
         }
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -1302,7 +1286,8 @@ where
             let other_testcase = state.corpus().get(idx)?.borrow_mut();
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
-                .payload.as_ref();
+                .payload
+                .as_ref();
             other_input.len()
         };
         //
@@ -1312,7 +1297,11 @@ where
             return Ok(MutationResult::Skipped);
         }
 
-        let range = rand_range(state, other_size, min(other_size.try_into()?, (max_size - size).try_into()?));
+        let range = rand_range(
+            state,
+            other_size,
+            min(other_size.try_into()?, (max_size - size).try_into()?),
+        );
         let target = state.rand_mut().below(size.try_into()?);
 
         input.resize(size + range.len(), 0);
@@ -1326,7 +1315,8 @@ where
         let other_testcase = state.corpus().get(idx)?.borrow_mut();
         // Input will already be loaded.
         let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
-            .payload.as_ref();
+            .payload
+            .as_ref();
         let _other_size = other_input.len();
 
         unsafe {
@@ -1339,11 +1329,7 @@ where
         Ok(MutationResult::Mutated)
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -1453,7 +1439,8 @@ where
             let other_testcase = state.corpus().get(idx)?.borrow_mut();
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
-                .payload.as_ref();
+                .payload
+                .as_ref();
             other_input.len()
         };
         //
@@ -1464,7 +1451,11 @@ where
         }
 
         let target = state.rand_mut().below(size.try_into()?);
-        let range = rand_range(state, other_size, min(other_size.try_into()?, (size - target).try_into()?));
+        let range = rand_range(
+            state,
+            other_size,
+            min(other_size.try_into()?, (size - target).try_into()?),
+        );
 
         // let other_testcase = state.corpus().get(idx)?.borrow_mut();
         // // No need to load the input again, it'll still be cached.
@@ -1472,7 +1463,8 @@ where
         let other_testcase = state.corpus().get(idx)?.borrow_mut();
         // Input will already be loaded.
         let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
-            .payload.as_ref();
+            .payload
+            .as_ref();
 
         unsafe {
             buffer_copy(input, other_input, range.start, target, range.len());
@@ -1484,11 +1476,7 @@ where
         Ok(MutationResult::Mutated)
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -1582,7 +1570,8 @@ where
             let other_testcase = state.corpus().get(idx)?.borrow_mut();
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
-                .payload.as_ref();
+                .payload
+                .as_ref();
             other_input.len()
         };
         //
@@ -1591,7 +1580,8 @@ where
             let other_testcase = state.corpus().get(idx)?.borrow_mut();
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
-                .payload.as_ref();
+                .payload
+                .as_ref();
 
             let mut counter: u32 = 0;
             loop {
@@ -1609,12 +1599,15 @@ where
             }
         };
 
-        let split_at = state.rand_mut().between(first_diff as usize, last_diff as usize);
+        let split_at = state
+            .rand_mut()
+            .between(first_diff as usize, last_diff as usize);
 
         let other_testcase = state.corpus().get(idx)?.borrow_mut();
         // Input will already be loaded.
         let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
-            .payload.as_ref();
+            .payload
+            .as_ref();
 
         input.splice(split_at.., other_input[split_at..].iter().copied());
         metadata.has_changed = true;
@@ -1624,11 +1617,7 @@ where
         Ok(MutationResult::Mutated)
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }
@@ -1659,9 +1648,7 @@ where
         if size < 1 << min_length_log {
             return Ok(MutationResult::Skipped);
         }
-        let len_log = state
-            .rand_mut()
-            .between(min_length_log, max_length_log);
+        let len_log = state.rand_mut().between(min_length_log, max_length_log);
         let len = min(1 << len_log, max_size - size);
         let start = state.rand_mut().between(0, size);
         let range = start..(start + len);
@@ -1680,11 +1667,7 @@ where
         Ok(MutationResult::Mutated)
     }
 
-    fn post_exec(
-        &mut self,
-        _state: &mut S,
-        _new_corpus_id: Option<CorpusId>,
-    ) -> Result<(), Error> {
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
         Ok(())
     }
 }

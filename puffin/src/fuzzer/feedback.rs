@@ -5,10 +5,9 @@ use std::default::Default;
 use libafl::corpus::Testcase;
 use libafl::events::EventFirer;
 use libafl::executors::ExitKind;
-use libafl::feedbacks::Feedback;
-use libafl::feedbacks::StateInitializer;
+use libafl::feedbacks::{Feedback, StateInitializer};
 use libafl::observers::ObserversTuple;
-use libafl::prelude::{Corpus, HasCorpus, HasMaxSize, HasRand, StdState};
+use libafl::prelude::{HasMaxSize, HasRand};
 use libafl_bolts::{Error, Named};
 use serde::{Deserialize, Serialize};
 
@@ -26,7 +25,7 @@ thread_local! {
 pub struct MinimizingFeedback<SC, PT>
 where
     SC: HasRand + HasMaxSize,
-    PT: ProtocolTypes + 'static
+    PT: ProtocolTypes + 'static,
 {
     enabled: bool,
     pub(crate) phantom: std::marker::PhantomData<(SC, PT)>,
@@ -100,8 +99,7 @@ where
         _manager: &mut EM,
         _observers: &OT,
         testcase: &mut Testcase<Trace<PT>>,
-    ) -> Result<(), Error>
-    {
+    ) -> Result<(), Error> {
         if self.enabled {
             let possibly_failed_at_step = FAIL_AT_STEP.get();
             let input_trace = testcase

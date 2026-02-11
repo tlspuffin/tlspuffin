@@ -12,6 +12,9 @@ use smallvec::SmallVec;
 
 use crate::protocol::{AgentType, TLSProtocolTypes, TLSVersion};
 
+// They changed the Comparable crate from 0.5.5 to 0.5.6 where arrays are no longer supported for
+// now We can either use a vec<u8> or fix the current version of the Comparable crate (that's what I
+// have done for now)
 #[derive(Debug, Clone, PartialEq, Comparable)]
 pub struct TlsTranscript(pub [u8; 64], pub i32);
 

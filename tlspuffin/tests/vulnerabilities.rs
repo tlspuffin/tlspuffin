@@ -4,12 +4,11 @@ use puffin::fuzzer::mutations::MutationConfig;
 use puffin::fuzzer::stages::FocusScheduledMutator;
 use puffin::fuzzer::utils::{find_term, find_term_mut};
 use puffin::libafl::corpus::InMemoryCorpus;
-use puffin::libafl::inputs::HasBytesVec;
 use puffin::libafl::mutators::{MutationResult, MutatorsTuple, ScheduledMutator};
 use puffin::libafl::prelude::{HasRand, StdState};
 use puffin::libafl::Error;
 use puffin::libafl_bolts::bolts_prelude::{tuple_list, Rand, RomuDuoJrRand};
-use puffin::libafl_bolts::tuples::HasConstLen;
+use puffin::libafl_bolts::tuples::{HasConstLen, NamedTuple};
 use puffin::libafl_bolts::HasLen;
 use puffin::put::PutDescriptor;
 use puffin::put_registry::TCP_PUT;
@@ -234,10 +233,7 @@ fn test_seed_bitmut_cve_2022_38153(put: &str) {
                     all_tries += 1;
                     // let min_mut_idx = 23;
                     // let max_mut_idx = 30;
-                    let mut_idx = state
-                        .rand_mut()
-                        .between(min_mut_idx, max_mut_idx as u64 - 1)
-                        as usize;
+                    let mut_idx = state.rand_mut().between(min_mut_idx, max_mut_idx - 1) as usize;
                     if mut_idx != 1000 {
                         match mutations
                             .get_and_mutate(mut_idx.into(), &mut state, &mut mutant)
@@ -258,7 +254,7 @@ fn test_seed_bitmut_cve_2022_38153(put: &str) {
                                         log::error!(
                                             "[{all_tries}] [{j_mut}] ExpandLarge [{}] YESS: {}",
                                             mutations.names()[mut_idx],
-                                            payload.payload.bytes().len()
+                                            payload.payload.len()
                                         );
                                     }
                                 }
@@ -279,15 +275,15 @@ fn test_seed_bitmut_cve_2022_38153(put: &str) {
                     .payloads
                 {
                     // We mutate the payloads, so we need to make sure that the payload is readable
-                    if payload.payload.bytes().len() > 250 {
+                    if payload.payload.len() > 250 {
                         log::error!(
                             "[{all_tries}] [{j_mut}] =========> Payload is sufficiently long: {} bytes",
-                            payload.payload.bytes().len()
+                            payload.payload.len()
                         );
                     } else {
                         log::warn!(
                             "[{all_tries}] [{j_mut}] ==> Length: {}",
-                            payload.payload.bytes().len()
+                            payload.payload.len()
                         );
                         // log::error!("{mutant}");
                     }
@@ -465,6 +461,7 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
                             RomuDuoJrRand,
                             InMemoryCorpus<Trace<TLSProtocolTypes>>,
                         >,
+                        TLSProtocolTypes,
                     >(config),
                     tuple_list!(ReadMessage::new(config, &registry)),
                 );
