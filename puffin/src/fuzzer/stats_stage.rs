@@ -332,12 +332,12 @@ where
 {
     fn restart_progress_should_run(&mut self, state: &mut Self::State) -> Result<bool, Error> {
         // Will be removed with further increase of LibAFL
-        todo!()
+        Ok(true)
     }
 
     fn clear_restart_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
         // Will be removed with further increase of LibAFL
-        todo!()
+        Ok(())
     }
 
     #[inline]

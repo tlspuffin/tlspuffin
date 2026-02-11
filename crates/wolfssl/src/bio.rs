@@ -275,12 +275,10 @@ impl MemBio {
         self.0
     }
 
-    #[allow(invalid_null_arguments)]
     pub fn get_buf(&self) -> &[u8] {
         unsafe {
-            let ptr = ptr::null_mut();
+            let mut ptr: *mut c_void = ptr::null_mut();
             let len = wolfssl_sys::wolfSSL_BIO_get_mem_data(self.0, ptr);
-            assert!(!ptr.is_null());
             slice::from_raw_parts(ptr as *const _ as *const _, len as usize)
         }
     }

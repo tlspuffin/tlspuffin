@@ -22,8 +22,8 @@ fn main() {
         .derive_default(true)
         .impl_debug(true)
         .parse_callbacks(Box::new(MyParseCallbacks {}))
-        .impl_partialeq(true)
-        .derive_partialeq(true)
+        .impl_partialeq(false)
+        .derive_partialeq(false)
         .generate()
         .expect("Unable to generate bindings");
 
