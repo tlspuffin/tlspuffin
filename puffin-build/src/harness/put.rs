@@ -138,9 +138,19 @@ impl Put {
             //     Unfortunately, passing `-frtlib-add-rpath` to clang doesn't add
             //     the correct rpath on linux platforms. Instead, we find the folder
             //     containing the compiler-rt runtime and add it to rpath ourselves.
-            println!("cargo:rustc-link-arg=-Wl,-rpath,{}", clang::runtime_dir());
+            let runtime_dir = clang::runtime_dir();
+            println!("cargo:rustc-link-arg=-Wl,-rpath,{}", runtime_dir);
             println!("cargo:rustc-link-arg=-fsanitize=address");
-            println!("cargo:rustc-link-arg=-shared-libasan");
+
+            if cfg!(target_os = "macos") {
+                // On macOS, `-shared-libasan` is not supported by all clang
+                // variants (e.g. Nix's clang wrapper). Explicitly link the
+                // ASAN runtime dylib instead.
+                println!("cargo:rustc-link-search=native={}", runtime_dir);
+                println!("cargo:rustc-link-lib=dylib=clang_rt.asan_osx_dynamic");
+            } else {
+                println!("cargo:rustc-link-arg=-shared-libasan");
+            }
         }
 
         if self
