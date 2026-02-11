@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include <openssl/bio.h>
 #include <openssl/err.h>
@@ -84,6 +85,333 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block);
 
 static bool recreate_ssl_from_agent_ctx(AGENT agent);
 static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor);
+
+static bool is_numeric_token(const char *token)
+{
+    if (token == NULL || token[0] == '\0')
+    {
+        return false;
+    }
+
+    for (const unsigned char *p = (const unsigned char *)token; *p != '\0'; ++p)
+    {
+        if (!isdigit(*p))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static bool append_str(char *out, size_t out_len, size_t *offset, const char *s)
+{
+    size_t s_len = strlen(s);
+    if (*offset + s_len + 1 > out_len)
+    {
+        return false;
+    }
+    memcpy(out + *offset, s, s_len);
+    *offset += s_len;
+    out[*offset] = '\0';
+    return true;
+}
+
+static bool append_char(char *out, size_t out_len, size_t *offset, char c)
+{
+    if (*offset + 2 > out_len)
+    {
+        return false;
+    }
+    out[*offset] = c;
+    *offset += 1;
+    out[*offset] = '\0';
+    return true;
+}
+
+// Convert a TLS 1.2 IANA cipher name (e.g. TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
+// into the OpenSSL/LibreSSL cipher alias (e.g. ECDHE-RSA-AES128-GCM-SHA256).
+static bool map_tls12_iana_cipher_name(const char *iana, char *out, size_t out_len)
+{
+    if (iana == NULL || out == NULL || out_len == 0)
+    {
+        return false;
+    }
+
+    const char *prefix = "TLS_";
+    const char *with_sep = "_WITH_";
+    if (strncmp(iana, prefix, strlen(prefix)) != 0)
+    {
+        return false;
+    }
+
+    const char *with_pos = strstr(iana, with_sep);
+    if (with_pos == NULL)
+    {
+        return false;
+    }
+
+    size_t lhs_len = (size_t)(with_pos - (iana + strlen(prefix)));
+    const char *rhs = with_pos + strlen(with_sep);
+    if (lhs_len == 0 || rhs[0] == '\0' || lhs_len >= 128)
+    {
+        return false;
+    }
+
+    char lhs[128] = {0};
+    memcpy(lhs, iana + strlen(prefix), lhs_len);
+
+    char rhs_copy[256] = {0};
+    if (strlen(rhs) >= sizeof(rhs_copy))
+    {
+        return false;
+    }
+    memcpy(rhs_copy, rhs, strlen(rhs));
+
+    out[0] = '\0';
+    size_t offset = 0;
+
+    // Key-exchange/auth part: ECDHE_RSA -> ECDHE-RSA
+    for (size_t i = 0; i < lhs_len; ++i)
+    {
+        char ch = lhs[i] == '_' ? '-' : lhs[i];
+        if (!append_char(out, out_len, &offset, ch))
+        {
+            return false;
+        }
+    }
+    if (!append_char(out, out_len, &offset, '-'))
+    {
+        return false;
+    }
+
+    char *tokens[32] = {0};
+    size_t token_count = 0;
+    char *saveptr = NULL;
+    for (char *tok = strtok_r(rhs_copy, "_", &saveptr); tok != NULL;
+         tok = strtok_r(NULL, "_", &saveptr))
+    {
+        if (token_count >= (sizeof(tokens) / sizeof(tokens[0])))
+        {
+            return false;
+        }
+        tokens[token_count++] = tok;
+    }
+
+    if (token_count == 0)
+    {
+        return false;
+    }
+
+    size_t i = 0;
+    if (token_count >= 2 &&
+        ((strcmp(tokens[0], "AES") == 0) || (strcmp(tokens[0], "CAMELLIA") == 0) ||
+         (strcmp(tokens[0], "ARIA") == 0)) &&
+        is_numeric_token(tokens[1]))
+    {
+        // AES_128 -> AES128, CAMELLIA_256 -> CAMELLIA256, etc.
+        if (!append_str(out, out_len, &offset, tokens[0]) ||
+            !append_str(out, out_len, &offset, tokens[1]))
+        {
+            return false;
+        }
+        i = 2;
+    }
+    else
+    {
+        if (!append_str(out, out_len, &offset, tokens[0]))
+        {
+            return false;
+        }
+        i = 1;
+    }
+
+    for (; i < token_count; ++i)
+    {
+        if (strcmp(tokens[i], "CCM") == 0 && (i + 1) < token_count && strcmp(tokens[i + 1], "8") == 0)
+        {
+            if (!append_str(out, out_len, &offset, "-CCM8"))
+            {
+                return false;
+            }
+            ++i;
+            continue;
+        }
+
+        if (!append_char(out, out_len, &offset, '-') || !append_str(out, out_len, &offset, tokens[i]))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static bool map_tls13_cipher_name(const char *in, char *out, size_t out_len)
+{
+    if (in == NULL || out == NULL || out_len == 0)
+    {
+        return false;
+    }
+
+    if (strcmp(in, "TLS_AES_256_GCM_SHA384") == 0 ||
+        strcmp(in, "TLS13-AES-256-GCM-SHA384") == 0)
+    {
+        snprintf(out, out_len, "%s", "TLS_AES_256_GCM_SHA384");
+        return true;
+    }
+    if (strcmp(in, "TLS_CHACHA20_POLY1305_SHA256") == 0 ||
+        strcmp(in, "TLS13-CHACHA20-POLY1305-SHA256") == 0)
+    {
+        snprintf(out, out_len, "%s", "TLS_CHACHA20_POLY1305_SHA256");
+        return true;
+    }
+    if (strcmp(in, "TLS_AES_128_GCM_SHA256") == 0 ||
+        strcmp(in, "TLS13-AES-128-GCM-SHA256") == 0)
+    {
+        snprintf(out, out_len, "%s", "TLS_AES_128_GCM_SHA256");
+        return true;
+    }
+    if (strcmp(in, "TLS_AES_128_CCM_SHA256") == 0 ||
+        strcmp(in, "TLS13-AES-128-CCM-SHA256") == 0)
+    {
+        snprintf(out, out_len, "%s", "TLS_AES_128_CCM_SHA256");
+        return true;
+    }
+    if (strcmp(in, "TLS_AES_128_CCM_8_SHA256") == 0 ||
+        strcmp(in, "TLS13-AES-128-CCM-8-SHA256") == 0)
+    {
+        snprintf(out, out_len, "%s", "TLS_AES_128_CCM_8_SHA256");
+        return true;
+    }
+
+    return false;
+}
+
+// Translate a colon-separated TLS1.2 cipher list; unknown entries are preserved as-is.
+static void map_tls12_iana_cipher_list(const char *input, char *output, size_t output_len)
+{
+    if (output_len == 0)
+    {
+        return;
+    }
+
+    output[0] = '\0';
+    if (input == NULL)
+    {
+        return;
+    }
+
+    char input_copy[1024] = {0};
+    size_t input_len = strlen(input);
+    if (input_len >= sizeof(input_copy))
+    {
+        // Fall back to the original input if it does not fit in the temp buffer.
+        snprintf(output, output_len, "%s", input);
+        return;
+    }
+    memcpy(input_copy, input, input_len);
+
+    size_t out_off = 0;
+    bool first = true;
+    char *saveptr = NULL;
+    for (char *tok = strtok_r(input_copy, ":", &saveptr); tok != NULL;
+         tok = strtok_r(NULL, ":", &saveptr))
+    {
+        if (tok[0] == '\0')
+        {
+            continue;
+        }
+
+        char mapped[256] = {0};
+        const char *chosen = tok;
+        if (map_tls12_iana_cipher_name(tok, mapped, sizeof(mapped)))
+        {
+            chosen = mapped;
+        }
+
+        if (!first)
+        {
+            if (!append_char(output, output_len, &out_off, ':'))
+            {
+                break;
+            }
+        }
+        if (!append_str(output, output_len, &out_off, chosen))
+        {
+            break;
+        }
+        first = false;
+    }
+
+    if (output[0] == '\0')
+    {
+        snprintf(output, output_len, "%s", input);
+    }
+}
+
+// Normalize a colon-separated TLS 1.3 cipher list to names accepted by LibreSSL.
+// Non-TLS1.3 entries are skipped so mixed lists (e.g. when tls_version=Both) do not
+// make SSL_CTX_set_ciphersuites fail.
+static void map_tls13_cipher_list(const char *input, char *output, size_t output_len)
+{
+    if (output_len == 0)
+    {
+        return;
+    }
+
+    output[0] = '\0';
+    if (input == NULL)
+    {
+        return;
+    }
+
+    char input_copy[1024] = {0};
+    size_t input_len = strlen(input);
+    if (input_len >= sizeof(input_copy))
+    {
+        snprintf(output, output_len, "%s", input);
+        return;
+    }
+    memcpy(input_copy, input, input_len);
+
+    size_t out_off = 0;
+    bool first = true;
+    char *saveptr = NULL;
+    for (char *tok = strtok_r(input_copy, ":", &saveptr); tok != NULL;
+         tok = strtok_r(NULL, ":", &saveptr))
+    {
+        if (tok[0] == '\0')
+        {
+            continue;
+        }
+
+        char mapped[128] = {0};
+        if (!map_tls13_cipher_name(tok, mapped, sizeof(mapped)))
+        {
+            continue;
+        }
+
+        if (!first)
+        {
+            if (!append_char(output, output_len, &out_off, ':'))
+            {
+                break;
+            }
+        }
+        if (!append_str(output, output_len, &out_off, mapped))
+        {
+            break;
+        }
+        first = false;
+    }
+
+    // Keep behavior permissive if we could not normalize anything.
+    if (output[0] == '\0')
+    {
+        snprintf(output, output_len, "%s", input);
+    }
+}
 
 // Extract the current transcript hash from the SSL handshake state.
 // Returns the hash length, or 0 if not available.
@@ -428,6 +756,17 @@ static void libressl_msg_callback(int write_p,
     {
         memcpy(agent->cached_server_random, (const uint8_t *)buf + 6, SSL3_RANDOM_SIZE);
         agent->has_cached_server_random = true;
+    }
+
+    // Prevent LibreSSL from zeroing intermediate TLS 1.3 secrets
+    // (extracted_early, extracted_handshake, extracted_master).
+    // The `insecure` flag disables explicit_bzero in tls13_key_schedule.c.
+    {
+        struct tls13_secrets *secrets = agent->ssl->s3->hs.tls13.secrets;
+        if (secrets != NULL)
+        {
+            secrets->insecure = 1;
+        }
     }
 
 // Helper macro to enqueue a claim type
@@ -807,12 +1146,18 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both)
     {
-        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
+        char mapped_tls13[1024] = {0};
+        map_tls13_cipher_list(descriptor->cipher_string_tls13, mapped_tls13, sizeof(mapped_tls13));
+        SSL_CTX_set_ciphersuites(ssl_ctx, mapped_tls13);
+        SSL_CTX_set_cipher_list(ssl_ctx, mapped_tls13);
     }
     else
     {
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
+        char mapped_cipher_list[2048] = {0};
+        map_tls12_iana_cipher_list(descriptor->cipher_string_tls12,
+                                   mapped_cipher_list,
+                                   sizeof(mapped_cipher_list));
+        SSL_CTX_set_cipher_list(ssl_ctx, mapped_cipher_list);
     }
 
     if (descriptor->group_list != NULL)
@@ -879,12 +1224,18 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both)
     {
-        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
+        char mapped_tls13[1024] = {0};
+        map_tls13_cipher_list(descriptor->cipher_string_tls13, mapped_tls13, sizeof(mapped_tls13));
+        SSL_CTX_set_ciphersuites(ssl_ctx, mapped_tls13);
+        SSL_CTX_set_cipher_list(ssl_ctx, mapped_tls13);
     }
     else
     {
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
+        char mapped_cipher_list[2048] = {0};
+        map_tls12_iana_cipher_list(descriptor->cipher_string_tls12,
+                                   mapped_cipher_list,
+                                   sizeof(mapped_cipher_list));
+        SSL_CTX_set_cipher_list(ssl_ctx, mapped_cipher_list);
     }
 
     if (descriptor->group_list != NULL)

@@ -12,6 +12,12 @@ list(APPEND PATCH_COMMANDS COMMAND sh -c "echo tls_init > <SOURCE_DIR>/tls/tls.s
 list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_LIST_DIR}/arc4random_prng.c" "<SOURCE_DIR>/crypto/compat/arc4random.c")
 list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_LIST_DIR}/arc4random_prng.h" "<SOURCE_DIR>/crypto/compat/arc4random.h")
 
+# Prevent LibreSSL from zeroing intermediate TLS 1.3 secrets (extracted_early,
+# extracted_handshake, extracted_master) after derivation.  The `insecure` flag
+# in tls13_secrets disables the explicit_bzero calls in tls13_key_schedule.c.
+# We set it at creation time so the harness can read all secrets for claims.
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/ssl/tls13_key_schedule.c -P "${CMAKE_CURRENT_LIST_DIR}/patch_insecure.cmake")
+
 cmake_builder(
   CMAKE_FLAGS
     -DBUILD_SHARED_LIBS=OFF
@@ -60,7 +66,8 @@ list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy
 set(tls12 yes)
 set(tls13 yes)
 set(tls12_session_resumption yes)
-set(tls13_session_resumption yes)
+# LibreSSL does not support TLS 1.3 session resumption, only 0-RTT
+set(tls13_session_resumption no)
 set(transcript_extraction yes)
 set(client_authentication_transcript_extraction yes)
 set(allow_setting_tls12_ciphers yes)
