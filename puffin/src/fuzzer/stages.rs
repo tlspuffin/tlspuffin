@@ -167,7 +167,7 @@ where
     MtPost: MutatorsTuple<I, S> + NamedTuple,
     S: HasRand,
 {
-    /// Create a new [`libafl::mutators::StdScheduledMutator`] instance specifying mutations
+    /// Create a new [`libafl::mutators::ScheduledMutator`] instance specifying mutations
     pub fn new(mutations_pre: MtPre, mutations_core: MT, mutations_post: MtPost) -> Self {
         FocusScheduledMutator {
             name: Cow::from(format!(
@@ -184,7 +184,7 @@ where
         }
     }
 
-    /// Create a new [`libafl::mutators::StdScheduledMutator`] instance specifying mutations and the
+    /// Create a new [`libafl::mutators::ScheduledMutator`] instance specifying mutations and the
     /// maximum number of iterations
     // pub fn with_max_stack_pow(mutations_pre:  MtPre, mutations: MT, mutations_post: MtPost,
     // max_stack_pow: u64) -> Self {     FocusScheduledMutator {
@@ -265,7 +265,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "StdScheduledMutator with {} mutations for Input type {}",
+            "PuffinScheduledMutator with {} mutations for Input type {}",
             self.mutations.len(),
             core::any::type_name::<I>()
         )

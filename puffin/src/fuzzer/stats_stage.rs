@@ -376,7 +376,7 @@ where
     S: HasExecutions + HasNamedMetadata,
 {
     // Copied from an example in the Libafl library, might need to change it later
-    fn should_restart(&mut self, state: &mut S) -> Result<bool, Error> {
+    fn should_restart(&mut self, _state: &mut S) -> Result<bool, Error> {
         Ok(true)
     }
 

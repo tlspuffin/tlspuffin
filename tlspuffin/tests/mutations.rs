@@ -231,6 +231,7 @@ fn test_byte_remove_payloads(put: &str) {
     let mut mutator_make = MakeMessage::new(mutator_config, &tls_registry);
 
     let mut trace = seed_client_attacker_full.build_trace();
+    let trace_origin = seed_client_attacker_full.build_trace();
     let mut i = 0;
     let max = 1000;
 
@@ -242,6 +243,11 @@ fn test_byte_remove_payloads(put: &str) {
             match &first.action {
                 Action::Input(input) => {
                     if let DYTerm::Application(_fd, args) = &input.recipe.term {
+                        if !input.recipe.is_symbolic() {
+                            trace = trace_origin.clone();
+                            continue;
+                        }
+
                         if args.len() > 5
                             && input.recipe.is_symbolic()
                             && !args[5].payloads_to_replace().is_empty()
