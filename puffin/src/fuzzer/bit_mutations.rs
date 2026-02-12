@@ -1287,7 +1287,7 @@ where
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
                 .payload
-                .as_ref();
+                .mutator_bytes();
             other_input.len()
         };
         //
@@ -1316,7 +1316,7 @@ where
         // Input will already be loaded.
         let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
             .payload
-            .as_ref();
+            .mutator_bytes();
         let _other_size = other_input.len();
 
         unsafe {
@@ -1440,7 +1440,7 @@ where
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
                 .payload
-                .as_ref();
+                .mutator_bytes();
             other_input.len()
         };
         //
@@ -1464,7 +1464,7 @@ where
         // Input will already be loaded.
         let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
             .payload
-            .as_ref();
+            .mutator_bytes();
 
         unsafe {
             buffer_copy(input, other_input, range.start, target, range.len());
@@ -1571,7 +1571,7 @@ where
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
                 .payload
-                .as_ref();
+                .mutator_bytes();
             other_input.len()
         };
         //
@@ -1581,7 +1581,7 @@ where
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
                 .payload
-                .as_ref();
+                .mutator_bytes();
 
             let mut counter: u32 = 0;
             loop {
@@ -1607,7 +1607,7 @@ where
         // Input will already be loaded.
         let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
             .payload
-            .as_ref();
+            .mutator_bytes();
 
         input.splice(split_at.., other_input[split_at..].iter().copied());
         metadata.has_changed = true;

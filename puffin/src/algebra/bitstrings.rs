@@ -1,7 +1,6 @@
 use std::fmt::Display;
 
-use libafl::inputs::BytesInput;
-use libafl_bolts::HasLen;
+use libafl::inputs::{BytesInput, HasMutatorBytes};
 use serde::{Deserialize, Serialize};
 
 use crate::algebra::dynamic_function::TypeShape;
@@ -35,7 +34,7 @@ pub struct Payloads {
 impl Payloads {
     #[must_use]
     pub fn len(&self) -> usize {
-        self.payload_0.len()
+        self.payload_0.mutator_bytes().len()
     }
 
     pub fn is_empty(&self) -> bool {
@@ -57,8 +56,8 @@ impl Display for Payloads {
         write!(
             f,
             "{{\n    payload_0: {:?}\n    payload:   {:?}\n}}",
-            self.payload_0.as_ref(),
-            self.payload.as_ref()
+            self.payload_0.mutator_bytes(),
+            self.payload.mutator_bytes()
         )
     }
 }
@@ -463,7 +462,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
             // MakeMessage because of variables (that might contain different values now)
             eval_tree.get(path_payload)?.encode.as_ref().unwrap()
         } else {
-            payload_context.payloads.payload_0.as_ref()
+            payload_context.payloads.payload_0.mutator_bytes()
         };
 
         // Consistency checks in debug mode, except when failures are to be expected
@@ -471,7 +470,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
         if !term.has_variable() && !term.has_no_det() {
             assert_eq!(
                 eval_tree.get(path_payload)?.encode.as_ref().unwrap(),
-                payload_context.payloads.payload_0.as_ref()
+                payload_context.payloads.payload_0.mutator_bytes()
             );
         }
 
@@ -487,7 +486,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
         let (pos_start, encountered_get_symbol) =
             find_unique_match(path_payload, eval_tree, term, is_to_search_in_list)?;
         let old_bitstring_len = old_bitstring.len();
-        let new_bitstring = payload_context.payloads.payload.as_ref();
+        let new_bitstring = payload_context.payloads.payload.mutator_bytes();
 
         let start = (pos_start as isize + shift) as usize; // taking previous replacements into account, we need to shift the start
         let end = start + old_bitstring_len;
@@ -579,20 +578,21 @@ impl<PT: ProtocolTypes> Term<PT> {
         if let (true, Some(payload)) = (with_payloads && !self.has_variable(), &self.payloads) {
             log::trace!(
                 "[eval_until_opaque] Trying to read payload_0 to skip further computations... payload_0: {:?}",
-                payload.payload_0.as_ref(),
+                payload.payload_0.mutator_bytes(),
             );
-            if let Ok(di) = PB::try_read_bytes(payload.payload_0.as_ref(), type_term.clone().into())
+            if let Ok(di) =
+                PB::try_read_bytes(payload.payload_0.mutator_bytes(), type_term.clone().into())
             {
                 // We must make sure that we read correctly and avoided cases where read and encode
                 // are not inverse of each other. Otherwise, later payload replacements will fail.
-                if &di.get_encoding()[..] != &payload.payload_0.as_ref()[..] {
+                if &di.get_encoding()[..] != &payload.payload_0.mutator_bytes()[..] {
                     log::warn!(
                                 "--> [eval_until_opaque] [argument is symbolic: {}] [Skipping eval bypass] Failed consistency check for read.encode a type {}:\n\
                                 - bi (first eval)  : {:?}\n\
                                 - read.encode:     : {:?}",
                                 self.is_symbolic(),
                                 <TypeShape<PT> as Clone>::clone(type_term),
-                                payload.payload_0.as_ref(),
+                                payload.payload_0.mutator_bytes(),
                                 di.get_encoding(),
                             );
                     log::trace!("Read EvaluatedTerm was: {di:?}");
@@ -603,7 +603,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                         payloads: payload,
                         path: eval_tree.path.clone(),
                     }];
-                    eval_tree.encode = Some(payload.payload_0.as_ref().to_vec());
+                    eval_tree.encode = Some(payload.payload_0.mutator_bytes().to_vec());
                     return Ok((di, p_c));
                 }
             } else {
@@ -622,19 +622,19 @@ impl<PT: ProtocolTypes> Term<PT> {
             let payload = self.payloads.as_ref().ok_or(TermBug(format!("[eval_until_opaque] Try to read a readable term without payload, should never happen!")))?;
             log::trace!(
                 "[eval_until_opaque] Trying to read payload (originated from ReadMessage): {:?}",
-                payload.payload.as_ref(),
+                payload.payload.mutator_bytes(),
             );
             if let Ok(di) = PB::try_read_bytes(
-                payload.payload.as_ref(),
+                payload.payload.mutator_bytes(),
                 self.get_type_shape().clone().into(),
             ) {
                 log::trace!("[eval_until_opaque] Successfully read term: {:?}", di);
                 // We have set payload to di.get_encoding() when performing ReadMessage, so we can
                 // use it here
-                eval_tree.encode = Some(payload.payload.as_ref().to_vec());
+                eval_tree.encode = Some(payload.payload.mutator_bytes().to_vec());
                 return Ok((di, vec![]));
             } else {
-                log::error!("[eval_until_opaque] Fail to read a readable term (originated from ReadMessage), should never happen! payload:\n{:?}\n payload_0:\n{:?}. Has changed: {}", payload.payload.as_ref(), payload.payload_0.as_ref(), payload.has_changed());
+                log::error!("[eval_until_opaque] Fail to read a readable term (originated from ReadMessage), should never happen! payload:\n{:?}\n payload_0:\n{:?}. Has changed: {}", payload.payload.mutator_bytes(), payload.payload_0.mutator_bytes(), payload.has_changed());
                 return Err(TermBug(format!("[eval_until_opaque] Fail to read a readable term (originated from ReadMessage), should never happen!")));
             }
         }
@@ -766,16 +766,14 @@ impl<PT: ProtocolTypes> Term<PT> {
                 if let (true, Some(payload)) = (with_payloads, &self.payloads) {
                     log::trace!("[eval_until_opaque] Checking consistency of new evaluation!");
                     let new_payload_0 = PB::any_get_encoding(result.as_ref());
-                    if <Vec<u8> as AsRef<Vec<u8>>>::as_ref(&new_payload_0)
-                        != payload.payload_0.as_ref()
-                    {
+                    if new_payload_0 != payload.payload_0.mutator_bytes() {
                         let ft = format!("--> [eval_until_opaque] [term has variable:{}] Failed consistency check payload_0 versus new encoding.\n\
                                     - term: {}\n\
                                     - payload_0:    {:?}\n\
                                     - payload:    {:?}\n\
                                     - new_eval:     {new_payload_0:?}\n\
                                     - result: {result:?}",
-                                         self.has_variable(), self, &payload.payload_0.as_ref(), &payload.payload.as_ref());
+                                         self.has_variable(), self, &payload.payload_0.mutator_bytes(), &payload.payload.mutator_bytes());
                         if self.has_variable() || self.has_no_det() {
                             // Some mismatches are to be expected when there are variables or no
                             // deterministic function symbols

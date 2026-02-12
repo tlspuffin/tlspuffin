@@ -297,6 +297,7 @@ openssl_binding = [
     "openssl",
     "openssl-sys",
     "foreign-types-openssl",
+    "openssl-src",
 ]
 # Openssl 1.0.1 bindings
 openssl101_binding = ["openssl_binding"]
@@ -370,7 +371,7 @@ sct = "0.7.0"
 
 # Up to version 111
 openssl = { version = "0.10.41", features = ["vendored"], optional = true }
-openssl-sys = { version = "*", features = ["vendored"], optional = true }
+openssl-sys = { version = "=0.9.85", features = ["vendored"], optional = true }
 
 foreign-types-openssl = { version = "0.3.1", package = "foreign-types", optional = true }
 security-claims = { path = "../tlspuffin-claims", version = "0.1.0", optional = false }
@@ -388,7 +389,7 @@ puffin-build = { path = "../puffin-build" }
 
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
-openssl-src = { version = "*", features = [], optional = true }
+openssl-src = { version = "=111.22.0+1.1.1q", features = [], optional = true }
 puffin-build = { path = "../puffin-build" }
 itertools = { workspace = true }
 bindgen = { workspace = true }

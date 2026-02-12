@@ -3,11 +3,8 @@ use std::fmt;
 use std::marker::PhantomData;
 
 use libafl::corpus::ondisk::OnDiskMetadataFormat;
-use libafl::prelude::simd::SimdMapFeedback;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
-use libafl_bolts::simd::vector::u8x16;
-use libafl_bolts::simd::*;
 use log4rs::Handle;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -168,10 +165,10 @@ where
 
         /*
         Standard AFL-like configuration:
-        A: Main mutator with StdScheduledMutator
+        A: Main mutator with HavocScheduledMutator
             1. Compute the number `im` of iterations of stacked mutations: 1 << (1 + rand(0 <= r <= 7))
             2. For each time (0..im) : Apply randomly a mutation from the given list (here havoc)
-          ==> let mutator = StdScheduledMutator::new(havoc_mutations());
+          ==> let mutator = HavocScheduledMutator::new(...);
         B: Main mutational stage with StdMutationalStage:
             1. Take the scheduled input from the corpus
             2. Pick a random iterations is between 1 and 128 (default)
@@ -183,8 +180,8 @@ where
         We adapt this to our specific setup:
            ==> let mut stages = tuple_list!(stage_dy, stage_bit);
         where:
-         - stage_dy is a StdScheduledMutator stage over DY mutations, enabled when DY mutations are
-         - stage_bit is a StdScheduledMutator with only 1 run stage over bit-level mutations, enabled
+         - stage_dy is a HavocScheduledMutator stage over DY mutations, enabled when DY mutations are
+         - stage_bit is a HavocScheduledMutator with only 1 run stage over bit-level mutations, enabled
          when bit mutations are enabled and when sufficiently many executions and corpus testcases have been done/found
 
          We refine this initial design below with the addition of a Focused stage where the payload
@@ -430,11 +427,8 @@ type EdgesTracking = ExplicitTracking<EdgesObserver, true, false>;
 
 type ConcreteObservers<'a> = (EdgesTracking, (TimeObserver, ()));
 
-type ConcreteFeedback<'a> = CombinedFeedback<
-    SimdMapFeedback<EdgesTracking, EdgesObserver, SimdMaxReducer, u8x16>,
-    TimeFeedback,
-    LogicEagerOr,
->;
+type ConcreteFeedback<'a> =
+    CombinedFeedback<MaxMapFeedback<EdgesTracking, EdgesObserver>, TimeFeedback, LogicEagerOr>;
 
 impl<'harness, 'a, H, SC, C, R, EM, OF, CS, PT>
     RunClientBuilder<
