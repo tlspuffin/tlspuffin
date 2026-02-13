@@ -1,13 +1,13 @@
-From abbca6714cc2c63c454a7c699840cacad7e500f9 Mon Sep 17 00:00:00 2001
+From 0284a2f4d1a0884b23b4970e32578cde7db71c6b Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
 Date: Wed, 21 Jan 2026 17:02:18 +0100
-Subject: [PATCH 2/3] Instrumentation for debug
+Subject: [PATCH 2/2] Instrumentation for debug
 
 ---
- arch/posix/eventloop_posix_tcp.c | 19 +++++++++++++------
+ arch/posix/eventloop_posix_tcp.c | 19 ++++++++++-----
  src/client/ua_client_connect.c   |  3 ++-
- src/server/ua_server.c           | 31 +++++++++++++++++++++++++++++--
- 3 files changed, 44 insertions(+), 9 deletions(-)
+ src/server/ua_server.c           | 41 +++++++++++++++++++++++++++++---
+ 3 files changed, 53 insertions(+), 10 deletions(-)
 
 diff --git a/arch/posix/eventloop_posix_tcp.c b/arch/posix/eventloop_posix_tcp.c
 index b0fb9b3df..1b3b6ef34 100644
@@ -78,10 +78,23 @@ index 9507d7317..043aed9a9 100644
      }
  
 diff --git a/src/server/ua_server.c b/src/server/ua_server.c
-index 51c2e4bd3..f25773364 100644
+index 51c2e4bd3..f5788308c 100644
 --- a/src/server/ua_server.c
 +++ b/src/server/ua_server.c
-@@ -466,7 +466,11 @@ UA_Server_delete(UA_Server *server) {
+@@ -411,7 +411,11 @@ stopServerComponent(void *_, UA_ServerComponent *sc) {
+ /* ZIP_ITER returns NULL only if all components are stopped */
+ static void *
+ checkServerComponent(void *_, UA_ServerComponent *sc) {
+-    return (sc->state == UA_LIFECYCLESTATE_STOPPED) ? NULL : (void*)0x01;
++    if (sc->state == UA_LIFECYCLESTATE_STOPPED) {
++        return NULL;
++    } else {
++        return (void*) &sc->name;
++    }
+ }
+ 
+ /********************/
+@@ -466,7 +470,11 @@ UA_Server_delete(UA_Server *server) {
      /* Remove all server components (all stopped by now) */
      UA_ServerComponent *top;
      while((top = ZIP_ROOT(&server->serverComponents))) {
@@ -94,7 +107,7 @@ index 51c2e4bd3..f25773364 100644
          top->clear(top);
          ZIP_REMOVE(UA_ServerComponentTree, &server->serverComponents, top);
          UA_free(top);
-@@ -1364,6 +1368,8 @@ UA_StatusCode
+@@ -1364,6 +1372,8 @@ UA_StatusCode
  UA_Server_run_shutdown(UA_Server *server) {
      if(server == NULL)
          return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -103,7 +116,7 @@ index 51c2e4bd3..f25773364 100644
  
      lockServer(server);
  
-@@ -1376,6 +1382,8 @@ UA_Server_run_shutdown(UA_Server *server) {
+@@ -1376,6 +1386,8 @@ UA_Server_run_shutdown(UA_Server *server) {
  
      /* Set to stopping and notify the application */
      setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
@@ -112,7 +125,7 @@ index 51c2e4bd3..f25773364 100644
  
  #if UA_MULTITHREADING >= 100
      /* Stop regular callback for async operation processing */
-@@ -1387,14 +1395,21 @@ UA_Server_run_shutdown(UA_Server *server) {
+@@ -1387,14 +1399,21 @@ UA_Server_run_shutdown(UA_Server *server) {
          removeCallback(server, server->houseKeepingCallbackId);
          server->houseKeepingCallbackId = 0;
      }
@@ -134,7 +147,7 @@ index 51c2e4bd3..f25773364 100644
      }
  
      /* Only stop the EventLoop if it is coupled to the server lifecycle  */
-@@ -1406,18 +1421,30 @@ UA_Server_run_shutdown(UA_Server *server) {
+@@ -1406,18 +1425,34 @@ UA_Server_run_shutdown(UA_Server *server) {
      /* Unlock and do one "normal" iteration. This allows threads waiting for the
       * server lock to proceed before the server lock is destroyed. */
      unlockServer(server);
@@ -156,8 +169,12 @@ index 51c2e4bd3..f25773364 100644
 +        i++;
 +    }
 +    if (i == 10) {
++        UA_String *name = (UA_String *) ZIP_ITER(UA_ServerComponentTree,
++            &server->serverComponents, checkServerComponent, NULL);
 +        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
 +            "Server components are not all stopped after 10 iterations");
++        UA_LOG_ERROR(server->config.logging, UA_LOGCATEGORY_SERVER,
++            "Server component: %S", *name);
      }
  
      /* Stop the EventLoop. Iterate until stopped. */

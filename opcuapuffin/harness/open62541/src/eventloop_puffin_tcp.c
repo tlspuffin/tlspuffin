@@ -613,6 +613,8 @@ TCP_eventSourceStart(UA_ConnectionManager *cm) {
 
 static void *
 TCP_shutdownCB(void *application, UA_RegisteredFD *rfd) {
+    UA_ConnectionManager *cm = (UA_ConnectionManager*) application;
+    TCP_shutdown(cm, (TCP_FD*)rfd);
     return NULL;
 }
 

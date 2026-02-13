@@ -85,23 +85,24 @@ typedef LIST_HEAD(UA_DeregisteredListenFDList, UA_DeregisteredListenFD) UA_Dereg
 
 /* Puffin connection manager, similar to POSIX connection manager but */
 /* the rx and tx buffers are directly used by the puffin agent */
+/* Addition are marked with PUFFIN */
 typedef struct {
     UA_ConnectionManager cm;
 
     UA_ByteString rxBuffer; /* statically allocated */
     UA_ByteString txBuffer; /* allocated by allocNetworkBuffer */
-    size_t txBuffer_index;
-
-    UA_UInt16 port;
-
-    UA_ConnectionManager_connectionCallback applicationCB;
-    uintptr_t connectionId;
-    void *application;
-    void *context;
+    size_t txBuffer_index;  /* PUFFIN */
 
     /* Sorted tree of the FDs */
     size_t fdsSize;
     UA_FDTree fds;
+
+    /* PUFFIN connection with the Agent */
+    UA_UInt16 port;
+    uintptr_t connectionId;
+    void *application;
+    void *context;
+    UA_ConnectionManager_connectionCallback applicationCB;
 
 } UA_PuffinConnectionManager;
 

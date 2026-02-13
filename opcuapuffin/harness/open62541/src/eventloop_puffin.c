@@ -210,7 +210,8 @@ checkClosed(UA_EventLoopPuffin *el) {
     while(es) {
         if(es->state != UA_EVENTSOURCESTATE_STOPPED) {
             UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_EVENTLOOP,
-                "Cannot stop the EventLoop due to an unstopped event source");
+                "Cannot stop the EventLoop due to an unstopped event source: %S",
+                es->name);
             return;
         }
         es = es->next;
