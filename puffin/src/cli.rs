@@ -98,9 +98,9 @@ where
                 .arg(arg!(-p --port [n] "The client port to connect to, or the server port")
                     .value_parser(value_parser!(u16).range(1..))),
             Command::new("differential-execute")
-                .about("Execute a trace on multiple targets")
-                .arg(arg!(<first_target> "The first target to fuzz"))
-                .arg(arg!(<second_target> "The second target to fuzz"))
+                .about("Execute a trace on multiple targets, returning the differences between the executions")
+                .arg(arg!(<first_target> "First PUT"))
+                .arg(arg!(<second_target> "Second PUT"))
                 .arg(arg!(<input> "Input trace"))
                 .arg(arg!(-j --json "Export differences as JSON").value_parser(value_parser!(bool))),
             Command::new("differential")

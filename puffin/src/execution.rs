@@ -164,6 +164,7 @@ impl<T: TraceRunner + Clone> TraceRunner for &ForkedRunner<T> {
     }
 }
 
+/// Run traces on two different PUT to identify differences between the executions
 #[derive(Debug, Clone)]
 pub struct DifferentialRunner<PB: ProtocolBehavior> {
     registry: PutRegistry<PB>,
@@ -190,6 +191,8 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
     type PB = PB;
     type R = TraceContext<Self::PB>;
 
+    /// Execute `trace` on the two PUT of `self`, return `Ok` if both execution exhibit no
+    /// differences, `Err(diff)` else
     fn execute_config<T>(
         self,
         trace: T,
@@ -268,6 +271,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             _ => (),
         }
 
+        // Maximum executed step on the two PUTs
         *executed_until = usize::max(first_ctx.executed_until, second_ctx.executed_until);
 
         //check if we have security claim violation (if security claims are enabled)

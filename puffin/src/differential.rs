@@ -5,11 +5,16 @@ use serde::Serialize;
 use crate::error::Error;
 use crate::trace::Source;
 
+/// A difference between to exection in differential fuzzing
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub enum TraceDifference {
+    /// Both PUT returned a different status
     Status(StatusDiff),
+    /// A difference in the knowledges
     Knowledges(KnowledgeDiff),
+    /// A difference in the claims
     Claims(ClaimDiff),
+    /// One PUT raised a security claim violation and not the other
     SecurityClaim(SecurityClaimDiff),
 }
 
@@ -38,6 +43,7 @@ pub struct StatusDiff {
     pub first_status: String,
     pub second_executed_steps: usize,
     pub second_status: String,
+    /// Total number of step in the trace
     pub total_step: usize,
 }
 
@@ -64,6 +70,7 @@ impl fmt::Display for StatusDiff {
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub enum KnowledgeDiff {
+    /// The two knowledges compared have a different rust type
     DifferentTypes {
         index: usize,
         first_type: String,
@@ -71,9 +78,11 @@ pub enum KnowledgeDiff {
         first_source: Source,
         second_source: Source,
     },
+    /// The two knowledges have the same type but there internal values are different
     InnerDifference {
         index: usize,
         type_name: String,
+        /// Comparable crate as String
         diff: String,
         source: Source,
     },

@@ -596,6 +596,7 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             .all(super::agent::Agent::is_state_successful)
     }
 
+    /// Compare with another `TraceContext` and return a Vec of differences
     pub fn compare(
         &self,
         other: &Self,

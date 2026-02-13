@@ -40,6 +40,11 @@ where
 }
 
 pub trait CompareKnowledge<PT> {
+    /// Compare an `EvaluatedTerm<PT>` with another `EvaluatedTerm<PT>` and add identified
+    /// difference to `diff`. If both types are different, it creates a
+    /// `KnowledgeDiff::DifferentTypes` differences if both types are the same, the objects are
+    /// compared recursively using `Compare` crate and their differences as registered as
+    /// `KnowledgeDiff::InnerDifference`
     fn find_differences(
         &self,
         other: &dyn EvaluatedTerm<PT>,
