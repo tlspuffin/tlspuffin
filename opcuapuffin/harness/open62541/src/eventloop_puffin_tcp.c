@@ -136,6 +136,9 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
 static void
 TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event);
 
+static UA_StatusCode
+TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId);
+
 void
 TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
@@ -179,6 +182,7 @@ TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length) {
     if (is_close_message) {
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
             "TCP %u\t| Close connexion, %lu bytes", pcm->connectionId, length);
+        TCP_shutdownConnection(&pcm->cm, pcm->connectionId);
         pcm->connectionId = 0;
     };
 
