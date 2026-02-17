@@ -29,7 +29,7 @@ use crate::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put_registry::tls_registry;
 use crate::tls::fn_impl::{
     fn_certificate_transcript, fn_client_finished_transcript, fn_decrypt_application,
-    fn_decrypt_multiple_handshake_messages, fn_derive_psk, fn_server_finished_transcript,
+    fn_decrypt_multiple_handshake_messages, fn_server_finished_transcript,
     fn_server_hello_transcript,
 };
 use crate::tls::seeds::seed_successful;
@@ -345,10 +345,12 @@ pub fn ignore_add_payload() -> HashSet<String> {
 /// Functions that are known to fail to be adversarially generated, MakeMessage, mutated, evaluated
 pub fn ignore_add_payload_mutate() -> HashSet<String> {
     let mut ignore_add_payload = ignore_add_payload();
-    let ignore_mutate: HashSet<String> = [fn_derive_psk.name()]
-        .iter()
-        .map(|fn_name: &&str| fn_name.to_string())
-        .collect::<HashSet<String>>();
+    let ignore_mutate: HashSet<String> = [
+        // No additional failures
+    ]
+    .iter()
+    .map(|fn_name: &&str| fn_name.to_string())
+    .collect::<HashSet<String>>();
     ignore_add_payload.extend(ignore_mutate);
     ignore_add_payload
 }

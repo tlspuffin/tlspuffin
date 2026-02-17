@@ -340,7 +340,7 @@ fn benchmark_test_term_payloads_mutate_eval(c: &mut Criterion) {
             let res = zoo_test(
                 &mut closure,
                 StdRand::with_seed(i),
-                100,
+                300,
                 true,
                 false,
                 true,
