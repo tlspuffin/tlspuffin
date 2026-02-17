@@ -1300,9 +1300,9 @@ where
         let range = rand_range(
             state,
             other_size,
-            min(other_size.try_into()?, (max_size - size).try_into()?),
+            min(other_size, max_size - size).try_into()?,
         );
-        let target = state.rand_mut().below(size.try_into()?);
+        let target = state.rand_mut().below_or_zero(size);
 
         input.resize(size + range.len(), 0);
         unsafe {
@@ -1450,11 +1450,11 @@ where
             return Ok(MutationResult::Skipped);
         }
 
-        let target = state.rand_mut().below(size.try_into()?);
+        let target = state.rand_mut().below_or_zero(size);
         let range = rand_range(
             state,
             other_size,
-            min(other_size.try_into()?, (size - target).try_into()?),
+            min(other_size, size - target).try_into()?,
         );
 
         // let other_testcase = state.corpus().get(idx)?.borrow_mut();
@@ -1588,7 +1588,7 @@ where
                 let (f, l) = locate_diffs(input, other_input);
 
                 if f != l && f >= 0 && l >= 2 {
-                    break (f as u64, l as u64);
+                    break (f as usize, l as usize);
                 }
                 if counter == 3 {
                     log::trace!("counter is 3");
@@ -1599,9 +1599,7 @@ where
             }
         };
 
-        let split_at = state
-            .rand_mut()
-            .between(first_diff as usize, last_diff as usize);
+        let split_at = state.rand_mut().between(first_diff, last_diff);
 
         let other_testcase = state.corpus().get(idx)?.borrow_mut();
         // Input will already be loaded.

@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use std::num::NonZeroUsize;
 
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
@@ -19,7 +18,7 @@ where
     mutations_core: MT,
     mutations_pre: MtPre,
     mutations_post: MtPost,
-    max_stack_pow: u64,
+    max_stack_pow: usize,
     phantom: PhantomData<(I, S)>,
 }
 
@@ -101,9 +100,7 @@ where
 {
     /// Compute the number of iterations used to apply stacked mutations
     fn iterations(&self, state: &mut S, _: &I) -> u64 {
-        1 << (1 + state
-            .rand_mut()
-            .below((self.max_stack_pow as usize).try_into().unwrap()))
+        1 << (1 + state.rand_mut().below_or_zero(self.max_stack_pow))
     }
 
     /// Get the next mutation to apply (base implementation)
@@ -202,7 +199,7 @@ where
         debug_assert!(!self.mutations_core.is_empty());
         state
             .rand_mut()
-            .below(NonZeroUsize::try_from(self.mutations_core.len()).unwrap())
+            .below_or_zero(self.mutations_core.len())
             .into()
     }
 
@@ -211,7 +208,7 @@ where
         debug_assert!(!self.mutations_pre.is_empty());
         state
             .rand_mut()
-            .below(NonZeroUsize::try_from(self.mutations_pre.len()).unwrap())
+            .below_or_zero(self.mutations_pre.len())
             .into()
     }
 
@@ -220,7 +217,7 @@ where
         debug_assert!(!self.mutations_post.is_empty());
         state
             .rand_mut()
-            .below(NonZeroUsize::try_from(self.mutations_post.len()).unwrap())
+            .below_or_zero(self.mutations_post.len())
             .into()
     }
 
@@ -253,7 +250,7 @@ where
 {
     mutations: MT,
     phantom: PhantomData<(I, S)>,
-    max_mutations_per_iteration: u64,
+    max_mutations_per_iteration: usize,
 }
 
 impl<I, MT, S> Debug for PuffinScheduledMutator<I, MT, S>
@@ -330,11 +327,7 @@ where
     fn iterations(&self, state: &mut S, _: &I) -> u64 {
         state
             .rand_mut()
-            .below(
-                (self.max_mutations_per_iteration as usize)
-                    .try_into()
-                    .unwrap(),
-            )
+            .below_or_zero(self.max_mutations_per_iteration)
             .try_into()
             .unwrap()
     }
@@ -344,7 +337,7 @@ where
         debug_assert!(!self.mutations().is_empty());
         state
             .rand_mut()
-            .below(NonZeroUsize::try_from(self.mutations().len()).unwrap())
+            .below_or_zero(self.mutations().len())
             .into()
     }
 }
@@ -357,7 +350,7 @@ where
 {
     #[allow(dead_code)]
     /// Create a new [`PuffinScheduledMutator`] instance specifying mutations
-    pub const fn new(mutations: MT, max_mutations_per_iteration: u64) -> Self {
+    pub const fn new(mutations: MT, max_mutations_per_iteration: usize) -> Self {
         Self {
             mutations,
             phantom: PhantomData,
