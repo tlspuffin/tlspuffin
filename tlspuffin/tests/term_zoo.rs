@@ -359,7 +359,7 @@ fn test_term_payloads_mutate_eval() {
         let res = zoo_test(
             &mut closure,
             StdRand::with_seed(i),
-            100,
+            300,
             true,
             false,
             true,
