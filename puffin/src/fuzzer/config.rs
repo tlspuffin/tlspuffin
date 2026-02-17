@@ -1,3 +1,4 @@
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 
 use log::LevelFilter;
@@ -74,7 +75,7 @@ impl Default for FuzzingTarget {
 pub struct MutationStageConfig {
     /// How many iterations each stage gets, as an upper bound
     /// It may randomly continue earlier. Each iteration works on a different Input from the corpus
-    pub max_iterations_per_stage: u64,
+    pub max_iterations_per_stage: NonZeroUsize,
     pub max_mutations_pow_per_iteration: u64,
     // Whether to truncate the input after mutations, prior to adding it to the corpus
     pub with_truncation: bool,
@@ -84,7 +85,7 @@ impl Default for MutationStageConfig {
     //  TODO:EVAL: evaluate modifications of this config
     fn default() -> Self {
         Self {
-            max_iterations_per_stage: 128,
+            max_iterations_per_stage: NonZeroUsize::new(128).unwrap(),
             max_mutations_pow_per_iteration: 7,
             with_truncation: false,
             // Default for StdMutationalStage and StdMutationalStage (=HavocScheduledMutator)

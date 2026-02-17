@@ -233,7 +233,7 @@ fn test_seed_bitmut_cve_2022_38153(put: &str) {
                     all_tries += 1;
                     // let min_mut_idx = 23;
                     // let max_mut_idx = 30;
-                    let mut_idx = state.rand_mut().between(min_mut_idx, max_mut_idx - 1) as usize;
+                    let mut_idx = state.rand_mut().between(min_mut_idx, max_mut_idx - 1);
                     if mut_idx != 1000 {
                         match mutations
                             .get_and_mutate(mut_idx.into(), &mut state, &mut mutant)

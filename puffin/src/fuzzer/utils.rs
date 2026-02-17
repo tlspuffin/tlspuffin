@@ -73,7 +73,7 @@ impl<T, R: Rand> Choosable<T, R> for Vec<T> {
         if length == 0 {
             None
         } else {
-            let index = rand.below(length.try_into().unwrap());
+            let index = rand.below_or_zero(length);
             filtered.into_iter().nth(index)
         }
     }
@@ -84,7 +84,7 @@ impl<T, R: Rand> Choosable<T, R> for Vec<T> {
         if length == 0 {
             None
         } else {
-            let index = rand.below(length.try_into().unwrap());
+            let index = rand.below_or_zero(length);
             self.get(index)
         }
     }
@@ -103,7 +103,7 @@ where
         None
     } else {
         // pick a random, valid index
-        let index = rand.below(length.try_into().unwrap());
+        let index = rand.below_or_zero(length);
 
         // return the item chosen
         iter.nth(index)
