@@ -179,6 +179,7 @@ TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length) {
                         UA_CONNECTIONSTATE_ESTABLISHED,
                         &UA_KEYVALUEMAP_NULL, response);
 
+    /* Close connexion to simulate a TCP FIN following an UATCP CLO */
     if (is_close_message) {
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
             "TCP %u\t| Close connexion, %lu bytes", pcm->connectionId, length);

@@ -62,8 +62,9 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
         let mut buf = vec![0; MAX_WIRE_SIZE];
         let size = self.fuzz_stream.read(&mut buf).map_err(|e| {
-            log::error!("TCP: error while trying to take bytes: {}!", e);
-            Error::Put("TCP: error while trying to take bytes!".to_string())
+            let err_msg = format!("TCP: error while trying to take bytes: {}!", e);
+            log::error!("{}", err_msg);
+            Error::Put(err_msg)
         })?;
         Ok(MessageFlight::read_bytes(&buf[0..size]))
     }
@@ -96,8 +97,7 @@ impl Put<OpcuaProtocolBehavior> for Agent {
 
     fn shutdown(&mut self) -> String {
         if let Err(e) = self.fuzz_stream.shutdown(Shutdown::Both){
-            log::warn!("Error at TCP stream shut down: {e}");
-            format!("Error at TCP stream shut down: {e}")
+            format!("TCP stream shut down: {e}")
         } else {
             "TCP stream shut down!".to_string()
         }
