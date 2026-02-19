@@ -762,7 +762,6 @@ impl<S, PT> Named for [<$mutation  DY>]<S, PT>
         PT: ProtocolTypes,
 {
     fn name(&self) -> &Cow<'static, str> {
-        //TODO: (NB) Verify if names are correctly generated
         &Cow::Borrowed(stringify!($mutation))
     }
 }

@@ -348,7 +348,6 @@ where
         // ==== All stages put together
         let mut stages = tuple_list!(stage_test_input, stage_dy, stage_bit, StatsStage::new());
 
-        //TODO: (NB) Verify if ConverterToTargetBytes and InputFilter are needed ?
         let mut fuzzer: StdFuzzer<CS, F, _, _, OF> =
             StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);
 
