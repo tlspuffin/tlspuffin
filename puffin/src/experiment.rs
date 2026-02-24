@@ -26,7 +26,7 @@ pub fn format_title<PB: ProtocolBehavior>(
         mutation_config,
         mutation_stage_config,
         core_definition,
-        put_use_clear,
+        put_options,
         minimizer,
         ..
     } = fuzzer_config;
@@ -50,8 +50,19 @@ pub fn format_title<PB: ProtocolBehavior>(
     let without_dy_mutations = if !*with_dy { "_wo-dy" } else { "" };
     let without_focus = if !*with_focus { "_wo-focus" } else { "" };
     let with_truncation = if *with_truncation { "_with-trunc" } else { "" };
-    let put_use_clear = if *put_use_clear { "_put-use-clear" } else { "" };
     let minimizer = if *minimizer { "_with_minimizer" } else { "" };
+    let option_string = format!(
+        "_put-options-{}",
+        put_options
+            .iter()
+            .map(|(key, val)| format!("{}:{}", key, val))
+            .join("-")
+    );
+    let with_put_options = if !put_options.is_empty() {
+        option_string.as_str()
+    } else {
+        ""
+    };
     let default_put: &str = &put_registry
         .default()
         .versions()
@@ -62,7 +73,7 @@ pub fn format_title<PB: ProtocolBehavior>(
         .join("-");
     format!(
         "{date}\
-        --{default_put}-{num_cores}c{with_bit_level}{without_dy_mutations}{without_focus}{with_truncation}{put_use_clear}{minimizer}\
+        --{default_put}-{num_cores}c{with_bit_level}{without_dy_mutations}{without_focus}{with_truncation}{minimizer}{with_put_options}\
         {title}--{hour}--{index}",
         date = date,
         title = title.unwrap_or(&puffin::git_ref().unwrap_or_default()),

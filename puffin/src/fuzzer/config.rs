@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use log::LevelFilter;
 
 use crate::fuzzer::mutations::MutationConfig;
-use crate::put::PutDescriptor;
+use crate::put::{PutDescriptor, PutOptions};
 
 /// Minimum of executions before starting to run bit-level mutations
 pub const MIN_BIT_EXECS: u64 = 5_000; // one 1 core
@@ -28,7 +28,9 @@ pub struct FuzzerConfig {
     pub no_launcher: bool,
     pub log_folder: PathBuf,
     pub is_experiment: bool,
-    pub put_use_clear: bool, // use clear instead of free on Agents in between traces of some Input
+    pub put_options: PutOptions, /* Put options to set when creating a put descriptor (ex:use
+                                  * clear instead of free on Agents in between traces of some
+                                  * Input) */
     pub verbosity: LevelFilter, // level for the client logging
     pub target: FuzzingTarget,
 }
@@ -53,7 +55,7 @@ impl Default for FuzzerConfig {
             verbosity: LevelFilter::Info, // default verbosity
             mutation_stage_config: Default::default(),
             mutation_config: Default::default(),
-            put_use_clear: false,
+            put_options: Default::default(),
             target: Default::default(),
         }
     }
