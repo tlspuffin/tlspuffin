@@ -25,6 +25,12 @@ impl PutOptions {
     }
 }
 
+impl Default for PutOptions {
+    fn default() -> Self {
+        Self::empty()
+    }
+}
+
 impl PutOptions {
     #[must_use]
     pub fn get_option(&self, key: &str) -> Option<&str> {
@@ -32,6 +38,27 @@ impl PutOptions {
             .iter()
             .find(|(found_key, _value)| -> bool { found_key == key })
             .map(|(_key, value)| value.as_str())
+    }
+
+    pub fn add_option(&mut self, key: &str, value: &str) {
+        if self
+            .options
+            .iter()
+            .any(|(found_key, _value)| -> bool { found_key == key })
+        {
+            panic!("Option {} already exists", key);
+        }
+        self.options.push((key.into(), value.into()));
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.options.is_empty()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.options
+            .iter()
+            .map(|(key, value)| (key.as_str(), value.as_str()))
     }
 }
 
