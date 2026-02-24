@@ -20,7 +20,7 @@ use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
-use crate::put::{PutDescriptor, PutOptions};
+use crate::put::PutDescriptor;
 use crate::put_registry::{PutRegistry, TCP_PUT};
 use crate::trace::{Action, ConfigTrace, ExecutionResult, Source, Spawner, Trace, TraceContext};
 
@@ -170,12 +170,6 @@ where
     asan_info();
     setup_asan_env();
 
-    // Initialize global state
-    let mut options: Vec<(String, String)> = Vec::new();
-    if put_use_clear {
-        options.push(("use_clear".to_string(), put_use_clear.to_string()));
-    }
-
     // Set up config
     let mut config = FuzzerConfig {
         static_seed,
@@ -194,7 +188,9 @@ where
         return ExitCode::FAILURE;
     }
     if put_use_clear {
-        config.put_use_clear = true;
+        config
+            .put_options
+            .add_option("use_clear", put_use_clear.to_string().as_str());
     }
     if with_bit_level {
         config.mutation_config.with_bit_level = true;
@@ -209,6 +205,9 @@ where
     if with_truncation {
         config.mutation_stage_config.with_truncation = true;
     }
+
+    // Set put_options as default for every PutDescriptor created by the put_registry
+    put_registry.set_default_options(config.put_options.clone());
 
     // Setup Logging
     // We need to create the log directory before initializing the logger
@@ -469,6 +468,7 @@ where
         if let Some(cwd) = cwd {
             options.push(("cwd", cwd));
         }
+        // TODO: Should we use the generic put options here also ? Aka put_use_clear ?
 
         let server = trace.descriptors[0].name;
         let put = PutDescriptor::new(TCP_PUT, options);
@@ -511,10 +511,14 @@ where
 
         let runner = DifferentialRunner::new(
             put_registry.clone(),
-            Spawner::new(put_registry.clone())
-                .with_mapping(&[(agent, PutDescriptor::new(first_put, PutOptions::empty()))]),
-            Spawner::new(put_registry)
-                .with_mapping(&[(agent, PutDescriptor::new(second_put, PutOptions::empty()))]),
+            Spawner::new(put_registry.clone()).with_mapping(&[(
+                agent,
+                PutDescriptor::new(first_put, put_registry.default_put_options().clone()),
+            )]),
+            Spawner::new(put_registry.clone()).with_mapping(&[(
+                agent,
+                PutDescriptor::new(second_put, put_registry.default_put_options().clone()),
+            )]),
         );
 
         return match runner.execute(trace, &mut 0, false) {
@@ -545,6 +549,7 @@ where
             }
         };
     } else {
+        //  Command is "experiment", "quick-experiment", "differential" or "differential-experiment"
         let experiment_path = if let Some(matches) = matches
             .subcommand_matches("experiment")
             .or(matches.subcommand_matches("differential-experiment"))
@@ -613,11 +618,11 @@ where
             }
 
             FuzzingTarget::Differential(
-                PutDescriptor::new(first_put, PutOptions::empty()),
-                PutDescriptor::new(second_put, PutOptions::empty()),
+                PutDescriptor::new(first_put, put_registry.default_put_options().clone()),
+                PutDescriptor::new(second_put, put_registry.default_put_options().clone()),
             )
         } else {
-            FuzzingTarget::default()
+            FuzzingTarget::Single(None)
         };
 
         config.target = target;
