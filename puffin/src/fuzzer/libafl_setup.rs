@@ -297,9 +297,9 @@ where
                         return Ok(());
                     };
 
-                    let current_testcase = cs.corpus().get(*current_idx)?.borrow_mut();
+                    let mut current_testcase = cs.corpus().get(*current_idx)?.borrow_mut();
                     // Input will already be loaded.
-                    let current_input = current_testcase.input().as_ref().unwrap();
+                    let current_input = current_testcase.load_input(cs.corpus()).unwrap();
                     let spawner = Spawner::new(put_registry.clone());
                     let mut ctx = TraceContext::new_config(
                         spawner,

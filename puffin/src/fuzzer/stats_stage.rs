@@ -375,14 +375,13 @@ where
     I: Input,
     S: HasExecutions + HasNamedMetadata,
 {
-    // Copied from an example in the Libafl library, might need to change it later
+    // This is only a stat stage, we don't need to restart anything
     fn should_restart(&mut self, _state: &mut S) -> Result<bool, Error> {
         Ok(true)
     }
 
-    /// Clear the current status tracking of the associated stage
-    fn clear_progress(&mut self, state: &mut S) -> Result<(), Error> {
-        RetryCountRestartHelper::clear_progress(state, &self.name)
+    fn clear_progress(&mut self, _state: &mut S) -> Result<(), Error> {
+        Ok(())
     }
 }
 
