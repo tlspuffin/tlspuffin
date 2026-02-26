@@ -308,6 +308,7 @@ pub enum AgentType {
 pub enum TLSVersion {
     V1_3,
     V1_2,
+    Both,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Hash)]

@@ -184,21 +184,19 @@ static void fill_claim(AGENT agent, struct Claim *claim)
 {
     char *error_msg = "no error";
 
-    if (agent->ssl->version.major != SSLv3_MAJOR)
+    const char *tls_version = wolfSSL_get_version(agent->ssl);
+    if (strcmp(tls_version, "TLSv1.2") == 0)
     {
-        _log(PUFFIN.warn, "not a tls ssl object");
-        return;
-    }
-    switch (agent->ssl->version.minor)
-    {
-    case TLSv1_2_MINOR:
         claim->version.data = CLAIM_TLS_VERSION_V1_2;
-        break;
-    case TLSv1_3_MINOR:
+    }
+    else if (strcmp(tls_version, "TLSv1.3") == 0)
+    {
         claim->version.data = CLAIM_TLS_VERSION_V1_3;
-        break;
-    default:
+    }
+    else
+    {
         _log(PUFFIN.warn, "unsupported tls version");
+        claim->version.data = CLAIM_TLS_VERSION_UNDEFINED;
         return;
     }
 
@@ -1135,6 +1133,9 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     case V1_2:
         cipher_string = descriptor->cipher_string_tls12;
         break;
+    case Both:
+        cipher_string = descriptor->cipher_string_tls13;
+        break;
     default:
         break;
     }
@@ -1282,6 +1283,11 @@ static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor)
         tls_version_str = "V1_2";
         tls_methods[0] = wolfTLSv1_2_client_method;
         tls_methods[1] = wolfTLSv1_2_server_method;
+        break;
+    case Both:
+        tls_version_str = "Both";
+        tls_methods[0] = wolfSSLv23_client_method;
+        tls_methods[1] = wolfSSLv23_server_method;
         break;
     default:
         _log(PUFFIN.error,

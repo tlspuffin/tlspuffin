@@ -161,6 +161,7 @@ define_signature!(
     fn_early_data_server_extension
     fn_supported_versions12_extension
     fn_supported_versions13_extension
+    fn_supported_versions_both_extension
     fn_supported_versions12_hello_retry_extension
     fn_supported_versions13_hello_retry_extension
     fn_supported_versions12_server_extension

@@ -171,6 +171,7 @@ pub mod tcp {
                 args.push("-v");
                 args.push("3");
             }
+            TLSVersion::Both => panic!("Both version found"), //TODO (NB) come back here
         }
 
         let warmups = warmups.map(|warmups| warmups.to_string());
@@ -206,6 +207,7 @@ pub mod tcp {
                 args.push("-v");
                 args.push("3");
             }
+            TLSVersion::Both => panic!("Both version found"), //TODO (NB) come back here
         }
 
         ParametersGuard {
@@ -240,6 +242,7 @@ pub mod tcp {
             TLSVersion::V1_2 => {
                 args.push("-tls1_2");
             }
+            TLSVersion::Both => panic!("Both version found"), //TODO (NB) come back here
         }
 
         ParametersGuard {
@@ -262,6 +265,7 @@ pub mod tcp {
             TLSVersion::V1_2 => {
                 args.push("-tls1_2");
             }
+            TLSVersion::Both => panic!("Both version found"), //TODO (NB) come back here
         }
 
         ParametersGuard {

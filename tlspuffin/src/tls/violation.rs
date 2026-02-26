@@ -12,10 +12,8 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
 
     fn check_violation(claims: &[TlsClaim]) -> Option<&'static str> {
         if let Some((claim_a, claim_b)) = find_two_finished_messages(claims) {
-            if let Some(((client_claim, client), (server_claim, server))) =
-                get_client_server(claim_a, claim_b)
-            {
-                if client_claim.protocol_version != server_claim.protocol_version {
+            if let Some(((_, client), (_, server))) = get_client_server(claim_a, claim_b) {
+                if client.tls_version != server.tls_version {
                     return Some("Mismatching versions");
                 }
 
@@ -48,7 +46,7 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                     return Some("Authentication bypass");
                 }
 
-                match client_claim.protocol_version {
+                match client.tls_version {
                     TLSVersion::V1_2 => {
                         // TLS 1.2 Checks
 
@@ -88,6 +86,7 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                             }
                         }
                     }
+                    TLSVersion::Both => return Some("Version undefined after handshake"),
                 }
             } else {
                 // Could not choose exactly one server and client

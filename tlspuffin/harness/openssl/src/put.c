@@ -47,6 +47,8 @@ RESULT openssl_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, siz
 RESULT openssl_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 void openssl_register_claimer(AGENT agent, const CLAIMER_CB *claimer);
 
+static TLSVersion openssl_get_tls_version(SSL *ssl);
+
 static RESULT get_result(AGENT agent, int retcode, bool allow_would_block);
 
 static bool recreate_ssl_from_agent_ctx(AGENT agent);
@@ -92,8 +94,7 @@ const TLS_PUT_INTERFACE *REGISTER()
     return &OPENSSL_PUT;
 }
 
-const int tls_version[] = {TLS1_3_VERSION, TLS1_2_VERSION};
-const char *version_str[] = {"V1_3", "V1_2"};
+const char *version_str[] = {"V1_3", "V1_2", "Both"};
 const char *type_str[] = {"client", "server"};
 
 AGENT openssl_create(const TLS_AGENT_DESCRIPTOR *descriptor)
@@ -104,9 +105,23 @@ AGENT openssl_create(const TLS_AGENT_DESCRIPTOR *descriptor)
          version_str[descriptor->tls_version],
          type_str[descriptor->role]);
 
-    if (tls_version[descriptor->tls_version] == TLS_UNSUPPORTED_VERSION)
+    if ((descriptor->tls_version == V1_3 || descriptor->tls_version == Both) &&
+        TLS1_3_VERSION == TLS_UNSUPPORTED_VERSION)
     {
-        _log(PUFFIN.error, "unsupported TLS version: %s", version_str[descriptor->tls_version]);
+        _log(PUFFIN.error,
+             "unsupported TLS version: %s for config %s",
+             version_str[V1_3],
+             version_str[descriptor->tls_version]);
+        return NULL;
+    }
+
+    if ((descriptor->tls_version == V1_2 || descriptor->tls_version == Both) &&
+        TLS1_2_VERSION == TLS_UNSUPPORTED_VERSION)
+    {
+        _log(PUFFIN.error,
+             "unsupported TLS version: %s for config %s",
+             version_str[V1_2],
+             version_str[descriptor->tls_version]);
         return NULL;
     }
 
@@ -240,6 +255,7 @@ bool openssl_is_successful(AGENT agent)
 void _inner_claimer(Claim claim, void *ctx)
 {
     AGENT agent = (AGENT)(ctx);
+    claim.version.data = openssl_get_tls_version(agent->ssl);
     agent->claimer->notify(agent->claimer->context, &claim);
 }
 #endif
@@ -274,6 +290,41 @@ RESULT openssl_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, siz
     return get_result(agent, ret, false);
 }
 
+static TLSVersion openssl_get_tls_version(SSL *ssl)
+{
+    const int tls_version = SSL_version(ssl);
+    if (tls_version == TLS1_2_VERSION)
+    {
+        return CLAIM_TLS_VERSION_V1_2;
+    }
+    else if (tls_version == TLS1_3_VERSION)
+    {
+        return CLAIM_TLS_VERSION_V1_3;
+    }
+    return CLAIM_TLS_VERSION_UNDEFINED;
+}
+
+void openssl_set_protocol_version(SSL_CTX *ssl_ctx, int version)
+{
+    switch (version)
+    {
+    case V1_3:
+        SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_3_VERSION);
+        SSL_CTX_set_max_proto_version(ssl_ctx, TLS1_3_VERSION);
+        break;
+    case V1_2:
+        SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_2_VERSION);
+        SSL_CTX_set_max_proto_version(ssl_ctx, TLS1_2_VERSION);
+        break;
+    case Both:
+        SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_2_VERSION);
+        SSL_CTX_set_max_proto_version(ssl_ctx, TLS1_3_VERSION);
+        break;
+    default:
+        _log(PUFFIN.error, "unknown TLS version: %u", version);
+    }
+}
+
 AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 {
     SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
@@ -287,10 +338,10 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 #endif
 
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
-    SSL_CTX_set_max_proto_version(ssl_ctx, tls_version[descriptor->tls_version]);
+    openssl_set_protocol_version(ssl_ctx, descriptor->tls_version);
 #endif
 
-    if (descriptor->tls_version == V1_3)
+    if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both)
     {
         SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
         SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
@@ -349,7 +400,7 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 #endif
 
 #if OPENSSL_VERSION_NUMBER >= 0x10100000L
-    SSL_CTX_set_max_proto_version(ssl_ctx, tls_version[descriptor->tls_version]);
+    openssl_set_protocol_version(ssl_ctx, descriptor->tls_version);
 #endif
 
 #if OPENSSL_VERSION_NUMBER > 0x10002000L
@@ -364,7 +415,7 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_set_tmp_rsa(ssl_ctx, rsa);
 #endif
 
-    if (descriptor->tls_version == V1_3)
+    if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both)
     {
         SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
         SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);

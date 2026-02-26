@@ -192,6 +192,7 @@ impl RustPut {
         let mut ctx = match descriptor.protocol_config.tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_client_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_client_12())?,
+            TLSVersion::Both => SslContext::new(SslMethod::tls_client_ssl3_tls13())?,
         };
 
         ctx.disable_session_cache()?;
@@ -229,6 +230,10 @@ impl RustPut {
             TLSVersion::V1_2 => {
                 ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?
             }
+            TLSVersion::Both => {
+                // TODO: (NB) check validity
+                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?
+            }
         }
 
         if let Some(groups) = &descriptor.protocol_config.groups {
@@ -254,6 +259,7 @@ impl RustPut {
         let mut ctx = match descriptor.protocol_config.tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_server_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_server_12())?,
+            TLSVersion::Both => SslContext::new(SslMethod::tls_server_ssl3_tls13())?,
         };
 
         // Mitigates "2. Misuse of sessions of different TLS versions (1.2, 1.3) from the session
@@ -266,6 +272,10 @@ impl RustPut {
             }
             TLSVersion::V1_2 => {
                 ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?
+            }
+            TLSVersion::Both => {
+                // TODO: (NB) check validity
+                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?
             }
         }
 
@@ -361,7 +371,7 @@ impl RustPut {
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
-                    if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
+                    if let Some(data) = claims_helpers::to_claim_data(claim) {
                         claims.deref_borrow_mut().claim_sized(TlsClaim {
                             agent_name,
                             origin,

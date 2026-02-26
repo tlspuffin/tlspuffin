@@ -255,7 +255,7 @@ impl CAgent {
             let agent_name = self.config.descriptor.name;
 
             let claimer = make_claimer(move |claim: Claim| {
-                if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
+                if let Some(data) = claims_helpers::to_claim_data(claim) {
                     claims.deref_borrow_mut().claim_sized(TlsClaim {
                         agent_name,
                         origin,
@@ -411,6 +411,7 @@ fn make_descriptor(
         tls_version: match config.descriptor.protocol_config.tls_version {
             TLSVersion::V1_3 => TLS_VERSION::V1_3,
             TLSVersion::V1_2 => TLS_VERSION::V1_2,
+            TLSVersion::Both => TLS_VERSION::Both,
         },
         client_authentication: config.descriptor.protocol_config.client_authentication,
         server_authentication: config.descriptor.protocol_config.server_authentication,
