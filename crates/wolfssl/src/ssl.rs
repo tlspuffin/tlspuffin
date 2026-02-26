@@ -56,12 +56,20 @@ impl SslMethod {
         unsafe { SslMethod(wolf::wolfTLSv1_2_client_method()) }
     }
 
+    pub fn tls_client_ssl3_tls13() -> SslMethod {
+        unsafe { SslMethod(wolf::wolfSSLv23_client_method()) }
+    }
+
     pub fn tls_server_13() -> SslMethod {
         unsafe { SslMethod(wolf::wolfTLSv1_3_server_method()) }
     }
 
     pub fn tls_server_12() -> SslMethod {
         unsafe { SslMethod(wolf::wolfTLSv1_2_server_method()) }
+    }
+
+    pub fn tls_server_ssl3_tls13() -> SslMethod {
+        unsafe { SslMethod(wolf::wolfSSLv23_server_method()) }
     }
 
     pub unsafe fn from_ptr(ptr: *mut wolf::WOLFSSL_METHOD) -> SslMethod {

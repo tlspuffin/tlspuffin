@@ -197,7 +197,7 @@ impl RustPut {
 
         // Allow EXPORT in server
         match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 => {
+            TLSVersion::V1_3 | TLSVersion::Both => {
                 // TLS 1.3 should use `set_ciphersuites` API but some versions
                 // of OpenSSL and LibreSSL still use `set_cipher_list`
                 #[cfg(any(
@@ -249,7 +249,7 @@ impl RustPut {
         }
 
         match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 => {
+            TLSVersion::V1_3 | TLSVersion::Both => {
                 #[cfg(any(
                     feature = "openssl101_binding",
                     feature = "openssl102_binding",
@@ -315,7 +315,7 @@ impl RustPut {
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
-                    if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
+                    if let Some(data) = claims_helpers::to_claim_data(claim) {
                         claims
                             .deref_borrow_mut()
                             .claim_sized(crate::claims::TlsClaim {
