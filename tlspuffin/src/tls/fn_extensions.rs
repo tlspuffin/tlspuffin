@@ -461,6 +461,12 @@ pub fn fn_supported_versions13_extension() -> Result<ClientExtension, FnError> {
         ProtocolVersion::TLSv1_3,
     ])))
 }
+pub fn fn_supported_versions_both_extension() -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::SupportedVersions(ProtocolVersions(vec![
+        ProtocolVersion::TLSv1_3,
+        ProtocolVersion::TLSv1_2,
+    ])))
+}
 pub fn fn_supported_versions12_hello_retry_extension() -> Result<HelloRetryExtension, FnError> {
     Ok(HelloRetryExtension::SupportedVersions(
         ProtocolVersion::TLSv1_2,

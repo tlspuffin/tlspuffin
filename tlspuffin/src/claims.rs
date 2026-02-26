@@ -217,6 +217,8 @@ pub struct Finished {
     #[comparable_ignore]
     pub master_secret: SmallVec<[u8; 32]>,
 
+    pub tls_version: TLSVersion, // mapped from ClaimTLSVersion
+
     pub chosen_cipher: u16,
 
     // We ignore the list of ciphers because OpenSSL shows TLS 1.2 and 1.3 ciphers while wolfSSL
@@ -370,6 +372,7 @@ impl Extractable<TLSProtocolTypes> for TlsClaim {
 }
 
 pub mod claims_helpers {
+    use security_claims::ClaimTLSVersion;
     use smallvec::SmallVec;
 
     use crate::claims::{
@@ -379,10 +382,7 @@ pub mod claims_helpers {
     };
     use crate::protocol::TLSVersion;
 
-    pub fn to_claim_data(
-        protocol_version: TLSVersion,
-        claim: security_claims::Claim,
-    ) -> Option<ClaimData> {
+    pub fn to_claim_data(claim: security_claims::Claim) -> Option<ClaimData> {
         match claim.typ {
             // Transcripts
             security_claims::ClaimType::CLAIM_TRANSCRIPT_CH => Some(ClaimData::Transcript(
@@ -448,9 +448,23 @@ pub mod claims_helpers {
                     peer_certificate,
                     early_secret: SmallVec::from_slice(&claim.early_secret.secret),
                     handshake_secret: SmallVec::from_slice(&claim.handshake_secret.secret),
-                    master_secret: match protocol_version {
-                        TLSVersion::V1_3 => SmallVec::from_slice(&claim.master_secret.secret),
-                        TLSVersion::V1_2 => SmallVec::from_slice(&claim.master_secret_12.secret),
+                    master_secret: match claim.version.data {
+                        ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3 => {
+                            SmallVec::from_slice(&claim.master_secret.secret)
+                        }
+                        ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2 => {
+                            SmallVec::from_slice(&claim.master_secret_12.secret)
+                        }
+                        ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => {
+                            panic!("Undefined TLS version after handshake")
+                        }
+                    },
+                    tls_version: match claim.version.data {
+                        ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2 => TLSVersion::V1_2,
+                        ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3 => TLSVersion::V1_3,
+                        ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => {
+                            panic!("Undefined TLS version after handshake")
+                        }
                     },
                     chosen_cipher: claim.chosen_cipher.data,
                     available_ciphers: SmallVec::from_iter(
