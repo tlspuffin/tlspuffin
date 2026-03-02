@@ -250,7 +250,7 @@ impl CAgent {
             use crate::claims::claims_helpers;
 
             let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.protocol_config.tls_version;
+            let config_version = self.config.descriptor.protocol_config.tls_version;
             let origin = self.config.descriptor.protocol_config.typ;
             let agent_name = self.config.descriptor.name;
 
@@ -259,7 +259,7 @@ impl CAgent {
                     claims.deref_borrow_mut().claim_sized(TlsClaim {
                         agent_name,
                         origin,
-                        protocol_version,
+                        config_version,
                         data,
                         step: None,
                     })

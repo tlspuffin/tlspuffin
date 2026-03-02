@@ -309,7 +309,7 @@ impl RustPut {
 
             let agent_name = self.config.descriptor.name;
             let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.protocol_config.tls_version;
+            let config_version = self.config.descriptor.protocol_config.tls_version;
             let origin = self.config.descriptor.protocol_config.typ;
 
             security_claims::register_claimer(
@@ -321,7 +321,7 @@ impl RustPut {
                             .claim_sized(crate::claims::TlsClaim {
                                 agent_name,
                                 origin,
-                                protocol_version,
+                                config_version,
                                 data,
                                 step: None,
                             })
