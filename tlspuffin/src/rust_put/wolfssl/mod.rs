@@ -350,7 +350,7 @@ impl RustPut {
                     config.claims.deref_borrow_mut().claim_sized(TlsClaim {
                         agent_name: self.config.descriptor.name,
                         origin: config.descriptor.protocol_config.typ,
-                        protocol_version: config.descriptor.protocol_config.tls_version,
+                        config_version: config.descriptor.protocol_config.tls_version,
                         data,
                         step: None,
                     });
@@ -365,7 +365,7 @@ impl RustPut {
 
             let agent_name = self.config.descriptor.name;
             let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.protocol_config.tls_version;
+            let config_version = self.config.descriptor.protocol_config.tls_version;
             let origin = self.config.descriptor.protocol_config.typ;
 
             security_claims::register_claimer(
@@ -375,7 +375,7 @@ impl RustPut {
                         claims.deref_borrow_mut().claim_sized(TlsClaim {
                             agent_name,
                             origin,
-                            protocol_version,
+                            config_version,
                             data,
                             step: None,
                         });
@@ -396,7 +396,7 @@ impl RustPut {
         config: &TlsPutConfig,
     ) -> impl Fn(&mut SslRef, i32, u8, bool) {
         let origin = config.descriptor.protocol_config.typ;
-        let protocol_version = config.descriptor.protocol_config.tls_version;
+        let config_version = config.descriptor.protocol_config.tls_version;
         let claims = config.claims.clone();
         let extract_transcript = config.extract_deferred.clone();
         let authenticate_peer = config.authenticate_peer;
@@ -426,7 +426,7 @@ impl RustPut {
                         claims.deref_borrow_mut().claim_sized(TlsClaim {
                             agent_name,
                             origin,
-                            protocol_version,
+                            config_version,
                             data: ClaimData::Message(ClaimDataMessage::Finished(Finished {
                                 outbound,
                                 client_random: context.client_random().into(),
@@ -478,7 +478,7 @@ impl RustPut {
                     claims.deref_borrow_mut().claim_sized(TlsClaim {
                         agent_name,
                         origin,
-                        protocol_version,
+                        config_version,
                         data,
                         step: None,
                     });

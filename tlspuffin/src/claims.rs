@@ -286,7 +286,7 @@ pub enum ClaimData {
 pub struct TlsClaim {
     pub agent_name: AgentName,
     pub origin: AgentType,
-    pub protocol_version: TLSVersion,
+    pub config_version: TLSVersion,
     pub data: ClaimData,
     #[comparable_ignore]
     pub step: Option<StepNumber>,
