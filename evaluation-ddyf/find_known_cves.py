@@ -1,5 +1,5 @@
 import sys
-from DDYF.diff_analyzer import (
+from .diff_analyzer import (
     TrueC,
     run_triaging,
     BucketCondition,

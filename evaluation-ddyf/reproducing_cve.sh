@@ -1,8 +1,11 @@
 #!/bin/bash
 
+SEQ=0
+
+
 export LIBAFL_EDGES_MAP_SIZE=262144
 
-# echo 'Cleaning previous data'
+echo 'Cleaning previous data'
 cargo clean
 rm -rf objectives seeds corpus experiments
 
@@ -15,16 +18,26 @@ cargo build --release --bin tlspuffin --features cputs
 echo 'Generate seeds for diff fuzzing'
 ./target/release/tlspuffin seed --differential
 
-TIMEOUT='5h'
-RUNS=50
-CORES="0-3"
-PORT=2000
 
-for i in $(seq 1 $RUNS);
+
+TIMEOUT='5h'
+START=$((1+10*$SEQ))
+END=$((10+10*$SEQ))
+
+FIRST_CORE=24
+START_CORE=$(($FIRST_CORE + 8*SEQ))
+END_CORE=$(($FIRST_CORE + 8 + 8*SEQ - 1))
+CORES="$START_CORE-$END_CORE"
+PORT=$((10000 + $SEQ))
+
+echo "Running campaigns $START to $END on cores $CORES using port $PORT"
+
+# Creating a new named pipe with a random number
+PIPENAME="pipe$PORT"
+
+for i in $(seq $START $END);
 do
     echo "Run number $i"
-    # Creating a new named pipe with a random number
-    PIPENAME="pipe$RANDOM"
     mkfifo $PIPENAME
 
     # Run the campaign and get the objective folder path
@@ -35,8 +48,7 @@ do
     rm $PIPENAME
 
     echo "Triaging objectives in $OBJECTIVES"
-    python -m DDYF.find_known_cves $OBJECTIVES
-
+    python -m evaluation-ddyf.find_known_cves $OBJECTIVES
 
     # removing traces that are not interesting to save disk space
     rm -rf $OBJECTIVES/trash

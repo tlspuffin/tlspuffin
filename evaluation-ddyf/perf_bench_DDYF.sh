@@ -2,7 +2,7 @@
 
 export LIBAFL_EDGES_MAP_SIZE=262144
 
-TIMEOUT='1h'
+TIMEOUT='10s'
 CORES="0-3"
 PORT=2000
 
@@ -16,7 +16,7 @@ get_execution_number () {
 
 echo 'Cleaning previous data'
 cargo clean
-rm -rf objectives seeds corpus
+rm -rf objectives seeds corpus experiments
 
 
 echo 'Building fuzzer'
@@ -38,9 +38,8 @@ diff_run="$(grep -oP "stats_file: \"\K(.*?)\"" < $PIPENAME | sed "s/\"//")"
 timeout -s KILL $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORES differential-experiment openssl340 openssl340 --title "perf_ossl_vs_ossl" 2>&1 | tee -i $PIPENAME &
 diff_run_same_ossl="$(grep -oP "stats_file: \"\K(.*?)\"" < $PIPENAME | sed "s/\"//")"
 
-timeout -s KILL $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORES differential-experiment wolfssl580 wolfssl589 --title "perf_wolf_vs_wolf" 2>&1 | tee -i $PIPENAME &
+timeout -s KILL $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORES differential-experiment wolfssl580 wolfssl580 --title "perf_wolf_vs_wolf" 2>&1 | tee -i $PIPENAME &
 diff_run_same_wolf="$(grep -oP "stats_file: \"\K(.*?)\"" < $PIPENAME | sed "s/\"//")"
-
 
 
 rm $PIPENAME

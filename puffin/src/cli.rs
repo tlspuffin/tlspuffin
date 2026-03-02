@@ -81,7 +81,7 @@ where
                 .arg(arg!(-c --show_claims "Show the claims emitted at each input step").value_parser(value_parser!(bool)))
                 .arg(arg!(-k --show_knowledges "Show the knowledges gathered at each output step").value_parser(value_parser!(bool)))
                 .arg(arg!(-r --show_raw "Show the computed term as raw hex (eg. for use with netcat)").value_parser(value_parser!(bool)))
-                .arg(arg!(-p --differential_post_computations "Evaluate the post execution terms ued in differential fuzzing").value_parser(value_parser!(bool)))
+                .arg(arg!(-p --differential_post_computations "Evaluate the post execution terms used in differential fuzzing").value_parser(value_parser!(bool)))
                 .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool)))
                 .arg(arg!(-C --disable_security_oracle "Disable the protocol security oracle").value_parser(value_parser!(bool))),
             Command::new("binary-attack")
@@ -212,7 +212,7 @@ where
 
     // Setup Logging
     // We need to create the log directory before initializing the logger
-    let (is_experiment, base_directory): (bool, PathBuf) =
+    let base_directory: PathBuf =
         if let Some(_matches) = matches.subcommand_matches("quick-experiment") {
             let experiments_root = PathBuf::from("experiments");
             let title = format_title(None, None, &put_registry, &config);
@@ -224,7 +224,7 @@ where
                 experiment_path = experiments_root.join(title);
                 i += 1;
             }
-            (true, experiments_root.join(&title))
+            experiments_root.join(&title)
         } else {
             if let Some(matches) = matches.subcommand_matches("experiment") {
                 let git_ref = "_".to_string();
@@ -236,7 +236,7 @@ where
                     !experiment_path.as_path().exists(),
                     "Experiment already exists. Consider creating a new experiment."
                 );
-                (true, experiment_path)
+                experiment_path
             } else if let Some(matches) = matches.subcommand_matches("differential-experiment") {
                 let git_ref = "_".to_string();
                 let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
@@ -247,12 +247,18 @@ where
                     !experiment_path.as_path().exists(),
                     "Experiment already exists. Consider creating a new experiment."
                 );
-                (true, experiment_path)
+                experiment_path
             } else {
                 // Case of non-experiment: plain fuzzing, trace executions, etc.
-                (false, env::current_dir().unwrap())
+                env::current_dir().unwrap()
             }
         };
+
+    config.corpus_dir = base_directory.join("corpus");
+    config.objective_dir = base_directory.join("objective");
+    config.stats_file = base_directory.join("log/stats.json");
+    config.log_folder = base_directory.join("log/");
+
     let handle = match log4rs::init_config(config_default(&*base_directory.join("./log"))) {
         Ok(handle) => handle,
         Err(err) => {

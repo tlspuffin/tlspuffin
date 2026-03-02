@@ -109,9 +109,11 @@ impl<C: Claim> ClaimList<C> {
         self.claims.push(claim);
     }
 
+    /// compares two claim lists and returns a list of differences
     pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
         let blacklist = <C::PT as ProtocolTypes>::differential_fuzzing_claims_blacklist();
 
+        // filter out claims that are in the blacklist and group them by agent
         let mut self_claims_filtered: HashMap<AgentName, Vec<&C>> = self
             .claims
             .iter()
@@ -130,6 +132,7 @@ impl<C: Claim> ClaimList<C> {
                 acc
             });
 
+        // deduplicate similar adjacent claims, keeping the order
         self_claims_filtered.iter_mut().for_each(|(_, v)| {
             v.dedup_by(|x, y| x.comparison(y) == comparable::Changed::Unchanged)
         });
@@ -149,6 +152,8 @@ impl<C: Claim> ClaimList<C> {
 
         let mut diffs = vec![];
 
+        // for each agent, compare the claims of both lists and find differences in types and inner
+        // values
         for k in keys.iter().dedup() {
             let empty = vec![];
             let s = self_claims_filtered.get(k).unwrap_or(&empty);

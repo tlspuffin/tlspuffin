@@ -26,19 +26,6 @@ impl<T: 'static> AsAny for T {
     }
 }
 
-pub trait AsBoxedTerm<PT> {
-    fn boxed(&self) -> Box<dyn EvaluatedTerm<PT>>;
-}
-
-impl<T, PT: ProtocolTypes> AsBoxedTerm<PT> for T
-where
-    T: Clone + Debug + EvaluatedTerm<PT> + 'static,
-{
-    fn boxed(&self) -> Box<dyn EvaluatedTerm<PT>> {
-        Box::new(self.clone())
-    }
-}
-
 pub trait CompareKnowledge<PT> {
     /// Compare an `EvaluatedTerm<PT>` with another `EvaluatedTerm<PT>` and add identified
     /// difference to `diff`. If both types are different, it creates a

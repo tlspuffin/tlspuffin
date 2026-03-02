@@ -5,7 +5,7 @@ use serde::Serialize;
 use crate::error::Error;
 use crate::trace::Source;
 
-/// A difference between to exection in differential fuzzing
+/// A difference between two executions in differential fuzzing
 #[derive(Serialize, Debug, Clone, PartialEq, Eq)]
 pub enum TraceDifference {
     /// Both PUT returned a different status
