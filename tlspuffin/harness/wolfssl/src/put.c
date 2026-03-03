@@ -257,41 +257,38 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         _log(PUFFIN.warn, "unable to get server random buffer");
     }
 
-    STACK_OF(SSL_CIPHER) *ciphers = wolfSSL_get_ciphers_compat(agent->ssl);
-    if (ciphers != NULL)
+    /* wolfSSL_get_ciphers_compat() internally filters out ciphers whose minor
+     * version is SSLv3_MINOR (e.g. DHE-RSA-AES128-SHA, DHE-RSA-AES256-SHA)
+     * when minDowngrade >= TLSv1_MINOR, even though wolfSSL actually includes
+     * and negotiates those ciphers via ssl->suites->suites[].
+     * Read the raw suites array directly to get the complete list. */
+    Suites *ssl_suites = agent->ssl->suites;
+    if (ssl_suites == NULL && agent->ssl->ctx != NULL)
     {
-        int available_ciphers_len = wolfSSL_sk_SSL_CIPHER_num(ciphers);
-        if (available_ciphers_len != WOLFSSL_FATAL_ERROR)
+        ssl_suites = agent->ssl->ctx->suites;
+    }
+    if (ssl_suites != NULL)
+    {
+        int raw_len = ssl_suites->suiteSz / 2;
+        claim->available_ciphers.length = 0;
+        for (int i = 0; i < raw_len; ++i)
         {
-            if (available_ciphers_len > CLAIM_MAX_AVAILABLE_CIPHERS)
+            byte suite0 = ssl_suites->suites[i * 2];
+            byte suite = ssl_suites->suites[i * 2 + 1];
+
+            if (claim->available_ciphers.length >= CLAIM_MAX_AVAILABLE_CIPHERS)
             {
-                available_ciphers_len = CLAIM_MAX_AVAILABLE_CIPHERS;
                 _log(PUFFIN.warn, "not enough space in ciphers list in claim");
+                break;
             }
-            claim->available_ciphers.length = available_ciphers_len;
-            for (int i = 0; i < available_ciphers_len; ++i)
-            {
-                SSL_CIPHER const *cipher = wolfSSL_sk_SSL_CIPHER_value(ciphers, i);
-                if (cipher != NULL)
-                {
-                    claim->available_ciphers.ciphers[i].data =
-                        (unsigned short)((((short)cipher->cipherSuite0) << 8) +
-                                         cipher->cipherSuite);
-                }
-                else
-                {
-                    _log(PUFFIN.warn, "wolfSSL_sk_SSL_CIPHER_value return a NULL value");
-                }
-            }
-        }
-        else
-        {
-            _log(PUFFIN.warn, "sk_SSL_CIPHER_num return WOLFSSL_FATAL_ERROR");
+            claim->available_ciphers.ciphers[claim->available_ciphers.length].data =
+                (unsigned short)(((unsigned short)suite0 << 8) | suite);
+            claim->available_ciphers.length++;
         }
     }
     else
     {
-        _log(PUFFIN.warn, "wolfSSL_get_ciphers_compat return NULL");
+        _log(PUFFIN.warn, "ssl->suites is NULL, cannot get available ciphers");
     }
 
     // cert
