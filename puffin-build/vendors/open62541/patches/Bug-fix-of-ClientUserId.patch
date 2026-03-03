@@ -1,0 +1,36 @@
+From 4e8e258bb1be8ef433cc6aff84916b58ced81185 Mon Sep 17 00:00:00 2001
+From: vdh-anssi <vincent.diemunsch@inria.fr>
+Date: Tue, 3 Mar 2026 16:57:16 +0100
+Subject: [PATCH 3/3] Bug fix of User Certificate ClientUserId
+
+---
+ src/server/ua_services_session.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/src/server/ua_services_session.c b/src/server/ua_services_session.c
+index 368857666..75a755c25 100644
+--- a/src/server/ua_services_session.c
++++ b/src/server/ua_services_session.c
+@@ -1143,8 +1143,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
+     } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+         UA_X509IdentityToken* userCertToken = (UA_X509IdentityToken*)
+             req->userIdentityToken.content.decoded.data;
+-        UA_CertificateUtils_getSubjectName(&session->clientUserIdOfSession,
+-                                           &userCertToken->certificateData);
++        UA_CertificateUtils_getSubjectName(&userCertToken->certificateData,
++                                           &session->clientUserIdOfSession);
+     } else {
+         /* TODO: Handle issued token */
+     }
+@@ -1221,7 +1221,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
+     }
+ #endif
+ 
+-    /* Remove the sesison */
++    /* Remove the session */
+     UA_Session_remove(server, session, UA_SHUTDOWNREASON_CLOSE);
+ }
+ 
+-- 
+2.51.0
+
