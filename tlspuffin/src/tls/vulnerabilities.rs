@@ -382,7 +382,7 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
                 fn_encrypt12(
                     (@renegotiation_client_hello),
                     ((server, 0)),
-                    (fn_decode_ecdh_pubkey(
+                    (fn_decode_server_ecdh_pubkey(
                         ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                     )),
                     fn_named_group_secp384r1,
@@ -401,7 +401,7 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
                 fn_encrypt12(
                     renegotiation_client_hello,
                     ((server, 0)),
-                    (fn_decode_ecdh_pubkey(
+                    (fn_decode_server_ecdh_pubkey(
                         ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                     )),
                     fn_named_group_secp384r1,

@@ -1529,9 +1529,9 @@ pub fn _seed_client_attacker12(
     };
 
     let client_verify_data = term! {
-        fn_sign_transcript(
+        fn_client_sign_transcript(
             ((server, 0)),
-            (fn_decode_ecdh_pubkey(
+            (fn_decode_server_ecdh_pubkey(
                 ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript),
@@ -1566,7 +1566,7 @@ pub fn _seed_client_attacker12(
                         fn_encrypt12(
                             (fn_finished((@client_verify_data))),
                             ((server, 0)),
-                            (fn_decode_ecdh_pubkey(
+                            (fn_decode_server_ecdh_pubkey(
                                 ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                             )),
                             fn_named_group_secp384r1,
@@ -1583,6 +1583,183 @@ pub fn _seed_client_attacker12(
     };
 
     (trace, client_verify_data)
+}
+
+pub fn seed_server_attacker12(client: AgentName) -> Trace<TLSProtocolTypes> {
+    _seed_server_attacker12(client).0
+}
+pub fn _seed_server_attacker12(
+    client: AgentName,
+) -> (Trace<TLSProtocolTypes>, Term<TLSProtocolTypes>) {
+    let server_hello = term! {
+          fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite12,
+            fn_compression,
+            (fn_server_extensions_make(
+                (fn_server_extensions_append(
+                    fn_server_extensions_new,
+                    (fn_renegotiation_info_server_extension((fn_payload_u8(fn_empty_bytes_vec))))
+            ))))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript12,
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+            )),
+            (@server_hello) // plaintext ServerHello
+        )
+    };
+
+    let server_certificate = term! {
+        fn_certificate(
+            (fn_append_certificate(
+                fn_new_certificates,
+                (fn_certificate_from_vec_u8(fn_alice_cert))
+            ))
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@server_certificate)
+        )
+    };
+
+    let server_key_exchange = term! {
+        fn_server_key_exchange(
+            (fn_sign_rsa_ecdhe_server_key_exchange(
+                fn_named_group_secp384r1,
+                ((client, 0)),
+                fn_new_random,
+                fn_alice_key
+            ))
+        )
+    };
+
+    let server_key_exchange_transcript = term! {
+      fn_append_transcript(
+            (@certificate_transcript),
+            (@server_key_exchange)
+        )
+    };
+
+    let server_hello_done_transcript = term! {
+      fn_append_transcript(
+            (@server_key_exchange_transcript),
+            (fn_server_hello_done)
+        )
+    };
+
+    let client_key_exchange_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_done_transcript),
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))])
+        )
+    };
+
+    let client_ecdh_pubkey = term! {
+        fn_decode_client_ecdh_pubkey(
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>) // ClientECDHParams
+        )
+    };
+
+    let client_finished_transcript = term! {
+        fn_append_transcript(
+            (@client_key_exchange_transcript),
+            (fn_decrypt12( // Decrypt client finished
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(None))]), //EncryptedHandshake
+                fn_new_random,
+                (@client_ecdh_pubkey),
+                fn_named_group_secp384r1,
+                fn_false,
+                fn_seq_0,
+                ((client, 0)),
+                fn_cipher_suite12
+            ))
+        )
+    };
+
+    let server_verify_data = term! {
+        fn_server_sign_transcript(
+            fn_new_random,
+            (@client_ecdh_pubkey),
+            (@client_finished_transcript),
+            fn_named_group_secp384r1,
+            ((client, 0)),
+            fn_cipher_suite12
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![TLSDescriptorConfig::new_client(client, TLSVersion::V1_2)],
+        steps: vec![
+            // Client Hello, Client -> Server
+            OutputAction::new_step(client),
+            // Server Hello, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hello
+                }),
+            },
+            // Server Certificate, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_certificate
+                }),
+            },
+            // Server Key Exchange, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_key_exchange
+                }),
+            },
+            // Server Hello Done, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! { fn_server_hello_done }
+                }),
+            },
+            // Output messages from Client:
+            // Client Key Exchange, Client -> Server
+            // Client Change Cipher Spec, Client -> Server
+            // Client Finished, Client -> Server
+
+            // Server Change Cipher Spec, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! { fn_change_cipher_spec }
+                }),
+            },
+            // Server Finished, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt12(
+                            (fn_finished((@server_verify_data))),
+                            fn_new_random,
+                            (@client_ecdh_pubkey),
+                            fn_named_group_secp384r1,
+                            fn_false,
+                            fn_seq_0,
+                            ((client, 0)),
+                            fn_cipher_suite12
+                        )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    };
+
+    (trace, server_verify_data)
 }
 
 // TODO: `"Unable to find variable (Some(Agent(AgentName(0))), 1)[None]/MessageFlight!"` error with
@@ -2522,6 +2699,7 @@ pub fn create_corpus(
         seed_server_attacker_full: put.supports("tls13"),
         seed_server_attacker_full_coalesced: put.supports("tls13"),
         seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
+        seed_server_attacker12: put.supports("tls12"),
     )
 }
 
@@ -2590,6 +2768,16 @@ pub mod tests {
     fn test_precomputations(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_client_attacker_full_precomputation.build_trace();
+
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+
+        assert!(ctx.agents_successful());
+    }
+
+    #[apply(test_puts, filter = tls12)]
+    fn test_seed_server_attacker12(put: &str) {
+        let runner = default_runner_for(put);
+        let trace = seed_server_attacker12.build_trace();
 
         let ctx = runner.execute(trace, &mut 0).unwrap();
 
@@ -2776,6 +2964,7 @@ pub mod tests {
             seed_session_resumption_dhe.build_named_trace(),
             seed_session_resumption_ke.build_named_trace(),
             seed_client_attacker_full.build_named_trace(),
+            seed_server_attacker12.build_named_trace(),
             // _full can be large: seed_session_resumption_dhe_full.build_named_trace(),
         ] {
             for step in &trace.steps {
@@ -2837,6 +3026,12 @@ pub mod tests {
         #[test_log::test]
         fn test_serialisation_seed_client_attacker12_json() {
             let trace = seed_client_attacker12.build_trace();
+            test_json_serialization(trace);
+        }
+
+        #[test_log::test]
+        fn test_serialisation_seed_server_attacker12_json() {
+            let trace = seed_server_attacker12.build_trace();
             test_json_serialization(trace);
         }
 
