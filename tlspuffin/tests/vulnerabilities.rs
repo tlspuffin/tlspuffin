@@ -670,3 +670,14 @@ fn tcp_wolfssl_cve_2022_39173() {
     let shutdown = context.find_agent_mut(server).unwrap().shutdown();
     log::info!("{}", shutdown);
 }
+
+#[apply(test_puts,
+     attrs = [should_panic(expected = "Negotiated cipher is not in agent's configured ciphers list")],
+     filter = all(CVE_2024_5814, tls12, tls13)
+)]
+fn test_seed_cve_2024_5814(put: &str) {
+    let runner = default_runner_for(put);
+    let trace = seed_cve_2024_5814.build_trace();
+    let ctx = runner.execute(trace, &mut 0, true).unwrap();
+    assert!(ctx.agents_successful());
+}
