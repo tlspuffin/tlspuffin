@@ -1,13 +1,14 @@
-From 0284a2f4d1a0884b23b4970e32578cde7db71c6b Mon Sep 17 00:00:00 2001
+From ce11c0c4d87b44fffdbe1f0963c6cdafaa609de7 Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
 Date: Wed, 21 Jan 2026 17:02:18 +0100
-Subject: [PATCH 2/2] Instrumentation for debug
+Subject: [PATCH 2/3] Instrumentation for debug
 
 ---
- arch/posix/eventloop_posix_tcp.c | 19 ++++++++++-----
- src/client/ua_client_connect.c   |  3 ++-
- src/server/ua_server.c           | 41 +++++++++++++++++++++++++++++---
- 3 files changed, 53 insertions(+), 10 deletions(-)
+ arch/posix/eventloop_posix_tcp.c       | 19 ++++++++----
+ src/client/ua_client_connect.c         |  3 +-
+ src/server/ua_server.c                 | 41 ++++++++++++++++++++++++--
+ src/server/ua_services_securechannel.c | 16 ++++++++++
+ 4 files changed, 69 insertions(+), 10 deletions(-)
 
 diff --git a/arch/posix/eventloop_posix_tcp.c b/arch/posix/eventloop_posix_tcp.c
 index b0fb9b3df..1b3b6ef34 100644
@@ -64,10 +65,10 @@ index b0fb9b3df..1b3b6ef34 100644
      UA_UNLOCK(&el->elMutex);
      return res;
 diff --git a/src/client/ua_client_connect.c b/src/client/ua_client_connect.c
-index 9507d7317..043aed9a9 100644
+index 82b974a50..5e5fb20b3 100644
 --- a/src/client/ua_client_connect.c
 +++ b/src/client/ua_client_connect.c
-@@ -2029,7 +2029,8 @@ initConnect(UA_Client *client) {
+@@ -2182,7 +2182,8 @@ initConnect(UA_Client *client) {
          UA_parseEndpointUrl(&client->config.endpointUrl, &hostname, &port, &path);
      if(client->connectStatus != UA_STATUSCODE_GOOD) {
          UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
@@ -78,7 +79,7 @@ index 9507d7317..043aed9a9 100644
      }
  
 diff --git a/src/server/ua_server.c b/src/server/ua_server.c
-index 51c2e4bd3..f5788308c 100644
+index 862eb5871..e6a6118cd 100644
 --- a/src/server/ua_server.c
 +++ b/src/server/ua_server.c
 @@ -411,7 +411,11 @@ stopServerComponent(void *_, UA_ServerComponent *sc) {
@@ -107,7 +108,7 @@ index 51c2e4bd3..f5788308c 100644
          top->clear(top);
          ZIP_REMOVE(UA_ServerComponentTree, &server->serverComponents, top);
          UA_free(top);
-@@ -1364,6 +1372,8 @@ UA_StatusCode
+@@ -1408,6 +1416,8 @@ UA_StatusCode
  UA_Server_run_shutdown(UA_Server *server) {
      if(server == NULL)
          return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -116,7 +117,7 @@ index 51c2e4bd3..f5788308c 100644
  
      lockServer(server);
  
-@@ -1376,6 +1386,8 @@ UA_Server_run_shutdown(UA_Server *server) {
+@@ -1420,6 +1430,8 @@ UA_Server_run_shutdown(UA_Server *server) {
  
      /* Set to stopping and notify the application */
      setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
@@ -125,7 +126,7 @@ index 51c2e4bd3..f5788308c 100644
  
  #if UA_MULTITHREADING >= 100
      /* Stop regular callback for async operation processing */
-@@ -1387,14 +1399,21 @@ UA_Server_run_shutdown(UA_Server *server) {
+@@ -1431,14 +1443,21 @@ UA_Server_run_shutdown(UA_Server *server) {
          removeCallback(server, server->houseKeepingCallbackId);
          server->houseKeepingCallbackId = 0;
      }
@@ -147,7 +148,7 @@ index 51c2e4bd3..f5788308c 100644
      }
  
      /* Only stop the EventLoop if it is coupled to the server lifecycle  */
-@@ -1406,18 +1425,34 @@ UA_Server_run_shutdown(UA_Server *server) {
+@@ -1450,18 +1469,34 @@ UA_Server_run_shutdown(UA_Server *server) {
      /* Unlock and do one "normal" iteration. This allows threads waiting for the
       * server lock to proceed before the server lock is destroyed. */
      unlockServer(server);
@@ -183,6 +184,37 @@ index 51c2e4bd3..f5788308c 100644
      el->stop(el);
      while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
            el->state != UA_EVENTLOOPSTATE_FRESH &&
+diff --git a/src/server/ua_services_securechannel.c b/src/server/ua_services_securechannel.c
+index 7753c3e7c..42bf44835 100644
+--- a/src/server/ua_services_securechannel.c
++++ b/src/server/ua_services_securechannel.c
+@@ -188,6 +188,21 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
+         UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
+     UA_CHECK_STATUS(response->responseHeader.serviceResult, return);
+ 
++    /* Signal client thumbprint */
++    unsigned char * pin = channel->remoteCertificateThumbprint; // 20 bytes
++    const int length = 40;
++    UA_String thumbprint;
++    thumbprint.data = (unsigned char *) malloc(length);
++    thumbprint.length = length;
++    const char* hex = "0123456789abcdef";
++    for (int i = 0; i < length/2; i++, pin++) {
++        thumbprint.data[2*i +0] = hex[*pin >> 4 ];
++        thumbprint.data[2*i +1] = hex[*pin & 0xF];
++    }
++    UA_LOG_WARNING_CHANNEL(server->config.logging, channel,
++                           "Remote public key thumbprint: %S", thumbprint);
++    UA_String_clear(&thumbprint);
++
+     /* Success */
+     if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_ISSUE) {
+         UA_LOG_INFO_CHANNEL(sc->logging, channel,
+@@ -285,3 +300,4 @@ notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
+     if(sc->globalNotificationCallback)
+         sc->globalNotificationCallback(server, type, notifySCMap);
+ }
++
 -- 
 2.51.0
 
