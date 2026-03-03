@@ -106,6 +106,14 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                 _ => None,
             });
             if let Some((claim, finished)) = found {
+                if !finished.available_ciphers.is_empty()
+                    && !finished.available_ciphers.contains(&finished.chosen_cipher)
+                {
+                    // available_ciphers is set with the SSL context, it's the list of accepted
+                    // ciphers, chosen_cipher is the negotiated one
+                    return Some("Negotiated cipher is not in agent's configured ciphers list");
+                }
+
                 let violation = finished.authenticate_peer
                     && match claim.origin {
                         AgentType::Server => finished.peer_certificate.as_slice() != BOB_CERT.1,

