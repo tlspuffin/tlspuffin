@@ -6,16 +6,17 @@ use puffin::codec::{Codec, Reader};
 use puffin::protocol::{OpaqueProtocolMessageFlight, ProtocolMessageFlight};
 
 use crate::protocol::{MessageFlight, OpaqueMessageFlight};
+use crate::tls::fn_impl::fn_rsa_sign;
 use crate::tls::key_exchange::{tls12_key_exchange, tls12_new_secrets};
 use crate::tls::key_schedule::*;
 use crate::tls::rustls::conn::Side;
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key::Certificate;
 use crate::tls::rustls::msgs::base::{Payload, PayloadU8};
-use crate::tls::rustls::msgs::enums::{CipherSuite, HandshakeType, NamedGroup};
+use crate::tls::rustls::msgs::enums::{CipherSuite, HandshakeType, NamedGroup, SignatureScheme};
 use crate::tls::rustls::msgs::handshake::{
-    CertificateEntries, CertificateEntry, HandshakeMessagePayload, HandshakePayload, Random,
-    ServerECDHParams,
+    CertificateEntries, CertificateEntry, ClientECDHParams, DigitallySignedStruct,
+    ECDHEServerKeyExchange, HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
 };
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
 use crate::tls::rustls::suites::SupportedCipherSuite;
@@ -694,11 +695,45 @@ pub fn fn_new_transcript12() -> Result<HandshakeHash, FnError> {
     Ok(transcript)
 }
 
-pub fn fn_decode_ecdh_pubkey(data: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+pub fn fn_decode_server_ecdh_pubkey(data: &Vec<u8>) -> Result<Vec<u8>, FnError> {
     let mut rd = Reader::init(data.as_slice());
     let params = ServerECDHParams::read(&mut rd)
-        .ok_or_else(|| FnError::Codec("Failed to parse ecdh public key".to_string()))?;
+        .ok_or_else(|| FnError::Codec("Failed to parse server ecdh public key".to_string()))?;
     Ok(params.public.0)
+}
+
+pub fn fn_decode_client_ecdh_pubkey(data: &Vec<u8>) -> Result<Vec<u8>, FnError> {
+    let mut rd = Reader::init(data.as_slice());
+    let params = ClientECDHParams::read(&mut rd)
+        .ok_or_else(|| FnError::Codec("Failed to parse client ecdh public key".to_string()))?;
+    Ok(params.public.0)
+}
+
+pub fn fn_sign_rsa_ecdhe_server_key_exchange(
+    group: &NamedGroup,
+    client_random: &Random,
+    server_random: &Random,
+    private_key: &Vec<u8>,
+) -> Result<Vec<u8>, FnError> {
+    let kx = tls12_key_exchange(group)?;
+    let params = ServerECDHParams::new(*group, kx.pubkey.as_ref());
+
+    // Assemble the TLS 1.2 signed data: client_random || server_random || ServerECDHParams
+    let mut params_bytes = Vec::new();
+    params.encode(&mut params_bytes);
+    let mut message = Vec::new();
+    message.extend_from_slice(&client_random.0);
+    message.extend_from_slice(&server_random.0);
+    message.extend_from_slice(&params_bytes);
+
+    let scheme = SignatureScheme::RSA_PKCS1_SHA256;
+    let sig = fn_rsa_sign(&message, private_key, &scheme)?;
+
+    let dss = DigitallySignedStruct::new(scheme, sig);
+    let ske = ECDHEServerKeyExchange { params, dss };
+    let mut buf = Vec::new();
+    ske.encode(&mut buf);
+    Ok(buf)
 }
 
 pub fn fn_new_pubkey12(group: &NamedGroup) -> Result<Vec<u8>, FnError> {
@@ -717,7 +752,7 @@ pub fn fn_encode_ec_pubkey12(pubkey: &PayloadU8) -> Result<Vec<u8>, FnError> {
 pub fn fn_encrypt12(
     message: &Message,
     server_random: &Random,
-    server_ecdh_pubkey: &Vec<u8>,
+    peer_ecdh_pubkey: &Vec<u8>,
     group: &NamedGroup,
     client: &bool,
     sequence: &u64,
@@ -728,7 +763,7 @@ pub fn fn_encrypt12(
 
     let secrets = tls12_new_secrets(
         server_random,
-        server_ecdh_pubkey,
+        peer_ecdh_pubkey,
         group,
         client_random,
         supported_suite,
@@ -742,6 +777,41 @@ pub fn fn_encrypt12(
         .encrypt(PlainMessage::from(message.clone()).borrow(), *sequence)
         .map_err(|_err| FnError::Crypto("Failed to encrypt it fn_encrypt12".to_string()))?;
     Ok(encrypted)
+}
+
+pub fn fn_decrypt12(
+    message: &Message,
+    server_random: &Random,
+    peer_ecdh_pubkey: &Vec<u8>,
+    group: &NamedGroup,
+    client: &bool,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<Message, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let secrets = tls12_new_secrets(
+        server_random,
+        peer_ecdh_pubkey,
+        group,
+        client_random,
+        supported_suite,
+    )?;
+
+    let (decrypter, _encrypter) = secrets.make_cipher_pair(match *client {
+        true => Side::Client,
+        false => Side::Server,
+    });
+
+    let opaque = PlainMessage::from(message.clone()).into_unencrypted_opaque();
+
+    let plain = decrypter
+        .decrypt(opaque, *sequence)
+        .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt12".to_string()))?;
+
+    Message::try_from(plain)
+        .map_err(|_| FnError::Codec("Failed to parse decrypted TLS 1.2 message".to_string()))
 }
 
 pub fn fn_new_certificate() -> Result<Certificate, FnError> {

@@ -21,8 +21,8 @@ use tlspuffin::put_registry::tls_registry;
 use tlspuffin::test_utils::prelude::*;
 use tlspuffin::test_utils::{create_state, default_runner_for, test_mutations, TLSState};
 use tlspuffin::tls::fn_impl::{
-    fn_client_hello, fn_encrypt12, fn_seq_1, fn_sign_transcript, fn_signature_algorithm_extension,
-    fn_support_group_extension_make,
+    fn_client_hello, fn_client_sign_transcript, fn_encrypt12, fn_seq_1,
+    fn_signature_algorithm_extension, fn_support_group_extension_make,
 };
 use tlspuffin::tls::seeds::{_seed_client_attacker12, create_corpus, seed_client_attacker_full};
 use tlspuffin::tls::TLS_SIGNATURE;
@@ -678,8 +678,8 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
                         if let Some(first_subterm) = subterms.iter().next() {
                             log::warn!("mutational resul first sub-term: {:?}", first_subterm);
                             let is_client_hello = first_subterm.name() == fn_client_hello.name();
-                            let signatures =
-                                first_subterm.count_functions_by_name(fn_sign_transcript.name());
+                            let signatures = first_subterm
+                                .count_functions_by_name(fn_client_sign_transcript.name());
                             if signatures == 1 && is_client_hello {
                                 trace = mutate;
                                 success = true;

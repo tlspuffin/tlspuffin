@@ -62,7 +62,8 @@ autotools_builder(
     --enable-sp
     --disable-sha3
     --enable-curve25519
-    --enable-secure-renegotiation
+    --enable-renegotiation-indication # Adds a security layer above secure-renegotiation
+    # --enable-secure-renegotiation   => cannot be used in conjunction of enable-renegotiation-indication
     --enable-psk # FIXME only 4.3.0
     --disable-examples
     --disable-crypttests # to be able to build with -DUSER_TICKS

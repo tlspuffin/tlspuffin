@@ -289,7 +289,7 @@ fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
     };
 
     let client_verify_data12 = term! {
-        fn_sign_transcript(
+        fn_client_sign_transcript(
             ((server, 0)),
             (fn_decode_server_ecdh_pubkey(
                 ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
@@ -516,7 +516,7 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
     };
 
     let client_verify_data12 = term! {
-        fn_sign_transcript(
+        fn_client_sign_transcript(
             ((server, 0)),
             (fn_decode_server_ecdh_pubkey(
                 ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
@@ -568,7 +568,7 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
     };
 
     let client_verify_data12_2 = term! {
-        fn_sign_transcript(
+        fn_client_sign_transcript(
             ((server, 1)),
             (fn_decode_server_ecdh_pubkey(
                 ((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
