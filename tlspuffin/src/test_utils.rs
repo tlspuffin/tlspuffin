@@ -28,7 +28,7 @@ use puffin::trace_helper::TraceHelper;
 use crate::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put_registry::tls_registry;
 use crate::tls::fn_impl::{
-    fn_certificate_transcript, fn_client_finished_transcript, fn_decrypt_application,
+    fn_certificate_transcript, fn_client_finished_transcript, fn_decrypt12, fn_decrypt_application,
     fn_decrypt_multiple_handshake_messages, fn_server_finished_transcript,
     fn_server_hello_transcript,
 };
@@ -316,6 +316,7 @@ pub fn ignore_eval() -> HashSet<String> {
         // computed in a very specific way! We might give known,valid hash-transcript to help?
         fn_decrypt_application.name(),
         fn_decrypt_multiple_handshake_messages.name(),
+        fn_decrypt12.name(),
     ]
     .iter()
     .map(|fn_name| fn_name.to_string())

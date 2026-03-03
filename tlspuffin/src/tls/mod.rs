@@ -206,7 +206,8 @@ define_signature!(
     fn_get_any_client_curve [get]
     fn_verify_data [opaque]
     fn_verify_data_server [opaque]
-    fn_sign_transcript [opaque]
+    fn_client_sign_transcript [opaque]
+    fn_server_sign_transcript [opaque]
     fn_cipher_suites_make
     fn_new_cipher_suites
     fn_append_cipher_suite [list]
@@ -250,10 +251,13 @@ define_signature!(
     fn_get_ticket_age_add [get]
     fn_get_ticket_nonce [get]
     fn_new_transcript12
-    fn_decode_ecdh_pubkey [opaque]
+    fn_decode_server_ecdh_pubkey [opaque]
+    fn_decode_client_ecdh_pubkey [opaque]
+    fn_sign_rsa_ecdhe_server_key_exchange [opaque]
     fn_encode_ec_pubkey12
     fn_new_pubkey12 [opaque]
     fn_encrypt12 [opaque]
+    fn_decrypt12 [no_gen]
     fn_new_certificate
     fn_new_certificates [list]
     fn_append_certificate [list]
@@ -284,6 +288,7 @@ define_signature!(
     fn_eve_cert
     fn_random_ec_cert
     fn_random_ec_key
+    fn_certificate_from_vec_u8
     fn_certificate_entry_extensions
     fn_empty_certificate_chain
     fn_new_certificate_entries

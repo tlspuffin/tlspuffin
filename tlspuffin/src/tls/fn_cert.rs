@@ -59,6 +59,10 @@ pub fn fn_certificate_entry_extensions(
     })
 }
 
+pub fn fn_certificate_from_vec_u8(cert: &Vec<u8>) -> Result<Certificate, FnError> {
+    Ok(Certificate(cert.clone()))
+}
+
 pub fn fn_empty_certificate_chain() -> Result<Vec<CertificateEntry>, FnError> {
     Ok(Vec::new())
 }
@@ -91,7 +95,7 @@ pub fn fn_rsa_sign_client(
     private_key: &Vec<u8>,
     scheme: &SignatureScheme,
 ) -> Result<Vec<u8>, FnError> {
-    _fn_rsa_sign(
+    fn_rsa_sign(
         &construct_tls13_client_verify_message_raw(&transcript.get_current_hash_raw()),
         private_key,
         scheme,
@@ -103,14 +107,14 @@ pub fn fn_rsa_sign_server(
     private_key: &Vec<u8>,
     scheme: &SignatureScheme,
 ) -> Result<Vec<u8>, FnError> {
-    _fn_rsa_sign(
+    fn_rsa_sign(
         &construct_tls13_server_verify_message_raw(&transcript.get_current_hash_raw()),
         private_key,
         scheme,
     )
 }
 
-fn _fn_rsa_sign(
+pub fn fn_rsa_sign(
     message: &[u8],
     private_key: &[u8],
     scheme: &SignatureScheme,

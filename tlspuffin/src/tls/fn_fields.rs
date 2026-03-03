@@ -182,7 +182,7 @@ pub fn fn_verify_data_server(
 // seed_client_attacker12()
 // ----
 
-pub fn fn_sign_transcript(
+pub fn fn_client_sign_transcript(
     server_random: &Random,
     server_ecdh_pubkey: &Vec<u8>,
     transcript: &HandshakeHash,
@@ -202,6 +202,28 @@ pub fn fn_sign_transcript(
 
     let vh = transcript.get_current_hash();
     Ok(secrets.client_verify_data(&vh))
+}
+
+pub fn fn_server_sign_transcript(
+    server_random: &Random,
+    client_ecdh_pubkey: &Vec<u8>,
+    transcript: &HandshakeHash,
+    group: &NamedGroup,
+    client_random: &Random,
+    suite: &CipherSuite,
+) -> Result<Vec<u8>, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let secrets = tls12_new_secrets(
+        server_random,
+        client_ecdh_pubkey,
+        group,
+        client_random,
+        supported_suite,
+    )?;
+
+    let vh = transcript.get_current_hash();
+    Ok(secrets.server_verify_data(&vh))
 }
 
 // ----
