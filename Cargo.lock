@@ -822,6 +822,7 @@ dependencies = [
 name = "extractable-macro"
 version = "0.0.1"
 dependencies = [
+ "comparable",
  "log",
  "proc-macro2",
  "puffin",
