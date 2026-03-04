@@ -468,6 +468,22 @@ impl SslRef {
         unsafe { wolf::wolfSSL_get_current_cipher_suite(self.as_ptr()) }
     }
 
+    /// Get the version selected after the handshake
+    pub fn chosen_version(&self) -> Option<TLSVersion> {
+        let version = unsafe {
+            let ptr = wolf::wolfSSL_get_version(self.as_ptr());
+            if ptr.is_null() {
+                return None;
+            }
+            CStr::from_ptr(ptr)
+        };
+        match version.to_bytes() {
+            b"TLSv1.2" => Some(TLSVersion::V1_2),
+            b"TLSv1.3" => Some(TLSVersion::V1_3),
+            _ => None,
+        }
+    }
+
     /// Get the current client random
     pub fn client_random(&self) -> Vec<u8> {
         let mut data: [u8; 32] = [0; 32];
