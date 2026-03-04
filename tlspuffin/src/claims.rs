@@ -8,6 +8,7 @@ use puffin::error::Error;
 use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source, StepNumber};
 use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
+use security_claims::ClaimTLSVersion;
 use smallvec::SmallVec;
 
 use crate::protocol::{AgentType, TLSProtocolTypes, TLSVersion};
@@ -220,7 +221,7 @@ pub struct Finished {
     #[comparable_ignore]
     pub master_secret: SmallVec<[u8; 32]>,
 
-    pub tls_version: TLSVersion, // mapped from ClaimTLSVersion
+    pub tls_version: ClaimTLSVersion,
 
     pub chosen_cipher: u16,
     #[comparable_ignore]
@@ -375,7 +376,6 @@ pub mod claims_helpers {
         TranscriptCertificate, TranscriptClientFinished, TranscriptClientHello,
         TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
     };
-    use crate::protocol::TLSVersion;
 
     pub fn to_claim_data(claim: security_claims::Claim) -> Option<ClaimData> {
         match claim.typ {
@@ -444,23 +444,15 @@ pub mod claims_helpers {
                     early_secret: SmallVec::from_slice(&claim.early_secret.secret),
                     handshake_secret: SmallVec::from_slice(&claim.handshake_secret.secret),
                     master_secret: match claim.version.data {
-                        ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3 => {
+                        ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3
+                        | ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => {
                             SmallVec::from_slice(&claim.master_secret.secret)
                         }
                         ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2 => {
                             SmallVec::from_slice(&claim.master_secret_12.secret)
                         }
-                        ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => {
-                            panic!("Undefined TLS version after handshake")
-                        }
                     },
-                    tls_version: match claim.version.data {
-                        ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2 => TLSVersion::V1_2,
-                        ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3 => TLSVersion::V1_3,
-                        ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => {
-                            panic!("Undefined TLS version after handshake")
-                        }
-                    },
+                    tls_version: claim.version.data,
                     chosen_cipher: claim.chosen_cipher.data,
                     available_ciphers: SmallVec::from_iter(
                         claim.available_ciphers.ciphers[..claim.available_ciphers.length as usize]
