@@ -333,9 +333,10 @@ pub struct TLSDescriptorConfig {
     /// Whether we want to try to reuse a previous agent. This is needed for TLS session resumption
     /// as openssl agents rotate ticket keys if they are recreated.
     pub try_reuse: bool,
-    /// List of available TLS ciphers
-    pub cipher_string_tls13: String,
-    pub cipher_string_tls12: String,
+    /// List of available TLS ciphers - public for default() to be used
+    /// Not supposed to be used outside the public methods to manage 1.2/1.3/both
+    pub _cipher_string_tls13: String,
+    pub _cipher_string_tls12: String,
     /// List of available TLS groups/curves
     /// If `None`, use the default PUT groups
     pub groups: Option<String>,
@@ -367,14 +368,60 @@ impl TLSDescriptorConfig {
             protocol_config,
         }
     }
+
+    pub fn set_cipher_string_12(&mut self, cipher_string: String) {
+        self._cipher_string_tls12 = cipher_string;
+    }
+
+    pub fn set_cipher_string_13(&mut self, cipher_string: String) {
+        self._cipher_string_tls13 = cipher_string;
+    }
+
+    /// Sets both 1.2 and 1.3 cipher strings. If you need to specify two different cipher strings,
+    /// use `set_cipher_string_12` and `set_cipher_string_13` separately.
+    /// When using tlsversion::both both strings will be concatenated (and deduped).
+    /// Be careful if you set only one of them when using both.
+    pub fn set_cipher_string(&mut self, cipher_string: String) {
+        self._cipher_string_tls13 = cipher_string.clone();
+        self._cipher_string_tls12 = cipher_string;
+    }
+
+    fn concat_cipher_strings(&self) -> String {
+        // concat the two cipher strings with 1.3 first and remove duplicates
+        // Separate values between colon ":" to deduplicate
+        let combined = format!(
+            "{}:{}",
+            self._cipher_string_tls13, self._cipher_string_tls12
+        );
+        let mut seen = std::collections::HashSet::new();
+        combined
+            .split(':')
+            .filter(|s| !s.is_empty() && seen.insert(*s))
+            .collect::<Vec<_>>()
+            .join(":")
+    }
+
+    pub fn get_cipher_string_12(&self) -> String {
+        match self.tls_version {
+            TLSVersion::V1_2 | TLSVersion::V1_3 => self._cipher_string_tls12.clone(),
+            TLSVersion::Both => self.concat_cipher_strings(),
+        }
+    }
+
+    pub fn get_cipher_string_13(&self) -> String {
+        match self.tls_version {
+            TLSVersion::V1_2 | TLSVersion::V1_3 => self._cipher_string_tls13.clone(),
+            TLSVersion::Both => self.concat_cipher_strings(),
+        }
+    }
 }
 
 impl ProtocolDescriptorConfig for TLSDescriptorConfig {
     fn is_reusable_with(&self, other: &Self) -> bool {
         self.typ == other.typ
             && self.tls_version == other.tls_version
-            && self.cipher_string_tls13 == other.cipher_string_tls13
-            && self.cipher_string_tls12 == other.cipher_string_tls12
+            && self._cipher_string_tls13 == other._cipher_string_tls13
+            && self._cipher_string_tls12 == other._cipher_string_tls12
             && self.groups == other.groups
     }
 }
@@ -389,8 +436,8 @@ impl Default for TLSDescriptorConfig {
             server_authentication: true,
             try_reuse: false,
             typ: AgentType::Server,
-            cipher_string_tls13: TLS_DEFAULT_CIPHER.into(),
-            cipher_string_tls12: TLS_DEFAULT_CIPHER.into(),
+            _cipher_string_tls13: TLS_DEFAULT_CIPHER.into(),
+            _cipher_string_tls12: TLS_DEFAULT_CIPHER.into(),
             groups: None,
         }
     }
@@ -479,12 +526,12 @@ impl ProtocolTypes for TLSProtocolTypes {
 
     fn differential_fuzzing_uniformise_put_config(mut trace: Trace<Self>) -> Trace<Self> {
         for agent in trace.descriptors.iter_mut() {
-            agent.protocol_config.cipher_string_tls12 = String::from(
+            agent.protocol_config.set_cipher_string_12(String::from(
                 "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
-            );
-            agent.protocol_config.cipher_string_tls13 = String::from(
+            ));
+            agent.protocol_config.set_cipher_string_13(String::from(
                 "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256",
-            );
+            ));
             agent.protocol_config.groups = Some(String::from("P-256:P-384"));
         }
 

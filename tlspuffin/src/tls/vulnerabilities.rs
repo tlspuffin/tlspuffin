@@ -1372,18 +1372,18 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
         )
     };
 
+    let mut client_descriptor = TLSDescriptorConfig {
+        tls_version: TLSVersion::Both,
+        typ: AgentType::Client,
+        server_authentication: false,
+        ..TLSDescriptorConfig::default()
+    };
+    client_descriptor
+        .set_cipher_string("TLS13-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384".into());
+
     Trace {
         prior_traces: vec![],
-        descriptors: vec![AgentDescriptor::from_config(
-            client,
-            TLSDescriptorConfig {
-                tls_version: TLSVersion::Both,
-                typ: AgentType::Client,
-                cipher_string_tls13: "TLS13-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384".into(), //"ECDHE-RSA-AES256-GCM-SHA384".into(),
-                server_authentication: false,
-                ..TLSDescriptorConfig::default()
-            },
-        )],
+        descriptors: vec![AgentDescriptor::from_config(client, client_descriptor)],
         steps: vec![
             // Client Hello, Client -> Server
             OutputAction::new_step(client),

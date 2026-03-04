@@ -224,15 +224,11 @@ impl RustPut {
 
         // Disallow EXPORT in client
         match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 => {
-                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?
+            TLSVersion::V1_3 | TLSVersion::Both => {
+                ctx.set_cipher_list(&descriptor.protocol_config.get_cipher_string_13())?
             }
             TLSVersion::V1_2 => {
-                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?
-            }
-            TLSVersion::Both => {
-                // TODO: (NB) check validity
-                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?
+                ctx.set_cipher_list(&descriptor.protocol_config.get_cipher_string_12())?
             }
         }
 
@@ -267,15 +263,11 @@ impl RustPut {
         ctx.disable_session_cache()?;
 
         match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 => {
-                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?
+            TLSVersion::V1_3 | TLSVersion::Both => {
+                ctx.set_cipher_list(&descriptor.protocol_config.get_cipher_string_13())?
             }
             TLSVersion::V1_2 => {
-                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?
-            }
-            TLSVersion::Both => {
-                // TODO: (NB) check validity
-                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?
+                ctx.set_cipher_list(&descriptor.protocol_config.get_cipher_string_12())?
             }
         }
 

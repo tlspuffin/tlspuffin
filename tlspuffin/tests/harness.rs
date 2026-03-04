@@ -82,8 +82,9 @@ fn test_cipher_selection_tls13_aes_256_gcm_sha384(put: &str) {
     let runner = default_runner_for(put);
     let mut trace = seed_successful.build_trace();
 
-    trace.descriptors[0].protocol_config.cipher_string_tls13 =
-        String::from("TLS_AES_256_GCM_SHA384");
+    trace.descriptors[0]
+        .protocol_config
+        .set_cipher_string(String::from("TLS_AES_256_GCM_SHA384"));
 
     let ctx_1 = runner.execute(&trace, &mut 0, true).unwrap();
 
@@ -111,8 +112,9 @@ fn test_cipher_selection_tls13_chacha20_poly1305_sha256(put: &str) {
     let runner = default_runner_for(put);
     let mut trace = seed_successful.build_trace();
 
-    trace.descriptors[0].protocol_config.cipher_string_tls13 =
-        String::from("TLS_CHACHA20_POLY1305_SHA256");
+    trace.descriptors[0]
+        .protocol_config
+        .set_cipher_string(String::from("TLS_CHACHA20_POLY1305_SHA256"));
 
     let ctx_1 = runner.execute(&trace, &mut 0, true).unwrap();
 
@@ -140,10 +142,12 @@ fn test_cipher_selection_tls12_ecdhe_rsa_with_aes_128_gcm_sha256(put: &str) {
     let runner = default_runner_for(put);
     let mut trace = seed_successful12_forward.build_trace();
 
-    trace.descriptors[0].protocol_config.cipher_string_tls12 =
-        String::from("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256");
-    trace.descriptors[1].protocol_config.cipher_string_tls12 =
-        String::from("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256");
+    trace.descriptors[0]
+        .protocol_config
+        .set_cipher_string(String::from("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"));
+    trace.descriptors[1]
+        .protocol_config
+        .set_cipher_string(String::from("TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"));
 
     let ctx_1 = runner.execute(&trace, &mut 0, true).unwrap();
 
@@ -171,10 +175,12 @@ fn test_cipher_selection_tls12_ecdhe_rsa_with_aes_256_gcm_sha384(put: &str) {
     let runner = default_runner_for(put);
     let mut trace = seed_successful12_forward.build_trace();
 
-    trace.descriptors[0].protocol_config.cipher_string_tls12 =
-        String::from("TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384");
-    trace.descriptors[1].protocol_config.cipher_string_tls12 =
-        String::from("TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384");
+    trace.descriptors[0]
+        .protocol_config
+        .set_cipher_string(String::from("TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"));
+    trace.descriptors[1]
+        .protocol_config
+        .set_cipher_string(String::from("TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"));
 
     let ctx_1 = runner.execute(&trace, &mut 0, true).unwrap();
 
