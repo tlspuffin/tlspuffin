@@ -123,19 +123,19 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
         )
     };
 
+    let mut descriptor_config = TLSDescriptorConfig {
+        tls_version: TLSVersion::V1_3,
+        typ: AgentType::Client,
+        ..TLSDescriptorConfig::default()
+    };
+
+    descriptor_config.set_cipher_string(String::from(
+        "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
+    ));
+
     Trace {
         prior_traces: vec![],
-        descriptors: vec![AgentDescriptor::from_config(
-            client,
-            TLSDescriptorConfig {
-                tls_version: TLSVersion::V1_3,
-                typ: AgentType::Client,
-                cipher_string_tls13: String::from(
-                    "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
-                ),
-                ..TLSDescriptorConfig::default()
-            },
-        )],
+        descriptors: vec![AgentDescriptor::from_config(client, descriptor_config)],
         steps: vec![
             OutputAction::new_step(client),
             Step {
