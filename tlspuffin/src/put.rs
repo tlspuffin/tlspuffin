@@ -188,7 +188,7 @@ impl CAgent {
             config
                 .descriptor
                 .protocol_config
-                .cipher_string_tls13
+                .get_cipher_string_13()
                 .clone(),
         )
         .unwrap();
@@ -196,7 +196,7 @@ impl CAgent {
             config
                 .descriptor
                 .protocol_config
-                .cipher_string_tls12
+                .get_cipher_string_12()
                 .clone(),
         )
         .unwrap();
