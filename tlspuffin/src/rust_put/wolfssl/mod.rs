@@ -430,6 +430,9 @@ impl RustPut {
                                     .map(|cert| SmallVec::from_vec(cert))
                                     .unwrap_or_else(|| SmallVec::new()),
                                 master_secret: Default::default(), // TODO
+                                tls_version: context.chosen_version().unwrap_or_else(panic!(
+                                    "Undefined TLS version after handshake"
+                                )),
                                 chosen_cipher: context.current_cipher() as u16,
                                 available_ciphers: Default::default(), // TODO
                                 signature_algorithm: 0,                // TODO
