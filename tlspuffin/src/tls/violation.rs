@@ -1,8 +1,9 @@
 use itertools::Itertools;
 use puffin::claims::SecurityViolationPolicy;
+use security_claims::ClaimTLSVersion;
 
 use crate::claims::{ClaimData, ClaimDataMessage, Finished, TlsClaim};
-use crate::protocol::{AgentType, TLSVersion};
+use crate::protocol::AgentType;
 use crate::static_certs::{ALICE_CERT, BOB_CERT};
 
 pub struct TlsSecurityViolationPolicy;
@@ -47,7 +48,7 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                 }
 
                 match client.tls_version {
-                    TLSVersion::V1_2 => {
+                    ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2 => {
                         // TLS 1.2 Checks
 
                         // https://datatracker.ietf.org/doc/html/rfc5077#section-3.4
@@ -55,7 +56,7 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                             return Some("Mismatching session ids");
                         }
                     }
-                    TLSVersion::V1_3 => {
+                    ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3 => {
                         // TLS 1.3 Checks
                         if client.session_id != server.session_id {
                             return Some("Mismatching session ids");
@@ -86,7 +87,11 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                             }
                         }
                     }
-                    TLSVersion::Both => return Some("Version undefined after handshake"),
+                    ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => {
+                        // WARNING: remove filter once RUST PUTS are removed
+                        #[cfg(not(feature = "openssl_binding"))]
+                        return Some("Version undefined after handshake");
+                    }
                 }
             } else {
                 // Could not choose exactly one server and client

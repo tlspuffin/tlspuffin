@@ -3,12 +3,21 @@ extern crate bindgen;
 use std::env;
 use std::path::PathBuf;
 
-use bindgen::callbacks::ParseCallbacks;
+use bindgen::callbacks::{DeriveInfo, ParseCallbacks, TypeKind};
 
 #[derive(Debug)]
 struct MyParseCallbacks;
 
-impl ParseCallbacks for MyParseCallbacks {}
+impl ParseCallbacks for MyParseCallbacks {
+    fn add_derives(&self, info: &DeriveInfo<'_>) -> Vec<String> {
+        let mut derives = vec![];
+
+        if let TypeKind::Enum = info.kind {
+            derives.push("comparable::Comparable".into());
+        }
+        derives
+    }
+}
 
 fn main() {
     println!("cargo:rerun-if-changed=claim-interface.h");

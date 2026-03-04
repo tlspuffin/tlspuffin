@@ -10,12 +10,14 @@ use puffin::algebra::ConcreteMessage;
 use puffin::error::Error;
 use puffin::put::Put;
 use puffin::stream::{MemoryStream, Stream};
+use security_claims::ClaimTLSVersion;
 use smallvec::SmallVec;
 use transcript::extract_current_transcript;
 use wolfssl::error::{ErrorStack, SslError};
 use wolfssl::ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode};
 use wolfssl::version::version;
 use wolfssl::x509::X509;
+use wolfssl::TLSVersion as WolfTLSVersion;
 
 use crate::claims::{
     ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsClaim, TranscriptCertificate,
@@ -430,9 +432,15 @@ impl RustPut {
                                     .map(|cert| SmallVec::from_vec(cert))
                                     .unwrap_or_else(|| SmallVec::new()),
                                 master_secret: Default::default(), // TODO
-                                tls_version: context.chosen_version().unwrap_or_else(panic!(
-                                    "Undefined TLS version after handshake"
-                                )),
+                                tls_version: match context.chosen_version() {
+                                    Some(WolfTLSVersion::V1_3) => {
+                                        ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3
+                                    }
+                                    Some(WolfTLSVersion::V1_2) => {
+                                        ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2
+                                    }
+                                    None => ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED,
+                                },
                                 chosen_cipher: context.current_cipher() as u16,
                                 available_ciphers: Default::default(), // TODO
                                 signature_algorithm: 0,                // TODO
