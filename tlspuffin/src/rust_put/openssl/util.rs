@@ -21,14 +21,29 @@ pub fn set_max_protocol_version(
     // Old OpenSSL versions do not have this function
     #[cfg(any(feature = "openssl111_binding", feature = "libressl333"))]
     match tls_version {
-        TLSVersion::V1_3 | TLSVersion::Both => {
+        TLSVersion::V1_3 => {
             #[cfg(feature = "openssl111_binding")]
-            ctx_builder.set_max_proto_version(Some(openssl::ssl::SslVersion::TLS1_3))?;
+            {
+                ctx_builder.set_max_proto_version(Some(openssl::ssl::SslVersion::TLS1_3))?;
+                ctx_builder.set_min_proto_version(Some(openssl::ssl::SslVersion::TLS1_3))?;
+            }
             // do nothing as the maximum available TLS version is 1.3
             Ok(())
         }
         TLSVersion::V1_2 => {
             ctx_builder.set_max_proto_version(Some(openssl::ssl::SslVersion::TLS1_2))
+        }
+        TLSVersion::Both => {
+            #[cfg(feature = "openssl111_binding")]
+            {
+                ctx_builder.set_max_proto_version(Some(openssl::ssl::SslVersion::TLS1_3))?;
+                ctx_builder.set_min_proto_version(Some(openssl::ssl::SslVersion::TLS1_2))?;
+            }
+            #[cfg(feature = "libressl333")]
+            {
+                ctx_builder.set_min_proto_version(Some(openssl::ssl::SslVersion::TLS1_2))?;
+            }
+            Ok(())
         }
     }?;
 
