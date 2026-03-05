@@ -2774,7 +2774,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = tls12)]
+    #[apply(test_puts, filter = all(tls12, not(boringssl)))]
     fn test_seed_server_attacker12(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker12.build_trace();

@@ -1264,7 +1264,7 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
     }
 }
 
-/// https://nvd.nist.gov/vuln/detail/CVE-2024-5814
+/// <https://nvd.nist.gov/vuln/detail/CVE-2024-5814>
 pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
     let server_hello = term! {
         fn_server_hello(

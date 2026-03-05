@@ -3,7 +3,10 @@ use std::io::ErrorKind;
 
 use boring::error::ErrorStack;
 use boring::ex_data::Index;
-use boring::ssl::{Ssl, SslContext, SslMethod, SslOptions, SslRef, SslStream, SslVerifyMode};
+use boring::ssl::{
+    Ssl, SslContext, SslMethod, SslOptions, SslRef, SslStream, SslVerifyMode,
+    SslVersion as BoringTLSVersion,
+};
 use boring::x509::store::X509StoreBuilder;
 use boring::x509::X509;
 use boringssl_sys::ssl_st;
@@ -31,6 +34,7 @@ mod util;
 use std::ops::Deref;
 
 use puffin::algebra::ConcreteMessage;
+use security_claims::ClaimTLSVersion;
 use transcript::extract_current_transcript;
 
 pub struct RustPut {
@@ -254,7 +258,7 @@ impl RustPut {
     fn create_msg_callback(config: &TlsPutConfig) -> impl Fn(&mut SslRef, i32) {
         let agent_name = config.descriptor.name;
         let origin = config.descriptor.protocol_config.typ;
-        let protocol_version = config.descriptor.protocol_config.tls_version;
+        let config_version = config.descriptor.protocol_config.tls_version;
         let claims = config.claims.clone();
         let authenticate_peer = config.authenticate_peer;
 
@@ -303,7 +307,7 @@ impl RustPut {
                 claims.deref_borrow_mut().claim_sized(TlsClaim {
                     agent_name,
                     origin,
-                    protocol_version,
+                    config_version,
                     data,
                     step: None,
                 });
@@ -339,6 +343,11 @@ impl RustPut {
             authenticate_peer,
             peer_certificate: peer_certificate.into(),
             master_secret: master_secret.into(),
+            tls_version: match ssl.version2() {
+                Some(BoringTLSVersion::TLS1_2) => ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2,
+                Some(BoringTLSVersion::TLS1_3) => ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3,
+                _ => ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED,
+            },
             chosen_cipher: cipher_id as u16,
             available_ciphers: Default::default(), // TODO
             signature_algorithm: 0,                // TODO
