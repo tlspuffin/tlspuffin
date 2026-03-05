@@ -706,7 +706,9 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls12, tls13, not(boringssl)))]
+    // LibreSSL333 supports TLS1.3 but not the 1.3 API, therefore we cannot set an agent only on 1.3
+    // There is no error raised if the agent can communicate in 1.2
+    #[apply(test_puts, filter = all(tls12, tls13, not(feature="libressl333")))]
     fn test_seed_error_12_13(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_error_12_13.build_trace();
@@ -715,14 +717,21 @@ pub mod tests {
         let error = result.unwrap_err();
         assert!(matches!(error, puffin::error::Error::Put(_)));
         let error_string = error.to_string();
-        // Respectively OpenSSL and WolfSSL error messages
+        log::debug!("Error: {}", error_string);
+        // Respectively OpenSSL, BoringSSL and WolfSSL error messages
+        // If it crashes, you might have added a new PUT version or vendor
+        // You might need to add another condition
         assert!(
-            error_string.contains("unsupported protocol")
-                || error_string.contains("record layer version error")
+            error_string.contains("unsupported protocol")               // OpenSSL
+                || error_string.contains("UNSUPPORTED_PROTOCOL")        // BoringSSL
+                || error_string.contains("record layer version error")  // WolfSSL
+                || error_string.contains("unknown error number") // WolfSSL_430
         );
     }
 
-    #[apply(test_puts, filter = all(tls12, tls13, not(boringssl)))]
+    // LibreSSL333 supports TLS1.3 but not the 1.3 API, therefore we cannot set an agent only on 1.3
+    // There is no error raised if the agent can communicate in 1.2
+    #[apply(test_puts, filter = all(tls12, tls13, not(feature="libressl333")))]
     fn test_seed_error_13_12(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_error_13_12.build_trace();
@@ -731,14 +740,22 @@ pub mod tests {
         let error = result.unwrap_err();
         assert!(matches!(error, puffin::error::Error::Put(_)));
         let error_string = error.to_string();
-        // Respectively OpenSSL and WolfSSL error messages
+        log::debug!("Error: {}", error_string);
+        // Respectively OpenSSL, BoringSSL and WolfSSL error messages
+        // If it crashes, you might have added a new PUT version or vendor
+        // You might need to add another condition
         assert!(
-            error_string.contains("unsupported protocol")
-                || error_string.contains("record layer version error")
+            error_string.contains("unsupported protocol")               // OpenSSL
+                || error_string.contains("UNSUPPORTED_PROTOCOL")        // BoringSSL
+                || error_string.contains("record layer version error")  // WolfSSL
+                || error_string.contains("unknown error number") // WolfSSL_430
         );
     }
 
-    #[apply(test_puts, filter = all(tls12, tls13, not(boringssl)))]
+    // the standard for ssl_clear only specifies that it should work with exactly the same agent
+    // Most implementations outside openssl seems to implement the strict minimum and therefore
+    // won't work with those tests
+    #[apply(test_puts, filter = all(tls12, tls13, not(boringssl), not(wolfssl), not(feature="libressl333")))]
     fn test_seed_successful_12_then_13(put: &str) {
         let runner = default_runner_for_desc(PutDescriptor::new(put, vec![("use_clear", "true")]));
         let trace = seed_successful_12_then_13.build_trace();
@@ -746,7 +763,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls12, tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls12, tls13, not(boringssl), not(wolfssl), not(feature="libressl333")))]
     fn test_seed_successful_12_then_12(put: &str) {
         let runner = default_runner_for_desc(PutDescriptor::new(put, vec![("use_clear", "true")]));
         let trace = seed_successful_12_then_12.build_trace();
