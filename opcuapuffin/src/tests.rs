@@ -6,7 +6,7 @@ use opcua::puffin::signature::fn_impl::fn_constants::{
     fn_basic256sha256, fn_bob_cert, fn_bob_endpoint, fn_bob_sk, fn_channel_nonce_1, fn_channel_nonce_2,
     fn_default_size, fn_issue, fn_mode_none, fn_mode_sign, fn_no_bytes, fn_no_nonce, fn_null_cert,
     fn_open, fn_sa_token_zero,
-    fn_security_policy_none, fn_seq_0};
+    fn_security_policy_none, fn_seq_0, fn_tcp_1};
 use opcua::puffin::signature::fn_impl::fn_uasc::{
     fn_asym_decrypt, fn_asym_encrypt, fn_asym_header, fn_data_to_encrypt, fn_client_mac_key, fn_client_open, fn_decrypted_body,
     fn_header, fn_mac, fn_open_message, fn_open_header, fn_request_header,
@@ -35,10 +35,11 @@ pub fn client_hello() {
     let mut send_buffer: Vec<u8> = Vec::with_capacity(max_size as usize);
 
     let hello_message: Message = fn_client_hello(
+        &01,
          &UAString::from("opc.tcp://PenDuick:53530/OPCUA/SimulationServer"),
         &max_size,  &max_size).unwrap();
     hello_message.encode(&mut send_buffer);
-    let right: Vec<u8> = vec![
+    let right: Vec<u8> = vec![ 01,
     0x48, 0x45, 0x4c, 0x46, 0x4f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x00,
     0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2f, 0x00, 0x00, 0x00,
     0x6f, 0x70, 0x63, 0x2e, 0x74, 0x63, 0x70, 0x3a, 0x2f, 0x2f, 0x50, 0x65, 0x6e, 0x44, 0x75, 0x69,
@@ -54,11 +55,12 @@ pub fn server_hello() {
     let mut send_buffer: Vec<u8> = Vec::with_capacity(max_size as usize);
 
     let reverse_message: Message = fn_server_hello(
+        &01,
         &UAString::from("opc.tcp://PenDuick:53530"),
         &UAString::from("opc.tcp://PenDuick:53530/OPCUA/SimulationServer"),
         ).unwrap();
     reverse_message.encode(&mut send_buffer);
-    let rev_hello_msg: Vec<u8> = vec![
+    let rev_hello_msg: Vec<u8> = vec![ 01,
     0x52, 0x48, 0x45, 0x46, 0x57, 0x00, 0x00, 0x00, 0x18, 0x00, 0x00, 0x00, 0x6f, 0x70, 0x63, 0x2e,
     0x74, 0x63, 0x70, 0x3a, 0x2f, 0x2f, 0x50, 0x65, 0x6e, 0x44, 0x75, 0x69, 0x63, 0x6b, 0x3a, 0x35,
     0x33, 0x35, 0x33, 0x30, 0x2f, 0x00, 0x00, 0x00, 0x6f, 0x70, 0x63, 0x2e, 0x74, 0x63, 0x70, 0x3a,
@@ -71,10 +73,11 @@ pub fn server_hello() {
 
     send_buffer.clear();
     let acknowledge_message: Message = fn_acknowledge(
+        &01,
         &max_size,
         &max_size).unwrap();
     acknowledge_message.encode(&mut send_buffer);
-    let ack_msg: Vec<u8> = vec![
+    let ack_msg: Vec<u8> = vec![ 01,
     0x41, 0x43, 0x4b, 0x46, 0x1c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x88, 0x13, 0x00, 0x00,
     0x88, 0x13, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
     //println!("acknowledge: {:x?}",  send_buffer);
@@ -135,6 +138,7 @@ pub fn test_hello() {
 
     let hello_term: Term<OpcuaProtocolTypes> = term! {
       fn_client_hello(
+        fn_tcp_1,
         fn_bob_endpoint,
         fn_default_size,
         fn_default_size)
@@ -147,18 +151,19 @@ pub fn test_hello() {
 
     let hello_message: Vec<u8> = hello_term.evaluate_symbolic(&context).unwrap();
     let hello_msg : Vec<u8> = vec![
-        72,69,76,70,72,0,0,0,0,0,0,0,0,160,0,0,0,160,0,0,0,0,0,0,0,0,0,0,40,0,0,0,
+        01,72,69,76,70,72,0,0,0,0,0,0,0,0,160,0,0,0,160,0,0,0,0,0,0,0,0,0,0,40,0,0,0,
         111,112,99,46,116,99,112,58,47,47,108,111,99,97,108,104,111,115,116,58,52,
         56,52,48,47,111,112,99,117,97,112,117,102,102,105,110,46,98,111,98];
     assert_eq!(&hello_message, &hello_msg);
 
     let ack_term: Term<OpcuaProtocolTypes> = term! {
       fn_acknowledge(
+        fn_tcp_1,
         fn_default_size,
         fn_default_size)
     };
     let ack_message: Vec<u8> = ack_term.evaluate_symbolic(&context).unwrap();
-    let ack_msg: Vec<u8> = vec![65,67,75,70,28,0,0,0,0,0,0,0,0,160,0,0,0,160,0,0,0,0,0,0,0,0,0,0];
+    let ack_msg: Vec<u8> = vec![01,65,67,75,70,28,0,0,0,0,0,0,0,0,160,0,0,0,160,0,0,0,0,0,0,0,0,0,0];
     assert_eq!(&ack_message, &ack_msg);
 
 }
@@ -263,10 +268,11 @@ pub fn test_open() {
     let context = TraceContext::new(spawner);
 
     let right: Vec<u8> = vec!
-        [79, 80, 78, 70, 132, 0, 0, 0, 0, 0, 0, 0, 47, 0, 0, 0, 104, 116, 116, 112, 58, 47, 47, 111, 112, 99, 102, 111, 117, 110, 100, 97, 116, 105, 111, 110, 46, 111, 114, 103, 47, 85, 65, 47, 83, 101, 99, 117, 114, 105, 116, 121, 80, 111, 108, 105, 99, 121, 35, 78, 111, 110, 101, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 190, 1, 0, 0, 128, 192, 12, 163, 36, 93, 220, 1, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, 224, 147, 4, 0];
+        [01, 79, 80, 78, 70, 132, 0, 0, 0, 0, 0, 0, 0, 47, 0, 0, 0, 104, 116, 116, 112, 58, 47, 47, 111, 112, 99, 102, 111, 117, 110, 100, 97, 116, 105, 111, 110, 46, 111, 114, 103, 47, 85, 65, 47, 83, 101, 99, 117, 114, 105, 116, 121, 80, 111, 108, 105, 99, 121, 35, 78, 111, 110, 101, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 190, 1, 0, 0, 128, 192, 12, 163, 36, 93, 220, 1, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 255, 255, 255, 255, 224, 147, 4, 0];
 
     let open_term: Term<OpcuaProtocolTypes> = term! {
         fn_open_message(
+            fn_tcp_1,
             (fn_open_header(
                 (fn_header(fn_open, fn_seq_0)),
                 fn_security_policy_none,

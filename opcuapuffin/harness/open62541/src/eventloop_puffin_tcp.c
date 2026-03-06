@@ -134,26 +134,29 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
 }
 
 static void
-TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event);
+TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, UA_FD newsockfd);
 
 static UA_StatusCode
 TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId);
 
 void
-TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length) {
+TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length, uint8_t connection) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
 
-    if (!pcm->connectionId) {
+   /* Get the connection */
+   UA_FD fd = (UA_FD) connection;
+   TCP_FD *conn = (TCP_FD*) ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
+   if (!conn) {
         /* Get the listen connection */
-        UA_FD fd = (UA_FD) 1;
-        TCP_FD *conn = (TCP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
+        fd = (UA_FD) 0;
+        conn = (TCP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
         if(!conn) {
             UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                            "TCP\t| Cannot find the listen connection");
             return;
         };
         /* open a new connection */
-        TCP_listenSocketCallback(&pcm->cm, conn, 0);
+        TCP_listenSocketCallback(&pcm->cm, conn, connection);
     }
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -192,7 +195,7 @@ TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length) {
 
 /* Gets called when a new connection opens or if the listenSocket is closed */
 static void
-TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
+TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, UA_FD newsockfd) {
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
 
@@ -201,7 +204,6 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, short event) {
                  (unsigned)conn->rfd.fd);
 
     /* Try to accept a new connection */
-    UA_FD newsockfd = 2;
     pcm->connectionId = (uintptr_t) newsockfd;
 
     /* Log the name of the remote host */
@@ -264,8 +266,8 @@ TCP_registerListenSocket(UA_PuffinConnectionManager *pcm,
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
 
 
-    /* Create the server socket */
-    UA_FD listenSocket = 1;
+    /* Create the server listen socket */
+    UA_FD listenSocket = 0;
 
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP %u\t| Creating listen socket for \"%s\" on port %u",
@@ -323,7 +325,7 @@ TCP_registerListenSocket(UA_PuffinConnectionManager *pcm,
 
     /* Direct call of the TCP_listenSocketCallback,
        to signal the opening of a new connection -- */
-    TCP_listenSocketCallback(&pcm->cm, newConn, UA_FDEVENT_IN);
+    // TCP_listenSocketCallback(&pcm->cm, newConn, UA_FDEVENT_IN);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -364,7 +366,7 @@ TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId) {
     TCP_FD *conn = (TCP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
     if(!conn) {
         UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                       "TCP\t| Cannot close TCP connection %u - not found",
+                       "TCP %u\t| Cannot close TCP connection: not found",
                        (unsigned)connectionId);
         return UA_STATUSCODE_BADNOTFOUND;
     }
@@ -391,8 +393,8 @@ Puffin_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
             pcm->txBuffer_index = buf->length;
         };
     };
-    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Send messages in txBuffer (%lu bytes at %p)",
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        "TCP %u\t| Sent message in txBuffer (%lu bytes at %p)",
         (unsigned)connectionId, pcm->txBuffer_index, pcm->txBuffer.data);
 
     /* Clean up of txBuffer will be performed by open62541_take_outbound,

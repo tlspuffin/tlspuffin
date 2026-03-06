@@ -21,13 +21,13 @@ pub fn create_corpus(
     _put: &dyn puffin::put_registry::Factory<OpcuaProtocolBehavior>,
 ) -> Vec<(Trace<OpcuaProtocolTypes>, &'static str)> {
     vec![
-        // (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
+        (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
         (seed_ap_client_open_unsecure_channel(AgentName::first()), "seed_ap_client_open_unsecure_channel"),
         // (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel"),
         // (seed_c_server_open_unsecure_channel(AgentName::first()), "seed_c_server_open_unsecure_channel"),
-        (seed_d_client_simple_request(AgentName::first()), "seed_d_client_simple_request"),
-        (seed_e_client_reopen_reactivate(AgentName::first()), "seed_e_client_reopen_reactivate"),
-        (seed_f_client_switch_secure_channels(AgentName::first()), "seed_f_client_switch_secure_channels"),
+        // (seed_d_client_simple_request(AgentName::first()), "seed_d_client_simple_request"),
+        // (seed_e_client_reopen_reactivate(AgentName::first()), "seed_e_client_reopen_reactivate"),
+        // (seed_f_client_switch_secure_channels(AgentName::first()), "seed_f_client_switch_secure_channels"),
     ]
 }
 
@@ -44,6 +44,7 @@ pub fn seed_a_hello_bob (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_client_hello (
+                        fn_tcp_1,
                         fn_bob_endpoint,
                         fn_default_size,
                         fn_default_size
@@ -86,6 +87,7 @@ pub fn seed_ap_client_open_unsecure_channel (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_client_hello (
+                        fn_tcp_1,
                         fn_bob_endpoint,
                         fn_default_size,
                         fn_default_size
@@ -96,6 +98,7 @@ pub fn seed_ap_client_open_unsecure_channel (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_open_message(
+                        fn_tcp_1,
                         (fn_open_header(
                             (fn_header(fn_open, fn_seq_0)),
                             fn_security_policy_none,
