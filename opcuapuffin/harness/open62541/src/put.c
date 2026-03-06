@@ -67,7 +67,7 @@ struct AGENT_TYPE {
     const CLAIMER_CB *claimer;
 };
 
-/* convent to open62541 UA_LogLevel */
+/* convert to open62541 UA_LogLevel */
 UA_LogLevel open62541_log_level(RustLogFilter level) {
     if (level == RUST_LOG_ERROR)  return UA_LOGLEVEL_ERROR;
     if (level == RUST_LOG_WARN)   return UA_LOGLEVEL_WARNING;
@@ -314,16 +314,19 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
     UA_PuffinConnectionManager *pcm = agent->connexion_manager;
     if (!pcm) return PUFFIN.make_result(RESULT_ERROR_OTHER, "Connection Manager unavailable.");
 
+    /* get connection number */
+    uint8_t connection = *bytes;
+
     /* Fills the rxBuffer */
-    if (length > pcm->rxBuffer.length) {
+    if (length-1 > pcm->rxBuffer.length) {
         return PUFFIN.make_result(RESULT_ERROR_OTHER, "rxBuffer is too small!");
     }
-    memcpy(pcm->rxBuffer.data, bytes, length);
+    memcpy(pcm->rxBuffer.data, (bytes +1), length-1);
     *written = length;
 
     /* notify application */
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
-    TCP_PuffinConnectionCallback(pcm, *written);
+    TCP_PuffinConnectionCallback(pcm, *written-1, connection);
 
     _log(PUFFIN.trace,"Add inbound OK");
     return PUFFIN.make_result(RESULT_OK, "");
@@ -343,7 +346,7 @@ RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, s
         memcpy(bytes, pcm->txBuffer.data, pcm->txBuffer_index);
         *readbytes = pcm->txBuffer_index;
         pcm->txBuffer_index = 0;
-        UA_EventLoopPuffin_freeNetworkBuffer(&pcm->cm, (uintptr_t) pcm->connectionId, &pcm->txBuffer);
+        UA_EventLoopPuffin_freeNetworkBuffer(&pcm->cm, (uintptr_t) NULL, &pcm->txBuffer);
     } else {
         *readbytes = 0;
     };

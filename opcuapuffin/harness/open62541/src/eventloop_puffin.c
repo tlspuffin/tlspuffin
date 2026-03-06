@@ -540,12 +540,12 @@ UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     if(pcm->txBuffer.data == buf->data) {
         if (buf != &pcm->txBuffer) { // /!\ Memory leak if &txBuffer == buf
-            UA_LOG_TRACE(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+            UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
                 "TCP\t| Reinit of buffer at %p, of size %lu", buf->data, buf->length);
             UA_ByteString_init(buf);
         };
     } else {
-        UA_LOG_TRACE(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_DEBUG(pcm->cm.eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
             "TCP\t| Free buffer (clear) at %p", buf->data);
         UA_ByteString_clear(buf);
     };
