@@ -4,16 +4,14 @@ use puffin::fuzzer::mutations::MutationConfig;
 use puffin::fuzzer::stages::FocusScheduledMutator;
 use puffin::fuzzer::utils::{find_term, find_term_mut};
 use puffin::libafl::corpus::InMemoryCorpus;
-use puffin::libafl::mutators::{MutationResult, MutatorsTuple, ScheduledMutator};
+use puffin::libafl::mutators::{MutationResult, MutatorsTuple};
 use puffin::libafl::prelude::{HasRand, StdState};
-use puffin::libafl::Error;
 use puffin::libafl_bolts::bolts_prelude::{tuple_list, Rand, RomuDuoJrRand};
-use puffin::libafl_bolts::tuples::{HasConstLen, NamedTuple};
+use puffin::libafl_bolts::tuples::NamedTuple;
 use puffin::libafl_bolts::HasLen;
 use puffin::put::PutDescriptor;
 use puffin::put_registry::TCP_PUT;
 use puffin::trace::{ConfigTrace, Spawner, Trace};
-use ring::test::TestCase;
 use tlspuffin::protocol::{TLSProtocolTypes, TLSVersion};
 use tlspuffin::test_utils::{create_state, test_mutations};
 #[allow(unused_imports)]
@@ -415,7 +413,7 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
     let mut mutant_tries = 0;
     let trace = seed_successful12_with_tickets.build_trace();
     let runner = default_runner_for(put);
-    let path_make_message = (9, vec![1, 0]);
+    // let path_make_message = (9, vec![1, 0]);
     for _ in 0..50 {
         let _ = runner.execute(trace.clone(), &mut 0).unwrap();
     }
@@ -423,9 +421,9 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
     let timeout = std::time::Duration::from_secs(timeout_secs);
     let registry = tls_registry();
     let mut state = create_state();
-    let mut mutations = test_mutations(&registry, true, true);
-    let max_mut_idx = mutations.len();
-    let min_mut_idx = 7; // Hence all HAVOC mutations, including MakeMessage and ReadMessage
+    // let mut mutations = test_mutations(&registry, true, true);
+    // let max_mut_idx = mutations.len();
+    // let min_mut_idx = 7; // Hence all HAVOC mutations, including MakeMessage and ReadMessage
 
     let _ = runner
         .execute(seed_cve_simple_2022_38153.build_trace(), &mut 0)
@@ -444,7 +442,7 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
 
         let mut skip = false;
 
-        'outer: for j_mut in 0..max_muts {
+        'outer: for _j_mut in 0..max_muts {
             // log::error!("outer for: j_mut = {j_mut}");
             if all_tries < max_all_tries {
                 let config = MutationConfig {
