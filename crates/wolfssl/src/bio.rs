@@ -277,6 +277,7 @@ impl MemBio {
 
     pub fn get_buf(&self) -> &[u8] {
         unsafe {
+            #[allow(unused_mut)]
             let mut ptr: *mut c_void = ptr::null_mut();
             let len = wolfssl_sys::wolfSSL_BIO_get_mem_data(self.0, ptr);
             slice::from_raw_parts(ptr as *const _ as *const _, len as usize)

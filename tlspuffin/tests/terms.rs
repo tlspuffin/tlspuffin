@@ -54,13 +54,13 @@ fn test_one_replace(
 // failing the second time! Could be useful in RUST_LOG=DEBUG/TRACE mode to see all the
 // replacements and window refinement of `eval_until_opaque` in detail.
 #[test_log::test]
-#[cfg(all(feature = "deterministic", feature = "boringssl-binding"))] // only for boring as we hard-coded payloads for this PUT in the test
+#[cfg(all(feature = "deterministic", feature = "boringssl_binding"))] // only for boring as we hard-coded payloads for this PUT in the test
 fn test_replace_bitstring_multiple() {
     let runner = default_runner_for(tls_registry().default().name());
     let mut trace = seed_client_attacker_full.build_trace();
-    let ctx = runner.execute(&trace).unwrap();
+    let ctx = runner.execute(&trace, &mut 0, true).unwrap();
 
-    let step0_before = vec![
+    let _step0_before = vec![
         22, 3, 3, // path=0: fn_protocol_version12 -> ProtocolVersion,
         0, 211, 1, 0, 0, 207, 3, 3, // Client Hello structure
         1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
