@@ -97,11 +97,8 @@ typedef struct {
     size_t fdsSize;
     UA_FDTree fds;
 
-    /* PUFFIN connections with the Agent */
-    uintptr_t connectionId; /* of the first writer in TxBuffer */
-    void *application;
-    void *context;
-    UA_ConnectionManager_connectionCallback applicationCB;
+    /* Id of the connection of the first writer in txBuffer */
+    uint8_t connectionId;
 
 } UA_PuffinConnectionManager;
 

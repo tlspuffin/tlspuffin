@@ -315,7 +315,7 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
     if (!pcm) return PUFFIN.make_result(RESULT_ERROR_OTHER, "Connection Manager unavailable.");
 
     /* get connection number */
-    uint8_t connection = *bytes;
+    uint8_t connectionId = *bytes;
 
     /* Fills the rxBuffer */
     if (length-1 > pcm->rxBuffer.length) {
@@ -325,8 +325,7 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
     *written = length;
 
     /* notify application */
-    UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
-    TCP_PuffinConnectionCallback(pcm, *written-1, connection);
+    TCP_PuffinConnectionCallback(pcm, *written-1, connectionId);
 
     _log(PUFFIN.trace,"Add inbound OK");
     return PUFFIN.make_result(RESULT_OK, "");
