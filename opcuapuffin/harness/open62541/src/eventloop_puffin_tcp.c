@@ -140,11 +140,11 @@ static UA_StatusCode
 TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId);
 
 void
-TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length, uint8_t connection) {
+TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length, uint8_t connectionId) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
 
    /* Get the connection */
-   UA_FD fd = (UA_FD) connection;
+   UA_FD fd = (UA_FD) connectionId;
    TCP_FD *conn = (TCP_FD*) ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
    if (!conn) {
         /* Get the listen connection */
@@ -156,38 +156,37 @@ TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length, uin
             return;
         };
         /* open a new connection */
-        TCP_listenSocketCallback(&pcm->cm, conn, connection);
+        TCP_listenSocketCallback(&pcm->cm, conn, connectionId);
     }
 
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
         "TCP %u\t| Received message of size %u in rxBuffer (%lu bytes at %p)",
         (unsigned)pcm->connectionId, length, pcm->rxBuffer.length, pcm->rxBuffer.data);
 
-    UA_ByteString response = pcm->rxBuffer;
-    response.length = length;
+    UA_ByteString request = pcm->rxBuffer;
+    request.length = length;
 
     /* Detect an UA TCP CLO message */
     bool is_close_message = true;
     const char CLO[3] = "CLO";
     for (int i = 0; i < 3; i++) {
-        if ((char) response.data[i] != CLO[i]) {
+        if ((char) request.data[i] != CLO[i]) {
             is_close_message = false;
             break;
         }
     }
 
     /* Callback to the application layer */
-    pcm->applicationCB(&pcm->cm, pcm->connectionId,
+    pcm->applicationCB(&pcm->cm, connectionId,
                         pcm->application, &pcm->context,
                         UA_CONNECTIONSTATE_ESTABLISHED,
-                        &UA_KEYVALUEMAP_NULL, response);
+                        &UA_KEYVALUEMAP_NULL, request);
 
     /* Close connexion to simulate a TCP FIN following an UATCP CLO */
     if (is_close_message) {
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-            "TCP %u\t| Close connexion, %lu bytes", pcm->connectionId, length);
-        TCP_shutdownConnection(&pcm->cm, pcm->connectionId);
-        pcm->connectionId = 0;
+            "TCP %u\t| Close connexion, %lu bytes", connectionId, length);
+        TCP_shutdownConnection(&pcm->cm, connectionId);
     };
 
     return;
@@ -204,7 +203,7 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, UA_FD newsockfd
                  (unsigned)conn->rfd.fd);
 
     /* Try to accept a new connection */
-    pcm->connectionId = (uintptr_t) newsockfd;
+    // pcm->connectionId = (uintptr_t) newsockfd;
 
     /* Log the name of the remote host */
     char hoststr[] = "puffin";
@@ -386,11 +385,14 @@ Puffin_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
      /* Send the full buffer in txBuffer */
     if(buf->length > 0 && buf->data) {
         if (pcm->txBuffer.data != buf->data) {
+            *(pcm->txBuffer.data + pcm->txBuffer_index) = (uint8_t) connectionId;
+            pcm->txBuffer_index++;
             memcpy(pcm->txBuffer.data + pcm->txBuffer_index, buf->data, buf->length);
             pcm->txBuffer_index += buf->length;
             UA_EventLoopPuffin_freeNetworkBuffer(&pcm->cm, connectionId, buf);
         } else {
             pcm->txBuffer_index = buf->length;
+            pcm->connectionId = connectionId;
         };
     };
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
@@ -430,7 +432,6 @@ TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap 
 
     /* Initialize the Puffin connexion manager,
      * that manages the single connection with the fuzzer */
-    pcm->port = *port;
     pcm->connectionId = (uintptr_t) NULL;
     pcm->application = application;
     pcm->context = context;
@@ -509,7 +510,6 @@ TCP_openActiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *
 
     /* Initialize the Puffin connexion manager,
      * that manages the single connection with the fuzzer */
-    pcm->port = *port;
     pcm->connectionId = (uintptr_t) (*port - 53530);
     pcm->application = application;
     pcm->applicationCB = connectionCallback;

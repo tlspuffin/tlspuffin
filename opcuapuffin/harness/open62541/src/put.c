@@ -343,8 +343,9 @@ RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, s
         return PUFFIN.make_result(RESULT_ERROR_OTHER, "Too many bytes to take from the outbound.");
     };
     if (pcm->txBuffer.data) {
-        memcpy(bytes, pcm->txBuffer.data, pcm->txBuffer_index);
-        *readbytes = pcm->txBuffer_index;
+        *bytes = (uint8_t) pcm->connectionId;
+        memcpy(bytes+1, pcm->txBuffer.data, pcm->txBuffer_index);
+        *readbytes = pcm->txBuffer_index +1;
         pcm->txBuffer_index = 0;
         UA_EventLoopPuffin_freeNetworkBuffer(&pcm->cm, (uintptr_t) NULL, &pcm->txBuffer);
     } else {

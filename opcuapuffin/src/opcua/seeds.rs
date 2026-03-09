@@ -23,11 +23,11 @@ pub fn create_corpus(
     vec![
         (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
         (seed_ap_client_open_unsecure_channel(AgentName::first()), "seed_ap_client_open_unsecure_channel"),
-        // (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel"),
+        (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel"),
         // (seed_c_server_open_unsecure_channel(AgentName::first()), "seed_c_server_open_unsecure_channel"),
-        // (seed_d_client_simple_request(AgentName::first()), "seed_d_client_simple_request"),
-        // (seed_e_client_reopen_reactivate(AgentName::first()), "seed_e_client_reopen_reactivate"),
-        // (seed_f_client_switch_secure_channels(AgentName::first()), "seed_f_client_switch_secure_channels"),
+        (seed_d_client_simple_request(AgentName::first()), "seed_d_client_simple_request"),
+        (seed_e_client_reopen_reactivate(AgentName::first()), "seed_e_client_reopen_reactivate"),
+        (seed_f_client_switch_secure_channels(AgentName::first()), "seed_f_client_switch_secure_channels"),
     ]
 }
 
@@ -128,6 +128,7 @@ pub fn seed_ap_client_open_unsecure_channel (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_security_policy_none,
                             (fn_header(
@@ -193,6 +194,7 @@ pub fn seed_b_client_open_secure_channel (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_client_hello (
+                        fn_tcp_1,
                         fn_bob_endpoint,
                         fn_default_size,
                         fn_default_size
@@ -203,6 +205,7 @@ pub fn seed_b_client_open_secure_channel (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_open_message (
+                        fn_tcp_1,
                         (fn_open_header(
                             (fn_header(fn_open, fn_seq_0)),
                             fn_basic256sha256,
@@ -251,6 +254,7 @@ pub fn seed_b_client_open_secure_channel (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_close, // needs channel id:
@@ -351,6 +355,7 @@ pub fn seed_c_server_open_unsecure_channel (
                 agent: client,
                 action: Action::Input(input_action! { term! {
                     fn_server_hello (
+                        fn_tcp_1,
                         fn_oscar_uri,
                         fn_oscar_endpoint
                     )}
@@ -361,6 +366,7 @@ pub fn seed_c_server_open_unsecure_channel (
                 agent: client,
                 action: Action::Input(input_action! { term! {
                     fn_acknowledge(
+                        fn_tcp_1,
                         fn_default_size,
                         fn_default_size
                     )}
@@ -371,6 +377,7 @@ pub fn seed_c_server_open_unsecure_channel (
                 agent: client,
                 action: Action::Input(input_action! { term! {
                     fn_open_message(
+                        fn_tcp_1,
                         (fn_open_header(
                             (fn_header(fn_open, fn_seq_1)),  // channel id 1
                             fn_security_policy_none,
@@ -401,6 +408,7 @@ pub fn seed_c_server_open_unsecure_channel (
                 agent: client,
                 action: Action::Input(input_action! { term! {
                     fn_message(
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_security_policy_none,
                             (fn_header(fn_final, fn_seq_1)),  // channel id 1
@@ -423,6 +431,7 @@ pub fn seed_c_server_open_unsecure_channel (
                 agent: client,
                 action: Action::Input(input_action! { term! {
                     fn_message(
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_security_policy_none,
                             (fn_header(fn_final, fn_seq_1)),  // channel id 1
@@ -598,6 +607,7 @@ pub fn seed_d_client_simple_request (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_client_hello (
+                        fn_tcp_1,
                         fn_bob_endpoint,
                         fn_default_size,
                         fn_default_size
@@ -607,7 +617,8 @@ pub fn seed_d_client_simple_request (
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    fn_open_message(
+                    fn_open_message (
+                        fn_tcp_1,
                         (fn_open_header(
                             (fn_header(fn_open, fn_seq_0)),
                             fn_basic256sha256,
@@ -656,6 +667,7 @@ pub fn seed_d_client_simple_request (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
@@ -710,6 +722,7 @@ pub fn seed_d_client_simple_request (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
@@ -768,6 +781,7 @@ pub fn seed_d_client_simple_request (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
@@ -826,6 +840,7 @@ pub fn seed_d_client_simple_request (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
@@ -884,6 +899,7 @@ pub fn seed_d_client_simple_request (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_close,
@@ -1097,6 +1113,7 @@ pub fn seed_e_client_reopen_reactivate (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_client_hello (
+                        fn_tcp_1,
                         fn_bob_endpoint,
                         fn_default_size,
                         fn_default_size
@@ -1107,6 +1124,7 @@ pub fn seed_e_client_reopen_reactivate (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_open_message(
+                        fn_tcp_1,
                         (fn_open_header(
                             (fn_header(fn_open, fn_seq_0)),
                             fn_basic256sha256,
@@ -1154,6 +1172,7 @@ pub fn seed_e_client_reopen_reactivate (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
@@ -1208,6 +1227,7 @@ pub fn seed_e_client_reopen_reactivate (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
@@ -1266,6 +1286,7 @@ pub fn seed_e_client_reopen_reactivate (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
@@ -1325,6 +1346,7 @@ pub fn seed_e_client_reopen_reactivate (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_open_message(
+                        fn_tcp_1,
                         (fn_open_header(
                             (fn_header(fn_open,
                                 ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
@@ -1375,6 +1397,7 @@ pub fn seed_e_client_reopen_reactivate (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
@@ -1433,6 +1456,7 @@ pub fn seed_e_client_reopen_reactivate (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
@@ -1491,6 +1515,7 @@ pub fn seed_e_client_reopen_reactivate (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_close,
@@ -1714,6 +1739,7 @@ pub fn seed_f_client_switch_secure_channels (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_client_hello (
+                        fn_tcp_1,
                         fn_bob_endpoint,
                         fn_default_size,
                         fn_default_size
@@ -1724,6 +1750,7 @@ pub fn seed_f_client_switch_secure_channels (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_open_message (
+                        fn_tcp_1,
                         (fn_open_header(
                             (fn_header(fn_open, fn_seq_0)),
                             fn_basic256sha256,
@@ -1766,10 +1793,71 @@ pub fn seed_f_client_switch_secure_channels (
                     )}
                 }),
             },
+            /* Open secure channel #2 */
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_client_hello (
+                        fn_tcp_2,
+                        fn_bob_endpoint,
+                        fn_default_size,
+                        fn_default_size
+                    )}
+                }),
+            },
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_open_message (
+                        fn_tcp_2,
+                        (fn_open_header(
+                            (fn_header(fn_open, fn_seq_0)),
+                            fn_basic256sha256,
+                            fn_mallory_cert,
+                            fn_bob_cert,
+                            (@open_request_2)
+                        )),
+                        (fn_asym_header(
+                            fn_basic256sha256,
+                            fn_mallory_cert,
+                            fn_bob_cert
+                        )),
+                        (fn_asym_encrypt(
+                            fn_basic256sha256,
+                            fn_bob_cert,
+                            (fn_data_to_encrypt(
+                                fn_basic256sha256,
+                                fn_bob_cert,
+                                (@open_request_2),
+                                (fn_sign(
+                                    (fn_data_to_sign(
+                                        (fn_open_header(
+                                            (fn_header(fn_open, fn_seq_0)),
+                                            fn_basic256sha256,
+                                            fn_mallory_cert,
+                                            fn_bob_cert,
+                                            (@open_request_2)
+                                        )),
+                                        fn_basic256sha256,
+                                        fn_mallory_cert,
+                                        fn_bob_cert,
+                                        (@open_request_2)
+                                    )),
+                                    fn_basic256sha256,
+                                    fn_mallory_cert,
+                                    fn_mallory_sk
+                                ))
+                           ))
+                        ))
+                    )
+                    }
+                }),
+            },
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
@@ -1823,6 +1911,7 @@ pub fn seed_f_client_switch_secure_channels (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
@@ -1880,6 +1969,7 @@ pub fn seed_f_client_switch_secure_channels (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_1,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_close, // needs channel id:
@@ -1926,69 +2016,11 @@ pub fn seed_f_client_switch_secure_channels (
                     )}
                 }),
             },
-
-            /* Open secure channel #2 */
-            Step {
-                agent: server,
-                action: Action::Input(input_action! { term! {
-                    fn_client_hello (
-                        fn_bob_endpoint,
-                        fn_default_size,
-                        fn_default_size
-                    )}
-                }),
-            },
-            Step {
-                agent: server,
-                action: Action::Input(input_action! { term! {
-                    fn_open_message (
-                        (fn_open_header(
-                            (fn_header(fn_open, fn_seq_0)),
-                            fn_basic256sha256,
-                            fn_mallory_cert,
-                            fn_bob_cert,
-                            (@open_request_2)
-                        )),
-                        (fn_asym_header(
-                            fn_basic256sha256,
-                            fn_mallory_cert,
-                            fn_bob_cert
-                        )),
-                        (fn_asym_encrypt(
-                            fn_basic256sha256,
-                            fn_bob_cert,
-                            (fn_data_to_encrypt(
-                                fn_basic256sha256,
-                                fn_bob_cert,
-                                (@open_request_2),
-                                (fn_sign(
-                                    (fn_data_to_sign(
-                                        (fn_open_header(
-                                            (fn_header(fn_open, fn_seq_0)),
-                                            fn_basic256sha256,
-                                            fn_mallory_cert,
-                                            fn_bob_cert,
-                                            (@open_request_2)
-                                        )),
-                                        fn_basic256sha256,
-                                        fn_mallory_cert,
-                                        fn_bob_cert,
-                                        (@open_request_2)
-                                    )),
-                                    fn_basic256sha256,
-                                    fn_mallory_cert,
-                                    fn_mallory_sk
-                                ))
-                           ))
-                        ))
-                    )
-                    }
-                }),
-            },
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_2,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
@@ -2046,6 +2078,7 @@ pub fn seed_f_client_switch_secure_channels (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_2,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
@@ -2104,6 +2137,7 @@ pub fn seed_f_client_switch_secure_channels (
                 agent: server,
                 action: Action::Input(input_action! { term! {
                     fn_message (
+                        fn_tcp_2,
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_close, // needs channel id:
