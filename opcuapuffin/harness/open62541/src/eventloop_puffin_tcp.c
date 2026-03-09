@@ -67,9 +67,6 @@ TCP_delayedClose(void *application, void *context) {
     ZIP_REMOVE(UA_FDTree, &pcm->fds, &conn->rfd);
     UA_assert(pcm->fdsSize > 0);
     pcm->fdsSize--;
-    if (pcm->connectionId == (uintptr_t) conn->rfd.fd) {
-        pcm->connectionId = (uintptr_t) NULL;
-    }
 
     /* Signal closing to the application */
     conn->applicationCB(cm, (uintptr_t)conn->rfd.fd,
@@ -87,6 +84,8 @@ TCP_delayedClose(void *application, void *context) {
     TCP_checkStopped(pcm);
 }
 
+static void
+TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn);
 
 /* Gets called when a connection socket opens, receives data or closes */
 static void
@@ -94,7 +93,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
                              short event) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
 
-    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                  "TCP %u\t| Activity on the socket",
                  (unsigned)conn->rfd.fd);
 
@@ -103,6 +102,7 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
         UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                     "TCP %u\t| The connection closes with error",
                      (unsigned)conn->rfd.fd);
+        TCP_shutdown(cm, conn);
         return;
     }
 
@@ -127,10 +127,10 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
     /* Receive */
     /* Use the already allocated receive-buffer */
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
-    UA_ByteString response = pcm->rxBuffer;
+    UA_ByteString request = pcm->rxBuffer;
     UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
         "TCP %u\t| Connection socket callback received a message of size %lu",
-        (unsigned)conn->rfd.fd, (unsigned)response.length);
+        (unsigned)conn->rfd.fd, (unsigned)request.length);
 }
 
 static void
@@ -149,19 +149,32 @@ TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length, uin
    if (!conn) {
         /* Get the listen connection */
         fd = (UA_FD) 0;
-        conn = (TCP_FD*)ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
+        conn = (TCP_FD*) ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
         if(!conn) {
             UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                            "TCP\t| Cannot find the listen connection");
             return;
         };
-        /* open a new connection */
+
+        /* Direct call to signal the opening of a new connection */
         TCP_listenSocketCallback(&pcm->cm, conn, connectionId);
+
+        /* Retry to get the connection */
+        fd = (UA_FD) connectionId;
+        conn = (TCP_FD*) ZIP_FIND(UA_FDTree, &pcm->fds, &fd);
+        if (!conn) {
+            UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+                "TCP %u\t| Opening of connection failed", (unsigned)connectionId);
+            return;
+        }
     }
 
+    /* Signal the arrival of new data */
+    // TCP_connectionSocketCallback(&pcm->cm, conn, UA_FDEVENT_IN)
+
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Received message of size %u in rxBuffer (%lu bytes at %p)",
-        (unsigned)pcm->connectionId, length, pcm->rxBuffer.length, pcm->rxBuffer.data);
+        "TCP %u\t| New message of size %u in receive buffer (%lu bytes at %p)",
+        (unsigned)conn->rfd.fd, length, pcm->rxBuffer.length, pcm->rxBuffer.data);
 
     UA_ByteString request = pcm->rxBuffer;
     request.length = length;
@@ -177,8 +190,8 @@ TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length, uin
     }
 
     /* Callback to the application layer */
-    pcm->applicationCB(&pcm->cm, connectionId,
-                        pcm->application, &pcm->context,
+    conn->applicationCB(&pcm->cm, conn->rfd.fd,
+                        conn->application, &conn->context,
                         UA_CONNECTIONSTATE_ESTABLISHED,
                         &UA_KEYVALUEMAP_NULL, request);
 
@@ -198,17 +211,23 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, UA_FD newsockfd
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)cm->eventSource.eventLoop;
 
-    UA_LOG_TRACE(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-                 "TCP %u\t| Callback on listen socket",
-                 (unsigned)conn->rfd.fd);
+    if (newsockfd == 0) {
+        /* Close listen socket */
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+            "TCP %u\t| Callback to close listen socket. UNIMPLEMENTED!");
+        return;
+    }
 
     /* Try to accept a new connection */
-    // pcm->connectionId = (uintptr_t) newsockfd;
+
+    // UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+    //             "TCP %u\t| Callback on listen socket",
+    //             (unsigned)conn->rfd.fd);
 
     /* Log the name of the remote host */
     char hoststr[] = "puffin";
     UA_LOG_INFO(cm->eventSource.eventLoop->logger, UA_LOGCATEGORY_NETWORK,
-                "TCP %u\t| Connection opened from \"%s\" via the listen socket %u",
+                "TCP %u\t| Connection opened from \"%s\" via the listen socket TCP %u",
                 (unsigned)newsockfd, hoststr, (unsigned)conn->rfd.fd);
 
     /* Configure the new socket */
@@ -253,7 +272,6 @@ TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, UA_FD newsockfd
                            UA_CONNECTIONSTATE_ESTABLISHED,
                            &kvm, UA_BYTESTRING_NULL);
     /* connection context is updated by the callback! */
-    pcm->context = newConn->context;
 }
 
 static UA_StatusCode
@@ -280,7 +298,7 @@ TCP_registerListenSocket(UA_PuffinConnectionManager *pcm,
     /* Allocate the connection */
     TCP_FD *newConn = (TCP_FD*)UA_calloc(1, sizeof(TCP_FD));
     if(!newConn) {
-        UA_LOG_WARNING(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                        "TCP %u\t| Error allocating memory for the socket",
                        (unsigned)listenSocket);
         return UA_STATUSCODE_BADINTERNALERROR;
@@ -307,24 +325,11 @@ TCP_registerListenSocket(UA_PuffinConnectionManager *pcm,
     UA_Variant_setScalar(&params[1].value, &port, &UA_TYPES[UA_TYPES_UINT16]);
     UA_KeyValueMap paramMap = {2, params};
 
-    if(el->maxSocketsLimitReached) {
-        /* Announce the reopening of the listen-socket in the application */
-        connectionCallback(&pcm->cm, (uintptr_t)listenSocket,
-                           application, &newConn->context,
-                           UA_CONNECTIONSTATE_REOPENING,
-                           &paramMap, UA_BYTESTRING_NULL);
-        return UA_STATUSCODE_GOOD;
-    }
-
     /* Announce the listen-socket in the application */
     connectionCallback(&pcm->cm, (uintptr_t)listenSocket,
                        application, &newConn->context,
                        UA_CONNECTIONSTATE_ESTABLISHED,
                        &paramMap, UA_BYTESTRING_NULL);
-
-    /* Direct call of the TCP_listenSocketCallback,
-       to signal the opening of a new connection -- */
-    // TCP_listenSocketCallback(&pcm->cm, newConn, UA_FDEVENT_IN);
 
     return UA_STATUSCODE_GOOD;
 }
@@ -392,9 +397,9 @@ Puffin_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
             UA_EventLoopPuffin_freeNetworkBuffer(&pcm->cm, connectionId, buf);
         } else {
             pcm->txBuffer_index = buf->length;
-            pcm->connectionId = connectionId;
         };
     };
+    pcm->connectionId = connectionId;
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
         "TCP %u\t| Sent message in txBuffer (%lu bytes at %p)",
         (unsigned)connectionId, pcm->txBuffer_index, pcm->txBuffer.data);
@@ -430,29 +435,23 @@ TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap 
             addrsSize = addrs->arrayLength;
     }
 
-    /* Initialize the Puffin connexion manager,
-     * that manages the single connection with the fuzzer */
-    pcm->connectionId = (uintptr_t) NULL;
-    pcm->application = application;
-    pcm->context = context;
-    pcm->applicationCB = connectionCallback;
-
     /* Undefined or empty addresses array -> listen on localhost */
     UA_StatusCode retval = UA_STATUSCODE_BADINTERNALERROR;
     char hostname[512];
     if(addrsSize == 0) {
         strcpy(hostname, "localhost");
         retval = UA_STATUSCODE_GOOD;
-    };
-    /* Iterate over the configured hostnames */
-    for(size_t i = 0; i < addrsSize; i++) {
+    } else {
+        /* Iterate over the configured hostnames */
         UA_String *hostStrings = (UA_String*)addrs->data;
-        if(hostStrings[i].length >= sizeof(hostname))
-            continue;
-        memcpy(hostname, hostStrings[i].data, hostStrings->length);
-        hostname[hostStrings->length] = '\0';
-        retval = UA_STATUSCODE_GOOD;
-        break;
+        for(size_t i = 0; i < addrsSize; i++) {
+            if(hostStrings[i].length >= sizeof(hostname))
+                continue;
+            memcpy(hostname, hostStrings[i].data, hostStrings->length);
+            hostname[hostStrings->length] = '\0';
+            retval = UA_STATUSCODE_GOOD;
+            break;
+        };
     };
     if (retval != UA_STATUSCODE_GOOD) {
         return retval;
@@ -508,19 +507,13 @@ TCP_openActiveConnection(UA_PuffinConnectionManager *pcm, const UA_KeyValueMap *
         return UA_STATUSCODE_GOOD;
     }
 
-    /* Initialize the Puffin connexion manager,
-     * that manages the single connection with the fuzzer */
-    pcm->connectionId = (uintptr_t) (*port - 53530);
-    pcm->application = application;
-    pcm->applicationCB = connectionCallback;
-
     UA_LOG_INFO(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
                 "TCP %u\t| Opening a connection to \"%s\" on port %u",
                 (unsigned)pcm->connectionId, hostname, *port);
 
     /* Signal the new connection to the application as asynchronously opening */
     connectionCallback(&pcm->cm, (uintptr_t)pcm->connectionId,
-                       application, &pcm->context,
+                       application, context,
                        UA_CONNECTIONSTATE_OPENING, &UA_KEYVALUEMAP_NULL,
                        UA_BYTESTRING_NULL);
 
