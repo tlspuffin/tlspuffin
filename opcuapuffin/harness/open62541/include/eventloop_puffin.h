@@ -97,9 +97,8 @@ typedef struct {
     size_t fdsSize;
     UA_FDTree fds;
 
-    /* PUFFIN connection with the Agent */
-    UA_UInt16 port;
-    uintptr_t connectionId;
+    /* PUFFIN connections with the Agent */
+    uintptr_t connectionId; /* of the first writer in TxBuffer */
     void *application;
     void *context;
     UA_ConnectionManager_connectionCallback applicationCB;
@@ -174,6 +173,6 @@ UA_EventLoopPuffin_addDelayedCallback(UA_EventLoop *public_el,
 _UA_END_DECLS
 
 void
-TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length, uint8_t connection);
+TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length, uint8_t connectionId);
 
 #endif /* UA_EVENTLOOP_PUFFIN_H_ */
