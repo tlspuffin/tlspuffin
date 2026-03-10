@@ -275,6 +275,10 @@ pub fn fn_weak_export_cipher_suite() -> Result<CipherSuite, FnError> {
     Ok(CipherSuite::TLS_RSA_EXPORT_WITH_DES40_CBC_SHA)
 }
 
+pub fn fn_excluded_cipher_suite() -> Result<CipherSuite, FnError> {
+    Ok(CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256)
+}
+
 pub fn fn_secure_rsa_cipher_suite12() -> Result<CipherSuite, FnError> {
     Ok(CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA256)
 }

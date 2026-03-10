@@ -1699,7 +1699,7 @@ pub fn _seed_server_attacker12(
 
     let trace = Trace {
         prior_traces: vec![],
-        descriptors: vec![TLSDescriptorConfig::new_client(client, TLSVersion::V1_2)],
+        descriptors: vec![TLSDescriptorConfig::new_client(client, TLSVersion::Both)],
         steps: vec![
             // Client Hello, Client -> Server
             OutputAction::new_step(client),
