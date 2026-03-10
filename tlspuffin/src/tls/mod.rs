@@ -215,6 +215,7 @@ define_signature!(
     fn_cipher_suite13_aes_256_gcm_sha384
     fn_cipher_suite13_aes_128_ccm_sha256
     fn_weak_export_cipher_suite
+    fn_excluded_cipher_suite
     fn_secure_rsa_cipher_suite12
     fn_support_group_extension_new [list]
     fn_support_group_extension_make

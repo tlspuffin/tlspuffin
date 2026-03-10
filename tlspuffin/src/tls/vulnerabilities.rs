@@ -1266,12 +1266,13 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
 
 /// <https://nvd.nist.gov/vuln/detail/CVE-2024-5814>
 pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
+    let selected_cipher_suite = term! { fn_excluded_cipher_suite };
     let server_hello = term! {
         fn_server_hello(
             fn_protocol_version12,
             fn_new_random,
             ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
-            fn_cipher_suite12,      // WRONG: AES128 (0xC02F), client only offered AES256
+            (@selected_cipher_suite),      // Using a cipher not in configuration cipher string
             fn_compression,
             (fn_server_extensions_make(
                 (fn_server_extensions_append(
@@ -1356,7 +1357,7 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
                 fn_false,
                 fn_seq_0,
                 ((client, 0)),
-                fn_cipher_suite12
+                (@selected_cipher_suite)
             ))
         )
     };
@@ -1368,22 +1369,13 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
             (@client_finished_transcript),
             fn_named_group_secp384r1,
             ((client, 0)),
-            fn_cipher_suite12
+            (@selected_cipher_suite)
         )
     };
 
-    let mut client_descriptor = TLSDescriptorConfig {
-        tls_version: TLSVersion::Both,
-        typ: AgentType::Client,
-        server_authentication: false,
-        ..TLSDescriptorConfig::default()
-    };
-    client_descriptor
-        .set_cipher_string("TLS13-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384".into());
-
     Trace {
         prior_traces: vec![],
-        descriptors: vec![AgentDescriptor::from_config(client, client_descriptor)],
+        descriptors: vec![TLSDescriptorConfig::new_client(client, TLSVersion::Both)],
         steps: vec![
             // Client Hello, Client -> Server
             OutputAction::new_step(client),
@@ -1434,7 +1426,7 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_false,
                             fn_seq_0,
                             ((client, 0)),
-                            fn_cipher_suite12
+                            (@selected_cipher_suite)
                         )
                     }
                 }),
