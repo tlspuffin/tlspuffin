@@ -89,16 +89,15 @@ typedef LIST_HEAD(UA_DeregisteredListenFDList, UA_DeregisteredListenFD) UA_Dereg
 typedef struct {
     UA_ConnectionManager cm;
 
+    /* PUFFIN IN and OUT buffers */
     UA_ByteString rxBuffer; /* statically allocated */
     UA_ByteString txBuffer; /* allocated by allocNetworkBuffer */
     size_t txBuffer_index;  /* PUFFIN */
+    uint8_t connectionId;   /* Id of the connection */
 
     /* Sorted tree of the FDs */
     size_t fdsSize;
     UA_FDTree fds;
-
-    /* Id of the connection of the first writer in txBuffer */
-    uint8_t connectionId;
 
 } UA_PuffinConnectionManager;
 
@@ -170,6 +169,6 @@ UA_EventLoopPuffin_addDelayedCallback(UA_EventLoop *public_el,
 _UA_END_DECLS
 
 void
-TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length, uint8_t connectionId);
+TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length);
 
 #endif /* UA_EVENTLOOP_PUFFIN_H_ */

@@ -48,9 +48,9 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                 }
                 if message.len() != written {
                     log::error!("Added to inbound only {} bytes out of {}!",
-                                written, message.len())
+                                written, message.len()-1)
                 } else {
-                    log::warn!("Add message, {} bytes", message.len())
+                    log::warn!("Add message, {} bytes", message.len()-1)
                 }}
         } else {
             log::error!("Open62541 PUT: add_inbound unavailable!")
@@ -58,8 +58,7 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
-        if let Some(c_take_outbound) = self.c_agent_interface.
-        take_outbound {
+        if let Some(c_take_outbound) = self.c_agent_interface.take_outbound {
             let mut buffer: Vec<u8> = vec![0; MAX_WIRE_SIZE];
             unsafe {
                 let mut read: usize = 0;

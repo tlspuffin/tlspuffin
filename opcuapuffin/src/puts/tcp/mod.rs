@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::ffi::OsStr;
 use std::io::{Read, Write};
 use std::net::{Ipv4Addr, Shutdown, TcpStream};
@@ -11,6 +12,7 @@ use puffin::algebra::ConcreteMessage;
 use puffin::claims::GlobalClaimList;
 use puffin::codec::Codec;
 use puffin::error::Error;
+use puffin::protocol::OpaqueProtocolMessageFlight;
 use puffin::put::{Put, PutOptions};
 use puffin::put_registry::{Factory, TCP_PUT};
 use puffin::stream::Stream;
@@ -24,7 +26,7 @@ use crate::protocol::OpcuaProtocolBehavior;
 struct Agent {
     application: AgentDescriptor<ApplicationConfig>,
     port: u16,
-    fuzz_stream: TcpStream,
+    fuzz_streams: HashMap<u8, TcpStream>,
     _process: Option<OpcuaProcess>,
 }
 
@@ -33,40 +35,53 @@ impl Agent {}
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
 
-        // Try to send the message. Try to reconnect in case of error.
-        if let Err(e) = self.fuzz_stream.write_all(message) {
-            log::warn!("TCP Error '{}'. Trying to reconnect!", e);
-            if let Ok(new_stream) = TcpStream::connect((Ipv4Addr::LOCALHOST, self.port)) {
-                let _ = new_stream.set_read_timeout(Some(Duration::from_millis(1000)));
-                let _ = new_stream.set_nodelay(true);
-                self.fuzz_stream = new_stream;
-            } else {
-                log::error!("Failed to reconnect to TCP server at localhost:{}", self.port);
-                return
+        let id = message[0];
+        let maybe_stream = match self.fuzz_streams.get_mut(&id) {
+            Some(fs) => Some(fs),
+            None => {
+                if let Ok(new_stream) = TcpStream::connect((Ipv4Addr::LOCALHOST, self.port)) {
+                    let _ = new_stream.set_read_timeout(Some(Duration::from_millis(1000)));
+                    let _ = new_stream.set_nodelay(true);
+                    self.fuzz_streams.insert(id, new_stream);
+                    self.fuzz_streams.get_mut(&id)
+                } else {
+                    None
+                }
             }
-            self.fuzz_stream.write_all(message)
-                .map_err(|e| log::warn!("TCP: error while trying to send bytes: {}!", e)).ok();
+        };
+        if let Some(fuzz_stream) = maybe_stream {
+
+            // Try to send the message.
+            fuzz_stream.write_all(&message[1..])
+                    .map_err(|e| log::warn!("TCP {}\t| Error while trying to send bytes: {}!", id, e)).ok();
+
+            // UA TCP closes the connection if a CLO message is sent
+            const CLOSE_SECURE_CHANNEL_MESSAGE: &'static [u8; 3] = b"CLO";
+            if &message[1..4] == CLOSE_SECURE_CHANNEL_MESSAGE {
+                log::warn!("TCP {}\t| Close connection, {} bytes", id, message.len()-1);
+                let _ = fuzz_stream.shutdown(Shutdown::Both);
+            } else {
+                log::warn!("TCP {id}\t| Add message, {} bytes", message.len()-1);
+                fuzz_stream.flush().map_err(|e| log::warn!("Error while trying to flush the TCP stream: {}!", e)).ok();
+            }
+        } else {
+            log::error!("TCP {id}\t| Failed to connect to localhost:{}", self.port);
         };
 
-        // UA TCP closes the connection if a CLO message is sent
-        const CLOSE_SECURE_CHANNEL_MESSAGE: &'static [u8; 3] = b"CLO";
-        if &message[0..3] == CLOSE_SECURE_CHANNEL_MESSAGE {
-            log::warn!("Close connection, {} bytes", message.len());
-            let _ = self.fuzz_stream.shutdown(Shutdown::Both);
-        } else {
-            log::warn!("Add message, {} bytes", message.len());
-            self.fuzz_stream.flush().map_err(|e| log::warn!("Error while trying to flush the TCP stream: {}!", e)).ok();
-        }
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
-        let mut buf = vec![0; MAX_WIRE_SIZE];
-        let size = self.fuzz_stream.read(&mut buf).map_err(|e| {
-            let err_msg = format!("TCP: error while trying to take bytes: {}!", e);
-            log::error!("{}", err_msg);
-            Error::Put(err_msg)
-        })?;
-        Ok(MessageFlight::read_bytes(&buf[0..size]))
+        let mut result = MessageFlight::new();
+        for (id, fuzz_stream) in self.fuzz_streams.iter_mut() {
+            let mut buf = vec![0; MAX_WIRE_SIZE];
+            buf[0]= *id;
+            if let Ok(size) = fuzz_stream.read(&mut buf[1..]) {
+                if let Some(flight) = MessageFlight::read_bytes(&buf[0..size+1]) {
+                    result.merge(flight)
+                }
+            }
+        }
+        Ok(Some(result))
     }
 }
 
@@ -96,11 +111,10 @@ impl Put<OpcuaProtocolBehavior> for Agent {
     }
 
     fn shutdown(&mut self) -> String {
-        if let Err(e) = self.fuzz_stream.shutdown(Shutdown::Both){
-            format!("TCP stream shut down: {e}")
-        } else {
-            "TCP stream shut down!".to_string()
-        }
+        for fuzz_stream in self.fuzz_streams.values() {
+            let _ = fuzz_stream.shutdown(Shutdown::Both);
+        };
+        "TCP\t| All streams shut down!".to_string()
     }
 }
 
@@ -169,10 +183,10 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
             AgentType::Server | AgentType::Client => {
                 let fuzz_stream = TcpStream::connect((host, port))
                     .map_err(|e| {
-                        log::warn!("Failed to connect to TCP server at {}:{}: {}", host, port, e);
+                        log::warn!("TCP\t| Failed to connect to server at {}:{}: {}", host, port, e);
                         Error::IO(e.to_string())
                     })?;
-                log::warn!("Connected to TCP server at {}:{}", host, port);
+                log::warn!("TCP 1\t| Connected to server at {}:{}", host, port);
 
                 fuzz_stream.set_read_timeout(Some(Duration::from_millis(1000)))
                     .map_err(|e| { Error::IO(e.to_string()) })?;
@@ -182,7 +196,7 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
                 Ok(Box::new(Agent{
                     application: application.clone(),
                     port,
-                    fuzz_stream,
+                    fuzz_streams: HashMap::from([(1, fuzz_stream)]),
                     _process: process,
                 }))
             }

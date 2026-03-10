@@ -315,7 +315,7 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
     if (!pcm) return PUFFIN.make_result(RESULT_ERROR_OTHER, "Connection Manager unavailable.");
 
     /* get connection number */
-    uint8_t connectionId = *bytes;
+    pcm->connectionId = *bytes;
 
     /* Fills the rxBuffer */
     if (length-1 > pcm->rxBuffer.length) {
@@ -325,7 +325,7 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
     *written = length;
 
     /* notify application */
-    TCP_PuffinConnectionCallback(pcm, *written-1, connectionId);
+    TCP_PuffinConnectionCallback(pcm, *written-1);
 
     _log(PUFFIN.trace,"Add inbound OK");
     return PUFFIN.make_result(RESULT_OK, "");
@@ -342,6 +342,7 @@ RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, s
         return PUFFIN.make_result(RESULT_ERROR_OTHER, "Too many bytes to take from the outbound.");
     };
     if (pcm->txBuffer.data) {
+        /* /!\ Only the first byte contains the connexion id */
         *bytes = (uint8_t) pcm->connectionId;
         memcpy(bytes+1, pcm->txBuffer.data, pcm->txBuffer_index);
         *readbytes = pcm->txBuffer_index +1;
