@@ -70,7 +70,12 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                 }
                 if read > 0 {
                     let mut rd = Reader::init(&buffer[0..read]);
-                    Ok(MessageFlight::read(&mut rd))
+                    let flight = MessageFlight::read(&mut rd);
+                    if flight.is_some() {
+                        Ok(flight)
+                    } else {
+                        Err(Error::SecurityClaim("Invalid UA TCP message!"))
+                    }
                 } else {
                     Ok(None)
                 }}
