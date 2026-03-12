@@ -229,7 +229,7 @@ pub trait ProtocolMessageDeframer<PT: ProtocolTypes> {
 
 /// Defines the types used to manipulate and concretize Terms
 pub trait ProtocolTypes:
-    'static + Clone + Hash + Display + Debug + Serialize + DeserializeOwned
+    'static + Clone + PartialEq + Eq + Hash + Display + Debug + Serialize + DeserializeOwned
 {
     type Matcher: Matcher;
     type PUTConfig: ProtocolDescriptorConfig;

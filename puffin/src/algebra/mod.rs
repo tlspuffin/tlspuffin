@@ -575,7 +575,7 @@ pub mod test_signature {
         }
     }
 
-    #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+    #[derive(Clone, PartialEq, Eq, Debug, Hash, Serialize, Deserialize)]
     pub struct TestProtocolTypes;
 
     impl ProtocolTypes for TestProtocolTypes {
