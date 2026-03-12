@@ -78,6 +78,8 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
             if let Ok(size) = fuzz_stream.read(&mut buf[1..]) {
                 if let Some(flight) = MessageFlight::read_bytes(&buf[0..size+1]) {
                     result.merge(flight)
+                } else {
+                    return Err(Error::SecurityClaim("Invalid UA TCP message!"))
                 }
             }
         }
