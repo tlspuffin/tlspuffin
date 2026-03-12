@@ -322,10 +322,11 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
         return PUFFIN.make_result(RESULT_ERROR_OTHER, "rxBuffer is too small!");
     }
     memcpy(pcm->rxBuffer.data, (bytes +1), length-1);
+    pcm->rxBuffer_index = length-1;
     *written = length;
 
     /* notify application */
-    TCP_PuffinConnectionCallback(pcm, *written-1);
+    TCP_PuffinConnectionCallback(pcm);
 
     _log(PUFFIN.trace,"Add inbound OK");
     return PUFFIN.make_result(RESULT_OK, "");

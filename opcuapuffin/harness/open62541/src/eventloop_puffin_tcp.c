@@ -87,6 +87,9 @@ TCP_delayedClose(void *application, void *context) {
 static void
 TCP_shutdown(UA_ConnectionManager *cm, TCP_FD *conn);
 
+static UA_StatusCode
+TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId);
+
 /* Gets called when a connection socket opens, receives data or closes */
 static void
 TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
@@ -125,22 +128,46 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
     }
 
     /* Receive */
-    /* Use the already allocated receive-buffer */
     UA_PuffinConnectionManager *pcm = (UA_PuffinConnectionManager*)cm;
+
+    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+        "TCP %u\t| Received message of %u bytes (in buffer of %lu bytes at %p)",
+        (unsigned)conn->rfd.fd, pcm->rxBuffer_index, pcm->rxBuffer.length, pcm->rxBuffer.data);
+
+    /* Use the already allocated receive-buffer */
     UA_ByteString request = pcm->rxBuffer;
-    UA_LOG_ERROR(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Connection socket callback received a message of size %lu",
-        (unsigned)conn->rfd.fd, (unsigned)request.length);
+    request.length = pcm->rxBuffer_index;
+
+    /* Detect an UA TCP CLO message */
+    bool is_close_message = true;
+    const char CLO[3] = "CLO";
+    for (int i = 0; i < 3; i++) {
+        if ((char) request.data[i] != CLO[i]) {
+            is_close_message = false;
+            break;
+        }
+    }
+
+    /* Callback to the application layer */
+    conn->applicationCB(&pcm->cm, conn->rfd.fd,
+                        conn->application, &conn->context,
+                        UA_CONNECTIONSTATE_ESTABLISHED,
+                        &UA_KEYVALUEMAP_NULL, request);
+
+    /* Close connexion to simulate a TCP FIN following an UATCP CLO */
+    if (is_close_message) {
+        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
+            "TCP %u\t| Close connexion, %lu bytes", conn->rfd.fd, pcm->rxBuffer_index);
+        TCP_shutdownConnection(&pcm->cm, conn->rfd.fd);
+    };
+
 }
 
 static void
 TCP_listenSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn, UA_FD newsockfd);
 
-static UA_StatusCode
-TCP_shutdownConnection(UA_ConnectionManager *cm, uintptr_t connectionId);
-
 void
-TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length) {
+TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm) {
     UA_EventLoopPuffin *el = (UA_EventLoopPuffin*)pcm->cm.eventSource.eventLoop;
 
    /* Get the connection */
@@ -170,37 +197,7 @@ TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length) {
     }
 
     /* Signal the arrival of new data */
-    // TCP_connectionSocketCallback(&pcm->cm, conn, UA_FDEVENT_IN)
-
-    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| New message of size %u in receive buffer (%lu bytes at %p)",
-        (unsigned)conn->rfd.fd, length, pcm->rxBuffer.length, pcm->rxBuffer.data);
-
-    UA_ByteString request = pcm->rxBuffer;
-    request.length = length;
-
-    /* Detect an UA TCP CLO message */
-    bool is_close_message = true;
-    const char CLO[3] = "CLO";
-    for (int i = 0; i < 3; i++) {
-        if ((char) request.data[i] != CLO[i]) {
-            is_close_message = false;
-            break;
-        }
-    }
-
-    /* Callback to the application layer */
-    conn->applicationCB(&pcm->cm, conn->rfd.fd,
-                        conn->application, &conn->context,
-                        UA_CONNECTIONSTATE_ESTABLISHED,
-                        &UA_KEYVALUEMAP_NULL, request);
-
-    /* Close connexion to simulate a TCP FIN following an UATCP CLO */
-    if (is_close_message) {
-        UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-            "TCP %u\t| Close connexion, %lu bytes", conn->rfd.fd, length);
-        TCP_shutdownConnection(&pcm->cm, conn->rfd.fd);
-    };
+    TCP_connectionSocketCallback(&pcm->cm, conn, UA_FDEVENT_IN);
 
     return;
 }
@@ -394,7 +391,7 @@ Puffin_sendWithConnection(UA_ConnectionManager *cm, uintptr_t connectionId,
     };
     pcm->connectionId = connectionId;
     UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-        "TCP %u\t| Sent message in txBuffer (%lu bytes at %p)",
+        "TCP %u\t| Sent message of %lu bytes (at %p)",
         (unsigned)connectionId, pcm->txBuffer_index, pcm->txBuffer.data);
 
     /* Clean up of txBuffer will be performed by open62541_take_outbound,

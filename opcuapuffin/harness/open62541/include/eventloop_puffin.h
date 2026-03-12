@@ -92,6 +92,7 @@ typedef struct {
     /* PUFFIN IN and OUT buffers */
     UA_ByteString rxBuffer; /* statically allocated */
     UA_ByteString txBuffer; /* allocated by allocNetworkBuffer */
+    size_t rxBuffer_index;  /* PUFFIN */
     size_t txBuffer_index;  /* PUFFIN */
     uint8_t connectionId;   /* Id of the connection */
 
@@ -169,6 +170,6 @@ UA_EventLoopPuffin_addDelayedCallback(UA_EventLoop *public_el,
 _UA_END_DECLS
 
 void
-TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm, size_t length);
+TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm);
 
 #endif /* UA_EVENTLOOP_PUFFIN_H_ */
