@@ -5,7 +5,8 @@ use libafl_bolts::prelude::*;
 
 use super::utils::{
     choose, choose_iter, choose_term, choose_term_filtered_mut, choose_term_mut,
-    choose_term_path_filtered, find_term_mut, Choosable, TermConstraints,
+    choose_term_path_filtered, find_all_term_filtered, find_term_mut, reservoir_sample, Choosable,
+    TermConstraints,
 };
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::Signature;
@@ -649,44 +650,100 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        if let Some(to_mutate) = choose_term_mut(trace, &self.constraints, rand) {
-            log::debug!("[Mutation] Mutate GenerateMutator on term\n{}", to_mutate);
-            self.mutation_counter += 1;
-            let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
-                log::debug!("[Mutation] Mutate GenerateMutator: refresh zoo");
-                let spawner = Spawner::new(self.put_registry.clone());
-                let ctx = TraceContext::new(spawner); // zoo generate symbolic terms
-                self.zoo.insert(TermZoo::generate(
-                    &ctx,
-                    self.signature,
-                    rand,
-                    self.constraints.zoo_gen_how_many,
-                ))
-            } else {
-                self.zoo.get_or_insert_with(|| {
+        let (to_mutate_path, to_mutate, new_term) = {
+            if let Some((to_mutate, to_mutate_path)) =
+                reservoir_sample(trace, |_| true, &self.constraints, rand)
+            {
+                log::debug!("[Mutation] Mutate GenerateMutator on term\n{}", to_mutate);
+                self.mutation_counter += 1;
+                let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
+                    log::debug!("[Mutation] Mutate GenerateMutator: refresh zoo");
                     let spawner = Spawner::new(self.put_registry.clone());
                     let ctx = TraceContext::new(spawner); // zoo generate symbolic terms
-                    TermZoo::generate(
+                    self.zoo.insert(TermZoo::generate(
                         &ctx,
                         self.signature,
                         rand,
                         self.constraints.zoo_gen_how_many,
-                    )
-                })
-            };
-            if let Some(term) = zoo.choose_filtered(
-                |term| to_mutate.get_type_shape() == term.get_type_shape(),
-                rand,
+                    ))
+                } else {
+                    self.zoo.get_or_insert_with(|| {
+                        let spawner = Spawner::new(self.put_registry.clone());
+                        let ctx = TraceContext::new(spawner); // zoo generate symbolic terms
+                        TermZoo::generate(
+                            &ctx,
+                            self.signature,
+                            rand,
+                            self.constraints.zoo_gen_how_many,
+                        )
+                    })
+                };
+                if let Some(new_term) = zoo.choose_filtered(
+                    |term| {
+                        to_mutate.get_type_shape() == term.get_type_shape() && *to_mutate != **term
+                    },
+                    rand,
+                ) {
+                    log::debug!(
+                        "Found to_mutate and new_term: {}\n ----------------\n{}",
+                        to_mutate,
+                        new_term
+                    );
+                    (to_mutate_path, to_mutate, new_term)
+                } else {
+                    return Ok(MutationResult::Skipped);
+                }
+            } else {
+                return Ok(MutationResult::Skipped);
+            }
+        };
+
+        // Apply mutation globally with probability 1/2
+        if rand.between(0, 1) == 0 {
+            // Apply globally
+            let mut mutated = false;
+            for trace_path in find_all_term_filtered(
+                trace,
+                |term: &Term<PB::ProtocolTypes>| {
+                    *term.get_type_shape() == *to_mutate.get_type_shape() // supposed to speed up comparison
+                        && *term == *to_mutate
+                },
+                // We seek for all matches, independently of the term constraints, except for the
+                // max_term_size_explore constraint for efficiency reasons
+                &TermConstraints {
+                    max_term_size_explore: TermConstraints::default().max_term_size_explore,
+                    ..TermConstraints::no_constraint()
+                },
             ) {
-                to_mutate.mutate(term.clone());
+                if let Some(term_mut) = find_term_mut(trace, &trace_path) {
+                    log::debug!(
+                        "[GenerateMutator] [Global] we found a match and do the replacement: {:?}",
+                        trace_path
+                    );
+                    term_mut.mutate(new_term.clone());
+                    mutated = true;
+                } else {
+                    log::debug!("[GenerateMutator::mutate] Could not find term to mutate");
+                }
+            }
+            if mutated {
                 Ok(MutationResult::Mutated)
             } else {
-                log::debug!("       Skipped {}", self.name());
                 Ok(MutationResult::Skipped)
             }
         } else {
-            log::debug!("       Skipped {}", self.name());
-            Ok(MutationResult::Skipped)
+            // Apply locally, only once
+            if let Some(term_mut) = find_term_mut(trace, &to_mutate_path) {
+                log::debug!(
+                    "[GenerateMutator] [Local] replacement at: {:?}",
+                    to_mutate_path
+                );
+                term_mut.mutate(new_term.clone());
+                Ok(MutationResult::Mutated)
+            } else {
+                log::debug!("[GenerateMutator::mutate] Could not find term to mutate");
+                Ok(MutationResult::Skipped)
+            }
         }
     }
 
