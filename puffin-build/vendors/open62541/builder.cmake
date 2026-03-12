@@ -24,6 +24,7 @@ cmake_builder(
     -g
     -fPIC
     -fvisibility=hidden
+    -Wstrict-prototypes
 
     # SANCOV
     $<$<BOOL:${sancov}>:-fsanitize-coverage=trace-pc-guard>
