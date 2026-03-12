@@ -19,7 +19,7 @@ pub fn set_max_protocol_version(
     tls_version: TLSVersion,
 ) -> Result<(), ErrorStack> {
     // Old OpenSSL versions do not have this function
-    #[cfg(any(feature = "openssl111_binding", feature = "libressl333"))]
+    #[cfg(any(feature = "openssl111_binding", feature = "libressl333", feature = "libressl421"))]
     match tls_version {
         TLSVersion::V1_3 => {
             #[cfg(feature = "openssl111_binding")]

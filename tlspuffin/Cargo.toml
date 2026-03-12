@@ -98,20 +98,22 @@ openssl102u = [
 ]
 
 # NOTE feature "libressl" is kept only for backward compatibility
-libressl = ["libressl333"]
+libressl = ["libressl421"]
 
-libressl333 = [
-    "openssl-src",
-    "openssl-src/libressl333",
-    "openssl-src/no-rand",
-    "libressl_binding",
-    "tls12",
-    "tls13",
-    "tls12_session_resumption",
-    "claims",
-    "transcript_extraction",
-    "deterministic",
+
+libressl421 = [
+"openssl-src",
+"openssl-src/libressl421",
+"openssl-src/no-rand",
+"libressl_binding",
+"tls12",
+"tls13",
+"tls12_session_resumption",
+"claims",
+"transcript_extraction",
+"deterministic",
 ]
+
 
 wolfssl430 = [
     "wolfssl-sys/wolfssl430",
@@ -388,6 +390,7 @@ puffin-build = { path = "../puffin-build" }
 [build-dependencies]
 # It is essential that this dependency is listed as build-dependencies! Because it is one. Else features get resolved wrong.
 openssl-src = { version = "=111.22.0", features = [], optional = true }
+libressl-src = { version = "=111.0.0", features = [], optional = true }
 puffin-build = { path = "../puffin-build" }
 itertools = { workspace = true }
 bindgen = { workspace = true }

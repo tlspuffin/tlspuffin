@@ -2688,6 +2688,7 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "libc",
+ "libressl-src",
  "log",
  "once_cell",
  "openssl",

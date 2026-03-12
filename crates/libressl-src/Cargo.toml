@@ -21,6 +21,7 @@ llvm_cov = [] # TODO
 no-rand = []
 
 libressl333 = []
+libressl421 = []
 libresslmaster = []
 
 [dependencies]
