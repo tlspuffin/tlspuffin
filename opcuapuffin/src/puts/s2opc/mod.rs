@@ -44,22 +44,21 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                 let res = c_add_inbound(self.c_agent, message.as_ptr(), message.len(), &mut written);
                 let result = Box::from_raw(res as *mut Result<String, CError>);
                 if let Err(cerror) = *result {
-                    log::error!("s2opc: error while trying to add bytes: {}", cerror.reason)
+                    log::error!("S2OPC: error while trying to add bytes: {}", cerror.reason)
                 }
                 if message.len() != written {
                     log::error!("Added to inbound only {} bytes out of {}!",
-                                written, message.len())
+                                written, message.len()-1)
                 } else {
-                    log::warn!("Add message, {} bytes", message.len())
+                    log::warn!("Add message, {} bytes", message.len()-1)
                 }}
         } else {
-            log::error!("s2opc PUT: add_inbound unavailable!")
+            log::error!("S2OPC PUT: add_inbound unavailable!")
         }
     }
 
     fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
-        if let Some(c_take_outbound) = self.c_agent_interface.
-        take_outbound {
+        if let Some(c_take_outbound) = self.c_agent_interface.take_outbound {
             let mut buffer: Vec<u8> = vec![0; MAX_WIRE_SIZE];
             unsafe {
                 let mut read: usize = 0;
@@ -67,16 +66,21 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                 let res = c_take_outbound(self.c_agent, bytes, MAX_WIRE_SIZE, &mut read);
                 let result = Box::from_raw(res as *mut Result<String, CError>);
                 if let Err(cerror) = *result {
-                    log::error!("s2opc: error while trying to take bytes: {}", cerror.reason);
+                    log::error!("S2OPC: error while trying to take bytes: {}", cerror.reason);
                 }
                 if read > 0 {
                     let mut rd = Reader::init(&buffer[0..read]);
-                    Ok(MessageFlight::read(&mut rd))
+                    let flight = MessageFlight::read(&mut rd);
+                    if flight.is_some() {
+                        Ok(flight)
+                    } else {
+                        Err(Error::SecurityClaim("Invalid UA TCP message!"))
+                    }
                 } else {
                     Ok(None)
                 }}
         } else {
-            Err(Error::Put("s2opc PUT: take_outbound unavailable!".to_string()))
+            Err(Error::Put("S2OPC PUT: take_outbound unavailable!".to_string()))
         }
 
     }
@@ -89,17 +93,17 @@ impl Put<OpcuaProtocolBehavior> for Agent {
                 let res = agent_progress(self.c_agent);
                 let result = Box::from_raw(res as *mut Result<String, CError>);
                 if let Err(cerror) = *result {
-                    log::error!("s2opc Agent: progress failed: {}", cerror.reason);
+                    log::error!("S2OPC Agent: progress failed: {}", cerror.reason);
                 }
             };
             Ok(())
         } else {
-            Err(Error::Put("s2opc Agent: progress unavailable!".to_string()))
+            Err(Error::Put("S2OPC Agent: progress unavailable!".to_string()))
         }
     }
 
     fn reset(&mut self, _new_name: AgentName) -> Result<(), Error> {
-        Err(Error::Put("s2opc Agent: reset unavailable!".to_string()))
+        Err(Error::Put("S2OPC Agent: reset unavailable!".to_string()))
     }
 
     fn descriptor(&self) -> &AgentDescriptor<ApplicationConfig> {
@@ -119,7 +123,7 @@ impl Put<OpcuaProtocolBehavior> for Agent {
     }
 
     fn shutdown(&mut self) -> String {
-        format!("s2opc agent: {} is shutting down", self.application.name)
+        format!("S2OPC agent: {} is shutting down", self.application.name)
     }
 }
 
@@ -183,7 +187,7 @@ impl Factory<OpcuaProtocolBehavior> for S2opcFactory {
                     c_agent_interface: self.put_interface.agent_interface
                 }))
             } else {
-                Err(Error::Put("s2opc Factory: create Agent unavailable!".to_string()))
+                Err(Error::Put("S2OPC Factory: create Agent unavailable!".to_string()))
             }
         }
     }
@@ -203,7 +207,7 @@ impl Factory<OpcuaProtocolBehavior> for S2opcFactory {
             None => "unavailable!".to_string()
         };
         vec![
-            ("harness".to_string(), "1.0".to_string()),
+            ("harness".to_string(), "1.1".to_string()),
             ("library".to_string(), library_version),
         ]
     }
