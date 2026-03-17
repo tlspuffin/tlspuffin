@@ -158,14 +158,14 @@ impl RustPut {
 
         set_max_protocol_version(&mut ctx_builder, descriptor.protocol_config.tls_version)?;
 
-        match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
-            }
-            TLSVersion::V1_2 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?;
-            }
-        }
+        // match descriptor.protocol_config.tls_version {
+        //     TLSVersion::V1_3 => {
+        //         ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
+        //     }
+        //     TLSVersion::V1_2 => {
+        //         ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?;
+        //     }
+        // }
 
         if let Some(groups) = &descriptor.protocol_config.groups {
             ctx_builder.set_groups(groups)?;
@@ -181,14 +181,14 @@ impl RustPut {
         let mut ctx_builder = SslContext::builder(SslMethod::tls())?;
         set_max_protocol_version(&mut ctx_builder, descriptor.protocol_config.tls_version)?;
 
-        match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
-            }
-            TLSVersion::V1_2 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?;
-            }
-        }
+        // match descriptor.protocol_config.tls_version {
+        //     TLSVersion::V1_3 => {
+        //         ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
+        //     }
+        //     TLSVersion::V1_2 => {
+        //         ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?;
+        //     }
+        // }
 
         if let Some(groups) = &descriptor.protocol_config.groups {
             ctx_builder.set_groups(groups)?;

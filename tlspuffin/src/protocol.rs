@@ -30,14 +30,16 @@ use crate::tls::fn_impl::{
     fn_server_hello_transcript, fn_true,
 };
 use crate::tls::rustls::hash_hs::HandshakeHash;
+use crate::tls::rustls::msgs::alert::AlertMessagePayload;
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
 use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayloadTLS13,
     CertificateRequestPayload, CertificateRequestPayloadTLS13, CertificateStatus,
-    ClientSessionTicket, DigitallySignedStruct, HelloRetryExtension, NewSessionTicketExtension,
-    NewSessionTicketPayloadTLS13, PresharedKeyIdentity, Random, ServerExtension, SessionID,
-    UnknownExtension,
+    ClientSessionTicket, DigitallySignedStruct, HandshakeMessagePayload, HelloRetryExtension,
+    NewSessionTicketExtension, NewSessionTicketPayloadTLS13, PresharedKeyIdentity, Random,
+    ServerExtension, SessionID, UnknownExtension,
 };
+use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 use crate::tls::rustls::msgs::message::{try_read_bytes, Message, MessagePayload, OpaqueMessage};
 use crate::tls::rustls::msgs::{self};
 use crate::tls::violation::TlsSecurityViolationPolicy;
@@ -411,7 +413,12 @@ impl ProtocolTypes for TLSProtocolTypes {
     }
 
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
-        Some(vec![TypeId::of::<MessagePayload>()])
+        // Some(vec![TypeId::of::<MessagePayload>()])
+        Some(vec![
+            TypeId::of::<AlertMessagePayload>(),
+            TypeId::of::<HandshakeMessagePayload>(),
+            TypeId::of::<HeartbeatPayload>(),
+        ])
     }
 
     fn differential_fuzzing_terms_to_eval(
@@ -479,10 +486,12 @@ impl ProtocolTypes for TLSProtocolTypes {
     fn differential_fuzzing_uniformise_put_config(mut trace: Trace<Self>) -> Trace<Self> {
         for agent in trace.descriptors.iter_mut() {
             agent.protocol_config.cipher_string_tls12 = String::from(
-                "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+                // "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+                "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-SHA:ECDHE-RSA-AES128-SHA:ECDHE-ECDSA-AES256-SHA:ECDHE-RSA-AES256-SHA:AES128-GCM-SHA256:AES256-GCM-SHA384:AES128-SHA:AES256-SHA"
             );
             agent.protocol_config.cipher_string_tls13 = String::from(
-                "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256",
+                // "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256",
+                "TLS_AES_128_GCM_SHA256:TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256",
             );
             agent.protocol_config.groups = Some(String::from("P-256:P-384"));
         }

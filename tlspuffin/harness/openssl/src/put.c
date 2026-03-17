@@ -240,15 +240,8 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_set_max_proto_version(ssl_ctx, tls_version[descriptor->tls_version]);
 #endif
 
-    if (descriptor->tls_version == V1_3)
-    {
-        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
-    }
-    else
-    {
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
-    }
+    SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+    SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
 
     if (descriptor->group_list != NULL)
     {
