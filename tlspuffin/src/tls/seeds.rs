@@ -1006,7 +1006,10 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
                 (fn_append_transcript(
                     // Compute the hash of the first Client Hello and add the hash in a new transcript buffer
                     // see RFC 8446 section 4.4.1
-                    (fn_new_hrr_transcript(((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]))),
+                    (fn_new_hrr_transcript(
+                        ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                        fn_cipher_suite13_aes_128_gcm_sha256
+                    )),
                     (@server_hrr)
                 )),
                 ((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])

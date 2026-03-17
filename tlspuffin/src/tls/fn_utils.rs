@@ -46,16 +46,68 @@ pub fn fn_append_transcript(
 ) -> Result<HandshakeHash, FnError> {
     let mut new_transcript: HandshakeHash = transcript.clone();
     new_transcript.add_message(message);
+    let hash = new_transcript.get_current_hash_raw();
+    eprintln!(
+        "[TRANSCRIPT][{:?}] fn_append_transcript: running hash ({}B): {}",
+        new_transcript.algorithm(),
+        hash.len(),
+        hash.iter().map(|b| format!("{b:02x}")).collect::<String>()
+    );
     Ok(new_transcript)
 }
 
-pub fn fn_new_hrr_transcript(original_client_hello: &Message) -> Result<HandshakeHash, FnError> {
-    let suite = &crate::tls::rustls::tls13::TLS13_AES_128_GCM_SHA256;
-
-    let mut transcript = HandshakeHash::new(suite.hash_algorithm());
+pub fn fn_new_hrr_transcript(
+    original_client_hello: &Message,
+    suite: &CipherSuite,
+) -> Result<HandshakeHash, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+    let mut transcript = HandshakeHash::new(supported_suite.hash_algorithm());
     transcript.add_message(original_client_hello);
     transcript.rollup_for_hrr();
+    let hash = transcript.get_current_hash_raw();
+    eprintln!(
+        "[TRANSCRIPT][{:?}] fn_new_hrr_transcript: post-rollup hash ({}B): {}",
+        transcript.algorithm(),
+        hash.len(),
+        hash.iter().map(|b| format!("{b:02x}")).collect::<String>()
+    );
     Ok(transcript)
+}
+
+/// Compute the HRR transcript for the case where HRR and ServerHello use different cipher suites.
+///
+/// wolfssl maintains parallel hash objects (hashSha256 and hashSha384) simultaneously. After an
+/// HRR with SHA384, `RestartHandshakeHash` wraps SHA384(CH1) into a `message_hash` (type=0xfe)
+/// and feeds it into both hash objects. Key derivation later reads `hashSha256`, which contains
+/// SHA256([0xfe|0x00|0x00|0x30|SHA384(CH1)] | HRR | CH2 | SH).
+///
+/// This function replicates that: computes SHA384(CH1) via `hrr_suite`, wraps it in a
+/// `message_hash` structure via `into_hrr_buffer()`, then starts a fresh SHA256 context
+/// (from `final_suite`) seeded with that message_hash. Subsequent `fn_append_transcript`
+/// calls accumulate HRR, CH2, SH into the SHA256 context, matching wolfssl's key derivation.
+pub fn fn_new_hrr_transcript_split(
+    original_client_hello: &Message,
+    hrr_suite: &CipherSuite,
+    final_suite: &CipherSuite,
+) -> Result<HandshakeHash, FnError> {
+    let hrr_sup = suite_as_supported_suite(hrr_suite)?;
+    let mut hrr_ctx = HandshakeHash::new(hrr_sup.hash_algorithm());
+    hrr_ctx.add_message(original_client_hello);
+    // into_hrr_buffer finishes SHA384(CH1) and wraps it in a message_hash encoding
+    let hrr_buffer = hrr_ctx.into_hrr_buffer();
+
+    let final_sup = suite_as_supported_suite(final_suite)?;
+    // start_hash feeds the message_hash bytes into a fresh SHA256 context
+    let final_transcript = hrr_buffer.start_hash(final_sup.hash_algorithm());
+
+    let hash = final_transcript.get_current_hash_raw();
+    eprintln!(
+        "[TRANSCRIPT][{:?}] fn_new_hrr_transcript_split: post-rollup hash ({}B): {}",
+        final_transcript.algorithm(),
+        hash.len(),
+        hash.iter().map(|b| format!("{b:02x}")).collect::<String>()
+    );
+    Ok(final_transcript)
 }
 
 /// Coalesce a `MessageFlight` into a single `OpaqueMessage`
@@ -467,6 +519,15 @@ pub fn fn_encrypt_handshake(
     suite: &CipherSuite,
 ) -> Result<OpaqueMessage, FnError> {
     let supported_suite = suite_as_supported_suite(suite)?;
+
+    let transcript_hash = server_hello.get_current_hash_raw();
+    eprintln!(
+        "[TRANSCRIPT][{:?}] fn_encrypt_handshake (seq={}): transcript hash used for key derivation ({}B): {}",
+        server_hello.algorithm(),
+        sequence,
+        transcript_hash.len(),
+        transcript_hash.iter().map(|b| format!("{b:02x}")).collect::<String>()
+    );
 
     let (key, _) = tls13_handshake_traffic_secret(
         server_hello,

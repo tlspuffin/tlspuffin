@@ -91,6 +91,7 @@ autotools_builder(
     -DHAVE_EX_DATA                # FIXME only 4.3.0
     -DWOLFSSL_CALLBACKS           # FIXME else some msg callbacks are not called
     -DHAVE_CURVE25519
+    -DWOLFSSL_DEBUG_TLS
     $<${require_user_ticks}:-DUSER_TICKS>         # to ensure deterministic behaviour
     $<${require_define_xtime}:-DXTIME=time_cb>    # to ensure deterministic behaviour with version >= 5.0.0 and < 5.2.0
     $<$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>:-DHAVE_SECRET_CALLBACK>
