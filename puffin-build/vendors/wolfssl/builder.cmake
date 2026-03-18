@@ -29,7 +29,7 @@ endif()
 
 if(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.2")
   declare_vulnerability("AllowClaim" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-AllowClaim-552.patch)
-elseif(VENDOR_VERSION VERSION_GREATER_EQUAL "5.5.0")
+elseif(VENDOR_VERSION VERSION_GREATER_EQUAL)
   declare_vulnerability("AllowClaim" PATCH ${CMAKE_CURRENT_LIST_DIR}/patches/fix-AllowClaim-550.patch)
 endif()
 

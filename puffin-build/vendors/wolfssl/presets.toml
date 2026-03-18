@@ -5,8 +5,8 @@ asan = true
 sancov = true
 fix = ["AllowClaim"]
 
-[wolfsslmaster]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "master", version = "master" }
+[wolfsslmaster4]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.4-stable", version = "5.8.4" }
 builder = { type = "builtin", name = "wolfssl" }
 sancov = true
 fix = ["AllowClaim"]

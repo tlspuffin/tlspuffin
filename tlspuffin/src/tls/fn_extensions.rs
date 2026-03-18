@@ -546,6 +546,10 @@ pub fn fn_signature_algorithm_cert_extension() -> Result<ClientExtension, FnErro
         ]),
     ))
 }
+/// KeyShare extension with no entries — forces the server to send HelloRetryRequest.
+pub fn fn_key_share_empty_extension() -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::KeyShare(KeyShareEntries(vec![])))
+}
 /// KeyShare => 0x0033,
 pub fn fn_key_share_deterministic_extension(
     group: &NamedGroup,

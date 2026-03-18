@@ -900,6 +900,193 @@ pub fn server_attacker_with_hello_retry_request(client: AgentName) -> Trace<TLSP
     }
 }
 
+pub fn client_attacker_with_hello_retry_request(server: AgentName) -> Trace<TLSProtocolTypes> {
+    // CH1: cipher=SHA384, empty key_shares → forces server to send HRR
+    let ch1 = term! {
+        fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
+                    (fn_new_cipher_suites()),
+                    fn_cipher_suite13_aes_256_gcm_sha384   // SHA384 only
+                ))
+            )),
+            fn_compressions,
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                fn_client_extensions_new,
+                                (fn_support_group_extension_make(
+                                    (fn_support_group_extension_append(
+                                        fn_support_group_extension_new,
+                                        fn_named_group_secp384r1
+                                    ))
+                                ))
+                            )),
+                            fn_signature_algorithm_extension
+                        )),
+                        fn_key_share_empty_extension  // empty → forces HRR
+                    )),
+                    fn_supported_versions13_extension
+                ))
+            ))
+        )
+    };
+
+    // CH2: cipher=SHA256 (ATTACK: mismatches HRR's SHA384), proper secp384r1 key share
+    let ch2 = term! {
+        fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                (fn_append_cipher_suite(
+                    (fn_new_cipher_suites()),
+                    fn_cipher_suite13_aes_128_gcm_sha256   // SHA256 — the attack
+                ))
+            )),
+            fn_compressions,
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            (fn_client_extensions_append(
+                                fn_client_extensions_new,
+                                (fn_support_group_extension_make(
+                                    (fn_support_group_extension_append(
+                                        fn_support_group_extension_new,
+                                        fn_named_group_secp384r1
+                                    ))
+                                ))
+                            )),
+                            fn_signature_algorithm_extension
+                        )),
+                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    )),
+                    fn_supported_versions13_extension
+                ))
+            ))
+        )
+    };
+
+    // Manually construct server_hello_transcript following RFC 8446 §4.4.1:
+    // SHA256(message_hash(SHA384(CH1)) || HRR || CH2 || ServerHello)
+    // mirrors what wolfSSL computes internally when switching from SHA384 to SHA256.
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                (fn_append_transcript(
+                    (fn_new_hrr_transcript_split(
+                        (@ch1),
+                        fn_cipher_suite13_aes_256_gcm_sha384,  // HRR cipher (SHA384) for CH1 rollup
+                        fn_cipher_suite13_aes_128_gcm_sha256   // final cipher (SHA256)
+                    )),
+                    ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::HelloRetryRequest)))]) // HRR
+                )),
+                (@ch2)
+            )),
+            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // real ServerHello
+        )
+    };
+
+    // Decrypt the server's encrypted handshake flight collected after CH2.
+    // (server, 1)/MessageFlight is the 2nd flight: ServerHello + EncExt + Cert + CertVerify +
+    // Finished.
+    let decrypted_handshake = term! {
+        fn_decrypt_handshake_flight(
+            ((server, 1)/MessageFlight),
+            (@server_hello_transcript),
+            (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+            fn_no_psk,
+            fn_named_group_secp384r1,
+            fn_true,
+            fn_seq_0,
+            fn_new_random,
+            fn_cipher_suite13_aes_128_gcm_sha256
+        )
+    };
+
+    let ee_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (fn_find_encrypted_extensions((@decrypted_handshake)))
+        )
+    };
+    let cert_transcript = term! {
+        fn_append_transcript(
+            (@ee_transcript),
+            (fn_find_server_certificate((@decrypted_handshake)))
+        )
+    };
+    let cert_verify_transcript = term! {
+        fn_append_transcript(
+            (@cert_transcript),
+            (fn_find_server_certificate_verify((@decrypted_handshake)))
+        )
+    };
+    let server_finished_transcript = term! {
+        fn_append_transcript(
+            (@cert_verify_transcript),
+            (fn_find_server_finished((@decrypted_handshake)))
+        )
+    };
+
+    let client_finished = term! {
+        fn_finished(
+            (fn_verify_data(
+                (@server_finished_transcript),
+                (@server_hello_transcript),
+                (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+                fn_no_psk,
+                fn_named_group_secp384r1,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            ))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_3)],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { ch1 }),
+            },
+            OutputAction::new_step(server), /* (server,0)/MessageFlight=HRR flight;
+                                             * (server,0)[HelloRetryRequest]=HRR */
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { ch2 }),
+            },
+            OutputAction::new_step(server), /* (server,1)/MessageFlight=SH+enc;
+                                             * (server,0)[ServerHello]=real SH */
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                    fn_encrypt_handshake(
+                        (@client_finished),
+                        (@server_hello_transcript),
+                        (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+                        fn_no_psk,
+                        fn_named_group_secp384r1,
+                        fn_true,
+                        fn_seq_0,
+                        fn_new_random,
+                        fn_cipher_suite13_aes_128_gcm_sha256
+                    )
+                }}),
+            },
+            OutputAction::new_step(server),
+        ],
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use puffin::put::PutDescriptor;
@@ -1010,6 +1197,14 @@ pub mod tests {
         let trace = server_attacker_with_hello_retry_request.build_trace();
         let ctx = runner.execute(trace, &mut 0, true).unwrap();
         assert!(ctx.agents_successful());
-        panic!("");
+    }
+
+    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    fn test_client_attacker_hrr(put: &str) {
+        let runner = default_runner_for_desc(PutDescriptor::new(put, vec![("use_clear", "true")]));
+        let trace = client_attacker_with_hello_retry_request.build_trace();
+        let result = runner.execute(trace, &mut 0, true);
+        //panic!("{:?}", result); // force output to inspect server behavior
+        assert!(result.unwrap().agents_successful());
     }
 }
