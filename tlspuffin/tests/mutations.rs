@@ -243,6 +243,8 @@ fn test_byte_remove_payloads(put: &str) {
             match &first.action {
                 Action::Input(input) => {
                     if let DYTerm::Application(_fd, args) = &input.recipe.term {
+                        // We revert to original trace if we applied MakeMessage on an invalid
+                        // subterm
                         if !input.recipe.is_symbolic() {
                             trace = trace_origin.clone();
                             continue;

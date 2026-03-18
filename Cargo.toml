@@ -77,6 +77,11 @@ syn = "2.0.66"
 quote = "1.0.36"
 proc-macro2 = "1.0.79"
 trybuild = "< 1.0.91"
+
+# They changed the Comparable crate from 0.5.5 to 0.5.6 where arrays are no longer supported for now
+# 0.5.6 breaks tlspuffin/src/claims.rs::TlsTranscript array attribute
+# We can either use a vec<u8> or fix the current version of the Comparable crate
+# See related issue https://github.com/jwiegley/comparable/issues/13
 comparable = "= 0.5.5"
 
 [patch.crates-io]

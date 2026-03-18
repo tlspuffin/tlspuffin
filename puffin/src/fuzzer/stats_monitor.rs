@@ -34,7 +34,7 @@ impl StatsMonitor {
         let monitor = Box::new(
             TuiMonitor::builder()
                 .title(String::from("tlspuffin [press q to exit]"))
-                .enhanced_graphics(false)
+                .enhanced_graphics(true)
                 .build(),
         );
         let handlers: Vec<Box<dyn EventHandler>> =
@@ -61,82 +61,85 @@ impl StatsMonitor {
         &mut self,
         client_stats_manager: &mut ClientStatsManager,
         id: ClientId,
-    ) -> Statistics {
-        let client = client_stats_manager.client_stats_for(id).unwrap();
-        let mut cur_client_clone = client.clone();
+    ) -> Result<Statistics, Error> {
+        client_stats_manager.update_client_stats_for(id, |client| {
+            #[cfg(feature = "introspection")]
+            let introspect_feature = {
+                let intro_stats = &client.introspection_stats;
+                let elapsed_cycles = intro_stats.elapsed_cycles();
+                let elapsed = if elapsed_cycles == 0 {
+                    1.0
+                } else {
+                    elapsed_cycles as f32
+                };
 
-        #[cfg(feature = "introspection")]
-        let introspect_feature = {
-            let intro_stats = &cur_client_clone.introspection_stats;
-            let elapsed_cycles = intro_stats.elapsed_cycles();
-            let elapsed = if elapsed_cycles == 0 {
-                1.0
-            } else {
-                elapsed_cycles as f32
-            };
+                // calculate mean across all used stages in `introspect_features`
+                let mut introspect_features = IntrospectFeatures::new();
 
-            // calculate mean across all used stages in `introspect_features`
-            let mut introspect_features = IntrospectFeatures::new();
+                for (_, features) in intro_stats.used_stages() {
+                    for (feature_index, feature) in features.iter().enumerate() {
+                        // Calculate this current stage's percentage
+                        let feature_percent = *feature as f32 / elapsed;
 
-            for (_, features) in intro_stats.used_stages() {
-                for (feature_index, feature) in features.iter().enumerate() {
-                    // Calculate this current stage's percentage
-                    let feature_percent = *feature as f32 / elapsed;
+                        // Ignore this feature if it isn't used
+                        if feature_percent == 0.0 {
+                            continue;
+                        }
 
-                    // Ignore this feature if it isn't used
-                    if feature_percent == 0.0 {
-                        continue;
+                        // Get the actual feature from the feature index for printing its name
+                        let feature: PerfFeature = feature_index.into();
+
+                        // Write the percentage for this feature
+                        introspect_features.record(&feature, feature_percent);
                     }
 
-                    // Get the actual feature from the feature index for printing its name
-                    let feature: PerfFeature = feature_index.into();
-
-                    // Write the percentage for this feature
-                    introspect_features.record(&feature, feature_percent);
+                    // todo measure self.feedbacks()
                 }
 
-                // todo measure self.feedbacks()
-            }
+                IntrospectStatistics {
+                    scheduler: intro_stats.scheduler_cycles() as f32 / elapsed,
+                    manager: intro_stats.manager_cycles() as f32 / elapsed,
+                    elapsed_cycles,
+                    introspect_features,
+                }
+            };
 
-            IntrospectStatistics {
-                scheduler: intro_stats.scheduler_cycles() as f32 / elapsed,
-                manager: intro_stats.manager_cycles() as f32 / elapsed,
-                elapsed_cycles,
-                introspect_features,
-            }
-        };
-        let cur_time = current_time();
-        let exec_sec = cur_client_clone.execs_per_sec(cur_time);
-        let total_execs = cur_client_clone.executions();
+            let cur_time = current_time();
+            let exec_sec = client.execs_per_sec(cur_time);
+            let total_execs = client.executions();
 
-        let trace = TraceStatistics::new(&cur_client_clone);
-        let mut error_counter = ErrorStatistics::new(total_execs);
+            let trace = TraceStatistics::new(client);
+            let mut error_counter = ErrorStatistics::new(total_execs);
 
-        error_counter.count(&cur_client_clone);
+            error_counter.count(client);
 
-        let corpus_size = cur_client_clone.corpus_size();
-        let objective_size = cur_client_clone.objective_size();
+            let corpus_size = client.corpus_size();
+            let objective_size = client.objective_size();
 
-        let coverage = cur_client_clone
-            .user_stats()
-            .get(MAP_FEEDBACK_NAME)
-            .and_then(|s| match s.value() {
-                UserStatsValue::Ratio(a, b) => Some(CoverageStatistics { hit: *a, max: *b }),
-                _ => None,
-            });
+            let coverage =
+                client
+                    .user_stats()
+                    .get(MAP_FEEDBACK_NAME)
+                    .and_then(|s| match s.value() {
+                        UserStatsValue::Ratio(a, b) => {
+                            Some(CoverageStatistics { hit: *a, max: *b })
+                        }
+                        _ => None,
+                    });
 
-        Statistics::Client(ClientStatistics {
-            id: id.0,
-            time: SystemTime::now(),
-            trace,
-            errors: error_counter,
-            #[cfg(feature = "introspection")]
-            intro: introspect_feature,
-            coverage,
-            corpus_size,
-            objective_size,
-            total_execs,
-            exec_per_sec: exec_sec as u64,
+            Statistics::Client(ClientStatistics {
+                id: id.0,
+                time: SystemTime::now(),
+                trace,
+                errors: error_counter,
+                #[cfg(feature = "introspection")]
+                intro: introspect_feature,
+                coverage,
+                corpus_size,
+                objective_size,
+                total_execs,
+                exec_per_sec: exec_sec as u64,
+            })
         })
     }
 
@@ -169,7 +172,7 @@ impl Monitor for StatsMonitor {
         sender_id: ClientId,
     ) -> Result<(), Error> {
         let global_stats = self.global(client_stats_manager);
-        let client_stats = self.client(client_stats_manager, sender_id);
+        let client_stats = self.client(client_stats_manager, sender_id)?;
         self.dispatch(sender_id, &event_msg, &global_stats);
         self.dispatch(sender_id, &event_msg, &client_stats);
         self.monitor
@@ -662,14 +665,11 @@ impl JSONEventHandler {
     where
         P: AsRef<Path>,
     {
-        let writer = BufWriter::new(
-            OpenOptions::new()
-                // The wrong trait is used and breaks the chain if libafl_bolts prelude is imported with *
-                .append(true)
-                .create(true)
-                .open(output_path.as_ref())
-                .unwrap(),
-        );
+        let writer = BufWriter::new({
+            let mut o = OpenOptions::new();
+            OpenOptions::append(&mut o, true);
+            o.create(true).open(output_path.as_ref()).unwrap()
+        });
 
         Self {
             output_path: output_path.as_ref().to_path_buf(),

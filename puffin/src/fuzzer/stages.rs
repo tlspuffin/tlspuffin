@@ -77,16 +77,16 @@ where
     MtPost: MutatorsTuple<I, S>,
     S: HasRand,
 {
-    type Mutations = ();
+    type Mutations = MT;
 
-    /// Get the mutations: we use a custom selection instead of the default
+    /// Get the core mutations (pre/post are handled separately in scheduled_mutate)
     fn mutations(&self) -> &Self::Mutations {
-        panic!("[FocusScheduledMutator] mutations - should never be used");
+        &self.mutations_core
     }
 
-    /// Get the mutations (mutable): we use a custom selection instead of the default
+    /// Get the core mutations (mutable)
     fn mutations_mut(&mut self) -> &mut Self::Mutations {
-        panic!("[FocusScheduledMutator] mutations - mutations_mut - should never be used");
+        &mut self.mutations_core
     }
 }
 
@@ -327,9 +327,7 @@ where
     fn iterations(&self, state: &mut S, _: &I) -> u64 {
         state
             .rand_mut()
-            .below_or_zero(self.max_mutations_per_iteration)
-            .try_into()
-            .unwrap()
+            .below_or_zero(self.max_mutations_per_iteration) as u64
     }
 
     /// Get the next mutation to apply
