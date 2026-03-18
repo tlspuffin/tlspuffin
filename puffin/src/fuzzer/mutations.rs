@@ -575,9 +575,11 @@ where
             return Ok(MutationResult::Skipped);
         }
         let insert_index = state.rand_mut().between(0, length);
-        let step = state.rand_mut().choose(steps);
+        let Some(step) = state.rand_mut().choose(steps) else {
+            return Ok(MutationResult::Skipped);
+        };
         log::debug!("[Mutation] Mutate RepeatMutator on step {insert_index}");
-        trace.steps.insert(insert_index, step.unwrap().clone());
+        trace.steps.insert(insert_index, step.clone());
         Ok(MutationResult::Mutated)
     }
 

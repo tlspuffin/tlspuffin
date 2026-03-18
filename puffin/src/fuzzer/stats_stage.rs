@@ -311,7 +311,7 @@ impl Fire for MinMaxMean {
     }
 }
 
-static mut STATS_STAGE_ID: usize = 0;
+static STATS_STAGE_ID: AtomicUsize = AtomicUsize::new(0);
 /// The name for closure stage
 pub static STATS_STAGE_NAME: &str = "StatsStage";
 
@@ -393,12 +393,7 @@ where
     I: Input,
 {
     pub fn new() -> Self {
-        // unsafe but impossible that you create two threads both instantiating this instance
-        let stage_id = unsafe {
-            let ret = STATS_STAGE_ID;
-            STATS_STAGE_ID += 1;
-            ret
-        };
+        let stage_id = STATS_STAGE_ID.fetch_add(1, Ordering::Relaxed);
         Self {
             phantom: PhantomData,
             name: Cow::Owned(STATS_STAGE_NAME.to_owned() + ":" + stage_id.to_string().as_ref()),
