@@ -230,8 +230,8 @@ define_signature!(
     fn_new_hrr_transcript [opaque]
     fn_append_transcript [opaque] // this one is opaque and not list since it returns the hash of all elements added to the list so far
     fn_decrypt_handshake_flight [opaque]
-    fn_decrypt_handshake_flight_with_secret [opaque] [no_gen]
-    fn_decrypt_handshake_flight_with_extracted_traffic_secret [opaque] [no_gen]
+    fn_decrypt_handshake_flight_with_secret [opaque]
+    fn_decrypt_handshake_flight_with_extracted_traffic_secret [opaque]
     fn_decrypt_multiple_handshake_messages [opaque] [no_gen]
     fn_decrypt_application_flight [opaque]
     fn_find_server_certificate [get]

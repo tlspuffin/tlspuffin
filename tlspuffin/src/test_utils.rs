@@ -28,9 +28,9 @@ use puffin::trace_helper::TraceHelper;
 use crate::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put_registry::tls_registry;
 use crate::tls::fn_impl::{
-    fn_certificate_transcript, fn_client_finished_transcript, fn_decrypt12, fn_decrypt_application,
-    fn_decrypt_multiple_handshake_messages, fn_derive_psk, fn_server_finished_transcript,
-    fn_server_hello_transcript,
+    fn_certificate_transcript, fn_client_finished_transcript, fn_client_sign_transcript,
+    fn_decrypt12, fn_decrypt_application, fn_decrypt_multiple_handshake_messages, fn_derive_psk,
+    fn_server_finished_transcript, fn_server_hello_transcript,
 };
 use crate::tls::seeds::seed_successful;
 use crate::tls::TLS_SIGNATURE;
@@ -362,7 +362,7 @@ pub fn ignore_add_payload_mutate() -> HashSet<String> {
 
 /// Functions that are unstables, we might be able to generate them but not easily
 pub fn unstable_functions() -> HashSet<String> {
-    vec![fn_derive_psk.name()]
+    vec![fn_derive_psk.name(), fn_client_sign_transcript.name()]
         .iter()
         .map(|fn_name: &&str| fn_name.to_string())
         .collect::<HashSet<String>>()

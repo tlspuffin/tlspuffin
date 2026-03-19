@@ -61,7 +61,7 @@ fn main() {
     if cfg!(feature = "openssl_binding") {
         let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
         let c_file = manifest_dir
-            .join("../crates/openssl-src/src/deterministic_rand.c")
+            .join("../crates/openssl-src-111/src/deterministic_rand.c")
             .canonicalize()
             .expect("deterministic_rand.c not found");
 
