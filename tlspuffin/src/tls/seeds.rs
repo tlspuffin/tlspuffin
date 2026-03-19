@@ -2706,6 +2706,7 @@ pub fn create_corpus(
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
+    use puffin::protocol::ProtocolTypes;
     use puffin::put::{PutDescriptor, PutOptions};
     use puffin::trace::Query;
 
@@ -2792,6 +2793,54 @@ pub mod tests {
         let ctx = runner.execute(trace, &mut 0, true).unwrap();
 
         assert!(ctx.agents_successful());
+    }
+
+    #[apply(test_puts, filter = all(tls13, transcript_extraction, not(boringssl)))]
+    fn test_seed_server_attacker_full_differential_decryption(put: &str) {
+        let runner = default_runner_for(put);
+        let trace = seed_server_attacker_full.build_trace();
+        let descriptors = trace.descriptors.clone();
+
+        let ctx = runner.execute(trace, &mut 0, true).unwrap();
+
+        let terms =
+            <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_terms_to_eval(&descriptors);
+        assert!(
+            !terms.is_empty(),
+            "no differential terms produced for {put}"
+        );
+
+        let any_ok = terms.iter().any(|t| t.evaluate_dy(&ctx).is_ok());
+        assert!(
+            any_ok,
+            "no post-computation decryption term evaluated successfully for {put}"
+        );
+
+        let traces = vec![
+            seed_client_attacker.build_trace(),
+            seed_client_attacker_full.build_trace(),
+            seed_successful.build_trace(),
+        ];
+
+        for trace in traces {
+            let runner = default_runner_for(put);
+            let descriptors = trace.descriptors.clone();
+            let ctx = runner.execute(trace, &mut 0, true).unwrap();
+
+            let terms = <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_terms_to_eval(
+                &descriptors,
+            );
+            assert!(
+                !terms.is_empty(),
+                "no differential terms produced for {put}"
+            );
+
+            let any_ok = terms.iter().any(|t| t.evaluate_dy(&ctx).is_ok());
+            assert!(
+                any_ok,
+                "no post-computation decryption term evaluated successfully for {put}"
+            );
+        }
     }
 
     #[apply(test_puts, filter = all(tls13, not(boringssl)))]
