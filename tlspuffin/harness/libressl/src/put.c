@@ -301,7 +301,7 @@ static void map_tls12_iana_cipher_list(const char *input, char *output, size_t o
         return;
     }
 
-    char input_copy[1024] = {0};
+    char input_copy[16384] = {0};
     size_t input_len = strlen(input);
     if (input_len >= sizeof(input_copy))
     {
@@ -365,7 +365,7 @@ static void map_tls13_cipher_list(const char *input, char *output, size_t output
         return;
     }
 
-    char input_copy[1024] = {0};
+    char input_copy[16384] = {0};
     size_t input_len = strlen(input);
     if (input_len >= sizeof(input_copy))
     {
@@ -1145,14 +1145,13 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both)
     {
-        char mapped_tls13[1024] = {0};
+        char mapped_tls13[16384] = {0};
         map_tls13_cipher_list(descriptor->cipher_string_tls13, mapped_tls13, sizeof(mapped_tls13));
         SSL_CTX_set_ciphersuites(ssl_ctx, mapped_tls13);
-        SSL_CTX_set_cipher_list(ssl_ctx, mapped_tls13);
     }
-    else
+    if (descriptor->tls_version == V1_2 || descriptor->tls_version == Both)
     {
-        char mapped_cipher_list[2048] = {0};
+        char mapped_cipher_list[16384] = {0};
         map_tls12_iana_cipher_list(descriptor->cipher_string_tls12,
                                    mapped_cipher_list,
                                    sizeof(mapped_cipher_list));
@@ -1223,14 +1222,13 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both)
     {
-        char mapped_tls13[1024] = {0};
+        char mapped_tls13[16384] = {0};
         map_tls13_cipher_list(descriptor->cipher_string_tls13, mapped_tls13, sizeof(mapped_tls13));
         SSL_CTX_set_ciphersuites(ssl_ctx, mapped_tls13);
-        SSL_CTX_set_cipher_list(ssl_ctx, mapped_tls13);
     }
-    else
+    if (descriptor->tls_version == V1_2 || descriptor->tls_version == Both)
     {
-        char mapped_cipher_list[2048] = {0};
+        char mapped_cipher_list[16384] = {0};
         map_tls12_iana_cipher_list(descriptor->cipher_string_tls12,
                                    mapped_cipher_list,
                                    sizeof(mapped_cipher_list));
