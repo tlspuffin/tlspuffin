@@ -725,7 +725,9 @@ pub mod tests {
             error_string.contains("unsupported protocol")               // OpenSSL
                 || error_string.contains("UNSUPPORTED_PROTOCOL")        // BoringSSL
                 || error_string.contains("record layer version error")  // WolfSSL
-                || error_string.contains("unknown error number") // WolfSSL_430
+                || error_string.contains("unknown error number")        // WolfSSL_430
+                || error_string.contains("wrong version number")        // LibreSSL
+                || error_string.contains("parse tlsext") // LibreSSL
         );
     }
 
@@ -748,14 +750,16 @@ pub mod tests {
             error_string.contains("unsupported protocol")               // OpenSSL
                 || error_string.contains("UNSUPPORTED_PROTOCOL")        // BoringSSL
                 || error_string.contains("record layer version error")  // WolfSSL
-                || error_string.contains("unknown error number") // WolfSSL_430
+                || error_string.contains("unknown error number")        // WolfSSL_430
+                || error_string.contains("wrong version number")        // LibreSSL
+                || error_string.contains("parse tlsext") // LibreSSL
         );
     }
 
     // the standard for ssl_clear only specifies that it should work with exactly the same agent
     // Most implementations outside openssl seems to implement the strict minimum and therefore
     // won't work with those tests
-    #[apply(test_puts, filter = all(tls12, tls13, not(boringssl), not(wolfssl), not(feature="libressl333")))]
+    #[apply(test_puts, filter = all(tls12, tls13, not(boringssl), not(wolfssl), not(libressl)))]
     fn test_seed_successful_12_then_13(put: &str) {
         let runner = default_runner_for_desc(PutDescriptor::new(put, vec![("use_clear", "true")]));
         let trace = seed_successful_12_then_13.build_trace();
@@ -763,7 +767,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls12, tls13, not(boringssl), not(wolfssl), not(feature="libressl333")))]
+    #[apply(test_puts, filter = all(tls12, tls13, not(boringssl), not(wolfssl), not(libressl)))]
     fn test_seed_successful_12_then_12(put: &str) {
         let runner = default_runner_for_desc(PutDescriptor::new(put, vec![("use_clear", "true")]));
         let trace = seed_successful_12_then_12.build_trace();
