@@ -389,36 +389,42 @@ static void fill_claim(AGENT agent, struct Claim *claim)
     {
         if (claim->version.data == CLAIM_TLS_VERSION_V1_2)
         {
+            claim->lengths.master_secret_len = MIN(secret_size, CLAIM_MAX_SECRET_SIZE);
             memcpy(claim->master_secret_12.secret,
                    agent->ssl->arrays->masterSecret,
-                   MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
+                   claim->lengths.master_secret_len);
         }
         else
         {
+            claim->lengths.master_secret_len = MIN(secret_size, CLAIM_MAX_SECRET_SIZE);
             memcpy(claim->master_secret.secret,
                    agent->ssl->arrays->masterSecret,
-                   MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
+                   claim->lengths.master_secret_len);
+            claim->lengths.early_secret_len = MIN(secret_size, CLAIM_MAX_SECRET_SIZE);
             memcpy(claim->early_secret.secret,
                    agent->ssl->arrays->secret,
-                   MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
+                   claim->lengths.early_secret_len);
+            claim->lengths.handshake_secret_len = MIN(agent->secret_size, CLAIM_MAX_SECRET_SIZE);
             memcpy(claim->handshake_secret.secret,
                    agent->handshake_secret,
-                   MIN(agent->secret_size, CLAIM_MAX_SECRET_SIZE));
+                   claim->lengths.handshake_secret_len);
         }
     }
     else if (session != NULL)
     {
         if (claim->version.data == CLAIM_TLS_VERSION_V1_2)
         {
+            claim->lengths.master_secret_len = MIN(secret_size, CLAIM_MAX_SECRET_SIZE);
             memcpy(claim->master_secret_12.secret,
                    session->masterSecret,
-                   MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
+                   claim->lengths.master_secret_len);
         }
         else
         {
+            claim->lengths.master_secret_len = MIN(secret_size, CLAIM_MAX_SECRET_SIZE);
             memcpy(claim->master_secret.secret,
                    session->masterSecret,
-                   MIN(secret_size, CLAIM_MAX_SECRET_SIZE));
+                   claim->lengths.master_secret_len);
         }
     }
     else

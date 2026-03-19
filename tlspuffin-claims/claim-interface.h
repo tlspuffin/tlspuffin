@@ -170,6 +170,16 @@ typedef struct Claim
 
     // Transcript
     ClaimTranscript transcript;
+
+    // Secret lengths (added at the end to preserve struct layout for unpatched PUTs)
+    struct
+    {
+        int early_secret_len;
+        int handshake_secret_len;
+        int master_secret_len;
+        int client_handshake_traffic_len;
+        int server_handshake_traffic_len;
+    } lengths;
 } Claim;
 
 typedef void (*claim_t)(Claim claim, void *ctx);

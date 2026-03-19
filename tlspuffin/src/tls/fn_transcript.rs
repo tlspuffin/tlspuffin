@@ -70,3 +70,19 @@ pub fn fn_finished_get_client_random(claim: &Finished) -> Result<Random, FnError
     }
     Ok(Random(payload))
 }
+
+pub fn fn_finished_get_client_handshake_traffic_secret(
+    claim: &Finished,
+) -> Result<Vec<u8>, FnError> {
+    let secret = Vec::from(claim.client_handshake_traffic_secret.as_slice());
+
+    Ok(secret)
+}
+
+pub fn fn_finished_get_server_handshake_traffic_secret(
+    claim: &Finished,
+) -> Result<Vec<u8>, FnError> {
+    let secret = Vec::from(claim.server_handshake_traffic_secret.as_slice());
+
+    Ok(secret)
+}

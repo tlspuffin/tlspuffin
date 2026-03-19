@@ -89,6 +89,11 @@ impl Tls13CipherSuite {
         })
     }
 
+    pub fn derive_decrypter_from_raw_secret(&self, secret: &[u8]) -> Box<dyn MessageDecrypter> {
+        let prk = hkdf::Prk::new_less_safe(self.hkdf_algorithm, secret);
+        self.derive_decrypter(&prk)
+    }
+
     /// Which hash function to use with this suite.
     pub fn hash_algorithm(&self) -> &'static ring::digest::Algorithm {
         self.hkdf_algorithm.hmac_algorithm().digest_algorithm()

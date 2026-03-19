@@ -204,6 +204,51 @@ pub fn fn_decrypt_handshake_flight_with_secret(
     Ok(decrypted_flight)
 }
 
+pub fn fn_decrypt_handshake_flight_with_extracted_traffic_secret(
+    flight: &MessageFlight,
+    sequence: &u64,
+    suite: &CipherSuite,
+    extracted_traffic_secret: &Vec<u8>,
+) -> Result<MessageFlight, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+    let mut sequence_number = *sequence;
+    let mut decrypted_flight = MessageFlight::new();
+
+    let decrypter = supported_suite
+        .tls13()
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
+        .derive_decrypter_from_raw_secret(extracted_traffic_secret);
+
+    for msg in &flight.messages {
+        if let MessagePayload::ApplicationData(_) = &msg.payload {
+            let message = decrypter
+                .decrypt(
+                    PlainMessage::from(msg.clone()).into_unencrypted_opaque(),
+                    sequence_number,
+                )
+                .map_err(|_err| {
+                    FnError::Crypto(
+                        "Failed to decrypt it fn_decrypt_handshake_extracted".to_string(),
+                    )
+                })?;
+
+            let payloads =
+                MessagePayload::multiple_new(message.typ, message.version, message.payload)
+                    .unwrap();
+
+            let messages = payloads.into_iter().map(|p| Message {
+                version: message.version,
+                payload: p,
+            });
+
+            decrypted_flight.messages.extend(messages);
+            sequence_number += 1;
+        }
+    }
+
+    Ok(decrypted_flight)
+}
+
 /// Decrypt an Application data message containing multiple handshake messages
 /// and return a vec of handshake messages
 pub fn fn_decrypt_multiple_handshake_messages(

@@ -220,6 +220,10 @@ pub struct Finished {
     pub handshake_secret: SmallVec<[u8; 32]>,
     #[comparable_ignore]
     pub master_secret: SmallVec<[u8; 32]>,
+    #[comparable_ignore]
+    pub client_handshake_traffic_secret: SmallVec<[u8; 32]>,
+    #[comparable_ignore]
+    pub server_handshake_traffic_secret: SmallVec<[u8; 32]>,
 
     pub tls_version: ClaimTLSVersion,
 
@@ -441,16 +445,58 @@ pub mod claims_helpers {
                     ),
                     authenticate_peer: claim.peer_authentication == 1,
                     peer_certificate,
-                    early_secret: SmallVec::from_slice(&claim.early_secret.secret),
-                    handshake_secret: SmallVec::from_slice(&claim.handshake_secret.secret),
+                    early_secret: {
+                        let len = if (1..=64).contains(&claim.lengths.early_secret_len) {
+                            claim.lengths.early_secret_len as usize
+                        } else {
+                            64
+                        };
+                        SmallVec::from_slice(&claim.early_secret.secret[..len])
+                    },
+                    handshake_secret: {
+                        let len = if (1..=64).contains(&claim.lengths.handshake_secret_len) {
+                            claim.lengths.handshake_secret_len as usize
+                        } else {
+                            64
+                        };
+                        SmallVec::from_slice(&claim.handshake_secret.secret[..len])
+                    },
                     master_secret: match claim.version.data {
                         ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3
                         | ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => {
-                            SmallVec::from_slice(&claim.master_secret.secret)
+                            let len = if (1..=64).contains(&claim.lengths.master_secret_len) {
+                                claim.lengths.master_secret_len as usize
+                            } else {
+                                64
+                            };
+                            SmallVec::from_slice(&claim.master_secret.secret[..len])
                         }
                         ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2 => {
-                            SmallVec::from_slice(&claim.master_secret_12.secret)
+                            let len = if (1..=64).contains(&claim.lengths.master_secret_len) {
+                                claim.lengths.master_secret_len as usize
+                            } else {
+                                64
+                            };
+                            SmallVec::from_slice(&claim.master_secret_12.secret[..len])
                         }
+                    },
+                    client_handshake_traffic_secret: {
+                        let len = if (1..=64).contains(&claim.lengths.client_handshake_traffic_len)
+                        {
+                            claim.lengths.client_handshake_traffic_len as usize
+                        } else {
+                            64
+                        };
+                        SmallVec::from_slice(&claim.handshake_traffic_hash.secret[..len])
+                    },
+                    server_handshake_traffic_secret: {
+                        let len = if (1..=64).contains(&claim.lengths.server_handshake_traffic_len)
+                        {
+                            claim.lengths.server_handshake_traffic_len as usize
+                        } else {
+                            64
+                        };
+                        SmallVec::from_slice(&claim.server_finished_hash.secret[..len])
                     },
                     tls_version: claim.version.data,
                     chosen_cipher: claim.chosen_cipher.data,

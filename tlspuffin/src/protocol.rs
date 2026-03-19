@@ -25,8 +25,10 @@ use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
 use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::{
+    fn_decrypt_handshake_flight_with_extracted_traffic_secret,
     fn_decrypt_handshake_flight_with_secret, fn_false, fn_finished_get_cipher,
-    fn_finished_get_client_random, fn_finished_get_handshake_secret, fn_seq_0,
+    fn_finished_get_client_handshake_traffic_secret, fn_finished_get_client_random,
+    fn_finished_get_handshake_secret, fn_finished_get_server_handshake_traffic_secret, fn_seq_0,
     fn_server_hello_transcript, fn_true,
 };
 use crate::tls::rustls::hash_hs::HandshakeHash;
@@ -682,6 +684,27 @@ impl ProtocolTypes for TLSProtocolTypes {
                 (fn_finished_get_handshake_secret(((server, 2))))
             )
             });
+
+            terms.push(term! {
+                fn_decrypt_handshake_flight_with_secret(
+                ((server, 0)[Some(TlsQueryMatcher::ServerHelloFlight)]/MessageFlight),
+                (fn_server_hello_transcript(((server, 0)))),
+                fn_true,
+                fn_seq_0,  // sequence 0
+                (fn_finished_get_client_random(((server, 0)))),
+                (fn_finished_get_cipher(((server, 0)))),
+                (fn_finished_get_client_handshake_traffic_secret(((server, 2))))
+            )
+            });
+
+            terms.push(term! {
+                fn_decrypt_handshake_flight_with_extracted_traffic_secret(
+                ((server, 0)[Some(TlsQueryMatcher::ServerHelloFlight)]/MessageFlight),
+                fn_seq_0,
+                (fn_finished_get_cipher(((server, 0)))),
+                (fn_finished_get_server_handshake_traffic_secret(((server, 0))))
+            )
+            });
         }
 
         if is_client {
@@ -694,6 +717,36 @@ impl ProtocolTypes for TLSProtocolTypes {
                 (fn_finished_get_client_random(((client, 0)))),
                 (fn_finished_get_cipher(((client, 0)))),
                 (fn_finished_get_handshake_secret(((client, 0))))
+            )
+            });
+
+            terms.push(term! {
+                fn_decrypt_handshake_flight_with_secret(
+                ((client, 0)[Some(TlsQueryMatcher::EncryptedFlight)]/MessageFlight),
+                (fn_server_hello_transcript(((client, 0)))),
+                fn_false,
+                fn_seq_0,
+                (fn_finished_get_client_random(((client, 0)))),
+                (fn_finished_get_cipher(((client, 0)))),
+                (fn_finished_get_server_handshake_traffic_secret(((client, 0))))
+            )
+            });
+
+            terms.push(term! {
+                fn_decrypt_handshake_flight_with_extracted_traffic_secret(
+                ((client, 0)[Some(TlsQueryMatcher::EncryptedFlight)]/MessageFlight),
+                fn_seq_0,
+                (fn_finished_get_cipher(((client, 0)))),
+                (fn_finished_get_server_handshake_traffic_secret(((client, 0))))
+            )
+            });
+
+            terms.push(term! {
+                fn_decrypt_handshake_flight_with_extracted_traffic_secret(
+                ((client, 0)[Some(TlsQueryMatcher::EncryptedFlight)]/MessageFlight),
+                fn_seq_0,
+                (fn_finished_get_cipher(((client, 0)))),
+                (fn_finished_get_client_handshake_traffic_secret(((client, 0))))
             )
             });
         }

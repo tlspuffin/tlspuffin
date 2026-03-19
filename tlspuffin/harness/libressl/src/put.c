@@ -65,6 +65,15 @@ struct AGENT_TYPE
     unsigned char cached_client_random[SSL3_RANDOM_SIZE];
     bool has_cached_server_random;
     bool has_cached_client_random;
+
+    unsigned char cached_extracted_handshake[CLAIM_MAX_SECRET_SIZE];
+    size_t cached_extracted_handshake_len;
+    bool has_cached_extracted_handshake;
+
+    unsigned char cached_client_handshake_traffic[CLAIM_MAX_SECRET_SIZE];
+    bool has_cached_client_handshake_traffic;
+    unsigned char cached_server_handshake_traffic[CLAIM_MAX_SECRET_SIZE];
+    bool has_cached_server_handshake_traffic;
 };
 
 AGENT openssl_create(const TLS_AGENT_DESCRIPTOR *descriptor);
@@ -85,6 +94,89 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block);
 
 static bool recreate_ssl_from_agent_ctx(AGENT agent);
 static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor);
+
+static bool is_all_zero(const unsigned char *buf, size_t len)
+{
+    if (buf == NULL || len == 0)
+    {
+        return true;
+    }
+
+    for (size_t i = 0; i < len; ++i)
+    {
+        if (buf[i] != 0)
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+static size_t extract_current_secret_size(AGENT agent)
+{
+    if (agent == NULL || agent->ssl == NULL)
+    {
+        return 32; // Default to SHA256 size
+    }
+
+    const EVP_MD *md = NULL;
+    if (ssl_get_handshake_evp_md(agent->ssl, &md) && md != NULL)
+    {
+        return EVP_MD_size(md);
+    }
+
+    return 32;
+}
+
+static void cache_extracted_handshake_secret(AGENT agent)
+{
+    if (agent == NULL || agent->ssl == NULL || agent->ssl->s3 == NULL)
+    {
+        return;
+    }
+
+    struct tls13_secrets *secrets = agent->ssl->s3->hs.tls13.secrets;
+    if (secrets == NULL)
+    {
+        return;
+    }
+
+    // Keep intermediate extracted secrets available for later claim emission.
+    secrets->insecure = 1;
+
+    size_t secret_size = extract_current_secret_size(agent);
+
+    // Cache HKDF-Extract(Handshake)
+    if (secrets->extracted_handshake.data != NULL && secrets->extracted_handshake.len > 0 &&
+        !is_all_zero(secrets->extracted_handshake.data, secrets->extracted_handshake.len))
+    {
+        size_t len = MIN(secrets->extracted_handshake.len, secret_size);
+        memcpy(agent->cached_extracted_handshake, secrets->extracted_handshake.data, len);
+        agent->cached_extracted_handshake_len = len;
+        agent->has_cached_extracted_handshake = true;
+    }
+
+    // Cache Client Handshake Traffic Secret
+    if (secrets->client_handshake_traffic.data != NULL &&
+        secrets->client_handshake_traffic.len > 0 &&
+        !is_all_zero(secrets->client_handshake_traffic.data, secrets->client_handshake_traffic.len))
+    {
+        size_t len = MIN(secrets->client_handshake_traffic.len, secret_size);
+        memcpy(agent->cached_client_handshake_traffic, secrets->client_handshake_traffic.data, len);
+        agent->has_cached_client_handshake_traffic = true;
+    }
+
+    // Cache Server Handshake Traffic Secret
+    if (secrets->server_handshake_traffic.data != NULL &&
+        secrets->server_handshake_traffic.len > 0 &&
+        !is_all_zero(secrets->server_handshake_traffic.data, secrets->server_handshake_traffic.len))
+    {
+        size_t len = MIN(secrets->server_handshake_traffic.len, secret_size);
+        memcpy(agent->cached_server_handshake_traffic, secrets->server_handshake_traffic.data, len);
+        agent->has_cached_server_handshake_traffic = true;
+    }
+}
 
 static bool is_numeric_token(const char *token)
 {
@@ -609,10 +701,10 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         // TLS 1.2 master secret
         if (session != NULL)
         {
-            size_t mk_len = SSL_SESSION_get_master_key(session,
-                                                       claim->master_secret_12.secret,
-                                                       CLAIM_MAX_SECRET_SIZE);
-            (void)mk_len;
+            claim->lengths.master_secret_len =
+                SSL_SESSION_get_master_key(session,
+                                           claim->master_secret_12.secret,
+                                           CLAIM_MAX_SECRET_SIZE);
         }
     }
     else if (claim->version.data == CLAIM_TLS_VERSION_V1_3)
@@ -620,57 +712,117 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         // TLS 1.3 secrets from LibreSSL internal state
         SSL_HANDSHAKE *hs = &agent->ssl->s3->hs;
         struct tls13_secrets *secrets = hs->tls13.secrets;
+        size_t secret_size = extract_current_secret_size(agent);
 
         if (secrets != NULL)
         {
+            secrets->insecure = 1;
+
             if (secrets->extracted_master.data != NULL)
             {
+                claim->lengths.master_secret_len = MIN(secrets->extracted_master.len, secret_size);
                 memcpy(claim->master_secret.secret,
                        secrets->extracted_master.data,
-                       MIN(secrets->extracted_master.len, CLAIM_MAX_SECRET_SIZE));
+                       claim->lengths.master_secret_len);
             }
             if (secrets->extracted_early.data != NULL)
             {
+                claim->lengths.early_secret_len = MIN(secrets->extracted_early.len, secret_size);
                 memcpy(claim->early_secret.secret,
                        secrets->extracted_early.data,
-                       MIN(secrets->extracted_early.len, CLAIM_MAX_SECRET_SIZE));
+                       claim->lengths.early_secret_len);
             }
             if (secrets->extracted_handshake.data != NULL)
             {
-                memcpy(claim->handshake_secret.secret,
-                       secrets->extracted_handshake.data,
-                       MIN(secrets->extracted_handshake.len, CLAIM_MAX_SECRET_SIZE));
+                size_t hs_len = MIN(secrets->extracted_handshake.len, secret_size);
+                if (!is_all_zero(secrets->extracted_handshake.data, hs_len))
+                {
+                    claim->lengths.handshake_secret_len = hs_len;
+                    memcpy(claim->handshake_secret.secret,
+                           secrets->extracted_handshake.data,
+                           hs_len);
+                    memcpy(agent->cached_extracted_handshake,
+                           secrets->extracted_handshake.data,
+                           hs_len);
+                    agent->cached_extracted_handshake_len = hs_len;
+                    agent->has_cached_extracted_handshake = true;
+                }
             }
             if (secrets->client_application_traffic.data != NULL)
             {
                 memcpy(claim->client_app_traffic_secret.secret,
                        secrets->client_application_traffic.data,
-                       MIN(secrets->client_application_traffic.len, CLAIM_MAX_SECRET_SIZE));
+                       MIN(secrets->client_application_traffic.len, secret_size));
             }
             if (secrets->server_application_traffic.data != NULL)
             {
                 memcpy(claim->server_app_traffic_secret.secret,
                        secrets->server_application_traffic.data,
-                       MIN(secrets->server_application_traffic.len, CLAIM_MAX_SECRET_SIZE));
+                       MIN(secrets->server_application_traffic.len, secret_size));
             }
             if (secrets->exporter_master.data != NULL)
             {
                 memcpy(claim->exporter_master_secret.secret,
                        secrets->exporter_master.data,
-                       MIN(secrets->exporter_master.len, CLAIM_MAX_SECRET_SIZE));
+                       MIN(secrets->exporter_master.len, secret_size));
             }
             if (secrets->early_exporter_master.data != NULL)
             {
                 memcpy(claim->early_exporter_master_secret.secret,
                        secrets->early_exporter_master.data,
-                       MIN(secrets->early_exporter_master.len, CLAIM_MAX_SECRET_SIZE));
+                       MIN(secrets->early_exporter_master.len, secret_size));
             }
             if (secrets->client_handshake_traffic.data != NULL)
             {
+                claim->lengths.client_handshake_traffic_len =
+                    MIN(secrets->client_handshake_traffic.len, secret_size);
                 memcpy(claim->handshake_traffic_hash.secret,
                        secrets->client_handshake_traffic.data,
-                       MIN(secrets->client_handshake_traffic.len, CLAIM_MAX_SECRET_SIZE));
+                       claim->lengths.client_handshake_traffic_len);
+                memcpy(agent->cached_client_handshake_traffic,
+                       secrets->client_handshake_traffic.data,
+                       claim->lengths.client_handshake_traffic_len);
+                agent->has_cached_client_handshake_traffic = true;
             }
+            if (secrets->server_handshake_traffic.data != NULL)
+            {
+                claim->lengths.server_handshake_traffic_len =
+                    MIN(secrets->server_handshake_traffic.len, secret_size);
+                memcpy(claim->server_finished_hash.secret,
+                       secrets->server_handshake_traffic.data,
+                       claim->lengths.server_handshake_traffic_len);
+                memcpy(agent->cached_server_handshake_traffic,
+                       secrets->server_handshake_traffic.data,
+                       claim->lengths.server_handshake_traffic_len);
+                agent->has_cached_server_handshake_traffic = true;
+            }
+        }
+
+        if (is_all_zero(claim->handshake_secret.secret, secret_size) &&
+            agent->has_cached_extracted_handshake)
+        {
+            claim->lengths.handshake_secret_len = agent->cached_extracted_handshake_len;
+            memcpy(claim->handshake_secret.secret,
+                   agent->cached_extracted_handshake,
+                   agent->cached_extracted_handshake_len);
+        }
+
+        if (is_all_zero(claim->handshake_traffic_hash.secret, secret_size) &&
+            agent->has_cached_client_handshake_traffic)
+        {
+            claim->lengths.client_handshake_traffic_len = secret_size;
+            memcpy(claim->handshake_traffic_hash.secret,
+                   agent->cached_client_handshake_traffic,
+                   secret_size);
+        }
+
+        if (is_all_zero(claim->server_finished_hash.secret, secret_size) &&
+            agent->has_cached_server_handshake_traffic)
+        {
+            claim->lengths.server_handshake_traffic_len = secret_size;
+            memcpy(claim->server_finished_hash.secret,
+                   agent->cached_server_handshake_traffic,
+                   secret_size);
         }
     }
 
@@ -756,6 +908,8 @@ static void libressl_msg_callback(int write_p,
         memcpy(agent->cached_server_random, (const uint8_t *)buf + 6, SSL3_RANDOM_SIZE);
         agent->has_cached_server_random = true;
     }
+
+    cache_extracted_handshake_secret(agent);
 
     // Prevent LibreSSL from zeroing intermediate TLS 1.3 secrets
     // (extracted_early, extracted_handshake, extracted_master).
@@ -928,6 +1082,8 @@ RESULT openssl_progress(AGENT agent)
 {
     RESULT result;
 
+    cache_extracted_handshake_secret(agent);
+
     if (!openssl_is_successful(agent))
     {
         // not connected yet -> do handshake
@@ -987,6 +1143,8 @@ RESULT openssl_progress(AGENT agent)
         agent->claimQueueLen = 0;
     }
 
+    cache_extracted_handshake_secret(agent);
+
     return result;
 }
 
@@ -1016,6 +1174,15 @@ static bool recreate_ssl_from_agent_ctx(AGENT agent)
     agent->has_cached_client_random = false;
     memset(agent->cached_server_random, 0, SSL3_RANDOM_SIZE);
     memset(agent->cached_client_random, 0, SSL3_RANDOM_SIZE);
+
+    agent->has_cached_extracted_handshake = false;
+    agent->cached_extracted_handshake_len = 0;
+    memset(agent->cached_extracted_handshake, 0, CLAIM_MAX_SECRET_SIZE);
+
+    agent->has_cached_client_handshake_traffic = false;
+    memset(agent->cached_client_handshake_traffic, 0, CLAIM_MAX_SECRET_SIZE);
+    agent->has_cached_server_handshake_traffic = false;
+    memset(agent->cached_server_handshake_traffic, 0, CLAIM_MAX_SECRET_SIZE);
     setup_msg_callback(agent);
 
     if (agent->descriptor.role == CLIENT)
@@ -1042,6 +1209,20 @@ RESULT openssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
     {
         agent->name = new_name;
         agent->claimQueueLen = 0;
+        agent->has_cached_server_random = false;
+        agent->has_cached_client_random = false;
+        memset(agent->cached_server_random, 0, SSL3_RANDOM_SIZE);
+        memset(agent->cached_client_random, 0, SSL3_RANDOM_SIZE);
+
+        agent->has_cached_extracted_handshake = false;
+        agent->cached_extracted_handshake_len = 0;
+        memset(agent->cached_extracted_handshake, 0, CLAIM_MAX_SECRET_SIZE);
+
+        agent->has_cached_client_handshake_traffic = false;
+        memset(agent->cached_client_handshake_traffic, 0, CLAIM_MAX_SECRET_SIZE);
+        agent->has_cached_server_handshake_traffic = false;
+        memset(agent->cached_server_handshake_traffic, 0, CLAIM_MAX_SECRET_SIZE);
+
         int ret = SSL_clear(agent->ssl);
         setup_msg_callback(agent);
         if (ret == 0)
@@ -1291,6 +1472,15 @@ static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor
     agent->has_cached_client_random = false;
     memset(agent->cached_server_random, 0, SSL3_RANDOM_SIZE);
     memset(agent->cached_client_random, 0, SSL3_RANDOM_SIZE);
+
+    agent->has_cached_extracted_handshake = false;
+    agent->cached_extracted_handshake_len = 0;
+    memset(agent->cached_extracted_handshake, 0, CLAIM_MAX_SECRET_SIZE);
+
+    agent->has_cached_client_handshake_traffic = false;
+    memset(agent->cached_client_handshake_traffic, 0, CLAIM_MAX_SECRET_SIZE);
+    agent->has_cached_server_handshake_traffic = false;
+    memset(agent->cached_server_handshake_traffic, 0, CLAIM_MAX_SECRET_SIZE);
 
     SSL_set_bio(agent->ssl, agent->in, agent->out);
     memcpy(&(agent->descriptor), descriptor, sizeof(TLS_AGENT_DESCRIPTOR));
