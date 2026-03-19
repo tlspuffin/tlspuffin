@@ -1,9 +1,9 @@
+#include <ctype.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 
 #include <openssl/bio.h>
 #include <openssl/err.h>
@@ -228,7 +228,8 @@ static bool map_tls12_iana_cipher_name(const char *iana, char *out, size_t out_l
 
     for (; i < token_count; ++i)
     {
-        if (strcmp(tokens[i], "CCM") == 0 && (i + 1) < token_count && strcmp(tokens[i + 1], "8") == 0)
+        if (strcmp(tokens[i], "CCM") == 0 && (i + 1) < token_count &&
+            strcmp(tokens[i + 1], "8") == 0)
         {
             if (!append_str(out, out_len, &offset, "-CCM8"))
             {
@@ -238,7 +239,8 @@ static bool map_tls12_iana_cipher_name(const char *iana, char *out, size_t out_l
             continue;
         }
 
-        if (!append_char(out, out_len, &offset, '-') || !append_str(out, out_len, &offset, tokens[i]))
+        if (!append_char(out, out_len, &offset, '-') ||
+            !append_str(out, out_len, &offset, tokens[i]))
         {
             return false;
         }
@@ -254,8 +256,7 @@ static bool map_tls13_cipher_name(const char *in, char *out, size_t out_len)
         return false;
     }
 
-    if (strcmp(in, "TLS_AES_256_GCM_SHA384") == 0 ||
-        strcmp(in, "TLS13-AES-256-GCM-SHA384") == 0)
+    if (strcmp(in, "TLS_AES_256_GCM_SHA384") == 0 || strcmp(in, "TLS13-AES-256-GCM-SHA384") == 0)
     {
         snprintf(out, out_len, "%s", "TLS_AES_256_GCM_SHA384");
         return true;
@@ -266,14 +267,12 @@ static bool map_tls13_cipher_name(const char *in, char *out, size_t out_len)
         snprintf(out, out_len, "%s", "TLS_CHACHA20_POLY1305_SHA256");
         return true;
     }
-    if (strcmp(in, "TLS_AES_128_GCM_SHA256") == 0 ||
-        strcmp(in, "TLS13-AES-128-GCM-SHA256") == 0)
+    if (strcmp(in, "TLS_AES_128_GCM_SHA256") == 0 || strcmp(in, "TLS13-AES-128-GCM-SHA256") == 0)
     {
         snprintf(out, out_len, "%s", "TLS_AES_128_GCM_SHA256");
         return true;
     }
-    if (strcmp(in, "TLS_AES_128_CCM_SHA256") == 0 ||
-        strcmp(in, "TLS13-AES-128-CCM-SHA256") == 0)
+    if (strcmp(in, "TLS_AES_128_CCM_SHA256") == 0 || strcmp(in, "TLS13-AES-128-CCM-SHA256") == 0)
     {
         snprintf(out, out_len, "%s", "TLS_AES_128_CCM_SHA256");
         return true;

@@ -55,23 +55,25 @@ impl Extractable<TLSProtocolTypes> for MessageFlight {
         _: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
-        let matcher = if let Some(first_msg) = self.messages.get(0) {
-            match &first_msg.payload {
+        // Classify flight by the first non-CCS message. TLS 1.3 middlebox
+        // compatibility (e.g. LibreSSL) may prepend a dummy ChangeCipherSpec.
+        let matcher = self
+            .messages
+            .iter()
+            .find(|m| !matches!(m.payload, MessagePayload::ChangeCipherSpec(_)))
+            .map(|msg| match &msg.payload {
                 MessagePayload::Handshake(hs) => match hs.payload {
                     msgs::handshake::HandshakePayload::ClientHello(_) => {
-                        Some(TlsQueryMatcher::ClientHelloFlight)
+                        TlsQueryMatcher::ClientHelloFlight
                     }
                     msgs::handshake::HandshakePayload::ServerHello(_) => {
-                        Some(TlsQueryMatcher::ServerHelloFlight)
+                        TlsQueryMatcher::ServerHelloFlight
                     }
-                    _ => Some(TlsQueryMatcher::OtherFlight),
+                    _ => TlsQueryMatcher::OtherFlight,
                 },
-                MessagePayload::ApplicationData(_) => Some(TlsQueryMatcher::EncryptedFlight),
-                _ => Some(TlsQueryMatcher::OtherFlight),
-            }
-        } else {
-            None
-        };
+                MessagePayload::ApplicationData(_) => TlsQueryMatcher::EncryptedFlight,
+                _ => TlsQueryMatcher::OtherFlight,
+            });
 
         knowledges.push(Knowledge {
             source,
