@@ -1349,10 +1349,15 @@ pub struct ServerHelloPayload {
     #[comparable_synthetic {
         let sorted_extensions = |x: &Self| -> ServerExtensions {
             let mut ext = x.extensions.clone();
-            // remove optional RenegotiationInfo
+            // Remove optional extensions whose presence/absence is an
+            // implementation choice, not a protocol bug:
+            //  - RenegotiationInfo: optional in TLS 1.2 renegotiation
+            //  - ExtendedMasterSecretAck: optional TLS 1.2 extension (RFC 7627)
             ext.0 = ext.0
                     .into_iter()
-                    .filter(|x|!matches!(x, ServerExtension::RenegotiationInfo(_)))
+                    .filter(|x|!matches!(x,
+                        ServerExtension::RenegotiationInfo(_)
+                        | ServerExtension::ExtendedMasterSecretAck))
                     .collect();
             ext.0.sort_by(puffin::codec::compare_encoding);
             ext

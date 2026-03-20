@@ -412,6 +412,18 @@ static void map_tls13_cipher_list(const char *input, char *output, size_t output
     }
 }
 
+// Detect Hello Retry Request by checking the ServerRandom against the
+// magic value defined in RFC 8446 §4.1.3.  The random field starts at
+// offset 6 in the handshake message: type(1) + length(3) + version(2).
+static bool is_hello_retry_request(const uint8_t *msg, size_t msg_len)
+{
+    if (msg == NULL || msg_len < 6 + SSL3_RANDOM_SIZE)
+    {
+        return false;
+    }
+    return memcmp(msg + 6, tls13_hello_retry_request_hash, SSL3_RANDOM_SIZE) == 0;
+}
+
 // Determine the hash algorithm for a TLS 1.3 cipher suite from a raw
 // ServerHello message.  The message format is:
 //   type(1) + length(3) + version(2) + random(32) + session_id_len(1)
@@ -477,7 +489,10 @@ static int extract_transcript_hash_ex(AGENT agent,
     }
 
     // Try the maintained handshake_hash first (available after cipher negotiation).
-    if (extra_data == NULL || extra_len == 0)
+    // Only use it when extra_data is NULL — a non-NULL extra_data (even with
+    // extra_len == 0) signals that the caller wants the buffer-based path
+    // (e.g., after HRR the hash context carries a stale CH1 prefix).
+    if (extra_data == NULL)
     {
         size_t out_len = 0;
         if (tls1_transcript_hash_value(agent->ssl, buffer, buffer_size, &out_len))
@@ -875,8 +890,10 @@ static void libressl_msg_callback(int write_p,
                 extract_transcript_hash_ex((agent),                                                \
                                            (agent)->claimQueue[_idx].transcript,                   \
                                            sizeof((agent)->claimQueue[_idx].transcript),           \
-                                           (msg_buf), (msg_len),                                   \
-                                           (msg_buf), (msg_len));                                  \
+                                           (msg_buf),                                              \
+                                           (msg_len),                                              \
+                                           (msg_buf),                                              \
+                                           (msg_len));                                             \
         }                                                                                          \
     } while (0)
 
@@ -894,8 +911,10 @@ static void libressl_msg_callback(int write_p,
                 extract_transcript_hash_ex((agent),                                                \
                                            (agent)->claimQueue[_idx].transcript,                   \
                                            sizeof((agent)->claimQueue[_idx].transcript),           \
-                                           NULL, 0,                                                \
-                                           (msg_buf), (msg_len));                                  \
+                                           NULL,                                                   \
+                                           0,                                                      \
+                                           (msg_buf),                                              \
+                                           (msg_len));                                             \
         }                                                                                          \
     } while (0)
 
@@ -904,11 +923,29 @@ static void libressl_msg_callback(int write_p,
         switch (type)
         {
         case 0x02: // ServerHello
-            // In TLS 1.3, the transcript buffer is frozen at this point and
-            // the ServerHello has not been recorded yet.  Append the SH bytes
-            // to the hash and derive the algorithm from the cipher suite.
-            ENQUEUE_CLAIM_CLIENT_SH(agent, CLAIM_TRANSCRIPT_CH_SH,
-                                    (const uint8_t *)buf, len);
+            // Skip Hello Retry Request — not the real ServerHello.
+            if (is_hello_retry_request((const uint8_t *)buf, len))
+            {
+                break;
+            }
+            // After HRR the CLIENT_HELLO_RETRY state has no `sent` callback,
+            // so the transcript buffer is NOT frozen.  SH2 has already been
+            // recorded into the buffer by tls13_handshake_msg_record (which
+            // runs before msg_callback).  We must NOT append SH2 again.
+            // The hash context also carries a stale CH1 prefix from the
+            // transcript rollup, so we force the buffer-based path by passing
+            // a non-NULL extra_data with length 0.
+            //
+            // In the normal (non-HRR) case the buffer IS frozen and SH has
+            // NOT been recorded, so we append SH bytes as extra_data.
+            if (agent->ssl->s3->flags & TLS1_FLAGS_FREEZE_TRANSCRIPT)
+            {
+                ENQUEUE_CLAIM_CLIENT_SH(agent, CLAIM_TRANSCRIPT_CH_SH, (const uint8_t *)buf, len);
+            }
+            else
+            {
+                ENQUEUE_CLAIM_CLIENT_SH(agent, CLAIM_TRANSCRIPT_CH_SH, (const uint8_t *)buf, 0);
+            }
             break;
         case 0x0b: // Certificate
             ENQUEUE_CLAIM(agent, CLAIM_TRANSCRIPT_CH_CERT);
@@ -935,12 +972,15 @@ static void libressl_msg_callback(int write_p,
         switch (type)
         {
         case 0x02: // Server sending ServerHello
-            // On the server side the raw transcript already contains CH + SH
-            // (transcript is not frozen), but the hash context is not yet
-            // initialised.  Pass the SH message as a hash algorithm hint only
-            // (no extra bytes to append).
-            ENQUEUE_CLAIM_SERVER_SH(agent, CLAIM_TRANSCRIPT_CH_SH,
-                                    (const uint8_t *)buf, len);
+            // Skip Hello Retry Request — same reason as on the client side.
+            if (!is_hello_retry_request((const uint8_t *)buf, len))
+            {
+                // On the server side the raw transcript already contains
+                // CH + SH (transcript is not frozen), but the hash context
+                // is not yet initialised.  Pass the SH message as a hash
+                // algorithm hint only (no extra bytes to append).
+                ENQUEUE_CLAIM_SERVER_SH(agent, CLAIM_TRANSCRIPT_CH_SH, (const uint8_t *)buf, len);
+            }
             break;
         case 0x14: // Finished (outbound)
             if (agent->descriptor.role == SERVER)
