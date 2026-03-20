@@ -1057,14 +1057,10 @@ pub fn client_attacker_with_hello_retry_request(server: AgentName) -> Trace<TLSP
                 agent: server,
                 action: Action::Input(input_action! { ch1 }),
             },
-            OutputAction::new_step(server), /* (server,0)/MessageFlight=HRR flight;
-                                             * (server,0)[HelloRetryRequest]=HRR */
             Step {
                 agent: server,
                 action: Action::Input(input_action! { ch2 }),
             },
-            OutputAction::new_step(server), /* (server,1)/MessageFlight=SH+enc;
-                                             * (server,0)[ServerHello]=real SH */
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
@@ -1089,6 +1085,7 @@ pub fn client_attacker_with_hello_retry_request(server: AgentName) -> Trace<TLSP
 
 #[cfg(test)]
 pub mod tests {
+    use puffin::libafl::inputs::Input;
     use puffin::put::PutDescriptor;
     use tlspuffin::test_utils::prelude::*;
 
@@ -1192,8 +1189,8 @@ pub mod tests {
     }
 
     #[apply(test_puts, filter = all(tls13, not(boringssl)))]
-    fn test_seed_server_attacker_hrr(put: &str) {
-        let runner = default_runner_for_desc(PutDescriptor::new(put, vec![("use_clear", "true")]));
+    fn test_erver_attacker_hrr(put: &str) {
+        let runner = default_runner_for(put);
         let trace = server_attacker_with_hello_retry_request.build_trace();
         let ctx = runner.execute(trace, &mut 0, true).unwrap();
         assert!(ctx.agents_successful());
@@ -1201,7 +1198,7 @@ pub mod tests {
 
     #[apply(test_puts, filter = all(tls13, not(boringssl)))]
     fn test_client_attacker_hrr(put: &str) {
-        let runner = default_runner_for_desc(PutDescriptor::new(put, vec![("use_clear", "true")]));
+        let runner = default_runner_for(put);
         let trace = client_attacker_with_hello_retry_request.build_trace();
         let result = runner.execute(trace, &mut 0, true);
         //panic!("{:?}", result); // force output to inspect server behavior

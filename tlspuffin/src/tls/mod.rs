@@ -172,6 +172,7 @@ define_signature!(
     fn_psk_exchange_mode_ke_extension
     fn_certificate_authorities_extension
     fn_signature_algorithm_cert_extension
+    fn_new_hrr_transcript_split
     fn_key_share_empty_extension
     fn_key_share_deterministic_extension
     fn_key_share_extension
