@@ -18,6 +18,10 @@ list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_CURRENT_LIS
 # We set it at creation time so the harness can read all secrets for claims.
 list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/ssl/tls13_key_schedule.c -P "${CMAKE_CURRENT_LIST_DIR}/patch_insecure.cmake")
 
+# Reorder default signature algorithm preference to put SHA256 first (matching
+# OpenSSL), since LibreSSL does not expose an API to configure sigalgs at runtime.
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/ssl/ssl_sigalgs.c -P "${CMAKE_CURRENT_LIST_DIR}/patch_sigalgs.cmake")
+
 cmake_builder(
   CMAKE_FLAGS
     -DBUILD_SHARED_LIBS=OFF
