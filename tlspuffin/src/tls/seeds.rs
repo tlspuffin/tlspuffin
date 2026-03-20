@@ -2795,7 +2795,13 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, transcript_extraction, not(boringssl)))]
+    // TODO: find a better solution to filter out Wolfssl430 (too old) and wolfssl540-sdos2
+    // (imcompatible patch applied) than using client_authentication_transcript_extraction and
+    // not(disable_postauth) in the next 3 tests
+    // Exclude wolfssl430 (too old, no client_authentication_transcript_extraction) and
+    // wolfssl540-sdos2 (incompatible patch, has disable_postauth) from differential decryption
+    // tests.
+    #[apply(test_puts, filter = all(tls13, transcript_extraction, client_authentication_transcript_extraction, not(boringssl), not(disable_postauth)))]
     fn test_seeds_differential_decryption(put: &str) {
         let traces = vec![
             seed_client_attacker.build_trace(),
@@ -2824,7 +2830,7 @@ pub mod tests {
         }
     }
 
-    #[apply(test_puts, filter = all(tls13, transcript_extraction, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, transcript_extraction, client_authentication_transcript_extraction, not(boringssl), not(disable_postauth)))]
     fn test_seed_client_attacker_full_differential_decryption(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_client_attacker_full.build_trace();
@@ -2846,7 +2852,7 @@ pub mod tests {
         );
     }
 
-    #[apply(test_puts, filter = all(tls13, transcript_extraction, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, transcript_extraction, client_authentication_transcript_extraction, not(boringssl), not(disable_postauth)))]
     fn test_seed_server_attacker_full_differential_decryption(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker_full.build_trace();

@@ -30,13 +30,14 @@
 #define TYPETIME word32
 #endif
 
-//#define TIME_CHANGE
+// #define TIME_CHANGE
 #define USE_CUSTOM_PRNG
 #define CLOCKVALUE_DEFAULT 1742309173;
 
 // static int file = -1;
-//#define CREATE(filename) { file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-//} #define ENTER() fprintf(stderr, "Entering %s\n", __func__) #define ENTER() { char buf[128] = {};
+// #define CREATE(filename) { file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR |
+// S_IWUSR); } #define ENTER() fprintf(stderr, "Entering %s\n", __func__) #define ENTER() { char
+// buf[128] = {};
 // int s = snprintf(buf, 128, "Entering %s\n", __func__); write(file, buf, s); }
 
 static thread_local uint8_t rng_have_custom_seed = 0;
