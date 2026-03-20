@@ -40,6 +40,7 @@ extern "C"
         const char *cipher_string_tls13;
         const char *cipher_string_tls12;
         const char *group_list;
+        const char *sigalgs_list;
 
         const PEM *cert;
         const PEM *pkey;

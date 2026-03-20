@@ -30,14 +30,16 @@ use crate::tls::fn_impl::{
     fn_server_hello_transcript, fn_true,
 };
 use crate::tls::rustls::hash_hs::HandshakeHash;
+use crate::tls::rustls::msgs::alert::AlertMessagePayload;
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
 use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayloadTLS13,
     CertificateRequestPayload, CertificateRequestPayloadTLS13, CertificateStatus,
-    ClientSessionTicket, DigitallySignedStruct, HelloRetryExtension, NewSessionTicketExtension,
-    NewSessionTicketPayloadTLS13, PresharedKeyIdentity, Random, ServerExtension, SessionID,
-    UnknownExtension,
+    ClientSessionTicket, DigitallySignedStruct, HandshakeMessagePayload, HelloRetryExtension,
+    NewSessionTicketExtension, NewSessionTicketPayloadTLS13, PresharedKeyIdentity, Random,
+    ServerExtension, SessionID, UnknownExtension,
 };
+use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 use crate::tls::rustls::msgs::message::{try_read_bytes, Message, MessagePayload, OpaqueMessage};
 use crate::tls::rustls::msgs::{self};
 use crate::tls::violation::TlsSecurityViolationPolicy;
@@ -342,6 +344,10 @@ pub struct TLSDescriptorConfig {
     /// List of available TLS groups/curves
     /// If `None`, use the default PUT groups
     pub groups: Option<String>,
+    /// List of acceptable signature algorithms (OpenSSL sigalgs_list format,
+    /// e.g. "RSA-PSS+SHA256:RSA-PSS+SHA384").
+    /// If `None`, use the default PUT signature algorithms.
+    pub sigalgs: Option<String>,
 }
 
 impl TLSDescriptorConfig {
@@ -425,6 +431,7 @@ impl ProtocolDescriptorConfig for TLSDescriptorConfig {
             && self._cipher_string_tls13 == other._cipher_string_tls13
             && self._cipher_string_tls12 == other._cipher_string_tls12
             && self.groups == other.groups
+            && self.sigalgs == other.sigalgs
     }
 }
 
@@ -627,6 +634,7 @@ impl Default for TLSDescriptorConfig {
             _cipher_string_tls13: TLS_DEFAULT_CIPHER.into(),
             _cipher_string_tls12: TLS_DEFAULT_CIPHER.into(),
             groups: None,
+            sigalgs: None,
         }
     }
 }
@@ -647,7 +655,12 @@ impl ProtocolTypes for TLSProtocolTypes {
     }
 
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
-        Some(vec![TypeId::of::<MessagePayload>()])
+        // Some(vec![TypeId::of::<MessagePayload>()])
+        Some(vec![
+            TypeId::of::<AlertMessagePayload>(),
+            TypeId::of::<HandshakeMessagePayload>(),
+            TypeId::of::<HeartbeatPayload>(),
+        ])
     }
 
     fn differential_fuzzing_terms_to_eval(
@@ -721,6 +734,14 @@ impl ProtocolTypes for TLSProtocolTypes {
                 "TLS_AES_256_GCM_SHA384:TLS_AES_128_GCM_SHA256:TLS_CHACHA20_POLY1305_SHA256",
             ));
             agent.protocol_config.groups = Some(String::from("P-256:P-384"));
+            // Align signature algorithms so implementations agree on CertificateVerify scheme.
+            // LibreSSL 4.2.1 does not support SSL_CTX_set1_sigalgs_list at runtime, so
+            // its preference order is patched at build time (see patch_sigalgs.cmake) to
+            // put SHA256 first, matching OpenSSL's default. We configure OpenSSL's sigalgs
+            // to match this same order (SHA256 > SHA384 > SHA512).
+            agent.protocol_config.sigalgs = Some(String::from(
+                "RSA-PSS+SHA256:RSA-PSS+SHA384:RSA-PSS+SHA512:RSA+SHA256:RSA+SHA384:RSA+SHA512",
+            ));
         }
 
         for t in trace.prior_traces.iter_mut() {
