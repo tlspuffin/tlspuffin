@@ -86,6 +86,24 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                                 }
                             }
                         }
+
+                        // Both parties must derive the same handshake traffic secrets.
+                        // Only check when both sides provide the value (some PUTs leave them empty).
+                        if !client.client_handshake_traffic_secret.is_empty()
+                            && !server.client_handshake_traffic_secret.is_empty()
+                            && client.client_handshake_traffic_secret
+                                != server.client_handshake_traffic_secret
+                        {
+                            return Some("Mismatching client handshake traffic secrets");
+                        }
+
+                        if !client.server_handshake_traffic_secret.is_empty()
+                            && !server.server_handshake_traffic_secret.is_empty()
+                            && client.server_handshake_traffic_secret
+                                != server.server_handshake_traffic_secret
+                        {
+                            return Some("Mismatching server handshake traffic secrets");
+                        }
                     }
                     ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => {
                         // WARNING: remove filter once RUST PUTS are removed
