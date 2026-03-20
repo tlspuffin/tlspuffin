@@ -412,19 +412,64 @@ static void map_tls13_cipher_list(const char *input, char *output, size_t output
     }
 }
 
+// Determine the hash algorithm for a TLS 1.3 cipher suite from a raw
+// ServerHello message.  The message format is:
+//   type(1) + length(3) + version(2) + random(32) + session_id_len(1)
+//   + session_id(session_id_len) + cipher_suite(2) + compression(1) + ...
+// Returns the EVP_MD for the cipher's hash, or NULL on failure.
+static const EVP_MD *evp_md_from_server_hello(const uint8_t *msg, size_t msg_len)
+{
+    // Minimum: type(1)+len(3)+ver(2)+random(32)+sid_len(1)+sid(0)+cipher(2)+comp(1) = 42
+    if (msg == NULL || msg_len < 42)
+    {
+        return NULL;
+    }
+
+    size_t off = 1 + 3 + 2 + 32; // skip type, length, version, random
+    uint8_t sid_len = msg[off];
+    off += 1 + sid_len; // skip session_id_len + session_id
+    if (off + 2 > msg_len)
+    {
+        return NULL;
+    }
+
+    uint16_t cipher = ((uint16_t)msg[off] << 8) | msg[off + 1];
+    switch (cipher)
+    {
+    case 0x1302: // TLS_AES_256_GCM_SHA384
+        return EVP_sha384();
+    case 0x1301: // TLS_AES_128_GCM_SHA256
+    case 0x1303: // TLS_CHACHA20_POLY1305_SHA256
+    case 0x1304: // TLS_AES_128_CCM_SHA256
+        return EVP_sha256();
+    default:
+        return NULL;
+    }
+}
+
 // Extract the current transcript hash from the SSL handshake state.
-// When extra_data/extra_len are provided, those bytes are appended to the raw
-// transcript before hashing.  This is needed for TLS 1.3 ServerHello on the
-// client side: at msg_callback time the transcript buffer is frozen and the
-// hash context is not yet initialised, so the ServerHello bytes have not been
-// recorded yet.  Passing the current message bytes as extra_data produces the
-// correct Hash(ClientHello || ServerHello).
+//
+// extra_data / extra_len:
+//   Bytes to APPEND to the raw transcript before hashing.  This is needed on
+//   the CLIENT side when receiving the ServerHello: the transcript buffer is
+//   frozen at msg_callback time so the SH bytes have not been recorded yet.
+//   Pass NULL/0 when the raw transcript already contains the current message
+//   (i.e. on the server send path).
+//
+// sh_msg / sh_msg_len:
+//   A pointer to the raw ServerHello handshake message (type+length+body).
+//   Used solely as a hint to determine the correct hash algorithm (by reading
+//   the cipher suite field) when the hash context has not been initialised yet.
+//   May equal extra_data when both concerns coincide (client receive path).
+//
 // Returns the hash length, or 0 if not available.
 static int extract_transcript_hash_ex(AGENT agent,
                                       uint8_t *buffer,
                                       size_t buffer_size,
                                       const uint8_t *extra_data,
-                                      size_t extra_len)
+                                      size_t extra_len,
+                                      const uint8_t *sh_msg,
+                                      size_t sh_msg_len)
 {
     if (agent == NULL || agent->ssl == NULL)
     {
@@ -450,8 +495,16 @@ static int extract_transcript_hash_ex(AGENT agent,
         const EVP_MD *md = NULL;
         if (!ssl_get_handshake_evp_md(agent->ssl, &md) || md == NULL)
         {
-            // Before cipher negotiation, fall back to SHA-256
-            md = EVP_sha256();
+            // Cipher not negotiated yet.  Derive the hash from the
+            // ServerHello cipher suite when available.
+            if (sh_msg != NULL && sh_msg_len > 0)
+            {
+                md = evp_md_from_server_hello(sh_msg, sh_msg_len);
+            }
+            if (md == NULL)
+            {
+                md = EVP_sha256();
+            }
         }
 
         unsigned int hash_len = 0;
@@ -477,7 +530,7 @@ static int extract_transcript_hash_ex(AGENT agent,
 
 static int extract_transcript_hash(AGENT agent, uint8_t *buffer, size_t buffer_size)
 {
-    return extract_transcript_hash_ex(agent, buffer, buffer_size, NULL, 0);
+    return extract_transcript_hash_ex(agent, buffer, buffer_size, NULL, 0, NULL, 0);
 }
 
 // Populate a Claim structure from the current LibreSSL state
@@ -808,10 +861,10 @@ static void libressl_msg_callback(int write_p,
         }                                                                                          \
     } while (0)
 
-// Variant that appends extra message bytes to the transcript hash.
-// Used for ServerHello on the client side where the transcript buffer is
-// frozen at msg_callback time and the ServerHello has not been recorded yet.
-#define ENQUEUE_CLAIM_WITH_MSG(agent, ctype, msg_buf, msg_len)                                     \
+// Variant for the CLIENT receiving ServerHello: the transcript buffer is
+// frozen so we must append the SH bytes (extra) AND use them as a hash
+// algorithm hint.
+#define ENQUEUE_CLAIM_CLIENT_SH(agent, ctype, msg_buf, msg_len)                                    \
     do                                                                                             \
     {                                                                                              \
         if ((agent)->claimQueueLen < CLAIM_QUEUE_SIZE)                                             \
@@ -822,8 +875,27 @@ static void libressl_msg_callback(int write_p,
                 extract_transcript_hash_ex((agent),                                                \
                                            (agent)->claimQueue[_idx].transcript,                   \
                                            sizeof((agent)->claimQueue[_idx].transcript),           \
-                                           (msg_buf),                                              \
-                                           (msg_len));                                             \
+                                           (msg_buf), (msg_len),                                   \
+                                           (msg_buf), (msg_len));                                  \
+        }                                                                                          \
+    } while (0)
+
+// Variant for the SERVER sending ServerHello: the raw transcript already
+// contains CH + SH (no freeze), but the hash context is not initialised yet
+// so we need the SH message as a hash algorithm hint only (no extra bytes).
+#define ENQUEUE_CLAIM_SERVER_SH(agent, ctype, msg_buf, msg_len)                                    \
+    do                                                                                             \
+    {                                                                                              \
+        if ((agent)->claimQueueLen < CLAIM_QUEUE_SIZE)                                             \
+        {                                                                                          \
+            int _idx = (agent)->claimQueueLen++;                                                   \
+            (agent)->claimQueue[_idx].type = (ctype);                                              \
+            (agent)->claimQueue[_idx].transcript_len =                                             \
+                extract_transcript_hash_ex((agent),                                                \
+                                           (agent)->claimQueue[_idx].transcript,                   \
+                                           sizeof((agent)->claimQueue[_idx].transcript),           \
+                                           NULL, 0,                                                \
+                                           (msg_buf), (msg_len));                                  \
         }                                                                                          \
     } while (0)
 
@@ -833,9 +905,10 @@ static void libressl_msg_callback(int write_p,
         {
         case 0x02: // ServerHello
             // In TLS 1.3, the transcript buffer is frozen at this point and
-            // the ServerHello has not been recorded yet.  Pass the current
-            // message bytes so the fallback hash includes them.
-            ENQUEUE_CLAIM_WITH_MSG(agent, CLAIM_TRANSCRIPT_CH_SH, (const uint8_t *)buf, len);
+            // the ServerHello has not been recorded yet.  Append the SH bytes
+            // to the hash and derive the algorithm from the cipher suite.
+            ENQUEUE_CLAIM_CLIENT_SH(agent, CLAIM_TRANSCRIPT_CH_SH,
+                                    (const uint8_t *)buf, len);
             break;
         case 0x0b: // Certificate
             ENQUEUE_CLAIM(agent, CLAIM_TRANSCRIPT_CH_CERT);
@@ -862,7 +935,12 @@ static void libressl_msg_callback(int write_p,
         switch (type)
         {
         case 0x02: // Server sending ServerHello
-            ENQUEUE_CLAIM(agent, CLAIM_TRANSCRIPT_CH_SH);
+            // On the server side the raw transcript already contains CH + SH
+            // (transcript is not frozen), but the hash context is not yet
+            // initialised.  Pass the SH message as a hash algorithm hint only
+            // (no extra bytes to append).
+            ENQUEUE_CLAIM_SERVER_SH(agent, CLAIM_TRANSCRIPT_CH_SH,
+                                    (const uint8_t *)buf, len);
             break;
         case 0x14: // Finished (outbound)
             if (agent->descriptor.role == SERVER)
@@ -880,7 +958,8 @@ static void libressl_msg_callback(int write_p,
     }
 
 #undef ENQUEUE_CLAIM
-#undef ENQUEUE_CLAIM_WITH_MSG
+#undef ENQUEUE_CLAIM_CLIENT_SH
+#undef ENQUEUE_CLAIM_SERVER_SH
 }
 
 static const TLS_PUT_INTERFACE OPENSSL_PUT = {
