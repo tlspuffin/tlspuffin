@@ -56,7 +56,7 @@ struct AGENT_TYPE
         enum ClaimType type;
         uint8_t transcript[EVP_MAX_MD_SIZE];
         int transcript_len;
-    } claimQueue[8];
+    } claimQueue[CLAIM_QUEUE_SIZE];
     int claimQueueLen;
 
     // Cached randoms captured from handshake messages.
@@ -301,7 +301,7 @@ static void map_tls12_iana_cipher_list(const char *input, char *output, size_t o
         return;
     }
 
-    char input_copy[16384] = {0};
+    char input_copy[2048] = {0};
     size_t input_len = strlen(input);
     if (input_len >= sizeof(input_copy))
     {
@@ -365,7 +365,7 @@ static void map_tls13_cipher_list(const char *input, char *output, size_t output
         return;
     }
 
-    char input_copy[16384] = {0};
+    char input_copy[2048] = {0};
     size_t input_len = strlen(input);
     if (input_len >= sizeof(input_copy))
     {
@@ -565,13 +565,10 @@ static void fill_claim(AGENT agent, struct Claim *claim)
     // server flag
     claim->server = agent->ssl->server;
 
-    // peer_authentication: true only when a peer certificate was actually received
-    X509 *peer_check = SSL_get_peer_certificate(agent->ssl);
-    claim->peer_authentication = (peer_check != NULL);
-    if (peer_check != NULL)
-    {
-        X509_free(peer_check);
-    }
+    // peer_authentication: true only when a peer certificate was actually received.
+    // Keep the reference for later cert extraction (freed below).
+    X509 *peer_cert = SSL_get_peer_certificate(agent->ssl);
+    claim->peer_authentication = (peer_cert != NULL);
 
     // Session ID
     unsigned int sess_id_len = 0;
@@ -653,10 +650,9 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         }
     }
 
-    // Peer certificate
+    // Peer certificate (reuse peer_cert obtained above for peer_authentication)
     claim->peer_cert.key_length = 0;
     claim->peer_cert.data_length = 0;
-    X509 *peer_cert = SSL_get_peer_certificate(agent->ssl);
     if (peer_cert != NULL)
     {
         unsigned char *der = NULL;
@@ -858,7 +854,6 @@ static void libressl_msg_callback(int write_p,
         }
     }
 
-// Helper macro to enqueue a claim type
 // Enqueue a claim type and snapshot the current transcript hash.
 // The transcript hash must be captured now because it advances
 // as the handshake continues within the same SSL_do_handshake() call.
@@ -1313,13 +1308,13 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both)
     {
-        char mapped_tls13[16384] = {0};
+        char mapped_tls13[2048] = {0};
         map_tls13_cipher_list(descriptor->cipher_string_tls13, mapped_tls13, sizeof(mapped_tls13));
         SSL_CTX_set_ciphersuites(ssl_ctx, mapped_tls13);
     }
     if (descriptor->tls_version == V1_2 || descriptor->tls_version == Both)
     {
-        char mapped_cipher_list[16384] = {0};
+        char mapped_cipher_list[2048] = {0};
         map_tls12_iana_cipher_list(descriptor->cipher_string_tls12,
                                    mapped_cipher_list,
                                    sizeof(mapped_cipher_list));
@@ -1394,13 +1389,13 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both)
     {
-        char mapped_tls13[16384] = {0};
+        char mapped_tls13[2048] = {0};
         map_tls13_cipher_list(descriptor->cipher_string_tls13, mapped_tls13, sizeof(mapped_tls13));
         SSL_CTX_set_ciphersuites(ssl_ctx, mapped_tls13);
     }
     if (descriptor->tls_version == V1_2 || descriptor->tls_version == Both)
     {
-        char mapped_cipher_list[16384] = {0};
+        char mapped_cipher_list[2048] = {0};
         map_tls12_iana_cipher_list(descriptor->cipher_string_tls12,
                                    mapped_cipher_list,
                                    sizeof(mapped_cipher_list));

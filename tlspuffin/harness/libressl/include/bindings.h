@@ -1,5 +1,5 @@
-#ifndef PUFFIN_HARNESS_TLS_OPENSSL_BINDINGS_H
-#define PUFFIN_HARNESS_TLS_OPENSSL_BINDINGS_H
+#ifndef PUFFIN_HARNESS_TLS_LIBRESSL_BINDINGS_H
+#define PUFFIN_HARNESS_TLS_LIBRESSL_BINDINGS_H
 
 #include "puffin/puffin.h"
 #include "puffin/tls.h"
@@ -40,4 +40,4 @@ int BIO_read_ex(BIO *b, void *data, size_t dlen, size_t *readbytes);
 #define HAS_TLS1_3_VERSION
 #endif
 
-#endif // PUFFIN_HARNESS_TLS_OPENSSL_BINDINGS_H
+#endif // PUFFIN_HARNESS_TLS_LIBRESSL_BINDINGS_H

@@ -5,12 +5,7 @@
 
 void libressl_init()
 {
-#if LIBRESSL_VERSION_NUMBER < 0x10100000L
-    LIBRESSL_config(NULL);
-    SSL_library_init();
-#else
     OPENSSL_init_ssl(OPENSSL_INIT_LOAD_SSL_STRINGS, NULL);
-#endif
 
     SSL_load_error_strings();
     OPENSSL_add_all_algorithms_noconf();
