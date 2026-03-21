@@ -54,14 +54,15 @@ fn main() {
     let bundle = harness::bundle(puts).build(out_dir);
     bundle.print_cargo_metadata();
 
-    // Compile the deterministic RNG shim for OpenSSL bindings.
+    // Compile the deterministic RNG shim for OpenSSL bindings (but NOT LibreSSL,
+    // which provides its own RNG shim via the patched arc4random.c).
     // This is needed because the openssl-sys crate no longer uses our patched openssl-src
     // (version mismatch: local is 111.x, openssl-sys now requires 300.x), so
     // build_prng_interface() in openssl-src is never called.
-    if cfg!(feature = "openssl_binding") {
+    if cfg!(feature = "openssl_binding") && !cfg!(feature = "libressl_binding") {
         let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
         let c_file = manifest_dir
-            .join("../crates/openssl-src/src/deterministic_rand.c")
+            .join("../crates/openssl-src-111/src/deterministic_rand.c")
             .canonicalize()
             .expect("deterministic_rand.c not found");
 
