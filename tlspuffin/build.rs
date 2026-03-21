@@ -53,6 +53,31 @@ fn main() {
 
     let bundle = harness::bundle(puts).build(out_dir);
     bundle.print_cargo_metadata();
+
+    // Compile the deterministic RNG shim for OpenSSL bindings (but NOT LibreSSL,
+    // which provides its own RNG shim via the patched arc4random.c).
+    // This is needed because the openssl-sys crate no longer uses our patched openssl-src
+    // (version mismatch: local is 111.x, openssl-sys now requires 300.x), so
+    // build_prng_interface() in openssl-src is never called.
+    if cfg!(feature = "openssl_binding") && !cfg!(feature = "libressl_binding") {
+        let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+        let c_file = manifest_dir
+            .join("../crates/openssl-src-111/src/deterministic_rand.c")
+            .canonicalize()
+            .expect("deterministic_rand.c not found");
+
+        println!("cargo:rerun-if-changed={}", c_file.display());
+
+        let mut builder = cc::Build::new();
+        if let Ok(include) = std::env::var("DEP_OPENSSL_INCLUDE") {
+            builder.include(&include);
+        }
+        if cfg!(feature = "deterministic") {
+            builder.define("USE_CUSTOM_PRNG", "1");
+        }
+        builder.file(&c_file);
+        builder.compile("tlspuffin_openssl_prng_interface");
+    }
 }
 
 fn harness(library: &library::Library) -> Option<Put> {
