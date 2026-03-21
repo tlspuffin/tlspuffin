@@ -2812,6 +2812,7 @@ pub fn create_corpus(
 pub mod tests {
     use puffin::algebra::TermType;
     use puffin::fuzzer::utils::TermConstraints;
+    use puffin::protocol::ProtocolTypes;
     use puffin::put::{PutDescriptor, PutOptions};
     use puffin::trace::Query;
 
@@ -2898,6 +2899,42 @@ pub mod tests {
         let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
+    }
+
+    // TODO: find a better solution to filter out Wolfssl430 (too old) and wolfssl540-sdos2
+    // (imcompatible patch applied) than using client_authentication_transcript_extraction and
+    // not(disable_postauth) in the next 3 tests
+    // Exclude wolfssl430 (too old, no client_authentication_transcript_extraction) and
+    // wolfssl540-sdos2 (incompatible patch, has disable_postauth) from differential decryption
+    // tests.
+    #[apply(test_puts, filter = all(tls13, transcript_extraction, client_authentication_transcript_extraction, not(boringssl), not(disable_postauth)))]
+    fn test_seeds_differential_decryption(put: &str) {
+        let traces = vec![
+            seed_client_attacker.build_trace(),
+            seed_client_attacker_full.build_trace(),
+            seed_server_attacker_full.build_trace(),
+            seed_successful.build_trace(),
+        ];
+
+        for trace in traces {
+            let runner = default_runner_for(put);
+            let descriptors = trace.descriptors.clone();
+            let ctx = runner.execute(trace, &mut 0).unwrap();
+
+            let terms = <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_terms_to_eval(
+                &descriptors,
+            );
+            assert!(
+                !terms.is_empty(),
+                "no differential terms produced for {put}"
+            );
+
+            let any_ok = terms.iter().any(|t| t.evaluate_dy(&ctx).is_ok());
+            assert!(
+                any_ok,
+                "no post-computation decryption term evaluated successfully for {put}"
+            );
+        }
     }
 
     #[apply(test_puts, filter = all(tls13, not(boringssl)))]

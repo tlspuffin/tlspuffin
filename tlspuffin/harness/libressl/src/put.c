@@ -51,12 +51,16 @@ struct AGENT_TYPE
 
 // Queue of pending claims for deferred emission
 #define CLAIM_QUEUE_SIZE 8
+
+// Maximum size of a colon-separated cipher list string.
+// TLS_DEFAULT_CIPHER in protocol.rs is ~4910 bytes; 8192 leaves headroom.
+#define CIPHER_LIST_MAX 8192
     struct
     {
         enum ClaimType type;
         uint8_t transcript[EVP_MAX_MD_SIZE];
         int transcript_len;
-    } claimQueue[8];
+    } claimQueue[CLAIM_QUEUE_SIZE];
     int claimQueueLen;
 
     // Cached randoms captured from handshake messages.
@@ -301,7 +305,7 @@ static void map_tls12_iana_cipher_list(const char *input, char *output, size_t o
         return;
     }
 
-    char input_copy[16384] = {0};
+    char input_copy[CIPHER_LIST_MAX] = {0};
     size_t input_len = strlen(input);
     if (input_len >= sizeof(input_copy))
     {
@@ -365,7 +369,7 @@ static void map_tls13_cipher_list(const char *input, char *output, size_t output
         return;
     }
 
-    char input_copy[16384] = {0};
+    char input_copy[CIPHER_LIST_MAX] = {0};
     size_t input_len = strlen(input);
     if (input_len >= sizeof(input_copy))
     {
@@ -412,9 +416,76 @@ static void map_tls13_cipher_list(const char *input, char *output, size_t output
     }
 }
 
+// Detect Hello Retry Request by checking the ServerRandom against the
+// magic value defined in RFC 8446 §4.1.3.  The random field starts at
+// offset 6 in the handshake message: type(1) + length(3) + version(2).
+static bool is_hello_retry_request(const uint8_t *msg, size_t msg_len)
+{
+    if (msg == NULL || msg_len < 6 + SSL3_RANDOM_SIZE)
+    {
+        return false;
+    }
+    return memcmp(msg + 6, tls13_hello_retry_request_hash, SSL3_RANDOM_SIZE) == 0;
+}
+
+// Determine the hash algorithm for a TLS 1.3 cipher suite from a raw
+// ServerHello message.  The message format is:
+//   type(1) + length(3) + version(2) + random(32) + session_id_len(1)
+//   + session_id(session_id_len) + cipher_suite(2) + compression(1) + ...
+// Returns the EVP_MD for the cipher's hash, or NULL on failure.
+static const EVP_MD *evp_md_from_server_hello(const uint8_t *msg, size_t msg_len)
+{
+    // Minimum: type(1)+len(3)+ver(2)+random(32)+sid_len(1)+sid(0)+cipher(2)+comp(1) = 42
+    if (msg == NULL || msg_len < 42)
+    {
+        return NULL;
+    }
+
+    size_t off = 1 + 3 + 2 + 32; // skip type, length, version, random
+    uint8_t sid_len = msg[off];
+    off += 1 + sid_len; // skip session_id_len + session_id
+    if (off + 2 > msg_len)
+    {
+        return NULL;
+    }
+
+    uint16_t cipher = ((uint16_t)msg[off] << 8) | msg[off + 1];
+    switch (cipher)
+    {
+    case 0x1302: // TLS_AES_256_GCM_SHA384
+        return EVP_sha384();
+    case 0x1301: // TLS_AES_128_GCM_SHA256
+    case 0x1303: // TLS_CHACHA20_POLY1305_SHA256
+    case 0x1304: // TLS_AES_128_CCM_SHA256
+        return EVP_sha256();
+    default:
+        return NULL;
+    }
+}
+
 // Extract the current transcript hash from the SSL handshake state.
+//
+// extra_data / extra_len:
+//   Bytes to APPEND to the raw transcript before hashing.  This is needed on
+//   the CLIENT side when receiving the ServerHello: the transcript buffer is
+//   frozen at msg_callback time so the SH bytes have not been recorded yet.
+//   Pass NULL/0 when the raw transcript already contains the current message
+//   (i.e. on the server send path).
+//
+// sh_msg / sh_msg_len:
+//   A pointer to the raw ServerHello handshake message (type+length+body).
+//   Used solely as a hint to determine the correct hash algorithm (by reading
+//   the cipher suite field) when the hash context has not been initialised yet.
+//   May equal extra_data when both concerns coincide (client receive path).
+//
 // Returns the hash length, or 0 if not available.
-static int extract_transcript_hash(AGENT agent, uint8_t *buffer, size_t buffer_size)
+static int extract_transcript_hash_ex(AGENT agent,
+                                      uint8_t *buffer,
+                                      size_t buffer_size,
+                                      const uint8_t *extra_data,
+                                      size_t extra_len,
+                                      const uint8_t *sh_msg,
+                                      size_t sh_msg_len)
 {
     if (agent == NULL || agent->ssl == NULL)
     {
@@ -422,10 +493,16 @@ static int extract_transcript_hash(AGENT agent, uint8_t *buffer, size_t buffer_s
     }
 
     // Try the maintained handshake_hash first (available after cipher negotiation).
-    size_t out_len = 0;
-    if (tls1_transcript_hash_value(agent->ssl, buffer, buffer_size, &out_len))
+    // Only use it when extra_data is NULL — a non-NULL extra_data (even with
+    // extra_len == 0) signals that the caller wants the buffer-based path
+    // (e.g., after HRR the hash context carries a stale CH1 prefix).
+    if (extra_data == NULL)
     {
-        return (int)out_len;
+        size_t out_len = 0;
+        if (tls1_transcript_hash_value(agent->ssl, buffer, buffer_size, &out_len))
+        {
+            return (int)out_len;
+        }
     }
 
     // Fallback: in TLS 1.3, the handshake_hash may not be initialized yet
@@ -437,16 +514,28 @@ static int extract_transcript_hash(AGENT agent, uint8_t *buffer, size_t buffer_s
         const EVP_MD *md = NULL;
         if (!ssl_get_handshake_evp_md(agent->ssl, &md) || md == NULL)
         {
-            // Before cipher negotiation, fall back to SHA-256
-            md = EVP_sha256();
+            // Cipher not negotiated yet.  Derive the hash from the
+            // ServerHello cipher suite when available.
+            if (sh_msg != NULL && sh_msg_len > 0)
+            {
+                md = evp_md_from_server_hello(sh_msg, sh_msg_len);
+            }
+            if (md == NULL)
+            {
+                md = EVP_sha256();
+            }
         }
 
         unsigned int hash_len = 0;
         EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
         if (mdctx != NULL)
         {
-            if (EVP_DigestInit_ex(mdctx, md, NULL) && EVP_DigestUpdate(mdctx, data, data_len) &&
-                EVP_DigestFinal_ex(mdctx, buffer, &hash_len))
+            int ok = EVP_DigestInit_ex(mdctx, md, NULL) && EVP_DigestUpdate(mdctx, data, data_len);
+            if (ok && extra_data != NULL && extra_len > 0)
+            {
+                ok = EVP_DigestUpdate(mdctx, extra_data, extra_len);
+            }
+            if (ok && EVP_DigestFinal_ex(mdctx, buffer, &hash_len))
             {
                 EVP_MD_CTX_free(mdctx);
                 return (int)hash_len;
@@ -456,6 +545,11 @@ static int extract_transcript_hash(AGENT agent, uint8_t *buffer, size_t buffer_s
     }
 
     return 0;
+}
+
+static int extract_transcript_hash(AGENT agent, uint8_t *buffer, size_t buffer_size)
+{
+    return extract_transcript_hash_ex(agent, buffer, buffer_size, NULL, 0, NULL, 0);
 }
 
 // Populate a Claim structure from the current LibreSSL state
@@ -475,13 +569,10 @@ static void fill_claim(AGENT agent, struct Claim *claim)
     // server flag
     claim->server = agent->ssl->server;
 
-    // peer_authentication: true only when a peer certificate was actually received
-    X509 *peer_check = SSL_get_peer_certificate(agent->ssl);
-    claim->peer_authentication = (peer_check != NULL);
-    if (peer_check != NULL)
-    {
-        X509_free(peer_check);
-    }
+    // peer_authentication: true only when a peer certificate was actually received.
+    // Keep the reference for later cert extraction (freed below).
+    X509 *peer_cert = SSL_get_peer_certificate(agent->ssl);
+    claim->peer_authentication = (peer_cert != NULL);
 
     // Session ID
     unsigned int sess_id_len = 0;
@@ -563,10 +654,9 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         }
     }
 
-    // Peer certificate
+    // Peer certificate (reuse peer_cert obtained above for peer_authentication)
     claim->peer_cert.key_length = 0;
     claim->peer_cert.data_length = 0;
-    X509 *peer_cert = SSL_get_peer_certificate(agent->ssl);
     if (peer_cert != NULL)
     {
         unsigned char *der = NULL;
@@ -768,7 +858,6 @@ static void libressl_msg_callback(int write_p,
         }
     }
 
-// Helper macro to enqueue a claim type
 // Enqueue a claim type and snapshot the current transcript hash.
 // The transcript hash must be captured now because it advances
 // as the handshake continues within the same SSL_do_handshake() call.
@@ -786,12 +875,76 @@ static void libressl_msg_callback(int write_p,
         }                                                                                          \
     } while (0)
 
+// Variant for the CLIENT receiving ServerHello: the transcript buffer is
+// frozen so we must append the SH bytes (extra) AND use them as a hash
+// algorithm hint.
+#define ENQUEUE_CLAIM_CLIENT_SH(agent, ctype, msg_buf, msg_len)                                    \
+    do                                                                                             \
+    {                                                                                              \
+        if ((agent)->claimQueueLen < CLAIM_QUEUE_SIZE)                                             \
+        {                                                                                          \
+            int _idx = (agent)->claimQueueLen++;                                                   \
+            (agent)->claimQueue[_idx].type = (ctype);                                              \
+            (agent)->claimQueue[_idx].transcript_len =                                             \
+                extract_transcript_hash_ex((agent),                                                \
+                                           (agent)->claimQueue[_idx].transcript,                   \
+                                           sizeof((agent)->claimQueue[_idx].transcript),           \
+                                           (msg_buf),                                              \
+                                           (msg_len),                                              \
+                                           (msg_buf),                                              \
+                                           (msg_len));                                             \
+        }                                                                                          \
+    } while (0)
+
+// Variant for the SERVER sending ServerHello: the raw transcript already
+// contains CH + SH (no freeze), but the hash context is not initialised yet
+// so we need the SH message as a hash algorithm hint only (no extra bytes).
+#define ENQUEUE_CLAIM_SERVER_SH(agent, ctype, msg_buf, msg_len)                                    \
+    do                                                                                             \
+    {                                                                                              \
+        if ((agent)->claimQueueLen < CLAIM_QUEUE_SIZE)                                             \
+        {                                                                                          \
+            int _idx = (agent)->claimQueueLen++;                                                   \
+            (agent)->claimQueue[_idx].type = (ctype);                                              \
+            (agent)->claimQueue[_idx].transcript_len =                                             \
+                extract_transcript_hash_ex((agent),                                                \
+                                           (agent)->claimQueue[_idx].transcript,                   \
+                                           sizeof((agent)->claimQueue[_idx].transcript),           \
+                                           NULL,                                                   \
+                                           0,                                                      \
+                                           (msg_buf),                                              \
+                                           (msg_len));                                             \
+        }                                                                                          \
+    } while (0)
+
     if (write_p == 0) // packet being read
     {
         switch (type)
         {
         case 0x02: // ServerHello
-            ENQUEUE_CLAIM(agent, CLAIM_TRANSCRIPT_CH_SH);
+            // Skip Hello Retry Request — not the real ServerHello.
+            if (is_hello_retry_request((const uint8_t *)buf, len))
+            {
+                break;
+            }
+            // After HRR the CLIENT_HELLO_RETRY state has no `sent` callback,
+            // so the transcript buffer is NOT frozen.  SH2 has already been
+            // recorded into the buffer by tls13_handshake_msg_record (which
+            // runs before msg_callback).  We must NOT append SH2 again.
+            // The hash context also carries a stale CH1 prefix from the
+            // transcript rollup, so we force the buffer-based path by passing
+            // a non-NULL extra_data with length 0.
+            //
+            // In the normal (non-HRR) case the buffer IS frozen and SH has
+            // NOT been recorded, so we append SH bytes as extra_data.
+            if (agent->ssl->s3->flags & TLS1_FLAGS_FREEZE_TRANSCRIPT)
+            {
+                ENQUEUE_CLAIM_CLIENT_SH(agent, CLAIM_TRANSCRIPT_CH_SH, (const uint8_t *)buf, len);
+            }
+            else
+            {
+                ENQUEUE_CLAIM_CLIENT_SH(agent, CLAIM_TRANSCRIPT_CH_SH, (const uint8_t *)buf, 0);
+            }
             break;
         case 0x0b: // Certificate
             ENQUEUE_CLAIM(agent, CLAIM_TRANSCRIPT_CH_CERT);
@@ -818,7 +971,15 @@ static void libressl_msg_callback(int write_p,
         switch (type)
         {
         case 0x02: // Server sending ServerHello
-            ENQUEUE_CLAIM(agent, CLAIM_TRANSCRIPT_CH_SH);
+            // Skip Hello Retry Request — same reason as on the client side.
+            if (!is_hello_retry_request((const uint8_t *)buf, len))
+            {
+                // On the server side the raw transcript already contains
+                // CH + SH (transcript is not frozen), but the hash context
+                // is not yet initialised.  Pass the SH message as a hash
+                // algorithm hint only (no extra bytes to append).
+                ENQUEUE_CLAIM_SERVER_SH(agent, CLAIM_TRANSCRIPT_CH_SH, (const uint8_t *)buf, len);
+            }
             break;
         case 0x14: // Finished (outbound)
             if (agent->descriptor.role == SERVER)
@@ -836,6 +997,8 @@ static void libressl_msg_callback(int write_p,
     }
 
 #undef ENQUEUE_CLAIM
+#undef ENQUEUE_CLAIM_CLIENT_SH
+#undef ENQUEUE_CLAIM_SERVER_SH
 }
 
 static const TLS_PUT_INTERFACE OPENSSL_PUT = {
@@ -1042,6 +1205,10 @@ RESULT openssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
     {
         agent->name = new_name;
         agent->claimQueueLen = 0;
+        agent->has_cached_server_random = false;
+        agent->has_cached_client_random = false;
+        memset(agent->cached_server_random, 0, SSL3_RANDOM_SIZE);
+        memset(agent->cached_client_random, 0, SSL3_RANDOM_SIZE);
         int ret = SSL_clear(agent->ssl);
         setup_msg_callback(agent);
         if (ret == 0)
@@ -1145,13 +1312,13 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both)
     {
-        char mapped_tls13[16384] = {0};
+        char mapped_tls13[CIPHER_LIST_MAX] = {0};
         map_tls13_cipher_list(descriptor->cipher_string_tls13, mapped_tls13, sizeof(mapped_tls13));
         SSL_CTX_set_ciphersuites(ssl_ctx, mapped_tls13);
     }
     if (descriptor->tls_version == V1_2 || descriptor->tls_version == Both)
     {
-        char mapped_cipher_list[16384] = {0};
+        char mapped_cipher_list[CIPHER_LIST_MAX] = {0};
         map_tls12_iana_cipher_list(descriptor->cipher_string_tls12,
                                    mapped_cipher_list,
                                    sizeof(mapped_cipher_list));
@@ -1222,13 +1389,13 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both)
     {
-        char mapped_tls13[16384] = {0};
+        char mapped_tls13[CIPHER_LIST_MAX] = {0};
         map_tls13_cipher_list(descriptor->cipher_string_tls13, mapped_tls13, sizeof(mapped_tls13));
         SSL_CTX_set_ciphersuites(ssl_ctx, mapped_tls13);
     }
     if (descriptor->tls_version == V1_2 || descriptor->tls_version == Both)
     {
-        char mapped_cipher_list[16384] = {0};
+        char mapped_cipher_list[CIPHER_LIST_MAX] = {0};
         map_tls12_iana_cipher_list(descriptor->cipher_string_tls12,
                                    mapped_cipher_list,
                                    sizeof(mapped_cipher_list));
