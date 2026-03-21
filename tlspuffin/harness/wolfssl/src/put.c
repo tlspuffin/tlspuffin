@@ -1172,6 +1172,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         }
     }
 
+#if LIBWOLFSSL_VERSION_HEX >= 0x05001000
     if (descriptor->sigalgs_list != NULL)
     {
         int_retval = wolfSSL_CTX_set1_sigalgs_list(agent->ctx, (char *)(descriptor->sigalgs_list));
@@ -1184,6 +1185,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
             goto ERROR__wolfssl_create_agent;
         }
     }
+#endif
 
     if (peer_authentication)
     {
@@ -1245,7 +1247,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
                                                         descriptor->cert->bytes,
                                                         descriptor->cert->length,
                                                         SSL_FILETYPE_PEM);
-        */
+        * /
 #endif
         if (int_retval != WOLFSSL_SUCCESS)
         {

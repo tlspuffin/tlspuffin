@@ -144,6 +144,7 @@ impl SslContextRef {
     }
 
     /// Sets the list of signature algorithms (e.g. "RSA-PSS+SHA256:RSA-PSS+SHA384")
+    #[cfg(not(feature = "wolfssl430"))]
     pub fn set_sigalgs_list(&mut self, sigalgs_list: &str) -> Result<(), ErrorStack> {
         let sa = CString::new(sigalgs_list).unwrap();
         unsafe {

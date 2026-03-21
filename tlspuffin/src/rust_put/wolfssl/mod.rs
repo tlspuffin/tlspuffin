@@ -240,6 +240,7 @@ impl RustPut {
             }
         }
 
+        #[cfg(not(feature = "wolfssl430"))]
         if let Some(sigalgs) = &descriptor.protocol_config.sigalgs {
             ctx.set_sigalgs_list(sigalgs)?;
         }
@@ -285,6 +286,7 @@ impl RustPut {
             }
         }
 
+        #[cfg(not(feature = "wolfssl430"))]
         if let Some(sigalgs) = &descriptor.protocol_config.sigalgs {
             ctx.set_sigalgs_list(sigalgs)?;
         }
