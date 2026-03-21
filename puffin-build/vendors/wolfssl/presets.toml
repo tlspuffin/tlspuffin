@@ -11,6 +11,19 @@ builder = { type = "builtin", name = "wolfssl" }
 sancov = true
 fix = ["AllowClaim"]
 
+[wolfssl584]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.4-stable", version = "5.8.4" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+fix = ["AllowClaim"]
+
+[wolfssl584-asan]
+sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.4-stable", version = "5.8.4" }
+builder = { type = "builtin", name = "wolfssl" }
+sancov = true
+asan = true
+fix = ["AllowClaim"]
+
 [wolfssl580]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.0-stable", version = "5.8.0" }
 builder = { type = "builtin", name = "wolfssl" }
@@ -23,14 +36,6 @@ builder = { type = "builtin", name = "wolfssl" }
 sancov = true
 asan = true
 fix = ["AllowClaim"]
-
-[wolfssl584-asan]
-sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.8.4-stable", version = "5.8.4" }
-builder = { type = "builtin", name = "wolfssl" }
-sancov = true
-asan = true
-fix = ["AllowClaim"]
-
 
 [wolfssl572]
 sources = { repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v5.7.2-stable", version = "5.7.2" }
