@@ -1336,6 +1336,10 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
         SSL_CTX_set1_groups_list(ssl_ctx, "X25519:P-256:P-384");
     }
 
+    // LibreSSL 4.2.1 does not provide SSL_CTX_set1_sigalgs_list (or SSL_CTX_set1_sigalgs).
+    // The sigalgs_list field from the descriptor is therefore ignored here.
+    // Sigalgs preference is instead patched at build time (see patch_sigalgs.cmake).
+
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
 
     if (descriptor->client_authentication)
@@ -1410,6 +1414,10 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
     {
         SSL_CTX_set1_groups_list(ssl_ctx, "X25519:P-256:P-384");
     }
+
+    // LibreSSL 4.2.1 does not provide SSL_CTX_set1_sigalgs_list (or SSL_CTX_set1_sigalgs).
+    // The sigalgs_list field from the descriptor is therefore ignored here.
+    // Sigalgs preference is instead patched at build time (see patch_sigalgs.cmake).
 
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
 
