@@ -3461,4 +3461,87 @@ pub mod tests {
 
         assert!(alert.is_some());
     }
+
+    /// Helper: run all differential seeds between two PUTs and assert no differences.
+    #[allow(dead_code)]
+    fn assert_no_differential_differences(first_put: &str, second_put: &str) {
+        use puffin::execution::{DifferentialRunner, TraceRunner};
+        use puffin::protocol::ProtocolTypes;
+        use puffin::trace::Spawner;
+
+        use crate::protocol::TLSProtocolTypes;
+
+        let registry = crate::put_registry::tls_registry();
+        let first_factory = registry
+            .find_by_id(first_put)
+            .expect("first differential PUT must exist in the TLS registry");
+        let second_factory = registry
+            .find_by_id(second_put)
+            .expect("second differential PUT must exist in the TLS registry");
+
+        let second_seed_names: std::collections::HashSet<_> = super::create_corpus(second_factory)
+            .into_iter()
+            .map(|(_, name)| name)
+            .collect();
+        let corpus: Vec<_> = super::create_corpus(first_factory)
+            .into_iter()
+            .filter(|(_, name)| second_seed_names.contains(name))
+            .collect();
+
+        for (trace, name) in corpus {
+            let trace =
+                <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
+                    trace,
+                );
+            let first_mapping: Vec<_> = trace
+                .descriptors
+                .iter()
+                .map(|descriptor| {
+                    (
+                        descriptor.name,
+                        PutDescriptor::new(first_put, registry.default_put_options().clone()),
+                    )
+                })
+                .collect();
+            let second_mapping: Vec<_> = trace
+                .descriptors
+                .iter()
+                .map(|descriptor| {
+                    (
+                        descriptor.name,
+                        PutDescriptor::new(second_put, registry.default_put_options().clone()),
+                    )
+                })
+                .collect();
+            let runner = DifferentialRunner::new(
+                registry.clone(),
+                Spawner::new(registry.clone()).with_mapping(&first_mapping),
+                Spawner::new(registry.clone()).with_mapping(&second_mapping),
+            );
+
+            let result = runner.execute(trace, &mut 0);
+            assert!(
+                result.is_ok(),
+                "Differential test failed between {} and {}: seed '{}': {:?}",
+                first_put,
+                second_put,
+                name,
+                result.err()
+            );
+        }
+    }
+
+    #[test_log::test]
+    #[cfg(all(has_put = "openssl340", has_put = "wolfssl580"))]
+    fn test_differential_openssl340_vs_wolfssl580() {
+        assert_no_differential_differences("openssl340", "wolfssl580");
+    }
+
+    /* TODO-libressl: uncomment once libressl is supported in differential
+    #[test_log::test]
+    #[cfg(all(has_put = "openssl340", has_put = "libressl421"))]
+    fn test_differential_openssl340_vs_libressl421() {
+        assert_no_differential_differences("openssl340", "libressl421");
+    }
+     */
 }
