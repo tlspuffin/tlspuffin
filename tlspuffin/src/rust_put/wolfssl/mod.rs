@@ -235,7 +235,13 @@ impl RustPut {
         }
 
         if let Some(groups) = &descriptor.protocol_config.groups {
-            ctx.set_groups(groups)?;
+            if descriptor.protocol_config.tls_version != TLSVersion::V1_2 {
+                ctx.set_groups(groups)?;
+            }
+        }
+
+        if let Some(sigalgs) = &descriptor.protocol_config.sigalgs {
+            ctx.set_sigalgs_list(sigalgs)?;
         }
 
         Ok(ctx)
@@ -274,7 +280,13 @@ impl RustPut {
         }
 
         if let Some(groups) = &descriptor.protocol_config.groups {
-            ctx.set_groups(groups)?;
+            if descriptor.protocol_config.tls_version != TLSVersion::V1_2 {
+                ctx.set_groups(groups)?;
+            }
+        }
+
+        if let Some(sigalgs) = &descriptor.protocol_config.sigalgs {
+            ctx.set_sigalgs_list(sigalgs)?;
         }
 
         let cert = X509::from_pem(ALICE_CERT.0.as_bytes())?;
