@@ -3436,4 +3436,60 @@ pub mod tests {
 
         assert!(alert.is_some());
     }
+
+    /// Helper: run all differential seeds between two PUTs and assert no differences.
+    #[allow(dead_code)]
+    fn assert_no_differential_differences(first_put: &str, second_put: &str) {
+        use puffin::execution::{DifferentialRunner, TraceRunner};
+        use puffin::protocol::ProtocolTypes;
+        use puffin::trace::Spawner;
+
+        use crate::protocol::TLSProtocolTypes;
+
+        let registry = crate::put_registry::tls_registry();
+        let factory = registry.default();
+        let corpus = super::create_corpus(factory);
+
+        for (trace, name) in corpus {
+            let trace =
+                <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
+                    trace,
+                );
+            let agent = trace.descriptors[0].name;
+
+            let runner = DifferentialRunner::new(
+                registry.clone(),
+                Spawner::new(registry.clone()).with_mapping(&[(
+                    agent,
+                    PutDescriptor::new(first_put, registry.default_put_options().clone()),
+                )]),
+                Spawner::new(registry.clone()).with_mapping(&[(
+                    agent,
+                    PutDescriptor::new(second_put, registry.default_put_options().clone()),
+                )]),
+            );
+
+            let result = runner.execute(trace, &mut 0, false);
+            assert!(
+                result.is_ok(),
+                "Differential test failed between {} and {}: seed '{}': {:?}",
+                first_put,
+                second_put,
+                name,
+                result.err()
+            );
+        }
+    }
+
+    #[test_log::test]
+    #[cfg(all(has_put = "openssl340", has_put = "wolfssl540"))]
+    fn test_differential_openssl340_vs_wolfssl540() {
+        assert_no_differential_differences("openssl340", "wolfssl540");
+    }
+
+    #[test_log::test]
+    #[cfg(all(has_put = "openssl340", has_put = "libressl421"))]
+    fn test_differential_openssl340_vs_libressl421() {
+        assert_no_differential_differences("openssl340", "libressl421");
+    }
 }
