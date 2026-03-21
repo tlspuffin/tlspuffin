@@ -1206,6 +1206,10 @@ RESULT openssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
     {
         agent->name = new_name;
         agent->claimQueueLen = 0;
+        agent->has_cached_server_random = false;
+        agent->has_cached_client_random = false;
+        memset(agent->cached_server_random, 0, SSL3_RANDOM_SIZE);
+        memset(agent->cached_client_random, 0, SSL3_RANDOM_SIZE);
         int ret = SSL_clear(agent->ssl);
         setup_msg_callback(agent);
         if (ret == 0)
