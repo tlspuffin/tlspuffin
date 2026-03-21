@@ -2679,6 +2679,7 @@ dependencies = [
  "bindgen 0.69.5",
  "boring",
  "boringssl-sys",
+ "cc",
  "comparable",
  "criterion",
  "env_logger 0.10.2",

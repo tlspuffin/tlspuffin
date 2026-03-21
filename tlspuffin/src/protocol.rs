@@ -31,13 +31,15 @@ use crate::tls::fn_impl::{
 };
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
+use crate::tls::rustls::msgs::alert::AlertMessagePayload;
 use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayloadTLS13,
     CertificateRequestPayload, CertificateRequestPayloadTLS13, CertificateStatus,
-    ClientSessionTicket, DigitallySignedStruct, HelloRetryExtension, NewSessionTicketExtension,
-    NewSessionTicketPayloadTLS13, PresharedKeyIdentity, Random, ServerExtension, SessionID,
-    UnknownExtension,
+    ClientSessionTicket, DigitallySignedStruct, HandshakeMessagePayload, HelloRetryExtension,
+    NewSessionTicketExtension, NewSessionTicketPayloadTLS13, PresharedKeyIdentity, Random,
+    ServerExtension, SessionID, UnknownExtension,
 };
+use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 use crate::tls::rustls::msgs::message::{try_read_bytes, Message, MessagePayload, OpaqueMessage};
 use crate::tls::rustls::msgs::{self};
 use crate::tls::violation::TlsSecurityViolationPolicy;
@@ -55,23 +57,25 @@ impl Extractable<TLSProtocolTypes> for MessageFlight {
         _: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
-        let matcher = if let Some(first_msg) = self.messages.get(0) {
-            match &first_msg.payload {
+        // Classify flight by the first non-CCS message. TLS 1.3 middlebox
+        // compatibility (e.g. LibreSSL) may prepend a dummy ChangeCipherSpec.
+        let matcher = self
+            .messages
+            .iter()
+            .find(|m| !matches!(m.payload, MessagePayload::ChangeCipherSpec(_)))
+            .map(|msg| match &msg.payload {
                 MessagePayload::Handshake(hs) => match hs.payload {
                     msgs::handshake::HandshakePayload::ClientHello(_) => {
-                        Some(TlsQueryMatcher::ClientHelloFlight)
+                        TlsQueryMatcher::ClientHelloFlight
                     }
                     msgs::handshake::HandshakePayload::ServerHello(_) => {
-                        Some(TlsQueryMatcher::ServerHelloFlight)
+                        TlsQueryMatcher::ServerHelloFlight
                     }
-                    _ => Some(TlsQueryMatcher::OtherFlight),
+                    _ => TlsQueryMatcher::OtherFlight,
                 },
-                MessagePayload::ApplicationData(_) => Some(TlsQueryMatcher::EncryptedFlight),
-                _ => Some(TlsQueryMatcher::OtherFlight),
-            }
-        } else {
-            None
-        };
+                MessagePayload::ApplicationData(_) => TlsQueryMatcher::EncryptedFlight,
+                _ => TlsQueryMatcher::OtherFlight,
+            });
 
         knowledges.push(Knowledge {
             source,
@@ -645,7 +649,11 @@ impl ProtocolTypes for TLSProtocolTypes {
     }
 
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
-        Some(vec![TypeId::of::<MessagePayload>()])
+        Some(vec![
+            TypeId::of::<AlertMessagePayload>(),
+            TypeId::of::<HandshakeMessagePayload>(),
+            TypeId::of::<HeartbeatPayload>(),
+        ])
     }
 
     fn differential_fuzzing_terms_to_eval(
