@@ -655,7 +655,6 @@ impl ProtocolTypes for TLSProtocolTypes {
     }
 
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
-        // Some(vec![TypeId::of::<MessagePayload>()])
         Some(vec![
             TypeId::of::<AlertMessagePayload>(),
             TypeId::of::<HandshakeMessagePayload>(),
