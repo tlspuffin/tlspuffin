@@ -965,7 +965,7 @@ declare_u8_vec!(Compressions, Compression);
 #[extractable(TLSProtocolTypes)]
 pub struct ClientHelloPayload {
     #[comparable_synthetic {
-        let sorted_cipher_suites = |x: &Self| -> std::collections::HashMap<CipherSuite, ()> { let ciphers : std::collections::HashMap<CipherSuite, ()>= x.cipher_suites.0.clone().into_iter().map(|c| (c,())).collect(); ciphers };
+        let sorted_cipher_suites = |x: &Self| -> std::collections::HashMap<CipherSuite, ()> { let ciphers : std::collections::HashMap<CipherSuite, ()>= x.cipher_suites.0.clone().into_iter().filter(|c| *c != CipherSuite::TLS_EMPTY_RENEGOTIATION_INFO_SCSV).map(|c| (c,())).collect(); ciphers };
     }]
     #[comparable_synthetic {
         let sorted_extensions = |x: &Self| -> ClientExtensions { let mut ext = x.extensions.clone(); ext.0.sort_by(puffin::codec::compare_encoding); ext };
@@ -1349,10 +1349,15 @@ pub struct ServerHelloPayload {
     #[comparable_synthetic {
         let sorted_extensions = |x: &Self| -> ServerExtensions {
             let mut ext = x.extensions.clone();
-            // remove optional RenegotiationInfo
+            // Remove optional extensions whose presence/absence is an
+            // implementation choice, not a protocol bug:
+            //  - RenegotiationInfo: optional in TLS 1.2 renegotiation
+            //  - ExtendedMasterSecretAck: optional TLS 1.2 extension (RFC 7627)
             ext.0 = ext.0
                     .into_iter()
-                    .filter(|x|!matches!(x, ServerExtension::RenegotiationInfo(_)))
+                    .filter(|x|!matches!(x,
+                        ServerExtension::RenegotiationInfo(_)
+                        | ServerExtension::ExtendedMasterSecretAck))
                     .collect();
             ext.0.sort_by(puffin::codec::compare_encoding);
             ext

@@ -18,7 +18,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
-#include <threads.h>
+// Use compiler-supported thread_local without relying on <threads.h>,
+// which is unavailable on macOS with some toolchains.
+#ifndef thread_local
+#define thread_local _Thread_local
+#endif
 
 #if LIBWOLFSSL_VERSION_HEX >= 0x05005001
 #define TYPETIME sword64
@@ -26,17 +30,20 @@
 #define TYPETIME word32
 #endif
 
-//#define TIME_CHANGE
+// #define TIME_CHANGE
 #define USE_CUSTOM_PRNG
 #define CLOCKVALUE_DEFAULT 1742309173;
 
 // static int file = -1;
-//#define CREATE(filename) { file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
-//} #define ENTER() fprintf(stderr, "Entering %s\n", __func__) #define ENTER() { char buf[128] = {};
+// #define CREATE(filename) { file = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR |
+// S_IWUSR); } #define ENTER() fprintf(stderr, "Entering %s\n", __func__) #define ENTER() { char
+// buf[128] = {};
 // int s = snprintf(buf, 128, "Entering %s\n", __func__); write(file, buf, s); }
 
 static thread_local uint8_t rng_have_custom_seed = 0;
+#ifdef __linux__
 static thread_local struct drand48_data rng_states = {};
+#endif
 #define CUSTOM_SEED_SIZE 256
 #ifdef USE_CUSTOM_PRNG
 static TYPETIME clock_value = 0;
@@ -1041,7 +1048,11 @@ static int myCryptoCb_Func(int devId, wc_CryptoInfo *info, void *ctx)
     for (size_t i = 0; i < info->seed.sz; ++i)
     {
         double value = 0;
+#ifdef __linux__
         drand48_r(&rng_states, &value);
+#else
+        value = drand48();
+#endif
         uint8_t byte = value * 255.0;
         if (seen[byte] != 0)
         {
@@ -1150,7 +1161,8 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         _log(PUFFIN.warn, "wolfssl warning no cipher string");
     }
 
-    if (descriptor->group_list != NULL)
+    // WolfSSL rejects set_groups on TLS 1.2-only contexts
+    if (descriptor->group_list != NULL && descriptor->tls_version != V1_2)
     {
         int_retval = wolfSSL_CTX_set1_groups_list(agent->ctx, (char *)(descriptor->group_list));
         if (int_retval != WOLFSSL_SUCCESS)
@@ -1159,6 +1171,21 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
             goto ERROR__wolfssl_create_agent;
         }
     }
+
+#if LIBWOLFSSL_VERSION_HEX >= 0x05001000
+    if (descriptor->sigalgs_list != NULL)
+    {
+        int_retval = wolfSSL_CTX_set1_sigalgs_list(agent->ctx, (char *)(descriptor->sigalgs_list));
+        if (int_retval != WOLFSSL_SUCCESS)
+        {
+            snprintf(error_msg,
+                     128,
+                     "wolfssl set sigalgs list %s failed",
+                     descriptor->sigalgs_list);
+            goto ERROR__wolfssl_create_agent;
+        }
+    }
+#endif
 
     if (peer_authentication)
     {
@@ -1368,7 +1395,11 @@ static void wolfssl_rng_reseed(uint8_t const *buffer, size_t length)
         {
             memcpy(&seed, buffer, sizeof(unsigned int));
         }
+#ifdef __linux__
         srand48_r(seed, &rng_states);
+#else
+        srand48((long)seed);
+#endif
         rng_have_custom_seed = 1;
     }
     else
