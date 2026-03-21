@@ -1161,7 +1161,8 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
         _log(PUFFIN.warn, "wolfssl warning no cipher string");
     }
 
-    if (descriptor->group_list != NULL)
+    // WolfSSL rejects set_groups on TLS 1.2-only contexts
+    if (descriptor->group_list != NULL && descriptor->tls_version != V1_2)
     {
         int_retval = wolfSSL_CTX_set1_groups_list(agent->ctx, (char *)(descriptor->group_list));
         if (int_retval != WOLFSSL_SUCCESS)
@@ -1170,6 +1171,21 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
             goto ERROR__wolfssl_create_agent;
         }
     }
+
+#if LIBWOLFSSL_VERSION_HEX >= 0x05001000
+    if (descriptor->sigalgs_list != NULL)
+    {
+        int_retval = wolfSSL_CTX_set1_sigalgs_list(agent->ctx, (char *)(descriptor->sigalgs_list));
+        if (int_retval != WOLFSSL_SUCCESS)
+        {
+            snprintf(error_msg,
+                     128,
+                     "wolfssl set sigalgs list %s failed",
+                     descriptor->sigalgs_list);
+            goto ERROR__wolfssl_create_agent;
+        }
+    }
+#endif
 
     if (peer_authentication)
     {
