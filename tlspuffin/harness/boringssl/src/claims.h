@@ -14,6 +14,9 @@ void boringssl_fill_claim_for_message(const SSL *ssl,
 									  size_t msg_len,
 									  int append_msg_to_transcript);
 
+/** Remove stored CH+SH state for an SSL object (call on destroy/reset). */
+void boringssl_clear_ch_sh_transcript(const SSL *ssl);
+
 #ifdef __cplusplus
 }
 #endif

@@ -5,7 +5,6 @@ diff --git a/include/openssl/ssl.h b/include/openssl/ssl.h
  OPENSSL_EXPORT int SSL_get_rfd(const SSL *ssl);
 +
 +OPENSSL_EXPORT int PUFFIN_extract_transcript(SSL* ssl, uint8_t* out, size_t* out_len);
- 
 diff --git a/ssl/ssl_lib.cc b/ssl/ssl_lib.cc
 --- a/ssl/ssl_lib.cc
 +++ b/ssl/ssl_lib.cc
@@ -23,6 +22,30 @@ diff --git a/ssl/ssl_lib.cc b/ssl/ssl_lib.cc
 +
 +  return 1;
 +}
- 
  using namespace bssl;
-
+diff --git a/ssl/tls13_enc.cc b/ssl/tls13_enc.cc
+--- a/ssl/tls13_enc.cc
++++ b/ssl/tls13_enc.cc
+@@ -16,6 +16,10 @@
+ #include <openssl/ssl.h>
+ #include <assert.h>
++
++void PUFFIN_store_ch_sh_transcript(const SSL *ssl, const uint8_t *hash,
++                                   size_t hash_len);
++
+ #include <string.h>
+@@ bool tls13_derive_handshake_secrets @@
+ bool tls13_derive_handshake_secrets(SSL_HANDSHAKE *hs) {
+   SSL *const ssl = hs->ssl;
++
++  // Capture CH+SH transcript hash and HKDF handshake secret for PUFFIN.
++  // hs->secret at this point is the HKDF-extracted handshake secret.
++  {
++    uint8_t hash_buf[EVP_MAX_MD_SIZE];
++    size_t hash_len = 0;
++    if (hs->transcript.GetHash(hash_buf, &hash_len)) {
++      PUFFIN_store_ch_sh_transcript(ssl, hash_buf, hash_len);
++    }
++  }
++
+   if (!derive_secret(hs, &hs->client_handshake_secret,

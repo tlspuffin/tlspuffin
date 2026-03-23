@@ -44,6 +44,7 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block);
 static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor);
 static bool recreate_ssl_from_agent_ctx(AGENT agent);
 static void boringssl_set_protocol_version(SSL_CTX *ssl_ctx, TLS_VERSION version);
+static bool boringssl_set_cipher_preferences(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor);
 
 static void default_claimer_notify(void *context, Claim *claim) {}
 static void default_claimer_destroy(void *context) {}
@@ -170,10 +171,9 @@ AGENT boringssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     boringssl_set_protocol_version(ssl_ctx, descriptor->tls_version);
 
-    if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both) {
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
-    } else {
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
+    if (!boringssl_set_cipher_preferences(ssl_ctx, descriptor)) {
+        SSL_CTX_free(ssl_ctx);
+        return NULL;
     }
 
     if (descriptor->group_list != NULL) {
@@ -224,10 +224,9 @@ AGENT boringssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     boringssl_set_protocol_version(ssl_ctx, descriptor->tls_version);
 
-    if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both) {
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
-    } else {
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
+    if (!boringssl_set_cipher_preferences(ssl_ctx, descriptor)) {
+        SSL_CTX_free(ssl_ctx);
+        return NULL;
     }
 
     if (descriptor->group_list != NULL) {
@@ -298,7 +297,10 @@ void boringssl_destroy(AGENT agent)
 {
     if (!agent) return;
     if (agent->claimer.destroy) agent->claimer.destroy(agent->claimer.context);
-    if (agent->ssl) SSL_free(agent->ssl);
+    if (agent->ssl) {
+        boringssl_clear_ch_sh_transcript(agent->ssl);
+        SSL_free(agent->ssl);
+    }
     if (agent->ctx) SSL_CTX_free(agent->ctx);
     free(agent);
 }
@@ -324,6 +326,7 @@ RESULT boringssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
     agent->descriptor.name = new_name;
     
     if (use_clear) {
+        boringssl_clear_ch_sh_transcript(agent->ssl);
         int ret = SSL_clear(agent->ssl);
         if (ret == 0) {
             return get_result(agent, SSL_ERROR_SSL, false);
@@ -406,6 +409,7 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block)
 
 static bool recreate_ssl_from_agent_ctx(AGENT agent)
 {
+    boringssl_clear_ch_sh_transcript(agent->ssl);
     SSL_free(agent->ssl);
     agent->ssl = NULL;
     agent->in = NULL;
@@ -447,5 +451,49 @@ static void boringssl_set_protocol_version(SSL_CTX *ssl_ctx, TLS_VERSION version
             SSL_CTX_set_max_proto_version(ssl_ctx, TLS1_3_VERSION);
             break;
     }
+}
+
+static bool boringssl_set_cipher_preferences(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor)
+{
+    if (ssl_ctx == NULL || descriptor == NULL) {
+        return false;
+    }
+
+    if (descriptor->tls_version == V1_3) {
+        if (SSL_CTX_set_strict_cipher_list(ssl_ctx, descriptor->cipher_string_tls13) == 1) {
+            return true;
+        }
+        return SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13) == 1;
+    }
+
+    if (descriptor->tls_version == V1_2) {
+        if (SSL_CTX_set_strict_cipher_list(ssl_ctx, descriptor->cipher_string_tls12) == 1) {
+            return true;
+        }
+        return SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12) == 1;
+    }
+
+    if (descriptor->tls_version == Both) {
+        const char *tls13 = descriptor->cipher_string_tls13;
+        const char *tls12 = descriptor->cipher_string_tls12;
+        size_t len13 = strlen(tls13);
+        size_t len12 = strlen(tls12);
+        size_t total_len = len13 + 1 + len12 + 1;
+
+        char *combined = (char *)malloc(total_len);
+        if (combined == NULL) {
+            return false;
+        }
+
+        snprintf(combined, total_len, "%s:%s", tls13, tls12);
+        int ok = SSL_CTX_set_strict_cipher_list(ssl_ctx, combined);
+        if (ok != 1) {
+            ok = SSL_CTX_set_cipher_list(ssl_ctx, combined);
+        }
+        free(combined);
+        return ok == 1;
+    }
+
+    return false;
 }
 
