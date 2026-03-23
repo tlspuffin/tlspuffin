@@ -12,7 +12,6 @@ boringssl-src = { path = "../boringssl-src" }
 bindgen = "0.69.1"
 
 [features]
-boringssl20260211 = []
 boringsslmaster = []
 boringssl202311 = []
 boringssl202403 = []

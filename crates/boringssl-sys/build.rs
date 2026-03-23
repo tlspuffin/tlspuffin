@@ -3,9 +3,7 @@ use std::path::PathBuf;
 
 use boringssl_src::{build, BoringSSLOptions};
 
-const PRESET: &str = if cfg!(feature = "boringssl20260211") {
-    "boringssl20260211"
-} else if cfg!(feature = "boringssl202403") {
+const PRESET: &str = if cfg!(feature = "boringssl202403") {
     "boringssl202403"
 } else if cfg!(feature = "boringssl202311") {
     "boringssl202311"
@@ -64,7 +62,6 @@ fn main() {
     if cfg!(feature = "no-rand") {
         // Exposes RAND_reset_for_fuzzing
         builder = builder.clang_arg("-DBORINGSSL_UNSAFE_DETERMINISTIC_MODE=1");
-        builder = builder.clang_arg("-DFUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION=1");
     }
 
     let headers = [
