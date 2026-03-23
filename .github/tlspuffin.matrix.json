@@ -389,6 +389,36 @@
     }
   },
   {
+    "labels": [
+      "fast"
+    ],
+    "name": "boringssl20260211",
+    "mk_vendor": {
+      "vendor": "boringssl",
+      "preset": "boringssl20260211"
+    },
+    "cargo": {
+      "name": "",
+      "features": [
+        "cputs"
+      ]
+    }
+  },
+  {
+    "labels": [],
+    "name": "boringssl20260211-asan",
+    "mk_vendor": {
+      "vendor": "boringssl",
+      "preset": "boringssl20260211-asan"
+    },
+    "cargo": {
+      "name": "",
+      "features": [
+        "cputs"
+      ]
+    }
+  },
+  {
     "labels": [],
     "name": "boringssl202403",
     "mk_vendor": {
