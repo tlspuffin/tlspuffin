@@ -135,6 +135,16 @@ impl Put {
         );
         println!("cargo:rustc-cfg=has_put=\"{}\"", self.name());
 
+        if lib.vendor == "boringssl" {
+            if cfg!(target_os = "macos") {
+                println!("cargo:rustc-link-lib=c++");
+                // BoringSSL objects referenced by the C harness pull C++ ABI symbols on macOS.
+                println!("cargo:rustc-link-lib=c++abi");
+            } else {
+                println!("cargo:rustc-link-lib=stdc++");
+            }
+        }
+
         if self
             .library
             .metadata()
