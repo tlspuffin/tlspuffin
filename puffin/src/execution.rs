@@ -189,10 +189,10 @@ impl<PB: ProtocolBehavior> DifferentialRunner<PB> {
 impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
     type E = Error;
     type PB = PB;
-    type R = TraceContext<Self::PB>;
+    type R = (TraceContext<Self::PB>, TraceContext<Self::PB>);
 
-    /// Execute `trace` on the two PUT of `self`, return `Ok` if both execution exhibit no
-    /// differences, `Err(diff)` else
+    /// Execute `trace` on the two PUTs provided by `self`, return `Ok` if both
+    /// execution exhibit no differences, `Err(diff)` else
     fn execute_config<T>(
         self,
         trace: T,
@@ -313,7 +313,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             return Err(Error::Difference(diff));
         }
 
-        Ok(first_ctx)
+        Ok((first_ctx, second_ctx))
     }
 
     fn execute<T>(
@@ -327,10 +327,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
     {
         self.execute_config(
             trace,
-            ConfigTrace {
-                with_bit_level: false,
-                with_reseed: true,
-            },
+            ConfigTrace::default(),
             executed_until,
             check_security_violation,
         )

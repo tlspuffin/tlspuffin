@@ -102,6 +102,7 @@ where
                 .arg(arg!(<first_target> "First PUT"))
                 .arg(arg!(<second_target> "Second PUT"))
                 .arg(arg!(<input> "Input trace"))
+                .arg(arg!(-S --"enable-security-oracle" "Enable the protocol security oracle").value_parser(value_parser!(bool)))
                 .arg(arg!(-j --json "Export differences as JSON").value_parser(value_parser!(bool))),
             Command::new("differential")
                 .about("Start a differential fuzzing campaign")
@@ -226,18 +227,12 @@ where
             }
             experiments_root.join(&title)
         } else {
-            if let Some(matches) = matches.subcommand_matches("experiment") {
-                let git_ref = "_".to_string();
-                let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
-                let experiments_root = PathBuf::new().join("experiments");
-                let title = format_title(Some(title), None, &put_registry, &config);
-                let experiment_path = experiments_root.join(title);
-                assert!(
-                    !experiment_path.as_path().exists(),
-                    "Experiment already exists. Consider creating a new experiment."
-                );
-                experiment_path
-            } else if let Some(matches) = matches.subcommand_matches("differential-experiment") {
+            if let Some(matches) = matches
+                .subcommand_matches("experiment")
+                .or(matches.subcommand_matches("differential-experiment"))
+            {
+                log::info!("Running in experiment mode");
+                config.is_experiment = true;
                 let git_ref = "_".to_string();
                 let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
                 let experiments_root = PathBuf::new().join("experiments");
@@ -497,6 +492,7 @@ where
         let second_put: &String = matches.get_one("second_target").unwrap();
         let input: &String = matches.get_one("input").unwrap();
         let export_json: &bool = matches.get_one("json").unwrap();
+        let enable_security_oracle: &bool = matches.get_one("enable-security-oracle").unwrap();
 
         let path = PathBuf::from(input);
         let trace = match Trace::<PB::ProtocolTypes>::from_file(&path) {
@@ -515,17 +511,40 @@ where
             return ExitCode::FAILURE;
         }
 
-        let agent = trace.descriptors[0].name;
+        let first_put_descriptors = trace
+            .descriptors
+            .iter()
+            .map(|d| {
+                (
+                    d.name,
+                    PutDescriptor::new(
+                        first_put,
+                        put_registry.default_put_descriptor().options.clone(),
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+        let second_put_descriptors = trace
+            .descriptors
+            .iter()
+            .map(|d| {
+                (
+                    d.name,
+                    PutDescriptor::new(
+                        second_put,
+                        put_registry.default_put_descriptor().options.clone(),
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
 
         let runner = DifferentialRunner::new(
             put_registry.clone(),
-            Spawner::new(put_registry.clone())
-                .with_mapping(&[(agent, PutDescriptor::new(first_put, PutOptions::empty()))]),
-            Spawner::new(put_registry)
-                .with_mapping(&[(agent, PutDescriptor::new(second_put, PutOptions::empty()))]),
+            Spawner::new(put_registry.clone()).with_mapping(&first_put_descriptors),
+            Spawner::new(put_registry).with_mapping(&second_put_descriptors),
         );
 
-        return match runner.execute(trace, &mut 0, false) {
+        return match runner.execute(trace, &mut 0, *enable_security_oracle) {
             Ok(_) => {
                 if *export_json {
                     println!("[]");

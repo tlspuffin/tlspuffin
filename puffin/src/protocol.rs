@@ -249,19 +249,18 @@ pub trait ProtocolTypes:
 
     /// Terms to evaluate and compare during differential fuzzing
     /// eg. decryption recipes
-    /// Terms to evaluate and compare during differential fuzzing
-    /// eg. decryption recipes
     fn differential_fuzzing_terms_to_eval(
         agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
     ) -> Vec<crate::algebra::Term<Self>>;
 
-    /// Replace trace's agent protocol config with parameters
-    /// that unifomize the behavior of the PUTs
+    /// Replace trace's agent protocol config with a set of parameters
+    /// that should be supported by all PUTs
     fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self>;
 
-    /// Check wether a difference should be kept
+    /// Check whether a difference should be kept
     /// Use this to remove specific false positive without altering the capabilities of the
-    /// differential fuzzer Return `true` to keep the difference
+    /// differential fuzzer
+    /// Return `true` to keep the difference
     fn differential_fuzzing_filter_diff(diff: &TraceDifference) -> bool;
 }
 
@@ -393,32 +392,6 @@ macro_rules! atom_extract_knowledge {
                     data: self,
                 });
                 Ok(())
-            }
-        }
-    };
-}
-
-#[macro_export]
-macro_rules! dummy_compare {
-    ($protocol_type:ty, $extract_type:ty) => {
-        impl $crate::protocol::CompareKnowledge<$protocol_type> for $extract_type {
-            fn find_differences(
-                &self,
-                other: &dyn EvaluatedTerm<$protocol_type>,
-                diffs: &mut Vec<$crate::differential::TraceDifference>,
-                knowledge_num: usize,
-            ) {
-                match other.as_any().downcast_ref::<$extract_type>() {
-                    Some(_) => {
-                        todo!("Comparable for {}", other.type_name());
-                    }
-                    None => diffs.push($crate::differential::TraceDifference::Knowledges(format!(
-                        "knowledge[{}]: {} != {}",
-                        knowledge_num,
-                        std::any::type_name::<Self>(),
-                        other.type_name()
-                    ))),
-                };
             }
         }
     };

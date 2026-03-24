@@ -55,23 +55,23 @@ impl Extractable<TLSProtocolTypes> for MessageFlight {
         _: Option<TlsQueryMatcher>,
         source: &'a Source,
     ) -> Result<(), Error> {
-        let matcher = if let Some(first_msg) = self.messages.get(0) {
-            match &first_msg.payload {
+        let matcher = self
+            .messages
+            .iter()
+            .find(|m| !matches!(m.payload, MessagePayload::ChangeCipherSpec(_)))
+            .map(|msg| match &msg.payload {
                 MessagePayload::Handshake(hs) => match hs.payload {
                     msgs::handshake::HandshakePayload::ClientHello(_) => {
-                        Some(TlsQueryMatcher::ClientHelloFlight)
+                        TlsQueryMatcher::ClientHelloFlight
                     }
                     msgs::handshake::HandshakePayload::ServerHello(_) => {
-                        Some(TlsQueryMatcher::ServerHelloFlight)
+                        TlsQueryMatcher::ServerHelloFlight
                     }
-                    _ => Some(TlsQueryMatcher::OtherFlight),
+                    _ => TlsQueryMatcher::OtherFlight,
                 },
-                MessagePayload::ApplicationData(_) => Some(TlsQueryMatcher::EncryptedFlight),
-                _ => Some(TlsQueryMatcher::OtherFlight),
-            }
-        } else {
-            None
-        };
+                MessagePayload::ApplicationData(_) => TlsQueryMatcher::EncryptedFlight,
+                _ => TlsQueryMatcher::OtherFlight,
+            });
 
         knowledges.push(Knowledge {
             source,
@@ -476,8 +476,9 @@ impl ProtocolTypes for TLSProtocolTypes {
         ])
     }
 
-    fn differential_fuzzing_uniformise_put_config(mut trace: Trace<Self>) -> Trace<Self> {
-        for agent in trace.descriptors.iter_mut() {
+    fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self> {
+        let mut uniformized_trace = trace.clone();
+        for agent in uniformized_trace.descriptors.iter_mut() {
             agent.protocol_config.cipher_string_tls12 = String::from(
                 "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384:TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
             );
@@ -487,11 +488,11 @@ impl ProtocolTypes for TLSProtocolTypes {
             agent.protocol_config.groups = Some(String::from("P-256:P-384"));
         }
 
-        for t in trace.prior_traces.iter_mut() {
+        for t in uniformized_trace.prior_traces.iter_mut() {
             *t = Self::differential_fuzzing_uniformise_put_config(t.to_owned());
         }
 
-        trace
+        uniformized_trace
     }
 
     fn differential_fuzzing_filter_diff(diff: &TraceDifference) -> bool {

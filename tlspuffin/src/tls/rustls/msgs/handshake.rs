@@ -175,9 +175,7 @@ impl From<[u8; 32]> for Random {
 
 #[derive(Copy, Clone, Comparable)]
 pub struct SessionID {
-    #[comparable_ignore]
     len: usize,
-    #[comparable_ignore]
     data: [u8; 32],
 }
 
@@ -364,6 +362,7 @@ impl ServerNamePayload {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(TLSProtocolTypes)]
 pub struct ServerName {
+    // Fields in this struct could probably be aligned but for now they are ignored
     #[extractable_ignore]
     pub typ: ServerNameType,
     #[extractable_ignore]
@@ -564,9 +563,8 @@ type ResponderIDs = VecU16OfPayloadU16;
 
 #[derive(Clone, Debug, PartialEq, Comparable)]
 pub struct OCSPCertificateStatusRequest {
-    #[comparable_ignore]
+    // Fields in this struct were previously ignored but do no seem to introduce differences
     pub responder_ids: ResponderIDs,
-    #[comparable_ignore]
     pub extensions: PayloadU16,
 }
 
@@ -643,6 +641,7 @@ declare_u8_vec!(ProtocolVersions, ProtocolVersion);
 #[derive(Debug, Clone, Extractable, PartialEq, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub enum ClientExtension {
+    // `ECPointFormats` is ignored as the not all implementations send this extension
     ECPointFormats(#[comparable_ignore] ECPointFormatList),
     NamedGroups(NamedGroups),
     SignatureAlgorithms(SupportedSignatureSchemes),
@@ -832,6 +831,7 @@ pub enum ClientSessionTicket {
 
 #[derive(Clone, Debug, PartialEq, Comparable)]
 pub enum ServerExtension {
+    // `ECPointFormats` is ignored as the not all implementations send this extension
     ECPointFormats(#[comparable_ignore] ECPointFormatList),
     ServerNameAck,
     SessionTicketAck,
@@ -965,7 +965,7 @@ declare_u8_vec!(Compressions, Compression);
 #[extractable(TLSProtocolTypes)]
 pub struct ClientHelloPayload {
     #[comparable_synthetic {
-        let sorted_cipher_suites = |x: &Self| -> std::collections::HashMap<CipherSuite, ()> { let ciphers : std::collections::HashMap<CipherSuite, ()>= x.cipher_suites.0.clone().into_iter().map(|c| (c,())).collect(); ciphers };
+        let sorted_cipher_suites = |x: &Self| -> CipherSuites { let mut ciphers = x.cipher_suites.clone(); ciphers.0.sort_by(puffin::codec::compare_encoding); ciphers };
     }]
     #[comparable_synthetic {
         let sorted_extensions = |x: &Self| -> ClientExtensions { let mut ext = x.extensions.clone(); ext.0.sort_by(puffin::codec::compare_encoding); ext };

@@ -304,7 +304,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
         log::trace!("Comparing knowledge stores");
         let _ = std::iter::zip(first_store, second_store)
             .enumerate()
-            .map(|(idx, (x, y))| {
+            .for_each(|(idx, (x, y))| {
                 log::trace!(
                     "{} (source:{}) | {} (source:{})",
                     x.data.type_name(),
@@ -314,8 +314,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
                 );
                 x.data
                     .find_differences(y.data, &mut differences, idx, x.source, y.source);
-            })
-            .count();
+            });
 
         match differences.is_empty() {
             false => Err(differences),
@@ -324,7 +323,7 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
     }
 }
 
-/// Should a specific knowledge be filtered out
+/// Should a specific knowledge be kept
 fn filter_knowledge<PT: ProtocolTypes>(
     knowledge: &Knowledge<PT>,
     whitelist: &Option<Vec<TypeId>>,
@@ -767,6 +766,8 @@ pub struct TraceExecution<PT: ProtocolTypes> {
     extra_knowledges: Option<Vec<(Source, Box<dyn EvaluatedTerm<PT>>)>>,
 }
 
+/// Get a trace and return a `TraceExecution` containing the selected informations (terms,
+/// knowledges, claims, raw bytes)
 impl<PT: ProtocolTypes> TraceExecution<PT> {
     pub fn from<PB>(
         trace: &Trace<PT>,
@@ -810,6 +811,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
                 None
             };
 
+            // Get the claims emitted at the current step
             let claims = if export_claims {
                 Some(
                     ctx.claims

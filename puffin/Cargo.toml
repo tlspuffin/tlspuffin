@@ -25,6 +25,7 @@ with-min-scheduler = []
 
 introspection = ["libafl/introspection"]
 
+# Options to disable part of differential fuzzing, used to do ablation studies
 ddyf-disable-status = []
 ddyf-disable-claims = []
 ddyf-disable-knowledges = []

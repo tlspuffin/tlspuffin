@@ -37,11 +37,17 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
             }
         }
     }
+
     // Execute the trace
-    let agent = input.descriptors[0].name;
     let runner = Runner::new(
         put_registry.clone(),
-        Spawner::new(put_registry.clone()).with_mapping(&[(agent, put_descriptor.clone())]),
+        Spawner::new(put_registry.clone()).with_mapping(
+            &input
+                .descriptors
+                .iter()
+                .map(|d| (d.name, put_descriptor.clone()))
+                .collect::<Vec<_>>(),
+        ),
     );
     let mut fail_at_step = 0;
     if let Ok(ctx) = runner.execute(input, &mut fail_at_step, true) {
@@ -70,7 +76,6 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
     second_put: &PutDescriptor,
     input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {
-    let agent = input.descriptors[0].name;
     // Uniformize the put configuration
     let input = <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
         input.clone(),
@@ -78,8 +83,20 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
 
     let runner = DifferentialRunner::new(
         put_registry.clone(),
-        Spawner::new(put_registry.clone()).with_mapping(&[(agent, first_put.clone())]),
-        Spawner::new(put_registry.clone()).with_mapping(&[(agent, second_put.clone())]),
+        Spawner::new(put_registry.clone()).with_mapping(
+            &input
+                .descriptors
+                .iter()
+                .map(|d| (d.name, first_put.clone()))
+                .collect::<Vec<_>>(),
+        ),
+        Spawner::new(put_registry.clone()).with_mapping(
+            &input
+                .descriptors
+                .iter()
+                .map(|d| (d.name, second_put.clone()))
+                .collect::<Vec<_>>(),
+        ),
     );
 
     HARNESS_EXEC.increment();
@@ -118,7 +135,7 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
         Ok(ctx) => {
             HARNESS_EXEC_SUCCESS.increment();
             if cfg!(feature = "introspection") {
-                if ctx.agents_successful() {
+                if ctx.0.agents_successful() && ctx.1.agents_successful() {
                     HARNESS_EXEC_AGENT_SUCCESS.increment();
                 }
             }

@@ -48,7 +48,7 @@ impl<PB> PutRegistry<PB> {
     }
 
     pub fn default_put_descriptor(&self) -> PutDescriptor {
-        PutDescriptor::new(self.default_put_name(), PutOptions::empty())
+        PutDescriptor::new(self.default_put_name(), self.default_put.options.clone())
     }
 }
 

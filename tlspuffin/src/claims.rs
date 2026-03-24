@@ -220,7 +220,10 @@ pub struct Finished {
     pub chosen_cipher: u16,
     #[comparable_ignore]
     pub available_ciphers: SmallVec<[u16; 20]>,
-
+    // #[comparable_synthetic {
+    //     // Since we cant compare SmallVec
+    //     let available_ciphers_vec_u16= |x: &Self| -> Vec<u16> {
+    // x.available_ciphers.as_slice().to_vec() }; }]
     #[comparable_ignore]
     pub signature_algorithm: i32,
     #[comparable_ignore]

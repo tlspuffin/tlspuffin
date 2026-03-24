@@ -78,7 +78,7 @@ pub enum KnowledgeDiff {
         first_source: Source,
         second_source: Source,
     },
-    /// The two knowledges have the same type but there internal values are different
+    /// The two knowledges have the same type but their internal values are different
     InnerDifference {
         index: usize,
         type_name: String,
