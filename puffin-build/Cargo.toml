@@ -11,6 +11,9 @@ readme.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
+[features]
+watch-vendor = []
+
 [dependencies]
 log = { workspace = true }
 env_logger = { workspace = true }

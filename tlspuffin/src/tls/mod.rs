@@ -14,6 +14,7 @@ use crate::protocol::TLSProtocolTypes;
 
 mod key_exchange;
 mod key_schedule;
+mod sign;
 
 pub mod differential_rfc_violations;
 pub mod rustls;

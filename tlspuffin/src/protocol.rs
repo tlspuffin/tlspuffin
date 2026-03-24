@@ -438,6 +438,7 @@ impl ProtocolDescriptorConfig for TLSDescriptorConfig {
 
 // Excluded ciphers:
 // - TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 / ECDHE-RSA-CHACHA20-POLY1305
+//
 // Exclusion with ! does not work for all implementations, we therefore have to make them invalid
 // by adding some text to the cipher name.
 const TLS_DEFAULT_CIPHER: &str = "\

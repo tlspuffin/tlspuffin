@@ -6,7 +6,6 @@ use puffin::codec::{Codec, Reader};
 use puffin::protocol::{OpaqueProtocolMessageFlight, ProtocolMessageFlight};
 
 use crate::protocol::{MessageFlight, OpaqueMessageFlight};
-use crate::tls::fn_impl::fn_rsa_sign;
 use crate::tls::key_exchange::{tls12_key_exchange, tls12_new_secrets};
 use crate::tls::key_schedule::*;
 use crate::tls::rustls::conn::Side;
@@ -28,6 +27,7 @@ use crate::tls::rustls::tls13::key_schedule::KeyScheduleEarly;
 use crate::tls::rustls::tls13::{
     TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384, TLS13_CHACHA20_POLY1305_SHA256,
 };
+use crate::tls::sign::rsa_sign;
 
 // ----
 // seed_client_attacker()
@@ -737,7 +737,7 @@ pub fn fn_sign_rsa_ecdhe_server_key_exchange(
     message.extend_from_slice(&params_bytes);
 
     let scheme = SignatureScheme::RSA_PKCS1_SHA256;
-    let sig = fn_rsa_sign(&message, private_key, &scheme)?;
+    let sig = rsa_sign(&message, private_key, &scheme)?;
 
     let dss = DigitallySignedStruct::new(scheme, sig);
     let ske = ECDHEServerKeyExchange { params, dss };

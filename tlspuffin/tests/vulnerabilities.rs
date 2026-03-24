@@ -671,7 +671,7 @@ fn tcp_wolfssl_cve_2022_39173() {
 #[apply(test_puts,
      attrs = [should_panic(expected = "Negotiated cipher is not in agent's configured ciphers list")],
      filter = all(CVE_2024_5814, tls12, tls13, not(feature = "wolfssl430"))
-)] // We don't have the claims for wolf rust put
+)] // We don't have the "available_ciphers" attribute in the Finished claim for wolf rust put
 fn test_seed_cve_2024_5814(put: &str) {
     let runner = default_runner_for(put);
     let trace = seed_cve_2024_5814.build_trace();
