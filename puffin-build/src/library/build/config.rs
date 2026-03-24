@@ -68,9 +68,3 @@ impl Config {
         self
     }
 }
-
-impl AsRef<Config> for Config {
-    fn as_ref(&self) -> &Config {
-        self
-    }
-}
