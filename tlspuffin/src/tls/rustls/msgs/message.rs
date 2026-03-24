@@ -91,11 +91,8 @@ impl MessagePayload {
             ContentType::ApplicationData => return Ok(Self::ApplicationData(payload)),
             ContentType::Alert => AlertMessagePayload::read(&mut r).map(MessagePayload::Alert),
             ContentType::Handshake => {
-                HandshakeMessagePayload::read_version(&mut r, vers)
+                HandshakeMessagePayload::read_version_exact(&mut r, vers)
                     .map(MessagePayload::Handshake)
-                    // Avoid accepting clear handshake type if there is still data left in the buffer
-                    // It means it is an encrypted message (had an error with libressl333 misinterpreting an encrypted Finished for a HelloRequest)
-                    .filter(|_| !r.any_left())
                     // this type is for TLS 1.2 encrypted handshake messages
                     .or(Some(MessagePayload::TLS12EncryptedHandshake(
                         fallback_payload,

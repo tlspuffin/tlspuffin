@@ -15,6 +15,8 @@ categories.workspace = true
 [features]
 default = ["sancov", "introspection"]
 
+watch-vendor = ["puffin-build/watch-vendor"]
+
 cputs = ["deterministic", "claims"]
 rust-put = []
 

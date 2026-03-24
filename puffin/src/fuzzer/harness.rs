@@ -59,6 +59,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         }
         Err(Error::SecurityClaim(msg)) => {
             log::warn!("{}", msg);
+            // Crashes the trace to catch it as an objective
             std::process::abort();
         }
         Err(_) => {}

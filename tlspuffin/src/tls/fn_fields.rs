@@ -275,6 +275,8 @@ pub fn fn_weak_export_cipher_suite() -> Result<CipherSuite, FnError> {
     Ok(CipherSuite::TLS_RSA_EXPORT_WITH_DES40_CBC_SHA)
 }
 
+/// Cipher suite that is not in the configuration list given to the PUT, therefore not supported by
+/// the PUT.
 pub fn fn_excluded_cipher_suite() -> Result<CipherSuite, FnError> {
     Ok(CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256)
 }
