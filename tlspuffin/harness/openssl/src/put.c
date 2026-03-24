@@ -162,7 +162,7 @@ RESULT openssl_progress(AGENT agent)
 
 static bool recreate_ssl_from_agent_ctx(AGENT agent)
 {
-    SSL_free(agent->ssl); // also frees BIOs (SSL_set_bio transferred ownership)
+    SSL_free(agent->ssl); // also frees BIOs
     agent->ssl = NULL;
     agent->in = NULL;
     agent->out = NULL;
@@ -174,6 +174,16 @@ static bool recreate_ssl_from_agent_ctx(AGENT agent)
     }
     agent->in = BIO_new(BIO_s_mem());
     agent->out = BIO_new(BIO_s_mem());
+    if (agent->in == NULL || agent->out == NULL)
+    {
+        BIO_free(agent->in);
+        BIO_free(agent->out);
+        SSL_free(agent->ssl);
+        agent->ssl = NULL;
+        agent->in = NULL;
+        agent->out = NULL;
+        return false;
+    }
     SSL_set_bio(agent->ssl, agent->in, agent->out);
     openssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
 
@@ -212,9 +222,11 @@ RESULT openssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
         agent->descriptor.name = new_name;
         if (!recreate_ssl_from_agent_ctx(agent))
         {
-            _log(PUFFIN.error, "fatal error in openssl_reset, make_agent returned NULL");
-            return PUFFIN.make_result(RESULT_ERROR_OTHER,
-                                      "fatal error in openssl_reset, make_agent returned NULL");
+            _log(PUFFIN.error,
+                 "fatal error in openssl_reset, recreate_ssl_from_agent_ctx returned false");
+            return PUFFIN.make_result(
+                RESULT_ERROR_OTHER,
+                "fatal error in openssl_reset, recreate_ssl_from_agent_ctx returned false");
         }
     }
     return get_result(agent, SSL_ERROR_NONE, false);
@@ -249,6 +261,7 @@ void openssl_register_claimer(AGENT agent, const CLAIMER_CB *claimer)
     if (agent->claimer != NULL)
     {
         agent->claimer->destroy(agent->claimer->context);
+        free(agent->claimer);
     }
 
     CLAIMER_CB *new_claimer = malloc(sizeof(CLAIMER_CB));
@@ -419,8 +432,16 @@ static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor
     agent->ssl = ssl;
     agent->in = BIO_new(BIO_s_mem());
     agent->out = BIO_new(BIO_s_mem());
+    if (agent->in == NULL || agent->out == NULL)
+    {
+        BIO_free(agent->in);
+        BIO_free(agent->out);
+        SSL_free(ssl);
+        free(agent);
+        return NULL;
+    }
 
-    agent->claimer = &DEFAULT_CLAIMER_CB;
+    agent->claimer = NULL;
     openssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
 
     SSL_set_bio(agent->ssl, agent->in, agent->out);

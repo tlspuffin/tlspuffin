@@ -28,9 +28,7 @@ pub struct FuzzerConfig {
     pub no_launcher: bool,
     pub log_folder: PathBuf,
     pub is_experiment: bool,
-    pub put_options: PutOptions, /* Put options to set when creating a put descriptor (ex:use
-                                  * clear instead of free on Agents in between traces of some
-                                  * Input) */
+    pub put_options: PutOptions,
     pub verbosity: LevelFilter, // level for the client logging
     pub target: FuzzingTarget,
 }

@@ -469,7 +469,6 @@ where
         if let Some(cwd) = cwd {
             options.push(("cwd", cwd));
         }
-        // TODO: Should we use the generic put options here also ? Aka put_use_clear ?
 
         let server = trace.descriptors[0].name;
         let put = PutDescriptor::new(TCP_PUT, options);

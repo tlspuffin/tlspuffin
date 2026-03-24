@@ -7,6 +7,9 @@ use crate::error::Error;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::stream::Stream;
 
+/// Put options to set when creating a put descriptor
+/// Set the key in the cli or tests and get it from the put descriptor wherever needed
+/// (ex:`use_clear` : use clear method instead of free on Agents in between traces of some Input)
 #[derive(Debug, Clone, Deserialize, Serialize, Eq, PartialEq, Hash)]
 pub struct PutOptions {
     options: Vec<(String, String)>,
