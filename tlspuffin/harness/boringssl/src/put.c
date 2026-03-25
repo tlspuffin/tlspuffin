@@ -259,11 +259,15 @@ static void boringssl_msg_callback(int write_p,
             ENQUEUE_CLAIM_WITH_STORED_TRANSCRIPT(agent, CLAIM_TRANSCRIPT_CH_SH);
             break;
         case SSL3_MT_CERTIFICATE:
-            // Only track server Certificate (when we're the client reading it)
-            if (agent->descriptor.role == CLIENT)
-            {
-                ENQUEUE_CLAIM(agent, CLAIM_TRANSCRIPT_CH_CERT);
-            }
+            // Track certificate transcript for both roles:
+            // - client reading server cert (standard TLS 1.3)
+            // - server reading client cert (client authentication)
+            ENQUEUE_CLAIM(agent, CLAIM_TRANSCRIPT_CH_CERT);
+            break;
+        case SSL3_MT_CERTIFICATE_VERIFY:
+            // CertificateVerify transcript — framework maps CLAIM_CERTIFICATE_VERIFY
+            // to TranscriptServerFinished, used by fn_server_finished_transcript
+            ENQUEUE_CLAIM(agent, CLAIM_CERTIFICATE_VERIFY);
             break;
         case SSL3_MT_FINISHED: // Finished from peer
             // Extract CH+SH transcript and handshake secret from BoringSSL patch.
