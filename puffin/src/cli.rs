@@ -382,6 +382,14 @@ where
         let show_raw: &bool = matches.get_one("show_raw").unwrap();
         let disable_security_oracle: &bool = matches.get_one("disable_security_oracle").unwrap();
 
+        let config_trace = ConfigTrace {
+            with_bit_level,
+            ..Default::default()
+        };
+        if !with_bit_level {
+            log::info!("Execution without payload evaluations...");
+        }
+
         let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
             t
         } else {
@@ -393,7 +401,7 @@ where
         log::info!("Agents: {:?}", &trace.descriptors);
 
         let put_name = put_registry.default_put_name().into();
-        let mut ctx = TraceContext::new(Spawner::new(put_registry));
+        let mut ctx = TraceContext::new_config(Spawner::new(put_registry), config_trace);
         let (res, err) = match trace.execute_until_step(
             &mut ctx,
             *max_step.unwrap_or(&trace.steps.len()),
