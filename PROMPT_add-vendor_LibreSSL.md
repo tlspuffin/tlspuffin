@@ -162,15 +162,35 @@ cargo build --release --bin=tlspuffin --features=cputs
 
 3. **Default groups**: Constrain to `"X25519:P-256:P-384"` when no config given — many vendors offer non-standard or post-quantum groups by default that the fuzzer's Rust message parser doesn't support.
 
+
 **Validation:**
 
+a. Execute each TLS 1.3 seed individually (except those that require hash transcript handled later) and check for successful execution:
 ```bash
-# Execute each seed individually and check for successful execution
 cargo run -p tlspuffin --features=cputs -- --put <vendor_id> execute seeds/tlspuffin::tls::seeds::seed_successful.trace
-cargo run -p tlspuffin --features=cputs -- --put <vendor_id> execute seeds/tlspuffin::tls::seeds::seed_client_attacker.trace
-# ... all seeds
+cargo run -p tlspuffin --features=cputs -- --put <vendor_id> execute seeds/tlspuffin::tls::seeds::seed_server_attacker_full.trace
+cargo run -p tlspuffin --features=cputs -- --put <vendor_id> execute seeds/tlspuffin::tls::seeds::seed_server_attacker_with_hello_retry_request.trace
+cargo run -p tlspuffin --features=cputs -- --put <vendor_id> execute seeds/tlspuffin::tls::seeds::seed_server_attacker_full_coalesced.trace
+cargo run -p tlspuffin --features=cputs -- --put <vendor_id> execute seeds/tlspuffin::tls::seeds::seed_session_resumption_dhe.trace
+cargo run -p tlspuffin --features=cputs -- --put <vendor_id> execute seeds/tlspuffin::tls::seeds::seed_session_resumption_ke.trace
+cargo run -p tlspuffin --features=cputs -- --put <vendor_id> execute seeds/tlspuffin::tls::seeds::seed_successful_with_ccs.trace
+cargo run -p tlspuffin --features=cputs -- --put <vendor_id> execute seeds/tlspuffin::tls::seeds::seed_successful_with_tickets.trace
 
-# Inspect output in detail
+```
+
+b. Then, execute each TLS 1.2 seed individually (except those that require hash transcript handled later) and check for successful execution
+```bash
+cargo run -p tlspuffin --features=cputs -- --put <vendor_id> execute seeds/tlspuffin::tls::seeds::seeds::seed_server_attacker12.trace
+cargo run -p tlspuffin --features=cputs -- --put <vendor_id> execute seeds/tlspuffin::tls::seeds::seeds::seed_successful12_with_tickets.trace
+```
+c. Then, execute each TLS 1.3 with resumption individually (except those that require hash transcript handled later) and check for successful execution:
+```bash
+cargo run -p tlspuffin --features=cputs -- --put <vendor_id> execute seeds/tlspuffin::tls::seeds::seeds::seed_server_attacker12.trace
+cargo run -p tlspuffin --features=cputs -- --put <vendor_id> execute seeds/tlspuffin::tls::seeds::seeds::seed_successful12_with_tickets.trace
+```
+
+d. Inspect output in detail in case of failures
+```bash
 cargo run -p tlspuffin --features=cputs -- --put <vendor_id> display-execute -tckp seeds/tlspuffin::tls::seeds::seed_successful.trace
 ```
 
@@ -179,13 +199,14 @@ cargo run -p tlspuffin --features=cputs -- --put <vendor_id> display-execute -tc
 ```bash
 # Run the basic seed execution tests for the new vendor
 cargo test -p tlspuffin --features=cputs -- test_seed_successful::<vendor_id>
-cargo test -p tlspuffin --features=cputs -- test_seed_client_attacker::<vendor_id>
 ```
 
 **Vendor-specific quirks found during LibreSSL integration:**
 - LibreSSL internal headers require `__BEGIN_HIDDEN_DECLS` / `__END_HIDDEN_DECLS` macros to be defined as empty before inclusion
 - Default groups may include non-standard curves; always constrain with `SSL_CTX_set1_groups_list`
 - BIO and error handling may differ subtly from OpenSSL — test `bindings.c` carefully
+- Any modification in `puffin-build/` requires a recompilation of the vendor: `./tools/mk_vendor make <vendor>:<vendor_id>`. (Note that any modification in `tlspuffin/` will be taken care by cargo automatically.)
+
 
 ### Step 2: Add security claims
 
@@ -253,7 +274,7 @@ set(client_authentication_transcript_extraction yes)
 
 ```bash
 # Verify transcript claims appear in output
-cargo run -p tlspuffin --features=cputs -- --put <vendor_id> display-execute -tckp seeds/tlspuffin::tls::seeds::seed_successful.trace
+cargo run -p tlspuffin --features=cputs -- --put <vendor_id> display-execute -tckp seeds/tlspuffin::tls::seeds::seed_client_attacker_auth.trace
 # Look for CLAIM_TRANSCRIPT_* entries with non-zero hash values
 ```
 

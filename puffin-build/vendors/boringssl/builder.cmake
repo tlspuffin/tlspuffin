@@ -4,6 +4,9 @@ patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/no_asan.patch)
 patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/extract_transcript.patch)
 patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/reset_drbg.patch)
 
+# Swap TLS 1.3 cipher preference: AES-256-GCM first (matching OpenSSL default).
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/ssl/handshake_client.cc -P "${CMAKE_CURRENT_LIST_DIR}/patch_cipher_order.cmake")
+
 cmake_builder(
   TARGETS
     ssl

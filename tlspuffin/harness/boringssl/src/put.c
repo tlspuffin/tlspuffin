@@ -16,8 +16,8 @@
 #include <puffin/tls.h>
 
 #include "bindings.h"
-#include "rng.h"
 #include "claims.h"
+#include "rng.h"
 
 #ifndef MIN
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
@@ -49,14 +49,23 @@ struct AGENT_TYPE
 
     const CLAIMER_CB *claimer;
 
-    // Deferred claim queue (filled in msg_callback, flushed in progress)
+    // Deferred claim queue (filled in msg_callback, flushed in progress).
+    // Secrets are captured here because BoringSSL frees hs when the handshake
+    // completes, making secrets inaccessible at progress() flush time.
     struct
     {
         enum ClaimType type;
         uint8_t transcript[EVP_MAX_MD_SIZE];
         int transcript_len;
+        // Snapshot of secrets at msg_callback time (hs still alive)
+        bool has_secrets;
     } claimQueue[CLAIM_QUEUE_SIZE];
     int claimQueueLen;
+
+    // Snapshot of TLS 1.3 secrets, captured from hs during msg_callback
+    // before BoringSSL frees hs at handshake completion.
+    SnappedTLS13Secrets snapped_secrets;
+    bool secrets_snapped;
 
     // Cached randoms from handshake messages (msg_callback).
     // Needed because BoringSSL may not expose them via SSL_get_*_random
@@ -71,9 +80,9 @@ struct AGENT_TYPE
     // in tls13_derive_handshake_secrets.  Stored here (not in a global
     // C++ map) to avoid lifetime/threading issues.
     uint8_t stored_ch_sh_transcript[EVP_MAX_MD_SIZE];
-    size_t  stored_ch_sh_transcript_len;
+    size_t stored_ch_sh_transcript_len;
     uint8_t stored_handshake_secret[EVP_MAX_MD_SIZE];
-    size_t  stored_handshake_secret_len;
+    size_t stored_handshake_secret_len;
 };
 
 // ---------------------------------------------------------------------------
@@ -102,8 +111,12 @@ static void boringssl_set_protocol_version(SSL_CTX *ssl_ctx, TLS_VERSION version
 // Default claimer (no-op)
 // ---------------------------------------------------------------------------
 
-static void default_claimer_notify(void *context, Claim *claim) {}
-static void default_claimer_destroy(void *context) {}
+static void default_claimer_notify(void *context, Claim *claim)
+{
+}
+static void default_claimer_destroy(void *context)
+{
+}
 
 static const CLAIMER_CB DEFAULT_CLAIMER_CB = {
     .context = NULL,
@@ -119,16 +132,17 @@ static const TLS_PUT_INTERFACE BORINGSSL_PUT = {
     .create = boringssl_create,
     .rng_reseed = rng_reseed,
     .supports = NULL,
-    .agent_interface = {
-        .destroy = boringssl_destroy,
-        .progress = boringssl_progress,
-        .reset = boringssl_reset,
-        .describe_state = boringssl_describe_state,
-        .is_state_successful = boringssl_is_successful,
-        .register_claimer = boringssl_register_claimer,
-        .add_inbound = boringssl_add_inbound,
-        .take_outbound = boringssl_take_outbound,
-    },
+    .agent_interface =
+        {
+            .destroy = boringssl_destroy,
+            .progress = boringssl_progress,
+            .reset = boringssl_reset,
+            .describe_state = boringssl_describe_state,
+            .is_state_successful = boringssl_is_successful,
+            .register_claimer = boringssl_register_claimer,
+            .add_inbound = boringssl_add_inbound,
+            .take_outbound = boringssl_take_outbound,
+        },
 };
 
 const TLS_PUT_INTERFACE *REGISTER()
@@ -189,45 +203,51 @@ static void boringssl_msg_callback(int write_p,
     // (captured at the exact right point by the BoringSSL patch).
     // For other messages: extract the current transcript hash.
 
-#define ENQUEUE_CLAIM(agent, ctype)                                               \
-    do                                                                            \
-    {                                                                             \
-        if ((agent)->claimQueueLen < CLAIM_QUEUE_SIZE)                            \
-        {                                                                         \
-            int _idx = (agent)->claimQueueLen++;                                  \
-            (agent)->claimQueue[_idx].type = (ctype);                             \
-            (agent)->claimQueue[_idx].transcript_len =                            \
-                boringssl_extract_transcript_safe(                                \
-                    (agent)->ssl,                                                 \
-                    (agent)->claimQueue[_idx].transcript,                         \
-                    sizeof((agent)->claimQueue[_idx].transcript));                \
-        }                                                                         \
+    // BoringSSL fires msg_callback BEFORE updating hs->transcript (see
+    // s3_both.cc: ssl_do_msg_callback is called before transcript.Update).
+    // So we must include the current message in the hash ourselves.
+
+#define ENQUEUE_CLAIM(agent, ctype)                                                                \
+    do                                                                                             \
+    {                                                                                              \
+        if ((agent)->claimQueueLen < CLAIM_QUEUE_SIZE)                                             \
+        {                                                                                          \
+            int _idx = (agent)->claimQueueLen++;                                                   \
+            (agent)->claimQueue[_idx].type = (ctype);                                              \
+            (agent)->claimQueue[_idx].transcript_len = boringssl_extract_transcript_with_msg(      \
+                (agent)->ssl,                                                                      \
+                (const uint8_t *)buf,                                                              \
+                len,                                                                               \
+                (agent)->claimQueue[_idx].transcript,                                              \
+                sizeof((agent)->claimQueue[_idx].transcript));                                     \
+        }                                                                                          \
     } while (0)
 
-#define ENQUEUE_CLAIM_WITH_STORED_TRANSCRIPT(agent, ctype)                        \
-    do                                                                            \
-    {                                                                             \
-        if ((agent)->claimQueueLen < CLAIM_QUEUE_SIZE)                            \
-        {                                                                         \
-            int _idx = (agent)->claimQueueLen++;                                  \
-            (agent)->claimQueue[_idx].type = (ctype);                             \
-            if ((agent)->stored_ch_sh_transcript_len > 0)                         \
-            {                                                                     \
-                (agent)->claimQueue[_idx].transcript_len =                        \
-                    (int)(agent)->stored_ch_sh_transcript_len;                    \
-                memcpy((agent)->claimQueue[_idx].transcript,                      \
-                       (agent)->stored_ch_sh_transcript,                          \
-                       (agent)->stored_ch_sh_transcript_len);                     \
-            }                                                                     \
-            else                                                                  \
-            {                                                                     \
-                (agent)->claimQueue[_idx].transcript_len =                        \
-                    boringssl_extract_transcript_safe(                             \
-                        (agent)->ssl,                                             \
-                        (agent)->claimQueue[_idx].transcript,                     \
-                        sizeof((agent)->claimQueue[_idx].transcript));            \
-            }                                                                     \
-        }                                                                         \
+#define ENQUEUE_CLAIM_WITH_STORED_TRANSCRIPT(agent, ctype)                                         \
+    do                                                                                             \
+    {                                                                                              \
+        if ((agent)->claimQueueLen < CLAIM_QUEUE_SIZE)                                             \
+        {                                                                                          \
+            int _idx = (agent)->claimQueueLen++;                                                   \
+            (agent)->claimQueue[_idx].type = (ctype);                                              \
+            if ((agent)->stored_ch_sh_transcript_len > 0)                                          \
+            {                                                                                      \
+                (agent)->claimQueue[_idx].transcript_len =                                         \
+                    (int)(agent)->stored_ch_sh_transcript_len;                                     \
+                memcpy((agent)->claimQueue[_idx].transcript,                                       \
+                       (agent)->stored_ch_sh_transcript,                                           \
+                       (agent)->stored_ch_sh_transcript_len);                                      \
+            }                                                                                      \
+            else                                                                                   \
+            {                                                                                      \
+                (agent)->claimQueue[_idx].transcript_len = boringssl_extract_transcript_with_msg(  \
+                    (agent)->ssl,                                                                  \
+                    (const uint8_t *)buf,                                                          \
+                    len,                                                                           \
+                    (agent)->claimQueue[_idx].transcript,                                          \
+                    sizeof((agent)->claimQueue[_idx].transcript));                                 \
+            }                                                                                      \
+        }                                                                                          \
     } while (0)
 
     if (write_p == 0) // message being read (received from peer)
@@ -246,6 +266,11 @@ static void boringssl_msg_callback(int write_p,
             }
             break;
         case SSL3_MT_FINISHED: // Finished from peer
+            // Extract CH+SH transcript and handshake secret from BoringSSL patch.
+            if (agent->stored_ch_sh_transcript_len == 0)
+            {
+                boringssl_extract_ch_sh_and_secrets(agent);
+            }
             if (agent->descriptor.role == CLIENT)
             {
                 ENQUEUE_CLAIM(agent, CLAIM_TRANSCRIPT_CH_SERVER_FIN);
@@ -268,6 +293,11 @@ static void boringssl_msg_callback(int write_p,
             ENQUEUE_CLAIM_WITH_STORED_TRANSCRIPT(agent, CLAIM_TRANSCRIPT_CH_SH);
             break;
         case SSL3_MT_FINISHED: // Finished outbound
+            // Extract CH+SH transcript and handshake secret if not done yet.
+            if (agent->stored_ch_sh_transcript_len == 0)
+            {
+                boringssl_extract_ch_sh_and_secrets(agent);
+            }
             if (agent->descriptor.role == SERVER)
             {
                 ENQUEUE_CLAIM(agent, CLAIM_TRANSCRIPT_CH_SERVER_FIN);
@@ -275,6 +305,11 @@ static void boringssl_msg_callback(int write_p,
             else
             {
                 ENQUEUE_CLAIM(agent, CLAIM_TRANSCRIPT_CH_CLIENT_FIN);
+            }
+            // Snapshot TLS 1.3 secrets while hs is still alive
+            if (!agent->secrets_snapped)
+            {
+                boringssl_snapshot_secrets(agent);
             }
             break;
         default:
@@ -442,6 +477,7 @@ static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor
     agent->has_cached_client_random = false;
     agent->stored_ch_sh_transcript_len = 0;
     agent->stored_handshake_secret_len = 0;
+    agent->secrets_snapped = false;
 
     agent->ctx = ssl_ctx;
     agent->ssl = SSL_new(agent->ctx);
@@ -574,6 +610,7 @@ RESULT boringssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
     agent->has_cached_client_random = false;
     agent->stored_ch_sh_transcript_len = 0;
     agent->stored_handshake_secret_len = 0;
+    agent->secrets_snapped = false;
 
     if (use_clear)
     {
@@ -616,6 +653,7 @@ static bool recreate_ssl_from_agent_ctx(AGENT agent)
     agent->has_cached_client_random = false;
     agent->stored_ch_sh_transcript_len = 0;
     agent->stored_handshake_secret_len = 0;
+    agent->secrets_snapped = false;
 
     boringssl_set_agent_for_ssl(agent->ssl, agent);
 
@@ -760,9 +798,7 @@ SSL *boringssl_agent_get_ssl(void *agent_opaque)
     return agent ? agent->ssl : NULL;
 }
 
-void boringssl_agent_set_ch_sh_transcript(void *agent_opaque,
-                                           const uint8_t *hash,
-                                           size_t hash_len)
+void boringssl_agent_set_ch_sh_transcript(void *agent_opaque, const uint8_t *hash, size_t hash_len)
 {
     AGENT agent = (AGENT)agent_opaque;
     if (agent == NULL)
@@ -773,9 +809,7 @@ void boringssl_agent_set_ch_sh_transcript(void *agent_opaque,
     memcpy(agent->stored_ch_sh_transcript, hash, agent->stored_ch_sh_transcript_len);
 }
 
-void boringssl_agent_set_handshake_secret(void *agent_opaque,
-                                           const uint8_t *data,
-                                           size_t len)
+void boringssl_agent_set_handshake_secret(void *agent_opaque, const uint8_t *data, size_t len)
 {
     AGENT agent = (AGENT)agent_opaque;
     if (agent == NULL)
@@ -787,8 +821,8 @@ void boringssl_agent_set_handshake_secret(void *agent_opaque,
 }
 
 void boringssl_agent_get_stored_handshake_secret(void *agent_opaque,
-                                                  const uint8_t **out,
-                                                  size_t *out_len)
+                                                 const uint8_t **out,
+                                                 size_t *out_len)
 {
     AGENT agent = (AGENT)agent_opaque;
     if (agent == NULL || agent->stored_handshake_secret_len == 0)
@@ -802,8 +836,8 @@ void boringssl_agent_get_stored_handshake_secret(void *agent_opaque,
 }
 
 void boringssl_agent_get_cached_client_random(void *agent_opaque,
-                                               const uint8_t **out,
-                                               size_t *out_len)
+                                              const uint8_t **out,
+                                              size_t *out_len)
 {
     AGENT agent = (AGENT)agent_opaque;
     if (agent == NULL || !agent->has_cached_client_random)
@@ -817,8 +851,8 @@ void boringssl_agent_get_cached_client_random(void *agent_opaque,
 }
 
 void boringssl_agent_get_cached_server_random(void *agent_opaque,
-                                               const uint8_t **out,
-                                               size_t *out_len)
+                                              const uint8_t **out,
+                                              size_t *out_len)
 {
     AGENT agent = (AGENT)agent_opaque;
     if (agent == NULL || !agent->has_cached_server_random)
@@ -829,4 +863,46 @@ void boringssl_agent_get_cached_server_random(void *agent_opaque,
     }
     *out = agent->cached_server_random;
     *out_len = SSL3_RANDOM_SIZE;
+}
+
+void boringssl_agent_fixup_ch_sh_transcript(void *agent_opaque,
+                                            const uint8_t *hash,
+                                            size_t hash_len)
+{
+    AGENT agent = (AGENT)agent_opaque;
+    if (agent == NULL)
+    {
+        return;
+    }
+    for (int i = 0; i < agent->claimQueueLen; i++)
+    {
+        if (agent->claimQueue[i].type == CLAIM_TRANSCRIPT_CH_SH)
+        {
+            size_t copy_len = MIN(hash_len, sizeof(agent->claimQueue[i].transcript));
+            memcpy(agent->claimQueue[i].transcript, hash, copy_len);
+            agent->claimQueue[i].transcript_len = (int)copy_len;
+        }
+    }
+}
+
+void boringssl_agent_store_snapped_secrets(void *agent_opaque, const SnappedTLS13Secrets *secrets)
+{
+    AGENT agent = (AGENT)agent_opaque;
+    if (agent == NULL || secrets == NULL)
+    {
+        return;
+    }
+    memcpy(&agent->snapped_secrets, secrets, sizeof(SnappedTLS13Secrets));
+    agent->secrets_snapped = true;
+}
+
+bool boringssl_agent_get_snapped_secrets(void *agent_opaque, SnappedTLS13Secrets *out)
+{
+    AGENT agent = (AGENT)agent_opaque;
+    if (agent == NULL || !agent->secrets_snapped || out == NULL)
+    {
+        return false;
+    }
+    memcpy(out, &agent->snapped_secrets, sizeof(SnappedTLS13Secrets));
+    return true;
 }

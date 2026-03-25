@@ -161,6 +161,8 @@ mod tests {
         #[cfg(feature = "wolfssl430")]
         assert!(version.expect("missing version string").contains("4.3.0"));
         #[cfg(feature = "boringssl20260211")]
-        assert!(version.expect("missing version string").contains("0.20260211.0"));
+        assert!(version
+            .expect("missing version string")
+            .contains("0.20260211.0"));
     }
 }
