@@ -522,7 +522,13 @@ where
             return ExitCode::FAILURE;
         }
 
-        let first_put_descriptors = trace
+        // Uniformise PUT configuration (ciphers, sigalgs, groups) so both PUTs
+        // use a comparable config — same as the test helper does.
+        let trace =
+            <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(trace);
+
+        // Map ALL agents in the trace to the specified PUT, not just the first.
+        let first_mappings: Vec<_> = trace
             .descriptors
             .iter()
             .map(|d| {
@@ -531,8 +537,8 @@ where
                     PutDescriptor::new(first_put, put_registry.default_put_options().clone()),
                 )
             })
-            .collect::<Vec<_>>();
-        let second_put_descriptors = trace
+            .collect();
+        let second_mappings: Vec<_> = trace
             .descriptors
             .iter()
             .map(|d| {
@@ -541,12 +547,12 @@ where
                     PutDescriptor::new(second_put, put_registry.default_put_options().clone()),
                 )
             })
-            .collect::<Vec<_>>();
+            .collect();
 
         let runner = DifferentialRunner::new(
             put_registry.clone(),
-            Spawner::new(put_registry.clone()).with_mapping(&first_put_descriptors),
-            Spawner::new(put_registry).with_mapping(&second_put_descriptors),
+            Spawner::new(put_registry.clone()).with_mapping(&first_mappings),
+            Spawner::new(put_registry.clone()).with_mapping(&second_mappings),
         );
 
         return match runner.execute_config(
