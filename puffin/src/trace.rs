@@ -1025,6 +1025,18 @@ impl<PT: ProtocolTypes> StepExecution<PT> {
 /// server or client role and a specific TLs version. Essentially they are an [`Agent`] without a
 /// stream.
 impl<PT: ProtocolTypes> Trace<PT> {
+    /// Recursively collect all agent descriptors from this trace and its prior traces.
+    /// This is needed for differential testing: agents in prior traces must also be
+    /// mapped to the correct PUT, otherwise they silently fall back to the default.
+    pub fn all_descriptors(&self) -> Vec<&AgentDescriptor<PT::PUTConfig>> {
+        let mut result: Vec<&AgentDescriptor<PT::PUTConfig>> = Vec::new();
+        for prior in &self.prior_traces {
+            result.extend(prior.all_descriptors());
+        }
+        result.extend(self.descriptors.iter());
+        result
+    }
+
     pub fn spawn_agents<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         ctx: &mut TraceContext<PB>,

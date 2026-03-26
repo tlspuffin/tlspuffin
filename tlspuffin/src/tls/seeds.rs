@@ -3058,6 +3058,88 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
+    /// Verify that cipher and sigalgs configuration actually takes effect.
+    /// This catches silent failures like BoringSSL ignoring unrecognised IANA cipher names.
+    #[apply(test_puts, filter = tls13)]
+    fn test_cipher_config_takes_effect(put: &str) {
+        use crate::claims::Finished;
+
+        let client = AgentName::first();
+        let server = client.next();
+        let mut trace = seed_successful(client, server);
+        trace =
+            <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(trace);
+
+        let runner = default_runner_for(put);
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+        assert!(ctx.agents_successful());
+
+        // The uniformised TLS 1.3 config allows: AES-256-GCM, AES-128-GCM, CHACHA20
+        let allowed_ciphers: &[u16] = &[0x1301, 0x1302, 0x1303];
+
+        let claim = ctx
+            .find_claim(server, TypeShape::of::<Finished>())
+            .expect(&format!("no Finished claim for server agent in {put}"));
+        let finished = claim.as_ref().as_any().downcast_ref::<Finished>().unwrap();
+        assert!(
+            allowed_ciphers.contains(&finished.chosen_cipher),
+            "{put}: server chosen_cipher 0x{:04x} not in configured set {allowed_ciphers:?}",
+            finished.chosen_cipher,
+        );
+
+        // Verify sigalgs config took effect: the negotiated signature algorithm must be
+        // one of the configured RSA-PSS or RSA schemes.
+        // RSA-PSS+SHA256=0x0804, RSA-PSS+SHA384=0x0805, RSA-PSS+SHA512=0x0806,
+        // RSA+SHA256=0x0401, RSA+SHA384=0x0501, RSA+SHA512=0x0601
+        let allowed_sigalgs: &[i32] = &[0x0804, 0x0805, 0x0806, 0x0401, 0x0501, 0x0601];
+        assert!(
+            finished.signature_algorithm != 0,
+            "{put}: server signature_algorithm not reported (== 0)",
+        );
+        assert!(
+            allowed_sigalgs.contains(&finished.signature_algorithm),
+            "{put}: server signature_algorithm 0x{:04x} not in configured set {allowed_sigalgs:?}",
+            finished.signature_algorithm,
+        );
+    }
+
+    /// Verify that TLS 1.2 cipher configuration takes effect.
+    /// Uses the same seed selection logic as test_seed_successful12.
+    /// Checks that the negotiated cipher is an ECDHE cipher as configured.
+    #[apply(test_puts, filter = all(tls12))]
+    fn test_cipher_config_tls12_takes_effect(put: &str) {
+        use crate::claims::Finished;
+
+        let trace = if supports!(put, "tls12_session_resumption") {
+            seed_successful12_with_tickets.build_trace()
+        } else {
+            seed_successful12.build_trace()
+        };
+        let server = AgentName::first().next();
+
+        let runner = default_runner_for(put);
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+        assert!(ctx.agents_successful());
+
+        let claim = ctx
+            .find_claim(server, TypeShape::of::<Finished>())
+            .expect(&format!("no Finished claim for server agent in {put}"));
+        let finished = claim.as_ref().as_any().downcast_ref::<Finished>().unwrap();
+        // The chosen cipher must be non-zero (i.e., actually reported)
+        assert!(
+            finished.chosen_cipher != 0,
+            "{put}: server Finished claim has chosen_cipher == 0 (cipher config not reported)",
+        );
+        // The chosen cipher must be an ECDHE cipher (0xC0xx range) since the seed uses
+        // ServerKeyExchange which only applies to ephemeral key exchange
+        assert!(
+            (finished.chosen_cipher >> 8) == 0xC0,
+            "{put}: server chosen_cipher 0x{:04x} is not an ECDHE cipher — \
+             cipher config may not have taken effect",
+            finished.chosen_cipher,
+        );
+    }
+
     #[test_log::test]
     fn test_corpus_file_sizes() {
         use puffin::trace::Action;
@@ -3530,12 +3612,11 @@ pub mod tests {
                 <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
                     trace,
                 );
-            // Map ALL agents in the trace to the specified PUT, not just the first.
-            // Multi-agent traces (e.g. seed_successful with client+server) need every
-            // agent mapped, otherwise unmapped agents silently use the default PUT,
+            // Map ALL agents in the trace (including prior traces) to the specified PUT.
+            // Without this, agents in prior traces silently fall back to the default PUT,
             // producing mixed-PUT executions that hide real differences.
             let first_mappings: Vec<_> = trace
-                .descriptors
+                .all_descriptors()
                 .iter()
                 .map(|d| {
                     (
@@ -3545,7 +3626,7 @@ pub mod tests {
                 })
                 .collect();
             let second_mappings: Vec<_> = trace
-                .descriptors
+                .all_descriptors()
                 .iter()
                 .map(|d| {
                     (

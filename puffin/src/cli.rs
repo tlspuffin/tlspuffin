@@ -527,9 +527,10 @@ where
         let trace =
             <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(trace);
 
-        // Map ALL agents in the trace to the specified PUT, not just the first.
+        // Map ALL agents in the trace (including prior traces) to the specified PUT.
+        // Without this, agents in prior traces silently fall back to the default PUT.
         let first_mappings: Vec<_> = trace
-            .descriptors
+            .all_descriptors()
             .iter()
             .map(|d| {
                 (
@@ -539,7 +540,7 @@ where
             })
             .collect();
         let second_mappings: Vec<_> = trace
-            .descriptors
+            .all_descriptors()
             .iter()
             .map(|d| {
                 (
