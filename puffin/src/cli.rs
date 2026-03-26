@@ -514,6 +514,11 @@ where
             return ExitCode::FAILURE;
         }
 
+        // Uniformise PUT configuration (ciphers, sigalgs, groups) so both PUTs
+        // use a comparable config — same as the test helper does.
+        let trace =
+            <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(trace);
+
         // Map ALL agents in the trace to the specified PUT, not just the first.
         let first_mappings: Vec<_> = trace
             .descriptors
