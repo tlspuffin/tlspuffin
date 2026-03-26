@@ -93,14 +93,15 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
         input.clone(),
     );
 
-    // Map ALL agents in the trace to the specified PUT, not just the first.
+    // Map ALL agents in the trace (including prior traces) to the specified PUT.
+    // Without this, agents in prior traces silently fall back to the default PUT.
     let first_mappings: Vec<_> = input
-        .descriptors
+        .all_descriptors()
         .iter()
         .map(|d| (d.name, first_put.clone()))
         .collect();
     let second_mappings: Vec<_> = input
-        .descriptors
+        .all_descriptors()
         .iter()
         .map(|d| (d.name, second_put.clone()))
         .collect();
