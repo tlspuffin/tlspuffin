@@ -204,54 +204,62 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             config_trace.check_security_violation,
         );
 
-        // check status first
+        // Check execution status — any error except SecurityClaim/Difference is an
+        // execution failure.  The old code only matched Error::Put, silently ignoring
+        // Error::Term, Error::Fn, etc., which hid status mismatches (e.g. one PUT
+        // fails with "Unable to find variable" while the other succeeds).
         let mut diff = vec![];
         #[cfg(not(feature = "ddyf-disable-status"))]
-        match (&first_trace_status, &second_trace_status) {
-            (Err(Error::Put(put1_error)), Err(Error::Put(put2_error))) => {
-                // If both PUT fail at the same step we consider that they fail for the same
-                // reason
-                if first_ctx.executed_until != second_ctx.executed_until {
-                    diff.push(
-                        crate::differential::StatusDiff {
-                            first_executed_steps: first_ctx.executed_until,
-                            first_status: put1_error.to_string(),
-                            second_executed_steps: second_ctx.executed_until,
-                            second_status: put2_error.to_string(),
-                            total_step: trace.as_ref().steps.len(),
-                        }
-                        .as_trace_difference(),
-                    )
+        {
+            let is_exec_failure =
+                |e: &Error| !matches!(e, Error::SecurityClaim(_) | Error::Difference(_));
+
+            match (&first_trace_status, &second_trace_status) {
+                (Err(e1), Err(e2)) if is_exec_failure(e1) && is_exec_failure(e2) => {
+                    // If both PUTs fail at the same step we consider that they fail for
+                    // the same reason
+                    if first_ctx.executed_until != second_ctx.executed_until {
+                        diff.push(
+                            crate::differential::StatusDiff {
+                                first_executed_steps: first_ctx.executed_until,
+                                first_status: e1.to_string(),
+                                second_executed_steps: second_ctx.executed_until,
+                                second_status: e2.to_string(),
+                                total_step: trace.as_ref().steps.len(),
+                            }
+                            .as_trace_difference(),
+                        )
+                    }
                 }
+                (Err(e1), second_status) if is_exec_failure(e1) => diff.push(
+                    crate::differential::StatusDiff {
+                        first_executed_steps: first_ctx.executed_until,
+                        first_status: e1.to_string(),
+                        second_executed_steps: second_ctx.executed_until,
+                        second_status: match second_status {
+                            Ok(_) => "Success".into(),
+                            Err(e) => e.to_string(),
+                        },
+                        total_step: trace.as_ref().steps.len(),
+                    }
+                    .as_trace_difference(),
+                ),
+                (first_status, Err(e2)) if is_exec_failure(e2) => diff.push(
+                    crate::differential::StatusDiff {
+                        first_executed_steps: first_ctx.executed_until,
+                        first_status: match first_status {
+                            Ok(_) => "Success".into(),
+                            Err(e) => e.to_string(),
+                        },
+                        second_executed_steps: second_ctx.executed_until,
+                        second_status: e2.to_string(),
+                        total_step: trace.as_ref().steps.len(),
+                    }
+                    .as_trace_difference(),
+                ),
+                _ => (),
             }
-            (Err(Error::Put(put1_error)), second_put_status) => diff.push(
-                crate::differential::StatusDiff {
-                    first_executed_steps: first_ctx.executed_until,
-                    first_status: put1_error.to_string(),
-                    second_executed_steps: second_ctx.executed_until,
-                    second_status: match second_put_status {
-                        Ok(_) => "Success".into(),
-                        Err(e) => e.to_string(),
-                    },
-                    total_step: trace.as_ref().steps.len(),
-                }
-                .as_trace_difference(),
-            ),
-            (first_put_status, Err(Error::Put(put2_error))) => diff.push(
-                crate::differential::StatusDiff {
-                    first_executed_steps: first_ctx.executed_until,
-                    first_status: match first_put_status {
-                        Ok(_) => "Success".into(),
-                        Err(e) => e.to_string(),
-                    },
-                    second_executed_steps: second_ctx.executed_until,
-                    second_status: put2_error.to_string(),
-                    total_step: trace.as_ref().steps.len(),
-                }
-                .as_trace_difference(),
-            ),
-            _ => (),
-        };
+        }
 
         // Maximum executed step on the two PUTs
         *executed_until = usize::max(first_ctx.executed_until, second_ctx.executed_until);

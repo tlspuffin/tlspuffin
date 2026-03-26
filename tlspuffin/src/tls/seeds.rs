@@ -3493,30 +3493,35 @@ pub mod tests {
                 <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
                     trace,
                 );
-            let first_mapping: Vec<_> = trace
+            // Map ALL agents in the trace to the specified PUT, not just the first.
+            // Multi-agent traces (e.g. seed_successful with client+server) need every
+            // agent mapped, otherwise unmapped agents silently use the default PUT,
+            // producing mixed-PUT executions that hide real differences.
+            let first_mappings: Vec<_> = trace
                 .descriptors
                 .iter()
-                .map(|descriptor| {
+                .map(|d| {
                     (
-                        descriptor.name,
+                        d.name,
                         PutDescriptor::new(first_put, registry.default_put_options().clone()),
                     )
                 })
                 .collect();
-            let second_mapping: Vec<_> = trace
+            let second_mappings: Vec<_> = trace
                 .descriptors
                 .iter()
-                .map(|descriptor| {
+                .map(|d| {
                     (
-                        descriptor.name,
+                        d.name,
                         PutDescriptor::new(second_put, registry.default_put_options().clone()),
                     )
                 })
                 .collect();
+
             let runner = DifferentialRunner::new(
                 registry.clone(),
-                Spawner::new(registry.clone()).with_mapping(&first_mapping),
-                Spawner::new(registry.clone()).with_mapping(&second_mapping),
+                Spawner::new(registry.clone()).with_mapping(&first_mappings),
+                Spawner::new(registry.clone()).with_mapping(&second_mappings),
             );
 
             let result = runner.execute(trace, &mut 0);
