@@ -442,6 +442,7 @@ static RESULT get_result(AGENT agent, int retcode, bool allow_would_block)
         break;
     case SSL_ERROR_WANT_READ:
     case SSL_ERROR_WANT_WRITE:
+        // This is not a hard error so we log it but do not stop execution
         error_type = strdup("IO_WOULD_BLOCK");
         break;
     default:

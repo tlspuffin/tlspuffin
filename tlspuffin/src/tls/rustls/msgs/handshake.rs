@@ -1795,6 +1795,7 @@ impl codec::Codec for ClientECDHParams {
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
 pub struct ServerECDHParams {
+    // Fields in this struct are ignored but TLS implementation could probably be aligned
     #[extractable_ignore]
     pub curve_params: ECParameters,
     #[extractable_ignore]

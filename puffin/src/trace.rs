@@ -22,9 +22,9 @@ use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::mem;
+use std::result::Result;
 use std::vec::IntoIter;
 
-use clap::error::Result;
 use comparable::Comparable;
 use serde::{Deserialize, Serialize, Serializer};
 

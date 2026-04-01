@@ -166,6 +166,12 @@ pub fn fn_decrypt_handshake_flight(
     Ok(decrypted_flight)
 }
 
+/// Decrypt handshake messages by directly using the TLS handshake secret
+///
+/// This functions takes a `MessageFlight` and search for `ApplicationData` containing handshake
+/// related messages. The decrypted messages are put in an output `MessageFlight`. If some encrypted
+/// messages are coalesced messages, they will be split in different decrypted messages in the
+/// resulting `MessageFlight`
 pub fn fn_decrypt_handshake_flight_with_secret(
     flight: &MessageFlight,
     server_hello_transcript: &HandshakeHash,

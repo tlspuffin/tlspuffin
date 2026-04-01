@@ -39,34 +39,33 @@ fn _fn_transcript<T: Transcript>(claim: &T) -> Result<HandshakeHash, FnError> {
     Ok(hash)
 }
 
+/// This function is meant to be used in post-execution decryption recipes but not by the attacker
 pub fn fn_finished_get_cipher(claim: &Finished) -> Result<CipherSuite, FnError> {
     Ok(CipherSuite::from(claim.chosen_cipher))
 }
 
+/// This function is meant to be used in post-execution decryption recipes but not by the attacker
 pub fn fn_finished_get_secret(claim: &Finished) -> Result<Vec<u8>, FnError> {
     let secret = Vec::from(claim.master_secret.as_slice());
 
     Ok(secret)
 }
 
+/// This function is meant to be used in post-execution decryption recipes but not by the attacker
 pub fn fn_finished_get_handshake_secret(claim: &Finished) -> Result<Vec<u8>, FnError> {
     let secret = Vec::from(claim.handshake_secret.as_slice());
 
     Ok(secret)
 }
 
+/// This function is meant to be used in post-execution decryption recipes but not by the attacker
 pub fn fn_finished_get_server_random(claim: &Finished) -> Result<Random, FnError> {
-    let mut payload = [0; 32];
-    for (idx, v) in claim.server_random.iter().enumerate() {
-        payload[idx] = *v;
-    }
+    let payload: [u8; 32] = claim.server_random[0..32].try_into().unwrap();
     Ok(Random(payload))
 }
 
+/// This function is meant to be used in post-execution decryption recipes but not by the attacker
 pub fn fn_finished_get_client_random(claim: &Finished) -> Result<Random, FnError> {
-    let mut payload = [0; 32];
-    for (idx, v) in claim.client_random.iter().enumerate() {
-        payload[idx] = *v;
-    }
+    let payload: [u8; 32] = claim.client_random[0..32].try_into().unwrap();
     Ok(Random(payload))
 }

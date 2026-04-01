@@ -218,12 +218,17 @@ pub struct Finished {
     pub master_secret: SmallVec<[u8; 32]>,
 
     pub chosen_cipher: u16,
+
+    // We ignore the list of ciphers because OpenSSL shows TLS 1.2 and 1.3 ciphers while wolfSSL
+    // shows only TLS 1.2 xor 1.3 ciphers
     #[comparable_ignore]
     pub available_ciphers: SmallVec<[u16; 20]>,
     // #[comparable_synthetic {
     //     // Since we cant compare SmallVec
     //     let available_ciphers_vec_u16= |x: &Self| -> Vec<u16> {
     // x.available_ciphers.as_slice().to_vec() }; }]
+
+    // FIXME: Right now we could not align sigalgs, should be fixed in https://github.com/tlspuffin/tlspuffin/pull/468
     #[comparable_ignore]
     pub signature_algorithm: i32,
     #[comparable_ignore]

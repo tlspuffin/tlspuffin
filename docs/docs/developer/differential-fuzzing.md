@@ -15,10 +15,10 @@ In order to compare knowledge all randomized types and fields must be ignored. T
 + A blacklist/whitelist for types present in the `KnowledgeStore`
 + Code annotations to compare fields in comparable types
 
-#### Blacklisting types
+#### Types to compare
 
-Blacklisting types is done in the implementation of the `ProtocolTypes` trait using `differential_fuzzing_blacklist` and `differential_fuzzing_whitelist`.
-Both functions return an `Option<Vec<TypeId>>`. In the case of Rustls, the only type of clear text message is `MessagePayload` so we can just add this type to our whitelist and all other types would be ignored:
+Whitelisting types is done in the implementation of the `ProtocolTypes` trait using and `differential_fuzzing_whitelist`.
+This function return an `Option<Vec<TypeId>>`. In the case of Rustls, the only type of clear text message is `MessagePayload` so we can just add this type to our whitelist and all other types would be ignored:
 
 ```rust
 fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {

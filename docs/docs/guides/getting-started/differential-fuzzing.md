@@ -9,7 +9,14 @@ title: 'Differential fuzzing with Puffin'
 
 ## Requirements
 
-In order to do differential fuzzing, the protocol fuzzer should be configured to minimize the false positives, i.e. all randomized fields (nonces, random, secrets, hash, ciphertext, etc.) should be annotated to be ignored during the comparison step. If the protocol offer some cusomization (e.g. cipher selection), the protocol fuzzer must provide a set of common parameters for all the PUTs to minimize the difference. The fuzzer might also provide a set of terms to decipher the encrypted messages send by the PUTs by leveraging the secrets extracted via the claims.
+ In order to do differential fuzzing, the protocol fuzzer should be configured to minimize the false positives, i.e. all randomized fields (nonces, random, secrets, hash, ciphertext, etc.) should be annotated to be ignored during the comparison step. If the protocol offers some customization (e.g. cipher selection), the protocol fuzzer must provide a set of common parameters for all the PUTs to minimize the difference. The fuzzer might also provide a set of terms to decipher the encrypted messages sent by the PUTs by leveraging the secrets extracted via the claims.
+
+## Supported PUTs
+
+### tlspuffin
+
+Currently differential fuzzing works for `OpenSSL 3.4.0` and `wolfSSL 5.0.0` to `5.8.0`. Other PUTs/versions might exhibit false positives in seed traces.
+
 
 ## Starting a differential fuzzing campaign
 
@@ -66,7 +73,7 @@ where `-t` shows the terms of the trace, `-c` show the claims emitted by the PUT
 
 To triage all the traces in the objectives, we provide a Python library to automate grouping traces.
 
-Start by importing the necessary elements from `./tool/differential/diff-analyzer.py`
+Start by importing the necessary elements from `./tools/differential/diff-analyzer.py`
 
 ```python
 import sys

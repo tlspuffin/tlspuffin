@@ -12,8 +12,11 @@ pub enum TlsQueryMatcher {
     Handshake(Option<HandshakeType>),
     ApplicationData,
     Heartbeat,
+    /// Match a `MessageFlight` starting with a ClientHello message
     ClientHelloFlight,
+    /// Match a `MessageFlight` starting with a ServerHello message
     ServerHelloFlight,
+    /// Match a `MessageFlight` starting with ApplicationData
     EncryptedFlight,
     OtherFlight,
 }

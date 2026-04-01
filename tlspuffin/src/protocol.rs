@@ -418,6 +418,8 @@ impl ProtocolTypes for TLSProtocolTypes {
         let mut is_client = false;
         let mut client = AgentName::new();
 
+        // Indentify which kind of agents are present in the trace to add the corresponding
+        // decryption recipe and apply them on the correct agent
         for agent in agents {
             if agent.protocol_config.typ == AgentType::Server {
                 is_server = true;
@@ -472,6 +474,10 @@ impl ProtocolTypes for TLSProtocolTypes {
         ])
     }
 
+    /// Apply a set of minimal configuration that should work with as much PUT as possible
+    ///
+    /// Use a set of TLS 1.2 and TLS 1.3 ciphers and curves that are mandatory to implement
+    /// according to the TLS RFCs
     fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self> {
         let mut uniformized_trace = trace.clone();
         for agent in uniformized_trace.descriptors.iter_mut() {
@@ -500,7 +506,7 @@ impl ProtocolTypes for TLSProtocolTypes {
         }) = diff
         {
             // OpenSSL sends an optional EllipticCurves extension when renegociating
-            if diff.contains("EncryptedExtensionsChange([Removed(0, Unknown(UnknownExtensionDesc { typ: EllipticCurves }))])") {
+            if diff.contains("UnknownExtensionDesc { typ: EllipticCurves }") {
                 return false;
             }
         }
