@@ -61,7 +61,7 @@ buckets: dict[str, BucketCondition] = {
         ),
         TermContainsC(WOLF, "fn_alert_close_notify", last_input_executed=True),
     ),
-    # Hello Retry Request where wolf sends two identical ClientHello
+    # RFC violation: Hello Retry Request where wolf sends two identical ClientHello
     "no_change_hrr/": StatusC(
         OSSL,
         in_error="tls_process_as_hello_retry_request:no change following hrr",
@@ -258,7 +258,19 @@ buckets: dict[str, BucketCondition] = {
         StatusC(WOLF, in_error="length error"),
         TermContainsC(WOLF, "fn_empty_handshake_message", last_input_executed=True),
     ),
-    # hrr with changing cipher
+    # RFC violation:
+    "ch_changing_cipher_after_hrr/": AllC(
+        StatusC(
+            OSSL, "tls_early_post_process_client_hello:bad cipher", first_to_fail=False
+        ),
+        KnowledgeContainsC(WOLF, "ServerHelloPayload"),
+        TermContainsReC(
+            OSSL,
+            r"fn_client_hello\(\s*",
+            last_input_executed=True,
+        ),
+    ),
+    # RFC violation: hrr with changing cipher
     "hrr_changing_cipher/": AllC(
         StatusC(
             WOLF, in_error="AES-GCM Authentication check fail", first_to_fail=False
@@ -273,7 +285,7 @@ buckets: dict[str, BucketCondition] = {
             last_input_executed=True,
         ),
     ),
-    # use a keyshare not requested in HRR
+    # RFC violation: use a keyshare not requested in HRR
     "keyshare_not_requested_hrr/": AllC(
         StatusC(OSSL, "tls_parse_ctos_key_share:bad key share"),
         StepC(lambda put1, put2, _: put2 >= put1 + 2),
@@ -294,7 +306,7 @@ buckets: dict[str, BucketCondition] = {
     "session_ticket_size_err/": StatusC(
         WOLF, in_error="Bad session ticket message Size Error"
     ),
-    # wolf can respond to a client hello without a supported group list if the CH contains a keyshare
+    # RFC violation: wolf can respond to a client hello without a supported group list if the CH contains a keyshare
     "no_supported_groups_in_ch/": AllC(
         StatusC(OSSL, in_error="missing supported groups"),
         KnowledgeContainsC(WOLF, "ServerHelloPayload"),
@@ -340,7 +352,7 @@ buckets: dict[str, BucketCondition] = {
     "wrong_cipher/": StatusC(
         OSSL, in_error="set_client_ciphersuite:wrong cipher returned"
     ),
-    # encrypted out of order message triggers no alert for wolfssl
+    # RFC violation: encrypted out of order message triggers no alert for wolfssl
     "encrypted_out_of_order/": AllC(
         KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
         StatusC(WOLF, in_error="Out of order message, fatal", first_to_fail=False),
@@ -355,7 +367,7 @@ buckets: dict[str, BucketCondition] = {
             last_input_executed=True,
         ),
     ),
-    # duplicate extension in SH cause wolf to abord without alert message
+    # RFC violation: duplicate extension in SH cause wolf to abord without alert message
     "duplicate_ext_sh/": AllC(
         KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
         StatusC(WOLF, in_error="error in PUT : Duplicate TLS extension in message."),
@@ -394,6 +406,17 @@ buckets: dict[str, BucketCondition] = {
         TermContainsC(
             WOLF,
             "fn_preshared_keys_server_extension",
+            last_input_executed=True,
+        ),
+    ),
+    # RFC violation
+    "alert_unsupported_ext_illegal_param_sh_status_request/": AllC(
+        InnerKnowledgeC(
+            "BothAlert([Description(Different(UnsupportedExtension, IllegalParameter))])"
+        ),
+        TermContainsC(
+            OSSL,
+            "fn_status_request_server_extension",
             last_input_executed=True,
         ),
     ),
@@ -446,7 +469,7 @@ buckets: dict[str, BucketCondition] = {
     "alert_illegal_param_missing_ext/": InnerKnowledgeC(
         "BothAlert([Description(Different(IllegalParameter, MissingExtension))])"
     ),
-    # server attacker responds to a client with an invalid ciphersuite, OSSL responds with IllegalParameter while wolf responds with Handshake failure
+    # RFC violation: server attacker responds to a client with an invalid ciphersuite, OSSL responds with IllegalParameter while wolf responds with Handshake failure
     # according to RFC 8446 section 6.2 :
     # illegal_parameter:  A field in the handshake was incorrect or inconsistent with other fields.  This alert is used for errors which conform to the formal protocol syntax but are otherwise incorrect.
     # and
@@ -487,7 +510,7 @@ buckets: dict[str, BucketCondition] = {
     "alert_handshakefailure_decodeerror/": InnerKnowledgeC(
         "BothAlert([Description(Different(HandshakeFailure, DecodeError))])"
     ),
-    # Malformed KeyShare extension : ossl returns DecodeError while wolf send IllegalParameter
+    # RFC violation: Malformed KeyShare extension : ossl returns DecodeError while wolf send IllegalParameter
     # malformed messages should trigger Decode error -> RFC violation for wolf
     "alert_decodeerror_illegalparameter/": InnerKnowledgeC(
         "BothAlert([Description(Different(DecodeError, IllegalParameter))])"

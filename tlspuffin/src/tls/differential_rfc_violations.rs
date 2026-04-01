@@ -1023,3 +1023,110 @@ pub fn rfc_violation_incorrect_extension_in_sh(
         ..Default::default()
     }
 }
+
+/// A WolfSSL TLS 1.3 server receiving a second ClientHello after a HelloRetryRequest with another
+/// cipher, after the Server has selected a cipher (eg. using `TLS_AES_256_GCM_SHA384` in first CH
+/// and `TLS_AES_128_GCM_SHA256` in the second), will continue the handshake while it should
+/// reject the second ClientHello with an appropriate error.
+pub fn rfc_violation_client_changing_cipher_hrr(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let client_hello_1 = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
+            fn_compressions,
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    (fn_support_group_extension_append(
+                                        fn_support_group_extension_new,
+                                        fn_named_group_x25519
+                                    )),
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
+                        )),
+                        fn_signature_algorithm_extension
+                    )),
+                    (fn_key_share_deterministic_extension(fn_named_group_x25519))
+                )),
+                fn_supported_versions13_extension
+            ))
+        )))
+    };
+
+    let client_hello_2 = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                (fn_new_cipher_suites()),
+                fn_cipher_suite13_aes_256_gcm_sha384
+            )))),
+            fn_compressions,
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
+                        )),
+                        fn_signature_algorithm_extension
+                    )),
+                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                )),
+                fn_supported_versions13_extension
+            ))
+        )))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Server,
+                groups: Some(String::from("P-256:P-384")),
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        @client_hello_1
+                    }
+                }),
+            },
+            OutputAction::new_step(server),
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        @client_hello_2
+                    }
+                }),
+            },
+            OutputAction::new_step(server),
+        ],
+        ..Default::default()
+    }
+}
