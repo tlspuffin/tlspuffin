@@ -238,9 +238,6 @@ pub trait ProtocolTypes:
     /// Get the signature that is used in the protocol
     fn signature() -> &'static Signature<Self>;
 
-    /// Knowleges' TypeIds to blacklist when comparing knowledges stores
-    fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>>;
-
     /// Allowed Knowlege's TypeIds when comparing knowledges stores
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>>;
 

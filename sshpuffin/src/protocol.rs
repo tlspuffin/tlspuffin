@@ -187,10 +187,6 @@ impl ProtocolTypes for SshProtocolTypes {
         &SSH_SIGNATURE
     }
 
-    fn differential_fuzzing_blacklist() -> Option<Vec<std::any::TypeId>> {
-        None
-    }
-
     fn differential_fuzzing_whitelist() -> Option<Vec<std::any::TypeId>> {
         None
     }

@@ -268,7 +268,6 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
 
     pub fn compare(&self, other: &Self) -> Result<(), Vec<TraceDifference>> {
         let whitelist = PT::differential_fuzzing_whitelist();
-        let blacklist = PT::differential_fuzzing_blacklist();
 
         let mut differences: Vec<TraceDifference> = vec![];
 
@@ -276,13 +275,13 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
             .knowledges()
             .iter()
             .flatten()
-            .filter(|x| filter_knowledge(x, &whitelist, &blacklist))
+            .filter(|x| filter_knowledge(x, &whitelist))
             .collect();
         let mut second_store: Vec<Knowledge<'_, PT>> = other
             .knowledges()
             .iter()
             .flatten()
-            .filter(|x| filter_knowledge(x, &whitelist, &blacklist))
+            .filter(|x| filter_knowledge(x, &whitelist))
             .collect();
         let first_store_count = first_store.len();
         let second_store_count = second_store.len();
@@ -327,20 +326,13 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
 fn filter_knowledge<PT: ProtocolTypes>(
     knowledge: &Knowledge<PT>,
     whitelist: &Option<Vec<TypeId>>,
-    blacklist: &Option<Vec<TypeId>>,
 ) -> bool {
-    if whitelist.is_none() && blacklist.is_none() {
+    if whitelist.is_none() {
         return true;
     }
 
     if let Some(list) = whitelist {
         if !list.iter().any(|x| x == &knowledge.data.type_id()) {
-            return false;
-        }
-    }
-
-    if let Some(list) = blacklist {
-        if list.iter().any(|x| x == &knowledge.data.type_id()) {
             return false;
         }
     }
@@ -866,6 +858,7 @@ impl<PT: ProtocolTypes> TraceExecution<PT> {
             executed_until: ctx.executed_until,
             steps,
             // right now we exclude prior traces
+            // TODO: add prior traces
             prior_traces: Vec::new(),
             extra_knowledges,
         }

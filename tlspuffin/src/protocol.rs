@@ -406,10 +406,6 @@ impl ProtocolTypes for TLSProtocolTypes {
         &TLS_SIGNATURE
     }
 
-    fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>> {
-        None
-    }
-
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
         Some(vec![TypeId::of::<MessagePayload>()])
     }

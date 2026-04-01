@@ -37,10 +37,6 @@ impl ProtocolTypes for TestProtocolTypes {
         &TEST_SIGNATURE
     }
 
-    fn differential_fuzzing_blacklist() -> Option<Vec<TypeId>> {
-        todo!()
-    }
-
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
         todo!()
     }
