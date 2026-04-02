@@ -12,7 +12,7 @@ use crate::fuzzer::stats_stage::{
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
-use crate::trace::{Action, Spawner, Trace};
+use crate::trace::{Action, ConfigTrace, Spawner, Trace};
 
 pub fn harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
@@ -50,7 +50,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         ),
     );
     let mut fail_at_step = 0;
-    if let Ok(ctx) = runner.execute(input, &mut fail_at_step, true) {
+    if let Ok(ctx) = runner.execute(input, &mut fail_at_step) {
         HARNESS_EXEC_SUCCESS.increment();
         if cfg!(feature = "introspection") {
             if ctx.agents_successful() {
@@ -122,7 +122,14 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
 
     // Execute the trace
     let mut fail_at_step = 0;
-    let exec_res = runner.execute(input, &mut fail_at_step, false);
+    let exec_res = runner.execute_config(
+        input,
+        ConfigTrace {
+            check_security_violation: false,
+            ..Default::default()
+        },
+        &mut fail_at_step,
+    );
 
     log::trace!(
         "[a:trace len={}/size={}/{fail_at_step}] [[harness] Executed until {fail_at_step}.",

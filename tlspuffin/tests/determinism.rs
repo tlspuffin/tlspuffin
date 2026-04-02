@@ -18,7 +18,7 @@ fn test_attacker_full_det_recreate(put: &str) {
     let runner = default_runner_for(put);
     let trace = seed_client_attacker_full.build_trace();
 
-    let ctx_1 = runner.execute(&trace, &mut 0, true);
+    let ctx_1 = runner.execute(&trace, &mut 0);
 
     /*
     Sleep to introduce a time difference between executions.
@@ -28,7 +28,7 @@ fn test_attacker_full_det_recreate(put: &str) {
     thread::sleep(Duration::from_secs(2));
     for i in 0..200 {
         println!("Attempt #{i}...");
-        let ctx_2 = runner.execute(&trace, &mut 0, true);
+        let ctx_2 = runner.execute(&trace, &mut 0);
         assert_eq!(ctx_1, ctx_2);
     }
 }
@@ -61,14 +61,14 @@ fn test_attacker_full_det_recreate_no_tickets(put: &str) {
     let trace = seed_client_attacker_full.build_trace();
 
     let ctx_1 = runner
-        .execute(&trace, &mut 0, true)
+        .execute(&trace, &mut 0)
         .expect("failed executing trace");
     let server_hello = query_type::<MessageFlight>(&ctx_1);
 
     for i in 0..200 {
         println!("Attempt #{i}...");
         let ctx_2 = runner
-            .execute(&trace, &mut 0, true)
+            .execute(&trace, &mut 0)
             .expect("failed executing trace");
         let server_hello_2 = query_type::<MessageFlight>(&ctx_2);
 

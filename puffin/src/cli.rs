@@ -479,7 +479,7 @@ where
             put_registry.clone(),
             Spawner::new(put_registry).with_mapping(&[(server, put)]),
         );
-        let mut context = runner.execute(trace, &mut 0, true).unwrap();
+        let mut context = runner.execute(trace, &mut 0).unwrap();
 
         let server = AgentName::first();
         let shutdown = context.find_agent_mut(server).unwrap().shutdown();
@@ -544,7 +544,14 @@ where
             Spawner::new(put_registry).with_mapping(&second_put_descriptors),
         );
 
-        return match runner.execute(trace, &mut 0, *enable_security_oracle) {
+        return match runner.execute_config(
+            trace,
+            ConfigTrace {
+                check_security_violation: *enable_security_oracle,
+                ..Default::default()
+            },
+            &mut 0,
+        ) {
             Ok(_) => {
                 if *export_json {
                     println!("[]");
@@ -739,7 +746,7 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     // When generating coverage a crash means that no coverage is stored
     // By executing in a fork, even when that process crashes, the other executed code will still
     // yield coverage
-    let status = ForkedRunner::new(runner).execute_config(trace, config_trace, &mut 0, true);
+    let status = ForkedRunner::new(runner).execute_config(trace, config_trace, &mut 0);
 
     match status {
         Ok(s) => log::info!("execution finished with status {s:?}"),

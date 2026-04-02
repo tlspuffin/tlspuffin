@@ -411,12 +411,15 @@ impl<PB: ProtocolBehavior> Clone for Spawner<PB> {
 pub struct ConfigTrace {
     pub with_bit_level: bool,
     pub with_reseed: bool,
+    /// This is used in differential fuzzing
+    pub check_security_violation: bool,
 }
 impl Default for ConfigTrace {
     fn default() -> Self {
         ConfigTrace {
             with_bit_level: true,
             with_reseed: true,
+            check_security_violation: true,
         }
     }
 }
