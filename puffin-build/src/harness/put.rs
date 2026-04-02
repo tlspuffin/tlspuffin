@@ -141,7 +141,15 @@ impl Put {
                 // BoringSSL objects referenced by the C harness pull C++ ABI symbols on macOS.
                 println!("cargo:rustc-link-lib=c++abi");
             } else {
-                println!("cargo:rustc-link-lib=stdc++");
+                // On Linux, Cargo places dynamic cargo:rustc-link-lib entries before static
+                // ones, so libstdc++ would appear before libputs-bundle.a in the link command.
+                // With --as-needed (default on Linux), the linker skips libstdc++ since no
+                // references have been seen yet, then fails on undefined C++ symbols from
+                // puts-bundle.a. Using --push-state/--no-as-needed forces libstdc++ to be
+                // linked unconditionally regardless of position in the link command.
+                println!(
+                    "cargo:rustc-link-arg=-Wl,--push-state,--no-as-needed,-lstdc++,--pop-state"
+                );
             }
         }
 
