@@ -1,5 +1,6 @@
-use std::any::Any;
+use std::any::{Any, TypeId};
 
+use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::agent::ProtocolDescriptorConfig;
 use puffin::algebra::dynamic_function::FunctionAttributes;
@@ -35,9 +36,33 @@ impl ProtocolTypes for TestProtocolTypes {
     fn signature() -> &'static Signature<Self> {
         &TEST_SIGNATURE
     }
+
+    fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
+        todo!()
+    }
+
+    fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
+        todo!()
+    }
+
+    fn differential_fuzzing_terms_to_eval(
+        _agents: &Vec<puffin::agent::AgentDescriptor<Self::PUTConfig>>,
+    ) -> Vec<puffin::algebra::Term<Self>> {
+        todo!()
+    }
+
+    fn differential_fuzzing_uniformise_put_config(
+        _trace: puffin::trace::Trace<Self>,
+    ) -> puffin::trace::Trace<Self> {
+        todo!()
+    }
+
+    fn differential_fuzzing_filter_diff(_diff: &puffin::differential::TraceDifference) -> bool {
+        todo!()
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Comparable)]
 struct Void();
 
 fn fn_void() -> Result<Void, puffin::algebra::error::FnError> {
@@ -51,7 +76,7 @@ atom_extract_knowledge!(TestProtocolTypes, u8);
 
 #[test]
 fn extractable_unit_struct() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct {}
 
@@ -68,7 +93,7 @@ fn extractable_unit_struct() {
 
 #[test]
 fn extractable_no_recursion_named_struct() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct {
         #[extractable_no_recursion]
@@ -89,7 +114,7 @@ fn extractable_no_recursion_named_struct() {
 
 #[test]
 fn extractable_named_struct() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct {
         a: Void,
@@ -109,7 +134,7 @@ fn extractable_named_struct() {
 
 #[test]
 fn extractable_named_struct_multiple_fields() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct {
         a: Void,
@@ -137,7 +162,7 @@ fn extractable_named_struct_multiple_fields() {
 
 #[test]
 fn extractable_named_struct_ignored_fields() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct {
         #[extractable_ignore]
@@ -165,7 +190,7 @@ fn extractable_named_struct_ignored_fields() {
 
 #[test]
 fn extractable_named_struct_recursive() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct {
         a: Void,
@@ -173,7 +198,7 @@ fn extractable_named_struct_recursive() {
         c: Void,
     }
 
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct OtherStruct {
         x: u8,
@@ -203,7 +228,7 @@ fn extractable_named_struct_recursive() {
 
 #[test]
 fn extractable_no_recursion_unnamed_struct() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct(#[extractable_no_recursion] Void);
 
@@ -221,7 +246,7 @@ fn extractable_no_recursion_unnamed_struct() {
 
 #[test]
 fn extractable_unnamed_struct() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct(Void);
 
@@ -239,7 +264,7 @@ fn extractable_unnamed_struct() {
 
 #[test]
 fn extractable_unnamed_struct_multiple_fields() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct(Void, Void, Void);
 
@@ -259,7 +284,7 @@ fn extractable_unnamed_struct_multiple_fields() {
 
 #[test]
 fn extractable_unnamed_struct_ignored_fields() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct(#[extractable_ignore] Void, u8, #[extractable_ignore] Void);
 
@@ -277,11 +302,11 @@ fn extractable_unnamed_struct_ignored_fields() {
 
 #[test]
 fn extractable_unnamed_struct_recursive() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct(Void, OtherStruct, Void);
 
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct OtherStruct {
         x: u8,
@@ -307,7 +332,7 @@ fn extractable_unnamed_struct_recursive() {
 
 #[test]
 fn extractable_enum_no_fields() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     enum TestEnum {
         _A,
@@ -326,17 +351,17 @@ fn extractable_enum_no_fields() {
 }
 #[test]
 fn extractable_enum_no_recursion_named_fields() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     enum TestEnum {
-        _A {
+        A {
             #[extractable_no_recursion]
             x: TestStruct,
         },
         _B,
     }
 
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct {
         x: u8,
@@ -347,7 +372,7 @@ fn extractable_enum_no_recursion_named_fields() {
     dummy_codec!(TestProtocolTypes, TestStruct);
 
     let mut store = vec![];
-    let a = TestEnum::_A {
+    let a = TestEnum::A {
         x: TestStruct { x: 0, y: 1 },
     };
 
@@ -363,10 +388,10 @@ fn extractable_enum_no_recursion_named_fields() {
 
 #[test]
 fn extractable_enum_ignore_named_fields() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     enum TestEnum {
-        _A {
+        A {
             x: Void,
             #[extractable_ignore]
             _y: TestStruct,
@@ -375,7 +400,7 @@ fn extractable_enum_ignore_named_fields() {
         _B,
     }
 
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct {
         x: u8,
@@ -386,7 +411,7 @@ fn extractable_enum_ignore_named_fields() {
     dummy_codec!(TestProtocolTypes, TestStruct);
 
     let mut store = vec![];
-    let a = TestEnum::_A {
+    let a = TestEnum::A {
         x: Void(),
         _y: TestStruct { x: 0, y: 1 },
         z: Void(),
@@ -408,14 +433,14 @@ fn extractable_enum_ignore_named_fields() {
 
 #[test]
 fn extractable_enum_named_fields_recursive() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     enum TestEnum {
-        _A { a: TestStruct, b: Void },
+        A { a: TestStruct, b: Void },
         _B,
     }
 
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct {
         x: u8,
@@ -426,7 +451,7 @@ fn extractable_enum_named_fields_recursive() {
     dummy_codec!(TestProtocolTypes, TestStruct);
 
     let mut store = vec![];
-    let a = TestEnum::_A {
+    let a = TestEnum::A {
         a: TestStruct { x: 0, y: 1 },
         b: Void(),
     };
@@ -455,14 +480,14 @@ fn extractable_enum_named_fields_recursive() {
 
 #[test]
 fn extractable_enum_ignore_unnamed_fields() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     enum TestEnum {
-        _A(Void, #[extractable_ignore] TestStruct, Void),
+        A(Void, #[extractable_ignore] TestStruct, Void),
         _B,
     }
 
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct {
         x: u8,
@@ -473,7 +498,7 @@ fn extractable_enum_ignore_unnamed_fields() {
     dummy_codec!(TestProtocolTypes, TestStruct);
 
     let mut store = vec![];
-    let a = TestEnum::_A(Void(), TestStruct { x: 0, y: 1 }, Void());
+    let a = TestEnum::A(Void(), TestStruct { x: 0, y: 1 }, Void());
 
     let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
 
@@ -491,14 +516,14 @@ fn extractable_enum_ignore_unnamed_fields() {
 
 #[test]
 fn extractable_enum_unnamed_fields_recursive() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     enum TestEnum {
-        _A(TestStruct, Void),
+        A(TestStruct, Void),
         _B,
     }
 
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct {
         x: u8,
@@ -509,7 +534,7 @@ fn extractable_enum_unnamed_fields_recursive() {
     dummy_codec!(TestProtocolTypes, TestStruct);
 
     let mut store = vec![];
-    let a = TestEnum::_A(TestStruct { x: 0, y: 1 }, Void());
+    let a = TestEnum::A(TestStruct { x: 0, y: 1 }, Void());
 
     let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
 
@@ -535,15 +560,15 @@ fn extractable_enum_unnamed_fields_recursive() {
 
 #[test]
 fn extractable_enum_named_unnamed_fields_recursive() {
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     enum TestEnum {
-        _A(TestStruct, Void, TestStruct),
+        A(TestStruct, Void, TestStruct),
         _B,
-        _C { a: Void, b: TestStruct },
+        C { a: Void, b: TestStruct },
     }
 
-    #[derive(Clone, Debug, Extractable)]
+    #[derive(Clone, Debug, Comparable, Extractable)]
     #[extractable(TestProtocolTypes)]
     struct TestStruct {
         x: u8,
@@ -554,7 +579,7 @@ fn extractable_enum_named_unnamed_fields_recursive() {
     dummy_codec!(TestProtocolTypes, TestStruct);
 
     let mut store = vec![];
-    let a = TestEnum::_A(
+    let a = TestEnum::A(
         TestStruct { x: 0, y: 1 },
         Void(),
         TestStruct { x: 42, y: 42 },
@@ -595,7 +620,7 @@ fn extractable_enum_named_unnamed_fields_recursive() {
 
     let mut other_store = vec![];
 
-    let b = TestEnum::_C {
+    let b = TestEnum::C {
         a: Void(),
         b: TestStruct { x: 3, y: 4 },
     };
@@ -633,6 +658,20 @@ fn extractable_union() {
     union TestUnion {
         _x: u8,
         _y: char,
+    }
+
+    // Dummy implementation because comparable is not derivable for unions
+    impl Comparable for TestUnion {
+        type Change = ();
+        type Desc = ();
+
+        fn describe(&self) -> Self::Desc {
+            todo!()
+        }
+
+        fn comparison(&self, _other: &Self) -> comparable::Changed<Self::Change> {
+            todo!()
+        }
     }
 
     impl std::fmt::Debug for TestUnion {

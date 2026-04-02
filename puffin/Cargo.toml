@@ -25,6 +25,12 @@ with-min-scheduler = []
 
 introspection = ["libafl/introspection"]
 
+# Options to disable part of differential fuzzing, used to do ablation studies
+ddyf-disable-status = []
+ddyf-disable-claims = []
+ddyf-disable-knowledges = []
+ddyf-disable-decryption = []
+
 [dependencies]
 
 puffin-build = { path = "../puffin-build" }
@@ -55,6 +61,7 @@ itertools = { workspace = true }
 serde_json = { workspace = true }
 nix = { workspace = true, features = ["process", "signal"] }
 signal-hook = { workspace = true, features = ["iterator", "extended-siginfo"] }
+comparable = { workspace = true, features = ["derive"] }
 derivative = { workspace = true }
 paste = { workspace = true }
 

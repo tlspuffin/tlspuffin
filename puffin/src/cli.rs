@@ -12,17 +12,17 @@ use puffin_build::puffin;
 
 use crate::agent::AgentName;
 use crate::algebra::TermType;
-use crate::execution::{ForkedRunner, Runner, TraceRunner};
+use crate::execution::{DifferentialRunner, ForkedRunner, Runner, TraceRunner};
 use crate::experiment::{format_title, write_experiment_markdown};
-use crate::fuzzer::config::FuzzerConfig;
+use crate::fuzzer::config::{FuzzerConfig, FuzzingTarget};
 use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
 use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
-use crate::protocol::ProtocolBehavior;
-use crate::put::PutDescriptor;
+use crate::protocol::{ProtocolBehavior, ProtocolTypes};
+use crate::put::{PutDescriptor, PutOptions};
 use crate::put_registry::{PutRegistry, TCP_PUT};
-use crate::trace::{Action, ConfigTrace, ExecutionResult, Spawner, Trace, TraceContext};
+use crate::trace::{Action, ConfigTrace, ExecutionResult, Source, Spawner, Trace, TraceContext};
 
 fn create_app<S>(title: S) -> Command
 where
@@ -57,7 +57,8 @@ where
                 .arg(arg!(-t --title <t> "Title of the experiment"))
                 .arg(arg!(-d --description [d] "Description of the experiment"))
             ,
-            Command::new("seed").about("Generates seeds to ./seeds"),
+            Command::new("seed").about("Generates seeds to ./seeds")
+                .arg(arg!(--differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing")),
             Command::new("plot")
                 .about("Plots a trace stored in a file")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -80,7 +81,9 @@ where
                 .arg(arg!(-c --show_claims "Show the claims emitted at each input step").value_parser(value_parser!(bool)))
                 .arg(arg!(-k --show_knowledges "Show the knowledges gathered at each output step").value_parser(value_parser!(bool)))
                 .arg(arg!(-r --show_raw "Show the computed term as raw hex (eg. for use with netcat)").value_parser(value_parser!(bool)))
-                .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool))),
+                .arg(arg!(-p --differential_post_computations "Evaluate the post execution terms used in differential fuzzing").value_parser(value_parser!(bool)))
+                .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool)))
+                .arg(arg!(-C --disable_security_oracle "Disable the protocol security oracle").value_parser(value_parser!(bool))),
             Command::new("binary-attack")
                 .about("Serializes a trace as much as possible and output its")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -93,7 +96,24 @@ where
                 .arg(arg!(-a --args [a] "The args of the program"))
                 .arg(arg!(-t --host [h] "The host to connect to, or the server host"))
                 .arg(arg!(-p --port [n] "The client port to connect to, or the server port")
-                    .value_parser(value_parser!(u16).range(1..)))
+                    .value_parser(value_parser!(u16).range(1..))),
+            Command::new("differential-execute")
+                .about("Execute a trace on multiple targets, returning the differences between the executions")
+                .arg(arg!(<first_target> "First PUT"))
+                .arg(arg!(<second_target> "Second PUT"))
+                .arg(arg!(<input> "Input trace"))
+                .arg(arg!(-S --"enable-security-oracle" "Enable the protocol security oracle").value_parser(value_parser!(bool)))
+                .arg(arg!(-j --json "Export differences as JSON").value_parser(value_parser!(bool))),
+            Command::new("differential")
+                .about("Start a differential fuzzing campaign")
+                .arg(arg!(<first_target> "The first target to fuzz"))
+                .arg(arg!(<second_target> "The second target to fuzz")),
+            Command::new("differential-experiment").about("Starts a new differential fuzzing experiment and writes the results out")
+                .arg(arg!(<first_target> "The first target to fuzz"))
+                .arg(arg!(<second_target> "The second target to fuzz"))
+                .arg(arg!(-t --title <t> "Title of the experiment"))
+                .arg(arg!(-d --description [d] "Description of the experiment"))
+            ,
         ])
 }
 
@@ -193,7 +213,7 @@ where
 
     // Setup Logging
     // We need to create the log directory before initializing the logger
-    let (is_experiment, base_directory): (bool, PathBuf) =
+    let base_directory: PathBuf =
         if let Some(_matches) = matches.subcommand_matches("quick-experiment") {
             let experiments_root = PathBuf::from("experiments");
             let title = format_title(None, None, &put_registry, &config);
@@ -205,9 +225,14 @@ where
                 experiment_path = experiments_root.join(title);
                 i += 1;
             }
-            (true, experiments_root.join(&title))
+            experiments_root.join(&title)
         } else {
-            if let Some(matches) = matches.subcommand_matches("experiment") {
+            if let Some(matches) = matches
+                .subcommand_matches("experiment")
+                .or(matches.subcommand_matches("differential-experiment"))
+            {
+                log::info!("Running in experiment mode");
+                config.is_experiment = true;
                 let git_ref = "_".to_string();
                 let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
                 let experiments_root = PathBuf::new().join("experiments");
@@ -217,20 +242,18 @@ where
                     !experiment_path.as_path().exists(),
                     "Experiment already exists. Consider creating a new experiment."
                 );
-                (true, experiment_path)
+                experiment_path
             } else {
                 // Case of non-experiment: plain fuzzing, trace executions, etc.
-                (false, env::current_dir().unwrap())
+                env::current_dir().unwrap()
             }
         };
-    if is_experiment {
-        log::info!("Running in experiment mode");
-        config.is_experiment = is_experiment;
-        config.corpus_dir = base_directory.join("corpus");
-        config.objective_dir = base_directory.join("objective");
-        config.stats_file = base_directory.join("log/stats.json");
-        config.log_folder = base_directory.join("log/");
-    }
+
+    config.corpus_dir = base_directory.join("corpus");
+    config.objective_dir = base_directory.join("objective");
+    config.stats_file = base_directory.join("log/stats.json");
+    config.log_folder = base_directory.join("log/");
+
     let handle = match log4rs::init_config(config_default(&*base_directory.join("./log"))) {
         Ok(handle) => handle,
         Err(err) => {
@@ -239,8 +262,10 @@ where
         }
     };
 
-    if let Some(_matches) = matches.subcommand_matches("seed") {
-        if let Err(err) = seed(&put_registry) {
+    if let Some(matches) = matches.subcommand_matches("seed") {
+        let is_differential = matches.get_flag("differential");
+
+        if let Err(err) = seed(&put_registry, is_differential) {
             log::error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -349,7 +374,10 @@ where
         let show_knowledges: &bool = matches.get_one("show_knowledges").unwrap();
         let show_claims: &bool = matches.get_one("show_claims").unwrap();
         let export_json: &bool = matches.get_one("json").unwrap();
+        let differential_post_computations: &bool =
+            matches.get_one("differential_post_computations").unwrap();
         let show_raw: &bool = matches.get_one("show_raw").unwrap();
+        let disable_security_oracle: &bool = matches.get_one("disable_security_oracle").unwrap();
 
         let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
             t
@@ -367,10 +395,27 @@ where
             &mut ctx,
             *max_step.unwrap_or(&trace.steps.len()),
             &mut 0,
+            !*disable_security_oracle,
         ) {
             Ok(_) => (ExitCode::SUCCESS, None),
             Err(e) => (ExitCode::FAILURE, Some(e.to_string())),
         };
+
+        if *differential_post_computations {
+            for t in PB::ProtocolTypes::differential_fuzzing_terms_to_eval(&trace.descriptors) {
+                log::info!("Trying decryption with : {}", t);
+                let k = t.evaluate_dy(&ctx);
+                match k {
+                    Ok(decrypted) => ctx.knowledge_store.add_raw_boxed_knowledge(
+                        decrypted,
+                        None,
+                        Source::Label(Some("Decryption".into())),
+                        None,
+                    ),
+                    Err(err) => log::info!("failed decryption : {}", err),
+                }
+            }
+        }
 
         let exec = ExecutionResult::from(
             put_name,
@@ -441,8 +486,103 @@ where
         log::info!("{}", shutdown);
 
         return ExitCode::SUCCESS;
+    } else if let Some(matches) = matches.subcommand_matches("differential-execute") {
+        // differential fuzzing here
+        let first_put: &String = matches.get_one("first_target").unwrap();
+        let second_put: &String = matches.get_one("second_target").unwrap();
+        let input: &String = matches.get_one("input").unwrap();
+        let export_json: &bool = matches.get_one("json").unwrap();
+        let enable_security_oracle: &bool = matches.get_one("enable-security-oracle").unwrap();
+
+        let path = PathBuf::from(input);
+        let trace = match Trace::<PB::ProtocolTypes>::from_file(&path) {
+            Ok(t) => t,
+            Err(_) => {
+                log::error!("Invalid trace file {}", path.display());
+                return ExitCode::FAILURE;
+            }
+        };
+
+        if let Err((available_puts, non_available_puts)) =
+            check_if_puts_exist(&put_registry, &[first_put, second_put])
+        {
+            log::error!("PUT not found : {}", non_available_puts.join(","));
+            log::error!("Available PUTs: {}", available_puts.join(","));
+            return ExitCode::FAILURE;
+        }
+
+        let first_put_descriptors = trace
+            .descriptors
+            .iter()
+            .map(|d| {
+                (
+                    d.name,
+                    PutDescriptor::new(
+                        first_put,
+                        put_registry.default_put_descriptor().options.clone(),
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+        let second_put_descriptors = trace
+            .descriptors
+            .iter()
+            .map(|d| {
+                (
+                    d.name,
+                    PutDescriptor::new(
+                        second_put,
+                        put_registry.default_put_descriptor().options.clone(),
+                    ),
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let runner = DifferentialRunner::new(
+            put_registry.clone(),
+            Spawner::new(put_registry.clone()).with_mapping(&first_put_descriptors),
+            Spawner::new(put_registry).with_mapping(&second_put_descriptors),
+        );
+
+        return match runner.execute_config(
+            trace,
+            ConfigTrace {
+                check_security_violation: *enable_security_oracle,
+                ..Default::default()
+            },
+            &mut 0,
+        ) {
+            Ok(_) => {
+                if *export_json {
+                    println!("[]");
+                } else {
+                    println!("No differences")
+                }
+
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                if let crate::error::Error::Difference(trace_differences) = e {
+                    if *export_json {
+                        println!(
+                            "{}",
+                            serde_json::to_string_pretty(&trace_differences).unwrap()
+                        );
+                    } else {
+                        println!("Differences between the PUTs:\n");
+                        for diff in trace_differences {
+                            println!("{}\n", diff);
+                        }
+                    }
+                }
+                ExitCode::FAILURE
+            }
+        };
     } else {
-        let experiment_path = if let Some(matches) = matches.subcommand_matches("experiment") {
+        let experiment_path = if let Some(matches) = matches
+            .subcommand_matches("experiment")
+            .or(matches.subcommand_matches("differential-experiment"))
+        {
             let git_ref = "_".to_string();
             let title: &str = matches.get_one::<String>("title").unwrap_or(&git_ref);
             let format_t = format_title(Some(title), None, &put_registry, &config);
@@ -489,6 +629,32 @@ where
             log::error!("Failed to create directories: {:?}", err);
             return ExitCode::FAILURE;
         }
+
+        // Differential fuzzing
+        let target = if let Some(submatches) = matches
+            .subcommand_matches("differential")
+            .or(matches.subcommand_matches("differential-experiment"))
+        {
+            let first_put: &String = submatches.get_one("first_target").unwrap();
+            let second_put: &String = submatches.get_one("second_target").unwrap();
+
+            if let Err((available_puts, non_available_puts)) =
+                check_if_puts_exist(&put_registry, &[first_put, second_put])
+            {
+                log::error!("PUT not found : {}", non_available_puts.join(","));
+                log::error!("Available PUTs: {}", available_puts.join(","));
+                return ExitCode::FAILURE;
+            }
+
+            FuzzingTarget::Differential(
+                PutDescriptor::new(first_put, PutOptions::empty()),
+                PutDescriptor::new(second_put, PutOptions::empty()),
+            )
+        } else {
+            FuzzingTarget::default()
+        };
+
+        config.target = target;
 
         if let Err(err) = start::<PB>(&put_registry, config, handle) {
             match err {
@@ -545,9 +711,17 @@ fn plot<PB: ProtocolBehavior>(
 
 fn seed<PB: ProtocolBehavior>(
     put_registry: &PutRegistry<PB>,
+    differential_fuzzing: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
-    for (trace, name) in PB::create_corpus(put_registry.default_put().clone()) {
+    for (mut trace, name) in PB::create_corpus(put_registry.default_put().clone()) {
+        if differential_fuzzing {
+            trace =
+                <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
+                    trace,
+                );
+        }
+
         trace.to_file(format!("./seeds/{name}.trace"))?;
     }
 

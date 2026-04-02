@@ -19,9 +19,13 @@ use crate::tls::rustls::msgs::handshake::{
 };
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
 use crate::tls::rustls::suites::SupportedCipherSuite;
-use crate::tls::rustls::tls12::{self, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256};
+use crate::tls::rustls::tls12::{
+    self, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+};
 use crate::tls::rustls::tls13::key_schedule::KeyScheduleEarly;
-use crate::tls::rustls::tls13::{TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384};
+use crate::tls::rustls::tls13::{
+    TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384, TLS13_CHACHA20_POLY1305_SHA256,
+};
 
 // ----
 // seed_client_attacker()
@@ -108,8 +112,12 @@ pub fn suite_as_supported_suite(suite: &CipherSuite) -> Result<SupportedCipherSu
         CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256 => {
             Ok(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256)
         }
+        CipherSuite::TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 => {
+            Ok(TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384)
+        }
         CipherSuite::TLS13_AES_128_GCM_SHA256 => Ok(TLS13_AES_128_GCM_SHA256),
         CipherSuite::TLS13_AES_256_GCM_SHA384 => Ok(TLS13_AES_256_GCM_SHA384),
+        CipherSuite::TLS13_CHACHA20_POLY1305_SHA256 => Ok(TLS13_CHACHA20_POLY1305_SHA256),
         _ => Err(FnError::Crypto("Unsupported ciphersuite".into())),
     }
 }
@@ -158,6 +166,45 @@ pub fn fn_decrypt_handshake_flight(
     Ok(decrypted_flight)
 }
 
+/// Decrypt handshake messages by directly using the TLS handshake secret
+///
+/// This functions takes a `MessageFlight` and search for `ApplicationData` containing handshake
+/// related messages. The decrypted messages are put in an output `MessageFlight`. If some encrypted
+/// messages are coalesced messages, they will be split in different decrypted messages in the
+/// resulting `MessageFlight`
+pub fn fn_decrypt_handshake_flight_with_secret(
+    flight: &MessageFlight,
+    server_hello_transcript: &HandshakeHash,
+    client: &bool,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+    extracted_shared_secret: &Vec<u8>,
+) -> Result<MessageFlight, FnError> {
+    let mut sequence_number = *sequence;
+
+    let mut decrypted_flight = MessageFlight::new();
+
+    for msg in &flight.messages {
+        if let MessagePayload::ApplicationData(_) = &msg.payload {
+            let decrypted_msg = fn_decrypt_multiple_handshake_messages_with_secret(
+                msg,
+                server_hello_transcript,
+                client,
+                &sequence_number,
+                client_random,
+                suite,
+                extracted_shared_secret,
+            )?;
+
+            decrypted_flight.messages.extend(decrypted_msg);
+            sequence_number += 1;
+        }
+    }
+
+    Ok(decrypted_flight)
+}
+
 /// Decrypt an Application data message containing multiple handshake messages
 /// and return a vec of handshake messages
 pub fn fn_decrypt_multiple_handshake_messages(
@@ -182,6 +229,53 @@ pub fn fn_decrypt_multiple_handshake_messages(
         client_random,
         &supported_suite,
     )?;
+
+    let decrypter = supported_suite
+        .tls13()
+        .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?
+        .derive_decrypter(&key);
+    let message = decrypter
+        .decrypt(
+            PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
+            *sequence,
+        )
+        .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
+
+    let payloads =
+        MessagePayload::multiple_new(message.typ, message.version, message.payload).unwrap();
+
+    let messages = payloads
+        .into_iter()
+        .map(|p| Message {
+            version: message.version,
+            payload: p,
+        })
+        .collect();
+
+    Ok(messages)
+}
+
+/// Decrypt an Application data message containing multiple handshake messages
+/// and return a vec of handshake messages
+pub fn fn_decrypt_multiple_handshake_messages_with_secret(
+    application_data: &Message,
+    server_hello_transcript: &HandshakeHash,
+    client: &bool,
+    sequence: &u64,
+    client_random: &Random,
+    suite: &CipherSuite,
+    extracted_shared_secret: &Vec<u8>,
+) -> Result<Vec<Message>, FnError> {
+    let supported_suite = suite_as_supported_suite(suite)?;
+
+    let (key, _) = tls13_handshake_traffic_secret_from_shared_secret(
+        server_hello_transcript,
+        client_random,
+        !*client,
+        &supported_suite,
+        extracted_shared_secret,
+    )?;
+
     let decrypter = supported_suite
         .tls13()
         .ok_or_else(|| FnError::Crypto("No tls 1.3 suite".to_owned()))?

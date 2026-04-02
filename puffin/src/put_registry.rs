@@ -46,6 +46,10 @@ impl<PB> PutRegistry<PB> {
     pub fn default_put_name(&self) -> &str {
         &self.default_put.factory
     }
+
+    pub fn default_put_descriptor(&self) -> PutDescriptor {
+        PutDescriptor::new(self.default_put_name(), self.default_put.options.clone())
+    }
 }
 
 impl<PB: ProtocolBehavior> PartialEq for PutRegistry<PB> {

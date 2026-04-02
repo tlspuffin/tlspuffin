@@ -340,6 +340,12 @@ enable-guards = []
 # utility functions for testing tlspuffin
 test-utils = ["tempfile"]
 
+# Options to disable part of differential fuzzing, used to do ablation studies
+ddyf-disable-status = ["puffin/ddyf-disable-status"]
+ddyf-disable-claims = ["puffin/ddyf-disable-claims"]
+ddyf-disable-knowledges = ["puffin/ddyf-disable-knowledges"]
+ddyf-disable-decryption = ["puffin/ddyf-disable-decryption"]
+
 [dependencies]
 
 puffin = { path = "../puffin" }
@@ -354,6 +360,7 @@ hex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 smallvec = { workspace = true }
 once_cell = { workspace = true }
+comparable = { workspace = true, features = ["derive"] }
 
 ring = { version = "0.16.20", features = ["std"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }

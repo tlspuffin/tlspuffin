@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use log::LevelFilter;
 
 use crate::fuzzer::mutations::MutationConfig;
+use crate::put::PutDescriptor;
 
 /// Minimum of executions before starting to run bit-level mutations
 pub const MIN_BIT_EXECS: usize = 5_000; // one 1 core
@@ -28,6 +29,7 @@ pub struct FuzzerConfig {
     pub is_experiment: bool,
     pub put_use_clear: bool, // use clear instead of free on Agents in between traces of some Input
     pub verbosity: LevelFilter, // level for the client logging
+    pub target: FuzzingTarget,
 }
 
 impl Default for FuzzerConfig {
@@ -51,9 +53,23 @@ impl Default for FuzzerConfig {
             mutation_stage_config: Default::default(),
             mutation_config: Default::default(),
             put_use_clear: false,
+            target: Default::default(),
         }
     }
 }
+
+#[derive(Clone, Debug)]
+pub enum FuzzingTarget {
+    Single(Option<PutDescriptor>),
+    Differential(PutDescriptor, PutDescriptor),
+}
+
+impl Default for FuzzingTarget {
+    fn default() -> Self {
+        Self::Single(None)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct MutationStageConfig {
     /// How many iterations each stage gets, as an upper bound
