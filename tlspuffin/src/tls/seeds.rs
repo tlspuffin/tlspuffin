@@ -2850,7 +2850,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, client_authentication_transcript_extraction, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, client_authentication_transcript_extraction))]
     fn test_seed_client_attacker_auth(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_client_attacker_auth.build_trace();
@@ -2881,7 +2881,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls12, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls12))]
     fn test_seed_server_attacker12(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker12.build_trace();
@@ -2891,7 +2891,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_server_attacker_full(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker_full.build_trace();
@@ -2947,7 +2947,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_server_attacker_with_hello_retry_request(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker_with_hello_retry_request.build_trace();
@@ -2957,7 +2957,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth), not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth)))]
     fn test_seed_session_resumption_dhe(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_dhe.build_trace();
@@ -2967,7 +2967,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth), not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth)))]
     fn test_seed_session_resumption_dhe_full(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_dhe_full.build_trace();
@@ -2977,7 +2977,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth), not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth)))]
     fn test_seed_session_resumption_ke(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_ke.build_trace();
@@ -2987,7 +2987,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_successful(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_successful.build_trace();
@@ -2997,7 +2997,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_successful_client_auth(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_successful_client_auth.build_trace();
@@ -3021,7 +3021,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_successful_with_ccs(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_successful_with_ccs.build_trace();
@@ -3033,7 +3033,7 @@ pub mod tests {
 
     // require version which supports TLS 1.3 and session resumption (else no tickets are sent)
     // LibreSSL does not yet support PSK
-    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption))]
     fn test_seed_successful_with_tickets(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_successful_with_tickets.build_trace();
@@ -3043,7 +3043,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls12, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls12))]
     fn test_seed_successful12(put: &str) {
         let runner = default_runner_for(put);
 
