@@ -23,6 +23,9 @@ struct AGENT_TYPE
 {
     uint8_t name;
 
+    TLS_AGENT_DESCRIPTOR descriptor;
+
+    SSL_CTX *ctx;
     SSL *ssl;
 
     BIO *in;
@@ -46,6 +49,7 @@ void openssl_register_claimer(AGENT agent, const CLAIMER_CB *claimer);
 
 static RESULT get_result(AGENT agent, int retcode, bool allow_would_block);
 
+static bool recreate_ssl_from_agent_ctx(AGENT agent);
 static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor);
 
 static void default_claimer_notify(void *context, Claim *claim)
@@ -130,6 +134,7 @@ void openssl_destroy(AGENT agent)
         agent->claimer->destroy(agent->claimer->context);
     }
 
+    SSL_CTX_free(agent->ctx);
     SSL_free(agent->ssl);
     free(agent);
 }
@@ -155,18 +160,75 @@ RESULT openssl_progress(AGENT agent)
     return get_result(agent, ret, true);
 }
 
-RESULT openssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
+static bool recreate_ssl_from_agent_ctx(AGENT agent)
 {
-    agent->name = new_name;
+    SSL_free(agent->ssl); // also frees BIOs
+    agent->ssl = NULL;
+    agent->in = NULL;
+    agent->out = NULL;
 
+    agent->ssl = SSL_new(agent->ctx);
+    if (agent->ssl == NULL)
+    {
+        return false;
+    }
+    agent->in = BIO_new(BIO_s_mem());
+    agent->out = BIO_new(BIO_s_mem());
+    if (agent->in == NULL || agent->out == NULL)
+    {
+        BIO_free(agent->in);
+        BIO_free(agent->out);
+        SSL_free(agent->ssl);
+        agent->ssl = NULL;
+        agent->in = NULL;
+        agent->out = NULL;
+        return false;
+    }
+    SSL_set_bio(agent->ssl, agent->in, agent->out);
     openssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
 
-    int ret = SSL_clear(agent->ssl);
-    if (ret == 0)
+    if (agent->descriptor.role == CLIENT)
     {
-        return get_result(agent, SSL_ERROR_SSL, false);
+        SSL_set_connect_state(agent->ssl);
+    }
+    else
+    {
+        SSL_set_accept_state(agent->ssl);
+    }
+    return true;
+}
+
+RESULT openssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
+{
+    if (agent == NULL)
+    {
+        _log(PUFFIN.error, "fatal error openssl_reset called with agent == NULL");
+        return PUFFIN.make_result(RESULT_ERROR_OTHER,
+                                  "fatal error openssl_reset called with agent == NULL");
     }
 
+    if (use_clear)
+    {
+        agent->name = new_name;
+        openssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
+        int ret = SSL_clear(agent->ssl);
+        if (ret == 0)
+        {
+            return get_result(agent, SSL_ERROR_SSL, false);
+        }
+    }
+    else
+    {
+        agent->descriptor.name = new_name;
+        if (!recreate_ssl_from_agent_ctx(agent))
+        {
+            _log(PUFFIN.error,
+                 "fatal error in openssl_reset, recreate_ssl_from_agent_ctx returned false");
+            return PUFFIN.make_result(
+                RESULT_ERROR_OTHER,
+                "fatal error in openssl_reset, recreate_ssl_from_agent_ctx returned false");
+        }
+    }
     return get_result(agent, SSL_ERROR_NONE, false);
 }
 
@@ -199,6 +261,7 @@ void openssl_register_claimer(AGENT agent, const CLAIMER_CB *claimer)
     if (agent->claimer != NULL)
     {
         agent->claimer->destroy(agent->claimer->context);
+        free(agent->claimer);
     }
 
     CLAIMER_CB *new_claimer = malloc(sizeof(CLAIMER_CB));
@@ -369,12 +432,22 @@ static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor
     agent->ssl = ssl;
     agent->in = BIO_new(BIO_s_mem());
     agent->out = BIO_new(BIO_s_mem());
+    if (agent->in == NULL || agent->out == NULL)
+    {
+        BIO_free(agent->in);
+        BIO_free(agent->out);
+        SSL_free(ssl);
+        free(agent);
+        return NULL;
+    }
 
-    agent->claimer = &DEFAULT_CLAIMER_CB;
+    agent->claimer = NULL;
     openssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
 
     SSL_set_bio(agent->ssl, agent->in, agent->out);
-    SSL_CTX_free(ssl_ctx);
+    memcpy(&(agent->descriptor), descriptor, sizeof(TLS_AGENT_DESCRIPTOR));
+
+    agent->ctx = ssl_ctx;
 
     return agent;
 }
