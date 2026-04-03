@@ -273,7 +273,7 @@ pub trait SupportedPointFormats {
 
 impl SupportedPointFormats for ECPointFormatList {
     fn supported() -> ECPointFormatList {
-        ECPointFormatList(vec![ECPointFormat::Uncompressed])
+        ECPointFormatList(vec![ECPointFormat::Uncompressed]) // here
     }
 }
 
@@ -538,8 +538,8 @@ impl PresharedKeyOffer {
     /// Make a new one with one entry.
     pub fn new(id: PresharedKeyIdentity, binder: Vec<u8>) -> Self {
         Self {
-            identities: PresharedKeyIdentities(vec![id]),
-            binders: VecU16OfPayloadU8(vec![PresharedKeyBinder::new(binder)]),
+            identities: PresharedKeyIdentities(vec![id]), // here
+            binders: VecU16OfPayloadU8(vec![PresharedKeyBinder::new(binder)]), // here
         }
     }
 }
@@ -818,7 +818,7 @@ impl ClientExtension {
             payload: ServerNamePayload::new_hostname(trim_hostname_trailing_dot_for_sni(dns_name)),
         };
 
-        Self::ServerName(ServerNameRequest(vec![name]))
+        Self::ServerName(ServerNameRequest(vec![name])) // here
     }
 }
 
@@ -1280,7 +1280,7 @@ impl codec::Codec for HelloRetryRequest {
             random: fn_hello_retry_request_random().unwrap(), // same
             session_id,
             cipher_suite,
-            compression_methods: Compressions(vec![compression_method]),
+            compression_methods: Compressions(vec![compression_method]), // here
             extensions,
         })
     }

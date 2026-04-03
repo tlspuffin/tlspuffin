@@ -131,13 +131,24 @@ define_signature!(
     fn_cert_extensions_append [list]
     fn_new_session_ticket_extensions_new
     fn_new_session_ticket_extensions_append
+    fn_server_name_entry
+    fn_server_names_new [list]
+    fn_server_names_append [list]
+    fn_server_names_make
     fn_server_name_extension
     fn_server_name_server_extension
     fn_status_request_extension
     fn_status_request_server_extension
     fn_status_request_certificate_extension
+    fn_ec_point_format_uncompressed
+    fn_ec_point_formats_new [list]
+    fn_ec_point_formats_append [list]
+    fn_ec_point_formats_make
     fn_ec_point_formats_extension
     fn_ec_point_formats_server_extension
+    fn_signature_schemes_new [list]
+    fn_signature_schemes_append [list]
+    fn_signature_schemes_make
     fn_signature_algorithm_extension
     fn_signature_algorithm_cert_req_extension
     fn_empty_vec_of_vec
@@ -168,11 +179,19 @@ define_signature!(
     fn_supported_versions13_server_extension
     fn_cookie_extension
     fn_cookie_hello_retry_extension
-    fn_psk_exchange_mode_dhe_ke_extension
-    fn_psk_exchange_mode_ke_extension
+    fn_psk_exchange_mode_dhe_ke
+    fn_psk_exchange_mode_ke
+    fn_psk_exchange_modes_new [list]
+    fn_psk_exchange_modes_append [list]
+    fn_psk_exchange_modes_make
+    fn_psk_exchange_modes_extension
     fn_certificate_authorities_extension
     fn_signature_algorithm_cert_extension
-    fn_key_share_deterministic_extension
+    fn_key_share_entry
+    fn_key_share_entry_deterministic
+    fn_key_share_entries_new [list]
+    fn_key_share_entries_append [list]
+    fn_key_share_entries_make
     fn_key_share_extension
     fn_key_share_deterministic_server_extension
     fn_key_share_server_extension

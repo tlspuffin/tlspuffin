@@ -260,7 +260,7 @@ fn test_term_payloads_eval() {
         let res = zoo_test(
             &mut closure,
             StdRand::with_seed(i),
-            150,
+            300,
             true,
             false,
             true,
@@ -311,7 +311,7 @@ fn test_term_payloads_mutate_eval() {
             // Sanity check:
             test_pay(&term_with_payloads);
             let mut tries = 0;
-            while tries < 1_000 {
+            while tries < 2_000 {
                 let mut mutant = term_with_payloads.clone();
                 tries += 1;
                 let mut all_payloads = mutant.all_payloads_mut();
@@ -360,7 +360,7 @@ fn test_term_payloads_mutate_eval() {
         let res = zoo_test(
             &mut closure,
             StdRand::with_seed(i),
-            100,
+            200,
             true,
             false,
             true,

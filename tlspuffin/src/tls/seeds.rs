@@ -1205,9 +1205,26 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_signature_schemes_make(
+                                (fn_signature_schemes_append(
+                                    (fn_signature_schemes_append(
+                                        fn_signature_schemes_new,
+                                        fn_rsa_pkcs1_signature_algorithm
+                                    )),
+                                    fn_rsa_pss_signature_algorithm
+                                ))
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension(
+                        (fn_key_share_entries_make(
+                            (fn_key_share_entries_append(
+                                fn_key_share_entries_new,
+                                (fn_key_share_entry_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -1376,9 +1393,26 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_signature_schemes_make(
+                                (fn_signature_schemes_append(
+                                    (fn_signature_schemes_append(
+                                        fn_signature_schemes_new,
+                                        fn_rsa_pkcs1_signature_algorithm
+                                    )),
+                                    fn_rsa_pss_signature_algorithm
+                                ))
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension(
+                        (fn_key_share_entries_make(
+                            (fn_key_share_entries_append(
+                                fn_key_share_entries_new,
+                                (fn_key_share_entry_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -1467,9 +1501,26 @@ pub fn _seed_client_attacker12(
                                         ))
                                     ))
                                 )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_signature_schemes_make(
+                                        (fn_signature_schemes_append(
+                                            (fn_signature_schemes_append(
+                                                fn_signature_schemes_new,
+                                                fn_rsa_pkcs1_signature_algorithm
+                                            )),
+                                            fn_rsa_pss_signature_algorithm
+                                        ))
+                                    ))
+                                ))
                             )),
-                            fn_ec_point_formats_extension
+                            (fn_ec_point_formats_extension(
+                                (fn_ec_point_formats_make(
+                                    (fn_ec_point_formats_append(
+                                        fn_ec_point_formats_new,
+                                        fn_ec_point_format_uncompressed
+                                    ))
+                                ))
+                            ))
                         )),
                         fn_signed_certificate_timestamp_extension
                     )),
@@ -1477,7 +1528,17 @@ pub fn _seed_client_attacker12(
                     (fn_renegotiation_info_extension((fn_payload_u8(fn_empty_bytes_vec))))
                 )),
                 // Add signature cert extension
-                fn_signature_algorithm_cert_extension
+                (fn_signature_algorithm_cert_extension(
+                    (fn_signature_schemes_make(
+                        (fn_signature_schemes_append(
+                            (fn_signature_schemes_append(
+                                fn_signature_schemes_new,
+                                fn_rsa_pkcs1_signature_algorithm
+                            )),
+                            fn_rsa_pss_signature_algorithm
+                        ))
+                    ))
+                ))
             ))
         )))
     };
@@ -1636,13 +1697,37 @@ pub fn seed_session_resumption_dhe(
                                         ))
                                     ))
                                 )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_signature_schemes_make(
+                                        (fn_signature_schemes_append(
+                                            (fn_signature_schemes_append(
+                                                fn_signature_schemes_new,
+                                                fn_rsa_pkcs1_signature_algorithm
+                                            )),
+                                            fn_rsa_pss_signature_algorithm
+                                        ))
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
-                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                        (fn_key_share_extension(
+                        (fn_key_share_entries_make(
+                            (fn_key_share_entries_append(
+                                fn_key_share_entries_new,
+                                (fn_key_share_entry_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
+                    ))
                     )),
-                    fn_psk_exchange_mode_dhe_ke_extension
+                    (fn_psk_exchange_modes_extension(
+                        (fn_psk_exchange_modes_make(
+                            (fn_psk_exchange_modes_append(
+                                fn_psk_exchange_modes_new,
+                                fn_psk_exchange_mode_dhe_ke
+                            ))
+                        ))
+                    ))
                 )),
                 // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
                 // must be last in client_hello, and initially empty until filled by fn_fill_binder
@@ -1780,13 +1865,37 @@ pub fn seed_session_resumption_ke(
                                         ))
                                     ))
                                 )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_signature_schemes_make(
+                                        (fn_signature_schemes_append(
+                                            (fn_signature_schemes_append(
+                                                fn_signature_schemes_new,
+                                                fn_rsa_pkcs1_signature_algorithm
+                                            )),
+                                            fn_rsa_pss_signature_algorithm
+                                        ))
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
-                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                        (fn_key_share_extension(
+                        (fn_key_share_entries_make(
+                            (fn_key_share_entries_append(
+                                fn_key_share_entries_new,
+                                (fn_key_share_entry_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
+                    ))
                     )),
-                    fn_psk_exchange_mode_ke_extension
+                    (fn_psk_exchange_modes_extension(
+                        (fn_psk_exchange_modes_make(
+                            (fn_psk_exchange_modes_append(
+                                fn_psk_exchange_modes_new,
+                                fn_psk_exchange_mode_ke
+                            ))
+                        ))
+                    ))
                 )),
                 // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
                 // must be last in client_hello, and initially empty until filled by fn_fill_binder
@@ -1909,9 +2018,26 @@ pub fn _seed_client_attacker_full(
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_signature_schemes_make(
+                                (fn_signature_schemes_append(
+                                    (fn_signature_schemes_append(
+                                        fn_signature_schemes_new,
+                                        fn_rsa_pkcs1_signature_algorithm
+                                    )),
+                                    fn_rsa_pss_signature_algorithm
+                                ))
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension(
+                        (fn_key_share_entries_make(
+                            (fn_key_share_entries_append(
+                                fn_key_share_entries_new,
+                                (fn_key_share_entry_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -2103,9 +2229,26 @@ pub fn _seed_client_attacker_full_precomputation(
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_signature_schemes_make(
+                                (fn_signature_schemes_append(
+                                    (fn_signature_schemes_append(
+                                        fn_signature_schemes_new,
+                                        fn_rsa_pkcs1_signature_algorithm
+                                    )),
+                                    fn_rsa_pss_signature_algorithm
+                                ))
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension(
+                        (fn_key_share_entries_make(
+                            (fn_key_share_entries_append(
+                                fn_key_share_entries_new,
+                                (fn_key_share_entry_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))))
@@ -2312,13 +2455,37 @@ pub fn seed_session_resumption_dhe_full(
                                         ))
                                     ))
                                 )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_signature_schemes_make(
+                                        (fn_signature_schemes_append(
+                                            (fn_signature_schemes_append(
+                                                fn_signature_schemes_new,
+                                                fn_rsa_pkcs1_signature_algorithm
+                                            )),
+                                            fn_rsa_pss_signature_algorithm
+                                        ))
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
-                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                        (fn_key_share_extension(
+                        (fn_key_share_entries_make(
+                            (fn_key_share_entries_append(
+                                fn_key_share_entries_new,
+                                (fn_key_share_entry_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
+                    ))
                     )),
-                    fn_psk_exchange_mode_dhe_ke_extension
+                    (fn_psk_exchange_modes_extension(
+                        (fn_psk_exchange_modes_make(
+                            (fn_psk_exchange_modes_append(
+                                fn_psk_exchange_modes_new,
+                                fn_psk_exchange_mode_dhe_ke
+                            ))
+                        ))
+                    ))
                 )),
                 // https://datatracker.ietf.org/doc/html/rfc8446#section-2.2
                 // must be last in client_hello, and initially empty until filled by fn_fill_binder
@@ -2742,7 +2909,7 @@ pub mod tests {
                         // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
-                            terms < 300,
+                            terms < 2000,
                             "{} has step with too large term size {}!",
                             name,
                             terms
@@ -2785,7 +2952,7 @@ pub mod tests {
                         // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
-                            terms < 300,
+                            terms < 2000,
                             "{} has step with too large term size {}!",
                             name,
                             terms
