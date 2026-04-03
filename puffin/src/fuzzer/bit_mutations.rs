@@ -1,4 +1,5 @@
 use std::any::Any;
+use std::borrow::Cow;
 use std::cmp::min;
 use std::ops::Not;
 
@@ -54,70 +55,70 @@ use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
     CrossoverReplaceMutator,
 */
 
-pub type HavocMutationsTypeDY<S> = tuple_list_type!(
-    BitFlipMutatorDY<S>,
-    ByteFlipMutatorDY<S>,
-    ByteIncMutatorDY<S>,
-    ByteDecMutatorDY<S>,
-    ByteNegMutatorDY<S>,
-    ByteRandMutatorDY<S>,
-    ByteAddMutatorDY<S>,
-    WordAddMutatorDY<S>,
-    DwordAddMutatorDY<S>,
-    QwordAddMutatorDY<S>,
-    ByteInterestingMutatorDY<S>,
-    WordInterestingMutatorDY<S>,
-    DwordInterestingMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesExpandMutatorDY<S>,
-    BytesLargeExpandMutatorDY<S>, // NEW! Different from classical havoc!!
-    BytesInsertMutatorDY<S>,
-    BytesRandInsertMutatorDY<S>,
-    BytesSetMutatorDY<S>,
-    BytesRandSetMutatorDY<S>,
-    BytesCopyMutatorDY<S>,
+pub type HavocMutationsTypeDY<S, PT> = tuple_list_type!(
+    BitFlipMutatorDY<S, PT>,
+    ByteFlipMutatorDY<S, PT>,
+    ByteIncMutatorDY<S, PT>,
+    ByteDecMutatorDY<S, PT>,
+    ByteNegMutatorDY<S, PT>,
+    ByteRandMutatorDY<S, PT>,
+    ByteAddMutatorDY<S, PT>,
+    WordAddMutatorDY<S, PT>,
+    DwordAddMutatorDY<S, PT>,
+    QwordAddMutatorDY<S, PT>,
+    ByteInterestingMutatorDY<S, PT>,
+    WordInterestingMutatorDY<S, PT>,
+    DwordInterestingMutatorDY<S, PT>,
+    BytesDeleteMutatorDY<S, PT>,
+    BytesDeleteMutatorDY<S, PT>,
+    BytesDeleteMutatorDY<S, PT>,
+    BytesDeleteMutatorDY<S, PT>,
+    BytesExpandMutatorDY<S, PT>,
+    BytesLargeExpandMutatorDY<S, PT>, // NEW! Different from classical havoc!!
+    BytesInsertMutatorDY<S, PT>,
+    BytesRandInsertMutatorDY<S, PT>,
+    BytesSetMutatorDY<S, PT>,
+    BytesRandSetMutatorDY<S, PT>,
+    BytesCopyMutatorDY<S, PT>,
     BytesInsertCopyMutatorDY<S>,
     BytesSwapMutatorDY<S>,
-    CrossoverInsertMutatorDY<S>,
-    CrossoverReplaceMutatorDY<S>,
-    SpliceMutatorDY<S>,
+    CrossoverInsertMutatorDY<S, PT>,
+    CrossoverReplaceMutatorDY<S, PT>,
+    SpliceMutatorDY<S, PT>,
 );
 
-pub type BitMutations<'harness, PB, S> = tuple_list_type!(
+pub type BitMutations<'harness, PB, PT, S> = tuple_list_type!(
     MakeMessage<'harness, PB>,
     ReadMessage<'harness, PB>,
-    BitFlipMutatorDY<S>,
-    ByteFlipMutatorDY<S>,
-    ByteIncMutatorDY<S>,
-    ByteDecMutatorDY<S>,
-    ByteNegMutatorDY<S>,
-    ByteRandMutatorDY<S>,
-    ByteAddMutatorDY<S>,
-    WordAddMutatorDY<S>,
-    DwordAddMutatorDY<S>,
-    QwordAddMutatorDY<S>,
-    ByteInterestingMutatorDY<S>,
-    WordInterestingMutatorDY<S>,
-    DwordInterestingMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesExpandMutatorDY<S>,
-    BytesLargeExpandMutatorDY<S>,
-    BytesInsertMutatorDY<S>,
-    BytesRandInsertMutatorDY<S>,
-    BytesSetMutatorDY<S>,
-    BytesRandSetMutatorDY<S>,
-    BytesCopyMutatorDY<S>,
+    BitFlipMutatorDY<S, PT>,
+    ByteFlipMutatorDY<S, PT>,
+    ByteIncMutatorDY<S, PT>,
+    ByteDecMutatorDY<S, PT>,
+    ByteNegMutatorDY<S, PT>,
+    ByteRandMutatorDY<S, PT>,
+    ByteAddMutatorDY<S, PT>,
+    WordAddMutatorDY<S, PT>,
+    DwordAddMutatorDY<S, PT>,
+    QwordAddMutatorDY<S, PT>,
+    ByteInterestingMutatorDY<S, PT>,
+    WordInterestingMutatorDY<S, PT>,
+    DwordInterestingMutatorDY<S, PT>,
+    BytesDeleteMutatorDY<S, PT>,
+    BytesDeleteMutatorDY<S, PT>,
+    BytesDeleteMutatorDY<S, PT>,
+    BytesDeleteMutatorDY<S, PT>,
+    BytesExpandMutatorDY<S, PT>,
+    BytesLargeExpandMutatorDY<S, PT>,
+    BytesInsertMutatorDY<S, PT>,
+    BytesRandInsertMutatorDY<S, PT>,
+    BytesSetMutatorDY<S, PT>,
+    BytesRandSetMutatorDY<S, PT>,
+    BytesCopyMutatorDY<S, PT>,
     BytesInsertCopyMutatorDY<S>,
     BytesSwapMutatorDY<S>,
-    CrossoverInsertMutatorDY<S>,
-    CrossoverReplaceMutatorDY<S>,
-    SpliceMutatorDY<S>,
+    CrossoverInsertMutatorDY<S, PT>,
+    CrossoverReplaceMutatorDY<S, PT>,
+    SpliceMutatorDY<S, PT>,
 );
 
 pub type AllMutations<'harness, PT, PB, S> = tuple_list_type!(
@@ -130,41 +131,41 @@ pub type AllMutations<'harness, PT, PB, S> = tuple_list_type!(
     SwapMutator<S>,
     MakeMessage<'harness, PB>,
     ReadMessage<'harness, PB>,
-    BitFlipMutatorDY<S>,
-    ByteFlipMutatorDY<S>,
-    ByteIncMutatorDY<S>,
-    ByteDecMutatorDY<S>,
-    ByteNegMutatorDY<S>,
-    ByteRandMutatorDY<S>,
-    ByteAddMutatorDY<S>,
-    WordAddMutatorDY<S>,
-    DwordAddMutatorDY<S>,
-    QwordAddMutatorDY<S>,
-    ByteInterestingMutatorDY<S>,
-    WordInterestingMutatorDY<S>,
-    DwordInterestingMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesDeleteMutatorDY<S>,
-    BytesExpandMutatorDY<S>,
-    BytesLargeExpandMutatorDY<S>,
-    BytesInsertMutatorDY<S>,
-    BytesRandInsertMutatorDY<S>,
-    BytesSetMutatorDY<S>,
-    BytesRandSetMutatorDY<S>,
-    BytesCopyMutatorDY<S>,
+    BitFlipMutatorDY<S, PT>,
+    ByteFlipMutatorDY<S, PT>,
+    ByteIncMutatorDY<S, PT>,
+    ByteDecMutatorDY<S, PT>,
+    ByteNegMutatorDY<S, PT>,
+    ByteRandMutatorDY<S, PT>,
+    ByteAddMutatorDY<S, PT>,
+    WordAddMutatorDY<S, PT>,
+    DwordAddMutatorDY<S, PT>,
+    QwordAddMutatorDY<S, PT>,
+    ByteInterestingMutatorDY<S, PT>,
+    WordInterestingMutatorDY<S, PT>,
+    DwordInterestingMutatorDY<S, PT>,
+    BytesDeleteMutatorDY<S, PT>,
+    BytesDeleteMutatorDY<S, PT>,
+    BytesDeleteMutatorDY<S, PT>,
+    BytesDeleteMutatorDY<S, PT>,
+    BytesExpandMutatorDY<S, PT>,
+    BytesLargeExpandMutatorDY<S, PT>,
+    BytesInsertMutatorDY<S, PT>,
+    BytesRandInsertMutatorDY<S, PT>,
+    BytesSetMutatorDY<S, PT>,
+    BytesRandSetMutatorDY<S, PT>,
+    BytesCopyMutatorDY<S, PT>,
     BytesInsertCopyMutatorDY<S>,
     BytesSwapMutatorDY<S>,
-    CrossoverInsertMutatorDY<S>,
-    CrossoverReplaceMutatorDY<S>,
-    SpliceMutatorDY<S>,
+    CrossoverInsertMutatorDY<S, PT>,
+    CrossoverReplaceMutatorDY<S, PT>,
+    SpliceMutatorDY<S, PT>,
 );
 
 #[must_use]
-pub fn havoc_mutations_dy<S: HasRand + HasMaxSize + HasCorpus>(
+pub fn havoc_mutations_dy<S: HasRand + HasMaxSize + HasCorpus<Trace<PT>>, PT: ProtocolTypes>(
     mutation_config: MutationConfig,
-) -> HavocMutationsTypeDY<S> {
+) -> HavocMutationsTypeDY<S, PT> {
     tuple_list!(
         BitFlipMutatorDY::new(mutation_config),
         ByteFlipMutatorDY::new(mutation_config),
@@ -199,10 +200,10 @@ pub fn havoc_mutations_dy<S: HasRand + HasMaxSize + HasCorpus>(
 }
 
 #[must_use]
-pub fn bit_mutations_dy<S: HasRand + HasMaxSize + HasCorpus, PB>(
+pub fn bit_mutations_dy<S: HasRand + HasMaxSize + HasCorpus<Trace<PT>>, PT: ProtocolTypes, PB>(
     mutation_config: MutationConfig,
     put_registry: &PutRegistry<PB>,
-) -> BitMutations<'_, PB, S>
+) -> BitMutations<'_, PB, PT, S>
 where
     PB: ProtocolBehavior,
 {
@@ -219,7 +220,7 @@ pub fn all_mutations<'harness, S, PT: ProtocolTypes, PB>(
     put_registry: &'harness PutRegistry<PB>,
 ) -> AllMutations<'harness, PT, PB, S>
 where
-    S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
+    S: HasCorpus<Trace<PT>> + HasMetadata + HasMaxSize + HasRand,
     PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
     dy_mutations(mutation_config, signature, put_registry)
@@ -423,14 +424,19 @@ where
             Ok(MutationResult::Skipped)
         }
     }
+
+    #[inline]
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 impl<'a, PB> Named for MakeMessage<'a, PB>
 where
     PB: ProtocolBehavior,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("MakeMessage")
     }
 }
 
@@ -535,7 +541,7 @@ where
             if let Some(trace_path) = focus {
                 // We skip ReadMessage with proba 1/4 in focus mode!
                 let proba = 1.0 / 4.0;
-                let max_range = (1_000_000_000.0 * proba) as u64;
+                let max_range = (1_000_000_000.0 * proba) as usize;
                 if !rand.between(0, 1_000_000_000 - 1) < max_range {
                     log::debug!("read_message_term: skipping as we do in 3/4 of times");
                     return Ok(MutationResult::Skipped);
@@ -573,7 +579,7 @@ where
                 }
                 let mut proba = 1.0 / 2.0;
                 while !chosen_path.1.is_empty() {
-                    let max_range = (1_000_000_000.0 * proba) as u64;
+                    let max_range = (1_000_000_000.0 * proba) as usize;
                     if rand.between(0, 1_000_000_000 - 1) < max_range {
                         log::trace!("[ReadMessage] Going up, proba was {proba}");
                         proba /= 2.0;
@@ -636,14 +642,18 @@ where
             }
         }
     }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 impl<'a, PB> Named for ReadMessage<'a, PB>
 where
     PB: ProtocolBehavior,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("ReadMessage")
     }
 }
 
@@ -656,8 +666,8 @@ use paste::paste;
 use crate::algebra::bitstrings::PayloadMetadata;
 use crate::algebra::signature::Signature;
 use crate::fuzzer::mutations::{
-    dy_mutations, remove_prefix_and_type, GenerateMutator, MutationConfig, RemoveAndLiftMutator,
-    RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator, SwapMutator,
+    dy_mutations, GenerateMutator, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
+    ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator, SwapMutator,
 };
 use crate::fuzzer::stats_stage::{BIT_EXEC, BIT_EXEC_SUCCESS, MM_EXEC, MM_EXEC_SUCCESS};
 use crate::put_registry::PutRegistry;
@@ -666,17 +676,19 @@ macro_rules! expand_mutation {
     ($mutation:ident) => {
 paste!{
         /// mutation definition
-pub struct [<$mutation  DY>]<S>
+pub struct [<$mutation  DY>]<S, PT>
     where
         S: HasRand + HasMaxSize,
+        PT: ProtocolTypes,
 {
     config: MutationConfig,
-    phantom_s: std::marker::PhantomData<S>,
+    phantom_s: std::marker::PhantomData<(S, PT)>,
 }
 
-impl<S> [<$mutation  DY>]<S>
+impl<S, PT> [<$mutation  DY>]<S, PT>
     where
         S: HasRand + HasMaxSize,
+        PT: ProtocolTypes,
 {
     #[must_use]
     pub const fn new(config: MutationConfig) -> Self {
@@ -693,7 +705,7 @@ impl<S> [<$mutation  DY>]<S>
     }
 }
 
-impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S>
+impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S, PT>
     where
         S: HasRand + HasMaxSize,
         PT: ProtocolTypes,
@@ -733,14 +745,24 @@ impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S>
             }
         }
     }
+
+    #[inline]
+    fn post_exec(
+        &mut self,
+        _state: &mut S,
+        _new_corpus_id: Option<CorpusId>,
+    ) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
-impl<S> Named for [<$mutation  DY>]<S>
+impl<S, PT> Named for [<$mutation  DY>]<S, PT>
     where
         S: HasRand + HasMaxSize,
+        PT: ProtocolTypes,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<[<$mutation  DY>]<S>>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed(stringify!($mutation))
     }
 }
 }};
@@ -860,14 +882,18 @@ where
             }
         }
     }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 impl<S> Named for BytesSwapMutatorDY<S>
 where
     S: HasRand + HasMaxSize,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("BytesSwapMutatorDY")
     }
 }
 
@@ -937,14 +963,18 @@ where
             }
         }
     }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 impl<S> Named for BytesInsertCopyMutatorDY<S>
 where
     S: HasRand + HasMaxSize,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("BytesInsertCopyMutatorDY")
     }
 }
 
@@ -1029,7 +1059,7 @@ where
                 .payloads
                 .as_mut()
                 .expect("[choose_payload_mut] should never happen");
-            let input = payloads.payload.bytes_mut();
+            let input = payloads.payload.as_mut();
             if input.len() < 2 {
                 log::debug!(
                     "[choose_payload_mut] Skipped because payload is too small: {} bytes",
@@ -1168,17 +1198,19 @@ pub(crate) unsafe fn buffer_copy<T>(dst: &mut [T], src: &[T], from: usize, to: u
 }
 
 // CrossoverInsertMutatorDY
-pub struct CrossoverInsertMutatorDY<S>
+pub struct CrossoverInsertMutatorDY<S, PT>
 where
-    S: HasCorpus + HasRand + HasMaxSize,
+    S: HasCorpus<Trace<PT>> + HasRand + HasMaxSize,
+    PT: ProtocolTypes,
 {
     config: MutationConfig,
-    phantom_s: std::marker::PhantomData<S>,
+    phantom_s: std::marker::PhantomData<(S, PT)>,
 }
 
-impl<S> CrossoverInsertMutatorDY<S>
+impl<S, PT> CrossoverInsertMutatorDY<S, PT>
 where
-    S: HasCorpus + HasRand + HasMaxSize,
+    S: HasCorpus<Trace<PT>> + HasRand + HasMaxSize,
+    PT: ProtocolTypes,
 {
     #[must_use]
     pub fn new(config: MutationConfig) -> Self {
@@ -1195,10 +1227,9 @@ where
     }
 }
 
-impl<S, PT> Mutator<Trace<PT>, S> for CrossoverInsertMutatorDY<S>
+impl<S, PT> Mutator<Trace<PT>, S> for CrossoverInsertMutatorDY<S, PT>
 where
-    S: HasCorpus + HasRand + HasMaxSize,
-    S: libafl::inputs::UsesInput<Input = Trace<PT>>,
+    S: HasCorpus<Trace<PT>> + HasRand + HasMaxSize,
     PT: ProtocolTypes,
 {
     fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
@@ -1249,13 +1280,13 @@ where
             // avoid borrow checker issues (state need sto be immutably borrowed to access the
             // corpus and mutably borrowed to pick a random payload in the chosen trace)
             .rand_mut()
-            .between(0, (size_vec_payloads - 1) as u64) as usize;
+            .between(0, size_vec_payloads - 1);
         let other_size = {
             let other_testcase = state.corpus().get(idx)?.borrow_mut();
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
                 .payload
-                .bytes();
+                .mutator_bytes();
             other_input.len()
         };
         //
@@ -1265,8 +1296,12 @@ where
             return Ok(MutationResult::Skipped);
         }
 
-        let range = rand_range(state, other_size, min(other_size, max_size - size));
-        let target = state.rand_mut().below(size as u64) as usize;
+        let range = rand_range(
+            state,
+            other_size,
+            min(other_size, max_size - size).try_into()?,
+        );
+        let target = state.rand_mut().below_or_zero(size);
 
         input.resize(size + range.len(), 0);
         unsafe {
@@ -1280,7 +1315,7 @@ where
         // Input will already be loaded.
         let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
             .payload
-            .bytes();
+            .mutator_bytes();
         let _other_size = other_input.len();
 
         unsafe {
@@ -1292,28 +1327,35 @@ where
         log::trace!("Trace: {trace}");
         Ok(MutationResult::Mutated)
     }
-}
 
-impl<S> Named for CrossoverInsertMutatorDY<S>
-where
-    S: HasCorpus + HasRand + HasMaxSize,
-{
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
     }
 }
 
-pub struct CrossoverReplaceMutatorDY<S>
+impl<S, PT> Named for CrossoverInsertMutatorDY<S, PT>
 where
-    S: HasCorpus + HasRand + HasMaxSize,
+    S: HasCorpus<Trace<PT>> + HasRand + HasMaxSize,
+    PT: ProtocolTypes,
 {
-    config: MutationConfig,
-    phantom_s: std::marker::PhantomData<S>,
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("CrossoverInsertMutatorDY")
+    }
 }
 
-impl<S> CrossoverReplaceMutatorDY<S>
+pub struct CrossoverReplaceMutatorDY<S, PT>
 where
-    S: HasCorpus + HasRand + HasMaxSize,
+    S: HasCorpus<Trace<PT>> + HasRand + HasMaxSize,
+    PT: ProtocolTypes,
+{
+    config: MutationConfig,
+    phantom_s: std::marker::PhantomData<(S, PT)>,
+}
+
+impl<S, PT> CrossoverReplaceMutatorDY<S, PT>
+where
+    S: HasCorpus<Trace<PT>> + HasRand + HasMaxSize,
+    PT: ProtocolTypes,
 {
     #[must_use]
     pub fn new(config: MutationConfig) -> Self {
@@ -1330,10 +1372,19 @@ where
     }
 }
 
-impl<S, PT> Mutator<Trace<PT>, S> for CrossoverReplaceMutatorDY<S>
+impl<S, PT> Named for CrossoverReplaceMutatorDY<S, PT>
 where
-    S: HasCorpus + HasRand + HasMaxSize,
-    S: libafl::inputs::UsesInput<Input = Trace<PT>>,
+    PT: ProtocolTypes,
+    S: HasCorpus<Trace<PT>> + HasMaxSize + HasRand,
+{
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("CrossoverReplaceMutatorDY")
+    }
+}
+
+impl<S, PT> Mutator<Trace<PT>, S> for CrossoverReplaceMutatorDY<S, PT>
+where
+    S: HasCorpus<Trace<PT>> + HasRand + HasMaxSize,
     PT: ProtocolTypes,
 {
     fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
@@ -1382,13 +1433,13 @@ where
             // avoid borrow checker issues (state need sto be immutably borrowed to access the
             // corpus and mutably borrowed to pick a random payload in the chosen trace)
             .rand_mut()
-            .between(0, (size_vec_payloads - 1) as u64) as usize;
+            .between(0, size_vec_payloads - 1);
         let other_size = {
             let other_testcase = state.corpus().get(idx)?.borrow_mut();
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
                 .payload
-                .bytes();
+                .mutator_bytes();
             other_input.len()
         };
         //
@@ -1398,8 +1449,12 @@ where
             return Ok(MutationResult::Skipped);
         }
 
-        let target = state.rand_mut().below(size as u64) as usize;
-        let range = rand_range(state, other_size, min(other_size, size - target));
+        let target = state.rand_mut().below_or_zero(size);
+        let range = rand_range(
+            state,
+            other_size,
+            min(other_size, size - target).try_into()?,
+        );
 
         // let other_testcase = state.corpus().get(idx)?.borrow_mut();
         // // No need to load the input again, it'll still be cached.
@@ -1408,7 +1463,7 @@ where
         // Input will already be loaded.
         let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
             .payload
-            .bytes();
+            .mutator_bytes();
 
         unsafe {
             buffer_copy(input, other_input, range.start, target, range.len());
@@ -1419,28 +1474,25 @@ where
         log::trace!("Trace: {trace}");
         Ok(MutationResult::Mutated)
     }
-}
 
-impl<S> Named for CrossoverReplaceMutatorDY<S>
-where
-    S: HasCorpus + HasRand + HasMaxSize,
-{
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
     }
 }
 
-pub struct SpliceMutatorDY<S>
+pub struct SpliceMutatorDY<S, PT>
 where
-    S: HasCorpus + HasRand + HasMaxSize,
+    S: HasCorpus<Trace<PT>> + HasRand + HasMaxSize,
+    PT: ProtocolTypes,
 {
     config: MutationConfig,
-    phantom_s: std::marker::PhantomData<S>,
+    phantom_s: std::marker::PhantomData<(S, PT)>,
 }
 
-impl<S> SpliceMutatorDY<S>
+impl<S, PT> SpliceMutatorDY<S, PT>
 where
-    S: HasCorpus + HasRand + HasMaxSize,
+    S: HasCorpus<Trace<PT>> + HasRand + HasMaxSize,
+    PT: ProtocolTypes,
 {
     #[must_use]
     pub fn new(config: MutationConfig) -> Self {
@@ -1457,11 +1509,19 @@ where
     }
 }
 
-impl<S, PT> Mutator<Trace<PT>, S> for SpliceMutatorDY<S>
+impl<S, PT> Named for SpliceMutatorDY<S, PT>
 where
-    S: HasCorpus + HasRand + HasMaxSize,
-    //        <S as libafl::inputs::UsesInput>::Input = BytesInput,
-    S: libafl::inputs::UsesInput<Input = Trace<PT>>,
+    PT: ProtocolTypes,
+    S: HasCorpus<Trace<PT>> + HasMaxSize + HasRand,
+{
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("SpliceMutatorDY")
+    }
+}
+
+impl<S, PT> Mutator<Trace<PT>, S> for SpliceMutatorDY<S, PT>
+where
+    S: HasCorpus<Trace<PT>> + HasRand + HasMaxSize,
     PT: ProtocolTypes,
 {
     fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
@@ -1504,13 +1564,13 @@ where
             // avoid borrow checker issues (state need sto be immutably borrowed to access the
             // corpus and mutably borrowed to pick a random payload in the chosen trace)
             .rand_mut()
-            .between(0, (size_vec_payloads - 1) as u64) as usize;
+            .between(0, size_vec_payloads - 1);
         let _other_size = {
             let other_testcase = state.corpus().get(idx)?.borrow_mut();
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
                 .payload
-                .bytes();
+                .mutator_bytes();
             other_input.len()
         };
         //
@@ -1520,14 +1580,14 @@ where
             // Input will already be loaded.
             let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
                 .payload
-                .bytes();
+                .mutator_bytes();
 
             let mut counter: u32 = 0;
             loop {
                 let (f, l) = locate_diffs(input, other_input);
 
                 if f != l && f >= 0 && l >= 2 {
-                    break (f as u64, l as u64);
+                    break (f as usize, l as usize);
                 }
                 if counter == 3 {
                     log::trace!("counter is 3");
@@ -1538,13 +1598,13 @@ where
             }
         };
 
-        let split_at = state.rand_mut().between(first_diff, last_diff) as usize;
+        let split_at = state.rand_mut().between(first_diff, last_diff);
 
         let other_testcase = state.corpus().get(idx)?.borrow_mut();
         // Input will already be loaded.
         let other_input = other_testcase.input().as_ref().unwrap().all_payloads()[payload_idx]
             .payload
-            .bytes();
+            .mutator_bytes();
 
         input.splice(split_at.., other_input[split_at..].iter().copied());
         metadata.has_changed = true;
@@ -1553,14 +1613,9 @@ where
         log::trace!("Trace: {trace}");
         Ok(MutationResult::Mutated)
     }
-}
 
-impl<S> Named for SpliceMutatorDY<S>
-where
-    S: HasCorpus + HasRand + HasMaxSize,
-{
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
     }
 }
 
@@ -1576,45 +1631,47 @@ pub struct BytesLargeExpandMutator;
 impl<I, S> Mutator<I, S> for BytesLargeExpandMutator
 where
     S: HasRand + HasMaxSize,
-    I: HasBytesVec,
+    I: HasMutatorBytes + ResizableMutator<u8>,
 {
     fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, Error> {
         let min_length_log = 5;
         let max_length_log = 12;
 
         let max_size = state.max_size();
-        let size = input.bytes().len();
+        let size = input.mutator_bytes().len();
         if size == 0 || size >= max_size {
             return Ok(MutationResult::Skipped);
         }
         if size < 1 << min_length_log {
             return Ok(MutationResult::Skipped);
         }
-        let len_log = state
-            .rand_mut()
-            .between(min_length_log as u64, max_length_log as u64) as usize;
+        let len_log = state.rand_mut().between(min_length_log, max_length_log);
         let len = min(1 << len_log, max_size - size);
-        let start = state.rand_mut().between(0, size as u64) as usize;
+        let start = state.rand_mut().between(0, size);
         let range = start..(start + len);
         log::trace!("[BytesLargeExpandMutator] len: {len}, range: {range:?}, size: {size}");
-        input.bytes_mut().resize(size + range.len(), 0);
+        input.resize(size + range.len(), 0);
         unsafe {
             buffer_self_copy(
-                input.bytes_mut(),
+                input.mutator_bytes_mut(),
                 range.start,
                 range.start + range.len(),
                 size - range.start,
             );
         }
-        log::trace!("After mutation, length is: {}", input.bytes().len());
+        log::trace!("After mutation, length is: {}", input.mutator_bytes().len());
 
         Ok(MutationResult::Mutated)
+    }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
     }
 }
 
 impl Named for BytesLargeExpandMutator {
-    fn name(&self) -> &str {
-        "BytesLargexpandMutator"
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("BytesLargexpandMutator")
     }
 }
 

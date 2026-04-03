@@ -1,7 +1,11 @@
+use std::borrow::Cow;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
+use libafl::monitors::stats::*;
 use libafl::prelude::*;
+use libafl_bolts::Named;
+
 pub enum RuntimeStats {
     // Term Eval error counters
     EvalFnCryptoError(&'static Counter),
@@ -307,46 +311,38 @@ impl Fire for MinMaxMean {
     }
 }
 
+static STATS_STAGE_ID: AtomicUsize = AtomicUsize::new(0);
+/// The name for closure stage
+pub static STATS_STAGE_NAME: &str = "StatsStage";
+
 #[derive(Clone, Debug)]
-pub struct StatsStage<E, EM, Z> {
+pub struct StatsStage<E, EM, Z, S, I> {
     #[allow(clippy::type_complexity)]
-    phantom: PhantomData<(E, EM, Z)>,
+    phantom: PhantomData<(E, EM, Z, S, I)>,
+    name: Cow<'static, str>,
 }
 
-impl<E, EM, Z> UsesState for StatsStage<E, EM, Z>
-where
-    EM: EventFirer,
-    E: UsesState<State = Z::State>,
-    EM: UsesState<State = Z::State>,
-    Z: Evaluator<E, EM>,
-{
-    type State = Z::State;
+impl<E, EM, Z, S, I> Named for StatsStage<E, EM, Z, S, I> {
+    fn name(&self) -> &Cow<'static, str> {
+        &self.name
+    }
 }
 
-impl<E, EM, Z> Stage<E, EM, Z> for StatsStage<E, EM, Z>
+impl<E, EM, S, Z, I> Stage<E, EM, S, Z> for StatsStage<E, EM, S, Z, I>
 where
-    EM: EventFirer,
-    E: UsesState<State = Z::State>,
-    EM: UsesState<State = Z::State>,
-    Z: Evaluator<E, EM>,
+    EM: EventFirer<I, S>,
+    E: Executor<EM, I, S, Z>,
+    Z: Evaluator<E, EM, I, S>,
+    I: Input,
+    S: HasExecutions,
 {
-    fn restart_progress_should_run(&mut self, state: &mut Self::State) -> Result<bool, Error> {
-        // Will be removed with further increase of LibAFL
-        Ok(true)
-    }
-
-    fn clear_restart_progress(&mut self, state: &mut Self::State) -> Result<(), Error> {
-        // Will be removed with further increase of LibAFL
-        Ok(())
-    }
-
     #[inline]
     #[allow(clippy::let_and_return)]
     fn perform(
         &mut self,
         _fuzzer: &mut Z,
         _executor: &mut E,
-        state: &mut Z::State,
+        state: &mut S,
         manager: &mut EM,
     ) -> Result<(), Error> {
         if cfg!(feature = "introspection") {
@@ -354,11 +350,14 @@ where
                 stat.fire(&mut |name, stats| {
                     manager.fire(
                         state,
-                        Event::UpdateUserStats {
-                            name,
-                            value: stats,
-                            phantom: Default::default(),
-                        },
+                        EventWithStats::with_current_time(
+                            Event::UpdateUserStats {
+                                name: Cow::from(name),
+                                value: stats,
+                                phantom: Default::default(),
+                            },
+                            *state.executions(),
+                        ),
                     )
                 })?;
             }
@@ -368,24 +367,46 @@ where
     }
 }
 
-impl<E, EM, Z> StatsStage<E, EM, Z>
+impl<E, EM, S, Z, I> Restartable<S> for StatsStage<E, EM, S, Z, I>
 where
-    E: UsesState<State = Z::State>,
-    EM: UsesState<State = Z::State>,
-    Z: Evaluator<E, EM>,
+    EM: EventFirer<I, S>,
+    E: Executor<EM, I, S, Z>,
+    Z: Evaluator<E, EM, I, S>,
+    I: Input,
+    S: HasExecutions + HasNamedMetadata,
 {
-    pub const fn new() -> Self {
+    // This is only a stat stage, we don't need to restart anything
+    fn should_restart(&mut self, _state: &mut S) -> Result<bool, Error> {
+        Ok(true)
+    }
+
+    fn clear_progress(&mut self, _state: &mut S) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl<E, EM, S, Z, I> StatsStage<E, EM, S, Z, I>
+where
+    EM: EventFirer<I, S>,
+    E: Executor<EM, I, S, Z>,
+    Z: Evaluator<E, EM, I, S>,
+    I: Input,
+{
+    pub fn new() -> Self {
+        let stage_id = STATS_STAGE_ID.fetch_add(1, Ordering::Relaxed);
         Self {
             phantom: PhantomData,
+            name: Cow::Owned(STATS_STAGE_NAME.to_owned() + ":" + stage_id.to_string().as_ref()),
         }
     }
 }
 
-impl<E, EM, Z> Default for StatsStage<E, EM, Z>
+impl<E, EM, S, Z, I> Default for StatsStage<E, EM, S, Z, I>
 where
-    E: UsesState<State = Z::State>,
-    EM: UsesState<State = Z::State>,
-    Z: Evaluator<E, EM>,
+    EM: EventFirer<I, S>,
+    E: Executor<EM, I, S, Z>,
+    Z: Evaluator<E, EM, I, S>,
+    I: Input,
 {
     fn default() -> Self {
         Self::new()

@@ -15,7 +15,6 @@ use puffin::error::Error;
 use puffin::fuzzer::term_zoo::TermZoo;
 use puffin::fuzzer::utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints};
 use puffin::libafl;
-use puffin::libafl::inputs::HasBytesVec;
 use puffin::libafl::mutators::{MutationResult, Mutator, MutatorsTuple};
 use puffin::libafl::prelude::HasRand;
 use puffin::libafl_bolts::prelude::RomuDuoJrRand;
@@ -315,7 +314,7 @@ fn test_term_payloads_mutate_eval() {
                 let mut mutant = term_with_payloads.clone();
                 tries += 1;
                 let mut all_payloads = mutant.all_payloads_mut();
-                let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
+                let idx = state.rand_mut().between(0, all_payloads.len() - 1);
                 let payload_to_mutate = all_payloads.remove(idx);
                 let payload_to_mutate_orig = payload_to_mutate.payload_0.clone();
                 let payload_to_mutate = &mut payload_to_mutate.payload;
@@ -360,7 +359,7 @@ fn test_term_payloads_mutate_eval() {
         let res = zoo_test(
             &mut closure,
             StdRand::with_seed(i),
-            100,
+            300,
             true,
             false,
             true,

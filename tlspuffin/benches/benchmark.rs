@@ -51,8 +51,8 @@ fn benchmark_dynamic(c: &mut Criterion) {
 }
 
 fn create_state() -> StdState<
-    Trace<TLSProtocolTypes>,
     InMemoryCorpus<Trace<TLSProtocolTypes>>,
+    Trace<TLSProtocolTypes>,
     RomuDuoJrRand,
     InMemoryCorpus<Trace<TLSProtocolTypes>>,
 > {
@@ -292,7 +292,7 @@ fn benchmark_test_term_payloads_mutate_eval(c: &mut Criterion) {
                 let mut mutant = term_with_payloads.clone();
                 tries += 1;
                 let mut all_payloads = mutant.all_payloads_mut();
-                let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
+                let idx = state.rand_mut().between(0, all_payloads.len() - 1);
                 let payload_to_mutate = all_payloads.remove(idx);
                 let payload_to_mutate_orig = payload_to_mutate.payload_0.clone();
                 let payload_to_mutate = &mut payload_to_mutate.payload;
@@ -340,7 +340,7 @@ fn benchmark_test_term_payloads_mutate_eval(c: &mut Criterion) {
             let res = zoo_test(
                 &mut closure,
                 StdRand::with_seed(i),
-                100,
+                300,
                 true,
                 false,
                 true,
