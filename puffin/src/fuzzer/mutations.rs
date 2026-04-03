@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
@@ -63,14 +65,6 @@ pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
     SwapMutator<S>,
 );
 
-pub(crate) fn remove_prefix_and_type(str: &str) -> &str {
-    str.splitn(2, '<').collect::<Vec<&str>>()[0]
-        .split(':')
-        .collect::<Vec<&str>>()
-        .last()
-        .unwrap()
-}
-
 #[must_use]
 pub fn dy_mutations<'harness, S, PT: ProtocolTypes, PB>(
     mutation_config: MutationConfig,
@@ -78,7 +72,7 @@ pub fn dy_mutations<'harness, S, PT: ProtocolTypes, PB>(
     put_registry: &'harness PutRegistry<PB>,
 ) -> DyMutations<'harness, PT, PB, S>
 where
-    S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
+    S: HasCorpus<Trace<PT>> + HasMetadata + HasMaxSize + HasRand,
     PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
     let MutationConfig {
@@ -173,13 +167,17 @@ where
         log::debug!("       Skipped {}", self.name());
         Ok(MutationResult::Skipped)
     }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
 }
 impl<S> Named for SwapMutator<S>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("SwapMutator")
     }
 }
 
@@ -268,14 +266,18 @@ where
             Ok(MutationResult::Skipped)
         }
     }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 impl<S> Named for RemoveAndLiftMutator<S>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("RemoveAndLiftMutator")
     }
 }
 
@@ -366,14 +368,18 @@ where
             Ok(MutationResult::Skipped)
         }
     }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 impl<S, PT: ProtocolTypes> Named for ReplaceMatchMutator<S, PT>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("ReplaceMatchMutator")
     }
 }
 
@@ -450,14 +456,18 @@ where
         log::debug!("       Skipped {}", self.name());
         Ok(MutationResult::Skipped)
     }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 impl<S> Named for ReplaceReuseMutator<S>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("ReplaceReuseMutator")
     }
 }
 
@@ -503,18 +513,22 @@ where
             log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
-        let remove_index = state.rand_mut().between(0, (length - 1) as u64) as usize;
+        let remove_index = state.rand_mut().between(0, length - 1);
         log::debug!("[Mutation] Mutate SkipMutator on step {remove_index}");
         steps.remove(remove_index);
         Ok(MutationResult::Mutated)
+    }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
     }
 }
 impl<S> Named for SkipMutator<S>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("SkipMutator")
     }
 }
 
@@ -560,19 +574,25 @@ where
             log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
-        let insert_index = state.rand_mut().between(0, length as u64) as usize;
-        let step = state.rand_mut().choose(steps).clone();
+        let insert_index = state.rand_mut().between(0, length);
+        let Some(step) = state.rand_mut().choose(steps) else {
+            return Ok(MutationResult::Skipped);
+        };
         log::debug!("[Mutation] Mutate RepeatMutator on step {insert_index}");
-        trace.steps.insert(insert_index, step);
+        trace.steps.insert(insert_index, step.clone());
         Ok(MutationResult::Mutated)
+    }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
     }
 }
 impl<S> Named for RepeatMutator<S>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("RepeatMutator")
     }
 }
 
@@ -671,14 +691,18 @@ where
             Ok(MutationResult::Skipped)
         }
     }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 impl<'a, S, PB: ProtocolBehavior> Named for GenerateMutator<'a, S, PB>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("GenerateMutator")
     }
 }
 
@@ -700,7 +724,7 @@ mod tests {
     use crate::trace::{Action, Step};
 
     fn create_state(
-    ) -> StdState<TestTrace, InMemoryCorpus<TestTrace>, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
+    ) -> StdState<InMemoryCorpus<TestTrace>, TestTrace, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
     {
         let rand = StdRand::with_seed(1235);
         let corpus: InMemoryCorpus<TestTrace> = InMemoryCorpus::new();

@@ -6,6 +6,8 @@ use libafl::corpus::ondisk::OnDiskMetadataFormat;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 use log4rs::Handle;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 use super::harness;
 use crate::fuzzer::bit_mutations::{
@@ -15,7 +17,7 @@ pub(crate) use crate::fuzzer::config::FuzzerConfig;
 use crate::fuzzer::config::{FuzzingTarget, MIN_BIT_CORPUS, MIN_BIT_EXECS};
 use crate::fuzzer::feedback::MinimizingFeedback;
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
-use crate::fuzzer::stages::{FocusScheduledMutator, PuffinMutationalStage};
+use crate::fuzzer::stages::FocusScheduledMutator;
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
 use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
@@ -26,9 +28,10 @@ use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
 
-type ConcreteExecutor<'harness, H, OT, S> = InProcessExecutor<'harness, H, OT, S>;
+type ConcreteExecutor<'harness, EM, H, I, OT, S, Z> =
+    InProcessExecutor<'harness, EM, H, I, OT, S, Z>;
 
-type ConcreteState<C, R, SC, I> = StdState<I, C, R, SC>;
+type ConcreteState<C, R, SC, I> = StdState<C, I, R, SC>;
 
 struct RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PT>
 where
@@ -53,25 +56,22 @@ where
 impl<'harness, H, C, R, SC, EM, F, OF, OT, CS, PT>
     RunClientBuilder<'harness, H, C, R, SC, EM, F, OF, OT, CS, PT>
 where
-    ConcreteState<C, R, SC, Trace<PT>>: UsesInput<Input = Trace<PT>>,
-    C: Corpus + UsesInput<Input = Trace<PT>>,
+    C: Corpus<Trace<PT>> + Serialize + DeserializeOwned,
     R: Rand,
-    SC: Corpus + UsesInput<Input = Trace<PT>>,
+    SC: Corpus<Trace<PT>> + Serialize + DeserializeOwned,
     H: FnMut(&Trace<PT>) -> ExitKind,
-    CS: Scheduler + UsesState<State = ConcreteState<C, R, SC, Trace<PT>>>,
-    F: Feedback<ConcreteState<C, R, SC, Trace<PT>>>,
-    OF: Feedback<ConcreteState<C, R, SC, Trace<PT>>>,
-    OT: ObserversTuple<ConcreteState<C, R, SC, Trace<PT>>>
-        + serde::Serialize
-        + serde::de::DeserializeOwned,
-    EM: EventFirer
-        + EventRestarter
-        + EventManager<
-            ConcreteExecutor<'harness, H, OT, ConcreteState<C, R, SC, Trace<PT>>>,
-            StdFuzzer<CS, F, OF, OT>,
-        > + ProgressReporter
-        + UsesState<State = ConcreteState<C, R, SC, Trace<PT>>>,
-    <EM as UsesState>::State: HasClientPerfMonitor + HasMetadata + HasExecutions,
+    CS: Scheduler<Trace<PT>, ConcreteState<C, R, SC, Trace<PT>>>,
+    F: Feedback<EM, Trace<PT>, OT, ConcreteState<C, R, SC, Trace<PT>>>,
+    OF: Feedback<EM, Trace<PT>, OT, ConcreteState<C, R, SC, Trace<PT>>>,
+    OT: ObserversTuple<Trace<PT>, ConcreteState<C, R, SC, Trace<PT>>>
+        + Serialize
+        + DeserializeOwned,
+    EM: EventFirer<Trace<PT>, ConcreteState<C, R, SC, Trace<PT>>>
+        + EventRestarter<ConcreteState<C, R, SC, Trace<PT>>>
+        + SendExiting
+        + EventReceiver<Trace<PT>, ConcreteState<C, R, SC, Trace<PT>>>
+        + ProgressReporter<ConcreteState<C, R, SC, Trace<PT>>>,
+    ConcreteState<C, R, SC, Trace<PT>>: HasClientPerfMonitor + HasMetadata + HasExecutions,
     PT: ProtocolTypes + 'static,
 {
     fn new(
@@ -165,10 +165,10 @@ where
 
         /*
         Standard AFL-like configuration:
-        A: Main mutator with StdScheduledMutator
+        A: Main mutator with HavocScheduledMutator
             1. Compute the number `im` of iterations of stacked mutations: 1 << (1 + rand(0 <= r <= 7))
             2. For each time (0..im) : Apply randomly a mutation from the given list (here havoc)
-          ==> let mutator = StdScheduledMutator::new(havoc_mutations());
+          ==> let mutator = HavocScheduledMutator::new(...);
         B: Main mutational stage with StdMutationalStage:
             1. Take the scheduled input from the corpus
             2. Pick a random iterations is between 1 and 128 (default)
@@ -180,8 +180,8 @@ where
         We adapt this to our specific setup:
            ==> let mut stages = tuple_list!(stage_dy, stage_bit);
         where:
-         - stage_dy is a StdScheduledMutator stage over DY mutations, enabled when DY mutations are
-         - stage_bit is a StdScheduledMutator with only 1 run stage over bit-level mutations, enabled
+         - stage_dy is a HavocScheduledMutator stage over DY mutations, enabled when DY mutations are
+         - stage_bit is a HavocScheduledMutator with only 1 run stage over bit-level mutations, enabled
          when bit mutations are enabled and when sufficiently many executions and corpus testcases have been done/found
 
          We refine this initial design below with the addition of a Focused stage where the payload
@@ -193,7 +193,7 @@ where
             with_focus: false,
             ..mutation_config
         };
-        let mutator_dy = StdScheduledMutator::new(dy_mutations(
+        let mutator_dy = HavocScheduledMutator::new(dy_mutations(
             mutation_config_dy,
             <PT>::signature(),
             put_registry,
@@ -209,7 +209,7 @@ where
         };
         let stage_dy = IfStage::new(
             cb_dy,
-            tuple_list!(PuffinMutationalStage::new(
+            tuple_list!(StdMutationalStage::with_max_iterations(
                 mutator_dy,
                 self.config.mutation_stage_config.max_iterations_per_stage
             )),
@@ -220,8 +220,9 @@ where
             with_focus: false,
             ..mutation_config
         };
-        let mutator_bit = StdScheduledMutator::new(bit_mutations_dy::<
-            StdState<Trace<PT>, C, R, SC>,
+        let mutator_bit = HavocScheduledMutator::new(bit_mutations_dy::<
+            StdState<C, Trace<PT>, R, SC>,
+            PT,
             PB,
         >(mutation_config_bit, put_registry));
         // Run bit-level muts. if bit-level enabled + already sufficiently advanced (to save a bit
@@ -248,7 +249,7 @@ where
         let mutation_config_focus = mutation_config; // focus is already sets to the wanted value
         let mutator_bit_focus = FocusScheduledMutator::new(
             tuple_list!(MakeMessage::new(mutation_config_focus, put_registry)),
-            havoc_mutations_dy::<StdState<Trace<PT>, C, R, SC>>(mutation_config_focus),
+            havoc_mutations_dy::<StdState<C, Trace<PT>, R, SC>, PT>(mutation_config_focus),
             tuple_list!(ReadMessage::new(mutation_config_focus, put_registry)),
         );
         let cb_focus_bit_level = |_: &mut _,
@@ -265,13 +266,13 @@ where
         let stage_bit = IfStage::new(
             cb_bit_level,
             tuple_list!(
-                PuffinMutationalStage::new(
+                StdMutationalStage::with_max_iterations(
                     mutator_bit,
                     self.config.mutation_stage_config.max_iterations_per_stage
                 ), // Old-style HAVOC stage
                 IfStage::new(
                     cb_focus_bit_level,
-                    tuple_list!(PuffinMutationalStage::new(
+                    tuple_list!(StdMutationalStage::with_max_iterations(
                         mutator_bit_focus,
                         self.config.mutation_stage_config.max_iterations_per_stage
                     ),)
@@ -296,9 +297,9 @@ where
                         return Ok(());
                     };
 
-                    let current_testcase = cs.corpus().get(*current_idx)?.borrow_mut();
+                    let mut current_testcase = cs.corpus().get(*current_idx)?.borrow_mut();
                     // Input will already be loaded.
-                    let current_input = current_testcase.input().as_ref().unwrap();
+                    let current_input = current_testcase.load_input(cs.corpus()).unwrap();
                     let spawner = Spawner::new(put_registry.clone());
                     let mut ctx = TraceContext::new_config(
                         spawner,
@@ -347,10 +348,18 @@ where
         // ==== All stages put together
         let mut stages = tuple_list!(stage_test_input, stage_dy, stage_bit, StatsStage::new());
 
-        let mut fuzzer: StdFuzzer<CS, F, OF, OT> =
+        let mut fuzzer: StdFuzzer<CS, F, _, _, OF> =
             StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);
 
-        let mut executor: ConcreteExecutor<'harness, H, OT, _> = InProcessExecutor::with_timeout(
+        let mut executor: ConcreteExecutor<
+            'harness,
+            EM,
+            H,
+            Trace<PT>,
+            OT,
+            ConcreteState<C, R, SC, Trace<PT>>,
+            StdFuzzer<CS, F, _, _, OF>,
+        > = InProcessExecutor::with_timeout(
             self.harness_fn,
             // hint: edges_observer is expensive to serialize (only noticeable if we add all
             // inputs to the corpus)
@@ -413,16 +422,10 @@ where
 type EdgesObserver = HitcountsMapObserver<StdMapObserver<'static, u8, false>>;
 type EdgesTracking = ExplicitTracking<EdgesObserver, true, false>;
 
-type ConcreteMinimizer<'a, S> = IndexesLenTimeMinimizerScheduler<QueueScheduler<S>, EdgesTracking>;
-
 type ConcreteObservers<'a> = (EdgesTracking, (TimeObserver, ()));
 
-type ConcreteFeedback<'a, S> = CombinedFeedback<
-    MapFeedback<EdgesTracking, DifferentIsNovel, EdgesObserver, MaxReducer, S, u8>,
-    TimeFeedback,
-    LogicEagerOr,
-    S,
->;
+type ConcreteFeedback<'a> =
+    CombinedFeedback<MaxMapFeedback<EdgesTracking, EdgesObserver>, TimeFeedback, LogicEagerOr>;
 
 impl<'harness, 'a, H, SC, C, R, EM, OF, CS, PT>
     RunClientBuilder<
@@ -435,43 +438,15 @@ impl<'harness, 'a, H, SC, C, R, EM, OF, CS, PT>
         CombinedFeedback<
             MinimizingFeedback<
                 StdState<
-                    Trace<PT>,
                     CachedOnDiskCorpus<Trace<PT>>,
+                    Trace<PT>,
                     RomuDuoJrRand,
                     CachedOnDiskCorpus<Trace<PT>>,
                 >,
                 PT,
             >,
-            CombinedFeedback<
-                MapFeedback<
-                    EdgesTracking,
-                    DifferentIsNovel,
-                    EdgesObserver,
-                    MaxReducer,
-                    StdState<
-                        Trace<PT>,
-                        CachedOnDiskCorpus<Trace<PT>>,
-                        RomuDuoJrRand,
-                        CachedOnDiskCorpus<Trace<PT>>,
-                    >,
-                    u8,
-                >,
-                TimeFeedback,
-                LogicEagerOr,
-                StdState<
-                    Trace<PT>,
-                    CachedOnDiskCorpus<Trace<PT>>,
-                    RomuDuoJrRand,
-                    CachedOnDiskCorpus<Trace<PT>>,
-                >,
-            >,
+            ConcreteFeedback<'a>,
             LogicEagerOr,
-            StdState<
-                Trace<PT>,
-                CachedOnDiskCorpus<Trace<PT>>,
-                RomuDuoJrRand,
-                CachedOnDiskCorpus<Trace<PT>>,
-            >,
         >,
         OF,
         ConcreteObservers<'a>,
@@ -479,43 +454,26 @@ impl<'harness, 'a, H, SC, C, R, EM, OF, CS, PT>
         PT,
     >
 where
-    ConcreteState<C, R, SC, Trace<PT>>: UsesInput<Input = Trace<PT>>,
-    C: Corpus + UsesInput<Input = Trace<PT>> + fmt::Debug,
+    Trace<PT>: Input,
+    //ConcreteState<C, R, SC, Trace<PT>>: Input,
+    C: Corpus<Trace<PT>> + fmt::Debug,
     R: Rand,
-    SC: Corpus + UsesInput<Input = Trace<PT>> + fmt::Debug,
+    SC: Corpus<Trace<PT>> + fmt::Debug,
     H: FnMut(&Trace<PT>) -> ExitKind,
-    OF: Feedback<ConcreteState<C, R, SC, Trace<PT>>>,
-    CS: Scheduler + UsesState<State = ConcreteState<C, R, SC, Trace<PT>>>,
-    EM: EventFirer
-        + EventRestarter
-        + EventManager<
-            ConcreteExecutor<
-                'harness,
-                H,
-                ConcreteObservers<'a>,
-                ConcreteState<C, R, SC, Trace<PT>>,
-            >,
-            StdFuzzer<
-                ConcreteMinimizer<'a, ConcreteState<C, R, SC, Trace<PT>>>,
-                ConcreteFeedback<'a, ConcreteState<C, R, SC, Trace<PT>>>,
-                OF,
-                ConcreteObservers<'a>,
-            >,
-        > + ProgressReporter
-        + UsesState<State = ConcreteState<C, R, SC, Trace<PT>>>,
-    <EM as UsesState>::State: HasClientPerfMonitor + HasMetadata + HasExecutions,
+    OF: Feedback<EM, Trace<PT>, ConcreteObservers<'a>, ConcreteState<C, R, SC, Trace<PT>>>,
+    CS: Scheduler<Trace<PT>, ConcreteState<C, R, SC, Trace<PT>>>,
+    EM: EventFirer<Trace<PT>, ConcreteState<C, R, SC, Trace<PT>>>
+        + EventRestarter<ConcreteState<C, R, SC, Trace<PT>>>
+        + HasEventManagerId
+        + ProgressReporter<ConcreteState<C, R, SC, Trace<PT>>>,
+    ConcreteState<C, R, SC, Trace<PT>>: HasClientPerfMonitor + HasMetadata + HasExecutions,
     PT: ProtocolTypes + 'static,
 {
-    fn create_feedback_observers(
-        &self,
-    ) -> (
-        ConcreteFeedback<'a, ConcreteState<C, R, SC, Trace<PT>>>,
-        ConcreteObservers<'a>,
-    ) {
+    fn create_feedback_observers(&self) -> (ConcreteFeedback<'a>, ConcreteObservers<'a>) {
         #[cfg(not(test))]
         let map = unsafe {
-            pub use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
-            &mut EDGES_MAP[0..MAX_EDGES_NUM]
+            pub use libafl_targets::{EDGES_MAP, MAX_EDGES_FOUND};
+            &mut EDGES_MAP[0..MAX_EDGES_FOUND]
         };
 
         #[cfg(test)]
@@ -523,8 +481,8 @@ where
             // When testing we should not import libafl_targets, else it conflicts with sancov_dummy
             pub const EDGES_MAP_SIZE: usize = 65536;
             pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
-            pub static mut MAX_EDGES_NUM: usize = 0;
-            &mut EDGES_MAP[0..MAX_EDGES_NUM]
+            pub static mut MAX_EDGES_FOUND: usize = 0;
+            &mut EDGES_MAP[0..MAX_EDGES_FOUND]
         };
 
         {
@@ -543,7 +501,7 @@ where
                 map_feedback,
                 // Time feedback, this one does not need a feedback state
                 // needed for IndexesLenTimeMinimizerCorpusScheduler
-                TimeFeedback::with_observer(&time_observer)
+                TimeFeedback::new(&time_observer)
             );
             let observers = tuple_list!(edges_observer, time_observer);
             (feedback, observers)
@@ -580,9 +538,15 @@ where
     log::info!("Running on cores: {}", &core_definition);
     log::info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
 
-    let mut run_client = |state: Option<StdState<Trace<PB::ProtocolTypes>, _, _, _>>,
-                          event_manager: LlmpRestartingEventManager<_, _, StdShMemProvider>,
-                          _core_id: CoreId|
+    let mut run_client = |state: Option<StdState<_, Trace<PB::ProtocolTypes>, _, _>>,
+                          event_manager: LlmpRestartingEventManager<
+        _,
+        Trace<PB::ProtocolTypes>,
+        StdState<_, Trace<PB::ProtocolTypes>, _, _>,
+        _,
+        StdShMemProvider,
+    >,
+                          _client_description: ClientDescription|
      -> Result<(), Error> {
         if *is_experiment {
             log_handle
@@ -681,7 +645,11 @@ where
         let (state, restarting_mgr) =
             setup_restarting_mgr_std(stats_monitor, *broker_port, EventConfig::AlwaysUnique)?;
 
-        run_client(state, restarting_mgr, CoreId(0))
+        run_client(
+            state,
+            restarting_mgr,
+            ClientDescription::new(0, 0, CoreId(0)),
+        )
     } else {
         let cores = Cores::from_cmdline(config.core_definition.as_str()).unwrap();
         let configuration: EventConfig = "launcher default".into();

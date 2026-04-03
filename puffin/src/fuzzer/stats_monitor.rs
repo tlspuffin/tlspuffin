@@ -1,6 +1,5 @@
 //! Stats to display both cumulative and per-client stats
 
-use core::time::Duration;
 use std::fmt::Display;
 use std::fs::{File, OpenOptions};
 use std::io::BufWriter;
@@ -8,10 +7,10 @@ use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use dyn_clone::DynClone;
-use libafl::monitors::tui::ui::TuiUI;
+use libafl::monitors::stats::*;
 use libafl::monitors::tui::TuiMonitor;
 use libafl::prelude::*;
-use libafl_bolts::prelude::*;
+use libafl_bolts::prelude::{current_time, ClientId};
 use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
@@ -32,10 +31,12 @@ pub struct StatsMonitor {
 
 impl StatsMonitor {
     pub fn with_tui_output(stats_file: PathBuf) -> Self {
-        let monitor = Box::new(TuiMonitor::new(TuiUI::new(
-            String::from("tlspuffin [press q to exit]"),
-            false,
-        )));
+        let monitor = Box::new(
+            TuiMonitor::builder()
+                .title(String::from("tlspuffin [press q to exit]"))
+                .enhanced_graphics(true)
+                .build(),
+        );
         let handlers: Vec<Box<dyn EventHandler>> =
             vec![Box::new(JSONEventHandler::new(stats_file))];
 
@@ -56,94 +57,103 @@ impl StatsMonitor {
         Self { monitor, handlers }
     }
 
-    fn client(&mut self, id: ClientId) -> Statistics {
-        let client = self.client_stats_mut_for(id);
+    fn client(
+        &mut self,
+        client_stats_manager: &mut ClientStatsManager,
+        id: ClientId,
+    ) -> Result<Statistics, Error> {
+        client_stats_manager.update_client_stats_for(id, |client| {
+            #[cfg(feature = "introspection")]
+            let introspect_feature = {
+                let intro_stats = &client.introspection_stats;
+                let elapsed_cycles = intro_stats.elapsed_cycles();
+                let elapsed = if elapsed_cycles == 0 {
+                    1.0
+                } else {
+                    elapsed_cycles as f32
+                };
 
-        #[cfg(feature = "introspection")]
-        let introspect_feature = {
-            let intro_stats = &client.introspection_monitor;
-            let elapsed_cycles = intro_stats.elapsed_cycles();
-            let elapsed = if elapsed_cycles == 0 {
-                1.0
-            } else {
-                elapsed_cycles as f32
-            };
+                // calculate mean across all used stages in `introspect_features`
+                let mut introspect_features = IntrospectFeatures::new();
 
-            // calculate mean across all used stages in `introspect_features`
-            let mut introspect_features = IntrospectFeatures::new();
+                for (_, features) in intro_stats.used_stages() {
+                    for (feature_index, feature) in features.iter().enumerate() {
+                        // Calculate this current stage's percentage
+                        let feature_percent = *feature as f32 / elapsed;
 
-            for (_, features) in intro_stats.used_stages() {
-                for (feature_index, feature) in features.iter().enumerate() {
-                    // Calculate this current stage's percentage
-                    let feature_percent = *feature as f32 / elapsed;
+                        // Ignore this feature if it isn't used
+                        if feature_percent == 0.0 {
+                            continue;
+                        }
 
-                    // Ignore this feature if it isn't used
-                    if feature_percent == 0.0 {
-                        continue;
+                        // Get the actual feature from the feature index for printing its name
+                        let feature: PerfFeature = feature_index.into();
+
+                        // Write the percentage for this feature
+                        introspect_features.record(&feature, feature_percent);
                     }
 
-                    // Get the actual feature from the feature index for printing its name
-                    let feature: PerfFeature = feature_index.into();
-
-                    // Write the percentage for this feature
-                    introspect_features.record(&feature, feature_percent);
+                    // todo measure self.feedbacks()
                 }
 
-                // todo measure self.feedbacks()
-            }
+                IntrospectStatistics {
+                    scheduler: intro_stats.scheduler_cycles() as f32 / elapsed,
+                    manager: intro_stats.manager_cycles() as f32 / elapsed,
+                    elapsed_cycles,
+                    introspect_features,
+                }
+            };
 
-            IntrospectStatistics {
-                scheduler: intro_stats.scheduler_cycles() as f32 / elapsed,
-                manager: intro_stats.manager_cycles() as f32 / elapsed,
-                elapsed_cycles,
-                introspect_features,
-            }
-        };
+            let cur_time = current_time();
+            let exec_sec = client.execs_per_sec(cur_time);
+            let total_execs = client.executions();
 
-        let cur_time = current_time();
-        let exec_sec = client.execs_per_sec(cur_time);
-        let total_execs = client.executions;
+            let trace = TraceStatistics::new(client);
+            let mut error_counter = ErrorStatistics::new(total_execs);
 
-        let trace = TraceStatistics::new(client);
-        let mut error_counter = ErrorStatistics::new(total_execs);
+            error_counter.count(client);
 
-        error_counter.count(client);
+            let corpus_size = client.corpus_size();
+            let objective_size = client.objective_size();
 
-        let corpus_size = client.corpus_size;
-        let objective_size = client.objective_size;
+            let coverage =
+                client
+                    .user_stats()
+                    .get(MAP_FEEDBACK_NAME)
+                    .and_then(|s| match s.value() {
+                        UserStatsValue::Ratio(a, b) => {
+                            Some(CoverageStatistics { hit: *a, max: *b })
+                        }
+                        _ => None,
+                    });
 
-        let coverage = client
-            .user_monitor
-            .get(MAP_FEEDBACK_NAME)
-            .and_then(|s| match s.value() {
-                UserStatsValue::Ratio(a, b) => Some(CoverageStatistics { hit: *a, max: *b }),
-                _ => None,
-            });
-
-        Statistics::Client(ClientStatistics {
-            id: id.0,
-            time: SystemTime::now(),
-            trace,
-            errors: error_counter,
-            #[cfg(feature = "introspection")]
-            intro: introspect_feature,
-            coverage,
-            corpus_size,
-            objective_size,
-            total_execs,
-            exec_per_sec: exec_sec as u64,
+            Statistics::Client(ClientStatistics {
+                id: id.0,
+                time: SystemTime::now(),
+                trace,
+                errors: error_counter,
+                #[cfg(feature = "introspection")]
+                intro: introspect_feature,
+                coverage,
+                corpus_size,
+                objective_size,
+                total_execs,
+                exec_per_sec: exec_sec as u64,
+            })
         })
     }
 
-    fn global(&mut self) -> Statistics {
+    fn global(&mut self, client_stats_manager: &mut ClientStatsManager) -> Statistics {
+        let global_stats = client_stats_manager.global_stats();
+
         Statistics::Global(GlobalStatistics {
             time: SystemTime::now(),
 
-            clients: self.client_stats().len() as u32,
-            corpus_size: self.corpus_size(),
-            objective_size: self.objective_size(),
-            total_execs: self.total_execs(),
-            exec_per_sec: self.execs_per_sec() as u64,
+            clients: global_stats.client_stats_count as u32,
+            corpus_size: global_stats.corpus_size,
+            objective_size: global_stats.objective_size,
+            total_execs: global_stats.total_execs,
+            exec_per_sec: global_stats.execs_per_sec as u64,
         })
     }
 
@@ -155,28 +165,19 @@ impl StatsMonitor {
 }
 
 impl Monitor for StatsMonitor {
-    fn client_stats_mut(&mut self) -> &mut Vec<ClientStats> {
-        self.monitor.client_stats_mut()
-    }
-
-    fn client_stats(&self) -> &[ClientStats] {
-        self.monitor.client_stats()
-    }
-
-    fn start_time(&self) -> Duration {
-        self.monitor.start_time()
-    }
-
-    fn set_start_time(&mut self, time: Duration) {
-        self.monitor.set_start_time(time);
-    }
-
-    fn display(&mut self, event_msg: &str, sender_id: ClientId) {
-        let global_stats = self.global();
-        let client_stats = self.client(sender_id);
+    fn display(
+        &mut self,
+        client_stats_manager: &mut ClientStatsManager,
+        event_msg: &str,
+        sender_id: ClientId,
+    ) -> Result<(), Error> {
+        let global_stats = self.global(client_stats_manager);
+        let client_stats = self.client(client_stats_manager, sender_id)?;
         self.dispatch(sender_id, &event_msg, &global_stats);
         self.dispatch(sender_id, &event_msg, &client_stats);
-        self.monitor.display(event_msg, sender_id);
+        self.monitor
+            .display(client_stats_manager, event_msg, sender_id)?;
+        Ok(())
     }
 }
 
@@ -573,7 +574,7 @@ impl ErrorStatistics {
 
 fn get_number(user_stats: &ClientStats, name: &str) -> u64 {
     user_stats
-        .user_monitor
+        .user_stats()
         .get(name)
         .and_then(|s| match s.value() {
             UserStatsValue::Number(n) => Some(*n),
@@ -664,13 +665,11 @@ impl JSONEventHandler {
     where
         P: AsRef<Path>,
     {
-        let writer = BufWriter::new(
-            OpenOptions::new()
-                .append(true)
-                .create(true)
-                .open(output_path.as_ref())
-                .unwrap(),
-        );
+        let writer = BufWriter::new({
+            let mut o = OpenOptions::new();
+            OpenOptions::append(&mut o, true);
+            o.create(true).open(output_path.as_ref()).unwrap()
+        });
 
         Self {
             output_path: output_path.as_ref().to_path_buf(),

@@ -17,6 +17,7 @@ use puffin::libafl::corpus::{Corpus, InMemoryCorpus, Testcase};
 use puffin::libafl::mutators::MutatorsTuple;
 use puffin::libafl::prelude::StdState;
 use puffin::libafl_bolts::bolts_prelude::{Rand, RomuDuoJrRand, StdRand};
+use puffin::libafl_bolts::tuples::NamedTuple;
 use puffin::protocol::{ProtocolBehavior, ProtocolTypes};
 use puffin::put::PutDescriptor;
 use puffin::put_registry::PutRegistry;
@@ -621,8 +622,8 @@ pub fn add_one_payload_randomly<
 }
 
 pub type TLSState = StdState<
-    Trace<TLSProtocolTypes>,
     InMemoryCorpus<Trace<TLSProtocolTypes>>,
+    Trace<TLSProtocolTypes>,
     RomuDuoJrRand,
     InMemoryCorpus<Trace<TLSProtocolTypes>>,
 >;
@@ -640,7 +641,7 @@ pub fn test_mutations(
     registry: &PutRegistry<TLSProtocolBehavior>,
     with_bit_level: bool,
     with_dy: bool,
-) -> impl MutatorsTuple<Trace<TLSProtocolTypes>, TLSState> + '_ {
+) -> impl MutatorsTuple<Trace<TLSProtocolTypes>, TLSState> + NamedTuple + '_ {
     all_mutations::<TLSState, TLSProtocolTypes, TLSProtocolBehavior>(
         MutationConfig {
             with_bit_level,
