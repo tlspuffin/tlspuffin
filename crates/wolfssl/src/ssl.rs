@@ -164,7 +164,7 @@ impl SslContextRef {
         unsafe {
             cvt(wolf::wolfSSL_CTX_load_verify_buffer(
                 self.as_ptr(),
-                cert.as_ptr() as *const u8,
+                cert.as_ptr(),
                 cert.len() as i64,
                 wolf::WOLFSSL_FILETYPE_PEM,
             ))
@@ -212,13 +212,13 @@ impl SslContextRef {
         }
     }
 
-    pub fn get_user_data<T: 'static>(&self) -> Option<Ref<T>> {
+    pub fn get_user_data<T: 'static>(&self) -> Option<Ref<'_, T>> {
         let registry: &ExtraUserDataRegistry =
             self.ex_data(0).expect("unable to find user data registry");
         registry.get::<T>()
     }
 
-    pub fn get_user_data_mut<T: 'static>(&self) -> Option<RefMut<T>> {
+    pub fn get_user_data_mut<T: 'static>(&self) -> Option<RefMut<'_, T>> {
         let registry: &ExtraUserDataRegistry =
             self.ex_data(0).expect("unable to find user data registry");
         registry.get_mut()
@@ -294,7 +294,7 @@ impl SslContextRef {
         unsafe {
             cvt(wolf::wolfSSL_CTX_use_PrivateKey_buffer(
                 self.as_ptr(),
-                key.as_ptr() as *const u8,
+                key.as_ptr(),
                 key.len() as i64,
                 wolf::WOLFSSL_FILETYPE_PEM,
             ))
@@ -360,7 +360,7 @@ impl Ssl {
 
 impl SslRef {
     fn read(&mut self, buf: &mut [u8]) -> c_int {
-        let len = cmp::min(c_int::max_value() as usize, buf.len()) as c_int;
+        let len = cmp::min(c_int::MAX as usize, buf.len()) as c_int;
         unsafe { wolf::wolfSSL_read(self.as_ptr(), buf.as_ptr() as *mut _, len) }
     }
 
@@ -410,13 +410,13 @@ impl SslRef {
         registry.set::<T>(value)
     }
 
-    pub fn get_user_data<T: 'static>(&self) -> Option<Ref<T>> {
+    pub fn get_user_data<T: 'static>(&self) -> Option<Ref<'_, T>> {
         let registry: &ExtraUserDataRegistry =
             self.ex_data(0).expect("unable to find user data registry");
         registry.get::<T>()
     }
 
-    pub fn get_user_data_mut<T: 'static>(&self) -> Option<RefMut<T>> {
+    pub fn get_user_data_mut<T: 'static>(&self) -> Option<RefMut<'_, T>> {
         let registry: &ExtraUserDataRegistry =
             self.ex_data(0).expect("unable to find user data registry");
         registry.get_mut::<T>()

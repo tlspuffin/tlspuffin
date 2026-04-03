@@ -134,6 +134,7 @@ macro_rules! test_puts {
 }
 
 #[macro_export]
+#[allow(clippy::crate_in_macro_def)]
 macro_rules! supports {
     ($put:expr, $cap:expr) => {{
         use crate::put_registry::tls_registry;

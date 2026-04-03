@@ -202,7 +202,7 @@ pub fn havoc_mutations_dy<S: HasRand + HasMaxSize + HasCorpus>(
 pub fn bit_mutations_dy<S: HasRand + HasMaxSize + HasCorpus, PB>(
     mutation_config: MutationConfig,
     put_registry: &PutRegistry<PB>,
-) -> BitMutations<PB, S>
+) -> BitMutations<'_, PB, S>
 where
     PB: ProtocolBehavior,
 {
@@ -251,10 +251,7 @@ fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
     tr: &mut Trace<PT>,
     path: &TracePath,
     ctx: &mut TraceContext<PB>,
-) -> Result<(), crate::error::Error>
-where
-    PB: ProtocolBehavior<ProtocolTypes = PT>,
-{
+) -> Result<(), crate::error::Error> {
     log::debug!("make_message_term: executing until path.0: {}", path.0);
     // Only execute shorter trace: trace[0..step_index])
     // execute the PUT on the first step_index steps and store the resulting trace context
@@ -279,12 +276,7 @@ where
     S: HasRand,
     PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
         if !self.config.with_bit_level {
             log::debug!("[Mutation-bit] Mutate MakeMessage skipped because bit-level mutations are disabled");
@@ -468,10 +460,7 @@ fn read_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
     tr: &mut Trace<PT>,
     path: &TracePath,
     ctx: &mut TraceContext<PB>,
-) -> Result<(), crate::error::Error>
-where
-    PB: ProtocolBehavior<ProtocolTypes = PT>,
-{
+) -> Result<(), crate::error::Error> {
     // Only execute shorter trace: trace[0..step_index])
     // execute the PUT on the first step_index steps and store the resulting trace context
     log::debug!("Try eval until path.0: {}", path.0);
@@ -490,7 +479,7 @@ where
     );
     // Evaluate the term and try to read it into the term type
     let eval = t.evaluate(ctx)?; // We do not measure failure or not for this specific eval (less costly than trace execution)
-    let read_term = PB::try_read_bytes(&*eval, t.get_type_shape().clone().into())?; // skip if try_read fails
+    let read_term = PB::try_read_bytes(&eval, t.get_type_shape().clone().into())?; // skip if try_read fails
 
     // The evaluation of this readable term eval_read is likely NOT the original evaluation itself
     // eval. What we keep here is eval_read since we aim to store the re-interpretation of the
@@ -501,7 +490,7 @@ where
     let eval_read = read_term.get_encoding();
 
     #[cfg(any(debug_assertions, feature = "debug"))]
-    if PB::try_read_bytes(&*eval_read, t.get_type_shape().clone().into()).is_err() {
+    if PB::try_read_bytes(&eval_read, t.get_type_shape().clone().into()).is_err() {
         log::error!("[mutation::ReadMessage] [read_message_term] Failed to read eval_read\n - t: {t}\n - eval: {eval:?}\n - read_term: {read_term:?}\n - eval_read: {eval_read:?}\n - type shape: {:?} and type id : {:?}",
             t.get_type_shape(), t.term.type_id());
     }
@@ -516,14 +505,9 @@ where
     S: HasRand,
     PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
-        let focus = trace.get_focus().map(|p| p.clone());
+        let focus = trace.get_focus().cloned();
         if self.config.with_focus {
             trace.clear_focus(); // to save a bit of memory (no need to serialize focus in the
                                  // corpus!)
@@ -592,7 +576,7 @@ where
                     let max_range = (1_000_000_000.0 * proba) as u64;
                     if rand.between(0, 1_000_000_000 - 1) < max_range {
                         log::trace!("[ReadMessage] Going up, proba was {proba}");
-                        proba = proba / 2.0;
+                        proba /= 2.0;
                         chosen_path.1.pop();
                     } else {
                         break;
@@ -718,7 +702,6 @@ impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S>
         &mut self,
         state: &mut S,
         trace: &mut Trace<PT>,
-        stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
 
@@ -735,7 +718,7 @@ impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S>
             Some(to_mutate) => {
                 log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
                 if let Some(payloads) = &mut to_mutate.payloads {
-                    $mutation.mutate(state, &mut payloads.payload, stage_idx)
+                    $mutation.mutate(state, &mut payloads.payload)
                               .and_then(|r| {
                                payloads.set_changed();
                                Ok(r)
@@ -845,12 +828,7 @@ where
     S: HasRand + HasMaxSize,
     PT: ProtocolTypes,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
 
         if !self.config.with_bit_level {
@@ -866,16 +844,12 @@ where
             Some(to_mutate) => {
                 log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
                 if let Some(payloads) = &mut to_mutate.payloads {
-                    BytesSwapMutator::mutate(
-                        &mut self.tmp_buf,
-                        state,
-                        &mut payloads.payload,
-                        stage_idx,
+                    BytesSwapMutator::mutate(&mut self.tmp_buf, state, &mut payloads.payload).map(
+                        |r| {
+                            payloads.set_changed();
+                            r
+                        },
                     )
-                    .and_then(|r| {
-                        payloads.set_changed();
-                        Ok(r)
-                    })
                 } else {
                     panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
                 }
@@ -932,12 +906,7 @@ where
     S: HasRand + HasMaxSize,
     PT: ProtocolTypes,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
 
         if !self.config.with_bit_level {
@@ -953,16 +922,11 @@ where
             Some(to_mutate) => {
                 log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
                 if let Some(payloads) = &mut to_mutate.payloads {
-                    BytesInsertCopyMutator::mutate(
-                        &mut self.tmp_buf,
-                        state,
-                        &mut payloads.payload,
-                        stage_idx,
-                    )
-                    .and_then(|r| {
-                        payloads.set_changed();
-                        Ok(r)
-                    })
+                    BytesInsertCopyMutator::mutate(&mut self.tmp_buf, state, &mut payloads.payload)
+                        .map(|r| {
+                            payloads.set_changed();
+                            r
+                        })
                 } else {
                     panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
                 }
@@ -1237,12 +1201,7 @@ where
     S: libafl::inputs::UsesInput<Input = Trace<PT>>,
     PT: ProtocolTypes,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
 
         if !self.config.with_bit_level {
@@ -1377,12 +1336,7 @@ where
     S: libafl::inputs::UsesInput<Input = Trace<PT>>,
     PT: ProtocolTypes,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
 
         if !self.config.with_bit_level {
@@ -1510,12 +1464,7 @@ where
     S: libafl::inputs::UsesInput<Input = Trace<PT>>,
     PT: ProtocolTypes,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[Bit] Start mutate with {}", self.name());
 
         if !self.config.with_bit_level {
@@ -1629,12 +1578,7 @@ where
     S: HasRand + HasMaxSize,
     I: HasBytesVec,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        input: &mut I,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, input: &mut I) -> Result<MutationResult, Error> {
         let min_length_log = 5;
         let max_length_log = 12;
 

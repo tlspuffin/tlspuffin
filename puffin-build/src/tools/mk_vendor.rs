@@ -1,4 +1,4 @@
-use clap::{arg, command, Parser, Subcommand};
+use clap::{Parser, Subcommand};
 use puffin_build::{library, vendor_dir};
 use regex::Regex;
 

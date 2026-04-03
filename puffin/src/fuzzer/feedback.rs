@@ -17,7 +17,7 @@ use crate::trace::Trace;
 // A global (or thread-local) mutable variable that your harness will update.
 // Now it holds an Option<usize>.
 thread_local! {
-    pub static FAIL_AT_STEP: Cell<Option<usize>> = Cell::new(None);
+    pub static FAIL_AT_STEP: Cell<Option<usize>> = const { Cell::new(None) };
 }
 
 /// Custom feedback for minimizing traces after execution and prior to adding them to the corpus.
@@ -89,9 +89,10 @@ where
     }
 
     /// Append to the testcase the generated metadata in case of a new corpus item
-    fn append_metadata<OT>(
+    fn append_metadata<EM, OT>(
         &mut self,
         _state: &mut SC,
+        _manager: &mut EM,
         _observers: &OT,
         testcase: &mut Testcase<Trace<PT>>,
     ) -> Result<(), Error>

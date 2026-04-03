@@ -67,7 +67,7 @@ impl VendorDir {
         self.path.join(name.as_ref())
     }
 
-    pub fn library_dir(&self, name: impl AsRef<str>) -> Result<LibraryDir> {
+    pub fn library_dir(&self, name: impl AsRef<str>) -> Result<LibraryDir<'_>> {
         Ok(LibraryDir {
             vendor_dir: self,
             path: self.path_for(&name),
@@ -97,7 +97,7 @@ impl VendorDir {
         })
         .map_err(|(_, e)| Error::VendorDirUnavailable {
             dir: self.clone(),
-            reason: io::Error::new(io::ErrorKind::Other, e),
+            reason: io::Error::other(e),
         })
     }
 }

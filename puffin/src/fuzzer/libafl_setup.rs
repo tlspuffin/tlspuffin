@@ -26,7 +26,7 @@ use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
 
-type ConcreteExecutor<'harness, H, OT, S> = TimeoutExecutor<InProcessExecutor<'harness, H, OT, S>>;
+type ConcreteExecutor<'harness, H, OT, S> = InProcessExecutor<'harness, H, OT, S>;
 
 type ConcreteState<C, R, SC, I> = StdState<I, C, R, SC>;
 
@@ -199,15 +199,14 @@ where
             put_registry,
         ));
         // Always run DY mutations (if enabled)
-        let cb_dy =
-            |_: &mut _, _: &mut _, _: &mut _, _: &mut _, _idx: CorpusId| -> Result<bool, Error> {
-                return if mutation_config.with_dy {
-                    log::debug!("[*] DY StdMutationalStage");
-                    Ok(true)
-                } else {
-                    Ok(false)
-                };
-            };
+        let cb_dy = |_: &mut _, _: &mut _, _: &mut _, _: &mut _| -> Result<bool, Error> {
+            if mutation_config.with_dy {
+                log::debug!("[*] DY StdMutationalStage");
+                Ok(true)
+            } else {
+                Ok(false)
+            }
+        };
         let stage_dy = IfStage::new(
             cb_dy,
             tuple_list!(PuffinMutationalStage::new(
@@ -230,8 +229,7 @@ where
         let cb_bit_level = |_: &mut _,
                             _: &mut _,
                             state: &mut ConcreteState<C, R, SC, Trace<PT>>,
-                            _: &mut _,
-                            _idx: CorpusId|
+                            _: &mut _|
          -> Result<bool, Error> {
             if !mutation_config.with_bit_level {
                 return Ok(false);
@@ -242,9 +240,9 @@ where
                 || (*state.executions() > MIN_BIT_EXECS && state.corpus().count() > MIN_BIT_CORPUS)
             {
                 log::debug!("[*] BIT StdMutationalStage");
-                return Ok(true);
+                Ok(true)
             } else {
-                return Ok(false);
+                Ok(false)
             }
         };
         let mutation_config_focus = mutation_config; // focus is already sets to the wanted value
@@ -256,14 +254,13 @@ where
         let cb_focus_bit_level = |_: &mut _,
                                   _: &mut _,
                                   _: &mut ConcreteState<C, R, SC, Trace<PT>>,
-                                  _: &mut _,
-                                  _idx: CorpusId|
+                                  _: &mut _|
          -> Result<bool, Error> {
             if !mutation_config.with_focus {
                 return Ok(false);
             }
             log::debug!("[*] BIT FocusScheduledMutator");
-            return Ok(true);
+            Ok(true)
         };
         let stage_bit = IfStage::new(
             cb_bit_level,
@@ -287,13 +284,19 @@ where
             |_: &mut _,
              _: &mut _,
              cs: &mut ConcreteState<C, R, SC, Trace<PT>>,
-             _: &mut _,
-             idx: CorpusId|
+             _: &mut _|
              -> Result<(), Error> {
                 if cfg!(feature = "introspection") {
                     CORPUS_EXEC.increment();
                     log::debug!("[*] Introspection stage");
-                    let current_testcase = cs.corpus().get(idx)?.borrow_mut();
+
+                    // If there is no current testcase (e.g., empty corpus / no scheduled item),
+                    // just skip.
+                    let Some(current_idx) = cs.corpus().current() else {
+                        return Ok(());
+                    };
+
+                    let current_testcase = cs.corpus().get(*current_idx)?.borrow_mut();
                     // Input will already be loaded.
                     let current_input = current_testcase.input().as_ref().unwrap();
                     let spawner = Spawner::new(put_registry.clone());
@@ -347,18 +350,16 @@ where
         let mut fuzzer: StdFuzzer<CS, F, OF, OT> =
             StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);
 
-        let mut executor: ConcreteExecutor<'harness, H, OT, _> = TimeoutExecutor::new(
-            InProcessExecutor::new(
-                self.harness_fn,
-                // hint: edges_observer is expensive to serialize (only noticeable if we add all
-                // inputs to the corpus)
-                self.observers.unwrap(),
-                &mut fuzzer,
-                &mut state,
-                &mut self.event_manager,
-            )?,
+        let mut executor: ConcreteExecutor<'harness, H, OT, _> = InProcessExecutor::with_timeout(
+            self.harness_fn,
+            // hint: edges_observer is expensive to serialize (only noticeable if we add all
+            // inputs to the corpus)
+            self.observers.unwrap(),
+            &mut fuzzer,
+            &mut state,
+            &mut self.event_manager,
             Duration::new(5, 0),
-        );
+        )?;
 
         // In case the corpus is empty (on first run), reset
         if state.corpus().is_empty() {
@@ -409,21 +410,15 @@ where
     }
 }
 
-type ConcreteMinimizer<S> = IndexesLenTimeMinimizerScheduler<QueueScheduler<S>>;
+type EdgesObserver = HitcountsMapObserver<StdMapObserver<'static, u8, false>>;
+type EdgesTracking = ExplicitTracking<EdgesObserver, true, false>;
 
-type ConcreteObservers<'a> = (
-    HitcountsMapObserver<StdMapObserver<'a, u8, false>>,
-    (TimeObserver, ()),
-);
+type ConcreteMinimizer<'a, S> = IndexesLenTimeMinimizerScheduler<QueueScheduler<S>, EdgesTracking>;
+
+type ConcreteObservers<'a> = (EdgesTracking, (TimeObserver, ()));
 
 type ConcreteFeedback<'a, S> = CombinedFeedback<
-    MapFeedback<
-        DifferentIsNovel,
-        HitcountsMapObserver<StdMapObserver<'a, u8, false>>,
-        MaxReducer,
-        S,
-        u8,
-    >,
+    MapFeedback<EdgesTracking, DifferentIsNovel, EdgesObserver, MaxReducer, S, u8>,
     TimeFeedback,
     LogicEagerOr,
     S,
@@ -449,8 +444,9 @@ impl<'harness, 'a, H, SC, C, R, EM, OF, CS, PT>
             >,
             CombinedFeedback<
                 MapFeedback<
+                    EdgesTracking,
                     DifferentIsNovel,
-                    HitcountsMapObserver<StdMapObserver<'_, u8, false>>,
+                    EdgesObserver,
                     MaxReducer,
                     StdState<
                         Trace<PT>,
@@ -500,7 +496,7 @@ where
                 ConcreteState<C, R, SC, Trace<PT>>,
             >,
             StdFuzzer<
-                ConcreteMinimizer<ConcreteState<C, R, SC, Trace<PT>>>,
+                ConcreteMinimizer<'a, ConcreteState<C, R, SC, Trace<PT>>>,
                 ConcreteFeedback<'a, ConcreteState<C, R, SC, Trace<PT>>>,
                 OF,
                 ConcreteObservers<'a>,
@@ -531,17 +527,15 @@ where
             &mut EDGES_MAP[0..MAX_EDGES_NUM]
         };
 
-        let map_feedback = MaxMapFeedback::with_names_tracking(
-            MAP_FEEDBACK_NAME,
-            EDGES_OBSERVER_NAME,
-            true,
-            false,
-        );
-
         {
             let time_observer = TimeObserver::new("time");
             let edges_observer =
                 HitcountsMapObserver::new(unsafe { StdMapObserver::new(EDGES_OBSERVER_NAME, map) });
+
+            let edges_observer = edges_observer.track_indices();
+
+            let map_feedback = MaxMapFeedback::with_name(MAP_FEEDBACK_NAME, &edges_observer);
+
             let feedback = feedback_or!(
                 // New maximization map feedback linked to the edges observer and the feedback
                 // state `track_indexes` needed because of
@@ -558,8 +552,8 @@ where
 }
 
 /// Starts the fuzzing loop
-pub fn start<'harness, PB>(
-    put_registry: &'harness PutRegistry<PB>,
+pub fn start<PB>(
+    put_registry: &PutRegistry<PB>,
     config: FuzzerConfig,
     log_handle: Handle,
 ) -> Result<(), Error>
@@ -587,7 +581,7 @@ where
     log::info!("Config: {:?}\n\nlog_handle: {:?}", &config, &log_handle);
 
     let mut run_client = |state: Option<StdState<Trace<PB::ProtocolTypes>, _, _, _>>,
-                          event_manager: LlmpRestartingEventManager<_, StdShMemProvider>,
+                          event_manager: LlmpRestartingEventManager<_, _, StdShMemProvider>,
                           _core_id: CoreId|
      -> Result<(), Error> {
         if *is_experiment {

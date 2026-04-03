@@ -68,7 +68,7 @@ use super::error::FnError;
 use crate::protocol::{EvaluatedTerm, ProtocolTypes};
 
 /// Describes the attributes of a [`DynamicFunction`]
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default)]
 pub struct FunctionAttributes {
     /// Whether the function symbol computes "opaque" message such as encryption, signature,
     /// MAC, AEAD, Formally: all symbols whose concretization does not contain a single
@@ -90,19 +90,6 @@ pub struct FunctionAttributes {
     pub no_det: bool,
 }
 // TODO: add a uni test for making sure the given attributes are correct
-
-impl Default for FunctionAttributes {
-    fn default() -> Self {
-        Self {
-            is_opaque: false,
-            is_list: false,
-            is_get: false,
-            no_gen: false,
-            no_bit: false,
-            no_det: false,
-        }
-    }
-}
 
 /// Describes the shape of a [`DynamicFunction`]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -300,12 +287,9 @@ dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 => R);
 dynamic_fn!(T1 T2 T3 T4 T5 T6 T7 T8 T9 T10 => R);
 
-pub fn make_dynamic<F: 'static, PT: ProtocolTypes, Types>(
+pub fn make_dynamic<F: 'static + DescribableFunction<PT, Types>, PT: ProtocolTypes, Types>(
     f: &'static F,
-) -> (DynamicFunctionShape<PT>, Box<dyn DynamicFunction<PT>>)
-where
-    F: DescribableFunction<PT, Types>,
-{
+) -> (DynamicFunctionShape<PT>, Box<dyn DynamicFunction<PT>>) {
     (F::shape(), f.make_dynamic())
 }
 
