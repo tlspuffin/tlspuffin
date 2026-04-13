@@ -34,6 +34,7 @@ authors = [
     "Lucca Hirschi <lucca.hirschi@inria.fr>",
     "Michael Mera <dev@michaelmera.com>",
     "Tom Gouville <tom@tomgouville.fr>",
+    "Nataël Baffou <natael.baffou@inria.fr>"
 ]
 repository = "https://github.com/tlspuffin/tlspuffin"
 homepage = "https://github.com/tlspuffin/tlspuffin"

@@ -93,6 +93,7 @@ Active members:
 - [Lucca Hirschi](https://members.loria.fr/LHirschi/) - researcher - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
 - [Steve Kremer](https://members.loria.fr/SKremer/) - senior researcher - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
 - [Olivier Demengeon](https://sed-nge.inria.fr/team/olivierd/index.html) - research engineer - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+- [Nataël Baffou](https://github.com/nataelbaffou) - research engineer - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
 
 Contributed in the past:
 - [Max Ammann](https://github.com/maxammann) - master's student then security engineer - [Trails of Bits](https://www.trailofbits.com/)
