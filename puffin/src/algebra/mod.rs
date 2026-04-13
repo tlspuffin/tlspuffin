@@ -372,6 +372,7 @@ pub mod test_signature {
         fn_encrypt12
         fn_seq_0
         fn_seq_1
+        example_op_c
     );
 
     pub type TestTrace = Trace<TestProtocolTypes>;
@@ -660,7 +661,7 @@ pub mod test_signature {
 mod tests {
     use super::test_signature::*;
     use crate::agent::AgentName;
-    use crate::algebra::atoms::Variable;
+    use crate::algebra::atoms::{Function, Variable};
     use crate::algebra::dynamic_function::TypeShape;
     use crate::algebra::signature::Signature;
     use crate::algebra::term::TermType;
@@ -858,5 +859,43 @@ mod tests {
         //println!("{}", constructed_term);
         let _graph = constructed_term.dot_subgraph(true, 0, "test");
         //println!("{}", graph);
+    }
+
+    /// Test that verifies a function not in the signature causes a panic in debug builds.
+    /// This test validates the compile-time (debug mode) check for signature membership.
+    #[test_log::test]
+    #[should_panic(expected = "is not registered in the protocol signature")]
+    #[cfg(debug_assertions)]
+    fn test_function_not_in_signature_panics() {
+        use crate::algebra::error::FnError;
+
+        // Define a function that is NOT in the signature
+        fn fn_not_in_signature() -> Result<u8, FnError> {
+            Ok(42)
+        }
+
+        // This should panic because fn_not_in_signature is not in TEST_SIGNATURE
+        let _ = Signature::<TestProtocolTypes>::new_function(&fn_not_in_signature);
+    }
+
+    /// Test that verifies Function::new also catches functions not in the signature.
+    /// This tests the defense-in-depth check added to Function::new.
+    #[test_log::test]
+    #[should_panic(expected = "is not registered in the protocol signature")]
+    #[cfg(debug_assertions)]
+    fn test_function_new_not_in_signature_panics() {
+        use crate::algebra::dynamic_function::make_dynamic;
+        use crate::algebra::error::FnError;
+
+        // Define a function that is NOT in the signature
+        fn fn_not_in_signature() -> Result<u8, FnError> {
+            Ok(42)
+        }
+
+        // Create shape and dynamic_fn for the function
+        let (shape, dynamic_fn) = make_dynamic(&fn_not_in_signature);
+
+        // This should panic because fn_not_in_signature is not in TEST_SIGNATURE
+        let _ = Function::<TestProtocolTypes>::new(shape, dynamic_fn);
     }
 }

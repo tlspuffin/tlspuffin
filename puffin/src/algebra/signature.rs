@@ -80,11 +80,39 @@ impl<PT: ProtocolTypes> Signature<PT> {
     }
 
     /// Create a new [`Function`] distinct from all existing [`Function`]s.
+    ///
+    /// This function requires that `F` implements [`DescribableFunction`], which ensures
+    /// at compile time that the function has a valid protocol function type.
+    ///
+    /// In debug builds, this function also verifies that the function is actually
+    /// registered in the protocol signature. This catches the case where a function
+    /// is correctly typed but not included in the `define_signature!` macro.
+    ///
+    /// # Panics
+    ///
+    /// In debug builds, panics if the function is not found in the protocol signature.
+    /// This helps catch errors during development where a function is used in a term
+    /// but not registered in the signature.
     pub fn new_function<F: 'static, Types>(f: &'static F) -> Function<PT>
     where
         F: DescribableFunction<PT, Types>,
     {
         let (shape, dynamic_fn) = make_dynamic(f);
+
+        // In debug builds, verify the function is in the signature.
+        // This catches the error at runtime during development, providing
+        // a clear error message instead of a cryptic deserialization failure later.
+        #[cfg(debug_assertions)]
+        {
+            let sig = PT::signature();
+            if !sig.functions_by_name.contains_key(shape.name) {
+                panic!(
+                    "Function '{}' is not registered in the protocol signature. \
+                     Add it to the define_signature! macro to use it in terms.",
+                    shape.name
+                );
+            }
+        }
 
         Function::new(shape, dynamic_fn.clone())
     }

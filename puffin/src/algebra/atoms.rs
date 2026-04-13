@@ -133,6 +133,21 @@ impl<PT: ProtocolTypes> Function<PT> {
 
     #[must_use]
     pub fn new(shape: DynamicFunctionShape<PT>, dynamic_fn: Box<dyn DynamicFunction<PT>>) -> Self {
+        // In debug builds, verify the function is in the signature.
+        // This catches the error at runtime during development, providing
+        // a clear error message instead of a cryptic deserialization failure later.
+        #[cfg(debug_assertions)]
+        {
+            let sig = PT::signature();
+            if !sig.functions_by_name.contains_key(shape.name) {
+                panic!(
+                    "Function '{}' is not registered in the protocol signature. \
+                     Add it to the define_signature! macro to use it in terms.",
+                    shape.name
+                );
+            }
+        }
+
         let attrs = PT::signature()
             .attrs_by_name
             .get(shape.name)
@@ -179,6 +194,21 @@ impl<PT: ProtocolTypes> Function<PT> {
         shape: DynamicFunctionShape<PT>,
         dynamic_fn: Box<dyn DynamicFunction<PT>>,
     ) {
+        // In debug builds, verify the function is in the signature.
+        // This catches the error at runtime during development, providing
+        // a clear error message instead of a cryptic deserialization failure later.
+        #[cfg(debug_assertions)]
+        {
+            let sig = PT::signature();
+            if !sig.functions_by_name.contains_key(shape.name) {
+                panic!(
+                    "Function '{}' is not registered in the protocol signature. \
+                     Add it to the define_signature! macro to use it in terms.",
+                    shape.name
+                );
+            }
+        }
+
         self.fn_container.shape = shape;
         self.fn_container.dynamic_fn = dynamic_fn;
     }
