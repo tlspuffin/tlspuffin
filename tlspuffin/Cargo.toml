@@ -15,6 +15,7 @@ categories.workspace = true
 [features]
 default = ["sancov", "introspection"]
 
+# Tracks vendor directory for auto rebuild if a CPUT has been built or deleted
 watch-vendor = ["puffin-build/watch-vendor"]
 
 cputs = ["deterministic", "claims"]

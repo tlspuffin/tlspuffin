@@ -255,7 +255,7 @@ define_signature!(
     fn_new_transcript12
     fn_decode_server_ecdh_pubkey [opaque]
     fn_decode_client_ecdh_pubkey [opaque]
-    fn_sign_rsa_ecdhe_server_key_exchange [opaque]
+    fn_sign_rsa_ecdhe_server_key_exchange12 [opaque]
     fn_encode_ec_pubkey12
     fn_new_pubkey12 [opaque]
     fn_encrypt12 [opaque]

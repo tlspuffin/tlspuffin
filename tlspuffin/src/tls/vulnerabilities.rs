@@ -1310,7 +1310,7 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
 
     let server_key_exchange = term! {
         fn_server_key_exchange(
-            (fn_sign_rsa_ecdhe_server_key_exchange(
+            (fn_sign_rsa_ecdhe_server_key_exchange12(
                 fn_named_group_secp384r1,
                 ((client, 0)),
                 fn_new_random,

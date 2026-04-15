@@ -1634,7 +1634,7 @@ pub fn _seed_server_attacker12(
 
     let server_key_exchange = term! {
         fn_server_key_exchange(
-            (fn_sign_rsa_ecdhe_server_key_exchange(
+            (fn_sign_rsa_ecdhe_server_key_exchange12(
                 fn_named_group_secp384r1,
                 ((client, 0)),
                 fn_new_random,

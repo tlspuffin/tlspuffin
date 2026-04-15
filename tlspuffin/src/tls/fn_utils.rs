@@ -719,7 +719,7 @@ pub fn fn_decode_client_ecdh_pubkey(data: &Vec<u8>) -> Result<Vec<u8>, FnError> 
     Ok(params.public.0)
 }
 
-pub fn fn_sign_rsa_ecdhe_server_key_exchange(
+pub fn fn_sign_rsa_ecdhe_server_key_exchange12(
     group: &NamedGroup,
     client_random: &Random,
     server_random: &Random,
