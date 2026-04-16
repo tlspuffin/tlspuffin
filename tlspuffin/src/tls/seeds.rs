@@ -2811,6 +2811,7 @@ pub fn create_corpus(
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
+    use puffin::fuzzer::utils::TermConstraints;
     use puffin::put::{PutDescriptor, PutOptions};
     use puffin::trace::Query;
 
@@ -3032,10 +3033,10 @@ pub mod tests {
                 match &step.action {
                     Action::Input(input) => {
                         // should be below a certain threshold, else we should increase
-                        // max_term_size in fuzzer setup
+                        // max_term_size_explore in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
-                            terms < 2000,
+                            terms < TermConstraints::default().max_term_size_explore,
                             "{} has step with too large term size {}!",
                             name,
                             terms
@@ -3079,7 +3080,7 @@ pub mod tests {
                         // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
-                            terms < 2000,
+                            terms < TermConstraints::default().max_term_size_explore,
                             "{} has step with too large term size {}!",
                             name,
                             terms

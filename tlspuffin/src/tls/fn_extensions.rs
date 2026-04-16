@@ -147,7 +147,7 @@ pub fn fn_new_session_ticket_extensions_append(
 pub fn fn_server_name_extension() -> Result<ClientExtension, FnError> {
     let dns_name = "inria.fr";
     Ok(ClientExtension::ServerName(ServerNameRequest(vec![
-        // here
+        // TODO-Mapper: could be extended to change this field
         ServerName {
             typ: ServerNameType::HostName,
             payload: ServerNamePayload::HostName((
@@ -237,13 +237,13 @@ pub fn fn_support_group_extension_append(
 // ECPointFormats => 0x000b,
 pub fn fn_ec_point_formats_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::ECPointFormats(ECPointFormatList(vec![
-        // here
+        // TODO-Mapper: could be extended to change this field
         ECPointFormat::Uncompressed,
     ])))
 }
 pub fn fn_ec_point_formats_server_extension() -> Result<ServerExtension, FnError> {
     Ok(ServerExtension::ECPointFormats(ECPointFormatList(vec![
-        // here
+        // TODO-Mapper: could be extended to change this field
         ECPointFormat::Uncompressed,
     ])))
 }
@@ -251,34 +251,33 @@ nyi_fn! {
     /// SRP => 0x000c,
 }
 /// SignatureAlgorithms => 0x000d,
-pub fn fn_supported_signature_schemes_extension_new() -> Result<SupportedSignatureSchemes, FnError>
-{
-    Ok(SupportedSignatureSchemes { 0: vec![] })
+pub fn fn_supported_signature_schemes_extension_new() -> Result<Vec<SignatureScheme>, FnError> {
+    Ok(vec![])
 }
 
 pub fn fn_supported_signature_schemes_extension_append(
-    signature_schemes: &SupportedSignatureSchemes,
+    signature_schemes: &Vec<SignatureScheme>,
     signature_scheme: &SignatureScheme,
-) -> Result<SupportedSignatureSchemes, FnError> {
+) -> Result<Vec<SignatureScheme>, FnError> {
     let mut new_signature_algorithms = signature_schemes.clone();
-    new_signature_algorithms.0.push(signature_scheme.clone());
+    new_signature_algorithms.push(signature_scheme.clone());
 
     Ok(new_signature_algorithms)
 }
 
 pub fn fn_signature_algorithm_extension(
-    supported_signature_schemes: &SupportedSignatureSchemes,
+    supported_signature_schemes: &Vec<SignatureScheme>,
 ) -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::SignatureAlgorithms(
-        supported_signature_schemes.clone(),
+        SupportedSignatureSchemes(supported_signature_schemes.clone()),
     ))
 }
 
 pub fn fn_signature_algorithm_cert_req_extension(
-    supported_signature_schemes: &SupportedSignatureSchemes,
+    supported_signature_schemes: &Vec<SignatureScheme>,
 ) -> Result<CertReqExtension, FnError> {
     Ok(CertReqExtension::SignatureAlgorithms(
-        supported_signature_schemes.clone(),
+        SupportedSignatureSchemes(supported_signature_schemes.clone()),
     ))
 }
 
@@ -528,7 +527,7 @@ pub fn fn_psk_exchange_mode_dhe_ke_extension() -> Result<ClientExtension, FnErro
 }
 pub fn fn_psk_exchange_mode_ke_extension() -> Result<ClientExtension, FnError> {
     Ok(ClientExtension::PresharedKeyModes(PSKKeyExchangeModes(
-        vec![PSKKeyExchangeMode::PSK_KE], // here
+        vec![PSKKeyExchangeMode::PSK_KE], // TODO-Mapper: could be extended to change this field
     )))
 }
 nyi_fn! {
@@ -582,21 +581,23 @@ pub fn fn_key_share_deterministic(group: &NamedGroup) -> Result<KeyShareEntry, F
 }
 
 pub fn fn_key_share_extension_make(
-    key_shares: &KeyShareEntries,
+    key_shares: &Vec<KeyShareEntry>,
 ) -> Result<ClientExtension, FnError> {
-    Ok(ClientExtension::KeyShare(key_shares.clone()))
+    Ok(ClientExtension::KeyShare(KeyShareEntries(
+        key_shares.clone(),
+    )))
 }
 
-pub fn fn_key_share_extension_new() -> Result<KeyShareEntries, FnError> {
-    Ok(KeyShareEntries { 0: vec![] })
+pub fn fn_key_share_extension_new() -> Result<Vec<KeyShareEntry>, FnError> {
+    Ok(vec![])
 }
 
 pub fn fn_key_share_extension_append(
-    key_shares: &KeyShareEntries,
+    key_shares: &Vec<KeyShareEntry>,
     key_share_entry: &KeyShareEntry,
-) -> Result<KeyShareEntries, FnError> {
+) -> Result<Vec<KeyShareEntry>, FnError> {
     let mut new_key_shares = key_shares.clone();
-    new_key_shares.0.push(key_share_entry.clone());
+    new_key_shares.push(key_share_entry.clone());
 
     Ok(new_key_shares)
 }
