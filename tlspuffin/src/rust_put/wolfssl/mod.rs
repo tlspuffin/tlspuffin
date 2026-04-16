@@ -10,12 +10,14 @@ use puffin::algebra::ConcreteMessage;
 use puffin::error::Error;
 use puffin::put::Put;
 use puffin::stream::{MemoryStream, Stream};
+use security_claims::ClaimTLSVersion;
 use smallvec::SmallVec;
 use transcript::extract_current_transcript;
 use wolfssl::error::{ErrorStack, SslError};
 use wolfssl::ssl::{Ssl, SslContext, SslContextRef, SslMethod, SslRef, SslStream, SslVerifyMode};
 use wolfssl::version::version;
 use wolfssl::x509::X509;
+use wolfssl::TLSVersion as WolfTLSVersion;
 
 use crate::claims::{
     ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsClaim, TranscriptCertificate,
@@ -192,6 +194,7 @@ impl RustPut {
         let mut ctx = match descriptor.protocol_config.tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_client_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_client_12())?,
+            TLSVersion::Both => SslContext::new(SslMethod::tls_client_ssl3_tls13())?,
         };
 
         ctx.disable_session_cache()?;
@@ -223,11 +226,11 @@ impl RustPut {
 
         // Disallow EXPORT in client
         match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 => {
-                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?
+            TLSVersion::V1_3 | TLSVersion::Both => {
+                ctx.set_cipher_list(&descriptor.protocol_config.get_cipher_string_13())?
             }
             TLSVersion::V1_2 => {
-                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?
+                ctx.set_cipher_list(&descriptor.protocol_config.get_cipher_string_12())?
             }
         }
 
@@ -254,6 +257,7 @@ impl RustPut {
         let mut ctx = match descriptor.protocol_config.tls_version {
             TLSVersion::V1_3 => SslContext::new(SslMethod::tls_server_13())?,
             TLSVersion::V1_2 => SslContext::new(SslMethod::tls_server_12())?,
+            TLSVersion::Both => SslContext::new(SslMethod::tls_server_ssl3_tls13())?,
         };
 
         // Mitigates "2. Misuse of sessions of different TLS versions (1.2, 1.3) from the session
@@ -261,11 +265,11 @@ impl RustPut {
         ctx.disable_session_cache()?;
 
         match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 => {
-                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?
+            TLSVersion::V1_3 | TLSVersion::Both => {
+                ctx.set_cipher_list(&descriptor.protocol_config.get_cipher_string_13())?
             }
             TLSVersion::V1_2 => {
-                ctx.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?
+                ctx.set_cipher_list(&descriptor.protocol_config.get_cipher_string_12())?
             }
         }
 
@@ -340,7 +344,7 @@ impl RustPut {
                     config.claims.deref_borrow_mut().claim_sized(TlsClaim {
                         agent_name: self.config.descriptor.name,
                         origin: config.descriptor.protocol_config.typ,
-                        protocol_version: config.descriptor.protocol_config.tls_version,
+                        config_version: config.descriptor.protocol_config.tls_version,
                         data,
                         step: None,
                     });
@@ -355,17 +359,17 @@ impl RustPut {
 
             let agent_name = self.config.descriptor.name;
             let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.protocol_config.tls_version;
+            let config_version = self.config.descriptor.protocol_config.tls_version;
             let origin = self.config.descriptor.protocol_config.typ;
 
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
-                    if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
+                    if let Some(data) = claims_helpers::to_claim_data(claim) {
                         claims.deref_borrow_mut().claim_sized(TlsClaim {
                             agent_name,
                             origin,
-                            protocol_version,
+                            config_version,
                             data,
                             step: None,
                         });
@@ -386,7 +390,7 @@ impl RustPut {
         config: &TlsPutConfig,
     ) -> impl Fn(&mut SslRef, i32, u8, bool) {
         let origin = config.descriptor.protocol_config.typ;
-        let protocol_version = config.descriptor.protocol_config.tls_version;
+        let config_version = config.descriptor.protocol_config.tls_version;
         let claims = config.claims.clone();
         let extract_transcript = config.extract_deferred.clone();
         let authenticate_peer = config.authenticate_peer;
@@ -416,7 +420,7 @@ impl RustPut {
                         claims.deref_borrow_mut().claim_sized(TlsClaim {
                             agent_name,
                             origin,
-                            protocol_version,
+                            config_version,
                             data: ClaimData::Message(ClaimDataMessage::Finished(Finished {
                                 outbound,
                                 client_random: context.client_random().into(),
@@ -428,6 +432,15 @@ impl RustPut {
                                     .map(|cert| SmallVec::from_vec(cert))
                                     .unwrap_or_else(|| SmallVec::new()),
                                 master_secret: Default::default(), // TODO
+                                tls_version: match context.chosen_version() {
+                                    Some(WolfTLSVersion::V1_3) => {
+                                        ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3
+                                    }
+                                    Some(WolfTLSVersion::V1_2) => {
+                                        ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2
+                                    }
+                                    None => ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED,
+                                },
                                 chosen_cipher: context.current_cipher() as u16,
                                 available_ciphers: Default::default(), // TODO
                                 signature_algorithm: 0,                // TODO
@@ -468,7 +481,7 @@ impl RustPut {
                     claims.deref_borrow_mut().claim_sized(TlsClaim {
                         agent_name,
                         origin,
-                        protocol_version,
+                        config_version,
                         data,
                         step: None,
                     });

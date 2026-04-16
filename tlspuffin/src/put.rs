@@ -188,7 +188,7 @@ impl CAgent {
             config
                 .descriptor
                 .protocol_config
-                .cipher_string_tls13
+                .get_cipher_string_13()
                 .clone(),
         )
         .unwrap();
@@ -196,7 +196,7 @@ impl CAgent {
             config
                 .descriptor
                 .protocol_config
-                .cipher_string_tls12
+                .get_cipher_string_12()
                 .clone(),
         )
         .unwrap();
@@ -250,16 +250,16 @@ impl CAgent {
             use crate::claims::claims_helpers;
 
             let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.protocol_config.tls_version;
+            let config_version = self.config.descriptor.protocol_config.tls_version;
             let origin = self.config.descriptor.protocol_config.typ;
             let agent_name = self.config.descriptor.name;
 
             let claimer = make_claimer(move |claim: Claim| {
-                if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
+                if let Some(data) = claims_helpers::to_claim_data(claim) {
                     claims.deref_borrow_mut().claim_sized(TlsClaim {
                         agent_name,
                         origin,
-                        protocol_version,
+                        config_version,
                         data,
                         step: None,
                     })
@@ -411,6 +411,7 @@ fn make_descriptor(
         tls_version: match config.descriptor.protocol_config.tls_version {
             TLSVersion::V1_3 => TLS_VERSION::V1_3,
             TLSVersion::V1_2 => TLS_VERSION::V1_2,
+            TLSVersion::Both => TLS_VERSION::Both,
         },
         client_authentication: config.descriptor.protocol_config.client_authentication,
         server_authentication: config.descriptor.protocol_config.server_authentication,

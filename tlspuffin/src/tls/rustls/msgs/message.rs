@@ -91,7 +91,7 @@ impl MessagePayload {
             ContentType::ApplicationData => return Ok(Self::ApplicationData(payload)),
             ContentType::Alert => AlertMessagePayload::read(&mut r).map(MessagePayload::Alert),
             ContentType::Handshake => {
-                HandshakeMessagePayload::read_version(&mut r, vers)
+                HandshakeMessagePayload::read_version_exact(&mut r, vers)
                     .map(MessagePayload::Handshake)
                     // this type is for TLS 1.2 encrypted handshake messages
                     .or(Some(MessagePayload::TLS12EncryptedHandshake(

@@ -50,11 +50,19 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         ),
     );
     let mut fail_at_step = 0;
-    if let Ok(ctx) = runner.execute(input, &mut fail_at_step) {
-        HARNESS_EXEC_SUCCESS.increment();
-        if cfg!(feature = "introspection") && ctx.agents_successful() {
-            HARNESS_EXEC_AGENT_SUCCESS.increment();
+    match runner.execute(input, &mut fail_at_step) {
+        Ok(ctx) => {
+            HARNESS_EXEC_SUCCESS.increment();
+            if cfg!(feature = "introspection") && ctx.agents_successful() {
+                HARNESS_EXEC_AGENT_SUCCESS.increment();
+            }
         }
+        Err(Error::SecurityClaim(msg)) => {
+            log::warn!("{}", msg);
+            // Crashes the trace to catch it as an objective
+            std::process::abort();
+        }
+        Err(_) => {}
     }
 
     // Update FAIL_AT_STEP

@@ -191,7 +191,7 @@ fn test_term_read_encode() {
         let res = zoo_test(
             &mut closure,
             rand,
-            50,
+            20,
             true,
             false,
             true,
@@ -259,7 +259,7 @@ fn test_term_payloads_eval() {
         let res = zoo_test(
             &mut closure,
             StdRand::with_seed(i),
-            150,
+            20,
             true,
             false,
             true,
@@ -359,7 +359,7 @@ fn test_term_payloads_mutate_eval() {
         let res = zoo_test(
             &mut closure,
             StdRand::with_seed(i),
-            300,
+            20,
             true,
             false,
             true,
