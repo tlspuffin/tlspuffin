@@ -965,7 +965,12 @@ declare_u8_vec!(Compressions, Compression);
 #[extractable(TLSProtocolTypes)]
 pub struct ClientHelloPayload {
     #[comparable_synthetic {
-        let sorted_cipher_suites = |x: &Self| -> CipherSuites { let mut ciphers = x.cipher_suites.clone(); ciphers.0.sort_by(puffin::codec::compare_encoding); ciphers };
+        let sorted_cipher_suites = |x: &Self| -> CipherSuites {
+            // we ignore `TLS_EMPTY_RENEGOTIATION_INFO_SCSV` as it is not present on all TLS 1.2 PUTs
+            let mut ciphers = CipherSuites(x.cipher_suites.0.iter().filter(|c| ! matches!(c, CipherSuite::TLS_EMPTY_RENEGOTIATION_INFO_SCSV)).cloned().collect());
+            ciphers.0.sort_by(puffin::codec::compare_encoding);
+            ciphers
+        };
     }]
     #[comparable_synthetic {
         let sorted_extensions = |x: &Self| -> ClientExtensions { let mut ext = x.extensions.clone(); ext.0.sort_by(puffin::codec::compare_encoding); ext };

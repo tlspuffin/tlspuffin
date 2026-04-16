@@ -184,22 +184,12 @@ impl CAgent {
 
         let server_store = [&client_cert as *const _, &other_cert];
         let client_store = [&server_cert as *const _, &other_cert];
-        let ciphers_tls13 = CString::new(
-            config
-                .descriptor
-                .protocol_config
-                .get_cipher_string_13()
-                .clone(),
-        )
-        .unwrap();
-        let ciphers_tls12 = CString::new(
-            config
-                .descriptor
-                .protocol_config
-                .get_cipher_string_12()
-                .clone(),
-        )
-        .unwrap();
+        let ciphers_tls13 =
+            CString::new(config.descriptor.protocol_config.get_cipher_string_13()).unwrap();
+        let ciphers_tls12 =
+            CString::new(config.descriptor.protocol_config.get_cipher_string_12()).unwrap();
+        let ciphers_tlsboth =
+            CString::new(config.descriptor.protocol_config.get_cipher_string_both()).unwrap();
         let groups = config
             .descriptor
             .protocol_config
@@ -215,6 +205,7 @@ impl CAgent {
                 &server_store,
                 &ciphers_tls13,
                 &ciphers_tls12,
+                &ciphers_tlsboth,
                 &groups,
             ),
             AgentType::Client => make_descriptor(
@@ -224,6 +215,7 @@ impl CAgent {
                 &client_store,
                 &ciphers_tls13,
                 &ciphers_tls12,
+                &ciphers_tlsboth,
                 &groups,
             ),
         };
@@ -394,6 +386,7 @@ fn make_descriptor(
     store: &[*const PEM],
     ciphers_tls13: &CString,
     ciphers_tls12: &CString,
+    ciphers_tlsboth: &CString,
     groups: &Option<CString>,
 ) -> TLS_AGENT_DESCRIPTOR {
     // eprintln!("{:?}", cert);
@@ -417,6 +410,7 @@ fn make_descriptor(
         server_authentication: config.descriptor.protocol_config.server_authentication,
         cipher_string_tls13: ciphers_tls13.as_ptr(),
         cipher_string_tls12: ciphers_tls12.as_ptr(),
+        cipher_string_tlsboth: ciphers_tlsboth.as_ptr(),
         group_list: if let Some(group_list) = groups {
             group_list.as_ref().as_ptr()
         } else {
