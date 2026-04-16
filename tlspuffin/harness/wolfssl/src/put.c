@@ -847,7 +847,7 @@ static RESULT wolfssl_progress(AGENT agent)
         // not connected yet -> do handshake
 #if 1
         // int ret = wolfSSL_SSL_do_handshake(agent->ssl);
-        int ret = SSL_FAILURE;
+        int ret = WOLFSSL_FAILURE;
         WOLFSSL_TIMEVAL wi;
         wi.tv_sec = 0;
         wi.tv_usec = 0;
