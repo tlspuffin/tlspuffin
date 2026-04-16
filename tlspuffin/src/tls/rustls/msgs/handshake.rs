@@ -2389,6 +2389,19 @@ impl codec::Codec for HandshakeMessagePayload {
 }
 
 impl HandshakeMessagePayload {
+    /// Like `read_version`, but returns `None` if any bytes remain in `r` after parsing.
+    /// Use this when parsing a single isolated handshake message (the whole buffer must be
+    /// consumed). Without this check, an encrypted blob whose first 4 bytes happen to be
+    /// `[0x00, 0x00, 0x00, 0x00]` would be silently accepted as an empty `HelloRequest`.
+    pub fn read_version_exact(r: &mut codec::Reader, vers: ProtocolVersion) -> Option<Self> {
+        let result = Self::read_version(r, vers)?;
+        if r.any_left() {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
     pub fn read_version(r: &mut codec::Reader, vers: ProtocolVersion) -> Option<Self> {
         let mut typ = HandshakeType::read(r)?;
 

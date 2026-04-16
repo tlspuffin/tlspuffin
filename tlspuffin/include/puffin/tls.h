@@ -14,7 +14,8 @@ extern "C"
     typedef enum
     {
         V1_3,
-        V1_2
+        V1_2,
+        Both
     } TLS_VERSION;
 
     typedef enum

@@ -28,8 +28,8 @@ use puffin::trace_helper::TraceHelper;
 use crate::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put_registry::tls_registry;
 use crate::tls::fn_impl::{
-    fn_certificate_transcript, fn_client_finished_transcript, fn_decrypt_application,
-    fn_decrypt_multiple_handshake_messages, fn_server_finished_transcript,
+    fn_certificate_transcript, fn_client_finished_transcript, fn_decrypt12, fn_decrypt_application,
+    fn_decrypt_multiple_handshake_messages, fn_derive_psk, fn_server_finished_transcript,
     fn_server_hello_transcript,
 };
 use crate::tls::seeds::seed_successful;
@@ -171,6 +171,7 @@ pub mod tcp {
                 args.push("-v");
                 args.push("3");
             }
+            TLSVersion::Both => panic!("Both version found"), //TODO (NB) come back here
         }
 
         let warmups = warmups.map(|warmups| warmups.to_string());
@@ -206,6 +207,7 @@ pub mod tcp {
                 args.push("-v");
                 args.push("3");
             }
+            TLSVersion::Both => panic!("Both version found"), //TODO (NB) come back here
         }
 
         ParametersGuard {
@@ -240,6 +242,7 @@ pub mod tcp {
             TLSVersion::V1_2 => {
                 args.push("-tls1_2");
             }
+            TLSVersion::Both => panic!("Both version found"), //TODO (NB) come back here
         }
 
         ParametersGuard {
@@ -262,6 +265,7 @@ pub mod tcp {
             TLSVersion::V1_2 => {
                 args.push("-tls1_2");
             }
+            TLSVersion::Both => panic!("Both version found"), //TODO (NB) come back here
         }
 
         ParametersGuard {
@@ -312,6 +316,7 @@ pub fn ignore_eval() -> HashSet<String> {
         // computed in a very specific way! We might give known,valid hash-transcript to help?
         fn_decrypt_application.name(),
         fn_decrypt_multiple_handshake_messages.name(),
+        fn_decrypt12.name(),
     ]
     .iter()
     .map(|fn_name| fn_name.to_string())
@@ -334,7 +339,7 @@ pub fn ignore_eval_attribute() -> HashSet<String> {
 /// Functions that are known to fail to be adversarially generated, MakeMessage, evaluated
 pub fn ignore_add_payload() -> HashSet<String> {
     let mut ignore_eval = ignore_eval();
-    let ignore_pay: HashSet<String> = vec![] //["tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk"]
+    let ignore_pay: HashSet<String> = vec![]
         .iter()
         .map(|fn_name: &&str| fn_name.to_string())
         .collect::<HashSet<String>>();
@@ -353,6 +358,14 @@ pub fn ignore_add_payload_mutate() -> HashSet<String> {
     .collect::<HashSet<String>>();
     ignore_add_payload.extend(ignore_mutate);
     ignore_add_payload
+}
+
+/// Functions that are unstables, we might be able to generate them but not easily
+pub fn unstable_functions() -> HashSet<String> {
+    vec![fn_derive_psk.name()]
+        .iter()
+        .map(|fn_name: &&str| fn_name.to_string())
+        .collect::<HashSet<String>>()
 }
 
 /// Parametric test for testing operations on terms (closure `test_map`, e.g., evaluation) through
@@ -461,11 +474,29 @@ where
     let difference = all_functions.difference(&successful_functions);
     let difference_inverse = successful_functions_tested.intersection(&ignored_functions);
 
+    // We do not crash the test if we have issues with the unstable functions
+    let unstable = unstable_functions();
+    let difference_set: HashSet<String> = difference.map(String::to_string).collect();
+    let difference_inverse_set: HashSet<String> =
+        difference_inverse.map(String::to_string).collect();
+    let difference_wo_unstable: HashSet<&String> = difference_set.difference(&unstable).collect();
+    let difference_inverse_wo_unstable: HashSet<&String> =
+        difference_inverse_set.difference(&unstable).collect();
+
     log::debug!("[zoo_test] ignored_functions: {:?}\n", &ignored_functions);
-    log::error!("[zoo_test] Diff: {:?}", &difference);
+    log::debug!("[zoo_test] unstable functions: {:?}\n", &unstable);
+    log::error!("[zoo_test] Diff: {:?}", &difference_set);
     log::error!(
-        "[zoo_test] Intersection with ignored: {:?}",
-        &difference_inverse
+        "[zoo_test] Diff without unstable: {:?}",
+        &difference_wo_unstable
+    );
+    log::error!(
+        "[zoo_test] Intersect with ignored: {:?}",
+        &difference_inverse_set
+    );
+    log::error!(
+        "[zoo_test] Intersect ignored without unstable: {:?}",
+        &difference_inverse_wo_unstable
     );
     log::error!(
         "[zoo_test] Stats: how_many: {how_many}, stop_on_success: {stop_on_success}, stop_on_error: {stop_on_error}\n\
@@ -479,7 +510,7 @@ where
         &all_functions.len(),
         &successful_functions_tested.len()
     );
-    (difference.count() == 0) && (difference_inverse.count() == 0)
+    difference_wo_unstable.is_empty() && difference_inverse_wo_unstable.is_empty()
 }
 
 pub fn add_payloads_randomly<

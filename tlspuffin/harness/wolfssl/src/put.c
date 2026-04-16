@@ -184,21 +184,19 @@ static void fill_claim(AGENT agent, struct Claim *claim)
 {
     char *error_msg = "no error";
 
-    if (agent->ssl->version.major != SSLv3_MAJOR)
+    const char *tls_version = wolfSSL_get_version(agent->ssl);
+    if (strcmp(tls_version, "TLSv1.2") == 0)
     {
-        _log(PUFFIN.warn, "not a tls ssl object");
-        return;
-    }
-    switch (agent->ssl->version.minor)
-    {
-    case TLSv1_2_MINOR:
         claim->version.data = CLAIM_TLS_VERSION_V1_2;
-        break;
-    case TLSv1_3_MINOR:
+    }
+    else if (strcmp(tls_version, "TLSv1.3") == 0)
+    {
         claim->version.data = CLAIM_TLS_VERSION_V1_3;
-        break;
-    default:
+    }
+    else
+    {
         _log(PUFFIN.warn, "unsupported tls version");
+        claim->version.data = CLAIM_TLS_VERSION_UNDEFINED;
         return;
     }
 
@@ -259,41 +257,38 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         _log(PUFFIN.warn, "unable to get server random buffer");
     }
 
-    STACK_OF(SSL_CIPHER) *ciphers = wolfSSL_get_ciphers_compat(agent->ssl);
-    if (ciphers != NULL)
+    /* wolfSSL_get_ciphers_compat() internally filters out ciphers whose minor
+     * version is SSLv3_MINOR (e.g. DHE-RSA-AES128-SHA, DHE-RSA-AES256-SHA)
+     * when minDowngrade >= TLSv1_MINOR, even though wolfSSL actually includes
+     * and negotiates those ciphers via ssl->suites->suites[].
+     * Read the raw suites array directly to get the complete list. */
+    Suites *ssl_suites = agent->ssl->suites;
+    if (ssl_suites == NULL && agent->ssl->ctx != NULL)
     {
-        int available_ciphers_len = wolfSSL_sk_SSL_CIPHER_num(ciphers);
-        if (available_ciphers_len != WOLFSSL_FATAL_ERROR)
+        ssl_suites = agent->ssl->ctx->suites;
+    }
+    if (ssl_suites != NULL)
+    {
+        int raw_len = ssl_suites->suiteSz / 2;
+        claim->available_ciphers.length = 0;
+        for (int i = 0; i < raw_len; ++i)
         {
-            if (available_ciphers_len > CLAIM_MAX_AVAILABLE_CIPHERS)
+            byte suite0 = ssl_suites->suites[i * 2];
+            byte suite = ssl_suites->suites[i * 2 + 1];
+
+            if (claim->available_ciphers.length >= CLAIM_MAX_AVAILABLE_CIPHERS)
             {
-                available_ciphers_len = CLAIM_MAX_AVAILABLE_CIPHERS;
                 _log(PUFFIN.warn, "not enough space in ciphers list in claim");
+                break;
             }
-            claim->available_ciphers.length = available_ciphers_len;
-            for (int i = 0; i < available_ciphers_len; ++i)
-            {
-                SSL_CIPHER const *cipher = wolfSSL_sk_SSL_CIPHER_value(ciphers, i);
-                if (cipher != NULL)
-                {
-                    claim->available_ciphers.ciphers[i].data =
-                        (unsigned short)((((short)cipher->cipherSuite0) << 8) +
-                                         cipher->cipherSuite);
-                }
-                else
-                {
-                    _log(PUFFIN.warn, "wolfSSL_sk_SSL_CIPHER_value return a NULL value");
-                }
-            }
-        }
-        else
-        {
-            _log(PUFFIN.warn, "sk_SSL_CIPHER_num return WOLFSSL_FATAL_ERROR");
+            claim->available_ciphers.ciphers[claim->available_ciphers.length].data =
+                (unsigned short)(((unsigned short)suite0 << 8) | suite);
+            claim->available_ciphers.length++;
         }
     }
     else
     {
-        _log(PUFFIN.warn, "wolfSSL_get_ciphers_compat return NULL");
+        _log(PUFFIN.warn, "ssl->suites is NULL, cannot get available ciphers");
     }
 
     // cert
@@ -1130,6 +1125,7 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     switch (descriptor->tls_version)
     {
     case V1_3:
+    case Both:
         cipher_string = descriptor->cipher_string_tls13;
         break;
     case V1_2:
@@ -1282,6 +1278,11 @@ static AGENT wolfssl_create(TLS_AGENT_DESCRIPTOR const *descriptor)
         tls_version_str = "V1_2";
         tls_methods[0] = wolfTLSv1_2_client_method;
         tls_methods[1] = wolfTLSv1_2_server_method;
+        break;
+    case Both:
+        tls_version_str = "Both";
+        tls_methods[0] = wolfSSLv23_client_method;
+        tls_methods[1] = wolfSSLv23_server_method;
         break;
     default:
         _log(PUFFIN.error,

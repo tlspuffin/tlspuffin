@@ -1,8 +1,9 @@
 use itertools::Itertools;
 use puffin::claims::SecurityViolationPolicy;
+use security_claims::ClaimTLSVersion;
 
 use crate::claims::{ClaimData, ClaimDataMessage, Finished, TlsClaim};
-use crate::protocol::{AgentType, TLSVersion};
+use crate::protocol::AgentType;
 use crate::static_certs::{ALICE_CERT, BOB_CERT};
 
 pub struct TlsSecurityViolationPolicy;
@@ -12,10 +13,8 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
 
     fn check_violation(claims: &[TlsClaim]) -> Option<&'static str> {
         if let Some((claim_a, claim_b)) = find_two_finished_messages(claims) {
-            if let Some(((client_claim, client), (server_claim, server))) =
-                get_client_server(claim_a, claim_b)
-            {
-                if client_claim.protocol_version != server_claim.protocol_version {
+            if let Some(((_, client), (_, server))) = get_client_server(claim_a, claim_b) {
+                if client.tls_version != server.tls_version {
                     return Some("Mismatching versions");
                 }
 
@@ -48,8 +47,8 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                     return Some("Authentication bypass");
                 }
 
-                match client_claim.protocol_version {
-                    TLSVersion::V1_2 => {
+                match client.tls_version {
+                    ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2 => {
                         // TLS 1.2 Checks
 
                         // https://datatracker.ietf.org/doc/html/rfc5077#section-3.4
@@ -57,7 +56,7 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                             return Some("Mismatching session ids");
                         }
                     }
-                    TLSVersion::V1_3 => {
+                    ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3 => {
                         // TLS 1.3 Checks
                         if client.session_id != server.session_id {
                             return Some("Mismatching session ids");
@@ -88,6 +87,11 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                             }
                         }
                     }
+                    ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => {
+                        // WARNING: remove filter once RUST PUTS are removed
+                        #[cfg(not(feature = "openssl_binding"))]
+                        return Some("Version undefined after handshake");
+                    }
                 }
             } else {
                 // Could not choose exactly one server and client
@@ -107,6 +111,14 @@ impl SecurityViolationPolicy for TlsSecurityViolationPolicy {
                 _ => None,
             });
             if let Some((claim, finished)) = found {
+                if !finished.available_ciphers.is_empty()
+                    && !finished.available_ciphers.contains(&finished.chosen_cipher)
+                {
+                    // available_ciphers is set with the SSL context, it's the list of accepted
+                    // ciphers, chosen_cipher is the negotiated one
+                    return Some("Negotiated cipher is not in agent's configured ciphers list");
+                }
+
                 let violation = finished.authenticate_peer
                     && match claim.origin {
                         AgentType::Server => finished.peer_certificate.as_slice() != BOB_CERT.1,

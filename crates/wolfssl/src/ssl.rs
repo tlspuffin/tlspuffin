@@ -56,12 +56,20 @@ impl SslMethod {
         unsafe { SslMethod(wolf::wolfTLSv1_2_client_method()) }
     }
 
+    pub fn tls_client_ssl3_tls13() -> SslMethod {
+        unsafe { SslMethod(wolf::wolfSSLv23_client_method()) }
+    }
+
     pub fn tls_server_13() -> SslMethod {
         unsafe { SslMethod(wolf::wolfTLSv1_3_server_method()) }
     }
 
     pub fn tls_server_12() -> SslMethod {
         unsafe { SslMethod(wolf::wolfTLSv1_2_server_method()) }
+    }
+
+    pub fn tls_server_ssl3_tls13() -> SslMethod {
+        unsafe { SslMethod(wolf::wolfSSLv23_server_method()) }
     }
 
     pub unsafe fn from_ptr(ptr: *mut wolf::WOLFSSL_METHOD) -> SslMethod {
@@ -458,6 +466,22 @@ impl SslRef {
     /// Get the current cipher suite used by wolfssl
     pub fn current_cipher(&self) -> i32 {
         unsafe { wolf::wolfSSL_get_current_cipher_suite(self.as_ptr()) }
+    }
+
+    /// Get the version selected after the handshake
+    pub fn chosen_version(&self) -> Option<TLSVersion> {
+        let version = unsafe {
+            let ptr = wolf::wolfSSL_get_version(self.as_ptr());
+            if ptr.is_null() {
+                return None;
+            }
+            CStr::from_ptr(ptr)
+        };
+        match version.to_bytes() {
+            b"TLSv1.2" => Some(TLSVersion::V1_2),
+            b"TLSv1.3" => Some(TLSVersion::V1_3),
+            _ => None,
+        }
     }
 
     /// Get the current client random
