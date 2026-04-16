@@ -630,7 +630,7 @@ impl Default for TLSDescriptorConfig {
     }
 }
 
-#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash, Serialize, Deserialize)]
 pub struct TLSProtocolTypes;
 
 impl ProtocolTypes for TLSProtocolTypes {

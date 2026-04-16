@@ -177,7 +177,7 @@ impl Default for SshDescriptorConfig {
     }
 }
 
-#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+#[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SshProtocolTypes;
 impl ProtocolTypes for SshProtocolTypes {
     type Matcher = SshQueryMatcher;
