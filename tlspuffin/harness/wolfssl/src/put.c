@@ -1125,8 +1125,10 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     switch (descriptor->tls_version)
     {
     case V1_3:
-    case Both:
         cipher_string = descriptor->cipher_string_tls13;
+        break;
+    case Both:
+        cipher_string = descriptor->cipher_string_tlsboth;
         break;
     case V1_2:
         cipher_string = descriptor->cipher_string_tls12;

@@ -354,10 +354,15 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
     openssl_set_protocol_version(ssl_ctx, descriptor->tls_version);
 #endif
 
-    if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both)
+    if (descriptor->tls_version == Both)
     {
         SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
+        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
+    }
+    else if (descriptor->tls_version == V1_3)
+    {
+        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+        SSL_CTX_set_cipher_list(ssl_ctx, ""); // empty cipher list to disable TLS1.2 ciphers
     }
     else
     {
@@ -428,10 +433,15 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
     SSL_CTX_set_tmp_rsa(ssl_ctx, rsa);
 #endif
 
-    if (descriptor->tls_version == V1_3 || descriptor->tls_version == Both)
+    if (descriptor->tls_version == Both)
     {
         SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
-        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls13);
+        SSL_CTX_set_cipher_list(ssl_ctx, descriptor->cipher_string_tls12);
+    }
+    else if (descriptor->tls_version == V1_3)
+    {
+        SSL_CTX_set_ciphersuites(ssl_ctx, descriptor->cipher_string_tls13);
+        SSL_CTX_set_cipher_list(ssl_ctx, ""); // empty cipher list to disable TLS1.2 ciphers
     }
     else
     {

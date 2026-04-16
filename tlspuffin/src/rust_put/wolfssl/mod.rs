@@ -226,8 +226,11 @@ impl RustPut {
 
         // Disallow EXPORT in client
         match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 | TLSVersion::Both => {
+            TLSVersion::V1_3 => {
                 ctx.set_cipher_list(&descriptor.protocol_config.get_cipher_string_13())?
+            }
+            TLSVersion::Both => {
+                ctx.set_cipher_list(&descriptor.protocol_config.get_cipher_string_both())?
             }
             TLSVersion::V1_2 => {
                 ctx.set_cipher_list(&descriptor.protocol_config.get_cipher_string_12())?
