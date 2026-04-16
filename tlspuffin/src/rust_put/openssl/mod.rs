@@ -198,6 +198,11 @@ impl RustPut {
         // Allow EXPORT in server
         match descriptor.protocol_config.tls_version {
             TLSVersion::V1_3 | TLSVersion::Both => {
+                let cipher_string = match descriptor.protocol_config.tls_version {
+                    TLSVersion::V1_3 => descriptor.protocol_config.get_cipher_string_13(),
+                    TLSVersion::Both => descriptor.protocol_config.get_cipher_string_both(),
+                    TLSVersion::V1_2 => panic!("V1_2 should not be found in 1.3 | Both"),
+                };
                 // TLS 1.3 should use `set_ciphersuites` API but some versions
                 // of OpenSSL and LibreSSL still use `set_cipher_list`
                 #[cfg(any(
@@ -206,14 +211,14 @@ impl RustPut {
                     feature = "openssl111_binding",
                     feature = "libressl_binding"
                 ))]
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.get_cipher_string_13())?;
+                ctx_builder.set_cipher_list(&cipher_string)?;
                 #[cfg(not(any(
                     feature = "openssl101_binding",
                     feature = "openssl102_binding",
                     feature = "openssl111_binding",
                     feature = "libressl_binding"
                 )))]
-                ctx_builder.set_ciphersuites(&descriptor.protocol_config.get_cipher_string_13())?;
+                ctx_builder.set_ciphersuites(&cipher_string)?;
             }
             TLSVersion::V1_2 => {
                 ctx_builder.set_cipher_list(&descriptor.protocol_config.get_cipher_string_12())?;

@@ -39,6 +39,7 @@ extern "C"
         bool server_authentication;
         const char *cipher_string_tls13;
         const char *cipher_string_tls12;
+        const char *cipher_string_tlsboth;
         const char *group_list;
 
         const PEM *cert;

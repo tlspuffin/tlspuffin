@@ -402,17 +402,15 @@ impl TLSDescriptorConfig {
     }
 
     pub fn get_cipher_string_12(&self) -> String {
-        match self.tls_version {
-            TLSVersion::V1_2 | TLSVersion::V1_3 => self._cipher_string_tls12.clone(),
-            TLSVersion::Both => self.concat_cipher_strings(),
-        }
+        self._cipher_string_tls12.clone()
     }
 
     pub fn get_cipher_string_13(&self) -> String {
-        match self.tls_version {
-            TLSVersion::V1_2 | TLSVersion::V1_3 => self._cipher_string_tls13.clone(),
-            TLSVersion::Both => self.concat_cipher_strings(),
-        }
+        self._cipher_string_tls13.clone()
+    }
+
+    pub fn get_cipher_string_both(&self) -> String {
+        self.concat_cipher_strings()
     }
 }
 

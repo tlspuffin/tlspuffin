@@ -163,8 +163,12 @@ impl RustPut {
         set_max_protocol_version(&mut ctx_builder, descriptor.protocol_config.tls_version)?;
 
         match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 | TLSVersion::Both => {
+            TLSVersion::V1_3 => {
                 ctx_builder.set_cipher_list(&descriptor.protocol_config.get_cipher_string_13())?;
+            }
+            TLSVersion::Both => {
+                ctx_builder
+                    .set_cipher_list(&descriptor.protocol_config.get_cipher_string_both())?;
             }
             TLSVersion::V1_2 => {
                 ctx_builder.set_cipher_list(&descriptor.protocol_config.get_cipher_string_12())?;
