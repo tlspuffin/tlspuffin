@@ -115,7 +115,15 @@ fn benchmark_trace(c: &mut Criterion) {
                                             ))
                                         ))
                                     )),
-                                    fn_signature_algorithm_extension
+                                    (fn_signature_algorithm_extension(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            (fn_supported_signature_schemes_extension_append(
+                                                fn_supported_signature_schemes_extension_new,
+                                                fn_sig_scheme_rsa_pkcs1_sha256
+                                            )),
+                                            fn_sig_scheme_rsa_pss_sha256
+                                        ))
+                                    ))
                                 )),
                                 fn_ec_point_formats_extension
                             )),

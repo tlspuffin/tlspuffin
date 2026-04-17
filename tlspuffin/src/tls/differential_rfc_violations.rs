@@ -35,7 +35,9 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
               (fn_server_extensions_append(
                   (fn_server_extensions_append(
                       fn_server_extensions_new,
-                      (fn_key_share_deterministic_server_extension((@curve)))
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
                   )),
                   fn_supported_versions13_server_extension
             ))))
@@ -247,7 +249,15 @@ pub fn rfc_violation_alert_bad_key_share(
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
                     (fn_key_share_extension(
                         fn_named_group_secp384r1,
@@ -402,7 +412,9 @@ pub fn rfc_violation_missing_alert_out_of_order_encrypted(
               (fn_server_extensions_append(
                   (fn_server_extensions_append(
                       fn_server_extensions_new,
-                      (fn_key_share_deterministic_server_extension((@curve)))
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
                   )),
                   fn_supported_versions13_server_extension
             ))))
@@ -606,7 +618,9 @@ pub fn rfc_violation_bad_alert_non_requested_psk(
                   (fn_server_extensions_append(
                       (fn_server_extensions_append(
                           fn_server_extensions_new,
-                          (fn_key_share_deterministic_server_extension((@curve)))
+                          (fn_key_share_server_extension(
+                              (fn_key_share_deterministic((@curve)))
+                          ))
                       )),
                       (fn_preshared_keys_server_extension((fn_u32_to_u16((fn_u64_to_u32(fn_seq_5))))))
                   )),
@@ -668,9 +682,22 @@ pub fn rfc_violation_incorrect_keyshare_after_hrr(server: AgentName) -> Trace<TL
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_x25519))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_x25519))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -701,9 +728,22 @@ pub fn rfc_violation_incorrect_keyshare_after_hrr(server: AgentName) -> Trace<TL
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -768,7 +808,9 @@ pub fn rfc_violation_no_alert_duplicate_extension(
                   (fn_server_extensions_append(
                       (fn_server_extensions_append(
                           fn_server_extensions_new,
-                          (fn_key_share_deterministic_server_extension((@curve)))
+                          (fn_key_share_server_extension(
+                              (fn_key_share_deterministic((@curve)))
+                          ))
                       )),
                       fn_supported_versions13_server_extension
                   )),
@@ -821,9 +863,22 @@ pub fn rfc_violation_missing_supported_group(server: AgentName) -> Trace<TLSProt
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
-                        fn_signature_algorithm_extension
-                    )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                            (fn_signature_algorithm_extension(
+                                (fn_supported_signature_schemes_extension_append(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        fn_supported_signature_schemes_extension_new,
+                                        fn_sig_scheme_rsa_pkcs1_sha256
+                                    )),
+                                    fn_sig_scheme_rsa_pss_sha256
+                                ))
+                            ))
+                        )),
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -894,7 +949,9 @@ pub fn rfc_violation_changing_cipher_after_hrr(client: AgentName) -> Trace<TLSPr
               (fn_server_extensions_append(
                   (fn_server_extensions_append(
                       fn_server_extensions_new,
-                      (fn_key_share_deterministic_server_extension((@curve)))
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
                   )),
                   fn_supported_versions13_server_extension
             ))))
@@ -993,7 +1050,9 @@ pub fn rfc_violation_incorrect_extension_in_sh(
                   (fn_server_extensions_append(
                       (fn_server_extensions_append(
                           fn_server_extensions_new,
-                          (fn_key_share_deterministic_server_extension((@curve)))
+                          (fn_key_share_server_extension(
+                              (fn_key_share_deterministic((@curve)))
+                          ))
                       )),
                     fn_status_request_server_extension
                   )),
@@ -1056,9 +1115,22 @@ pub fn rfc_violation_client_changing_cipher_hrr(server: AgentName) -> Trace<TLSP
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_x25519))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_x25519))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -1089,9 +1161,22 @@ pub fn rfc_violation_client_changing_cipher_hrr(server: AgentName) -> Trace<TLSP
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
