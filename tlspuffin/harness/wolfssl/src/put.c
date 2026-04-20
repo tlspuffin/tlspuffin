@@ -1247,7 +1247,6 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
                                                         descriptor->cert->bytes,
                                                         descriptor->cert->length,
                                                         SSL_FILETYPE_PEM);
-        */
 #endif
         if (int_retval != WOLFSSL_SUCCESS)
         {

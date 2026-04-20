@@ -522,7 +522,7 @@ where
         // Map ALL agents in the trace (including prior traces) to the specified PUT.
         // Without this, agents in prior traces silently fall back to the default PUT.
         let first_mappings: Vec<_> = trace
-            .all_descriptors()
+            .descriptors
             .iter()
             .map(|d| {
                 (
@@ -532,7 +532,7 @@ where
             })
             .collect();
         let second_mappings: Vec<_> = trace
-            .all_descriptors()
+            .descriptors
             .iter()
             .map(|d| {
                 (
