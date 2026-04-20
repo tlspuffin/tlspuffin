@@ -3574,11 +3574,9 @@ pub mod tests {
         assert_no_differential_differences("openssl340", "wolfssl580");
     }
 
-    /* TODO-libressl: uncomment once libressl is supported in differential
     #[test_log::test]
     #[cfg(all(has_put = "openssl340", has_put = "libressl421"))]
     fn test_differential_openssl340_vs_libressl421() {
         assert_no_differential_differences("openssl340", "libressl421");
     }
-     */
 }
