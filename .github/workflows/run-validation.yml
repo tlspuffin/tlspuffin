@@ -161,14 +161,13 @@ jobs:
       second_vendor: wolfssl
       second_preset: wolfssl580
 
-#  TODO-libressl: uncomment once libressl is supported in differential
-#  differential-openssl-libressl:
-#    needs: [configure]
-#    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'test') }}
-#    uses: ./.github/workflows/run-differential-tests.yml
-#    with:
-#      name: openssl340-vs-libressl421
-#      first_vendor: openssl
-#      first_preset: openssl340
-#      second_vendor: libressl
-#      second_preset: libressl421
+  differential-openssl-libressl:
+    needs: [ configure ]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'test') }}
+    uses: ./.github/workflows/run-differential-tests.yml
+    with:
+      name: openssl340-vs-libressl421
+      first_vendor: openssl
+      first_preset: openssl340
+      second_vendor: libressl
+      second_preset: libressl421
