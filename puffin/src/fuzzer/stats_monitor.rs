@@ -171,6 +171,7 @@ impl Monitor for StatsMonitor {
         event_msg: &str,
         sender_id: ClientId,
     ) -> Result<(), Error> {
+        client_stats_manager.client_stats_insert(sender_id)?;
         let global_stats = self.global(client_stats_manager);
         let client_stats = self.client(client_stats_manager, sender_id)?;
         self.dispatch(sender_id, &event_msg, &global_stats);
@@ -687,5 +688,25 @@ impl Clone for JSONEventHandler {
 impl EventHandler for JSONEventHandler {
     fn process(&mut self, _source: ClientId, _msg: &str, stats: &Statistics) {
         stats.serialize(&mut self.serializer).unwrap();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use libafl::monitors::stats::ClientStatsManager;
+    use libafl_bolts::prelude::ClientId;
+
+    use super::*;
+
+    #[test]
+    fn test_display_with_unregistered_client_id_0() {
+        let mut monitor = StatsMonitor::with_raw_output(PathBuf::from("/dev/null"));
+        let mut mgr = ClientStatsManager::default();
+        // Simule le broker heartbeat : ClientId(0) non encore enregistré
+        monitor
+            .display(&mut mgr, "Broker Heartbeat", ClientId(0))
+            .expect("display should not fail for unregistered ClientId(0)");
     }
 }
