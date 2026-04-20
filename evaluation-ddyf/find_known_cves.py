@@ -51,6 +51,14 @@ buckets: dict[str, BucketCondition] = {
         ClaimContainsC(WOLF, r".*master_secret: \[[1-9][0-9]*,.*"),
         NotC(ClaimContainsC(OSSL, r".*master_secret: \[[1-9][0-9]*,.*")),
     ),
+    "CVE-2024-5814/": AllC(
+        CheckAgentC(["protocol_config", "typ"], "Client"),
+        StatusC(
+            OSSL,
+            in_error="SSL routines:set_client_ciphersuite:wrong cipher returned",
+        ),
+        TermContainsC(WOLF, "fn_excluded_cipher_suite"),
+    ),
     "trash/": TrueC(),
 }
 

@@ -572,7 +572,7 @@ class TrueC(BucketCondition):
         return True
 
 
-VALID = re.compile(r".*\.trace(-[0-9]+)?$")
+VALID = re.compile(r"^[^\.].+\.trace(-[0-9]+)?$")
 
 
 def sort_obj(
@@ -584,32 +584,35 @@ def sort_obj(
     file,
 ) -> str | None:
     # check that the file is a valid trace
-    if VALID.search(file) is not None:
-        filepath = os.path.join(source, file)
-        print(f"Trace : {file}")
-        exec_stat = ExecutionStatus(filepath, first_put, second_put)
-        if exec_stat.errors is None:
-            print(f"diff is None for {file}")
-            return "None"
-        for bucket, condition in buckets.items():
-            if condition.check_condition(exec_stat):
-                print(f"{file} checked {bucket} conditions")
-                trace_and_metadata = [
-                    filepath,
-                    f"{filepath}_ossl.json",
-                    f"{filepath}_wolf.json",
-                    f"{filepath}_diff.json",
-                ]
-                for file_path in trace_and_metadata:
-                    try:
-                        os.rename(
-                            file_path,
-                            os.path.join(target, bucket, os.path.basename(file_path)),
-                        )
-                    except OSError as _:
-                        pass
-                break
-        return get_error(exec_stat.errors)
+    try:
+        if VALID.search(file) is not None:
+            filepath = os.path.join(source, file)
+            print(f"Trace : {file}")
+            exec_stat = ExecutionStatus(filepath, first_put, second_put)
+            if exec_stat.errors is None:
+                print(f"diff is None for {file}")
+                return "None"
+            for bucket, condition in buckets.items():
+                if condition.check_condition(exec_stat):
+                    print(f"{file} checked {bucket} conditions")
+                    trace_and_metadata = [
+                        filepath,
+                        f"{filepath}_ossl.json",
+                        f"{filepath}_wolf.json",
+                        f"{filepath}_diff.json",
+                    ]
+                    for file_path in trace_and_metadata:
+                        try:
+                            os.rename(
+                                file_path,
+                                os.path.join(target, bucket, os.path.basename(file_path)),
+                            )
+                        except OSError as _:
+                            pass
+                    break
+            return get_error(exec_stat.errors)
+    except:
+        return None
 
 
 def run_triaging(

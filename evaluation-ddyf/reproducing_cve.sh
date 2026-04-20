@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 SEQ=0
 
@@ -54,5 +55,3 @@ do
     rm -rf $OBJECTIVES/trash
     rm -rf $OBJECTIVES/../corpus
 done
-
-
