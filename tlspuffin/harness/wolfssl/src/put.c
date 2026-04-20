@@ -353,10 +353,10 @@ static void fill_claim(AGENT agent, struct Claim *claim)
             // buffer");
         }
         wolfSSL_Free(data);
-        int key_type = wolfSSL_X509_get_pubkey_type(cert);
+        int key_type = wolfSSL_X509_get_pubkey_type(peer_cert);
         if (key_type != WOLFSSL_FAILURE)
         {
-            WOLFSSL_EVP_PKEY const *peer_cert_pkey = wolfSSL_X509_get_pubkey(peer_cert);
+            WOLFSSL_EVP_PKEY *peer_cert_pkey = wolfSSL_X509_get_pubkey(peer_cert);
             if (peer_cert_pkey != NULL)
             {
                 claim->peer_cert.key_length = wolfSSL_EVP_PKEY_bits(peer_cert_pkey);
@@ -364,6 +364,7 @@ static void fill_claim(AGENT agent, struct Claim *claim)
                 {
                     claim->peer_cert.key_type = map_keysum_claimkeytype((enum Key_Sum)key_type);
                 }
+                wolfSSL_EVP_PKEY_free(peer_cert_pkey);
             }
             else
             {
@@ -775,13 +776,7 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
                                   "fatal error wolfssl_reset called with agent == NULL");
     }
 
-#if 0
-    // Was in rust harness
-    CLAIMER_CB current_claimer_cb = {};
-    memcpy(&current_claimer_cb, (void*)&agent->claimer, sizeof(CLAIMER_CB));
     wolfssl_register_claimer(agent, NULL);
-#endif
-
     if (use_clear)
     {
         int ret = wolfSSL_clear(agent->ssl);
@@ -808,17 +803,18 @@ static RESULT wolfssl_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
         }
     }
 
-#if 0
-    // Was in rust harness
-    wolfssl_register_claimer(agent, &current_claimer_cb);
-#endif
-
     return PUFFIN.make_result(RESULT_OK, NULL);
 }
 
 static inline bool wolfssl_is_successful(AGENT agent)
 {
     return wolfSSL_get_state(agent->ssl) == HANDSHAKE_DONE;
+}
+
+static int MyTimeoutCallBack(TimeoutInfo *ti)
+{
+    (void)ti;
+    return 0;
 }
 
 static RESULT wolfssl_progress(AGENT agent)
@@ -850,7 +846,20 @@ static RESULT wolfssl_progress(AGENT agent)
     {
         // not connected yet -> do handshake
 #if 1
-        int ret = wolfSSL_SSL_do_handshake(agent->ssl);
+        // int ret = wolfSSL_SSL_do_handshake(agent->ssl);
+        int ret = WOLFSSL_FAILURE;
+        WOLFSSL_TIMEVAL wi;
+        wi.tv_sec = 0;
+        wi.tv_usec = 0;
+        if (wolfSSL_is_server(agent->ssl))
+        {
+            ret = wolfSSL_accept_ex(agent->ssl, NULL, MyTimeoutCallBack, wi);
+        }
+        else
+        {
+            ret = wolfSSL_connect_ex(agent->ssl, NULL, MyTimeoutCallBack, wi);
+        }
+
 #else
         // Rust harness use it, but not working for now in C harness
         int ret = wolfSSL_accept(agent->ssl);
