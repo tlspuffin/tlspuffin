@@ -188,7 +188,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             self.registry.determinism_reseed_all_factories();
         }
 
-        log::info!("Executing first PUT");
+        log::debug!("Executing first PUT");
         let mut first_ctx = TraceContext::new(self.first_spawner.clone());
         let first_trace_status = trace.as_ref().execute(
             &mut first_ctx,
@@ -196,7 +196,9 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             config_trace.check_security_violation,
         );
 
-        log::info!("Executing second PUT");
+        log::error!("{:?}", first_trace_status);
+
+        log::debug!("Executing second PUT");
         let mut second_ctx = TraceContext::new(self.second_spawner.clone());
         let second_trace_status = trace.as_ref().execute(
             &mut second_ctx,
@@ -204,6 +206,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             config_trace.check_security_violation,
         );
 
+        log::error!("{:?}", second_trace_status);
         // Check execution status — any error except SecurityClaim/Difference is an
         // execution failure.  The old code only matched Error::Put, silently ignoring
         // Error::Term, Error::Fn, etc., which hid status mismatches (e.g. one PUT
