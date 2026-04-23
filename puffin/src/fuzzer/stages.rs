@@ -2,8 +2,10 @@ use std::borrow::Cow;
 use std::fmt;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use std::num::NonZeroUsize;
 
 use libafl::prelude::*;
+use libafl::prelude::mutational::MutatedTransform;
 use libafl_bolts::prelude::*;
 
 /// A [`Mutator`] that schedules one of the embedded mutations on each call.
@@ -354,5 +356,66 @@ where
             phantom: PhantomData,
             max_mutations_per_iteration,
         }
+    }
+}
+
+/// A mutational stage that never limits retries on crash, unlike [`StdMutationalStage`] which
+/// caps restarts to 3 per corpus item via `RetryCountRestartHelper`. Without this override,
+/// LibAFL 0.15.x permanently blacklists corpus items after 3 differential findings, causing a
+/// ~40x regression in objective count for differential fuzzing campaigns.
+pub struct PuffinMutationalStage<E, EM, I1, I2, M, S, Z>(
+    StdMutationalStage<E, EM, I1, I2, M, S, Z>,
+);
+
+impl<E, EM, I, M, S, Z> PuffinMutationalStage<E, EM, I, I, M, S, Z>
+where
+    M: Mutator<I, S>,
+    I: MutatedTransform<I, S> + Input + Clone,
+    S: HasCorpus<I> + HasRand + HasCurrentCorpusId + MaybeHasClientPerfMonitor,
+    Z: Evaluator<E, EM, I, S>,
+{
+    pub fn with_max_iterations(mutator: M, max_iterations: NonZeroUsize) -> Self {
+        Self(StdMutationalStage::with_max_iterations(mutator, max_iterations))
+    }
+}
+
+impl<E, EM, I1, I2, M, S, Z> Named for PuffinMutationalStage<E, EM, I1, I2, M, S, Z> {
+    fn name(&self) -> &Cow<'static, str> {
+        self.0.name()
+    }
+}
+
+impl<E, EM, I1, I2, M, S, Z> Stage<E, EM, S, Z> for PuffinMutationalStage<E, EM, I1, I2, M, S, Z>
+where
+    I1: Clone + MutatedTransform<I2, S>,
+    I2: Input,
+    M: Mutator<I1, S>,
+    S: HasRand
+        + HasCorpus<I2>
+        + HasMetadata
+        + HasExecutions
+        + HasNamedMetadata
+        + HasCurrentCorpusId
+        + MaybeHasClientPerfMonitor,
+    Z: Evaluator<E, EM, I2, S>,
+{
+    fn perform(
+        &mut self,
+        fuzzer: &mut Z,
+        executor: &mut E,
+        state: &mut S,
+        manager: &mut EM,
+    ) -> Result<(), Error> {
+        self.0.perform(fuzzer, executor, state, manager)
+    }
+}
+
+impl<E, EM, I1, I2, M, S, Z> Restartable<S> for PuffinMutationalStage<E, EM, I1, I2, M, S, Z> {
+    fn should_restart(&mut self, _state: &mut S) -> Result<bool, Error> {
+        Ok(true)
+    }
+
+    fn clear_progress(&mut self, _state: &mut S) -> Result<(), Error> {
+        Ok(())
     }
 }

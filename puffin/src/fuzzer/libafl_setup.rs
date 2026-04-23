@@ -17,7 +17,7 @@ pub(crate) use crate::fuzzer::config::FuzzerConfig;
 use crate::fuzzer::config::{FuzzingTarget, MIN_BIT_CORPUS, MIN_BIT_EXECS};
 use crate::fuzzer::feedback::MinimizingFeedback;
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
-use crate::fuzzer::stages::FocusScheduledMutator;
+use crate::fuzzer::stages::{FocusScheduledMutator, PuffinMutationalStage};
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
 use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
@@ -209,7 +209,7 @@ where
         };
         let stage_dy = IfStage::new(
             cb_dy,
-            tuple_list!(StdMutationalStage::with_max_iterations(
+            tuple_list!(PuffinMutationalStage::with_max_iterations(
                 mutator_dy,
                 self.config.mutation_stage_config.max_iterations_per_stage
             )),
@@ -266,13 +266,13 @@ where
         let stage_bit = IfStage::new(
             cb_bit_level,
             tuple_list!(
-                StdMutationalStage::with_max_iterations(
+                PuffinMutationalStage::with_max_iterations(
                     mutator_bit,
                     self.config.mutation_stage_config.max_iterations_per_stage
                 ), // Old-style HAVOC stage
                 IfStage::new(
                     cb_focus_bit_level,
-                    tuple_list!(StdMutationalStage::with_max_iterations(
+                    tuple_list!(PuffinMutationalStage::with_max_iterations(
                         mutator_bit_focus,
                         self.config.mutation_stage_config.max_iterations_per_stage
                     ),)
