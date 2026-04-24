@@ -1,4 +1,3 @@
-#include <ctype.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -773,6 +772,12 @@ RESULT boringssl_progress(AGENT agent)
     if (!boringssl_is_successful(agent))
     {
         int ret = SSL_do_handshake(agent->ssl);
+        if (ret == 1)
+        {
+            // BoringSSL defers NST writes for TCP until the application writes.
+            // A zero-byte SSL_write flushes the pending flight (NewSessionTickets).
+            SSL_write(agent->ssl, "", 0);
+        }
         result = get_result(agent, ret, true);
     }
     else

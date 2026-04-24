@@ -1383,6 +1383,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
             )))),
             fn_compressions,
             (fn_client_extensions_make(
+            (fn_client_extensions_append(
                 (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -1413,6 +1414,8 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
                     ))
                 )),
                 fn_supported_versions13_extension
+                )),
+                fn_psk_exchange_mode_dhe_ke_extension
             ))
         )))
     };
@@ -2142,6 +2145,7 @@ pub fn _seed_client_attacker_full(
             (fn_client_extensions_make(
                 (fn_client_extensions_append(
                 (fn_client_extensions_append(
+                (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
@@ -2170,6 +2174,8 @@ pub fn _seed_client_attacker_full(
                     ))
                 )),
                 fn_supported_versions13_extension
+                )),
+                fn_psk_exchange_mode_dhe_ke_extension
             ))
         )))
     };
