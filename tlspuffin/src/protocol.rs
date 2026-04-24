@@ -35,10 +35,11 @@ use crate::tls::rustls::msgs::deframer::MessageDeframer;
 use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayloadTLS13,
     CertificateRequestPayload, CertificateRequestPayloadTLS13, CertificateStatus,
-    ClientSessionTicket, DigitallySignedStruct, HelloRetryExtension, NewSessionTicketExtension,
-    NewSessionTicketPayloadTLS13, PresharedKeyIdentity, Random, ServerExtension, SessionID,
-    UnknownExtension,
+    ClientSessionTicket, DigitallySignedStruct, HandshakeMessagePayload, HelloRetryExtension,
+    NewSessionTicketExtension, NewSessionTicketPayloadTLS13, PresharedKeyIdentity, Random,
+    ServerExtension, SessionID, UnknownExtension,
 };
+use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 use crate::tls::rustls::msgs::message::{try_read_bytes, Message, MessagePayload, OpaqueMessage};
 use crate::tls::rustls::msgs::{self};
 use crate::tls::violation::TlsSecurityViolationPolicy;
@@ -647,7 +648,12 @@ impl ProtocolTypes for TLSProtocolTypes {
     }
 
     fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
-        Some(vec![TypeId::of::<MessagePayload>()])
+        // Some(vec![TypeId::of::<MessagePayload>()])
+        Some(vec![
+            TypeId::of::<AlertMessagePayload>(),
+            TypeId::of::<HandshakeMessagePayload>(),
+            TypeId::of::<HeartbeatPayload>(),
+        ])
     }
 
     fn differential_fuzzing_terms_to_eval(
