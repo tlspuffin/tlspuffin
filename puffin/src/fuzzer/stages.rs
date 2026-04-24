@@ -4,8 +4,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 
-use libafl::prelude::*;
 use libafl::prelude::mutational::MutatedTransform;
+use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
 /// A [`Mutator`] that schedules one of the embedded mutations on each call.
@@ -359,13 +359,14 @@ where
     }
 }
 
-/// A mutational stage that never limits retries on crash, unlike [`StdMutationalStage`] which
-/// caps restarts to 3 per corpus item via `RetryCountRestartHelper`. Without this override,
-/// LibAFL 0.15.x permanently blacklists corpus items after 3 differential findings, causing a
-/// ~40x regression in objective count for differential fuzzing campaigns.
-pub struct PuffinMutationalStage<E, EM, I1, I2, M, S, Z>(
-    StdMutationalStage<E, EM, I1, I2, M, S, Z>,
-);
+/// A mutational stage that overrides retry behavior, unlike [`StdMutationalStage`] which caps
+/// restarts to 3 per corpus item via `RetryCountRestartHelper`. When `max_retries` is 0, retries
+/// are unlimited. When `max_retries > 0`, the limit is enforced per corpus item.
+pub struct PuffinMutationalStage<E, EM, I1, I2, M, S, Z> {
+    inner: StdMutationalStage<E, EM, I1, I2, M, S, Z>,
+    max_retries: usize,
+    retry_count: usize,
+}
 
 impl<E, EM, I, M, S, Z> PuffinMutationalStage<E, EM, I, I, M, S, Z>
 where
@@ -374,14 +375,22 @@ where
     S: HasCorpus<I> + HasRand + HasCurrentCorpusId + MaybeHasClientPerfMonitor,
     Z: Evaluator<E, EM, I, S>,
 {
-    pub fn with_max_iterations(mutator: M, max_iterations: NonZeroUsize) -> Self {
-        Self(StdMutationalStage::with_max_iterations(mutator, max_iterations))
+    pub fn with_max_iterations(
+        mutator: M,
+        max_iterations: NonZeroUsize,
+        max_retries: usize,
+    ) -> Self {
+        Self {
+            inner: StdMutationalStage::with_max_iterations(mutator, max_iterations),
+            max_retries,
+            retry_count: 0,
+        }
     }
 }
 
 impl<E, EM, I1, I2, M, S, Z> Named for PuffinMutationalStage<E, EM, I1, I2, M, S, Z> {
     fn name(&self) -> &Cow<'static, str> {
-        self.0.name()
+        self.inner.name()
     }
 }
 
@@ -406,16 +415,21 @@ where
         state: &mut S,
         manager: &mut EM,
     ) -> Result<(), Error> {
-        self.0.perform(fuzzer, executor, state, manager)
+        self.inner.perform(fuzzer, executor, state, manager)
     }
 }
 
 impl<E, EM, I1, I2, M, S, Z> Restartable<S> for PuffinMutationalStage<E, EM, I1, I2, M, S, Z> {
     fn should_restart(&mut self, _state: &mut S) -> Result<bool, Error> {
-        Ok(true)
+        if self.max_retries == 0 {
+            return Ok(true);
+        }
+        self.retry_count += 1;
+        Ok(self.retry_count <= self.max_retries)
     }
 
     fn clear_progress(&mut self, _state: &mut S) -> Result<(), Error> {
+        self.retry_count = 0;
         Ok(())
     }
 }

@@ -79,6 +79,8 @@ pub struct MutationStageConfig {
     pub max_mutations_pow_per_iteration: u64,
     // Whether to truncate the input after mutations, prior to adding it to the corpus
     pub with_truncation: bool,
+    /// Max retries per corpus item in mutational stages. 0 = unlimited.
+    pub mutational_retries: usize,
 }
 
 impl Default for MutationStageConfig {
@@ -88,6 +90,7 @@ impl Default for MutationStageConfig {
             max_iterations_per_stage: NonZeroUsize::new(128).unwrap(),
             max_mutations_pow_per_iteration: 7,
             with_truncation: false,
+            mutational_retries: 0,
             // Default for StdMutationalStage and StdMutationalStage (=HavocScheduledMutator)
         }
     }
