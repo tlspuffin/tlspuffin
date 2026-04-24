@@ -1,6 +1,6 @@
-From d813d9aefe8d413df97fc590e83a2daa3c6f407f Mon Sep 17 00:00:00 2001
+From 36e2febb5d9df42f96f91f4aea457f7fb5060ab0 Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
-Date: Wed, 21 Jan 2026 16:58:15 +0100
+Date: Fri, 24 Apr 2026 14:57:00 +0200
 Subject: [PATCH 1/3] Modifications of CLI client and server used by Puffin
 
 ---
@@ -9,10 +9,10 @@ Subject: [PATCH 1/3] Modifications of CLI client and server used by Puffin
  2 files changed, 83 insertions(+), 18 deletions(-)
 
 diff --git a/examples/ci_server.c b/examples/ci_server.c
-index 655072153..1cde798f7 100644
+index c97600d83..00f47b88f 100644
 --- a/examples/ci_server.c
 +++ b/examples/ci_server.c
-@@ -14,7 +14,7 @@
+@@ -13,7 +13,7 @@
  #include "common.h"
  
  /* This is a test server to the ci script. It can be used for some of the examples that need a server to connect.
@@ -21,7 +21,7 @@ index 655072153..1cde798f7 100644
  * The server has a method "hello world" and a variable "the answer" that can be written to.
  * The server certificate and private key are loaded from the command line arguments.
  */
-@@ -130,20 +130,32 @@ int main(int argc, char* argv[]) {
+@@ -129,20 +129,32 @@ int main(int argc, char* argv[]) {
      UA_Server *server = UA_Server_new();
      UA_ServerConfig *config = UA_Server_getConfig(server);
  
@@ -61,7 +61,7 @@ index 655072153..1cde798f7 100644
                       "<port> <server-certificate.der> <private-key.der> "
                       "[<trustlist1.crl>, ...]");
  
-@@ -152,11 +164,11 @@ int main(int argc, char* argv[]) {
+@@ -151,11 +163,11 @@ int main(int argc, char* argv[]) {
  
      /* Load the trustlist */
      size_t trustListSize = 0;
@@ -76,7 +76,7 @@ index 655072153..1cde798f7 100644
  
      /* Loading of an issuer list, not used in this application */
      size_t issuerListSize = 0;
-@@ -171,27 +183,35 @@ int main(int argc, char* argv[]) {
+@@ -170,27 +182,35 @@ int main(int argc, char* argv[]) {
                                                         trustList, trustListSize,
                                                         issuerList, issuerListSize,
                                                         revocationList, revocationListSize);
@@ -213,5 +213,5 @@ index e07548ebc..2301c2d28 100644
          UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Could not connect");
          UA_Client_delete(client);
 -- 
-2.51.0
+2.53.0
 
