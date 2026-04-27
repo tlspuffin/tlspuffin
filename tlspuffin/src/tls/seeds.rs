@@ -2805,7 +2805,7 @@ pub fn create_corpus(
         seed_client_attacker12: put.supports("tls12"),
         // Session resumption
         seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
-        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption") && put.supports("psk_ke_support"),
         // Server Attackers
         seed_server_attacker_full: put.supports("tls13"),
         seed_server_attacker_full_coalesced: put.supports("tls13"),
@@ -2947,7 +2947,8 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth)))]
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, psk_ke_support, not(disable_postauth))
+    )]
     fn test_seed_session_resumption_ke(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_ke.build_trace();
