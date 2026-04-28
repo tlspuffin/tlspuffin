@@ -4,8 +4,8 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 
-use libafl::prelude::*;
 use libafl::prelude::mutational::MutatedTransform;
+use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
 /// A [`Mutator`] that schedules one of the embedded mutations on each call.
@@ -366,7 +366,6 @@ where
 pub struct PuffinMutationalStage<E, EM, I1, I2, M, S, Z> {
     inner: StdMutationalStage<E, EM, I1, I2, M, S, Z>,
     max_retries: usize,
-    retry_count: usize,
 }
 
 impl<E, EM, I, M, S, Z> PuffinMutationalStage<E, EM, I, I, M, S, Z>
@@ -376,11 +375,14 @@ where
     S: HasCorpus<I> + HasRand + HasCurrentCorpusId + MaybeHasClientPerfMonitor,
     Z: Evaluator<E, EM, I, S>,
 {
-    pub fn with_max_iterations(mutator: M, max_iterations: NonZeroUsize, max_retries: usize) -> Self {
+    pub fn with_max_iterations(
+        mutator: M,
+        max_iterations: NonZeroUsize,
+        max_retries: usize,
+    ) -> Self {
         Self {
             inner: StdMutationalStage::with_max_iterations(mutator, max_iterations),
             max_retries,
-            retry_count: 0,
         }
     }
 }
@@ -416,17 +418,15 @@ where
     }
 }
 
-impl<E, EM, I1, I2, M, S, Z> Restartable<S> for PuffinMutationalStage<E, EM, I1, I2, M, S, Z> {
-    fn should_restart(&mut self, _state: &mut S) -> Result<bool, Error> {
-        if self.max_retries == 0 {
-            return Ok(true);
-        }
-        self.retry_count += 1;
-        Ok(self.retry_count <= self.max_retries)
+impl<E, EM, I1, I2, M, S, Z> Restartable<S> for PuffinMutationalStage<E, EM, I1, I2, M, S, Z>
+where
+    S: HasMetadata + HasNamedMetadata + HasCurrentCorpusId,
+{
+    fn should_restart(&mut self, state: &mut S) -> Result<bool, Error> {
+        RetryCountRestartHelper::should_restart(state, &self.name(), self.max_retries)
     }
 
-    fn clear_progress(&mut self, _state: &mut S) -> Result<(), Error> {
-        self.retry_count = 0;
-        Ok(())
+    fn clear_progress(&mut self, state: &mut S) -> Result<(), Error> {
+        RetryCountRestartHelper::clear_progress(state, &self.name())
     }
 }
