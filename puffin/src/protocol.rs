@@ -14,6 +14,7 @@ use crate::codec;
 use crate::differential::TraceDifference;
 use crate::error::Error;
 use crate::put::PutDescriptor;
+use crate::put_registry::{Factory, PutRegistry};
 use crate::trace::{Knowledge, Source, Trace};
 
 pub trait AsAny {
@@ -260,6 +261,61 @@ pub trait ProtocolTypes:
     fn differential_fuzzing_filter_diff(diff: &TraceDifference) -> bool;
 }
 
+/// A function producing the seeds of one named corpus for a single PUT factory.
+///
+/// It returns the `(trace, name)` seeds that the given PUT supports (a PUT that
+/// lacks the capabilities a seed needs should simply omit it). Registered per
+/// protocol through [`ProtocolBehavior::corpus_registry`].
+pub type CorpusBuilder<PB> =
+    fn(&dyn Factory<PB>) -> Vec<(Trace<<PB as ProtocolBehavior>::ProtocolTypes>, &'static str)>;
+
+/// Build the seeds for the requested `corpus_list`, restricted to the
+/// intersection of what every PUT in `puts` supports.
+///
+/// Each named corpus is produced per PUT via its [`CorpusBuilder`]; a seed is
+/// kept only if it is present for *every* requested PUT (matched by name). When
+/// the same seed name appears in more than one requested corpus, the first
+/// occurrence (in `corpus_list` order) wins. Traces are PUT-independent, so the
+/// trace built for the first PUT is used.
+pub fn build_corpus<PB: ProtocolBehavior>(
+    put_registry: &PutRegistry<PB>,
+    puts: &[PutDescriptor],
+    corpus_list: &[String],
+) -> Vec<(Trace<PB::ProtocolTypes>, &'static str)> {
+    let builders = PB::corpus_registry();
+    let factories: Vec<&dyn Factory<PB>> = puts
+        .iter()
+        .map(|put| {
+            put_registry
+                .find_by_id(&put.factory)
+                .unwrap_or_else(|| panic!("PUT {} not found in registry", put.factory))
+        })
+        .collect();
+
+    let mut seen = std::collections::HashSet::new();
+    let mut corpus = Vec::new();
+    for name in corpus_list {
+        let Some(builder) = builders.iter().find(|(n, _)| n == name).map(|(_, b)| *b) else {
+            log::warn!("unknown corpus '{name}', skipping");
+            continue;
+        };
+
+        let per_put: Vec<_> = factories.iter().map(|factory| builder(*factory)).collect();
+        let Some((first, rest)) = per_put.split_first() else {
+            continue; // no PUTs selected
+        };
+        for (trace, seed_name) in first {
+            let supported_by_all = rest
+                .iter()
+                .all(|seeds| seeds.iter().any(|(_, n)| n == seed_name));
+            if supported_by_all && seen.insert(*seed_name) {
+                corpus.push((trace.clone(), *seed_name));
+            }
+        }
+    }
+    corpus
+}
+
 /// Defines the protocol which is being tested.
 ///
 /// The fuzzer is generally abstract over the used protocol. We assume that protocols have
@@ -286,8 +342,15 @@ pub trait ProtocolBehavior: 'static {
     type OpaqueProtocolMessageFlight: OpaqueProtocolMessageFlight<Self::ProtocolTypes, Self::OpaqueProtocolMessage>
         + From<Self::ProtocolMessageFlight>;
 
-    /// Creates a sane initial seed corpus.
-    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)>;
+    /// Named corpus builders offered by this protocol.
+    ///
+    /// Each entry maps a corpus name (as accepted by the `seed --corpus` CLI
+    /// flag) to a [`CorpusBuilder`] producing that corpus' seeds for a single
+    /// PUT. Registering a new corpus is a matter of adding one line here. The
+    /// list is ordered; the default is no corpus at all.
+    fn corpus_registry() -> Vec<(&'static str, CorpusBuilder<Self>)> {
+        vec![]
+    }
 
     /// Downcast from `Box<dyn Any>` and encode as bitstring any message as per the PB's internal
     /// structure

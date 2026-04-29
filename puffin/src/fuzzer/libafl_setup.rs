@@ -21,7 +21,7 @@ use crate::fuzzer::stages::FocusScheduledMutator;
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
 use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
-use crate::protocol::{ProtocolBehavior, ProtocolTypes};
+use crate::protocol::{build_corpus, ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
 use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 
@@ -582,7 +582,11 @@ where
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder
-            .with_initial_inputs(PB::create_corpus(put_registry.default_put().clone()))
+            .with_initial_inputs(build_corpus(
+                put_registry,
+                &[put_registry.default_put().clone()],
+                &["default".to_string()],
+            ))
             .with_rand(StdRand::new())
             .with_corpus(
                 //InMemoryCorpus::new(),

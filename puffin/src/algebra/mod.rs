@@ -112,7 +112,7 @@ pub mod test_signature {
         ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
         ProtocolTypes,
     };
-    use crate::put::{Put, PutDescriptor, PutOptions};
+    use crate::put::{Put, PutOptions};
     use crate::put_registry::Factory;
     use crate::trace::{Action, InputAction, Knowledge, Source, Step, StepNumber, Trace};
     use crate::{
@@ -635,10 +635,6 @@ pub mod test_signature {
         type ProtocolMessageFlight = TestMessageFlight;
         type ProtocolTypes = TestProtocolTypes;
         type SecurityViolationPolicy = TestSecurityViolationPolicy;
-
-        fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
-            panic!("Not implemented for test stub");
-        }
 
         fn try_read_bytes(
             _bitstring: &[u8],

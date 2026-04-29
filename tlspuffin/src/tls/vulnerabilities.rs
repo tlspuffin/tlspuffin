@@ -2,17 +2,39 @@
 
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::dynamic_function::TypeShape;
+use puffin::put_registry::Factory;
 use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 use puffin::{input_action, term};
 
 use crate::protocol::{
-    AgentType, MessageFlight, TLSDescriptorConfig, TLSProtocolTypes, TLSVersion,
+    AgentType, MessageFlight, TLSDescriptorConfig, TLSProtocolBehavior, TLSProtocolTypes,
+    TLSVersion,
 };
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::*;
 use crate::tls::rustls::msgs::enums::HandshakeType;
 use crate::tls::rustls::msgs::message::OpaqueMessage;
 use crate::tls::seeds::*;
+
+/// The `vulnerabilities` corpus: known CVE reproducers. These seeds are not
+/// gated on PUT capabilities.
+pub fn create_corpus(
+    _put: &dyn Factory<TLSProtocolBehavior>,
+) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
+    puffin::corpus!(
+        seed_cve_2022_25638: true,
+        seed_cve_2022_25640: true,
+        seed_cve_2021_3449: true,
+        seed_freak: true,
+        seed_cve_2022_25640_simple: true,
+        seed_cve_2022_38153: true,
+        seed_cve_simple_2022_38153: true,
+        seed_cve_2022_39173: true,
+        seed_cve_2022_39173_full: true,
+        seed_cve_2022_39173_minimized: true,
+        seed_cve_2024_5814: true,
+    )
+}
 
 /// <https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2022-25638>
 pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
