@@ -2767,31 +2767,10 @@ fn decrypt_handshake_from_claims() -> Term<TLSProtocolTypes> {
     }
 }
 
-macro_rules! corpus {
-    () => {
-        vec![]
-    };
-
-    ( $( $func:ident : $cond:expr ),* $(,)? ) => {
-        {
-            use puffin::trace_helper::TraceHelper;
-            let mut corpus = vec![];
-
-            $(
-                if $cond {
-                    corpus.push(($func.build_trace(), $func.fn_name()));
-                }
-            )*
-
-            corpus
-        }
-    };
-}
-
 pub fn create_corpus(
     put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
 ) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
-    corpus!(
+    puffin::corpus!(
         // Full Handshakes
         seed_successful: put.supports("tls13"),
         seed_successful_with_ccs: put.supports("tls13"),
