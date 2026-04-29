@@ -1,15 +1,37 @@
 #![allow(dead_code)]
 /// This modules contains reproducer for RFC violations found with differential fuzzing
 use puffin::agent::{AgentDescriptor, AgentName};
+use puffin::put_registry::Factory;
 use puffin::trace::{Action, InputAction, OutputAction, Step, Trace};
 use puffin::{input_action, term};
 
 use crate::protocol::{
-    AgentType, MessageFlight, TLSDescriptorConfig, TLSProtocolTypes, TLSVersion,
+    AgentType, MessageFlight, TLSDescriptorConfig, TLSProtocolBehavior, TLSProtocolTypes,
+    TLSVersion,
 };
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::*;
 use crate::tls::rustls::msgs::enums::HandshakeType;
+
+/// The `differential_rfc` corpus: reproducers for RFC violations found via differential
+/// fuzzing. These seeds are currently not gated on PUT capabilities.
+pub fn create_corpus(
+    _put: &dyn Factory<TLSProtocolBehavior>,
+) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
+    puffin::corpus!(
+        rfc_violation_alert_unsupported_cipher_suite: true,
+        rfc_violation_alert_bad_key_share: true,
+        rfc_violation_missing_alert_out_of_order_encrypted: true,
+        rfc_violation_bad_alert_non_requested_psk: true,
+        rfc_violation_incorrect_keyshare_after_hrr: true,
+        rfc_violation_no_alert_duplicate_extension: true,
+        rfc_violation_missing_supported_group: true,
+        rfc_violation_changing_cipher_after_hrr: true,
+        rfc_violation_no_change_after_hrr: true,
+        rfc_violation_incorrect_extension_in_sh: true,
+        rfc_violation_client_changing_cipher_hrr: true,
+    )
+}
 
 /// RFC violation triggering bad wolfSSL alert when SH contains unsupported cipher (HandshakeFailure
 /// instead of IllegalParameter)

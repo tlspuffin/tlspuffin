@@ -8,10 +8,9 @@ use puffin::codec;
 use puffin::codec::{Codec, Reader, VecCodecWoSize};
 use puffin::error::Error;
 use puffin::protocol::{
-    EvaluatedTerm, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
+    CorpusBuilder, EvaluatedTerm, OpaqueProtocolMessageFlight, ProtocolBehavior, ProtocolMessage,
     ProtocolMessageDeframer, ProtocolMessageFlight, ProtocolTypes,
 };
-use puffin::put::PutDescriptor;
 use puffin::trace::Trace;
 use serde::{Deserialize, Serialize};
 
@@ -228,7 +227,7 @@ impl ProtocolBehavior for SshProtocolBehavior {
     type ProtocolTypes = SshProtocolTypes;
     type SecurityViolationPolicy = SshSecurityViolationPolicy;
 
-    fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
+    fn corpus_registry() -> Vec<(&'static str, CorpusBuilder<Self>)> {
         vec![] // TODO
     }
 
