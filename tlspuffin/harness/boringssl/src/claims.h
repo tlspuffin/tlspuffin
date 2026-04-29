@@ -27,6 +27,7 @@ extern "C"
         size_t exporter_secret_len;
         uint8_t early_traffic[CLAIM_MAX_SECRET_SIZE];
         size_t early_traffic_len;
+        uint16_t signature_algorithm;
     } SnappedTLS13Secrets;
 
     // ---------------------------------------------------------------------------

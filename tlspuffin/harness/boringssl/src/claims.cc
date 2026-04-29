@@ -304,6 +304,9 @@ extern "C" void boringssl_snapshot_secrets(void *agent_opaque)
         memcpy(secrets.early_traffic, hs->early_traffic_secret.data(), secrets.early_traffic_len);
     }
 
+    // Signature algorithm (TLS wire format, e.g. 0x0804 for rsa_pss_rsae_sha256)
+    secrets.signature_algorithm = hs->signature_algorithm;
+
     boringssl_agent_store_snapped_secrets(agent_opaque, &secrets);
 }
 
@@ -611,6 +614,18 @@ extern "C" void boringssl_fill_claim(void *agent_opaque, Claim *claim)
         if (chosen != NULL)
         {
             claim->chosen_cipher.data = (unsigned short)(SSL_CIPHER_get_id(chosen) & 0xFFFF);
+        }
+    }
+
+    // Signature algorithm: read from snapped secrets (hs freed after handshake).
+    // hs->signature_algorithm holds the TLS wire value (e.g. 0x0804 for rsa_pss_rsae_sha256).
+    {
+        SnappedTLS13Secrets snapped_sigalg;
+        bool have_snapped_sigalg =
+            boringssl_agent_get_snapped_secrets(agent_opaque, &snapped_sigalg);
+        if (have_snapped_sigalg && snapped_sigalg.signature_algorithm != 0)
+        {
+            claim->signature_algorithm = (int)snapped_sigalg.signature_algorithm;
         }
     }
 
