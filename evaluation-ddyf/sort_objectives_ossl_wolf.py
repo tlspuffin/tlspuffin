@@ -370,8 +370,8 @@ buckets: dict[str, BucketCondition] = {
     # RFC violation: duplicate extension in SH cause wolf to abord without alert message
     "duplicate_ext_sh/": AllC(
         KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
-        StatusC(WOLF, in_error="error in PUT : Duplicate TLS extension in message."),
-        StatusC(OSSL, "tls_collect_extensions:bad extension"),
+        StatusC(WOLF, in_error="error in PUT : Duplicate TLS extension in message.", first_to_fail=False),
+        StatusC(OSSL, "tls_collect_extensions:bad extension", first_to_fail=False),
         TermContainsReC(
             OSSL,
             r"fn_server_hello\(\s*",
@@ -577,12 +577,21 @@ buckets: dict[str, BucketCondition] = {
         "BothAlert([Description(Different(MissingExtension, UnexpectedMessage))])"
     ),
     # catch potential vulnerability patterns
-    "cve/": AllC(
-        KnowledgeContainsC(WOLF, "Finished"),
-        NotC(KnowledgeContainsC(OSSL, "Finished")),
-        ClaimContainsC(WOLF, r".*master_secret: \[[1-9][0-9]*,.*"),
-        NotC(ClaimContainsC(OSSL, r".*master_secret: \[[1-9][0-9]*,.*")),
+        "cve/": AnyC(
+        AllC(
+            KnowledgeContainsC(WOLF, "Finished"),
+            NotC(KnowledgeContainsC(OSSL, "Finished")),
+            ClaimContainsC(WOLF, r".*master_secret: \[[1-9][0-9]*,.*"),
+            NotC(ClaimContainsC(OSSL, r".*master_secret: \[[1-9][0-9]*,.*")),
+        ),
+        AllC(
+            KnowledgeContainsC(OSSL, "Finished"),
+            NotC(KnowledgeContainsC(WOLF, "Finished")),
+            ClaimContainsC(OSSL, r".*master_secret: \[[1-9][0-9]*,.*"),
+            NotC(ClaimContainsC(WOLF, r".*master_secret: \[[1-9][0-9]*,.*")),
+        ),
     ),
+
 }
 
 if __name__ == "__main__":
