@@ -82,7 +82,7 @@ def get_error(errors) -> str:
     elif err.get("Knowledges") is not None:
         if err.get("Knowledges").get("InnerDifference") is not None:
             diff = err.get("Knowledges").get("InnerDifference")
-            return f"Knowledge::Inner[{diff.get('type')}]:{diff.get('diff')}"
+            return f"Knowledge::Inner[{diff.get('type_name')}]:{diff.get('diff')}"
         elif err.get("Knowledges").get("DifferentTypes") is not None:
             diff = err.get("Knowledges").get("DifferentTypes")
             return f"Knowledge::Different[{diff.get('first_type')}][{diff.get('second_type')}]"
