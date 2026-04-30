@@ -1,14 +1,23 @@
 diff --git a/crypto/rand/deterministic.cc b/crypto/rand/deterministic.cc
 --- a/crypto/rand/deterministic.cc
 +++ b/crypto/rand/deterministic.cc
-@@ -36,16 +36,12 @@
+@@ -36,16 +36,21 @@
 -static uint64_t g_num_calls = 0;
 -static StaticMutex g_num_calls_lock;
 -
 -void RAND_reset_for_fuzzing() { g_num_calls = 0; }
 +static thread_local uint64_t g_num_calls = 0;
-+void RAND_reset_for_fuzzing() { g_num_calls = 0; }
- 
++void RAND_reset_for_fuzzing() {
++  g_num_calls = 0;
++  // Reset the CTR-DRBG thread-local state so the next RAND_bytes() call
++  // re-initialises it from CRYPTO_sysrand (which is deterministic after reset).
++  void *state = CRYPTO_get_thread_local(OPENSSL_THREAD_LOCAL_RAND);
++  if (state != nullptr) {
++    OPENSSL_free(state);
++    CRYPTO_set_thread_local(OPENSSL_THREAD_LOCAL_RAND, nullptr, nullptr);
++  }
++}
+
  void bssl::CRYPTO_init_sysrand() {}
  
  void bssl::CRYPTO_sysrand(uint8_t *out, size_t requested) {
