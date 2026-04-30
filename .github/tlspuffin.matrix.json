@@ -417,33 +417,5 @@
         "cputs"
       ]
     }
-  },
-  {
-    "labels": [],
-    "name": "boringssl202403",
-    "mk_vendor": {
-      "vendor": "boringssl",
-      "preset": "boringssl202403"
-    },
-    "cargo": {
-      "name": "boringssl202403",
-      "features": []
-    }
-  },
-  {
-    "labels": [
-      "fast"
-    ],
-    "name": "boringssl202403-asan",
-    "mk_vendor": {
-      "vendor": "boringssl",
-      "preset": "boringssl202403-asan"
-    },
-    "cargo": {
-      "name": "boringssl202403",
-      "features": [
-        "asan"
-      ]
-    }
   }
 ]
