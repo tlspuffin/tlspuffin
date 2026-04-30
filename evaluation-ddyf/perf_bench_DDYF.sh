@@ -2,7 +2,7 @@
 
 export LIBAFL_EDGES_MAP_SIZE=262144
 
-TIMEOUT='10s'
+TIMEOUT='1h'
 CORES="0-3"
 PORT=2000
 
@@ -31,19 +31,36 @@ echo 'Generate seeds for diff fuzzing'
 PIPENAME="pipe_1"
 mkfifo $PIPENAME
 
-# Run the diff fuzzing campaign
+# run classical fuzzing campaigns
+timeout -s KILL $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORES --put wolfssl580 experiment --title "perf_wolfssl" 2>&1 | tee -i $PIPENAME &
+wolf_run="$(grep -oP "stats_file: \"\K(.*?)\"" < $PIPENAME | sed "s/\"//")"
+
+rm -rf objectives seeds corpus experiments
+
+timeout -s KILL $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORES --put openssl340 experiment --title "perf_openssl" 2>&1 | tee -i $PIPENAME &
+ossl_run="$(grep -oP "stats_file: \"\K(.*?)\"" < $PIPENAME | sed "s/\"//")"
+
+# Run the diff fuzzing campaigns
 timeout -s KILL $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORES differential-experiment wolfssl580 openssl340 --title "perf_ossl_vs_wolf" 2>&1 | tee -i $PIPENAME &
 diff_run="$(grep -oP "stats_file: \"\K(.*?)\"" < $PIPENAME | sed "s/\"//")"
+
+rm -rf objectives seeds corpus experiments
 
 timeout -s KILL $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORES differential-experiment openssl340 openssl340 --title "perf_ossl_vs_ossl" 2>&1 | tee -i $PIPENAME &
 diff_run_same_ossl="$(grep -oP "stats_file: \"\K(.*?)\"" < $PIPENAME | sed "s/\"//")"
 
+rm -rf objectives seeds corpus experiments
+
 timeout -s KILL $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORES differential-experiment wolfssl580 wolfssl580 --title "perf_wolf_vs_wolf" 2>&1 | tee -i $PIPENAME &
 diff_run_same_wolf="$(grep -oP "stats_file: \"\K(.*?)\"" < $PIPENAME | sed "s/\"//")"
+
+rm -rf objectives seeds corpus experiments
 
 
 rm $PIPENAME
 
+get_execution_number "$wolf_run" "wolfSSL run"
+get_execution_number "$ossl_run" "OpenSSL run"
 get_execution_number "$diff_run" "Differential run OpenSSL vs wolfSSL"
 get_execution_number "$diff_run_same_ossl" "Differential run OpenSSL vs OpenSSL"
 get_execution_number "$diff_run_same_wolf" "Differential run wolfSSL vs wolfSSL"

@@ -1,0 +1,35 @@
+layout {
+    default_tab_template {
+        pane size=1 borderless=true {
+            plugin location="zellij:tab-bar"
+        }
+        children
+        pane size=1 borderless=true {
+            plugin location="zellij:status-bar"
+        }
+    }
+    // tab name="fingerprinting experiment" {
+    //     pane  split_direction="vertical" {
+    //         pane name="Reproducing CVEs 1-10" start_suspended=true command="zsh" { args "-c" "./reproducing_cve.sh 1 10 0 0; zsh"; }
+    //         pane name="Reproducing CVEs 11-20" start_suspended=true command="zsh" { args "-c" "./reproducing_cve.sh 11 20 8 0; zsh"; }
+    //         pane name="Reproducing CVEs 21-30" start_suspended=true command="zsh" { args "-c" "./reproducing_cve.sh 21 30 16 0; zsh"; }
+    //         pane name="Reproducing CVEs 31-40" start_suspended=true command="zsh" { args "-c" "./reproducing_cve.sh 31 40 24 0; zsh"; }
+    //         pane name="Reproducing CVEs 41-50" start_suspended=true command="zsh" { args "-c" "./reproducing_cve.sh 41 50 32 0; zsh"; }
+    //     }
+    // }
+    tab name="Reproducing CVEs 1-10" {
+            pane name="Reproducing CVEs 1-10" start_suspended=true command="zsh" { args "-c" "./evaluation-ddyf/reproducing_cve.sh 1 10 0 0; zsh"; }
+    }
+    tab name="Reproducing CVEs 11-20" {
+            pane name="Reproducing CVEs 11-20" start_suspended=true command="zsh" { args "-c" "./evaluation-ddyf/reproducing_cve.sh 11 20 8 0; zsh"; }
+    }
+    tab name="Reproducing CVEs 21-30" {
+            pane name="Reproducing CVEs 21-30" start_suspended=true command="zsh" { args "-c" "./evaluation-ddyf/reproducing_cve.sh 21 30 16 0; zsh"; }
+    }
+    tab name="Reproducing CVEs 31-40" {
+            pane name="Reproducing CVEs 31-40" start_suspended=true command="zsh" { args "-c" "./evaluation-ddyf/reproducing_cve.sh 31 40 24 0; zsh"; }
+    }
+    tab name="Reproducing CVEs 41-50" {
+            pane name="Reproducing CVEs 41-50" start_suspended=true command="zsh" { args "-c" "./evaluation-ddyf/reproducing_cve.sh 41 50 32 0; zsh"; }
+    }
+}
