@@ -5,7 +5,8 @@
     feature = "openssl111k",
     feature = "openssl111j",
     feature = "openssl111u",
-    feature = "openssl312"
+    feature = "openssl312",
+    feature = "openssl340"
 )))]
 compile_error!(concat!(
     "You need to select one feature in [",
@@ -15,7 +16,8 @@ compile_error!(concat!(
     "'openssl111k', ",
     "'openssl111j', ",
     "'openssl111u', ",
-    "'openssl312'",
+    "'openssl312', ",
+    "'openssl340'",
     "]"
 ));
 
@@ -26,21 +28,28 @@ compile_error!(concat!(
     all(feature = "libressl333", feature = "openssl111j"),
     all(feature = "libressl333", feature = "openssl111u"),
     all(feature = "libressl333", feature = "openssl312"),
+    all(feature = "libressl333", feature = "openssl340"),
     all(feature = "openssl101f", feature = "openssl102u"),
     all(feature = "openssl101f", feature = "openssl111k"),
     all(feature = "openssl101f", feature = "openssl111j"),
     all(feature = "openssl101f", feature = "openssl111u"),
     all(feature = "openssl101f", feature = "openssl312"),
+    all(feature = "openssl101f", feature = "openssl340"),
     all(feature = "openssl102u", feature = "openssl111k"),
     all(feature = "openssl102u", feature = "openssl111j"),
     all(feature = "openssl102u", feature = "openssl111u"),
     all(feature = "openssl102u", feature = "openssl312"),
+    all(feature = "openssl102u", feature = "openssl340"),
     all(feature = "openssl111k", feature = "openssl111j"),
     all(feature = "openssl111k", feature = "openssl111u"),
     all(feature = "openssl111k", feature = "openssl312"),
+    all(feature = "openssl111k", feature = "openssl340"),
     all(feature = "openssl111j", feature = "openssl111u"),
     all(feature = "openssl111j", feature = "openssl312"),
+    all(feature = "openssl111j", feature = "openssl340"),
     all(feature = "openssl111u", feature = "openssl312"),
+    all(feature = "openssl111u", feature = "openssl340"),
+    all(feature = "openssl312", feature = "openssl340"),
 ))]
 compile_error!(concat!(
     "Incompatible features requested. Only one of [",
@@ -50,7 +59,8 @@ compile_error!(concat!(
     "'openssl111k', ",
     "'openssl111j', ",
     "'openssl111u', ",
-    "'openssl312'",
+    "'openssl312', ",
+    "'openssl340'",
     "] can be enabled at the same time."
 ));
 

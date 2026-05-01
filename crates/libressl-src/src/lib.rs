@@ -3,7 +3,9 @@ use std::path::{Path, PathBuf};
 
 use puffin_build::{library, vendor_dir};
 
-const PRESET: &str = if cfg!(feature = "libressl333") {
+const PRESET: &str = if cfg!(feature = "libressl421") {
+    "libressl421"
+} else if cfg!(feature = "libressl333") {
     "libressl333"
 } else {
     panic!("Missing LibreSSL version. Use --features=[libresslxxxx] to set the version.");

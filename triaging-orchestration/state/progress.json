@@ -1,0 +1,8 @@
+{
+  "current_round": 3,
+  "total_traces": 20975,
+  "traces_analyzed_so_far": 508,
+  "buckets_defined": 24,
+  "unclassified_after_last_run": 12229,
+  "rejected_buckets": []
+}

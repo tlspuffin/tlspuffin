@@ -6,7 +6,9 @@ use std::path::{Path, PathBuf};
 
 use puffin_build::{library, vendor_dir};
 
-const PRESET: &str = if cfg!(feature = "openssl101f") {
+const PRESET: &str = if cfg!(feature = "openssl340") {
+    "openssl340"
+} else if cfg!(feature = "openssl101f") {
     "openssl101f"
 } else if cfg!(feature = "openssl102u") {
     "openssl102u"

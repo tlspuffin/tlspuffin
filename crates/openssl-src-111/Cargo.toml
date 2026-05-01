@@ -54,9 +54,11 @@ openssl102u = []
 openssl111k = []
 openssl111j = []
 openssl111u = []
+openssl340 = []
 openssl312 = []
 
 libressl333 = ["libressl-src", "libressl", "libressl-src/libressl333"]
+libressl421 = ["libressl-src", "libressl", "libressl-src/libressl421"]
 libressl = []
 
 [dependencies]

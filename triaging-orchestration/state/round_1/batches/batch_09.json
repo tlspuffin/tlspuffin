@@ -1,0 +1,846 @@
+[
+  {
+    "trace": "objective/20260428-215121760-2455c59cde1c6f3d.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(IllegalParameter, DecodeError))]",
+    "claim_diff": null,
+    "tls_version": "V1_3",
+    "failing_input_recipe_ossl": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_cipher_suite13_aes_128_gcm_sha256 -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) -> C",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_cipher_suite13_aes_128_gcm_sha256 -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) -> C",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215125015-f9cf9eb88dfd8c3e.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(IllegalParameter, HandshakeFailure))]",
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_cipher_suite13_aes_128_gcm_sha256 -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) -> C",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_cipher_suite13_aes_128_gcm_sha256 -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) -> C",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215128477-68c8ab32268b27b6.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(IllegalParameter, HandshakeFailure))]",
+    "claim_diff": null,
+    "tls_version": "V1_3",
+    "failing_input_recipe_ossl": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_new_cipher_suites -> Vec<CipherSuite>\n\t) -> CipherSuites,\n\tfn_compressions -> Compressions,\n\tfn_client_extensions_make(\n\t\tfn_client_extensions_append(\n\t",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_new_cipher_suites -> Vec<CipherSuite>\n\t) -> CipherSuites,\n\tfn_compressions -> Compressions,\n\tfn_client_extensions_make(\n\t\tfn_client_extensions_append(\n\t",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215131779-d997a1f116ccb274.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "DifferentTypes[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload][()]",
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_client_key_exchange(\n\tfn_bob_key -> Vec<u8>\n) -> Message",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_client_key_exchange(\n\tfn_bob_key -> Vec<u8>\n) -> Message",
+    "claims_libre": [
+      "TranscriptServerHello(TlsTranscript([22, 158, 186, 37, 137, 237, 1, 57, 154, 170, 34, 80, 39, 9, 173, 160, 24, 83, 15, 119, 43, 206, 253, 204, 167, 99",
+      "TranscriptServerHello(TlsTranscript([129, 241, 191, 193, 44, 68, 100, 96, 202, 187, 207, 119, 39, 57, 148, 214, 246, 171, 27, 14, 250, 149, 92, 69, 70",
+      "TranscriptCertificate(TlsTranscript([205, 227, 107, 79, 147, 5, 57, 29, 49, 172, 234, 216, 26, 18, 52, 2, 77, 205, 201, 226, 230, 202, 238, 250, 138, "
+    ],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215135206-445033739d5171ac.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(HandshakeFailure, UnsupportedExtension))]",
+    "claim_diff": null,
+    "tls_version": "V1_3",
+    "failing_input_recipe_ossl": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_hello_retry_request_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_append_cipher_suite(\n\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\t\t\tfn_weak_",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_hello_retry_request_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_append_cipher_suite(\n\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\t\t\tfn_weak_",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215138658-4d767008cd43069d.trace",
+    "diff_types": [
+      "Status"
+    ],
+    "ossl_error": "SSL_ERROR_SSL (1): 8009782328760000:error:0A0000F4:SSL routines:ossl_statem_client_read_transition:unexpected message:ssl/statem/statem_clnt.c:424:\n",
+    "libre_error": "SSL_ERROR_SSL (1): 129914765838720:error:140043F2:SSL routines:CONNECT_CR_SRVR_HELLO:sslv3 alert unexpected message:/home/nbaffou/dev/tlspuffin/vendor/libressl421/src/vendor/ssl/tls13_lib.c:192:\n",
+    "ossl_steps": 0,
+    "libre_steps": 1,
+    "total_steps": 14,
+    "first_to_fail": "openssl340",
+    "knowledge_diff": null,
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_change_cipher_spec -> Message",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_server_key_exchange(\n\tfn_bob_cert -> Vec<u8>\n) -> Message",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215142502-c7cda1a0bced28f5.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(MissingExtension, IllegalParameter))]",
+    "claim_diff": null,
+    "tls_version": "V1_3",
+    "failing_input_recipe_ossl": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_cipher_suite13_aes_128_gcm_sha256 -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) -> C",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_cipher_suite13_aes_128_gcm_sha256 -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) -> C",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215146196-e2fca674bc0bdfd7.trace",
+    "diff_types": [
+      "Status"
+    ],
+    "ossl_error": "SSL_ERROR_SSL (1): 80799BBD5E720000:error:0A0000F5:SSL routines:ssl3_read_bytes:unexpected record:ssl/record/rec_layer_s3.c:1109:\n",
+    "libre_error": "SSL_ERROR_SSL (1): 125751233575296:error:14007072:SSL routines:CONNECT_CR_CERT:bad message type:/home/nbaffou/dev/tlspuffin/vendor/libressl421/src/vendor/ssl/ssl_clnt.c:1108:\n",
+    "ossl_steps": 4,
+    "libre_steps": 5,
+    "total_steps": 9,
+    "first_to_fail": "openssl340",
+    "knowledge_diff": null,
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_application_data(\n\tfn_empty_bytes_vec -> Vec<u8>\n) -> Message",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_server_hello(\n\t(Some(Agent(AgentName(1))), 0)[None]/ProtocolVersion,\n\t(Some(Agent(AgentName(1))), 0)[None]/Random,\n\tfn_new_session_id -> SessionID,\n\t(Some(Agent(AgentName(1))), 0)[None]/CipherSuite,\n\tfn_compression -> Compression,\n\t(Some(Agent(AgentName(1))), 0)[None]/ServerExtensions\n) -> Messag",
+    "claims_libre": [
+      "TranscriptServerHello(TlsTranscript([59, 108, 69, 65, 35, 157, 20, 158, 10, 115, 89, 134, 110, 125, 94, 89, 186, 255, 115, 54, 130, 249, 217, 0, 180, ",
+      "TranscriptServerHello(TlsTranscript([140, 104, 53, 62, 18, 75, 226, 183, 7, 44, 7, 99, 141, 206, 90, 14, 71, 205, 12, 144, 172, 207, 97, 47, 120, 125,",
+      "TranscriptServerHello(TlsTranscript([236, 227, 36, 165, 61, 230, 66, 208, 213, 201, 129, 104, 129, 78, 48, 149, 19, 105, 29, 76, 127, 108, 31, 112, 48"
+    ],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215149204-81d7acdb2005fa33.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(IllegalParameter, ProtocolVersion))]",
+    "claim_diff": null,
+    "tls_version": "V1_3",
+    "failing_input_recipe_ossl": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_weak_export_cipher_suite -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) -> CipherSuit",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_weak_export_cipher_suite -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) -> CipherSuit",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215153434-0cb39fa90c67d474.trace",
+    "diff_types": [
+      "Claims"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": null,
+    "claim_diff": "DifferentTypes[()][tlspuffin::claims::Finished]",
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_finished(\n\tfn_random_ec_key -> Vec<u8>\n) -> Message",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_finished(\n\tfn_random_ec_key -> Vec<u8>\n) -> Message",
+    "claims_libre": [
+      "Finished { outbound: true, client_random: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], server_ran",
+      "TranscriptClientFinished(TlsTranscript([78, 116, 235, 242, 205, 39, 77, 199, 230, 212, 167, 3, 98, 11, 154, 111, 115, 73, 199, 245, 105, 236, 4, 122, "
+    ],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215156205-20c169a2a55a8284.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(IllegalParameter, DecodeError))]",
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_fill_binder(\n\tfn_client_hello(\n\t\tfn_protocol_version13 -> ProtocolVersion,\n\t\tfn_hello_retry_request_random -> Random,\n\t\tfn_empty_session_id -> SessionID,\n\t\tfn_cipher_suites_make(\n\t\t\tfn_append_cipher_suite(\n\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\t\t\tfn_weak_exp",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_fill_binder(\n\tfn_client_hello(\n\t\tfn_protocol_version13 -> ProtocolVersion,\n\t\tfn_hello_retry_request_random -> Random,\n\t\tfn_empty_session_id -> SessionID,\n\t\tfn_cipher_suites_make(\n\t\t\tfn_append_cipher_suite(\n\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\t\t\tfn_weak_exp",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215200124-d0f4d5a14ee1ea59.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(IllegalParameter, DecodeError))]",
+    "claim_diff": null,
+    "tls_version": "V1_3",
+    "failing_input_recipe_ossl": "fn_client_hello(\n\tfn_protocol_version13 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_empty_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_cipher_suite13_aes_256_gcm_sha384 -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) ->",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_client_hello(\n\tfn_protocol_version13 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_empty_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_cipher_suite13_aes_256_gcm_sha384 -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) ->",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215203322-50b36836a695f6d5.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(IllegalParameter, DecodeError))]",
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_fill_binder(\n\tfn_client_hello(\n\t\tfn_protocol_version12 -> ProtocolVersion,\n\t\tfn_hello_retry_request_random -> Random,\n\t\tfn_empty_session_id -> SessionID,\n\t\tfn_cipher_suites_make(\n\t\t\tfn_append_cipher_suite(\n\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_fill_binder(\n\tfn_client_hello(\n\t\tfn_protocol_version12 -> ProtocolVersion,\n\t\tfn_hello_retry_request_random -> Random,\n\t\tfn_empty_session_id -> SessionID,\n\t\tfn_cipher_suites_make(\n\t\t\tfn_append_cipher_suite(\n\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215206634-7cfdc78a17f8ff9c.trace",
+    "diff_types": [
+      "Status"
+    ],
+    "ossl_error": "SSL_ERROR_SSL (1): 8039D50A0D7F0000:error:0A0000F4:SSL routines:ossl_statem_client_read_transition:unexpected message:ssl/statem/statem_clnt.c:424:\n",
+    "libre_error": "error evaluating a term: --> Unable to find variable (Some(Agent(AgentName(1))), 0)[Some(Handshake(Some(ServerKeyExchange)))]/Vec<u8>!",
+    "ossl_steps": 0,
+    "libre_steps": 2,
+    "total_steps": 14,
+    "first_to_fail": "openssl340",
+    "knowledge_diff": null,
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_change_cipher_spec -> Message",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_application_data(\n\t(Some(Agent(AgentName(1))), 0)[Some(Handshake(Some(ServerKeyExchange)))]/Vec<u8>\n) -> Message",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215209690-a0d8c6c64af8afda.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(IllegalParameter, ProtocolVersion))]",
+    "claim_diff": null,
+    "tls_version": "V1_3",
+    "failing_input_recipe_ossl": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_cipher_suite13_aes_128_ccm_sha256 -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) -> C",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_cipher_suite13_aes_128_ccm_sha256 -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) -> C",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215212668-02052fae53715361.trace",
+    "diff_types": [
+      "Claims"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": null,
+    "claim_diff": "DifferentTypes[()][tlspuffin::claims::Finished]",
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_finished(\n\tfn_alice_key -> Vec<u8>\n) -> Message",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_finished(\n\tfn_alice_key -> Vec<u8>\n) -> Message",
+    "claims_libre": [
+      "Finished { outbound: true, client_random: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], server_ran",
+      "TranscriptClientFinished(TlsTranscript([65, 244, 18, 210, 232, 153, 182, 21, 247, 182, 187, 185, 253, 171, 14, 206, 118, 160, 244, 140, 36, 94, 174, 8"
+    ],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215215891-8498cd9c9b135b50.trace",
+    "diff_types": [
+      "Claims"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": null,
+    "claim_diff": "DifferentTypes[()][tlspuffin::claims::Finished]",
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_find_server_finished(\n\tfn_append_flight(\n\t\tfn_append_flight(\n\t\t\tfn_new_flight -> MessageFlight,\n\t\t\tfn_finished(\n\t\t\t\tfn_verify_data(\n\t\t\t\t\tfn_new_transcript12 -> HandshakeHash,\n\t\t\t\t\tfn_new_transcript -> HandshakeHash,\n\t\t\t\t\tfn_no_key_share -> Vec<u8>>,\n\t\t\t\t\tfn_psk(\n\t\t\t\t\t\tfn_new_pubkey12(\n\t\t\t\t\t\t\tfn_n",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_find_server_finished(\n\tfn_append_flight(\n\t\tfn_append_flight(\n\t\t\tfn_new_flight -> MessageFlight,\n\t\t\tfn_finished(\n\t\t\t\tfn_verify_data(\n\t\t\t\t\tfn_new_transcript12 -> HandshakeHash,\n\t\t\t\t\tfn_new_transcript -> HandshakeHash,\n\t\t\t\t\tfn_no_key_share -> Vec<u8>>,\n\t\t\t\t\tfn_psk(\n\t\t\t\t\t\tfn_new_pubkey12(\n\t\t\t\t\t\t\tfn_n",
+    "claims_libre": [
+      "Finished { outbound: true, client_random: [165, 43, 140, 234, 114, 36, 238, 159, 121, 120, 206, 91, 252, 153, 40, 26, 198, 239, 47, 37, 225, 107, 129,",
+      "TranscriptServerFinished(TlsTranscript([88, 43, 132, 8, 177, 91, 77, 24, 150, 253, 79, 84, 210, 23, 163, 91, 112, 233, 123, 99, 88, 142, 79, 213, 56, "
+    ],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215218776-3fdb680d1c3123ef.trace",
+    "diff_types": [
+      "Status"
+    ],
+    "ossl_error": "SSL_ERROR_SSL (1): 804940D5AC700000:error:0A000141:SSL routines:tls_read_record:records not released:ssl/record/methods/tls_common.c:1129:\n804940D5AC700000:error:0A000139:SSL routines::record layer failure:ssl/record/rec_layer_s3.c:693:\n",
+    "libre_error": "error evaluating a term: --> Unable to find variable (Some(Agent(AgentName(0))), 0)[Some(Handshake(Some(ClientKeyExchange)))]/Vec<u8>!",
+    "ossl_steps": 3,
+    "libre_steps": 4,
+    "total_steps": 11,
+    "first_to_fail": "openssl340",
+    "knowledge_diff": null,
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_certificate13(\n\tfn_payload_u8(\n\t\tfn_random_ec_cert -> Vec<u8>\n\t) -> PayloadU8,\n\tfn_certificate_entries_make(\n\t\tfn_empty_certificate_chain -> Vec<CertificateEntry>\n\t) -> CertificateEntries\n) -> Message",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_new_session_ticket(\n\tfn_u64_to_u32(\n\t\tfn_seq_4 -> u64\n\t) -> u32,\n\tfn_payload_u16(\n\t\t(Some(Agent(AgentName(0))), 0)[Some(Handshake(Some(ClientKeyExchange)))]/Vec<u8>\n\t) -> PayloadU16\n) -> Message",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215221731-0335d0eacbcd591b.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(MissingExtension, IllegalParameter))]",
+    "claim_diff": null,
+    "tls_version": "V1_3",
+    "failing_input_recipe_ossl": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_empty_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_cipher_suite13_aes_128_gcm_sha256 -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) ->",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_client_hello(\n\tfn_protocol_version12 -> ProtocolVersion,\n\tfn_new_random -> Random,\n\tfn_empty_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_append_cipher_suite(\n\t\t\tfn_new_cipher_suites -> Vec<CipherSuite>,\n\t\t\tfn_cipher_suite13_aes_128_gcm_sha256 -> CipherSuite\n\t\t) -> Vec<CipherSuite>\n\t) ->",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215224868-208bae06303c2607.trace",
+    "diff_types": [
+      "Status"
+    ],
+    "ossl_error": "SSL_ERROR_SSL (1): 802930A370770000:error:0A0000F4:SSL routines:ossl_statem_client_read_transition:unexpected message:ssl/statem/statem_clnt.c:424:\n",
+    "libre_error": "SSL_ERROR_SSL (1): 131325657885056:error:140043F2:SSL routines:CONNECT_CR_SRVR_HELLO:sslv3 alert unexpected message:/home/nbaffou/dev/tlspuffin/vendor/libressl421/src/vendor/ssl/tls13_lib.c:192:\n",
+    "ossl_steps": 0,
+    "libre_steps": 1,
+    "total_steps": 13,
+    "first_to_fail": "openssl340",
+    "knowledge_diff": null,
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_change_cipher_spec -> Message",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_certificate(\n\tfn_new_certificates -> Vec<Certificate>\n) -> Message",
+    "claims_libre": [
+      "TranscriptCertificate(TlsTranscript([88, 43, 132, 8, 177, 91, 77, 24, 150, 253, 79, 84, 210, 23, 163, 91, 112, 233, 123, 99, 88, 142, 79, 213, 56, 187"
+    ],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215227791-b4d25eee45d5983a.trace",
+    "diff_types": [
+      "Status"
+    ],
+    "ossl_error": "SSL_ERROR_SSL (1): 8079EABB24730000:error:0A0000F4:SSL routines:ossl_statem_server_read_transition:unexpected message:ssl/statem/statem_srvr.c:336:\n",
+    "libre_error": "SSL_ERROR_SSL (1): 126601608722816:error:140043F2:SSL routines:CONNECT_CR_SRVR_HELLO:sslv3 alert unexpected message:/home/nbaffou/dev/tlspuffin/vendor/libressl421/src/vendor/ssl/tls13_lib.c:192:\n",
+    "ossl_steps": 1,
+    "libre_steps": 0,
+    "total_steps": 10,
+    "first_to_fail": "libressl421",
+    "knowledge_diff": null,
+    "claim_diff": null,
+    "tls_version": "V1_3",
+    "failing_input_recipe_ossl": "fn_append_flight(\n\tfn_new_flight -> MessageFlight,\n\tfn_server_hello(\n\t\tfn_protocol_version12 -> ProtocolVersion,\n\t\tfn_hello_retry_request_random -> Random,\n\t\tfn_empty_session_id -> SessionID,\n\t\tfn_cipher_suite13_aes_128_gcm_sha256 -> CipherSuite,\n\t\tfn_compression -> Compression,\n\t\tfn_server_extensio",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_append_flight(\n\tfn_new_flight -> MessageFlight,\n\tfn_hello_request -> Message\n) -> MessageFlight",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215232445-e2f59dce5d1e03ef.trace",
+    "diff_types": [
+      "Status"
+    ],
+    "ossl_error": "SSL_ERROR_SSL (1): 806963CD2B740000:error:0A0000F4:SSL routines:ossl_statem_client_read_transition:unexpected message:ssl/statem/statem_clnt.c:424:\n",
+    "libre_error": "SSL_ERROR_SSL (1): 127731478260096:error:140043F2:SSL routines:CONNECT_CR_SRVR_HELLO:sslv3 alert unexpected message:/home/nbaffou/dev/tlspuffin/vendor/libressl421/src/vendor/ssl/tls13_lib.c:192:\n",
+    "ossl_steps": 1,
+    "libre_steps": 0,
+    "total_steps": 2,
+    "first_to_fail": "libressl421",
+    "knowledge_diff": null,
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_coalesced_flight(\n\tfn_append_flight(\n\t\tfn_new_flight -> MessageFlight,\n\t\tfn_certificate(\n\t\t\tfn_new_certificates -> Vec<Certificate>\n\t\t) -> Message\n\t) -> MessageFlight\n) -> OpaqueMessage",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_empty_handshake_message -> OpaqueMessage",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215235602-18ad802a12d5f624.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(ProtocolVersion, IllegalParameter))]",
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_client_hello(\n\tfn_protocol_version13 -> ProtocolVersion,\n\tfn_hello_retry_request_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_new_cipher_suites -> Vec<CipherSuite>\n\t) -> CipherSuites,\n\t(Some(Agent(AgentName(0))), 0)[None]/Compressions,\n\tfn_client_extensions_make",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_client_hello(\n\tfn_protocol_version13 -> ProtocolVersion,\n\tfn_hello_retry_request_random -> Random,\n\tfn_new_session_id -> SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_new_cipher_suites -> Vec<CipherSuite>\n\t) -> CipherSuites,\n\t(Some(Agent(AgentName(0))), 0)[None]/Compressions,\n\tfn_client_extensions_make",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215239121-d894fbbd34371136.trace",
+    "diff_types": [
+      "Claims"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": null,
+    "claim_diff": "DifferentTypes[()][tlspuffin::claims::Finished]",
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_finished(\n\tfn_alice_key -> Vec<u8>\n) -> Message",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_finished(\n\tfn_alice_key -> Vec<u8>\n) -> Message",
+    "claims_libre": [
+      "Finished { outbound: true, client_random: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], server_ran",
+      "TranscriptClientFinished(TlsTranscript([65, 244, 18, 210, 232, 153, 182, 21, 247, 182, 187, 185, 253, 171, 14, 206, 118, 160, 244, 140, 36, 94, 174, 8"
+    ],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215242269-47cfded257e59843.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(IllegalParameter, HandshakeFailure))]",
+    "claim_diff": null,
+    "tls_version": "V1_3",
+    "failing_input_recipe_ossl": "fn_client_hello(\n\t(Some(Agent(AgentName(0))), 0)[None]/ProtocolVersion,\n\t(Some(Agent(AgentName(0))), 0)[None]/Random,\n\t(Some(Agent(AgentName(0))), 0)[None]/SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_new_cipher_suites -> Vec<CipherSuite>\n\t) -> CipherSuites,\n\t(Some(Agent(AgentName(0))), 0)[None]/Compress",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_client_hello(\n\t(Some(Agent(AgentName(0))), 0)[None]/ProtocolVersion,\n\t(Some(Agent(AgentName(0))), 0)[None]/Random,\n\t(Some(Agent(AgentName(0))), 0)[None]/SessionID,\n\tfn_cipher_suites_make(\n\t\tfn_new_cipher_suites -> Vec<CipherSuite>\n\t) -> CipherSuites,\n\t(Some(Agent(AgentName(0))), 0)[None]/Compress",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215245458-6b497595f342ea91.trace",
+    "diff_types": [
+      "Status"
+    ],
+    "ossl_error": "SSL_ERROR_SSL (1): 80C9DDF9B87A0000:error:0A0000F4:SSL routines:ossl_statem_client_read_transition:unexpected message:ssl/statem/statem_clnt.c:424:\n",
+    "libre_error": "SSL_ERROR_SSL (1): 134934884632960:error:1400410A:SSL routines:CONNECT_CR_SRVR_HELLO:wrong ssl version:/home/nbaffou/dev/tlspuffin/vendor/libressl421/src/vendor/ssl/ssl_clnt.c:859:\n",
+    "ossl_steps": 0,
+    "libre_steps": 2,
+    "total_steps": 12,
+    "first_to_fail": "openssl340",
+    "knowledge_diff": null,
+    "claim_diff": null,
+    "tls_version": "V1_3",
+    "failing_input_recipe_ossl": "fn_change_cipher_spec -> Message",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_server_hello(\n\t(Some(Agent(AgentName(1))), 0)[Some(Handshake(Some(ServerHello)))]/ProtocolVersion,\n\t(Some(Agent(AgentName(1))), 0)[Some(Handshake(Some(ServerHello)))]/Random,\n\t(Some(Agent(AgentName(1))), 0)[Some(Handshake(Some(ServerHello)))]/SessionID,\n\t(Some(Agent(AgentName(1))), 0)[Some(Handsh",
+    "claims_libre": [
+      "TranscriptServerHello(TlsTranscript([88, 51, 189, 230, 252, 57, 22, 216, 243, 110, 225, 142, 253, 145, 158, 79, 139, 152, 64, 59, 160, 234, 50, 120, 2",
+      "Finished { outbound: true, client_random: [165, 43, 140, 234, 114, 36, 238, 159, 121, 120, 206, 91, 252, 153, 40, 26, 198, 239, 47, 37, 225, 107, 129,",
+      "TranscriptServerFinished(TlsTranscript([42, 144, 55, 229, 181, 50, 32, 57, 197, 30, 21, 223, 181, 47, 107, 56, 0, 189, 148, 36, 113, 124, 187, 140, 43",
+      "TranscriptServerHello(TlsTranscript([100, 12, 17, 71, 193, 149, 171, 241, 170, 4, 73, 186, 137, 135, 8, 121, 92, 237, 218, 113, 86, 110, 18, 211, 48, "
+    ],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215249351-9fa85c2b8d682830.trace",
+    "diff_types": [
+      "Claims"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": null,
+    "claim_diff": "DifferentTypes[()][tlspuffin::claims::Finished]",
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_finished(\n\tfn_alice_key -> Vec<u8>\n) -> Message",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_finished(\n\tfn_alice_key -> Vec<u8>\n) -> Message",
+    "claims_libre": [
+      "Finished { outbound: true, client_random: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], server_ran",
+      "TranscriptClientFinished(TlsTranscript([65, 244, 18, 210, 232, 153, 182, 21, 247, 182, 187, 185, 253, 171, 14, 206, 118, 160, 244, 140, 36, 94, 174, 8"
+    ],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215252165-ca433c421d8d71de.trace",
+    "diff_types": [
+      "Knowledges"
+    ],
+    "ossl_error": null,
+    "libre_error": null,
+    "ossl_steps": null,
+    "libre_steps": null,
+    "total_steps": null,
+    "first_to_fail": null,
+    "knowledge_diff": "Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Different(UnsupportedExtension, ProtocolVersion))]",
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_hello_retry_request(\n\tfn_protocol_version13 -> ProtocolVersion,\n\tfn_hello_retry_request_random -> Random,\n\tfn_empty_session_id -> SessionID,\n\tfn_cipher_suite13_aes_128_ccm_sha256 -> CipherSuite,\n\tfn_compressions -> Compressions,\n\tfn_hello_retry_extensions_make(\n\t\tfn_hello_retry_extensions_append(",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_hello_retry_request(\n\tfn_protocol_version13 -> ProtocolVersion,\n\tfn_hello_retry_request_random -> Random,\n\tfn_empty_session_id -> SessionID,\n\tfn_cipher_suite13_aes_128_ccm_sha256 -> CipherSuite,\n\tfn_compressions -> Compressions,\n\tfn_hello_retry_extensions_make(\n\t\tfn_hello_retry_extensions_append(",
+    "claims_libre": [],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215255947-8f8e5e1e4107551b.trace",
+    "diff_types": [
+      "Status"
+    ],
+    "ossl_error": "SSL_ERROR_SSL (1): 80293F3D627B0000:error:0A000076:SSL routines:tls_choose_sigalg:no suitable signature algorithm:ssl/t1_lib.c:3940:\n",
+    "libre_error": "SSL_ERROR_SSL (1): 135661864561024:error:140370F4:SSL routines:ACCEPT_SR_KEY_EXCH:unexpected message:/home/nbaffou/dev/tlspuffin/vendor/libressl421/src/vendor/ssl/ssl_both.c:316:\n",
+    "ossl_steps": 0,
+    "libre_steps": 1,
+    "total_steps": 11,
+    "first_to_fail": "openssl340",
+    "knowledge_diff": null,
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_fill_binder(\n\tfn_client_hello(\n\t\tfn_protocol_version13 -> ProtocolVersion,\n\t\tfn_hello_retry_request_random -> Random,\n\t\tfn_new_session_id -> SessionID,\n\t\tfn_cipher_suites_make(\n\t\t\tfn_append_cipher_suite(\n\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\t\t",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_fill_binder(\n\tfn_client_hello(\n\t\tfn_protocol_version13 -> ProtocolVersion,\n\t\tfn_hello_retry_request_random -> Random,\n\t\tfn_empty_session_id -> SessionID,\n\t\tfn_cipher_suites_make(\n\t\t\tfn_append_cipher_suite(\n\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t",
+    "claims_libre": [
+      "TranscriptServerHello(TlsTranscript([241, 182, 247, 164, 228, 7, 120, 141, 140, 69, 86, 152, 71, 234, 73, 75, 214, 105, 59, 121, 223, 45, 170, 105, 19"
+    ],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  },
+  {
+    "trace": "objective/20260428-215259120-95b94e7f0b86c831.trace",
+    "diff_types": [
+      "Status"
+    ],
+    "ossl_error": "SSL_ERROR_SSL (1): 8079FBBD577A0000:error:0A000076:SSL routines:tls_choose_sigalg:no suitable signature algorithm:ssl/t1_lib.c:3940:\n",
+    "libre_error": "SSL_ERROR_SSL (1): 134517268117888:error:140370F4:SSL routines:ACCEPT_SR_KEY_EXCH:unexpected message:/home/nbaffou/dev/tlspuffin/vendor/libressl421/src/vendor/ssl/ssl_both.c:316:\n",
+    "ossl_steps": 0,
+    "libre_steps": 1,
+    "total_steps": 12,
+    "first_to_fail": "openssl340",
+    "knowledge_diff": null,
+    "claim_diff": null,
+    "tls_version": "V1_2",
+    "failing_input_recipe_ossl": "fn_fill_binder(\n\tfn_client_hello(\n\t\tfn_protocol_version13 -> ProtocolVersion,\n\t\tfn_new_random -> Random,\n\t\tfn_empty_session_id -> SessionID,\n\t\tfn_cipher_suites_make(\n\t\t\tfn_append_cipher_suite(\n\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\t\tfn_append_cipher_suite(\n\t\t\t\t\t\t\tfn_append_cip",
+    "claims_ossl": [],
+    "knowledge_types_ossl": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ],
+    "failing_input_recipe_libre": "fn_message_hash(\n\tfn_large_bytes_vec -> Vec<u8>\n) -> Message",
+    "claims_libre": [
+      "TranscriptServerHello(TlsTranscript([177, 166, 18, 24, 150, 182, 245, 191, 131, 183, 173, 192, 109, 39, 224, 210, 122, 13, 43, 216, 29, 135, 51, 82, 7"
+    ],
+    "knowledge_types_libre": [
+      "MessageFlight",
+      "OpaqueMessageFlight"
+    ]
+  }
+]

@@ -65,6 +65,20 @@ openssl111u = [
     "transcript_extraction",
     "client_authentication_transcript_extraction",
 ]
+openssl340 = [
+    "openssl-src",
+    "openssl-src/openssl340",
+    "openssl-src/no-rand",
+    "tls12",
+    "tls13",
+    "tls12_session_resumption",
+    "tls13_session_resumption",
+    "deterministic",
+    "claims",
+    "openssl111_binding",
+    "transcript_extraction",
+    "client_authentication_transcript_extraction",
+]
 openssl312 = [
     "openssl-src",
     "openssl-src/openssl312",
@@ -101,11 +115,24 @@ openssl102u = [
 ]
 
 # NOTE feature "libressl" is kept only for backward compatibility
-libressl = ["libressl333"]
+libressl = ["libressl421"]
 
 libressl333 = [
     "openssl-src",
     "openssl-src/libressl333",
+    "openssl-src/no-rand",
+    "libressl_binding",
+    "tls12",
+    "tls13",
+    "tls12_session_resumption",
+    "claims",
+    "transcript_extraction",
+    "deterministic",
+]
+
+libressl421 = [
+    "openssl-src",
+    "openssl-src/libressl421",
     "openssl-src/no-rand",
     "libressl_binding",
     "tls12",

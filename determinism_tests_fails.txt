@@ -1,0 +1,24 @@
+warning: unused imports: `ECPointFormat` and `PSKKeyExchangeMode`
+  --> tlspuffin/src/tls/rustls/msgs/message.rs:21:74
+   |
+21 |     AlertDescription, AlertLevel, CipherSuite, Compression, ContentType, ECPointFormat,
+   |                                                                          ^^^^^^^^^^^^^
+22 |     HandshakeType, NamedGroup, PSKKeyExchangeMode, ProtocolVersion, SignatureScheme,
+   |                                ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+warning: unused imports: `ECPointFormatList` and `PSKKeyExchangeModes`
+  --> tlspuffin/src/tls/rustls/msgs/message.rs:27:5
+   |
+27 |     ECPointFormatList, HandshakeMessagePayload, HelloRetryExtension, HelloRetryExtensions,
+   |     ^^^^^^^^^^^^^^^^^
+28 |     KeyShareEntries, KeyShareEntry, NewSessionTicketExtension, NewSessionTicketExtensions,
+29 |     PSKKeyExchangeModes, PresharedKeyIdentity, Random, ServerExtension, ServerExtensions,
+   |     ^^^^^^^^^^^^^^^^^^^
+
+warning: `tlspuffin` (lib) generated 2 warnings (run `cargo fix --lib -p tlspuffin` to apply 2 suggestions)
+warning: `tlspuffin` (lib) generated 2 warnings (2 duplicates)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.37s
+     Running tests/determinism.rs (target/debug/deps/determinism-b17b5d7f3c2da7ff)
+error: test failed, to rerun pass `-p tlspuffin --test determinism`
