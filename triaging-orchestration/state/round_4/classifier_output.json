@@ -1,0 +1,159 @@
+[
+  {
+    "id": "B034",
+    "round_discovered": 4,
+    "folder_name": "tls12_knowledge_diff_illegal_parameter_decode_error_round4/",
+    "description": "Knowledge differences in TLS 1.2 where OpenSSL reports IllegalParameter but LibreSSL reports DecodeError for malformed ClientHello messages with mismatched protocol versions or cipher suites. This behavior differs slightly from round 1 patterns, suggesting version-specific handling of version negotiation issues.",
+    "criteria_summary": "tls_version=V1_2 + diff_types=Knowledges + knowledge_diff contains 'Different(IllegalParameter, DecodeError)' + failing_input contains 'fn_fill_binder' or 'fn_client_hello'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\"),\n    InnerKnowledgeC(\"Different(IllegalParameter, DecodeError)\")\n)",
+    "representative_traces": [
+      "objective/20260428-214633808-d34e8fdfab4bad00.trace",
+      "objective/20260428-214658278-5e33973208fe0d72.trace",
+      "objective/20260428-214836665-39c6048f8bb060b7.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B035",
+    "round_discovered": 4,
+    "folder_name": "tls13_knowledge_diff_handshake_failure_illegal_parameter_round4/",
+    "description": "Knowledge differences in TLS 1.3 where OpenSSL reports HandshakeFailure but LibreSSL reports IllegalParameter for ClientHello messages with weak or excluded cipher suites. This indicates different validation strictness between implementations regarding cipher suite compatibility.",
+    "criteria_summary": "tls_version=V1_3 + diff_types=Knowledges + knowledge_diff contains 'Different(HandshakeFailure, IllegalParameter)'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_3\"),\n    InnerKnowledgeC(\"Different(HandshakeFailure, IllegalParameter)\")\n)",
+    "representative_traces": [
+      "objective/20260428-214714496-859e884731c1e5a4.trace",
+      "objective/20260428-215003731-e0f6c6ee4cc92195.trace",
+      "objective/20260428-220713826-5ee59efa8d4e7429.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B036",
+    "round_discovered": 4,
+    "folder_name": "tls13_knowledge_diff_handshake_failure_decode_error_round4/",
+    "description": "Knowledge differences in TLS 1.3 where OpenSSL reports HandshakeFailure but LibreSSL reports DecodeError for ClientHello messages with mismatched cipher suites or invalid session information. This pattern reflects different error prioritization during message parsing.",
+    "criteria_summary": "tls_version=V1_3 + diff_types=Knowledges + knowledge_diff contains 'Different(HandshakeFailure, DecodeError)'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_3\"),\n    InnerKnowledgeC(\"Different(HandshakeFailure, DecodeError)\")\n)",
+    "representative_traces": [
+      "objective/20260428-214736386-955ee84380dc28f6.trace",
+      "objective/20260428-230239950-253c21b6c2b2fded.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B037",
+    "round_discovered": 4,
+    "folder_name": "tls12_status_signature_algorithm_mismatch_ossl_round4/",
+    "description": "OpenSSL 3.4.0 fails with 'no suitable signature algorithm' error in TLS 1.2 when ClientHello contains an unsupported signature algorithm selection. This occurs at the signature algorithm negotiation level when no compatible algorithms are found between client and server.",
+    "criteria_summary": "tls_version=V1_2 + first_to_fail=openssl340 + ossl_error contains 'no suitable signature algorithm' + failing_input contains 'fn_fill_binder' or 'fn_client_hello'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\"),\n    StatusC(OSSL, in_error=\"no suitable signature algorithm\", first_to_fail=True)\n)",
+    "representative_traces": [
+      "objective/20260428-224906040-0af2aceb7b086643.trace",
+      "objective/20260428-235616032-d78a9c6c80d2e028.trace",
+      "objective/20260429-000041424-321ac2bef7e3a4c5.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B038",
+    "round_discovered": 4,
+    "folder_name": "tls13_knowledge_diff_alert_vs_handshake_payload_round4/",
+    "description": "Knowledge differences in TLS 1.3 where OpenSSL produces AlertMessagePayload but LibreSSL produces HandshakeMessagePayload for ClientHello with protocol version mismatches. This indicates different message type interpretation for version negotiation failures.",
+    "criteria_summary": "tls_version=V1_3 + diff_types=Knowledges + knowledge_diff contains 'DifferentTypes[AlertMessagePayload][HandshakeMessagePayload]'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_3\"),\n    KnowledgeDiffC(\"tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload\", \"tlspuffin::tls::rustls::msgs::handshake::HandshakeMessagePayload\")\n)",
+    "representative_traces": [
+      "objective/20260428-214611965-7e5d12cff209298d.trace",
+      "objective/20260429-001828975-a928146bc53add7b.trace",
+      "objective/20260429-025839168-11a505f373224c40.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B039",
+    "round_discovered": 4,
+    "folder_name": "tls13_status_unsupported_protocol_libressl_round4/",
+    "description": "LibreSSL 4.2.1 fails with 'sslv3 alert unexpected message' error in TLS 1.3 when receiving empty handshake messages or ClientHello with unsupported protocol features, indicating stricter protocol compliance checking.",
+    "criteria_summary": "tls_version=V1_3 + first_to_fail=libressl421 + libre_error contains 'unexpected message' + failing_input contains 'fn_empty_handshake_message'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_3\"),\n    StatusC(LIBRE, in_error=\"unexpected message\", first_to_fail=True)\n)",
+    "representative_traces": [
+      "objective/20260428-214942982-0e6851847a196184.trace",
+      "objective/20260428-215415529-684486ef87246160.trace",
+      "objective/20260428-220543911-0aa29d567a2ed8f4.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B040",
+    "round_discovered": 4,
+    "folder_name": "tls12_status_alert_close_notify_ossl_round4/",
+    "description": "OpenSSL 3.4.0 fails with 'unexpected message' error in TLS 1.2 when receiving close_notify alert after successful handshake, treating it as a protocol violation. This differs from LibreSSL which processes such alerts without error.",
+    "criteria_summary": "tls_version=V1_2 + first_to_fail=openssl340 + ossl_error contains 'unexpected message' + failing_input contains 'fn_alert_close_notify'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\"),\n    StatusC(OSSL, in_error=\"unexpected message\", first_to_fail=True),\n    TermContainsC(OSSL, \"fn_alert_close_notify\", last_input_executed=True)\n)",
+    "representative_traces": [
+      "objective/20260428-214815071-8c5958e595e4ad67.trace",
+      "objective/20260428-215528126-e06f243db649f35e.trace",
+      "objective/20260428-225533690-915132b0cc920676.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B041",
+    "round_discovered": 4,
+    "folder_name": "tls12_status_records_not_released_ossl_round4/",
+    "description": "OpenSSL 3.4.0 fails with 'records not released' error during TLS 1.2 record layer processing, indicating internal record state management issues when handling certificates or other messages that create record layer state inconsistencies.",
+    "criteria_summary": "tls_version=V1_2 + first_to_fail=openssl340 + ossl_error contains 'records not released' + failing_input contains 'fn_certificate'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\"),\n    StatusC(OSSL, in_error=\"records not released\", first_to_fail=True)\n)",
+    "representative_traces": [
+      "objective/20260428-220132750-1504dcaf3a5e3f5b.trace",
+      "objective/20260428-221233043-a171c4693973cfe3.trace",
+      "objective/20260429-230014726-58b049959bd4aa07.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B042",
+    "round_discovered": 4,
+    "folder_name": "tls12_both_knowledge_diff_unsupported_extension_unrecognised_name_round4/",
+    "description": "Knowledge differences in TLS 1.2 where OpenSSL reports UnsupportedExtension but LibreSSL reports UnrecognisedName for ServerHello messages with unrecognized or malformed extensions. This indicates different extension parsing strategies.",
+    "criteria_summary": "tls_version=V1_2 OR Both + diff_types=Knowledges + knowledge_diff contains 'Different(UnsupportedExtension, UnrecognisedName)'",
+    "python_condition": "AllC(\n    InnerKnowledgeC(\"Different(UnsupportedExtension, UnrecognisedName)\")\n)",
+    "representative_traces": [
+      "objective/20260428-220622703-0ce46cd3c7c2147c.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B043",
+    "round_discovered": 4,
+    "folder_name": "tls12_status_hello_request_libressl_round4/",
+    "description": "LibreSSL 4.2.1 fails when receiving HelloRequest message in TLS 1.2, treating it as unexpected at the current state. This indicates different handling of renegotiation-related messages between implementations.",
+    "criteria_summary": "tls_version=V1_2 + first_to_fail=libressl421 + libre_error contains 'unexpected message' + failing_input contains 'fn_hello_request'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\"),\n    StatusC(LIBRE, in_error=\"unexpected message\", first_to_fail=True),\n    TermContainsC(LIBRE, \"fn_hello_request\", last_input_executed=True)\n)",
+    "representative_traces": [
+      "objective/20260428-215551091-ce6ff3e1e773fdf8.trace",
+      "objective/20260428-215932693-d3e792273e68b605.trace",
+      "objective/20260428-220204210-22c31652ff56e24c.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  }
+]

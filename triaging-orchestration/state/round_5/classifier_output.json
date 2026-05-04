@@ -1,0 +1,274 @@
+[
+  {
+    "id": "B044",
+    "round_discovered": 5,
+    "folder_name": "tls__knowledge_round5/",
+    "description": "Behavior in round 5: Knowledge difference: Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:{'index': 0, 'ty",
+    "criteria_summary": "tls_version=V1_3 + knowledge_diff=Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePaylo",
+    "python_condition": "CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_3\")",
+    "representative_traces": [
+      "objective/20260428-213602794-f3c493da03ec6adc.trace",
+      "objective/20260428-213655344-90fae6749ae5ed6f.trace",
+      "objective/20260428-213728542-7ed91b8711b6764c.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B045",
+    "round_discovered": 5,
+    "folder_name": "tls__knowledge_round5/",
+    "description": "Behavior in round 5: Knowledge difference: DifferentTypes[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload][()]",
+    "criteria_summary": "tls_version=V1_2 + knowledge_diff=DifferentTypes[tlspuffin::tls::rustls::msgs::alert::AlertMes",
+    "python_condition": "CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\")",
+    "representative_traces": [
+      "objective/20260428-213618343-d30ed298414ce1c2.trace",
+      "objective/20260428-214547333-d67fdda670fa8064.trace",
+      "objective/20260428-214800070-6c161ea7ed02c5f1.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B046",
+    "round_discovered": 5,
+    "folder_name": "tls__knowledge_round5/",
+    "description": "Behavior in round 5: Knowledge difference: Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:{'index': 5, 'ty",
+    "criteria_summary": "tls_version=V1_2 + knowledge_diff=Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePaylo",
+    "python_condition": "CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\")",
+    "representative_traces": [
+      "objective/20260428-213801211-a21c856556513751.trace",
+      "objective/20260428-213933267-65e2b488421394a6.trace",
+      "objective/20260428-214054209-73cb306c8f3495d1.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B047",
+    "round_discovered": 5,
+    "folder_name": "tlst_status_ossl_0a000152:ssl_routine_round5/",
+    "description": "Behavior in round 5: OpenSSL 3.4.0 fails with '0A000152:SSL routines:final_renegotiate:' error in TLS Both.",
+    "criteria_summary": "tls_version=Both + first_to_fail=openssl340 + ossl_error contains '0A000152:SSL routines:final_re' + libre_error contains '0DFFF0A8:asn1 encoding routine'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"Both\"), StatusC(OSSL, in_error=\"0A000152:SSL routines:final_renegotiate:\", first_to_fail=True), TermContainsC(OSSL, \"fn_server_hello\", last_input_executed=True)\n)",
+    "representative_traces": [
+      "objective/20260428-213819016-739ab1bfda8c9fec.trace",
+      "objective/20260428-215311072-aaf774a6611a12ce.trace",
+      "objective/20260428-220003195-88652e0464901875.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B048",
+    "round_discovered": 5,
+    "folder_name": "tlst_status_ossl_0a000152:ssl_routine_round5/",
+    "description": "Behavior in round 5: OpenSSL 3.4.0 fails with '0A000152:SSL routines:final_renegotiate:' error in TLS Both.",
+    "criteria_summary": "tls_version=Both + first_to_fail=openssl340 + ossl_error contains '0A000152:SSL routines:final_re' + libre_error contains '0DFFF0A8:asn1 encoding routine'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"Both\"), StatusC(OSSL, in_error=\"0A000152:SSL routines:final_renegotiate:\", first_to_fail=True), TermContainsC(OSSL, \"fn_server_hello\", last_input_executed=True)\n)",
+    "representative_traces": [
+      "objective/20260428-213819016-739ab1bfda8c9fec.trace",
+      "objective/20260428-215311072-aaf774a6611a12ce.trace",
+      "objective/20260428-220003195-88652e0464901875.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B049",
+    "round_discovered": 5,
+    "folder_name": "tls__knowledge_round5/",
+    "description": "Behavior in round 5: Knowledge difference: DifferentTypes[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload][()]",
+    "criteria_summary": "tls_version=V1_3 + knowledge_diff=DifferentTypes[tlspuffin::tls::rustls::msgs::alert::AlertMes",
+    "python_condition": "CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_3\")",
+    "representative_traces": [
+      "objective/20260428-213842791-2c524def21a19654.trace",
+      "objective/20260428-214007129-f3dbeda5c20b13bd.trace",
+      "objective/20260428-214242704-54c12e9ad071a294.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B050",
+    "round_discovered": 5,
+    "folder_name": "tlst_status_ossl_0a000141:ssl_routine_round5/",
+    "description": "Behavior in round 5: OpenSSL 3.4.0 fails with '0A000141:SSL routines:tls_read_record:re' error in TLS Both.",
+    "criteria_summary": "tls_version=Both + first_to_fail=openssl340 + ossl_error contains '0A000141:SSL routines:tls_read' + libre_error contains 'Success'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"Both\"), StatusC(OSSL, in_error=\"0A000141:SSL routines:tls_read_record:re\", first_to_fail=True)\n)",
+    "representative_traces": [
+      "objective/20260428-214633692-8509d6b7d0835ff8.trace",
+      "objective/20260428-225906000-f7563cd6d07c68cc.trace",
+      "objective/20260428-231657288-98f32cce2d253ff9.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B051",
+    "round_discovered": 5,
+    "folder_name": "tls__knowledge_diff_illegalparameter_protocolversion_round5/",
+    "description": "Behavior in round 5: Knowledge difference: Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Dif",
+    "criteria_summary": "tls_version=V1_2 + knowledge_diff=Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePaylo",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\"), InnerKnowledgeC(\"IllegalParameter, ProtocolVersion\")\n)",
+    "representative_traces": [
+      "objective/20260428-214959855-7d5939747370166c.trace",
+      "objective/20260428-215158246-6a39621342d3ad89.trace",
+      "objective/20260428-215614980-801118edb0007830.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B052",
+    "round_discovered": 5,
+    "folder_name": "tls__knowledge_diff_unsupportedextension_illegalparameter_round5/",
+    "description": "Behavior in round 5: Knowledge difference: Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Dif",
+    "criteria_summary": "tls_version=V1_3 + knowledge_diff=Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePaylo",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_3\"), InnerKnowledgeC(\"UnsupportedExtension, IllegalParameter\")\n)",
+    "representative_traces": [
+      "objective/20260428-215039877-d4ad04af62bb44b8.trace",
+      "objective/20260428-224117509-3bb89e3c5b6f4765.trace",
+      "objective/20260428-224934680-3c762e4b6b9b2fa3.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B053",
+    "round_discovered": 5,
+    "folder_name": "tls__knowledge_diff_unsupportedextension_illegalparameter_round5/",
+    "description": "Behavior in round 5: Knowledge difference: Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Dif",
+    "criteria_summary": "tls_version=V1_2 + knowledge_diff=Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePaylo",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\"), InnerKnowledgeC(\"UnsupportedExtension, IllegalParameter\")\n)",
+    "representative_traces": [
+      "objective/20260428-215105277-37d80186bc1e54e3.trace",
+      "objective/20260428-215337829-4077ab9395b7f7c7.trace",
+      "objective/20260428-215855951-8df1d1c24980d861.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B054",
+    "round_discovered": 5,
+    "folder_name": "tls__knowledge_diff_unsupportedextension_decodeerror_round5/",
+    "description": "Behavior in round 5: Knowledge difference: Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Dif",
+    "criteria_summary": "tls_version=V1_2 + knowledge_diff=Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePaylo",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\"), InnerKnowledgeC(\"UnsupportedExtension, DecodeError\")\n)",
+    "representative_traces": [
+      "objective/20260428-215139066-01d2ded38d6a31db.trace",
+      "objective/20260428-215452139-89653ad220b06f99.trace",
+      "objective/20260428-220238831-6c3909e0ca6bd101.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B055",
+    "round_discovered": 5,
+    "folder_name": "tlst_knowledge_diff_illegalparameter_protocolversion_round5/",
+    "description": "Behavior in round 5: Knowledge difference: Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Dif",
+    "criteria_summary": "tls_version=Both + knowledge_diff=Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePaylo",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"Both\"), InnerKnowledgeC(\"IllegalParameter, ProtocolVersion\")\n)",
+    "representative_traces": [
+      "objective/20260428-215158246-6a39621342d3ad89.trace",
+      "objective/20260428-215614980-801118edb0007830.trace",
+      "objective/20260428-220117784-19735673519708ae.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B056",
+    "round_discovered": 5,
+    "folder_name": "tls__knowledge_round5/",
+    "description": "Behavior in round 5: Knowledge difference: DifferentTypes[None][None]",
+    "criteria_summary": "tls_version=V1_2 + knowledge_diff=DifferentTypes[None][None]",
+    "python_condition": "CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\")",
+    "representative_traces": [
+      "objective/20260428-215253326-45c3d6119e8cee0f.trace",
+      "objective/20260428-215917913-cf547fdb9c134fb0.trace",
+      "objective/20260428-220147813-75115faa9acc1416.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B057",
+    "round_discovered": 5,
+    "folder_name": "tls__knowledge_diff_illegalparameter_handshakefailure_round5/",
+    "description": "Behavior in round 5: Knowledge difference: Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Dif",
+    "criteria_summary": "tls_version=V1_3 + knowledge_diff=Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePaylo",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_3\"), InnerKnowledgeC(\"IllegalParameter, HandshakeFailure\")\n)",
+    "representative_traces": [
+      "objective/20260428-215417359-65ef3f527f83dfa6.trace",
+      "objective/20260428-220221668-d069549da64f00a9.trace",
+      "objective/20260428-224308692-b53fe1b69edb23a5.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B058",
+    "round_discovered": 5,
+    "folder_name": "tls__knowledge_round5/",
+    "description": "Behavior in round 5: Knowledge difference: DifferentTypes[None][None]",
+    "criteria_summary": "tls_version=V1_3 + knowledge_diff=DifferentTypes[None][None]",
+    "python_condition": "CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_3\")",
+    "representative_traces": [
+      "objective/20260428-215557028-4d39cf30189ce288.trace",
+      "objective/20260428-215720438-5b519fe5e6ff5a97.trace",
+      "objective/20260428-220026735-3784a51f5f6c1349.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B059",
+    "round_discovered": 5,
+    "folder_name": "tls__knowledge_diff_unsupportedextension_protocolversion_round5/",
+    "description": "Behavior in round 5: Knowledge difference: Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePayload]:[Description(Dif",
+    "criteria_summary": "tls_version=V1_2 + knowledge_diff=Inner[tlspuffin::tls::rustls::msgs::alert::AlertMessagePaylo",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\"), InnerKnowledgeC(\"UnsupportedExtension, ProtocolVersion\")\n)",
+    "representative_traces": [
+      "objective/20260428-215640129-13e1fc0a321025ec.trace",
+      "objective/20260428-223528095-ebb4fe4d9e19880e.trace",
+      "objective/20260428-224227291-071c27eebf537ac6.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B060",
+    "round_discovered": 5,
+    "folder_name": "tls__status_libre_0a000102:ssl_routine_round5/",
+    "description": "Behavior in round 5: LibreSSL 4.2.1 fails with '0A000102:SSL routines:tls_early_post_pro' error in TLS V1_3.",
+    "criteria_summary": "tls_version=V1_3 + first_to_fail=same + ossl_error contains 'error executing a function sym' + libre_error contains '0A000102:SSL routines:tls_earl'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_3\"), StatusC(LIBRE, in_error=\"0A000102:SSL routines:tls_early_post_pro\", first_to_fail=True), TermContainsC(LIBRE, \"fn_fill_binder\", last_input_executed=True)\n)",
+    "representative_traces": [
+      "objective/20260429-011207872-fb79f5ca6b3d48f5.trace",
+      "objective/20260429-124154744-92c74c66d3e53e8d.trace",
+      "objective/20260429-172353051-3faf858a907cdc62.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  }
+]

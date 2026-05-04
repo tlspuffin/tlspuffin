@@ -1,0 +1,140 @@
+[
+  {
+    "id": "B061",
+    "round_discovered": 6,
+    "folder_name": "both_status_ossl_change_cipher_spec_round6/",
+    "description": "OpenSSL 3.4.0 fails with 'unexpected message' error when receiving ChangeCipherSpec in TLS mixed mode (Both), rejecting it at the state machine level. This behavior occurs in both TLS 1.2 and 1.3 contexts when ChangeCipherSpec appears out of order. LibreSSL handles this differently, often succeeding or failing at later stages.",
+    "criteria_summary": "tls_version=Both + first_to_fail=openssl340 + ossl_error contains 'unexpected message' + failing_input contains 'fn_change_cipher_spec'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"Both\"),\n    StatusC(OSSL, in_error=\"unexpected message\", first_to_fail=True),\n    TermContainsC(OSSL, \"fn_change_cipher_spec\", last_input_executed=True)\n)",
+    "representative_traces": [
+      "objective/20260428-215812959-fc7dfbc903a00c5e.trace",
+      "objective/20260428-215905132-9dafe5e9e43dc58e.trace",
+      "objective/20260428-220246749-a87e94d2d12e4719.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B062",
+    "round_discovered": 6,
+    "folder_name": "both_status_ossl_wrong_cipher_returned_round6/",
+    "description": "OpenSSL 3.4.0 fails with 'wrong cipher returned' error when ServerHello selects a TLS 1.3 cipher suite in TLS 1.2 or mixed mode context. This indicates strict cipher suite validation tied to the negotiated protocol version, while LibreSSL proceeds further but encounters different failures.",
+    "criteria_summary": "tls_version=Both + first_to_fail=openssl340 + ossl_error contains 'wrong cipher' + failing_input contains 'fn_server_hello'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"Both\"),\n    StatusC(OSSL, in_error=\"wrong cipher\", first_to_fail=True),\n    TermContainsC(OSSL, \"fn_server_hello\", last_input_executed=True)\n)",
+    "representative_traces": [
+      "objective/20260428-215949044-56cd391b4157a527.trace",
+      "objective/20260428-221406578-d64eb284cdf3e6e1.trace",
+      "objective/20260428-221936882-61708170efd1ecb0.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B063",
+    "round_discovered": 6,
+    "folder_name": "both_status_ossl_bad_length_server_hello_round6/",
+    "description": "OpenSSL 3.4.0 fails with 'bad length' error during ServerHello processing in TLS mixed mode when encountering malformed messages with invalid length fields. LibreSSL typically processes further but fails at certificate or key exchange stages.",
+    "criteria_summary": "tls_version=Both + first_to_fail=openssl340 + ossl_error contains 'bad length' + failing_input contains 'fn_server_hello'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"Both\"),\n    StatusC(OSSL, in_error=\"bad length\", first_to_fail=True),\n    TermContainsC(OSSL, \"fn_server_hello\", last_input_executed=True)\n)",
+    "representative_traces": [
+      "objective/20260428-215958661-84fda780ac8e197c.trace",
+      "objective/20260428-220116269-6922df2a5590a25a.trace",
+      "objective/20260428-223457249-5396fbdcd20b28c0.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B064",
+    "round_discovered": 6,
+    "folder_name": "both_status_ossl_bad_extension_round6/",
+    "description": "OpenSSL 3.4.0 fails with 'bad extension' error during extension processing in ServerHello for TLS mixed mode. This occurs when extensions contain malformed or unexpected data, failing at the extension collection stage while LibreSSL proceeds further.",
+    "criteria_summary": "tls_version=Both + first_to_fail=openssl340 + ossl_error contains 'bad extension' + failing_input contains 'fn_server_hello'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"Both\"),\n    StatusC(OSSL, in_error=\"bad extension\", first_to_fail=True),\n    TermContainsC(OSSL, \"fn_server_hello\", last_input_executed=True)\n)",
+    "representative_traces": [
+      "objective/20260428-220422885-dd3bb397f5310aef.trace",
+      "objective/20260428-221003803-63b328ad94154d60.trace",
+      "objective/20260428-225055008-a5675433743aac0d.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B065",
+    "round_discovered": 6,
+    "folder_name": "both_status_libressl_unexpected_message_round6/",
+    "description": "LibreSSL 4.2.1 fails with 'unexpected message' error in TLS mixed mode when receiving ServerHello or messages out of order. This is distinct from OSSL failures and indicates different state machine handling of unexpected messages.",
+    "criteria_summary": "tls_version=Both + first_to_fail=libressl421 + libre_error contains 'unexpected message' + failing_input contains 'fn_hello_request' OR 'fn_server_hello'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"Both\"),\n    StatusC(LIBRE, in_error=\"unexpected message\", first_to_fail=True)\n)",
+    "representative_traces": [
+      "objective/20260428-225506624-3dc00c656fe2d215.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B066",
+    "round_discovered": 6,
+    "folder_name": "both_knowledge_diff_unsupported_extension_illegal_parameter_round6/",
+    "description": "Knowledge differences in TLS mixed mode where OpenSSL reports UnsupportedExtension but LibreSSL reports IllegalParameter in ServerHello extension processing. This indicates different error classification for unrecognized or malformed extensions.",
+    "criteria_summary": "tls_version=Both + diff_types=Knowledges + knowledge_diff contains 'Different(UnsupportedExtension, IllegalParameter)'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"Both\"),\n    InnerKnowledgeC(\"UnsupportedExtension, IllegalParameter\")\n)",
+    "representative_traces": [
+      "objective/20260428-223604604-661a64e62eef1395.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B067",
+    "round_discovered": 6,
+    "folder_name": "both_knowledge_diff_illegal_parameter_decode_error_round6/",
+    "description": "Knowledge differences in TLS mixed mode where OpenSSL reports IllegalParameter but LibreSSL reports DecodeError for malformed ServerHello messages with invalid cipher suites or extension data.",
+    "criteria_summary": "tls_version=Both + diff_types=Knowledges + knowledge_diff contains 'Different(IllegalParameter, DecodeError)'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"Both\"),\n    InnerKnowledgeC(\"IllegalParameter, DecodeError\")\n)",
+    "representative_traces": [
+      "objective/20260428-223923513-416c47f8102d4609.trace",
+      "objective/20260428-223925958-c7096ee6a41bc37a.trace",
+      "objective/20260428-225216362-919f74ea40b72867.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B068",
+    "round_discovered": 6,
+    "folder_name": "both_knowledge_diff_unsupported_extension_protocol_version_round6/",
+    "description": "Knowledge differences in TLS mixed mode where OpenSSL reports UnsupportedExtension but LibreSSL reports ProtocolVersion for ServerHello with version negotiation issues in extensions.",
+    "criteria_summary": "tls_version=Both + diff_types=Knowledges + knowledge_diff contains 'Different(UnsupportedExtension, ProtocolVersion)'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"Both\"),\n    InnerKnowledgeC(\"UnsupportedExtension, ProtocolVersion\")\n)",
+    "representative_traces": [
+      "objective/20260428-225057630-f99bf62e8c09c77c.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B069",
+    "round_discovered": 6,
+    "folder_name": "both_knowledge_diff_claims_transcript_round6/",
+    "description": "Knowledge differences in TLS mixed mode where LibreSSL emits Transcript claims during ServerHello processing but OpenSSL does not. This indicates different internal state tracking for handshake transcript management.",
+    "criteria_summary": "tls_version=Both + diff_types=Knowledges + claims_libre contains 'TranscriptServerHello'",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"Both\"),\n    ClaimContainsC(LIBRE, \"TranscriptServerHello\")\n)",
+    "representative_traces": [
+      "objective/20260428-215901697-72060372aaa43044.trace",
+      "objective/20260428-220001034-d7a3840a95004e4f.trace",
+      "objective/20260428-220244324-1b48e09b78662683.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  }
+]

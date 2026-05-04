@@ -1,0 +1,114 @@
+[
+  {
+    "id": "B027",
+    "round_discovered": 3,
+    "folder_name": "tls3_knowledge_knowledges/",
+    "description": "Knowledge difference in V1_3: Inner[tlspuffin::tls::rustls::msgs::alert::AlertMe...",
+    "criteria_summary": "tls_version=V1_3 + knowledge_diff",
+    "python_condition": "InnerKnowledgeC(\"Inner[tlspuffin::tls::rustls::msgs::aler\")",
+    "representative_traces": [
+      "objective/20260428-213526684-bb31afd1f6ad7284.trace",
+      "objective/20260428-213613743-4f07c671f06d437c.trace",
+      "objective/20260428-213643546-974b6e6688062a1c.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B028",
+    "round_discovered": 3,
+    "folder_name": "tls2_claim_finished/",
+    "description": "Claim difference in V1_2: Finished message differences.",
+    "criteria_summary": "tls_version=V1_2 + claim_diff",
+    "python_condition": "DifferentClaimC(in_first_type=\"()\", in_second_type=\"tlspuffin::claims::Finished\")",
+    "representative_traces": [
+      "objective/20260428-213554382-a510b43a2a9585c2.trace",
+      "objective/20260428-214113805-4a335341214dcd17.trace",
+      "objective/20260428-214609692-e5ede43662b69967.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B029",
+    "round_discovered": 3,
+    "folder_name": "tls3_status_ossl/",
+    "description": "Status difference in V1_3: OSSL fails with error while LibreSSL/OpenSSL proceeds.",
+    "criteria_summary": "tls_version=V1_3 + status_diff + openssl340",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_3\"),\n    StatusC(OSSL, in_error=\"error\", first_to_fail=True),\n    TermContainsC(OSSL, \"fn_decrypt_handshake_flight\", last_input_executed=True)\n)",
+    "representative_traces": [
+      "objective/20260428-213703096-e041af0330597e62.trace",
+      "objective/20260428-215049609-90082dd7e1e119bc.trace",
+      "objective/20260428-223250433-e68588fda01c84ae.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B030",
+    "round_discovered": 3,
+    "folder_name": "tls2_status_ossl/",
+    "description": "Status difference in V1_2: OSSL fails with error while LibreSSL/OpenSSL proceeds.",
+    "criteria_summary": "tls_version=V1_2 + status_diff + openssl340",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\"),\n    StatusC(OSSL, in_error=\"error\", first_to_fail=True),\n    TermContainsC(OSSL, \"fn_server_hello\", last_input_executed=True)\n)",
+    "representative_traces": [
+      "objective/20260428-213723245-d46620fca62c2992.trace",
+      "objective/20260428-213954436-386393562a6285ab.trace",
+      "objective/20260428-214404240-d7dba44a89567b0a.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B031",
+    "round_discovered": 3,
+    "folder_name": "tls2_knowledge_knowledges/",
+    "description": "Knowledge difference in V1_2: Inner[tlspuffin::tls::rustls::msgs::alert::AlertMe...",
+    "criteria_summary": "tls_version=V1_2 + knowledge_diff",
+    "python_condition": "InnerKnowledgeC(\"Inner[tlspuffin::tls::rustls::msgs::aler\")",
+    "representative_traces": [
+      "objective/20260428-213904868-6b84240d54c8f137.trace",
+      "objective/20260428-214012814-5f10bdc95c4db444.trace",
+      "objective/20260428-214048475-bf1289177ad20ce6.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B032",
+    "round_discovered": 3,
+    "folder_name": "tls2_status_libre/",
+    "description": "Status difference in V1_2: LIBRE fails with error while LibreSSL/OpenSSL proceeds.",
+    "criteria_summary": "tls_version=V1_2 + status_diff + libressl421",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_2\"),\n    StatusC(LIBRE, in_error=\"error\", first_to_fail=True),\n    TermContainsC(LIBRE, \"fn_empty_handshake_message -> OpaqueMessage\", last_input_executed=True)\n)",
+    "representative_traces": [
+      "objective/20260428-214449278-54d87bbc908d5bcc.trace",
+      "objective/20260428-215239885-9128d48ecab62ee7.trace",
+      "objective/20260428-215423825-a2b74de14e9a91f2.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  },
+  {
+    "id": "B033",
+    "round_discovered": 3,
+    "folder_name": "tls3_status_libre/",
+    "description": "Status difference in V1_3: LIBRE fails with error while LibreSSL/OpenSSL proceeds.",
+    "criteria_summary": "tls_version=V1_3 + status_diff + libressl421",
+    "python_condition": "AllC(\n    CheckAgentC([\"protocol_config\", \"tls_version\"], \"V1_3\"),\n    StatusC(LIBRE, in_error=\"error\", first_to_fail=True),\n    TermContainsC(LIBRE, \"fn_encrypt_handshake\", last_input_executed=True)\n)",
+    "representative_traces": [
+      "objective/20260428-214549488-090a8c3e4134485f.trace",
+      "objective/20260428-230019179-123766cd9d0a4ebb.trace",
+      "objective/20260428-230240117-7a830f1ee20b6e85.trace"
+    ],
+    "tag": null,
+    "rfc_section": null,
+    "rfc_quote": null
+  }
+]
