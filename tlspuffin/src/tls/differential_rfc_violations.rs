@@ -259,9 +259,14 @@ pub fn rfc_violation_alert_bad_key_share(
                             ))
                         ))
                     )),
-                    (fn_key_share_extension(
-                        fn_named_group_secp384r1,
-                        (fn_payload_u16(fn_empty_bytes_vec))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_extension(
+                                fn_named_group_secp384r1,
+                                (fn_payload_u16(fn_empty_bytes_vec))
+                            ))
+                        ))
                     ))
                 )),
                 fn_supported_versions13_extension
