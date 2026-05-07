@@ -212,7 +212,8 @@ where
             tuple_list!(PuffinMutationalStage::with_max_iterations(
                 mutator_dy,
                 self.config.mutation_stage_config.max_iterations_per_stage,
-                self.config.mutation_stage_config.mutational_retries
+                self.config.mutation_stage_config.mutational_retries,
+                self.config.mutation_stage_config.skip_traces
             )),
         );
 
@@ -270,14 +271,16 @@ where
                 PuffinMutationalStage::with_max_iterations(
                     mutator_bit,
                     self.config.mutation_stage_config.max_iterations_per_stage,
-                    self.config.mutation_stage_config.mutational_retries
+                    self.config.mutation_stage_config.mutational_retries,
+                    self.config.mutation_stage_config.skip_traces
                 ), // Old-style HAVOC stage
                 IfStage::new(
                     cb_focus_bit_level,
                     tuple_list!(PuffinMutationalStage::with_max_iterations(
                         mutator_bit_focus,
                         self.config.mutation_stage_config.max_iterations_per_stage,
-                        self.config.mutation_stage_config.mutational_retries
+                        self.config.mutation_stage_config.mutational_retries,
+                        self.config.mutation_stage_config.skip_traces
                     ),)
                 ),
             ), // Focus stage, first MakeMessage, then HAVOC, then ReadMessage

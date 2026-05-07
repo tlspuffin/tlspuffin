@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::fmt;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -7,6 +8,7 @@ use std::num::NonZeroUsize;
 use libafl::prelude::mutational::MutatedTransform;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
+use serde::{Deserialize, Serialize};
 
 /// A [`Mutator`] that schedules one of the embedded mutations on each call.
 pub struct FocusScheduledMutator<I, MT, MtPre, MtPost, S>
@@ -359,6 +361,81 @@ where
     }
 }
 
+#[derive(Clone, Deserialize, Serialize, Debug)]
+pub struct PuffinRetryCountRestartHelper {
+    tries_remaining: Option<usize>,
+    skipped: HashSet<CorpusId>,
+}
+
+impl_serdeany!(PuffinRetryCountRestartHelper);
+
+impl PuffinRetryCountRestartHelper {
+    /// Don't allow restart
+    pub fn no_retry<S>(state: &mut S, name: &str) -> Result<bool, Error>
+    where
+        S: HasNamedMetadata + HasCurrentCorpusId,
+    {
+        Self::should_restart(state, name, 0, false)
+    }
+
+    /// Initializes (or counts down in) the progress helper, giving it the amount of max retries
+    ///
+    /// Returns `true` if the stage should run
+    pub fn should_restart<S>(
+        state: &mut S,
+        name: &str,
+        max_retries: usize,
+        skip_traces: bool,
+    ) -> Result<bool, Error>
+    where
+        S: HasNamedMetadata + HasCurrentCorpusId,
+    {
+        let corpus_id = state.current_corpus_id()?.ok_or_else(|| {
+            Error::illegal_state(
+                "No current_corpus_id set in State, but called RetryCountRestartHelper::should_skip",
+            )
+        })?;
+
+        let initial_tries_remaining = max_retries + 2; // +1 for first run (before real retry), +1 because we substract before comparing
+        let metadata = state.named_metadata_or_insert_with(name, || Self {
+            tries_remaining: Some(initial_tries_remaining),
+            skipped: HashSet::new(), // Do not allocate memory if no item added
+        });
+        let tries_remaining = metadata
+            .tries_remaining
+            .unwrap_or(initial_tries_remaining)
+            .checked_sub(1)
+            .ok_or_else(|| {
+                Error::illegal_state(
+                    "Attempted further retries after we had already gotten to none remaining.",
+                )
+            })?;
+
+        metadata.tries_remaining = Some(tries_remaining);
+
+        Ok(if tries_remaining == 0 {
+            if skip_traces {
+                metadata.skipped.insert(corpus_id);
+            }
+            false
+        } else if skip_traces && metadata.skipped.contains(&corpus_id) {
+            // skip this testcase, we already retried it often enough...
+            false
+        } else {
+            true
+        })
+    }
+
+    /// Clears the progress
+    pub fn clear_progress<S>(state: &mut S, name: &str) -> Result<(), Error>
+    where
+        S: HasNamedMetadata,
+    {
+        state.named_metadata_mut::<Self>(name)?.tries_remaining = None;
+        Ok(())
+    }
+}
+
 /// A mutational stage that overrides retry behavior, unlike [`StdMutationalStage`] which caps
 /// restarts to 3 per corpus item via `RetryCountRestartHelper`. When `max_retries` is 0, retries
 /// are unlimited, fixing the ~40x regression in objective count for differential fuzzing campaigns
@@ -366,6 +443,7 @@ where
 pub struct PuffinMutationalStage<E, EM, I1, I2, M, S, Z> {
     inner: StdMutationalStage<E, EM, I1, I2, M, S, Z>,
     max_retries: usize,
+    skip_traces: bool,
 }
 
 impl<E, EM, I, M, S, Z> PuffinMutationalStage<E, EM, I, I, M, S, Z>
@@ -379,10 +457,12 @@ where
         mutator: M,
         max_iterations: NonZeroUsize,
         max_retries: usize,
+        skip_traces: bool,
     ) -> Self {
         Self {
             inner: StdMutationalStage::with_max_iterations(mutator, max_iterations),
             max_retries,
+            skip_traces,
         }
     }
 }
@@ -423,10 +503,15 @@ where
     S: HasMetadata + HasNamedMetadata + HasCurrentCorpusId,
 {
     fn should_restart(&mut self, state: &mut S) -> Result<bool, Error> {
-        RetryCountRestartHelper::should_restart(state, &self.name(), self.max_retries)
+        PuffinRetryCountRestartHelper::should_restart(
+            state,
+            &self.name(),
+            self.max_retries,
+            self.skip_traces,
+        )
     }
 
     fn clear_progress(&mut self, state: &mut S) -> Result<(), Error> {
-        RetryCountRestartHelper::clear_progress(state, &self.name())
+        PuffinRetryCountRestartHelper::clear_progress(state, &self.name())
     }
 }

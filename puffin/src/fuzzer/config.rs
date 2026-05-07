@@ -81,6 +81,8 @@ pub struct MutationStageConfig {
     pub with_truncation: bool,
     /// Max retries per corpus item in mutational stages. 0 = unlimited.
     pub mutational_retries: usize,
+    /// Whether to add the item that hit the max retries to an hashset of skipped items
+    pub skip_traces: bool,
 }
 
 impl Default for MutationStageConfig {
@@ -91,6 +93,7 @@ impl Default for MutationStageConfig {
             max_mutations_pow_per_iteration: 7,
             with_truncation: false,
             mutational_retries: 0,
+            skip_traces: false,
             // Default for StdMutationalStage and StdMutationalStage (=HavocScheduledMutator)
         }
     }
