@@ -15,7 +15,7 @@ use crate::fuzzer::bit_mutations::{
 };
 pub(crate) use crate::fuzzer::config::FuzzerConfig;
 use crate::fuzzer::config::{FuzzingTarget, MIN_BIT_CORPUS, MIN_BIT_EXECS};
-use crate::fuzzer::feedback::MinimizingFeedback;
+use crate::fuzzer::feedback::{MinimizingFeedback, ObjectiveFeedback};
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
 use crate::fuzzer::stages::FocusScheduledMutator;
 use crate::fuzzer::stats_monitor::StatsMonitor;
@@ -603,6 +603,7 @@ where
             )
             .with_objective(feedback_or_fast!(
                 // don't execute second if first is conclusive, mimicking https://github.com/AFLplusplus/LibAFL/blob/8445ae54b34a6cea48ae243d40bb1b1b94493898/libafl_sugar/src/inmemory.rs#L164
+                ObjectiveFeedback::new(),
                 CrashFeedback::new(),
                 TimeoutFeedback::new()
             ));
