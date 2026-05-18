@@ -559,7 +559,12 @@ where
                 ExitCode::SUCCESS
             }
             Err(e) => {
-                if let crate::error::Error::Difference(trace_differences) = e {
+                if let crate::error::Error::Difference {
+                    differences: trace_differences,
+                    put1_status: _,
+                    put2_status: _,
+                } = e
+                {
                     if *export_json {
                         println!(
                             "{}",

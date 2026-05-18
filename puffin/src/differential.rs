@@ -2,11 +2,10 @@ use core::fmt;
 
 use serde::Serialize;
 
-use crate::error::Error;
 use crate::trace::Source;
 
 /// A difference between two executions in differential fuzzing
-#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TraceDifference {
     /// Both PUT returned a different status
     Status(StatusDiff),
@@ -16,12 +15,6 @@ pub enum TraceDifference {
     Claims(ClaimDiff),
     /// One PUT raised a security claim violation and not the other
     SecurityClaim(SecurityClaimDiff),
-}
-
-impl TraceDifference {
-    pub fn as_error(self) -> Error {
-        Error::Difference(vec![self])
-    }
 }
 
 impl fmt::Display for TraceDifference {
@@ -37,7 +30,7 @@ impl fmt::Display for TraceDifference {
     }
 }
 
-#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct StatusDiff {
     pub first_executed_steps: usize,
     pub first_status: String,
@@ -68,7 +61,7 @@ impl fmt::Display for StatusDiff {
     }
 }
 
-#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum KnowledgeDiff {
     /// The two knowledges compared have a different rust type
     DifferentTypes {
@@ -116,7 +109,7 @@ impl fmt::Display for KnowledgeDiff {
     }
 }
 
-#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ClaimDiff {
     DifferentTypes {
         agent: u8,
@@ -153,7 +146,7 @@ impl fmt::Display for ClaimDiff {
     }
 }
 
-#[derive(Serialize, Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SecurityClaimDiff {
     Different {
         put: u8,
