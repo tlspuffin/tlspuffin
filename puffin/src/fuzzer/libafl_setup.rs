@@ -524,6 +524,7 @@ where
         objective_dir,
         static_seed: _,
         stats_file,
+        stats_interval,
         broker_port,
         tui,
         no_launcher,
@@ -641,7 +642,7 @@ where
     };
 
     if *no_launcher {
-        let stats_monitor = StatsMonitor::with_raw_output(stats_file.clone());
+        let stats_monitor = StatsMonitor::with_raw_output(stats_file.clone(), *stats_interval);
 
         let (state, restarting_mgr) =
             setup_restarting_mgr_std(stats_monitor, *broker_port, EventConfig::AlwaysUnique)?;
@@ -675,7 +676,7 @@ where
             .expect("failed to create path to redirect fuzzer clients' stderr");
 
         if *tui {
-            let stats_monitor = StatsMonitor::with_tui_output(stats_file.clone());
+            let stats_monitor = StatsMonitor::with_tui_output(stats_file.clone(), *stats_interval);
 
             Launcher::builder()
                 .shmem_provider(sh_mem_provider)
@@ -689,7 +690,7 @@ where
                 .build()
                 .launch()
         } else {
-            let stats_monitor = StatsMonitor::with_raw_output(stats_file.clone());
+            let stats_monitor = StatsMonitor::with_raw_output(stats_file.clone(), *stats_interval);
 
             Launcher::builder()
                 .shmem_provider(sh_mem_provider)
