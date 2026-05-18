@@ -1,5 +1,6 @@
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
+use std::time::Duration;
 
 use log::LevelFilter;
 
@@ -18,6 +19,7 @@ pub struct FuzzerConfig {
     pub max_iters: Option<u64>,
     pub core_definition: String,
     pub stats_file: PathBuf,
+    pub stats_interval: Duration,
     pub corpus_dir: PathBuf,
     pub objective_dir: PathBuf,
     pub broker_port: u16,
@@ -42,6 +44,7 @@ impl Default for FuzzerConfig {
             max_iters: None,
             core_definition: "1".to_string(),
             stats_file: current.join("log/stats.json"),
+            stats_interval: Duration::from_millis(1000),
             corpus_dir: current.join("corpus"),
             objective_dir: current.join("objective"),
             broker_port: 1337,

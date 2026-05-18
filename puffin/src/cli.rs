@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
+use std::time::Duration;
 use std::{env, fs};
 
 use clap::parser::ValuesRef;
@@ -50,6 +51,8 @@ where
         .arg(arg!(--"wo-focus" "Disables focus bit-level mutational stage"))
         .arg(arg!(-v --verbosity [l] "Verbosity level for (quick) experiments")
             .value_parser(value_parser!(LevelFilter)))
+        .arg(arg!(--"stats-interval" [n] "Minimum milliseconds between stats.json writes (default: 1000)")
+            .value_parser(value_parser!(u64).range(1..)))
         .subcommands(vec![
             Command::new("quick-experiment").about("Starts a new experiment and writes the results out")
             ,
@@ -142,6 +145,8 @@ where
     let verbosity: LevelFilter = *matches
         .get_one::<LevelFilter>("verbosity")
         .unwrap_or(&LevelFilter::Info);
+    let stats_interval =
+        Duration::from_millis(*matches.get_one::<u64>("stats-interval").unwrap_or(&1000));
 
     let mut put_registry = put_registry.clone();
 
@@ -181,6 +186,7 @@ where
         tui,
         no_launcher,
         verbosity,
+        stats_interval,
         ..Default::default()
     };
 
