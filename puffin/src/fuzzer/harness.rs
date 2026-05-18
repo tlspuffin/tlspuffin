@@ -1,10 +1,12 @@
+use std::hash::{DefaultHasher, Hash, Hasher};
+
 use libafl::executors::ExitKind;
 use rand::Rng;
 
 use crate::algebra::TermType;
 use crate::error::Error;
 use crate::execution::{DifferentialRunner, Runner, TraceRunner};
-use crate::fuzzer::feedback::{FAIL_AT_STEP, OBJECTIVE_TRIGGERED};
+use crate::fuzzer::feedback::{FAIL_AT_STEP, OBJECTIVE_HASH, OBJECTIVE_TRIGGERED};
 use crate::fuzzer::stats_stage::{
     HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
     TERM_SIZE, TRACE_LENGTH,
@@ -84,6 +86,7 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
     input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {
     OBJECTIVE_TRIGGERED.set(false);
+    OBJECTIVE_HASH.set(None);
 
     // Uniformize the put configuration
     let input = <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
@@ -161,7 +164,11 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
                 log::warn!("{}", msg);
                 OBJECTIVE_TRIGGERED.set(true);
             }
-            Error::Difference(diffs) => {
+            Error::Difference {
+                differences: diffs,
+                put1_status: s1,
+                put2_status: s2,
+            } => {
                 log::warn!(
                     "{}",
                     diffs
@@ -170,6 +177,13 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
                         .collect::<Vec<String>>()
                         .join("\n")
                 );
+                let mut h = DefaultHasher::new();
+                diffs.hash(&mut h);
+                s1.hash(&mut h);
+                s2.hash(&mut h);
+
+                OBJECTIVE_HASH.set(Some(h.finish()));
+
                 OBJECTIVE_TRIGGERED.set(true);
             }
             _ => (),

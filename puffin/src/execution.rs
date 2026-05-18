@@ -284,21 +284,27 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
 
         // If we have status diff or security violation we return the diffs without checking for
         // others diffs
-        if !diff.is_empty() {
-            return Err(Error::Difference(diff));
-        }
+        if diff.is_empty() {
+            // Compare the trace context
+            diff.extend(first_ctx.compare(&second_ctx, &trace.as_ref().descriptors));
 
-        // Compare the trace context
-        diff.extend(first_ctx.compare(&second_ctx, &trace.as_ref().descriptors));
-
-        // Apply filter to remove false positives
-        diff = diff
+            // Apply filter to remove false positives
+            diff = diff
             .into_iter()
             .filter(<<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::differential_fuzzing_filter_diff)
             .collect();
+        }
 
         if !diff.is_empty() {
-            return Err(Error::Difference(diff));
+            return Err(Error::Difference {
+                differences: diff,
+                put1_status: first_trace_status
+                    .err()
+                    .map_or("Success".into(), |x| x.to_string()),
+                put2_status: second_trace_status
+                    .err()
+                    .map_or("Success".into(), |x| x.to_string()),
+            });
         }
 
         Ok((first_ctx, second_ctx))

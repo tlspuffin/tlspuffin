@@ -2,21 +2,24 @@ use std::borrow::Cow;
 use std::cell::Cell;
 use std::default::Default;
 
-use libafl::corpus::Testcase;
+use libafl::corpus::{Corpus, CorpusId, Testcase};
 use libafl::events::EventFirer;
 use libafl::executors::ExitKind;
 use libafl::feedbacks::{Feedback, StateInitializer};
 use libafl::observers::ObserversTuple;
 use libafl::prelude::{HasMaxSize, HasRand};
+use libafl::state::HasCorpus;
 use libafl_bolts::{Error, Named};
 use serde::{Deserialize, Serialize};
 
+use crate::fuzzer::stats_stage::DUPLICATES;
 use crate::protocol::ProtocolTypes;
 use crate::trace::Trace;
 
 thread_local! {
     pub static FAIL_AT_STEP: Cell<Option<usize>> = const { Cell::new(None) };
     pub static OBJECTIVE_TRIGGERED: Cell<bool> = const { Cell::new(false) };
+    pub static OBJECTIVE_HASH: Cell<Option<u64>> = const { Cell::new(None)};
 }
 
 /// Feedback that triggers when the harness sets [`OBJECTIVE_TRIGGERED`] to `true`.
@@ -24,11 +27,15 @@ thread_local! {
 /// Used to record security-claim violations and differential differences as objectives
 /// without crashing the process (avoids the restart + serialization overhead of abort()).
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ObjectiveFeedback;
+pub struct ObjectiveFeedback {
+    seen_objectives: std::collections::HashSet<(CorpusId, u64)>,
+}
 
 impl ObjectiveFeedback {
     pub fn new() -> Self {
-        Self
+        Self {
+            seen_objectives: std::collections::HashSet::new(),
+        }
     }
 }
 
@@ -48,27 +55,53 @@ impl<EM, I, OT, S> Feedback<EM, I, OT, S> for ObjectiveFeedback
 where
     OT: ObserversTuple<I, S>,
     EM: EventFirer<I, S>,
+    S: HasCorpus<I>,
 {
+    /// An objective is interesting if the harness has set the `OBJECTIVE_TRIGGERED` flag to true,
+    /// and if the associated hash (if any) has not been seen before for the current corpus file.
+    /// If no hash is set, we treat it as interesting to avoid losing objectives when the harness
+    /// doesn't provide a hash.
     fn is_interesting(
         &mut self,
-        _: &mut S,
+        state: &mut S,
         _: &mut EM,
         _: &I,
         _: &OT,
         _: &ExitKind,
     ) -> Result<bool, Error> {
-        Ok(OBJECTIVE_TRIGGERED.get())
+        if OBJECTIVE_TRIGGERED.get() {
+            match OBJECTIVE_HASH.get() {
+                Some(hash) => {
+                    let current_idx = state.corpus().current();
+
+                    if current_idx.is_none() {
+                        return Ok(true); // Could not get current corpus file index so we keep the
+                                         // objective
+                    }
+
+                    // Only interesting if this hash hasn't been seen before for this corpus file
+                    if self.seen_objectives.insert((current_idx.unwrap(), hash)) {
+                        return Ok(true);
+                    } else {
+                        DUPLICATES.increment();
+                        return Ok(false); // duplicate — already in corpus
+                    }
+                }
+                None => return Ok(true), // no hash set, always treat as interesting
+            }
+        }
+        Ok(false)
     }
 
     fn is_interesting_introspection(
         &mut self,
-        _: &mut S,
-        _: &mut EM,
-        _: &I,
-        _: &OT,
-        _: &ExitKind,
+        s: &mut S,
+        em: &mut EM,
+        i: &I,
+        ot: &OT,
+        ek: &ExitKind,
     ) -> Result<bool, Error> {
-        Ok(OBJECTIVE_TRIGGERED.get())
+        self.is_interesting(s, em, i, ot, ek)
     }
 }
 
