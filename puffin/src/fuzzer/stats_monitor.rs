@@ -15,7 +15,7 @@ use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
 use crate::fuzzer::libafl_setup::MAP_FEEDBACK_NAME;
-use crate::fuzzer::stats_stage::{RuntimeStats, STATS};
+use crate::fuzzer::stats_stage::{RuntimeStats, DUPLICATES, STATS};
 
 trait ClonableMonitor: Monitor + DynClone {}
 impl ClonableMonitor for TuiMonitor {}
@@ -127,6 +127,8 @@ impl StatsMonitor {
                         _ => None,
                     });
 
+            let duplicates = get_number(client, DUPLICATES.name);
+
             Statistics::Client(ClientStatistics {
                 id: id.0,
                 time: SystemTime::now(),
@@ -139,11 +141,18 @@ impl StatsMonitor {
                 objective_size,
                 total_execs,
                 exec_per_sec: exec_sec as u64,
+                duplicates,
             })
         })
     }
 
     fn global(&mut self, client_stats_manager: &mut ClientStatsManager) -> Statistics {
+        let duplicates: u64 = client_stats_manager
+            .client_stats()
+            .values()
+            .map(|client| get_number(client, DUPLICATES.name))
+            .sum();
+
         let global_stats = client_stats_manager.global_stats();
 
         Statistics::Global(GlobalStatistics {
@@ -152,6 +161,7 @@ impl StatsMonitor {
             clients: global_stats.client_stats_count as u32,
             corpus_size: global_stats.corpus_size,
             objective_size: global_stats.objective_size,
+            duplicates,
             total_execs: global_stats.total_execs,
             exec_per_sec: global_stats.execs_per_sec as u64,
         })
@@ -197,9 +207,10 @@ impl Display for Statistics {
             Self::Client(client_stats) => {
                 write!(
                     f,
-                    "(CLIENT) corpus: {}, obj: {}, execs: {}, exec/sec: {}",
+                    "(CLIENT) corpus: {}, obj: {}, duplicates: {}, execs: {}, exec/sec: {}",
                     client_stats.corpus_size,
                     client_stats.objective_size,
+                    client_stats.duplicates,
                     client_stats.total_execs,
                     client_stats.exec_per_sec
                 )?;
@@ -217,10 +228,11 @@ impl Display for Statistics {
             Self::Global(global_stats) => {
                 write!(
                     f,
-                    "(GLOBAL) clients: {}, corpus: {}, obj: {}, execs: {}, exec/sec: {}",
+                    "(GLOBAL) clients: {}, corpus: {}, obj: {}, duplicates: {}, execs: {}, exec/sec: {}",
                     global_stats.clients,
                     global_stats.corpus_size,
                     global_stats.objective_size,
+                    global_stats.duplicates,
                     global_stats.total_execs,
                     global_stats.exec_per_sec,
                 )
@@ -240,6 +252,7 @@ struct GlobalStatistics {
 
     total_execs: u64,
     exec_per_sec: u64,
+    duplicates: u64,
 }
 
 #[derive(Serialize)]
@@ -257,6 +270,7 @@ struct ClientStatistics {
     objective_size: u64,
     total_execs: u64,
     exec_per_sec: u64,
+    duplicates: u64,
 }
 
 #[derive(Serialize)]
@@ -364,6 +378,7 @@ struct ErrorStatistics {
 
     corpus_exec: u64,
     corpus_exec_minimal: u64,
+    duplicates: u64,
 }
 
 #[derive(Serialize)]
@@ -480,6 +495,7 @@ impl ErrorStatistics {
             extraction_error: 0,
             corpus_exec: 0,
             corpus_exec_minimal: 0,
+            duplicates: 0,
             eval_codec_error: 0,
         }
     }
@@ -563,6 +579,7 @@ impl ErrorStatistics {
                 RuntimeStats::CorpusExecMinimal(c) => {
                     self.corpus_exec_minimal += get_number(client_stats, c.name)
                 }
+                RuntimeStats::Duplicates(c) => self.duplicates += get_number(client_stats, c.name),
                 // MinMaxMean stats are not counted in ErrorStatistics
                 RuntimeStats::TraceLength(_) => {}
                 RuntimeStats::NbPayload(_) => {}
