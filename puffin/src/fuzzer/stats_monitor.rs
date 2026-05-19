@@ -207,10 +207,9 @@ impl Display for Statistics {
             Self::Client(client_stats) => {
                 write!(
                     f,
-                    "(CLIENT) corpus: {}, obj: {}, duplicates: {}, execs: {}, exec/sec: {}",
+                    "(CLIENT) corpus: {}, obj: {}, execs: {}, exec/sec: {}",
                     client_stats.corpus_size,
                     client_stats.objective_size,
-                    client_stats.duplicates,
                     client_stats.total_execs,
                     client_stats.exec_per_sec
                 )?;
@@ -228,11 +227,10 @@ impl Display for Statistics {
             Self::Global(global_stats) => {
                 write!(
                     f,
-                    "(GLOBAL) clients: {}, corpus: {}, obj: {}, duplicates: {}, execs: {}, exec/sec: {}",
+                    "(GLOBAL) clients: {}, corpus: {}, obj: {}, execs: {}, exec/sec: {}",
                     global_stats.clients,
                     global_stats.corpus_size,
                     global_stats.objective_size,
-                    global_stats.duplicates,
                     global_stats.total_execs,
                     global_stats.exec_per_sec,
                 )
