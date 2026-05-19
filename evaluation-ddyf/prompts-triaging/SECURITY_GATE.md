@@ -95,6 +95,17 @@ A finding that fails the strict gates in isolation is **not necessarily unintere
 
 **This gate runs FIRST**, before Gates 1–5. The Security Gates as a whole are about *what the attacker can do*; Gate 0 is about *whether the defect even exists in the build you're claiming to attack*. A finding that fails Gate 0 cannot fail or pass Gates 1–5 in a meaningful way.
 
+### Out-of-pipeline findings still need Gate 0
+
+Findings discovered during reproducer development or ad-hoc inspection (not via the bucket pipeline) are the most common Gate 0 miss — they "feel obvious" so the version check is implicitly skipped. Apply Gate 0 regardless of how the finding was discovered.
+
+The shipping vendor model is: upstream tarball + explicit patches under `puffin-build/vendors/<lib>/`. To pass Gate 0, two checks suffice:
+
+1. **Read the patch list** in `puffin-build/vendors/<lib>/` and confirm none touch the affected file(s). If a patch touches them, the finding may be a harness artefact.
+2. **OpenSSL is the legacy case** (until the migration to the new harness system lands): the OpenSSL vendor is currently built from `github.com/tlspuffin/openssl` `fuzz-OpenSSL_3_X` branches which carry inline instrumentation rather than separated patches, AND track the 3.X branch past the release tag. For OpenSSL findings specifically, also run the binary with `--version` and compare against the directory name — a `vendor/openssl340/bin/openssl` may self-identify as `3.4.1-dev`. If they disagree, the finding is bounded to the harness build.
+
+Worked example: `openssl_s_server_quiet_null_deref` (2026-05-19) was promoted to CVE candidate and disclosed before either check was run. Tomas Mraz's same-day refutation pointed out the binary's true version (`3.4.1-dev`, not `3.4.0`) and a NULL guard in `BIO_callback_ctrl()` that falsified our root-cause hypothesis. See `triaging-openssl-libressl-04-28/disclosure/email_openssl_s_server_quiet_null_deref.md` for the full exchange.
+
 ---
 
 ## Gate 1 — Did a handshake complete in the vulnerable PUT?
