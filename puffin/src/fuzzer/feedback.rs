@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::cell::Cell;
 use std::default::Default;
 
-use libafl::corpus::{Corpus, CorpusId, Testcase};
+use libafl::corpus::{Corpus, Testcase};
 use libafl::events::EventFirer;
 use libafl::executors::ExitKind;
 use libafl::feedbacks::{Feedback, StateInitializer};
@@ -28,7 +28,7 @@ thread_local! {
 /// without crashing the process (avoids the restart + serialization overhead of abort()).
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct ObjectiveFeedback {
-    seen_objectives: std::collections::HashSet<(CorpusId, u64)>,
+    seen_objectives: std::collections::HashSet<(String, u64)>,
 }
 
 impl ObjectiveFeedback {
@@ -79,8 +79,20 @@ where
                                          // objective
                     }
 
+                    let parent_name: String = match state
+                        .corpus()
+                        .get(current_idx.unwrap())?
+                        .borrow()
+                        .filename()
+                        .clone()
+                    {
+                        Some(name) => name,
+                        // Could not get current corpus file name so we keep the objective
+                        None => return Ok(true),
+                    };
+
                     // Only interesting if this hash hasn't been seen before for this corpus file
-                    if self.seen_objectives.insert((current_idx.unwrap(), hash)) {
+                    if self.seen_objectives.insert((parent_name, hash)) {
                         return Ok(true);
                     } else {
                         DUPLICATES.increment();
