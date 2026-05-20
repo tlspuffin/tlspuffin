@@ -214,8 +214,17 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
         let mut diff = vec![];
         #[cfg(not(feature = "ddyf-disable-status"))]
         {
-            let is_exec_failure =
-                |e: &Error| !matches!(e, Error::SecurityClaim(_) | Error::Difference(_));
+            let is_exec_failure = |e: &Error| {
+                !matches!(
+                    e,
+                    Error::SecurityClaim(_)
+                        | Error::Difference {
+                            put1_status: _,
+                            put2_status: _,
+                            differences: _
+                        }
+                )
+            };
 
             match (&first_trace_status, &second_trace_status) {
                 (Err(e1), Err(e2)) if is_exec_failure(e1) && is_exec_failure(e2) => {
