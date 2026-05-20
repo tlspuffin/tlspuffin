@@ -5,6 +5,7 @@ export LIBAFL_EDGES_MAP_SIZE=262144
 
 TIMEOUT='1h'
 CORES="0-3"
+CORE_COUNT=4
 PORT=2000
 PIPENAME="pipe_1"
 OUTFILE=results_perfs.csv
@@ -15,7 +16,7 @@ get_execution_number () {
 
   echo "$2: $total_exec execs in $TIMEOUT"
 
-  echo "$2,$total_exec,$TIMEOUT" >> $OUTFILE
+  echo "$2,$total_exec,$TIMEOUT,$CORE_COUNT" >> $OUTFILE
 }
 
 clean () {
@@ -41,6 +42,7 @@ cargo build --release --bin tlspuffin --features cputs
 echo 'Generate seeds for diff fuzzing'
 ./target/release/tlspuffin seed --differential
 
+echo "Run,Executions,Timeout,Core count" > $OUTFILE
 
 
 for i in $(seq 1 $RUNS);

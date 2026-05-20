@@ -50,6 +50,8 @@ do
     # removing pipe
     rm $PIPENAME
 
+    find $OBJECTIVES -name ".*" | xargs -L 1000 rm
+
     echo "Triaging objectives in $OBJECTIVES"
     python -m evaluation-ddyf.find_known_cves $OBJECTIVES
 

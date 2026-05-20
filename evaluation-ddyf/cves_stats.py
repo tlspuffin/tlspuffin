@@ -1,4 +1,5 @@
 import pandas as pd
+import sys
 
 
 def analyze_vulnerability_campaigns(file_path):
@@ -100,6 +101,10 @@ def analyze_vulnerability_campaigns(file_path):
 
 
 if __name__ == "__main__":
+    csv_file = "cve_list.csv"
+
+
+    if len(sys.argv) > 1:
+        csv_file = sys.argv[1]
     # Ensure your CSV file is in the same directory or provide the full path
-    analyze_vulnerability_campaigns("cve_list.csv")
-    pass
+    analyze_vulnerability_campaigns(csv_file)
