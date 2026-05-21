@@ -16,7 +16,10 @@ categories.workspace = true
 default = ["sancov", "introspection"]
 rust-put = []
 
+# Uses libafl for the instrumentation. sancov_pcguard_log and sancov are mutally exclusive
 sancov = ["puffin/sancov"]
+# Debug mode and panic when internal errors occur, instead of logging and skipping
+# debug = ["puffin/debug"]
 introspection = ["puffin/introspection"]
 
 [dependencies]
@@ -30,7 +33,7 @@ libc = { workspace = true }
 log = { workspace = true }
 puffin = { path = "../puffin" }
 puffin-macros = { path = "../puffin-macros" }
-opcua = {path = "../crates/opcua-mapper/lib"}
+opcua = { path = "../crates/opcua-mapper/lib" }
 serde = { workspace = true, features = ["derive"] }
 uuid = { version = "1.2", features = ["v4"] }
 

@@ -293,7 +293,7 @@ RESULT open62541_progress(AGENT agent){
         _log(PUFFIN.trace,"Server run RESULT_OK");
         return PUFFIN.make_result(RESULT_OK, "");
     }
-    return PUFFIN.make_result(RESULT_ERROR_OTHER, "Client unimplemented!");
+    return PUFFIN.make_result(RESULT_ERROR_OTHER, "Agent role unimplemented in function 'progress'");
 }
 
 RESULT open62541_reset(AGENT agent, uint8_t new_name, uint8_t use_clear){

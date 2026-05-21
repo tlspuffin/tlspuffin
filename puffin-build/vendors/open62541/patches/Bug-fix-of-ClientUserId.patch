@@ -1,17 +1,18 @@
-From eced9af4a77853fff3295391ccfa95faceece955 Mon Sep 17 00:00:00 2001
+From 22d63a56f0b91eb1806f150bcc0ca7d4e29bb7e8 Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
 Date: Fri, 24 Apr 2026 14:58:47 +0200
 Subject: [PATCH 3/3] Bug fix of User Certificate ClientUserId
 
+(cherry picked from commit b6af954c5f1d560d4e3036fec6c4fc31ddae68c8)
 ---
  src/server/ua_services_session.c | 6 +++---
  1 file changed, 3 insertions(+), 3 deletions(-)
 
 diff --git a/src/server/ua_services_session.c b/src/server/ua_services_session.c
-index ec7d65b59..753f08d91 100644
+index 5dc7f4dec..9159e13ec 100644
 --- a/src/server/ua_services_session.c
 +++ b/src/server/ua_services_session.c
-@@ -1219,8 +1219,8 @@ Service_ActivateSession_inner(UA_Server *server, UA_SecureChannel *channel,
+@@ -1183,8 +1183,8 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
      } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
          UA_X509IdentityToken* userCertToken = (UA_X509IdentityToken*)
              req->userIdentityToken.content.decoded.data;
@@ -22,7 +23,7 @@ index ec7d65b59..753f08d91 100644
      } else {
          /* TODO: Handle issued token */
      }
-@@ -1314,7 +1314,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
+@@ -1261,7 +1261,7 @@ Service_CloseSession(UA_Server *server, UA_SecureChannel *channel,
      }
  #endif
  
