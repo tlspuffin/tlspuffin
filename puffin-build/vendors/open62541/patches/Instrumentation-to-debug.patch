@@ -1,8 +1,9 @@
-From b1d8fbce9cb8fa82a5317ec0ab973d3d8f3af49d Mon Sep 17 00:00:00 2001
+From 8e71b9fcdb1c482c15a00cc3dd035be2c425414f Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
 Date: Fri, 24 Apr 2026 14:58:14 +0200
 Subject: [PATCH 2/3] Instrumentation for debug
 
+(cherry picked from commit 9f619b84cbc320dbe1fc0fff7531383aca9b8386)
 ---
  arch/posix/eventloop_posix_tcp.c       | 19 +++++++++++++------
  src/client/ua_client_connect.c         |  3 ++-
@@ -65,7 +66,7 @@ index b0fb9b3df..1b3b6ef34 100644
      UA_UNLOCK(&el->elMutex);
      return res;
 diff --git a/src/client/ua_client_connect.c b/src/client/ua_client_connect.c
-index dd2f2622c..4c4b6c67a 100644
+index dd2f2622c..182c908b8 100644
 --- a/src/client/ua_client_connect.c
 +++ b/src/client/ua_client_connect.c
 @@ -2185,7 +2185,8 @@ initConnect(UA_Client *client) {
@@ -73,16 +74,16 @@ index dd2f2622c..4c4b6c67a 100644
      if(client->connectStatus != UA_STATUSCODE_GOOD) {
          UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
 -                       "Endpoint URL is invalid: %S", client->config.endpointUrl);
-+                       "Endpoint URL is invalid: %S (%s)", client->config.endpointUrl,
-+                       UA_StatusCode_name(client->connectStatus) );
++            "Endpoint URL is invalid: %S (%s)", client->config.endpointUrl,
++            UA_StatusCode_name(client->connectStatus) );
          return;
      }
  
 diff --git a/src/server/ua_server.c b/src/server/ua_server.c
-index 6845ebec9..30e3c83b9 100644
+index 1dece1eab..53d61a086 100644
 --- a/src/server/ua_server.c
 +++ b/src/server/ua_server.c
-@@ -1411,6 +1411,8 @@ UA_StatusCode
+@@ -1393,6 +1393,8 @@ UA_StatusCode
  UA_Server_run_shutdown(UA_Server *server) {
      if(server == NULL)
          return UA_STATUSCODE_BADINVALIDARGUMENT;
@@ -91,7 +92,7 @@ index 6845ebec9..30e3c83b9 100644
  
      lockServer(server);
  
-@@ -1423,6 +1425,8 @@ UA_Server_run_shutdown(UA_Server *server) {
+@@ -1405,6 +1407,8 @@ UA_Server_run_shutdown(UA_Server *server) {
  
      /* Set to stopping and notify the application */
      setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPING);
@@ -100,7 +101,7 @@ index 6845ebec9..30e3c83b9 100644
  
  #if UA_MULTITHREADING >= 100
      /* Stop regular callback for async operation processing */
-@@ -1434,6 +1438,8 @@ UA_Server_run_shutdown(UA_Server *server) {
+@@ -1416,6 +1420,8 @@ UA_Server_run_shutdown(UA_Server *server) {
          removeCallback(server, server->houseKeepingCallbackId);
          server->houseKeepingCallbackId = 0;
      }
@@ -108,8 +109,8 @@ index 6845ebec9..30e3c83b9 100644
 +        "The server housekeeping tasks: remove callbacks done");
  
      /* Stop all ServerComponents */
-     stopServerComponents(server);
-@@ -1441,6 +1447,9 @@ UA_Server_run_shutdown(UA_Server *server) {
+     ZIP_ITER(UA_ServerComponentTree, &server->serverComponents,
+@@ -1424,6 +1430,9 @@ UA_Server_run_shutdown(UA_Server *server) {
      /* Are we already stopped? */
      if(testStoppedCondition(server)) {
          setServerLifecycleState(server, UA_LIFECYCLESTATE_STOPPED);
@@ -119,7 +120,7 @@ index 6845ebec9..30e3c83b9 100644
      }
  
      /* Only stop the EventLoop if it is coupled to the server lifecycle  */
-@@ -1452,18 +1461,32 @@ UA_Server_run_shutdown(UA_Server *server) {
+@@ -1435,18 +1444,32 @@ UA_Server_run_shutdown(UA_Server *server) {
      /* Unlock and do one "normal" iteration. This allows threads waiting for the
       * server lock to proceed before the server lock is destroyed. */
      unlockServer(server);
@@ -154,10 +155,10 @@ index 6845ebec9..30e3c83b9 100644
      while(el->state != UA_EVENTLOOPSTATE_STOPPED &&
            el->state != UA_EVENTLOOPSTATE_FRESH &&
 diff --git a/src/server/ua_services_securechannel.c b/src/server/ua_services_securechannel.c
-index 7274798b0..60896e0ce 100644
+index 7753c3e7c..42bf44835 100644
 --- a/src/server/ua_services_securechannel.c
 +++ b/src/server/ua_services_securechannel.c
-@@ -186,6 +186,21 @@ Service_OpenSecureChannel_inner(UA_Server *server, UA_SecureChannel *channel,
+@@ -188,6 +188,21 @@ Service_OpenSecureChannel(UA_Server *server, UA_SecureChannel *channel,
          UA_ByteString_copy(&channel->localNonce, &response->serverNonce);
      UA_CHECK_STATUS(response->responseHeader.serviceResult, return);
  
@@ -179,7 +180,7 @@ index 7274798b0..60896e0ce 100644
      /* Success */
      if(request->requestType == UA_SECURITYTOKENREQUESTTYPE_ISSUE) {
          UA_LOG_INFO_CHANNEL(sc->logging, channel,
-@@ -302,3 +317,4 @@ notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
+@@ -285,3 +300,4 @@ notifySecureChannel(UA_Server *server, UA_SecureChannel *channel,
      if(sc->globalNotificationCallback)
          sc->globalNotificationCallback(server, type, notifySCMap);
  }
