@@ -147,6 +147,7 @@ void openssl_destroy(AGENT agent)
     if (agent->claimer != NULL)
     {
         agent->claimer->destroy(agent->claimer->context);
+        free(agent->claimer);
     }
 
     SSL_CTX_free(agent->ctx);
