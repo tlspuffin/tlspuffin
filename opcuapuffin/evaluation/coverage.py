@@ -14,7 +14,7 @@ import subprocess
 
 # Configuration ---------------------------------------------------------------
 VENDOR = "open62541"
-BASE_DIR = Path(".opcuapuffin/evaluation/coverage-results-"+VENDOR)
+BASE_DIR = Path("./opcuapuffin/evaluation/tmp/coverage-results-"+VENDOR)
 BINARY = "./target/debug/opcuapuffin"
 SEEDS_DIR = "./seeds_opcua" # OPC UA seeds are in-code, we'll use an empty dir for baseline
 BATCH_SIZE = 100 
@@ -129,4 +129,5 @@ def main(): # Main program
 
 #------------------------------------------------------------------------------
 if __name__ == "__main__":
+#------------------------------------------------------------------------------
     main()
