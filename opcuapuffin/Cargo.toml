@@ -16,7 +16,7 @@ categories.workspace = true
 default = ["sancov", "introspection"]
 rust-put = []
 
-# Uses libafl for the instrumentation. sancov_pcguard_log and sancov are mutally exclusive
+# Uses libafl for the instrumentation. sancov_pcguard_log and sancov are mutually exclusive
 sancov = ["puffin/sancov"]
 # Debug mode and panic when internal errors occur, instead of logging and skipping
 # debug = ["puffin/debug"]

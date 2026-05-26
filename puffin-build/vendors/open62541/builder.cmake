@@ -42,7 +42,7 @@ cmake_builder(
     $<$<BOOL:${llvm_cov}>:-fcoverage-mapping>
     $<$<BOOL:${llvm_cov}>:-O0>
 
-    # GCOV
+    # LLVM GCOV
     $<$<BOOL:${gcov}>:-ftest-coverage>
     $<$<BOOL:${gcov}>:-fprofile-arcs>
     $<$<BOOL:${gcov}>:-O0>
