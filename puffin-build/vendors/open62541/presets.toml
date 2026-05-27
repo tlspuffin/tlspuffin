@@ -3,4 +3,11 @@ sources = { repo = "https://github.com/open62541/open62541.git", commit="dfd44a2
 builder = { type = "builtin", name = "open62541" }
 asan = true
 sancov = true
-# gcov = false # true only to observe source coverage
+gcov = false # true only to observe source coverage
+
+[open62541-gcov]
+sources = { repo = "https://github.com/open62541/open62541.git", commit="dfd44a234645ed29cc6d190048bc8ae80c5454cd", version = "1.5.4" }
+builder = { type = "builtin", name = "open62541" }
+asan = false
+sancov = true
+gcov = true
