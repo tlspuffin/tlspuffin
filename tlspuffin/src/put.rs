@@ -196,6 +196,12 @@ impl CAgent {
             .groups
             .clone()
             .map(|x| CString::new(x.clone()).unwrap());
+        let sigalgs = config
+            .descriptor
+            .protocol_config
+            .sigalgs
+            .clone()
+            .map(|x| CString::new(x.clone()).unwrap());
 
         let descriptor = match config.descriptor.protocol_config.typ {
             AgentType::Server => make_descriptor(
@@ -207,6 +213,7 @@ impl CAgent {
                 &ciphers_tls12,
                 &ciphers_tlsboth,
                 &groups,
+                &sigalgs,
             ),
             AgentType::Client => make_descriptor(
                 &config,
@@ -217,6 +224,7 @@ impl CAgent {
                 &ciphers_tls12,
                 &ciphers_tlsboth,
                 &groups,
+                &sigalgs,
             ),
         };
 
@@ -388,6 +396,7 @@ fn make_descriptor(
     ciphers_tls12: &CString,
     ciphers_tlsboth: &CString,
     groups: &Option<CString>,
+    sigalgs: &Option<CString>,
 ) -> TLS_AGENT_DESCRIPTOR {
     // eprintln!("{:?}", cert);
     // eprintln!("{:?}", pkey);
@@ -413,6 +422,11 @@ fn make_descriptor(
         cipher_string_tlsboth: ciphers_tlsboth.as_ptr(),
         group_list: if let Some(group_list) = groups {
             group_list.as_ref().as_ptr()
+        } else {
+            std::ptr::null()
+        },
+        sigalgs_list: if let Some(sigalgs_list) = sigalgs {
+            sigalgs_list.as_ref().as_ptr()
         } else {
             std::ptr::null()
         },
