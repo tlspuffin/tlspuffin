@@ -79,8 +79,11 @@ impl Put {
 
     pub fn print_cargo_metadata(&self) {
         println!("cargo:rerun-if-changed={}", self.library.path().display());
+<<<<<<< HEAD
         // Check for harness files
         println!("cargo:rerun-if-changed={}", self.harness.path.display());
+=======
+>>>>>>> d0a4f67af ([tool] diff-coverage computations and reporting using gcov)
         // Check for added or removed vendors: slow, adds a few seconds before each run
         // but can be useful when switching often, building new ones etc...
         #[cfg(feature = "watch-vendor")]

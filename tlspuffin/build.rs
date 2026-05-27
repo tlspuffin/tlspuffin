@@ -81,6 +81,12 @@ fn main() {
 }
 
 fn harness(library: &library::Library) -> Option<Put> {
+    let has_gcov = library.metadata().instrumentation.iter().any(|i| i == "gcov");
+
+    if cfg!(feature = "gcov") != has_gcov {
+        return None;
+    }
+
     let out_dir =
         Path::new(&std::env::var("OUT_DIR").unwrap()).join(format!("harness_{}", library.id()));
 
