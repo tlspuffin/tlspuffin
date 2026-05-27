@@ -1080,6 +1080,7 @@ void openssl_destroy(AGENT agent)
     if (agent->claimer != NULL)
     {
         agent->claimer->destroy(agent->claimer->context);
+        free(agent->claimer);
     }
 
     SSL_CTX_free(agent->ctx);
@@ -1244,6 +1245,7 @@ void openssl_register_claimer(AGENT agent, const CLAIMER_CB *claimer)
     if (agent->claimer != NULL)
     {
         agent->claimer->destroy(agent->claimer->context);
+        free(agent->claimer);
     }
 
     CLAIMER_CB *new_claimer = malloc(sizeof(CLAIMER_CB));
@@ -1460,7 +1462,8 @@ static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor
     agent->in = BIO_new(BIO_s_mem());
     agent->out = BIO_new(BIO_s_mem());
 
-    agent->claimer = &DEFAULT_CLAIMER_CB;
+    agent->claimer = NULL;
+    openssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
     agent->claimQueueLen = 0;
     agent->has_cached_server_random = false;
     agent->has_cached_client_random = false;
