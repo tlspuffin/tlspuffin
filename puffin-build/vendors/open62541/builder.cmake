@@ -22,6 +22,7 @@ cmake_builder(
     -DUA_ENABLE_ENCRYPTION=OPENSSL
     -DUA_MULTITHREADING=0
     -DUA_NAMESPACE_ZERO=MINIMAL
+    -DUA_ENABLE_DEBUG_SANITIZER=$<IF:$<BOOL:${asan}>,ON,OFF>
 
   CFLAGS
     -g
@@ -32,10 +33,11 @@ cmake_builder(
     # SANCOV
     $<$<BOOL:${sancov}>:-fsanitize-coverage=trace-pc-guard>
 
-    # ASAN
+    # ASAN / UBSAN
     $<$<BOOL:${asan}>:-DOPENSSL_NO_BUF_FREELISTS>
-    $<$<BOOL:${asan}>:-fsanitize=address>
+    $<$<BOOL:${asan}>:-fsanitize=address,undefined>
     $<$<BOOL:${asan}>:-static-libsan>
+    $<$<NOT:$<BOOL:${asan}>>:-fno-sanitize=all>
 
     # LLVM_COV
     $<$<BOOL:${llvm_cov}>:-fprofile-instr-generate>

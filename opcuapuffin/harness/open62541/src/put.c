@@ -47,7 +47,11 @@ static const OPCUA_PUT_INTERFACE open62541_vtable = {
     }
 };
 
-const OPCUA_PUT_INTERFACE open62541() {
+#ifndef REGISTER
+#define REGISTER open62541
+#endif
+
+const OPCUA_PUT_INTERFACE REGISTER() {
     return open62541_vtable;
 };
 
