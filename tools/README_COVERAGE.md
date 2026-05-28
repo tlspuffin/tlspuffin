@@ -42,15 +42,21 @@ The `tools/puffin_report.py` script manages the entire lifecycle of execution, e
 ### Run a Single Campaign
 Measures coverage for a single directory and adds it to the master hub.
 ```bash
-# Usage: ./tools/puffin_report.py run <protocol> <corpus_dir> [--put <name>] [--force]
+# Example for TLS (Requires explicit -gcov PUT name)
 ./tools/puffin_report.py run tls experiments/my_campaign/corpus --put openssl340-gcov
+
+# Example for OPC UA (Always uses the base PUT name)
+./tools/puffin_report.py run opcua experiments/my_campaign/corpus --put open62541
 ```
 
 ### Run a Differential Analysis
 Compares two corpora (A and B). This automatically generates individual reports for both AND a differential dashboard.
 ```bash
-# Usage: ./tools/puffin_report.py diff <protocol> <dir_a> <dir_b> [--put <name>] [--force]
+# Example for TLS
 ./tools/puffin_report.py diff tls seeds experiments/my_campaign/corpus --put openssl340-gcov
+
+# Example for OPC UA
+./tools/puffin_report.py diff opcua seeds_opcua experiments/my_campaign/corpus --put open62541
 ```
 
 ### View the Master Hub
