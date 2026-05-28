@@ -10,25 +10,6 @@ pub fn main() -> ExitCode {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn atexit(f: extern "C" fn()) -> libc::c_int {
-    extern "C" {
-        fn __cxa_atexit(
-            cb: extern "C" fn(*mut libc::c_void),
-            arg: *mut libc::c_void,
-            dso: *mut libc::c_void,
-        ) -> libc::c_int;
-    }
-
-    extern "C" fn atexit_wrapper(arg: *mut libc::c_void) {
-        unsafe {
-            let f: extern "C" fn() = std::mem::transmute(arg);
-            f();
-        }
-    }
-
-    __cxa_atexit(
-        atexit_wrapper,
-        f as *mut libc::c_void,
-        std::ptr::null_mut(),
-    )
+pub unsafe extern "C" fn atexit(_f: extern "C" fn()) -> libc::c_int {
+    0
 }

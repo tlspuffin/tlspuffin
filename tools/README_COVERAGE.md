@@ -75,6 +75,10 @@ Then navigate to:
 - **JSON Reuse:** The script automatically reuses existing `coverage.json` files to speed up re-generation. Use `--force` to re-execute traces.
 - **Protocol Support:** Currently supports `opcua` and `tls`.
 
+- **Absolute Delta:** The change in total branch coverage percentage (e.g., +1.0% means 1% more of the entire file is covered).
+- **Relative Delta:** The growth or reduction relative to the baseline coverage. *Note: If the baseline coverage is 0.0%, any new coverage is displayed as +100%.*
+- **Ground-Truth (GCOV):** All metrics are derived from high-fidelity compiler-level counters, providing a precise measurement compared to fuzzer approximations.
+
 ## 6. Customizing Coverage Filters
 
 To ensure the reports focus strictly on the library under test (the PUT), the system filters out fuzzer infrastructure and test code.

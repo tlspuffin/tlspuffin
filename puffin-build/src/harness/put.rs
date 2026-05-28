@@ -79,6 +79,13 @@ impl Put {
 
     pub fn print_cargo_metadata(&self) {
         println!("cargo:rerun-if-changed={}", self.library.path().display());
+        // Check for added or removed vendors: slow, adds a few seconds before each run
+        // but can be useful when switching often, building new ones etc...
+        #[cfg(feature = "watch-vendor")]
+        println!(
+            "cargo:rerun-if-changed={}",
+            self.library.path().join("..").display()
+        );
 
         if matches!(self.harness.kind, harness::Kind::Rust) {
             println!("cargo:rustc-check-cfg=cfg(has_instr, values(\"sancov\", \"asan\", \"gcov\", \"llvm_cov\", \"claimer\"))");

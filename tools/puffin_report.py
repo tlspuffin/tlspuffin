@@ -261,6 +261,7 @@ if __name__ == "__main__":
     parser.add_argument("dirs", nargs="+", help="Corpus directories (1 for run, 2 for diff)")
     parser.add_argument("--put", help="Override the PUT name (e.g., openssl340_gcov)")
     parser.add_argument("--force", action="store_true", help="Force re-execution even if JSON exists")
+    parser.add_argument("--name", help="Override the default campaign/diff name")
     
     args = parser.parse_args()
     
@@ -272,9 +273,10 @@ if __name__ == "__main__":
     reporter = PuffinReporter(args.protocol, f"./coverage-hub-{args.protocol}", vendor_override=args.put)
 
     if args.mode == "run":
-        reporter.run_single(Path(args.dirs[0]).name or "run", args.dirs[0], force=args.force)
+        name = args.name or Path(args.dirs[0]).name or "run"
+        reporter.run_single(name, args.dirs[0], force=args.force)
     elif args.mode == "diff":
-        name = f"{Path(args.dirs[0]).name}_vs_{Path(args.dirs[1]).name}"
+        name = args.name or f"{Path(args.dirs[0]).name}_vs_{Path(args.dirs[1]).name}"
         reporter.run_diff(name, args.dirs[0], args.dirs[1], force=args.force)
     
     reporter.generate_master_dashboard()

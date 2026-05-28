@@ -39,8 +39,8 @@ class PuffinEngine:
         # Setup temporary directory for coverage artifacts
         self.temp_dir = Path("tmp/coverage")
         self.temp_dir.mkdir(parents=True, exist_ok=True)
-        # We need the absolute path to the project root to pass to gcovr
-        self.project_root = Path.cwd().absolute()
+        # Use relative paths for better gcovr compatibility
+        self.project_root = Path(".")
 
     def run_cmd(self, cmd, check=True, env=None, cwd=None):
         """Standardized command execution within the nix-shell."""
@@ -67,22 +67,22 @@ class PuffinEngine:
         self.run_cmd(cmd)
 
     def extract_json(self, output_path):
-        """Uses gcovr to produce a machine-readable JSON coverage report, using tmp/coverage for artifacts."""
+        """Uses gcovr to produce a machine-readable JSON coverage report."""
         output_path = Path(output_path).absolute()
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
         print(f"  Extracting JSON coverage to {output_path}...")
         exclude_args = " ".join([f'-e "{x}"' for x in self.config['excludes']])
         
-        # Run gcovr from the temp directory to keep root clean of .gcov files
-        cmd = f'gcovr -r "{self.project_root}" "{self.project_root}" --gcov-executable "{self.config["gcov_exe"]}" {exclude_args} --json "{output_path}"'
-        self.run_cmd(cmd, cwd=self.temp_dir)
+        # Run gcovr from the project root. Added ignore flags for stability.
+        cmd = f'gcovr -r "{self.project_root}" "{self.project_root}" --gcov-executable "{self.config["gcov_exe"]}" {exclude_args} --gcov-ignore-parse-errors --json "{output_path}"'
+        self.run_cmd(cmd)
         
         with open(output_path) as f:
             return json.load(f)
 
     def extract_html(self, output_dir, force=False):
-        """Uses gcovr to produce detailed HTML reports, using tmp/coverage for artifacts."""
+        """Uses gcovr to produce detailed HTML reports."""
         output_dir = Path(output_dir).absolute()
         index_file = output_dir / "index.html"
         
@@ -94,15 +94,19 @@ class PuffinEngine:
         print(f"  Extracting HTML coverage to {index_file}...")
         exclude_args = " ".join([f'-e "{x}"' for x in self.config['excludes']])
         
-        # Run gcovr from the temp directory to keep root clean of .gcov files
-        cmd = f'gcovr -r "{self.project_root}" "{self.project_root}" --gcov-executable "{self.config["gcov_exe"]}" {exclude_args} --html-details --html-self-contained -o "{index_file}"'
-        self.run_cmd(cmd, cwd=self.temp_dir)
+        # Run gcovr from the project root. Added ignore flags and -j 1 for stability.
+        cmd = f'gcovr -j 1 -r "{self.project_root}" "{self.project_root}" --gcov-executable "{self.config["gcov_exe"]}" {exclude_args} --gcov-ignore-parse-errors --html-details --html-self-contained -o "{index_file}"'
+        try:
+            self.run_cmd(cmd)
+        except Exception as e:
+            print(f"  Warning: Detailed HTML report generation failed: {e}")
+            print(f"  The Hub and JSON data will still be available.")
 
     def extract_summary(self):
         """Uses gcovr to produce a JSON summary and returns the total branch coverage %."""
         exclude_args = " ".join([f'-e "{x}"' for x in self.config['excludes']])
         cmd = f'gcovr -r "{self.project_root}" "{self.project_root}" --gcov-executable "{self.config["gcov_exe"]}" {exclude_args} --json-summary-pretty'
-        res = self.run_cmd(cmd, cwd=self.temp_dir)
+        res = self.run_cmd(cmd)
         try:
             data = json.loads(res.stdout)
             return data.get('branch_percent', 0.0)
