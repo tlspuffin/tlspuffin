@@ -58,6 +58,7 @@ The `tools/puffin_report.py` script manages the full lifecycle: execute traces �
 Measures coverage for one corpus directory and adds it to the master hub.
 
 ```bash
+<<<<<<< HEAD
 # TLS (must specify the full gcov PUT name)
 ./tools/puffin_report.py run tls experiments/my_campaign/corpus --put openssl340-gcov
 
@@ -69,6 +70,13 @@ Measures coverage for one corpus directory and adds it to the master hub.
 
 # Force a full re-execution ignoring cached data
 ./tools/puffin_report.py run tls experiments/my_campaign/corpus --put openssl340-gcov --force
+=======
+# Example for TLS (Requires explicit -gcov PUT name)
+./tools/puffin_report.py run tls experiments/my_campaign/corpus --put openssl340-gcov
+
+# Example for OPC UA (Always uses the base PUT name)
+./tools/puffin_report.py run opcua experiments/my_campaign/corpus --put open62541
+>>>>>>> cff765a0a (minor)
 ```
 
 ### Run a Differential Analysis
@@ -76,6 +84,7 @@ Measures coverage for one corpus directory and adds it to the master hub.
 Compares two corpora (A → B). Produces individual reports for both AND an interactive differential dashboard.
 
 ```bash
+<<<<<<< HEAD
 # TLS: compare seeds vs fuzzing results
 ./tools/puffin_report.py diff tls experiments/tls_seeds experiments/my_campaign/corpus \
     --put openssl340-gcov --name seeds_vs_campaign
@@ -83,6 +92,13 @@ Compares two corpora (A → B). Produces individual reports for both AND an inte
 # OPC UA: compare seeds vs fuzzing results
 ./tools/puffin_report.py diff opcua experiments/opcua_seeds experiments/my_campaign/corpus \
     --put open62541 --name seeds_vs_campaign
+=======
+# Example for TLS
+./tools/puffin_report.py diff tls seeds experiments/my_campaign/corpus --put openssl340-gcov
+
+# Example for OPC UA
+./tools/puffin_report.py diff opcua seeds_opcua experiments/my_campaign/corpus --put open62541
+>>>>>>> cff765a0a (minor)
 ```
 
 ### All CLI Options
