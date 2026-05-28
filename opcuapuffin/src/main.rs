@@ -9,16 +9,13 @@ pub fn main() -> ExitCode {
     )
 }
 
-// This fix is only for GCOV and LLVM_COV
+// This fix is only for GCOV
 // ----------------------------------------------------------------------------
 // The linker error "undefined reference to 'atexit'" occurs when mixing AddressSanitizer (ASan), GCOV, and Rust's -nodefaultlibs.
-// The Problem:
 //    GCOV needs to register a "save-on-exit" handler via 'atexit' in function `llvm_gcov_init'.
 //    However, because the PUT is built without its own standard library to avoid symbol conflicts, the GCOV runtime couldn't find the atexit symbol.
-// The Fix:
-//    A manual implementation of atexit in Rust that calls the lower-level GLIBC function __cxa_atexit.
-//     Why __cxa_atexit? Calling libc::atexit directly would have caused an infinite recursion (stack overflow) because our wrapper was named atexit
 #[no_mangle]
+#[cfg(feature = "gcov")]
 pub unsafe extern "C" fn atexit(_f: extern "C" fn()) -> libc::c_int {
     0
 }
