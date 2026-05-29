@@ -558,6 +558,27 @@ static void map_tls12_iana_cipher_list(const char *input, char *output, size_t o
 // Agent creation
 // ---------------------------------------------------------------------------
 
+// Fixed time callback for deterministic execution: always returns a constant
+// timestamp so session->time and ticket-key rotation are identical across runs.
+// The value (2023-11-14 00:00:00 UTC) is within the validity window of the
+// project's test certificates.
+static void fixed_time_cb(const SSL *ssl, struct timeval *out_clock)
+{
+    (void)ssl;
+    out_clock->tv_sec = 1699920000;
+    out_clock->tv_usec = 0;
+}
+
+// Fixed 48-byte session-ticket key (name[16] | hmac_key[16] | aes_key[16]).
+// Pre-setting this prevents ssl_ctx_rotate_ticket_encryption_key() from
+// consuming RNG entropy on the first execution, which would shift the entire
+// RNG sequence relative to subsequent (reset) executions and break determinism.
+static const uint8_t FIXED_TICKET_KEYS[48] = {
+    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
+    0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d, 0x1e, 0x1f, 0x20,
+    0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x2b, 0x2c, 0x2d, 0x2e, 0x2f, 0x30,
+};
+
 static SSL_CTX *configure_common(const TLS_AGENT_DESCRIPTOR *descriptor)
 {
     SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
@@ -567,6 +588,13 @@ static SSL_CTX *configure_common(const TLS_AGENT_DESCRIPTOR *descriptor)
     }
 
     boringssl_set_protocol_version(ssl_ctx, descriptor->tls_version);
+
+    // Determinism: fix the clock so session timestamps are identical across runs.
+    SSL_CTX_set_current_time_cb(ssl_ctx, fixed_time_cb);
+
+    // Determinism: pre-set ticket keys so key-generation RNG calls don't occur
+    // on the first execution (they would be absent on reset runs, shifting RNG).
+    SSL_CTX_set_tlsext_ticket_keys(ssl_ctx, FIXED_TICKET_KEYS, sizeof(FIXED_TICKET_KEYS));
 
     // Cipher configuration.
     // BoringSSL's SSL_CTX_set_cipher_list() silently ignores IANA-format TLS 1.2
