@@ -10,4 +10,8 @@ sources = { repo = "https://github.com/open62541/open62541.git", commit="dfd44a2
 builder = { type = "builtin", name = "open62541" }
 asan = false
 sancov = true
+<<<<<<< HEAD
 gcov = true # to observe source coverage
+=======
+gcov = true # to observe source coverage
+>>>>>>> a7aabc339 (Minor changes (comments))
