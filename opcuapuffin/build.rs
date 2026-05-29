@@ -59,7 +59,6 @@ fn main() {
 
 fn compile_opcua_harness(library: &Library) -> Option<Put> {
     let has_gcov = library.metadata().instrumentation.iter().any(|i| i == "gcov");
-
     if cfg!(feature = "gcov") != has_gcov {
         return None;
     }

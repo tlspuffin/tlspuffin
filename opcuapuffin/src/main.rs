@@ -10,6 +10,7 @@ pub fn main() -> ExitCode {
 }
 
 #[no_mangle]
+#[cfg(feature = "gcov")]
 pub unsafe extern "C" fn atexit(_f: extern "C" fn()) -> libc::c_int {
     0
 }
