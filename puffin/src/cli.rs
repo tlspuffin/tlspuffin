@@ -99,6 +99,7 @@ where
                 .arg(arg!(-b --binary [p] "The program to start"))
                 .arg(arg!(-a --args [a] "The args of the program"))
                 .arg(arg!(-t --host [h] "The host to connect to, or the server host"))
+                .arg(arg!(-s --sni [h] "Server Name Indication (SNI) to inject into the ClientHello"))
                 .arg(arg!(-p --port [n] "The client port to connect to, or the server port")
                     .value_parser(value_parser!(u16).range(1..)))
                 .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool))),
@@ -465,6 +466,10 @@ where
             .unwrap_or(&44338u16)
             .to_string();
         let export_json: &bool = matches.get_one("json").unwrap();
+
+        if let Some(sni) = matches.get_one::<String>("sni") {
+            std::env::set_var("PUFFIN_SNI", sni);
+        }
 
         let trace = Trace::<PB::ProtocolTypes>::from_file(input).unwrap();
 
