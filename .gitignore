@@ -1,3 +1,6 @@
+**/*.trace
+/*.trace
+*.trace
 /vendor*
 /target
 /target-*
@@ -45,3 +48,17 @@ tlspuffin.out
 !docs/**/*.html
 
 super-linter.log
+
+# agent working dirs, editor backups, scratch, loose logs
+__pycache__/
+.antigravitycli/
+*~
+/scratch/
+/fingerprinting_BACKUP/
+/patch.diff
+/log
+/log[0-9]*
+
+# bulky regenerable fingerprinting data
+evaluation-ddyf/fingerprinting/candidates/signatures.csv
+evaluation-ddyf/fingerprinting/candidates/manifest.csv
