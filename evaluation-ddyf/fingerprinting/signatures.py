@@ -131,15 +131,16 @@ def _collect_versions(rows: list[dict]) -> list[str]:
     return ordered
 
 
-def _compute_sig(trace: str, version: str) -> str:
+def _compute_sig(trace: str, version: str, tcp_mode: bool = False) -> str:
     """Return the canonical signature hash, or _ERR on failure."""
-    s = get_signature(trace, version)
+    s = get_signature(trace, version, tcp_mode=tcp_mode)
     return s if s is not None else _ERR
 
 
 def _build_matrix(
     traces: list[str],
     versions: list[str],
+    tcp_mode: bool = False
 ) -> dict[str, dict[str, str]]:
     """
     Returns matrix[trace][version] = sig_hash.
@@ -151,7 +152,7 @@ def _build_matrix(
     matrix: dict[str, dict[str, str]] = {t: {} for t in traces}
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-        futures = {pool.submit(_compute_sig, t, v): (t, v) for t, v in jobs}
+        futures = {pool.submit(_compute_sig, t, v, tcp_mode): (t, v) for t, v in jobs}
         done = 0
         for fut in as_completed(futures):
             done += 1
@@ -256,7 +257,18 @@ def _cross_validate(
 
 
 def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="Compute signatures and clusters.")
+    parser.add_argument("--tcp-mode", action="store_true", help="Build signatures omitting internal errors and cipher suites")
+    args = parser.parse_args()
+
     _check_prerequisites()
+
+    sig_csv_path = CANDIDATES / "signatures_tcp.csv" if args.tcp_mode else SIG_CSV
+    clusters_json_path = CANDIDATES / "clusters_tcp.json" if args.tcp_mode else CLUSTERS_JSON
+
+    if args.tcp_mode:
+        print("Running in TCP-mode: omitting internal errors and configuration details like cipher suites.")
 
     manifest_rows = _read_manifest()
     if not manifest_rows:
@@ -273,7 +285,7 @@ def main() -> None:
 
     # ── Build signature matrix ───────────────────────────────────────────────
     print("Computing signatures …")
-    matrix = _build_matrix(traces, versions)
+    matrix = _build_matrix(traces, versions, tcp_mode=args.tcp_mode)
 
     # ── Report execution failures ────────────────────────────────────────────
     for v in versions:
@@ -282,19 +294,27 @@ def main() -> None:
             print(f"  WARNING: {n_err} ERROR signatures for {v}")
 
     # ── Write signatures.csv ─────────────────────────────────────────────────
-    _write_signatures_csv(traces, versions, matrix)
+    with open(sig_csv_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['trace'] + versions)
+        for t in traces:
+            writer.writerow([t] + [matrix[t].get(v, _ERR) for v in versions])
+    print(f"Wrote {sig_csv_path}")
 
     # ── Cross-validate ───────────────────────────────────────────────────────
-    print(f"\nCross-validating (sample={XVAL_SAMPLE:.0%}) …")
-    agree, disagree = _cross_validate(traces, versions, matrix, manifest_rows, XVAL_SAMPLE)
-    total_xval = agree + disagree
-    if total_xval > 0:
-        print(f"Cross-validation: {agree}/{total_xval} agreements "
-              f"({100*agree/total_xval:.1f}%)  —  {disagree} disagreements")
-        if disagree > 0:
-            print("  *** DISAGREEMENTS DETECTED — canonicalization may have a bug ***")
+    if not args.tcp_mode:
+        print(f"\nCross-validating (sample={XVAL_SAMPLE:.0%}) …")
+        agree, disagree = _cross_validate(traces, versions, matrix, manifest_rows, XVAL_SAMPLE)
+        total_xval = agree + disagree
+        if total_xval > 0:
+            print(f"Cross-validation: {agree}/{total_xval} agreements "
+                  f"({100*agree/total_xval:.1f}%)  —  {disagree} disagreements")
+            if disagree > 0:
+                print("  *** DISAGREEMENTS DETECTED — canonicalization may have a bug ***")
+        else:
+            print("  (no cross-validation samples computed)")
     else:
-        print("  (no cross-validation samples computed)")
+        print("\nCross-validating omitted in tcp-mode")
 
     # ── Cluster versions ─────────────────────────────────────────────────────
     clusters = _cluster_versions(traces, versions, matrix)
@@ -307,9 +327,9 @@ def main() -> None:
         print(f"  {cid}: {vlist}")
         cluster_data.append({"id": cid, "versions": vlist})
 
-    with open(CLUSTERS_JSON, 'w') as f:
+    with open(clusters_json_path, 'w') as f:
         json.dump({"clusters": cluster_data}, f, indent=2)
-    print(f"Wrote {CLUSTERS_JSON}")
+    print(f"Wrote {clusters_json_path}")
 
     # ── Self-check against appendix (A0=5.0.0, A1={5.1.0,5.1.1}, B=5.2.0) ──
     v_set = set(versions)

@@ -50,19 +50,36 @@ _VOLATILE: list[tuple[re.Pattern, str]] = [
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def normalize_knowledge(k: str) -> str | None:
+def normalize_knowledge(k: str, tcp_mode: bool = False) -> str | None:
     """
     Canonicalize one knowledge string by stripping volatile fields.
-
-    Returns None for OpaqueMessageFlight strings: we use the parsed
-    MessageFlight counterpart (always present alongside OpaqueMessageFlight)
-    which carries the same information in a structured form that survives
-    encryption-key changes.
+    If tcp_mode is True, also strips out cipher suite configurations.
     """
     if k.startswith('OpaqueMessageFlight'):
-        return None
+        messages = re.findall(r"OpaqueMessage \{ typ: (\w+), version: [^,]+, payload: Payload\(\[([^\]]+)\]\)", k)
+        if not messages:
+            return None
+        parts = []
+        for typ, payload_str in messages:
+            length = len(payload_str.split(","))
+            if length < 10:
+                bucket = "<10"
+            elif length <= 100:
+                bucket = "10-100"
+            elif length <= 1000:
+                bucket = "100-1000"
+            else:
+                bucket = ">1000"
+            parts.append(f"{typ}({bucket})")
+        return f"OpaqueFlight[{len(messages)}]:" + ",".join(parts)
+
     for pat, repl in _VOLATILE:
         k = pat.sub(repl, k)
+        
+    if tcp_mode:
+        k = re.sub(r'cipher_suite: [A-Z0-9_]+', 'cipher_suite: VOLATILE', k)
+        k = re.sub(r'cipher_suites: CipherSuites\(\[.*?\]\)', 'cipher_suites: VOLATILE', k)
+        
     return k
 
 
@@ -73,29 +90,16 @@ def normalize_error(error: str | None) -> str:
     return re.sub(r'0x[0-9a-fA-F]+', 'ADDR', error)
 
 
-def canonicalize_execution(data: dict) -> str:
+def canonicalize_execution(data: dict, tcp_mode: bool = False) -> str:
     """
     Build a stable SHA-256 hash representing the SERVER-OBSERVABLE behavior of
     an execution.
-
-    Only steps executed by a SERVER-role agent are included in the signature.
-    This mirrors the deployment model (we send a fixed probe, observe what the
-    remote server sends back) and ensures consistency with differential-execute,
-    which compares two server implementations responding to the same inputs.
-
-    CLIENT-role agent steps (e.g., the wolfssl client's own ClientHello) are
-    intentionally excluded: they capture client-side implementation differences
-    that would not be visible when probing a remote server with a fixed probe.
-
-    Captures for each server-role step:
-      - normalized MessageFlight knowledge strings
-    Plus global:
-      - error string (normalized)
-      - executed_until index
-      - extra_knowledges (produced outside the step loop)
+    If tcp_mode is True, omits internal execution state (`err`, `until`) and
+    strips configuration-dependent details (like cipher suites) via normalize_knowledge.
     """
     execution = data.get('execution', {})
     executed_until = execution.get('executed_until', -1)
+    error = normalize_error(data.get('error'))
     steps = execution.get('steps', [])
 
     # Identify which agent names have Server role.
@@ -108,25 +112,33 @@ def canonicalize_execution(data: dict) -> str:
         elif typ == 'Client':
             any_client = True
 
-    # Client-only traces (wolfssl acting as its own client, no server agent):
-    # return a constant so they never distinguish versions in clustering.
-    # Triage should already exclude these, but this is defence-in-depth.
+    # Client-only traces
     if any_client and not server_agents:
         return hashlib.sha256(b'NO_SERVER_OBSERVABLE').hexdigest()
 
-    # If there are only Server agents (no Client agents in the trace), include all.
     include_all = not any_client or not server_agents
 
-    # Omit err and until to be robust against execution engine variations (FFI vs TCP)
-    parts: list[str] = []
+    if tcp_mode:
+        parts: list[str] = []
+    else:
+        parts: list[str] = [f'err={error}', f'until={executed_until}']
 
     for i, step in enumerate(steps):
-        if i > executed_until:
+        if i > executed_until and not tcp_mode:
             break
-        # Skip client-role steps unless there are no client agents to exclude.
+        # In tcp_mode, we might see the trace execute further because the TCP engine
+        # delays error reporting compared to the FFI engine. However, steps beyond
+        # the offline `executed_until` would just be local evaluation failures.
+        # But wait, in TCP mode, executed_until from the TCP trace will be larger.
+        if tcp_mode and step.get('action') != 'MessageFlight':
+            # Actually, `knowledges` are what we care about.
+            pass
+        elif i > executed_until:
+            break
+
         if not include_all and step.get('agent') not in server_agents:
             continue
-        normed = [normalize_knowledge(k) for k in step.get('knowledges', [])]
+        normed = [normalize_knowledge(k, tcp_mode) for k in step.get('knowledges', [])]
         normed = [n for n in normed if n is not None]
         if normed:
             parts.append(f's{i}:' + '|||'.join(normed))
@@ -163,10 +175,10 @@ def run_display(trace: str | Path, put: str, timeout: int = 10) -> dict | None:
         return None
 
 
-def get_signature(trace: str | Path, put: str, timeout: int = 10) -> str | None:
+def get_signature(trace: str | Path, put: str, timeout: int = 10, tcp_mode: bool = False) -> str | None:
     """
     Compute the canonical observable signature for a trace on a given PUT.
     Returns a 64-hex-char SHA-256 string, or None on execution failure.
     """
     data = run_display(trace, put, timeout)
-    return None if data is None else canonicalize_execution(data)
+    return None if data is None else canonicalize_execution(data, tcp_mode)

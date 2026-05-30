@@ -493,6 +493,18 @@ def _write_report(
 
 
 def main() -> None:
+    import argparse
+    parser = argparse.ArgumentParser(description="Build decision tree from signatures.")
+    parser.add_argument("--tcp-mode", action="store_true", help="Build tree using TCP-mode signatures")
+    args = parser.parse_args()
+
+    global SIG_CSV, CLUSTERS_JSON
+    if args.tcp_mode:
+        print("Running in TCP mode...")
+        SIG_CSV = CANDIDATES / "signatures_tcp.csv"
+        CLUSTERS_JSON = CANDIDATES / "clusters_tcp.json"
+
+    print("Loading data …")
     traces, versions, matrix = _load_matrix()
     clusters = _load_clusters()
     num_steps = _load_num_steps()
@@ -543,7 +555,8 @@ def main() -> None:
     import shutil
     import copy
 
-    model_dir = _HERE / "model"
+    model_dir_name = "model_tcp" if "args" in locals() and args.tcp_mode else "model"
+    model_dir = _HERE / model_dir_name
     model_probes_dir = model_dir / "probes"
     model_dir.mkdir(parents=True, exist_ok=True)
     model_probes_dir.mkdir(parents=True, exist_ok=True)
@@ -574,7 +587,7 @@ def main() -> None:
         
     vendor = _get_vendor(versions[0]) if versions else "unknown"
     meta = {
-        "canon": "default",
+        "canon": "tcp_mode" if "args" in locals() and args.tcp_mode else "default",
         "vendor": vendor,
         "clusters": clusters
     }
