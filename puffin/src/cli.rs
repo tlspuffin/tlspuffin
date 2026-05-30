@@ -61,7 +61,8 @@ where
                 .arg(arg!(-d --description [d] "Description of the experiment"))
             ,
             Command::new("seed").about("Generates seeds to ./seeds")
-                .arg(arg!(--differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing")),
+                .arg(arg!(--differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing"))
+                .arg(arg!(--fingerprinting "Like --differential, but excludes server-attacker seeds so the PUT is only ever exercised as a server. Use for differential campaigns aimed at fingerprinting a remote server.")),
             Command::new("plot")
                 .about("Plots a trace stored in a file")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -99,7 +100,8 @@ where
                 .arg(arg!(-a --args [a] "The args of the program"))
                 .arg(arg!(-t --host [h] "The host to connect to, or the server host"))
                 .arg(arg!(-p --port [n] "The client port to connect to, or the server port")
-                    .value_parser(value_parser!(u16).range(1..))),
+                    .value_parser(value_parser!(u16).range(1..)))
+                .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool))),
             Command::new("differential-execute")
                 .about("Execute a trace on multiple targets, returning the differences between the executions")
                 .arg(arg!(<first_target> "First PUT"))
@@ -266,9 +268,12 @@ where
     };
 
     if let Some(matches) = matches.subcommand_matches("seed") {
-        let is_differential = matches.get_flag("differential");
+        let is_fingerprinting = matches.get_flag("fingerprinting");
+        // Fingerprinting is a specialization of differential seeding: it reuses the
+        // same uniformised PUT descriptors but drops server-attacker seeds.
+        let is_differential = matches.get_flag("differential") || is_fingerprinting;
 
-        if let Err(err) = seed(&put_registry, is_differential) {
+        if let Err(err) = seed(&put_registry, is_differential, is_fingerprinting) {
             log::error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -459,6 +464,7 @@ where
             .get_one::<u16>("port")
             .unwrap_or(&44338u16)
             .to_string();
+        let export_json: &bool = matches.get_one("json").unwrap();
 
         let trace = Trace::<PB::ProtocolTypes>::from_file(input).unwrap();
 
@@ -476,19 +482,40 @@ where
             options.push(("cwd", cwd));
         }
 
-        let server = trace.descriptors[0].name;
+        let server_name = trace.descriptors[0].name;
         let put = PutDescriptor::new(TCP_PUT, options);
-        let runner = Runner::new(
-            put_registry.clone(),
-            Spawner::new(put_registry).with_mapping(&[(server, put)]),
-        );
-        let mut context = runner.execute(trace, &mut 0).unwrap();
+        let mut context = TraceContext::new(Spawner::new(put_registry).with_mapping(&[(server_name, put)]));
 
-        let server = AgentName::first();
-        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
-        log::info!("{}", shutdown);
+        let mut err = None;
+        let res = match trace.execute_until_step(&mut context, trace.steps.len(), &mut 0, false) {
+            Ok(_) => ExitCode::SUCCESS,
+            Err(e) => {
+                err = Some(e.to_string());
+                ExitCode::FAILURE
+            }
+        };
 
-        return ExitCode::SUCCESS;
+        if *export_json {
+            let exec = ExecutionResult::from(
+                "tcp".to_string(),
+                err,
+                &trace,
+                context,
+                false,
+                true,
+                false,
+                false,
+            );
+            println!("{}", serde_json::to_string_pretty(&exec).unwrap_or("".into()));
+            return res;
+        }
+
+        let first_agent = AgentName::first();
+        if let Ok(agent) = context.find_agent_mut(first_agent) {
+            log::info!("{}", agent.shutdown());
+        }
+
+        return res;
     } else if let Some(matches) = matches.subcommand_matches("differential-execute") {
         // differential fuzzing here
         let first_put: &String = matches.get_one("first_target").unwrap();
@@ -715,9 +742,17 @@ fn plot<PB: ProtocolBehavior>(
 fn seed<PB: ProtocolBehavior>(
     put_registry: &PutRegistry<PB>,
     differential_fuzzing: bool,
+    fingerprinting: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
     for (mut trace, name) in PB::create_corpus(put_registry.default_put().clone()) {
+        // In fingerprinting mode the PUT is only ever exercised as a server (the
+        // attacker is the client), so server-attacker seeds are not deployable and
+        // are skipped. Client-attacker and honest-handshake (incl. MiM) seeds are kept.
+        if fingerprinting && name.contains("server_attacker") {
+            continue;
+        }
+
         if differential_fuzzing {
             trace =
                 <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
