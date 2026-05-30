@@ -1,0 +1,79 @@
+You are working in the DDYF-fingerprinting repo. Build a NEW tool that fingerprints a
+LIVE TLS server over a TCP socket using the decision tree our pipeline already produces.
+First read: evaluation-ddyf/fingerprinting/{PLAN.md, build_tree.py, signatures.py,
+_canon.py, candidates/tree.json} and the `tcp` subcommand in puffin/src/cli.rs
+(`Command::new("tcp")`, handler around line 455). Work inside `nix-shell ./shell.nix`.
+
+## Goal
+A deterministic, AI-free tool that takes (i) a fingerprint MODEL produced by build_tree
+and (ii) a target `host:port`, connects to the real server, replays the tree's probe
+traces over TCP, and concludes which version/cluster the server is. It MUST be parametric:
+nothing wolfssl-specific or hardcoded — the same tool must later work on the OpenSSL model.
+
+## How the tree works (already implemented)
+`tree.json` is `{type:"node", trace:<probe path>, children:{<sig_hash>:<subtree>}}`, with
+leaves `{type:"leaf", clusters:[[version,...]]}`. To classify: at each node, replay
+`trace` against the target, canonicalize the server's observable response to the SAME
+`sig_hash` that signatures.py/_canon.py compute, follow `children[sig_hash]`, recurse to a
+leaf. The hash function is the single source of truth — reuse `_canon.py`, do not
+reimplement it.
+
+## Part A — Adapt build_tree.py to emit a portable, self-contained MODEL
+Right now `tree.json` references probe traces by absolute paths under `experiments/`, so it
+is not deployable. Change build_tree.py to ALSO emit a self-contained model directory
+(e.g. `evaluation-ddyf/fingerprinting/model/`):
+- `model/probes/<id>.trace` : a copy of every probe trace used in the tree.
+- `model/tree.json` : same structure but `trace` fields are RELATIVE paths into `probes/`.
+- `model/meta.json` : the canonicalization identifier/parameters (so the tool can refuse a
+  mismatched canon), the vendor label, and the version list per cluster.
+- (nice to have) per branch, a short human-readable summary of the expected observable
+  (e.g. alert reason / #encrypted-handshake records / stop step) for explainable output.
+Keep the existing outputs unchanged; the model dir is additive.
+
+## Part B — The probe tool (deliverable: fingerprint_probe.py)
+`python fingerprint_probe.py --model <model_dir> --host H --port P [--json]`
+- Loads `model/tree.json` + `model/meta.json`; resolves probe paths under `model/probes/`.
+- Walks the tree: for each node, replay `trace` against `host:port` (see Part C),
+  canonicalize via `_canon.py` to a hash, descend `children[hash]`.
+- On a leaf: print the identified cluster (list of candidate versions) and the branch path
+  taken. With `--json`, emit a machine-readable result.
+- Robustness: if a node's response hash matches NO child, stop and report
+  "unknown / unsupported target" plus the unmatched observable (do not guess). Make probe
+  replay timeout-bounded and retried a few times; if a probe is flaky on the live target,
+  say so rather than silently picking a branch.
+- Parametric: vendor/versions/clusters come only from the model — no literals in the code.
+
+## Part C — Getting a structured observable from the live TCP execution
+`tlspuffin tcp <trace> --host H --port P` already replays a trace against a real server, but
+check whether it emits the observable response (knowledges/status) in a form `_canon.py`
+can consume to produce the SAME hash as the offline `display-execute --json` path.
+- If it does (or can via existing logging), use it.
+- If NOT, implement the MINIMAL harness change: add a `--json` flag to the `tcp`
+  subcommand that serializes the same observable structure `display-execute --json` emits.
+  This touches Rust — STOP and show me the diff for approval BEFORE building on it. Keep it
+  minimal and isolated; do not change unrelated harness behavior.
+The make-or-break property: a hash computed from a LIVE `tcp` run of probe T against a
+server of version V must EQUAL the offline `signatures.csv` hash for (T, V). Verify this
+explicitly on a few (T,V) pairs and report the agreement.
+
+## Part D — End-to-end validation (this is the paper figure)
+Stand up real servers and confirm the tool recovers the right cluster over a real socket:
+- For at least 4 versions spanning different clusters — and at least one member of a MERGED
+  cluster (e.g. wolfssl550 in C5) — run that version as a TLS server on a port (e.g. the
+  wolfssl example server from its vendor build, or an equivalent), point the tool at it, and
+  assert the predicted cluster contains the true version.
+- Report a small table: true version -> predicted cluster, #probes actually replayed, pass/fail.
+- Also test a negative case (a version/stack NOT in the model) and confirm it reports
+  "unknown" rather than a wrong guess.
+
+## Constraints
+- AI-free at runtime: no LLM/ML; classification is just replay + canonical hash + tree walk.
+- Reuse `_canon.py` as the ONLY canonicalization; if you must refactor it into a shared
+  importable module, keep signatures.py using the exact same function.
+- Always nix-shell; never fabricate data; report measured numbers only.
+- STOP and report at: (1) the Part C harness-diff decision, (2) after Part D validation.
+
+## Deliverables
+- `evaluation-ddyf/fingerprinting/fingerprint_probe.py`
+- build_tree.py emitting `evaluation-ddyf/fingerprinting/model/{tree.json,probes/,meta.json}`
+- a short `PROBE_RESULTS.md` with the hash-agreement check and the Part D validation table.

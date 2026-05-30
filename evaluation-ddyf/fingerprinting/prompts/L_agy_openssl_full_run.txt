@@ -1,0 +1,58 @@
+You are working in the DDYF-fingerprinting repo. PREREQUISITE: the OpenSSL no-claims spike
+(prompts/K_agy_openssl_noclaims_spike.txt) has PASSED its gate — one upstream OpenSSL version
+builds no-claims and produces a stable fingerprint signature, and `_canon.py` has been updated
+for the no-decryption (opaque-record) signature and re-validated on WolfSSL. Do NOT start this
+until a human confirms the gate passed. Work inside `nix-shell ./shell.nix`. Non-asan.
+
+## Goal
+Run the full fingerprinting pipeline on the 26 contiguous OpenSSL 3.x releases, producing an
+OpenSSL model analogous to the WolfSSL one, WITHOUT clobbering the WolfSSL outputs.
+
+## Versions (26, contiguous, ending at the latest 3.6.2)
+3.2.5 3.2.6
+3.3.0 3.3.1 3.3.2 3.3.3 3.3.4 3.3.5 3.3.6 3.3.7
+3.4.0 3.4.1 3.4.2 3.4.3 3.4.4 3.4.5
+3.5.0 3.5.1 3.5.2 3.5.3 3.5.4 3.5.5 3.5.6
+3.6.0 3.6.1 3.6.2
+PUT-name scheme: concatenate digits, e.g. 3.2.5 -> openssl325, 3.6.2 -> openssl362. (No
+double-digit patches in this range, so names are unambiguous.) Source = upstream
+github.com/openssl/openssl, tag `openssl-X.Y.Z`, builder builtin openssl, sancov on, NO
+claimer (HAS_CLAIMS off), like the spike preset.
+
+## Make the pipeline vendor-parametric (do NOT fork the scripts)
+The scripts are currently WolfSSL-specific. Parameterize by vendor so the SAME build_tree works
+and outputs are namespaced:
+- presets_gen.py: add an OpenSSL mode emitting the 26 `[opensslXYZ]` upstream no-claims blocks.
+- build_all.sh: vendor + version list as inputs; build `openssl:opensslXYZ`, then
+  `cargo build --release --bin tlspuffin --features cputs`; per-version build table. cargo clean
+  before switching PUT sets if needed (see DDYF_README). STOP on the first build failure and
+  report it (do not patch OpenSSL source).
+- discover.sh: vendor prefix + 26-version list; adjacent pairs (25 campaigns), 1h, CORES="0-9"
+  spec, unique ports, resumable. Same parallel orchestration as the WolfSSL run.
+- signatures.py: its version auto-detect currently matches `wolfssl\d+`; make the vendor prefix
+  a parameter so it detects `openssl\d+`.
+- OUTPUT NAMESPACING: write OpenSSL artifacts to a separate dir (e.g.
+  candidates_openssl/{manifest.csv,signatures.csv,clusters.json,tree.json,tree.dot,report.md})
+  so the WolfSSL candidates/ outputs are untouched.
+
+## Steps
+1. presets_gen (openssl) -> review diff.
+2. build_all (openssl) -> STOP, report the per-version build table. Cap to the buildable
+   contiguous subset; report any version that fails to build.
+3. `seed --fingerprinting` (already built; client+honest seeds only).
+4. discover.sh (openssl adjacent pairs) -> run, report objective counts per pair.
+5. triage.py -> signatures.py (new no-decryption _canon) -> build_tree.py, all on the OpenSSL
+   data, writing to candidates_openssl/.
+6. Produce candidates_openssl/report.md: #versions, #candidates, #clusters, tree depth/#probes,
+   minimal separating set, distinguishability heatmap.
+
+## Hard rules
+- nix-shell; non-asan; AI-free runtime; reuse `_canon.py` (the updated no-decryption one) as the
+  single canonicalization. No new OpenSSL C source / fork branches. Never fabricate numbers.
+- STOP and report after step 2 (build table) and step 6 (clusters/tree). Wait for human review
+  before any paper write-up.
+
+## Report (candidates_openssl/report.md) and STOP
+- buildable subset of the 26 (and any exclusions with the reason);
+- #candidate traces, #clusters, the cluster membership, tree depth + #probes, minimal set size;
+- a one-line headline (e.g. "26 OpenSSL 3.x versions -> K clusters, depth-D tree").

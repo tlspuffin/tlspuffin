@@ -1,0 +1,76 @@
+You are working in the DDYF-fingerprinting repo. This is a TIME-BOXED 1-DAY SPIKE with a
+hard success gate. Goal: prove we can fingerprint OpenSSL versions WITHOUT the instrumented
+fork — by building OpenSSL straight from UPSTREAM tags as a NO-CLAIMS PUT — and that the
+fingerprinting pipeline still produces useful signatures with NO decryption. Work inside
+`nix-shell ./shell.nix`. Do NOT switch git branches. Do NOT promise/​force results.
+
+## Why this should work (read these first)
+- Claims for OpenSSL currently come from a hand-patched fork (github.com/tlspuffin/openssl,
+  branches `fuzz-OpenSSL_3_x`) that injects `register_claimer`/`_inner_claimer` into OpenSSL
+  source. Only 3.1.2/3.2.0/3.4.0 exist — that is why we cannot do contiguous versions.
+- But claims are OPTIONAL and gated: `-DHAS_CLAIMS` is only set when a library's
+  instrumentation metadata contains "claimer" (puffin-build/src/harness/mod.rs:75). In
+  `tlspuffin/harness/openssl/src/put.c` every fork hook is under `#ifdef HAS_CLAIMS`; the
+  basic PUT (SSL_new/SSL_do_handshake/SSL_read/SSL_write/SSL_get_error/SSL_state_string) is
+  pure public OpenSSL API. The Rust glue even has an explicit no-claimer path
+  (`tlspuffin/src/rust_put/claims.rs:1` -> `#[cfg(not(has_instr = "claimer"))]`).
+- For FINGERPRINTING we use a WIRE-ONLY signature and we DO NOT want decryption to affect
+  differences. No claims => no secrets => no decryption of the server's encrypted records.
+  That is exactly the methodology we want. So a no-claims OpenSSL build from upstream tags
+  should be sufficient.
+
+## SUCCESS GATE (the whole point of the spike)
+Build ONE upstream OpenSSL version — 3.4.0 from github.com/openssl/openssl tag `openssl-3.4.0`
+— as a NO-CLAIMS `cputs` PUT, and produce a fingerprint signature for it through the existing
+pipeline (`_canon.get_signature`). If this passes, scaling to 26 versions is mechanical and we
+proceed. If it does not, STOP and report the exact blocker (build error, missing symbol,
+claim dependency) — do not work around it silently.
+
+## Step 1 — Build one upstream OpenSSL, no claims
+- Add an openssl preset (e.g. `[openssl340u]`) whose `sources.repo` is
+  https://github.com/openssl/openssl and `branch`/tag is `openssl-3.4.0`, builder builtin
+  openssl, `sancov = true`, and NO claimer instrumentation (so `HAS_CLAIMS` stays off).
+  Investigate how the openssl builder decides to add "claimer" to instrumentation and make
+  sure this preset does NOT (the fork symbol `register_claimer` must not be needed).
+- `./tools/mk_vendor make openssl:openssl340u`, then
+  `cargo build --release --bin tlspuffin --features cputs` (non-asan).
+- Confirm the upstream source builds via the builtin builder (it only patches makedepend->CC;
+  if upstream needs more, report exactly what).
+
+## Step 2 — Make the signature work with NO decryption
+Without claims, the server's encrypted records appear only as `OpaqueMessageFlight` (no parsed
+`MessageFlight`). `_canon.normalize_knowledge` currently DROPS `OpaqueMessageFlight`
+(_canon.py:60 returns None). Change it so the wire-only signature still captures what an
+observer sees WITHOUT keys:
+- For `OpaqueMessageFlight`, emit a normalized STRUCTURAL token instead of None: the record
+  content-type(s) (handshake / application_data / alert / change_cipher_spec), the NUMBER of
+  records, and a coarse length bucket — but NOT the ciphertext bytes (those are volatile;
+  strip them like the other Payload rules). Inspect the actual `OpaqueMessageFlight` string
+  shape first and design the token to match it.
+- Keep everything else in `canonicalize_execution` as-is (server-role steps, error,
+  executed_until). The result must be deterministic across repeated runs.
+- Sanity: compute `get_signature` for the upstream openssl340u PUT on a couple of probe
+  traces from candidates/manifest.csv; confirm you get a stable 64-hex signature (not ERROR).
+
+## Step 3 — Re-validate WolfSSL under the no-decryption signature (FALSIFICATION, not tuning)
+This `_canon` change also affects WolfSSL (its current 21-cluster result used decryption).
+Recompute WolfSSL signatures with the new no-decryption canonicalization and re-cluster.
+- Report clusters BEFORE (21) vs AFTER, with the membership diff, and whether the appendix
+  self-check (A0=5.0.0 alone, A1={5.1.0,5.1.1}, B=5.2.0) still holds.
+- The count MAY drop (some discrimination came from decrypted content). That is the correct,
+  honest outcome — DO NOT edit `_canon` hashing to force 21 back, and do NOT tune thresholds.
+  Just report the real numbers.
+
+## Hard rules
+- Always nix-shell. Non-asan. No new fuzzing campaigns (reuse existing candidate traces).
+- Do not switch git branches. Do not modify the OpenSSL C source / create fork branches.
+- Method stays AI-free at runtime. Reuse `_canon.py` as the single canonicalization source.
+- STOP and report at the SUCCESS GATE (end of Step 1+2) and after Step 3. Do not proceed to
+  build all 26 versions until a human approves the gate and the Step-3 re-validation.
+
+## Report (write evaluation-ddyf/fingerprinting/OPENSSL_SPIKE.md) and STOP
+- Did upstream openssl-3.4.0 build no-claims? If not, the exact error.
+- Did it run a trace and produce a stable signature? Show one.
+- The `_canon` opaque-record change you made (diff + the token format).
+- WolfSSL clusters BEFORE vs AFTER no-decryption, and the self-check result.
+- A one-line verdict: is the no-claims-upstream path viable for the 26-version OpenSSL run?
