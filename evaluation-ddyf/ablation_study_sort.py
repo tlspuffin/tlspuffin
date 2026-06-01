@@ -1,14 +1,11 @@
 import sys
-from DDYF.diff_analyzer import (
+
+from .diff_analyzer import (
     BucketCondition,
     NoDiffC,
     run_triaging,
 )
 
-OSSL = 1
-WOLF = 2
-FIRST_PUT = "openssl340"
-SECOND_PUT = "wolfssl580"
 PARALLELISM = 20
 
 buckets: dict[str, BucketCondition] = {
@@ -17,11 +14,19 @@ buckets: dict[str, BucketCondition] = {
 }
 
 if __name__ == "__main__":
-    objective_folder = sys.argv[1] if len(sys.argv) > 1 else "objective"
+    if len(sys.argv) < 3:
+        print(
+            f"Usage: {sys.argv[0]} <first_put> <second_put> [objective_folder]",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    first_put = sys.argv[1]
+    second_put = sys.argv[2]
+    objective_folder = sys.argv[3] if len(sys.argv) > 3 else "objective"
     run_triaging(
         buckets,
-        FIRST_PUT,
-        SECOND_PUT,
+        first_put,
+        second_put,
         source_folder=objective_folder,
         target_folder=objective_folder,
         parallelism=PARALLELISM,
