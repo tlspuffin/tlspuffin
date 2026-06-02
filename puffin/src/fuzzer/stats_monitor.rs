@@ -1,10 +1,11 @@
 //! Stats to display both cumulative and per-client stats
 
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::fs::{File, OpenOptions};
-use std::io::BufWriter;
+use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::{Duration, Instant, SystemTime};
 
 use dyn_clone::DynClone;
 use libafl::monitors::stats::*;
@@ -22,15 +23,29 @@ impl ClonableMonitor for TuiMonitor {}
 impl ClonableMonitor for NopMonitor {}
 dyn_clone::clone_trait_object!(ClonableMonitor);
 
-#[derive(Clone)]
 /// Tracking stats during fuzzing and display both per-client and cumulative info.
 pub struct StatsMonitor {
     monitor: Box<dyn ClonableMonitor>,
     handlers: Vec<Box<dyn EventHandler>>,
+    stats_interval: Duration,
+    last_client_write: HashMap<ClientId, Instant>,
+    last_global_write: Instant,
+}
+
+impl Clone for StatsMonitor {
+    fn clone(&self) -> Self {
+        Self {
+            monitor: self.monitor.clone(),
+            handlers: self.handlers.clone(),
+            stats_interval: self.stats_interval,
+            last_client_write: HashMap::new(),
+            last_global_write: Instant::now() - self.stats_interval,
+        }
+    }
 }
 
 impl StatsMonitor {
-    pub fn with_tui_output(stats_file: PathBuf) -> Self {
+    pub fn with_tui_output(stats_file: PathBuf, stats_interval: Duration) -> Self {
         let monitor = Box::new(
             TuiMonitor::builder()
                 .title(String::from("tlspuffin [press q to exit]"))
@@ -40,21 +55,31 @@ impl StatsMonitor {
         let handlers: Vec<Box<dyn EventHandler>> =
             vec![Box::new(JSONEventHandler::new(stats_file))];
 
-        Self::new(monitor, handlers)
+        Self::new(monitor, handlers, stats_interval)
     }
 
-    pub fn with_raw_output(stats_file: PathBuf) -> Self {
+    pub fn with_raw_output(stats_file: PathBuf, stats_interval: Duration) -> Self {
         let monitor = Box::new(NopMonitor::new());
         let handlers: Vec<Box<dyn EventHandler>> = vec![
             Box::new(|_, msg: &str, stats: &Statistics| log::info!("[{}] {}", msg, stats)),
             Box::new(JSONEventHandler::new(stats_file)),
         ];
 
-        Self::new(monitor, handlers)
+        Self::new(monitor, handlers, stats_interval)
     }
 
-    fn new(monitor: Box<dyn ClonableMonitor>, handlers: Vec<Box<dyn EventHandler>>) -> Self {
-        Self { monitor, handlers }
+    fn new(
+        monitor: Box<dyn ClonableMonitor>,
+        handlers: Vec<Box<dyn EventHandler>>,
+        stats_interval: Duration,
+    ) -> Self {
+        Self {
+            monitor,
+            handlers,
+            stats_interval,
+            last_client_write: HashMap::new(),
+            last_global_write: Instant::now() - stats_interval,
+        }
     }
 
     fn client(
@@ -168,14 +193,37 @@ impl Monitor for StatsMonitor {
     fn display(
         &mut self,
         client_stats_manager: &mut ClientStatsManager,
-        event_msg: &str,
+        _event_msg: &str,
         sender_id: ClientId,
     ) -> Result<(), Error> {
         client_stats_manager.client_stats_insert(sender_id)?;
-        let global_stats = self.global(client_stats_manager);
-        let client_stats = self.client(client_stats_manager, sender_id)?;
-        self.dispatch(sender_id, &event_msg, &global_stats);
-        self.dispatch(sender_id, &event_msg, &client_stats);
+
+        // Rate limit logging of stats to once every interval for each client (core) and global
+        // Normalize event message name as filtering makes event names inconsistent and no longer
+        // relatable
+        let now = Instant::now();
+        let event_msg = "Monitor";
+
+        let last_client = self
+            .last_client_write
+            .get(&sender_id)
+            .copied()
+            .unwrap_or(now - self.stats_interval);
+
+        if now.duration_since(last_client) >= self.stats_interval {
+            self.last_client_write.insert(sender_id, now);
+            let client_stats = self.client(client_stats_manager, sender_id)?;
+            self.dispatch(sender_id, event_msg, &client_stats);
+        }
+
+        // Rate limit logging of stats to once every interval for global,
+        // it has its own timer but can be logged only if a client sends a signal
+        if now.duration_since(self.last_global_write) >= self.stats_interval {
+            self.last_global_write = now;
+            let global_stats = self.global(client_stats_manager);
+            self.dispatch(sender_id, event_msg, &global_stats);
+        }
+
         self.monitor
             .display(client_stats_manager, event_msg, sender_id)?;
         Ok(())
@@ -197,7 +245,8 @@ impl Display for Statistics {
             Self::Client(client_stats) => {
                 write!(
                     f,
-                    "(CLIENT) corpus: {}, obj: {}, execs: {}, exec/sec: {}",
+                    "(CLIENT) id: {}, corpus: {}, obj: {}, execs: {}, exec/sec: {}",
+                    client_stats.id,
                     client_stats.corpus_size,
                     client_stats.objective_size,
                     client_stats.total_execs,
@@ -658,7 +707,7 @@ where
 
 struct JSONEventHandler {
     output_path: PathBuf,
-    serializer: JSONSerializer<BufWriter<File>>,
+    writer: BufWriter<File>,
 }
 
 impl JSONEventHandler {
@@ -674,7 +723,7 @@ impl JSONEventHandler {
 
         Self {
             output_path: output_path.as_ref().to_path_buf(),
-            serializer: JSONSerializer::new(writer),
+            writer,
         }
     }
 }
@@ -687,7 +736,9 @@ impl Clone for JSONEventHandler {
 
 impl EventHandler for JSONEventHandler {
     fn process(&mut self, _source: ClientId, _msg: &str, stats: &Statistics) {
-        stats.serialize(&mut self.serializer).unwrap();
+        let mut serializer = JSONSerializer::new(&mut self.writer);
+        stats.serialize(&mut serializer).unwrap();
+        self.writer.flush().unwrap();
     }
 }
 
@@ -702,7 +753,8 @@ mod tests {
 
     #[test]
     fn test_display_with_unregistered_client_id_0() {
-        let mut monitor = StatsMonitor::with_raw_output(PathBuf::from("/dev/null"));
+        let mut monitor =
+            StatsMonitor::with_raw_output(PathBuf::from("/dev/null"), Duration::from_secs(1));
         let mut mgr = ClientStatsManager::default();
         // Simule le broker heartbeat : ClientId(0) non encore enregistré
         monitor
