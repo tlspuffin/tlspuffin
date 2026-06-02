@@ -2902,7 +2902,7 @@ pub mod tests {
     }
 
     // TODO: find a better solution to filter out Wolfssl430 (too old) and wolfssl540-sdos2
-    // (imcompatible patch applied) than using client_authentication_transcript_extraction and
+    // (incompatible patch applied) than using client_authentication_transcript_extraction and
     // not(disable_postauth) in the next 3 tests
     // Exclude wolfssl430 (too old, no client_authentication_transcript_extraction) and
     // wolfssl540-sdos2 (incompatible patch, has disable_postauth) from differential decryption

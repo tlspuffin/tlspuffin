@@ -1172,9 +1172,21 @@ static bool recreate_ssl_from_agent_ctx(AGENT agent)
     {
         return false;
     }
+
     agent->in = BIO_new(BIO_s_mem());
     agent->out = BIO_new(BIO_s_mem());
+    if (agent->in == NULL || agent->out == NULL)
+    {
+        BIO_free(agent->in);
+        BIO_free(agent->out);
+        SSL_free(agent->ssl);
+        agent->ssl = NULL;
+        agent->in = NULL;
+        agent->out = NULL;
+        return false;
+    }
     SSL_set_bio(agent->ssl, agent->in, agent->out);
+
     agent->claimQueueLen = 0;
     agent->has_cached_server_random = false;
     agent->has_cached_client_random = false;
@@ -1455,12 +1467,31 @@ AGENT openssl_create_server(const TLS_AGENT_DESCRIPTOR *descriptor)
 static AGENT make_agent(SSL_CTX *ssl_ctx, const TLS_AGENT_DESCRIPTOR *descriptor)
 {
     SSL *ssl = SSL_new(ssl_ctx);
+    if (ssl == NULL)
+    {
+        return NULL;
+    }
 
     AGENT agent = malloc(sizeof(struct AGENT_TYPE));
+    if (agent == NULL)
+    {
+        SSL_free(ssl);
+        return NULL;
+    }
+
     agent->name = descriptor->name;
     agent->ssl = ssl;
     agent->in = BIO_new(BIO_s_mem());
     agent->out = BIO_new(BIO_s_mem());
+
+    if (agent->in == NULL || agent->out == NULL)
+    {
+        BIO_free(agent->in);
+        BIO_free(agent->out);
+        SSL_free(ssl);
+        free(agent);
+        return NULL;
+    }
 
     agent->claimer = NULL;
     openssl_register_claimer(agent, &DEFAULT_CLAIMER_CB);
