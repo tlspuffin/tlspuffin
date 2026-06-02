@@ -1116,7 +1116,11 @@ impl<PT: ProtocolTypes> Trace<PT> {
                 Error::Stream(_) => ERROR_STREAM.increment(),
                 Error::Extraction() => ERROR_EXTRACTION.increment(),
                 Error::SecurityClaim(_) => {}
-                Error::Difference(_) => {}
+                Error::Difference {
+                    put1_status: _,
+                    put2_status: _,
+                    differences: _,
+                } => {}
             }
             return Err(e);
         }

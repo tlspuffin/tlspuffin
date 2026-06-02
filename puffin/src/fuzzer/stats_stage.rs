@@ -50,6 +50,7 @@ pub enum RuntimeStats {
     TermSize(&'static MinMaxMean),
     NbPayload(&'static MinMaxMean),
     PayloadLength(&'static MinMaxMean),
+    Duplicates(&'static Counter),
 }
 
 impl RuntimeStats {
@@ -92,6 +93,7 @@ impl RuntimeStats {
             Self::TermSize(inner) => inner.fire(consume),
             Self::NbPayload(inner) => inner.fire(consume),
             Self::PayloadLength(inner) => inner.fire(consume),
+            Self::Duplicates(inner) => inner.fire(consume),
         }
     }
 }
@@ -145,8 +147,9 @@ pub static MM_EXEC: Counter = Counter::new("mm-exec");
 pub static MM_EXEC_SUCCESS: Counter = Counter::new("mmn-exec-success");
 pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
 pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
+pub static DUPLICATES: Counter = Counter::new("duplicates");
 
-pub static STATS: [RuntimeStats; 34] = [
+pub static STATS: [RuntimeStats; 35] = [
     RuntimeStats::EvalFnCryptoError(&EVAL_ERR_FN_CRYPTO),
     RuntimeStats::EvalFnMalformedError(&EVAL_ERR_FN_MALFORMED),
     RuntimeStats::EvalFnUnknownError(&EVAL_ERR_FN_UNKNOWN),
@@ -181,6 +184,7 @@ pub static STATS: [RuntimeStats; 34] = [
     RuntimeStats::MMNExecSuccess(&MM_EXEC_SUCCESS),
     RuntimeStats::CorpusExec(&CORPUS_EXEC),
     RuntimeStats::CorpusExecMinimal(&CORPUS_EXEC_MINIMAL),
+    RuntimeStats::Duplicates(&DUPLICATES),
 ];
 
 pub trait Fire: Sync {
