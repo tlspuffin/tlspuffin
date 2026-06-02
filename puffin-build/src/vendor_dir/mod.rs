@@ -146,20 +146,16 @@ impl<'a> LibraryDir<'a> {
         Ok(())
     }
 
-    pub fn make(&self, config: impl AsRef<library::Config>, cput: bool) -> Result<PathBuf> {
-        if self.contains(config.as_ref()) {
+    pub fn make(&self, config: &library::Config, cput: bool) -> Result<PathBuf> {
+        if self.contains(config) {
             return Ok(self.path.clone());
         }
 
         // NOTE ensure intermediate folders exist and there is no artifact from a previous build
         self.remove()?;
 
-        config.as_ref().build(self.path(), cput).map(|_| {
-            std::fs::write(
-                self.config_file(),
-                toml::to_string(config.as_ref()).unwrap(),
-            )
-            .ok();
+        config.build(self.path(), cput).map(|_| {
+            std::fs::write(self.config_file(), toml::to_string(config).unwrap()).ok();
             self.path().to_path_buf()
         })
     }
