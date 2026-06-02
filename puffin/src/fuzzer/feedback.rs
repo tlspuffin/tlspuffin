@@ -14,10 +14,62 @@ use serde::{Deserialize, Serialize};
 use crate::protocol::ProtocolTypes;
 use crate::trace::Trace;
 
-// A global (or thread-local) mutable variable that your harness will update.
-// Now it holds an Option<usize>.
 thread_local! {
     pub static FAIL_AT_STEP: Cell<Option<usize>> = const { Cell::new(None) };
+    pub static OBJECTIVE_TRIGGERED: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Feedback that triggers when the harness sets [`OBJECTIVE_TRIGGERED`] to `true`.
+///
+/// Used to record security-claim violations and differential differences as objectives
+/// without crashing the process (avoids the restart + serialization overhead of abort()).
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ObjectiveFeedback;
+
+impl ObjectiveFeedback {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Named for ObjectiveFeedback {
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("ObjectiveFeedback")
+    }
+}
+
+impl<S> StateInitializer<S> for ObjectiveFeedback {
+    fn init_state(&mut self, _state: &mut S) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl<EM, I, OT, S> Feedback<EM, I, OT, S> for ObjectiveFeedback
+where
+    OT: ObserversTuple<I, S>,
+    EM: EventFirer<I, S>,
+{
+    fn is_interesting(
+        &mut self,
+        _: &mut S,
+        _: &mut EM,
+        _: &I,
+        _: &OT,
+        _: &ExitKind,
+    ) -> Result<bool, Error> {
+        Ok(OBJECTIVE_TRIGGERED.get())
+    }
+
+    fn is_interesting_introspection(
+        &mut self,
+        _: &mut S,
+        _: &mut EM,
+        _: &I,
+        _: &OT,
+        _: &ExitKind,
+    ) -> Result<bool, Error> {
+        Ok(OBJECTIVE_TRIGGERED.get())
+    }
 }
 
 /// Custom feedback for minimizing traces after execution and prior to adding them to the corpus.

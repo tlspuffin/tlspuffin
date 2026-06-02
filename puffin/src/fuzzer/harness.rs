@@ -4,7 +4,7 @@ use rand::Rng;
 use crate::algebra::TermType;
 use crate::error::Error;
 use crate::execution::{DifferentialRunner, Runner, TraceRunner};
-use crate::fuzzer::feedback::FAIL_AT_STEP;
+use crate::fuzzer::feedback::{FAIL_AT_STEP, OBJECTIVE_TRIGGERED};
 use crate::fuzzer::stats_stage::{
     HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
     TERM_SIZE, TRACE_LENGTH,
@@ -19,6 +19,8 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     put_descriptor: &PutDescriptor,
     input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {
+    OBJECTIVE_TRIGGERED.set(false);
+
     // Stats
     HARNESS_EXEC.increment();
     TRACE_LENGTH.update(input.steps.len());
@@ -59,8 +61,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         }
         Err(Error::SecurityClaim(msg)) => {
             log::warn!("{}", msg);
-            // Crashes the trace to catch it as an objective
-            std::process::abort();
+            OBJECTIVE_TRIGGERED.set(true);
         }
         Err(_) => {}
     }
@@ -82,6 +83,8 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
     second_put: &PutDescriptor,
     input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {
+    OBJECTIVE_TRIGGERED.set(false);
+
     // Uniformize the put configuration
     let input = <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
         input.clone(),
@@ -156,7 +159,7 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
         Err(err) => match &err {
             Error::SecurityClaim(msg) => {
                 log::warn!("{}", msg);
-                std::process::abort()
+                OBJECTIVE_TRIGGERED.set(true);
             }
             Error::Difference(diffs) => {
                 log::warn!(
@@ -167,7 +170,7 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
                         .collect::<Vec<String>>()
                         .join("\n")
                 );
-                std::process::abort()
+                OBJECTIVE_TRIGGERED.set(true);
             }
             _ => (),
         },
