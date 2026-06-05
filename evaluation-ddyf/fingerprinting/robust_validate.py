@@ -63,6 +63,7 @@ def main():
     ap.add_argument("--first-core", type=int, default=0)
     ap.add_argument("--cpus-per-job", type=int, default=2)
     ap.add_argument("--base-port", type=int, default=24000)
+    ap.add_argument("--only", help="comma-separated subset of versions to validate")
     ap.add_argument("--out", type=Path)
     args = ap.parse_args()
 
@@ -122,13 +123,17 @@ def main():
             print(f"[{done[0]:2d}/{total}] {v:12s} {flag} dist={rec.get('hamming')} ties={rec.get('ties')}", flush=True)
         return rec
 
+    todo = list(enumerate(versions))
+    if args.only:
+        want = set(args.only.split(","))
+        todo = [(i, v) for i, v in todo if v in want]
     results = []
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        for rec in pool.map(one, list(enumerate(versions))):
+        for rec in pool.map(one, todo):
             results.append(rec)
     nok = sum(1 for r in results if r.get("correct"))
-    print(f"\n=== nearest-cluster live validation: {nok}/{total} correct "
-          f"({100*nok/total:.1f}%) over {len(traces)} traces, repeat={args.repeat} ===")
+    print(f"\n=== nearest-cluster live validation: {nok}/{len(todo)} correct "
+          f"({100*nok/max(1,len(todo)):.1f}%) over {len(traces)} traces, repeat={args.repeat} ===")
     if args.out:
         args.out.write_text(json.dumps({"correct": nok, "total": total, "results": results}, indent=2))
 
