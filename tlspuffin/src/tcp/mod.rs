@@ -148,7 +148,7 @@ impl TcpClientPut {
                 // We are waiting 500ms for a response of the PUT behind the TCP socket.
                 // If we are expecting data from it and this timeout is reached, then we assume that
                 // no more will follow.
-                stream.set_read_timeout(Some(Duration::from_millis(500)))?;
+                stream.set_read_timeout(Some(Duration::from_millis(200)))?;
                 stream.set_nodelay(true)?;
                 break Some(stream);
             }
@@ -197,7 +197,7 @@ impl TcpServerPut {
                 // If we are expecting data from it and this timeout is reached, then we assume that
                 // no more will follow.
                 stream
-                    .set_read_timeout(Some(Duration::from_millis(500)))
+                    .set_read_timeout(Some(Duration::from_millis(200)))
                     .unwrap();
                 stream.set_nodelay(true).unwrap();
                 sender.send((stream, listener)).unwrap();
@@ -249,7 +249,7 @@ impl TcpPut for TcpServerPut {
 
 impl Stream<TLSProtocolBehavior> for TcpServerPut {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
-        self.write_to_stream(message).unwrap();
+        let _ = self.write_to_stream(message);
     }
 
     fn take_message_from_outbound(
@@ -262,7 +262,7 @@ impl Stream<TLSProtocolBehavior> for TcpServerPut {
 
 impl Stream<TLSProtocolBehavior> for TcpClientPut {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
-        self.write_to_stream(message).unwrap();
+        let _ = self.write_to_stream(message);
     }
 
     fn take_message_from_outbound(

@@ -1,0 +1,714 @@
+{
+  "type": "node",
+  "trace": "probes/20260602-044407105-592ff009709711fb.trace",
+  "children": {
+    "b633e1e62b6b3da00768cb67036a50eee8537b922b8588ec77dca859d36ecc94": {
+      "type": "node",
+      "trace": "probes/20260601-231528150-913d8eebff5c4bb6.trace",
+      "children": {
+        "e5831f5a2b540b0d070b09d33bc1b95890cfc12ab88a910dcaa248f2c8de8e99": {
+          "type": "node",
+          "trace": "probes/20260602-005427368-d1031421cacdc780.trace",
+          "children": {
+            "e1e92f34eeca796e2856f7bee3d5291fa30d627cfc539558b6b43ea9405fc1ef": {
+              "type": "node",
+              "trace": "probes/20260602-012025469-9872cd9ff5948937.trace",
+              "children": {
+                "f6ec09a293c857e373583c1d9ba3f65d9bd71c7535a7661c797e7817bae2f595": {
+                  "type": "node",
+                  "trace": "probes/20260601-134156445-b62864587b50a251.trace",
+                  "children": {
+                    "1e468e928dafd5be91d1c0d8b5f9c78d9e516bd3626e268602f08056b7d59870": {
+                      "type": "node",
+                      "trace": "probes/20260601-220610874-a72bcba1dc1cbdaf.trace",
+                      "children": {
+                        "87d58ff7abd7185f8cc07661815bb471dd72b6cb0d8bf61316c9ca2a524650d1": {
+                          "type": "node",
+                          "trace": "probes/20260602-001226070-232a98b95a1794cc.trace",
+                          "children": {
+                            "07631cee95cf1af96515362465044c1827a76203f66c67270c14599eab4e687b": {
+                              "type": "leaf",
+                              "clusters": [
+                                [
+                                  "openssl300",
+                                  "openssl302",
+                                  "openssl305",
+                                  "openssl309",
+                                  "openssl311",
+                                  "openssl314",
+                                  "openssl317"
+                                ]
+                              ]
+                            },
+                            "ab689ab864755c07f0bce8a9aab1d0df60a41fa43efa814156b0d8924857ee12": {
+                              "type": "leaf",
+                              "clusters": [
+                                [
+                                  "openssl3010"
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+                          "type": "leaf",
+                          "clusters": [
+                            [
+                              "openssl301"
+                            ]
+                          ]
+                        }
+                      }
+                    },
+                    "894ce6278bbad3adf372f7ec55aa17ae9a4132732b174fc4989f9ee3a5ad5c5e": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl3011"
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "830d65343346929e4155398b05f2cd224b6e7e70ef3cc64f5a62a727d967809f": {
+                  "type": "node",
+                  "trace": "probes/20260602-025306447-4b91c3aaf9669e15.trace",
+                  "children": {
+                    "1ba2dda40ac08dec173b41a8bc1a0b2f345e59740938abd63eaf2dd15ba081eb": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl304"
+                        ]
+                      ]
+                    },
+                    "0b261f9faffa4b2f8ca9abafcebe1332d33dd9b71c2ea741c3a410a82d5625e3": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl315"
+                        ]
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "df4013c85c420d61f57a7f9cd61767299ccc77074bb8475726b656505e5c37c2": {
+              "type": "node",
+              "trace": "probes/20260602-025306447-4b91c3aaf9669e15.trace",
+              "children": {
+                "1ba2dda40ac08dec173b41a8bc1a0b2f345e59740938abd63eaf2dd15ba081eb": {
+                  "type": "node",
+                  "trace": "probes/20260602-012025469-9872cd9ff5948937.trace",
+                  "children": {
+                    "f6ec09a293c857e373583c1d9ba3f65d9bd71c7535a7661c797e7817bae2f595": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl3013"
+                        ]
+                      ]
+                    },
+                    "830d65343346929e4155398b05f2cd224b6e7e70ef3cc64f5a62a727d967809f": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl312"
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "0b261f9faffa4b2f8ca9abafcebe1332d33dd9b71c2ea741c3a410a82d5625e3": {
+                  "type": "node",
+                  "trace": "probes/20260601-220610874-a72bcba1dc1cbdaf.trace",
+                  "children": {
+                    "87d58ff7abd7185f8cc07661815bb471dd72b6cb0d8bf61316c9ca2a524650d1": {
+                      "type": "node",
+                      "trace": "probes/20260601-221706454-a66969ed05a7794c.trace",
+                      "children": {
+                        "e2246bc92add097181299a52b9cb0980d41fa4d922c7c8bbbe07b65c1558dbd8": {
+                          "type": "leaf",
+                          "clusters": [
+                            [
+                              "openssl3014"
+                            ]
+                          ]
+                        },
+                        "6f506bf03e4aaff7add29f4e3eae0541398b83a1cffdabbe8c16248cc62c0a7b": {
+                          "type": "leaf",
+                          "clusters": [
+                            [
+                              "openssl308"
+                            ]
+                          ]
+                        }
+                      }
+                    },
+                    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl316"
+                        ]
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "3b78e5767a5e5037c58d7c645c76f1fe6edd245575ae61bd0c44e59e8a913a12": {
+          "type": "node",
+          "trace": "probes/20260602-001226070-232a98b95a1794cc.trace",
+          "children": {
+            "07631cee95cf1af96515362465044c1827a76203f66c67270c14599eab4e687b": {
+              "type": "node",
+              "trace": "probes/20260601-134156445-b62864587b50a251.trace",
+              "children": {
+                "1e468e928dafd5be91d1c0d8b5f9c78d9e516bd3626e268602f08056b7d59870": {
+                  "type": "node",
+                  "trace": "probes/20260601-221706454-a66969ed05a7794c.trace",
+                  "children": {
+                    "e2246bc92add097181299a52b9cb0980d41fa4d922c7c8bbbe07b65c1558dbd8": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl320"
+                        ]
+                      ]
+                    },
+                    "6f506bf03e4aaff7add29f4e3eae0541398b83a1cffdabbe8c16248cc62c0a7b": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl330"
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "894ce6278bbad3adf372f7ec55aa17ae9a4132732b174fc4989f9ee3a5ad5c5e": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "openssl331"
+                    ]
+                  ]
+                }
+              }
+            },
+            "ab689ab864755c07f0bce8a9aab1d0df60a41fa43efa814156b0d8924857ee12": {
+              "type": "node",
+              "trace": "probes/20260601-182442586-2cda8c4fb7602637.trace",
+              "children": {
+                "1e468e928dafd5be91d1c0d8b5f9c78d9e516bd3626e268602f08056b7d59870": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "openssl321"
+                    ]
+                  ]
+                },
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "openssl323",
+                      "openssl332"
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "ea3ef416cd84f93b4782e1f91ff190e3488bcf2be03103752a4803b954486569": {
+      "type": "node",
+      "trace": "probes/20260602-005427368-d1031421cacdc780.trace",
+      "children": {
+        "df4013c85c420d61f57a7f9cd61767299ccc77074bb8475726b656505e5c37c2": {
+          "type": "node",
+          "trace": "probes/20260602-012025469-9872cd9ff5948937.trace",
+          "children": {
+            "f6ec09a293c857e373583c1d9ba3f65d9bd71c7535a7661c797e7817bae2f595": {
+              "type": "leaf",
+              "clusters": [
+                [
+                  "openssl3012"
+                ]
+              ]
+            },
+            "830d65343346929e4155398b05f2cd224b6e7e70ef3cc64f5a62a727d967809f": {
+              "type": "node",
+              "trace": "probes/20260530-185049664-3c9298be2306f4c0.trace",
+              "children": {
+                "1ba2dda40ac08dec173b41a8bc1a0b2f345e59740938abd63eaf2dd15ba081eb": {
+                  "type": "node",
+                  "trace": "probes/20260601-212716208-935da38275f38abf.trace",
+                  "children": {
+                    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl306"
+                        ]
+                      ]
+                    },
+                    "894ce6278bbad3adf372f7ec55aa17ae9a4132732b174fc4989f9ee3a5ad5c5e": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl324"
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "87d58ff7abd7185f8cc07661815bb471dd72b6cb0d8bf61316c9ca2a524650d1": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "openssl355"
+                    ]
+                  ]
+                }
+              }
+            },
+            "91c8aff26cecbb1032b6e9e1f5e786b69ac703ae8cffd3c8760279809f971eea": {
+              "type": "leaf",
+              "clusters": [
+                [
+                  "openssl353"
+                ]
+              ]
+            }
+          }
+        },
+        "e1e92f34eeca796e2856f7bee3d5291fa30d627cfc539558b6b43ea9405fc1ef": {
+          "type": "node",
+          "trace": "probes/20260601-220610874-a72bcba1dc1cbdaf.trace",
+          "children": {
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+              "type": "node",
+              "trace": "probes/20260602-004217847-5b26ac7c3a5b9048.trace",
+              "children": {
+                "e2246bc92add097181299a52b9cb0980d41fa4d922c7c8bbbe07b65c1558dbd8": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "openssl3015"
+                    ]
+                  ]
+                },
+                "6f506bf03e4aaff7add29f4e3eae0541398b83a1cffdabbe8c16248cc62c0a7b": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "openssl322"
+                    ]
+                  ]
+                }
+              }
+            },
+            "87d58ff7abd7185f8cc07661815bb471dd72b6cb0d8bf61316c9ca2a524650d1": {
+              "type": "node",
+              "trace": "probes/20260601-212716208-935da38275f38abf.trace",
+              "children": {
+                "894ce6278bbad3adf372f7ec55aa17ae9a4132732b174fc4989f9ee3a5ad5c5e": {
+                  "type": "node",
+                  "trace": "probes/20260601-221706454-a66969ed05a7794c.trace",
+                  "children": {
+                    "6f506bf03e4aaff7add29f4e3eae0541398b83a1cffdabbe8c16248cc62c0a7b": {
+                      "type": "node",
+                      "trace": "probes/20260601-230357160-6dd588f2ef2c61e5.trace",
+                      "children": {
+                        "67011c8949f9a71afdc066923765d3311a7a1fd40a2a0ba8c18ef2422e6ed0ea": {
+                          "type": "node",
+                          "trace": "probes/20260602-004217847-5b26ac7c3a5b9048.trace",
+                          "children": {
+                            "e2246bc92add097181299a52b9cb0980d41fa4d922c7c8bbbe07b65c1558dbd8": {
+                              "type": "leaf",
+                              "clusters": [
+                                [
+                                  "openssl303"
+                                ]
+                              ]
+                            },
+                            "6f506bf03e4aaff7add29f4e3eae0541398b83a1cffdabbe8c16248cc62c0a7b": {
+                              "type": "leaf",
+                              "clusters": [
+                                [
+                                  "openssl307"
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        "8ffb23e92549e1d0bd1bff7a6a9572c3c9d7072ae836fbe750310998885e413a": {
+                          "type": "leaf",
+                          "clusters": [
+                            [
+                              "openssl310"
+                            ]
+                          ]
+                        }
+                      }
+                    },
+                    "e2246bc92add097181299a52b9cb0980d41fa4d922c7c8bbbe07b65c1558dbd8": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl313"
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "openssl340"
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "8c67c20369fcbb1c660467eefdc382a7b76a1f4ac491d0fa809595341d685d8f": {
+          "type": "leaf",
+          "clusters": [
+            [
+              "openssl3019"
+            ]
+          ]
+        }
+      }
+    },
+    "26aca659babc1dc12a4b001dd66c147f14fc569b7baf8f91ea55017e9b4a7c4b": {
+      "type": "node",
+      "trace": "probes/20260601-211608806-071adb0286ccf5f6.trace",
+      "children": {
+        "87d58ff7abd7185f8cc07661815bb471dd72b6cb0d8bf61316c9ca2a524650d1": {
+          "type": "node",
+          "trace": "probes/20260601-231528150-913d8eebff5c4bb6.trace",
+          "children": {
+            "e5831f5a2b540b0d070b09d33bc1b95890cfc12ab88a910dcaa248f2c8de8e99": {
+              "type": "node",
+              "trace": "probes/20260601-182442586-2cda8c4fb7602637.trace",
+              "children": {
+                "1e468e928dafd5be91d1c0d8b5f9c78d9e516bd3626e268602f08056b7d59870": {
+                  "type": "node",
+                  "trace": "probes/20260602-004217847-5b26ac7c3a5b9048.trace",
+                  "children": {
+                    "6f506bf03e4aaff7add29f4e3eae0541398b83a1cffdabbe8c16248cc62c0a7b": {
+                      "type": "node",
+                      "trace": "probes/20260602-005427368-d1031421cacdc780.trace",
+                      "children": {
+                        "8c67c20369fcbb1c660467eefdc382a7b76a1f4ac491d0fa809595341d685d8f": {
+                          "type": "node",
+                          "trace": "probes/20260602-025306447-4b91c3aaf9669e15.trace",
+                          "children": {
+                            "1ba2dda40ac08dec173b41a8bc1a0b2f345e59740938abd63eaf2dd15ba081eb": {
+                              "type": "leaf",
+                              "clusters": [
+                                [
+                                  "openssl3016"
+                                ]
+                              ]
+                            },
+                            "0b261f9faffa4b2f8ca9abafcebe1332d33dd9b71c2ea741c3a410a82d5625e3": {
+                              "type": "leaf",
+                              "clusters": [
+                                [
+                                  "openssl3020"
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        "df4013c85c420d61f57a7f9cd61767299ccc77074bb8475726b656505e5c37c2": {
+                          "type": "leaf",
+                          "clusters": [
+                            [
+                              "openssl3018"
+                            ]
+                          ]
+                        }
+                      }
+                    },
+                    "e2246bc92add097181299a52b9cb0980d41fa4d922c7c8bbbe07b65c1558dbd8": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl318"
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "openssl3017"
+                    ]
+                  ]
+                }
+              }
+            },
+            "3b78e5767a5e5037c58d7c645c76f1fe6edd245575ae61bd0c44e59e8a913a12": {
+              "type": "node",
+              "trace": "probes/20260602-025306447-4b91c3aaf9669e15.trace",
+              "children": {
+                "1ba2dda40ac08dec173b41a8bc1a0b2f345e59740938abd63eaf2dd15ba081eb": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "openssl333"
+                    ]
+                  ]
+                },
+                "0b261f9faffa4b2f8ca9abafcebe1332d33dd9b71c2ea741c3a410a82d5625e3": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "openssl341"
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "894ce6278bbad3adf372f7ec55aa17ae9a4132732b174fc4989f9ee3a5ad5c5e": {
+          "type": "node",
+          "trace": "probes/20260530-185049664-3c9298be2306f4c0.trace",
+          "children": {
+            "1ba2dda40ac08dec173b41a8bc1a0b2f345e59740938abd63eaf2dd15ba081eb": {
+              "type": "node",
+              "trace": "probes/20260602-004217847-5b26ac7c3a5b9048.trace",
+              "children": {
+                "e2246bc92add097181299a52b9cb0980d41fa4d922c7c8bbbe07b65c1558dbd8": {
+                  "type": "node",
+                  "trace": "probes/20260601-220610874-a72bcba1dc1cbdaf.trace",
+                  "children": {
+                    "87d58ff7abd7185f8cc07661815bb471dd72b6cb0d8bf61316c9ca2a524650d1": {
+                      "type": "node",
+                      "trace": "probes/20260601-230357160-6dd588f2ef2c61e5.trace",
+                      "children": {
+                        "67011c8949f9a71afdc066923765d3311a7a1fd40a2a0ba8c18ef2422e6ed0ea": {
+                          "type": "leaf",
+                          "clusters": [
+                            [
+                              "openssl325"
+                            ]
+                          ]
+                        },
+                        "8ffb23e92549e1d0bd1bff7a6a9572c3c9d7072ae836fbe750310998885e413a": {
+                          "type": "leaf",
+                          "clusters": [
+                            [
+                              "openssl336"
+                            ]
+                          ]
+                        }
+                      }
+                    },
+                    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl337"
+                        ]
+                      ]
+                    }
+                  }
+                },
+                "6f506bf03e4aaff7add29f4e3eae0541398b83a1cffdabbe8c16248cc62c0a7b": {
+                  "type": "node",
+                  "trace": "probes/20260602-001226070-232a98b95a1794cc.trace",
+                  "children": {
+                    "ab689ab864755c07f0bce8a9aab1d0df60a41fa43efa814156b0d8924857ee12": {
+                      "type": "node",
+                      "trace": "probes/20260602-025306447-4b91c3aaf9669e15.trace",
+                      "children": {
+                        "1ba2dda40ac08dec173b41a8bc1a0b2f345e59740938abd63eaf2dd15ba081eb": {
+                          "type": "leaf",
+                          "clusters": [
+                            [
+                              "openssl326"
+                            ]
+                          ]
+                        },
+                        "0b261f9faffa4b2f8ca9abafcebe1332d33dd9b71c2ea741c3a410a82d5625e3": {
+                          "type": "leaf",
+                          "clusters": [
+                            [
+                              "openssl344"
+                            ]
+                          ]
+                        }
+                      }
+                    },
+                    "07631cee95cf1af96515362465044c1827a76203f66c67270c14599eab4e687b": {
+                      "type": "node",
+                      "trace": "probes/20260601-182442586-2cda8c4fb7602637.trace",
+                      "children": {
+                        "1e468e928dafd5be91d1c0d8b5f9c78d9e516bd3626e268602f08056b7d59870": {
+                          "type": "node",
+                          "trace": "probes/20260601-212716208-935da38275f38abf.trace",
+                          "children": {
+                            "894ce6278bbad3adf372f7ec55aa17ae9a4132732b174fc4989f9ee3a5ad5c5e": {
+                              "type": "node",
+                              "trace": "probes/20260601-220610874-a72bcba1dc1cbdaf.trace",
+                              "children": {
+                                "87d58ff7abd7185f8cc07661815bb471dd72b6cb0d8bf61316c9ca2a524650d1": {
+                                  "type": "leaf",
+                                  "clusters": [
+                                    [
+                                      "openssl334",
+                                      "openssl343"
+                                    ]
+                                  ]
+                                },
+                                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+                                  "type": "leaf",
+                                  "clusters": [
+                                    [
+                                      "openssl345"
+                                    ]
+                                  ]
+                                }
+                              }
+                            },
+                            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+                              "type": "leaf",
+                              "clusters": [
+                                [
+                                  "openssl342"
+                                ]
+                              ]
+                            }
+                          }
+                        },
+                        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+                          "type": "leaf",
+                          "clusters": [
+                            [
+                              "openssl335"
+                            ]
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "87d58ff7abd7185f8cc07661815bb471dd72b6cb0d8bf61316c9ca2a524650d1": {
+              "type": "node",
+              "trace": "probes/20260602-005427368-d1031421cacdc780.trace",
+              "children": {
+                "8c67c20369fcbb1c660467eefdc382a7b76a1f4ac491d0fa809595341d685d8f": {
+                  "type": "node",
+                  "trace": "probes/20260602-001226070-232a98b95a1794cc.trace",
+                  "children": {
+                    "ab689ab864755c07f0bce8a9aab1d0df60a41fa43efa814156b0d8924857ee12": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl350"
+                        ]
+                      ]
+                    },
+                    "07631cee95cf1af96515362465044c1827a76203f66c67270c14599eab4e687b": {
+                      "type": "node",
+                      "trace": "probes/20260602-103209871-45ca7586ee115a15.trace",
+                      "children": {
+                        "a47f67c77ddf8b4be26bda718bb8a4bfc1b5ace86e60f19e6c0059d4252eee71": {
+                          "type": "leaf",
+                          "clusters": [
+                            [
+                              "openssl352"
+                            ]
+                          ]
+                        },
+                        "31d3cf556eec2afc8f333ebdeb2122536d21276cb2d3c3e2b4cbd8b08769c3c1": {
+                          "type": "leaf",
+                          "clusters": [
+                            [
+                              "openssl354"
+                            ]
+                          ]
+                        }
+                      }
+                    }
+                  }
+                },
+                "df4013c85c420d61f57a7f9cd61767299ccc77074bb8475726b656505e5c37c2": {
+                  "type": "node",
+                  "trace": "probes/20260601-220610874-a72bcba1dc1cbdaf.trace",
+                  "children": {
+                    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl351"
+                        ]
+                      ]
+                    },
+                    "87d58ff7abd7185f8cc07661815bb471dd72b6cb0d8bf61316c9ca2a524650d1": {
+                      "type": "leaf",
+                      "clusters": [
+                        [
+                          "openssl356"
+                        ]
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "e636d5af231c20b275234588af6af6eedf0b1f5e811cf4c51770243a1ad9e2fd": {
+      "type": "node",
+      "trace": "probes/20260601-212716208-935da38275f38abf.trace",
+      "children": {
+        "894ce6278bbad3adf372f7ec55aa17ae9a4132732b174fc4989f9ee3a5ad5c5e": {
+          "type": "leaf",
+          "clusters": [
+            [
+              "openssl360"
+            ]
+          ]
+        },
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855": {
+          "type": "leaf",
+          "clusters": [
+            [
+              "openssl362"
+            ]
+          ]
+        }
+      }
+    },
+    "9a7853bf1d6a323357fc04ddb9bf38fa865a2a5e4b882c4d19e1c4c31b2f68e6": {
+      "type": "leaf",
+      "clusters": [
+        [
+          "openssl361"
+        ]
+      ]
+    }
+  }
+}

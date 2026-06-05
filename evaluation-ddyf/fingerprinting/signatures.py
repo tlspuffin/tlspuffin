@@ -22,7 +22,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 # ─── Configurable constants ───────────────────────────────────────────────────
-MAX_WORKERS = 16   # Thread-pool width for binary invocations (tune for the server)
+MAX_WORKERS = 16
+CANDIDATES = None
+MANIFEST = None
+SIG_CSV = None
+CLUSTERS_JSON = None
+VENDOR = 'wolfssl'
+OUT_DIR = None   # Thread-pool width for binary invocations (tune for the server)
 
 # VERSIONS is intentionally left empty so the list is derived automatically.
 # Detection order:
@@ -50,17 +56,19 @@ sys.path.insert(0, str(_HERE))
 from diff_analyzer import get_diff   # noqa: E402
 from _canon import get_signature     # noqa: E402
 
-CANDIDATES   = _HERE / "candidates"
-MANIFEST     = CANDIDATES / "manifest.csv"
-SIG_CSV      = CANDIDATES / "signatures.csv"
-CLUSTERS_JSON = CANDIDATES / "clusters.json"
-PUFFIN       = _REPO_ROOT / "target" / "release" / "tlspuffin"
-
-# Sentinel for execution failure (keeps it distinct from any real SHA-256 hash)
 _ERR = "ERROR"
 
 # ─────────────────────────────────────────────────────────────────────────────
 
+PUFFIN = _REPO_ROOT / "target" / "release" / "tlspuffin"
+
+def init_globals(vendor, out_dir):
+    global VENDOR, CANDIDATES, MANIFEST, SIG_CSV, CLUSTERS_JSON
+    VENDOR = vendor
+    CANDIDATES = _HERE / out_dir
+    MANIFEST = CANDIDATES / "manifest.csv"
+    SIG_CSV = CANDIDATES / "signatures.csv"
+    CLUSTERS_JSON = CANDIDATES / "clusters.json"
 
 def _check_prerequisites() -> None:
     if not PUFFIN.exists():
@@ -77,35 +85,28 @@ def _read_manifest() -> list[dict]:
 
 
 def _detect_versions() -> list[str]:
-    """
-    Auto-detect built non-ASan PUT names.  Detection order (first wins):
-      1. vendor/ dirs matching wolfssl[0-9]+ — reflects exactly what was built.
-      2. build_results.md rows where Included? == YES.
-    Returns a version-sorted list of PUT names.
-    """
-    vendor = _REPO_ROOT / "vendor"
-    if vendor.exists():
+    vendor_dir = _REPO_ROOT / "vendor"
+    if vendor_dir.exists():
+        if VENDOR == 'all':
+            pattern = r'^(wolfssl|openssl)\d+$'
+        else:
+            pattern = rf'^{VENDOR}\d+$'
         puts = sorted(
-            d.name for d in vendor.iterdir()
-            if d.is_dir() and re.match(r'^wolfssl\d+$', d.name)
+            d.name for d in vendor_dir.iterdir()
+            if d.is_dir() and re.match(pattern, d.name)
         )
-        if puts:
-            return puts
+        if puts: return puts
 
-    results_md = _HERE / "build_results.md"
+    results_md = _HERE / f"build_results_{VENDOR}.md"
+    if not results_md.exists():
+        results_md = _HERE / "build_results.md"
     if results_md.exists():
         puts = []
         for line in results_md.read_text().splitlines():
-            # Match rows like "| 5.0.0 | YES | YES | YES |"
             m = re.match(r'\|\s*([\d.]+)\s*\|\s*YES\s*\|\s*YES\s*\|\s*YES\s*\|', line)
-            if m:
-                puts.append(f"wolfssl{m.group(1).replace('.', '')}")
-        if puts:
-            return puts
-
+            if m: puts.append(f"{VENDOR}{m.group(1).replace('.', '')}")
+        if puts: return puts
     return []
-
-
 def _collect_versions(rows: list[dict]) -> list[str]:
     """
     Return the ordered PUT-name list to evaluate against every candidate trace.
@@ -131,16 +132,33 @@ def _collect_versions(rows: list[dict]) -> list[str]:
     return ordered
 
 
-def _compute_sig(trace: str, version: str, tcp_mode: bool = False) -> str:
-    """Return the canonical signature hash, or _ERR on failure."""
-    s = get_signature(trace, version, tcp_mode=tcp_mode)
-    return s if s is not None else _ERR
+import time
+def _compute_sig(trace: str, version: str, tcp_mode: bool = False,
+                 aggressive_mode: bool = False) -> tuple[str, bool]:
+    """Return the canonical signature hash, or _ERR if non-deterministic.
+    Runs 5 times.  get_signature() never returns None (crashes map to the
+    empty-response hash), so _ERR only occurs on genuine non-determinism.
+    Also returns a bool indicating if any run took more than 1 second.
+    """
+    sigs = set()
+    took_long = False
+    for _ in range(5):
+        start = time.time()
+        s = get_signature(trace, version, tcp_mode=tcp_mode, aggressive_mode=aggressive_mode)
+        dur = time.time() - start
+        if dur > 1.0:
+            took_long = True
+        sigs.add(s)
+    if len(sigs) != 1:
+        return _ERR, took_long
+    return sigs.pop(), took_long
 
 
 def _build_matrix(
     traces: list[str],
     versions: list[str],
-    tcp_mode: bool = False
+    tcp_mode: bool = False,
+    aggressive_mode: bool = False,
 ) -> dict[str, dict[str, str]]:
     """
     Returns matrix[trace][version] = sig_hash.
@@ -152,16 +170,20 @@ def _build_matrix(
     matrix: dict[str, dict[str, str]] = {t: {} for t in traces}
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as pool:
-        futures = {pool.submit(_compute_sig, t, v, tcp_mode): (t, v) for t, v in jobs}
+        futures = {pool.submit(_compute_sig, t, v, tcp_mode, aggressive_mode): (t, v) for t, v in jobs}
         done = 0
+        long_count = 0
         for fut in as_completed(futures):
             done += 1
             t, v = futures[fut]
-            matrix[t][v] = fut.result()
+            sig, took_long = fut.result()
+            if took_long:
+                long_count += 1
+            matrix[t][v] = sig
             if done % max(1, len(futures) // 10) == 0 or done == len(futures):
-                print(f"  computed {done}/{len(futures)} signatures …", end='\r', flush=True)
+                print(f"  computed {done}/{len(futures)} signatures … ({long_count}/{done} took >1s)", end='\r', flush=True)
 
-    print()
+    print(f"\nTotal cell evaluations taking >1s: {long_count}/{len(futures)} ({long_count/len(futures):.1%})")
     return matrix
 
 
@@ -185,22 +207,50 @@ def _cluster_versions(
 ) -> list[list[str]]:
     """
     Group versions whose signature column-vector is identical across all traces.
-    Versions with at least one _ERR signature are placed in singleton clusters
-    (we cannot confirm they are indistinguishable from others).
+
+    ERROR policy (puffin-level execution failure, e.g. 'PUT not found' or crash):
+      - ERROR is NOT a fingerprint — it means 'this probe did not execute on this
+        version', not 'this version behaves distinctively'.
+      - If a version has ERROR on ALL traces: it is un-characterized. Group it with
+        all other all-ERROR versions into a single 'unknown' cluster rather than
+        creating fake singletons.
+      - If a version has ERROR on SOME traces: cluster using only the non-ERROR
+        traces' signatures (partial fingerprint). Emit a warning.
     """
     def col_vec(v: str) -> tuple[str, ...]:
         return tuple(matrix[t].get(v, _ERR) for t in traces)
 
+    all_error_versions: list[str] = []
+    partial_error_versions: list[str] = []
     groups: dict[tuple, list[str]] = {}
+
     for v in versions:
         vec = col_vec(v)
-        if _ERR in vec:
-            # Treat ERROR versions as their own singleton group
-            groups[(v,)] = [v]
+        n_err = sum(1 for s in vec if s == _ERR)
+        if n_err == len(traces):
+            # Completely un-characterized — pool together, do not split
+            all_error_versions.append(v)
+        elif n_err > 0:
+            # Partial: cluster on non-ERROR entries, but flag
+            partial_error_versions.append(v)
+            partial_vec = tuple(s if s != _ERR else '__SKIP__' for s in vec)
+            groups.setdefault(partial_vec, []).append(v)
         else:
             groups.setdefault(vec, []).append(v)
 
-    # Flatten (drop tuple keys, keep version lists)
+    if all_error_versions:
+        print(f"\n⚠ WARNING: {len(all_error_versions)} version(s) returned ERROR on ALL "
+              f"{len(traces)} traces (likely wrong binary or PUT not in binary).\n"
+              f"  They are grouped as ONE un-characterized cluster — NOT distinct fingerprints.\n"
+              f"  Versions: {[v for v in all_error_versions]}\n"
+              f"  Fix: ensure the binary used for signatures has all target PUT versions.\n")
+        groups[('__ALL_ERROR__',)] = all_error_versions
+
+    if partial_error_versions:
+        print(f"\n⚠ WARNING: {len(partial_error_versions)} version(s) had partial ERROR "
+              f"(some probes failed). Clustered on available signatures only.\n"
+              f"  Versions: {partial_error_versions}\n")
+
     return [vlist for vlist in groups.values()]
 
 
@@ -260,8 +310,12 @@ def main() -> None:
     import argparse
     parser = argparse.ArgumentParser(description="Compute signatures and clusters.")
     parser.add_argument("--tcp-mode", action="store_true", help="Build signatures omitting internal errors and cipher suites")
+    parser.add_argument("--aggressive", action="store_true", help="Strip config-layer fields (extensions, sig-algs, named groups) — application-config-independent mode")
+    parser.add_argument("--vendor", default="wolfssl", help="Vendor prefix (e.g. wolfssl, openssl)")
+    parser.add_argument("--out", default="candidates", help="Output directory name (e.g. candidates, candidates_openssl)")
     args = parser.parse_args()
 
+    init_globals(args.vendor, args.out)
     _check_prerequisites()
 
     sig_csv_path = CANDIDATES / "signatures_tcp.csv" if args.tcp_mode else SIG_CSV
@@ -285,7 +339,8 @@ def main() -> None:
 
     # ── Build signature matrix ───────────────────────────────────────────────
     print("Computing signatures …")
-    matrix = _build_matrix(traces, versions, tcp_mode=args.tcp_mode)
+    matrix = _build_matrix(traces, versions, tcp_mode=args.tcp_mode,
+                           aggressive_mode=getattr(args, 'aggressive', False))
 
     # ── Report execution failures ────────────────────────────────────────────
     for v in versions:
@@ -333,7 +388,7 @@ def main() -> None:
 
     # ── Self-check against appendix (A0=5.0.0, A1={5.1.0,5.1.1}, B=5.2.0) ──
     v_set = set(versions)
-    if {'wolfssl500', 'wolfssl510', 'wolfssl520'} <= v_set:
+    if VENDOR == 'wolfssl' and {'wolfssl500', 'wolfssl510', 'wolfssl520'} <= v_set:
         # Build a lookup: version → cluster id
         v2c = {v: c['id'] for c in cluster_data for v in c['versions']}
         c500 = v2c.get('wolfssl500')

@@ -1,0 +1,330 @@
+{
+  "clusters": [
+    {
+      "id": "C0",
+      "versions": [
+        "openssl300",
+        "openssl302",
+        "openssl305",
+        "openssl309",
+        "openssl311",
+        "openssl314",
+        "openssl317"
+      ]
+    },
+    {
+      "id": "C1",
+      "versions": [
+        "openssl301"
+      ]
+    },
+    {
+      "id": "C2",
+      "versions": [
+        "openssl3010"
+      ]
+    },
+    {
+      "id": "C3",
+      "versions": [
+        "openssl3011"
+      ]
+    },
+    {
+      "id": "C4",
+      "versions": [
+        "openssl3012"
+      ]
+    },
+    {
+      "id": "C5",
+      "versions": [
+        "openssl3013"
+      ]
+    },
+    {
+      "id": "C6",
+      "versions": [
+        "openssl3014"
+      ]
+    },
+    {
+      "id": "C7",
+      "versions": [
+        "openssl3015"
+      ]
+    },
+    {
+      "id": "C8",
+      "versions": [
+        "openssl3016"
+      ]
+    },
+    {
+      "id": "C9",
+      "versions": [
+        "openssl3017"
+      ]
+    },
+    {
+      "id": "C10",
+      "versions": [
+        "openssl3018"
+      ]
+    },
+    {
+      "id": "C11",
+      "versions": [
+        "openssl3019"
+      ]
+    },
+    {
+      "id": "C12",
+      "versions": [
+        "openssl3020"
+      ]
+    },
+    {
+      "id": "C13",
+      "versions": [
+        "openssl303"
+      ]
+    },
+    {
+      "id": "C14",
+      "versions": [
+        "openssl304"
+      ]
+    },
+    {
+      "id": "C15",
+      "versions": [
+        "openssl306"
+      ]
+    },
+    {
+      "id": "C16",
+      "versions": [
+        "openssl307"
+      ]
+    },
+    {
+      "id": "C17",
+      "versions": [
+        "openssl308"
+      ]
+    },
+    {
+      "id": "C18",
+      "versions": [
+        "openssl310"
+      ]
+    },
+    {
+      "id": "C19",
+      "versions": [
+        "openssl312"
+      ]
+    },
+    {
+      "id": "C20",
+      "versions": [
+        "openssl313"
+      ]
+    },
+    {
+      "id": "C21",
+      "versions": [
+        "openssl315"
+      ]
+    },
+    {
+      "id": "C22",
+      "versions": [
+        "openssl316"
+      ]
+    },
+    {
+      "id": "C23",
+      "versions": [
+        "openssl318"
+      ]
+    },
+    {
+      "id": "C24",
+      "versions": [
+        "openssl320"
+      ]
+    },
+    {
+      "id": "C25",
+      "versions": [
+        "openssl321"
+      ]
+    },
+    {
+      "id": "C26",
+      "versions": [
+        "openssl322"
+      ]
+    },
+    {
+      "id": "C27",
+      "versions": [
+        "openssl323",
+        "openssl332"
+      ]
+    },
+    {
+      "id": "C28",
+      "versions": [
+        "openssl324"
+      ]
+    },
+    {
+      "id": "C29",
+      "versions": [
+        "openssl325"
+      ]
+    },
+    {
+      "id": "C30",
+      "versions": [
+        "openssl326"
+      ]
+    },
+    {
+      "id": "C31",
+      "versions": [
+        "openssl330"
+      ]
+    },
+    {
+      "id": "C32",
+      "versions": [
+        "openssl331"
+      ]
+    },
+    {
+      "id": "C33",
+      "versions": [
+        "openssl333"
+      ]
+    },
+    {
+      "id": "C34",
+      "versions": [
+        "openssl334",
+        "openssl343"
+      ]
+    },
+    {
+      "id": "C35",
+      "versions": [
+        "openssl335"
+      ]
+    },
+    {
+      "id": "C36",
+      "versions": [
+        "openssl336"
+      ]
+    },
+    {
+      "id": "C37",
+      "versions": [
+        "openssl337"
+      ]
+    },
+    {
+      "id": "C38",
+      "versions": [
+        "openssl340"
+      ]
+    },
+    {
+      "id": "C39",
+      "versions": [
+        "openssl341"
+      ]
+    },
+    {
+      "id": "C40",
+      "versions": [
+        "openssl342"
+      ]
+    },
+    {
+      "id": "C41",
+      "versions": [
+        "openssl344"
+      ]
+    },
+    {
+      "id": "C42",
+      "versions": [
+        "openssl345"
+      ]
+    },
+    {
+      "id": "C43",
+      "versions": [
+        "openssl350"
+      ]
+    },
+    {
+      "id": "C44",
+      "versions": [
+        "openssl351"
+      ]
+    },
+    {
+      "id": "C45",
+      "versions": [
+        "openssl352"
+      ]
+    },
+    {
+      "id": "C46",
+      "versions": [
+        "openssl353"
+      ]
+    },
+    {
+      "id": "C47",
+      "versions": [
+        "openssl354"
+      ]
+    },
+    {
+      "id": "C48",
+      "versions": [
+        "openssl355"
+      ]
+    },
+    {
+      "id": "C49",
+      "versions": [
+        "openssl356"
+      ]
+    },
+    {
+      "id": "C50",
+      "versions": [
+        "openssl360"
+      ]
+    },
+    {
+      "id": "C51",
+      "versions": [
+        "openssl361"
+      ]
+    },
+    {
+      "id": "C52",
+      "versions": [
+        "openssl362"
+      ]
+    }
+  ]
+}

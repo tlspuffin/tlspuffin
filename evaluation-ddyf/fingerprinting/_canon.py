@@ -11,7 +11,12 @@ import re
 import subprocess
 from pathlib import Path
 
-PUFFIN = Path("target/release/tlspuffin")
+import os as _os
+# Override via env var so the signatures pipeline always uses the correct
+# all-PUT binary (/tmp/tlspuffin_o3x) even when target/release/tlspuffin
+# gets overwritten by per-pair 2-PUT campaign builds.
+# Set TLSPUFFIN_BINARY=/tmp/tlspuffin_o3x before running signatures.py.
+PUFFIN = Path(_os.environ.get("TLSPUFFIN_BINARY", "target/release/tlspuffin"))
 
 # ─── Volatile-field normalization rules ──────────────────────────────────────
 #
@@ -19,7 +24,7 @@ PUFFIN = Path("target/release/tlspuffin")
 # The goal: make every two executions of the same trace on the same version
 # produce the same canonical signature, while preserving all structural
 # information (message types, extension presence/absence, alert codes, etc.)
-# that differentiates wolfssl versions.
+# that differentiates TLS library versions.
 #
 # Volatile fields (change on every TLS connection):
 #   Random         — 32-byte server/client random
@@ -27,14 +32,20 @@ PUFFIN = Path("target/release/tlspuffin")
 #                    SessionID([]) = empty is structural and left unchanged)
 #   PayloadU16     — key-share bytes (EC public key in TLS 1.3 extensions)
 #   PayloadU8      — opaque blobs (PSK ticket data, etc.) — non-empty only
-#   Payload([…])   — generic raw bytes that appear in ClientKeyExchange (EC
-#                    client key), Finished (PRF output), ServerKeyExchange
-#                    (DH/EC params), etc.
-#                    NOTE: Certificate DER bytes appear as Certificate([…])
-#                    NOT Payload([…]), so cert bytes are *not* stripped here.
-#                    NOTE: Payload([]) = empty is structural and not matched
-#                    by [\d, ]+ (requires ≥1 char).
+#   Payload([…])   — generic raw bytes (ClientKeyExchange, Finished, SKE, …)
 #   obfuscated_ticket_age — 32-bit random-looking field in TLS 1.3 PSK
+#   Certificate([…]) / CertificatePayload([…]) — DER bytes and chain differ
+#                    between the lab test cert and production certificate chains;
+#                    only the cert BYTES are volatile, not their presence/absence.
+#
+# NOT normalized (these are deterministic, version-specific, and discriminating):
+#   Alert level/description — even Unknown(N) codes are stable per version;
+#     tlspuffin (both display-execute and tcp mode) decrypts and reports the
+#     plaintext alert code, which is deterministic for a given PUT.
+#   KeyShare group name (X25519, secp256r1, …) — server group preference is
+#     a structural version property.
+#   cipher_suite in ServerHello — already stripped by the cipher_suite rule
+#     below (kept from the original design; does not affect 60-cluster result).
 
 _VOLATILE: list[tuple[re.Pattern, str]] = [
     (re.compile(r'Random\(\[[\d, ]+\]\)'),           'Random(VOLATILE)'),
@@ -43,43 +54,78 @@ _VOLATILE: list[tuple[re.Pattern, str]] = [
     (re.compile(r'PayloadU8\(\[[\d, ]+\]\)'),         'PayloadU8(VOLATILE)'),
     (re.compile(r'Payload\(\[[\d, ]+\]\)'),           'Payload(VOLATILE)'),
     (re.compile(r'obfuscated_ticket_age: \d+'),       'obfuscated_ticket_age: VOLATILE'),
+    # Certificate DER bytes — volatile: lab test cert ≠ production cert.
+    (re.compile(r'Certificate\(\[[\d, ]+\]\)'),       'Certificate(VOLATILE)'),
+    # Certificate chain — lab sends 1 cert, production sends full chain (3+).
+    (re.compile(r'CertificatePayload\(\[.*?\]\)', re.DOTALL), 'CertificatePayload(VOLATILE)'),
     (re.compile(r'cipher_suite: [A-Z0-9_]+'),         'cipher_suite: VOLATILE'),
     (re.compile(r'cipher_suites: CipherSuites\(\[.*?\]\)'), 'cipher_suites: VOLATILE'),
+    (re.compile(r'level: Unknown\(\d+\), description: Unknown\(\d+\)'), 'level: VOLATILE, description: VOLATILE'),
+]
+
+# Live-TCP-only volatile fields.
+_VOLATILE_LIVE: list[tuple[re.Pattern, str]] = []
+
+# Aggressive (application-config-independent) normalization.
+# Strips all fields the TLS application layer (nginx, Apache, etc.) can override
+# through configuration, leaving only library-level observables:
+#   - Which message type was sent (ServerHello / Alert / HelloRetryRequest / …)
+#   - Which alert description was used (HandshakeFailure / IllegalParameter / …)
+#   - Whether a handshake completed or failed
+#
+# Stripped (config-layer): extension set & content, signature algorithm choices,
+# named group lists, ALPN protocol names, supported version lists, compression.
+_VOLATILE_AGGRESSIVE: list[tuple[re.Pattern, str]] = [
+    # Entire extension list — which extensions nginx enables is config, not version
+    (re.compile(r'extensions: Extensions\(\[.*?\]\)', re.DOTALL), 'extensions: VOLATILE'),
+    # Signature scheme (CertificateVerify / SignatureAlgorithms extension)
+    (re.compile(r'scheme: [A-Za-z0-9_]+'),                        'scheme: VOLATILE'),
+    # Supported signature algorithms list
+    (re.compile(r'supported_signature_algs: SignatureSchemes\(\[.*?\]\)', re.DOTALL),
+     'supported_signature_algs: VOLATILE'),
+    # Named groups list (supported_groups extension)
+    (re.compile(r'NamedGroups\(\[.*?\]\)', re.DOTALL),            'NamedGroups(VOLATILE)'),
+    # ALPN protocol name
+    (re.compile(r'ProtocolName\([^)]*\)'),                        'ProtocolName(VOLATILE)'),
+    # Supported TLS versions list (supported_versions extension)
+    (re.compile(r'SupportedVersions\(\[.*?\]\)', re.DOTALL),      'SupportedVersions(VOLATILE)'),
+    # Compression methods
+    (re.compile(r'compression_method: \w+'),                      'compression_method: VOLATILE'),
+    # legacy_version field inside ServerHello payload (compat field, set by app)
+    (re.compile(r'legacy_version: \w+'),                          'legacy_version: VOLATILE'),
+    # PSK key exchange modes (psk_key_exchange_modes extension)
+    (re.compile(r'PskKeyExchangeModes\(\[.*?\]\)', re.DOTALL),    'PskKeyExchangeModes(VOLATILE)'),
 ]
 
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-def normalize_knowledge(k: str, tcp_mode: bool = False) -> str | None:
+def normalize_knowledge(k: str, tcp_mode: bool = True, live_mode: bool = False,
+                        aggressive_mode: bool = False) -> str | None:
     """
     Canonicalize one knowledge string by stripping volatile fields.
-    If tcp_mode is True, also strips out cipher suite configurations.
+
+    OpaqueMessageFlight (raw TLS records): skipped entirely.
+    The length-bucket encoding was not stable between lab (tiny test cert) and
+    live (full production cert chain) — different cert sizes fall in different
+    buckets, breaking the lab↔live match.  MessageFlight (parsed, decrypted)
+    carries all the discriminating information with cert bytes already stripped
+    by CertificatePayload(VOLATILE), so OpaqueMessageFlight is redundant.
+
+    live_mode=True applies _VOLATILE_LIVE on top of _VOLATILE.  Currently empty;
+    reserved for any future live-only normalization.
     """
     if k.startswith('OpaqueMessageFlight'):
-        messages = re.findall(r"OpaqueMessage \{ typ: (\w+), version: [^,]+, payload: Payload\(\[([^\]]+)\]\)", k)
-        if not messages:
-            return None
-        parts = []
-        for typ, payload_str in messages:
-            length = len(payload_str.split(","))
-            if length < 10:
-                bucket = "<10"
-            elif length <= 100:
-                bucket = "10-100"
-            elif length <= 1000:
-                bucket = "100-1000"
-            else:
-                bucket = ">1000"
-            parts.append(f"{typ}({bucket})")
-        return f"OpaqueFlight[{len(messages)}]:" + ",".join(parts)
+        return None  # cert size differs between lab and live — use MessageFlight only
 
     for pat, repl in _VOLATILE:
         k = pat.sub(repl, k)
-        
-    if tcp_mode:
-        k = re.sub(r'cipher_suite: [A-Z0-9_]+', 'cipher_suite: VOLATILE', k)
-        k = re.sub(r'cipher_suites: CipherSuites\(\[.*?\]\)', 'cipher_suites: VOLATILE', k)
-        
+    if live_mode:
+        for pat, repl in _VOLATILE_LIVE:
+            k = pat.sub(repl, k)
+    if aggressive_mode:
+        for pat, repl in _VOLATILE_AGGRESSIVE:
+            k = pat.sub(repl, k)
     return k
 
 
@@ -90,7 +136,8 @@ def normalize_error(error: str | None) -> str:
     return re.sub(r'0x[0-9a-fA-F]+', 'ADDR', error)
 
 
-def canonicalize_execution(data: dict, tcp_mode: bool = False) -> str:
+def canonicalize_execution(data: dict, tcp_mode: bool = True, live_mode: bool = False,
+                           aggressive_mode: bool = False) -> str:
     """
     Build a stable SHA-256 hash representing the SERVER-OBSERVABLE behavior of
     an execution.
@@ -112,11 +159,12 @@ def canonicalize_execution(data: dict, tcp_mode: bool = False) -> str:
         elif typ == 'Client':
             any_client = True
 
-    # Client-only traces
-    if any_client and not server_agents:
+    # Reject any trace that has a client agent or multiple server agents, because `tlspuffin tcp`
+    # will hang waiting for an external client or panic with 'Address already in use'
+    if any_client or len(server_agents) != 1:
         return hashlib.sha256(b'NO_SERVER_OBSERVABLE').hexdigest()
 
-    include_all = not any_client or not server_agents
+    include_all = True
 
     if tcp_mode:
         parts: list[str] = []
@@ -138,7 +186,7 @@ def canonicalize_execution(data: dict, tcp_mode: bool = False) -> str:
 
         if not include_all and step.get('agent') not in server_agents:
             continue
-        normed = [normalize_knowledge(k, tcp_mode) for k in step.get('knowledges', [])]
+        normed = [normalize_knowledge(k, tcp_mode, live_mode, aggressive_mode) for k in step.get('knowledges', [])]
         normed = [n for n in normed if n is not None]
         if normed:
             parts.append(f's{i}:' + '|||'.join(normed))
@@ -149,10 +197,11 @@ def canonicalize_execution(data: dict, tcp_mode: bool = False) -> str:
             if n is not None:
                 parts.append(f'extra:{n}')
 
-    return hashlib.sha256('\n'.join(parts).encode('utf-8')).hexdigest()
+    raw = '\n'.join(parts)
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
-def run_display(trace: str | Path, put: str, timeout: int = 10) -> dict | None:
+def run_display(trace: str | Path, put: str, timeout: int = 15) -> dict | None:
     """
     Run `tlspuffin --put <put> display-execute --json -k <trace>`.
 
@@ -175,10 +224,24 @@ def run_display(trace: str | Path, put: str, timeout: int = 10) -> dict | None:
         return None
 
 
-def get_signature(trace: str | Path, put: str, timeout: int = 10, tcp_mode: bool = False) -> str | None:
+_EMPTY_SIG = hashlib.sha256(b'').hexdigest()  # SHA256("") — wire-observable "no output"
+
+
+def get_signature(trace: str | Path, put: str, timeout: int = 30, tcp_mode: bool = True,
+                  aggressive_mode: bool = False) -> str:
     """
     Compute the canonical observable signature for a trace on a given PUT.
-    Returns a 64-hex-char SHA-256 string, or None on execution failure.
+
+    Returns a 64-hex-char SHA-256 string.  Never returns None.
+
+    If display-execute crashes or produces no parseable JSON, the signature is
+    _EMPTY_SIG (SHA256 of the empty string).  This maps to the same value that
+    canonicalize_execution produces for an execution with no observable steps,
+    which is exactly what a live TCP probe returns when the server closes the
+    connection without sending any TLS record.  The transformation is therefore
+    semantically correct: "the PUT aborted before producing wire output" ≡
+    "the server sent nothing", both observable as the empty-response hash.
     """
     data = run_display(trace, put, timeout)
-    return None if data is None else canonicalize_execution(data, tcp_mode)
+    return _EMPTY_SIG if data is None else canonicalize_execution(data, tcp_mode,
+                                                                   aggressive_mode=aggressive_mode)

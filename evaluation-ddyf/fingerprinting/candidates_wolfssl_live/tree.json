@@ -1,0 +1,170 @@
+{
+  "type": "node",
+  "trace": "/home/lhirschi/DDYF-fingerprinting/experiments/2026-05-29--wolfssl-5.6.3-4cfpp-5.8.2-5.8.4--22-27-01--0/objective/20260529-205316406-fc6ed01d579e5203.trace",
+  "children": {
+    "bcb806befedbb5304807fabf453d4e0fc2a667e00328bc481a43a7fbbc8c66ea": {
+      "type": "node",
+      "trace": "/home/lhirschi/DDYF-fingerprinting/experiments/2026-05-29--wolfssl-5.6.3-5cfpp-5.2.0-5.3.0--16-51-23--0/objective/20260529-150303122-d87eb2b46115b5fa.trace",
+      "children": {
+        "571738c3178f63802560e6c3884930c5c95f980188260751181873d98997f273": {
+          "type": "node",
+          "trace": "/home/lhirschi/DDYF-fingerprinting/experiments/2026-05-29--wolfssl-5.0.0-10cfpp-5.0.0-5.1.0--16-10-42--0/objective/20260529-141051113-0a7a3a78efe00c99.trace",
+          "children": {
+            "2863567ab1de04dc5dc1cf6cc62cfe3a6d2a315f5f0911760cbc4b2d32df7332": {
+              "type": "leaf",
+              "clusters": [
+                [
+                  "wolfssl500",
+                  "wolfssl521"
+                ]
+              ]
+            },
+            "a79552944b26581d7cac622bd7139983c0bce1331d0b12b824ef9a83c1f14ca5": {
+              "type": "node",
+              "trace": "/home/lhirschi/DDYF-fingerprinting/experiments/2026-05-29--wolfssl-5.6.3-4cfpp-5.2.1-5.3.0--20-27-01--0/objective/20260529-183037986-359f3b3d9e4e80d2.trace",
+              "children": {
+                "7329e216d389c0971b936d5f1930d5bec4e47f8edf801f5e5923b8ed4a84b560": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "wolfssl510",
+                      "wolfssl511",
+                      "wolfssl520"
+                    ]
+                  ]
+                },
+                "09faef3db0db35180023ebcecd458b45b2a88c79e45448241ccf7a4260ad2cf6": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "wolfssl530"
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "640f235a5af5870d1fb8bd15ce3796dff2dafc66770072fe0a74d7e697e8856d": {
+          "type": "leaf",
+          "clusters": [
+            [
+              "wolfssl540"
+            ]
+          ]
+        },
+        "972390cdf18fa1b6479199f41fff258a55ef905108431ae17435066a216a3a97": {
+          "type": "leaf",
+          "clusters": [
+            [
+              "wolfssl552",
+              "wolfssl553"
+            ]
+          ]
+        },
+        "a79552944b26581d7cac622bd7139983c0bce1331d0b12b824ef9a83c1f14ca5": {
+          "type": "leaf",
+          "clusters": [
+            [
+              "wolfssl554"
+            ]
+          ]
+        }
+      }
+    },
+    "263a8b542afd8201be0cc19151e4d257d893a658a34440e3109d3d47aecfc241": {
+      "type": "node",
+      "trace": "/home/lhirschi/DDYF-fingerprinting/experiments/2026-05-29--wolfssl-5.6.3-4cfpp-5.2.0-5.2.1--20-27-01--0/objective/20260529-183317962-5f526bbbd4163d0f.trace",
+      "children": {
+        "1f722a17bb082c18f8b3b9710baf0c6d2df96f4bb88db8600c8bf5e232e6fd15": {
+          "type": "leaf",
+          "clusters": [
+            [
+              "wolfssl560",
+              "wolfssl562",
+              "wolfssl563",
+              "wolfssl564"
+            ]
+          ]
+        },
+        "9b483107b1aa2a80ea90ed89f42dfd4fda92a25577cf6c366f3a9ffa78548be5": {
+          "type": "node",
+          "trace": "/home/lhirschi/DDYF-fingerprinting/experiments/2026-05-29--wolfssl-5.6.3-4cfpp-5.6.4-5.6.6--19-01-30--0/objective/20260529-170139088-be9745ac38d2a036.trace",
+          "children": {
+            "2863567ab1de04dc5dc1cf6cc62cfe3a6d2a315f5f0911760cbc4b2d32df7332": {
+              "type": "leaf",
+              "clusters": [
+                [
+                  "wolfssl566"
+                ]
+              ]
+            },
+            "1e468e928dafd5be91d1c0d8b5f9c78d9e516bd3626e268602f08056b7d59870": {
+              "type": "node",
+              "trace": "/home/lhirschi/DDYF-fingerprinting/experiments/2026-05-29--wolfssl-5.6.3-4cfpp-5.7.0-5.7.2--19-01-30--0/objective/20260529-170348384-b2ddda46e1701700.trace",
+              "children": {
+                "87d58ff7abd7185f8cc07661815bb471dd72b6cb0d8bf61316c9ca2a524650d1": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "wolfssl570"
+                    ]
+                  ]
+                },
+                "1e468e928dafd5be91d1c0d8b5f9c78d9e516bd3626e268602f08056b7d59870": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "wolfssl572"
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "719e2c54e608edcb0e9b4743b938fc65490b0571850f4bcb66a8def0dee43bae": {
+      "type": "node",
+      "trace": "/home/lhirschi/DDYF-fingerprinting/experiments/2026-05-29--wolfssl-5.6.3-4cfpp-5.7.4-5.7.6--21-27-01--0/objective/20260529-192758781-4fcfe366b3926f8e.trace",
+      "children": {
+        "4c4988d51ba4f3564810603359b3dde13dae7656f9bded572a5d3488821ad9de": {
+          "type": "leaf",
+          "clusters": [
+            [
+              "wolfssl574"
+            ]
+          ]
+        },
+        "a79552944b26581d7cac622bd7139983c0bce1331d0b12b824ef9a83c1f14ca5": {
+          "type": "leaf",
+          "clusters": [
+            [
+              "wolfssl576",
+              "wolfssl580",
+              "wolfssl582"
+            ]
+          ]
+        }
+      }
+    },
+    "07db6c8c0849e5c5e37d5b9239bb496dec420e35c5eeda41de33a3cbd28bc899": {
+      "type": "leaf",
+      "clusters": [
+        [
+          "wolfssl584"
+        ]
+      ]
+    },
+    "9b483107b1aa2a80ea90ed89f42dfd4fda92a25577cf6c366f3a9ffa78548be5": {
+      "type": "leaf",
+      "clusters": [
+        [
+          "wolfssl590",
+          "wolfssl591"
+        ]
+      ]
+    }
+  }
+}

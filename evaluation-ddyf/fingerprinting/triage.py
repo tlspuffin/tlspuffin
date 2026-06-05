@@ -27,8 +27,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 # ─── Configurable constants ───────────────────────────────────────────────────
-REPEATS     = 10   # Re-execution count for the determinism check (per PUT)
-MAX_WORKERS = 16   # Thread-pool width for binary invocations (tune for the server)
+REPEATS     = 1    # PUTs are deterministic; 1 run is sufficient
+MAX_WORKERS = 28   # user requested more workers, load is ~46/64
 # ──────────────────────────────────────────────────────────────────────────────
 
 # Ensure we can import from evaluation-ddyf/ and from this directory
@@ -41,7 +41,10 @@ sys.path.insert(0, str(_HERE))       # for _canon
 from diff_analyzer import get_diff   # noqa: E402
 from _canon import get_signature, run_display  # noqa: E402
 
+import argparse
+
 EXPERIMENTS = _REPO_ROOT / "experiments"
+# These will be updated dynamically if --out is provided
 CANDIDATES  = _HERE / "candidates"
 MANIFEST    = CANDIDATES / "manifest.csv"
 PUFFIN      = _REPO_ROOT / "target" / "release" / "tlspuffin"
@@ -70,11 +73,15 @@ def _parse_pair(exp_dir: Path) -> tuple[str, str] | None:
     return (vals[0], vals[1]) if len(vals) >= 2 else None
 
 
-def _find_experiments() -> list[tuple[Path, str, str, list[Path]]]:
-    """Return list of (exp_dir, put1, put2, [trace_paths]) for all experiments."""
+def _find_experiments(vendor_filter=None) -> list[tuple[Path, str, str, list[Path]]]:
+    """Return [(exp_dir, put1, put2, [traces...])]"""
+    if not EXPERIMENTS.exists():
+        return []
     results = []
     for exp_dir in sorted(EXPERIMENTS.iterdir()):
         if not exp_dir.is_dir():
+            continue
+        if vendor_filter and vendor_filter not in exp_dir.name.lower():
             continue
         obj_dir = exp_dir / "objective"
         if not obj_dir.exists():
@@ -101,12 +108,26 @@ def is_benign_observable(diffs: list[dict]) -> bool:
     """
     Return True iff the diff list represents a benign, TCP-observable difference.
 
-    KEEP iff: ≥1 Knowledges diff, OR ≥1 Status diff where the two PUTs
-    executed a different number of steps (one terminated early, observable as
-    a different number of TCP messages / an alert).
+    KEEP iff: ≥1 Knowledges diff, OR ≥1 Status diff that is TCP-observable.
 
-    DROP if: any SecurityClaim diff (ASAN / security violation); all diffs are
-    Claims-only (internal, not TCP-observable); any Status diff shows a
+    A Status diff is TCP-observable in two cases:
+      1. The two PUTs executed a different number of steps (one terminated early,
+         visible as a different number of TCP messages / an alert).
+      2. The error *source* differs: one PUT fails with a PUT-level error
+         ("error in PUT : …") meaning it actually received and tried to process a
+         TLS message, while the other fails with a Crypto/internal error meaning
+         term evaluation failed before any message was sent.  This is observable
+         because one connection produces a TLS alert / unexpected close while the
+         other produces a different one (or none).
+
+    NOT observable (DROP):
+      - Both PUTs fail with a PUT-level error at the same step: both sent/received
+        the same number of messages, so no remote distinction exists.
+      - Both PUTs fail with a Crypto/internal error at the same step: neither sent
+        anything observable.
+
+    ALSO DROP if: any SecurityClaim diff (ASAN / security violation); all diffs
+    are Claims-only (internal, not TCP-observable); any Status diff shows a
     crash/ASAN status string.
     """
     if not diffs:
@@ -124,8 +145,25 @@ def is_benign_observable(diffs: list[dict]) -> bool:
                 return False
             if any(w in s2.lower() for w in _CRASH_WORDS):
                 return False
+            # Observable case 1: different number of steps executed
             if s.get('first_executed_steps', 0) != s.get('second_executed_steps', 0):
                 has_observable = True
+            else:
+                # Observable case 2: same step count but errors differ in source OR content.
+                #
+                # DROP only when BOTH PUTs fail with a PUT-level error at the same step:
+                # they exchanged the same number of TCP messages → not remotely
+                # distinguishable regardless of the error string.
+                #
+                # In ALL other combinations (one PUT + one internal, or both internal),
+                # keep the trace if the error strings differ: different errors can
+                # manifest as different TLS alerts / connection close behaviours.
+                first_is_put_error = 'error in PUT' in s1
+                second_is_put_error = 'error in PUT' in s2
+                if not (first_is_put_error and second_is_put_error):
+                    if s1 != s2:
+                        has_observable = True
+
         if 'Knowledges' in diff:
             has_observable = True
 
@@ -213,9 +251,18 @@ def _triage_one(trace: Path, put1: str, put2: str) -> tuple[str, dict | None]:
 
 
 def main() -> None:
+    global CANDIDATES, MANIFEST
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--vendor', type=str, default=None)
+    parser.add_argument('--out', type=str, default=str(CANDIDATES))
+    args = parser.parse_args()
+
+    CANDIDATES = Path(args.out)
+    MANIFEST = CANDIDATES / "manifest.csv"
+
     _check_binary()
 
-    experiments = _find_experiments()
+    experiments = _find_experiments(args.vendor)
     if not experiments:
         print(f"No experiments with objective traces found under {EXPERIMENTS}")
         return

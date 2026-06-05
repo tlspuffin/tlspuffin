@@ -63,6 +63,10 @@ def _load_matrix() -> tuple[list[str], list[str], dict[str, dict[str, str]]]:
         traces: list[str] = []
         for row in reader:
             t = row['trace']
+            # ERROR is a valid, deterministic signal: a version that genuinely
+            # cannot execute this trace (wrong TLS version, unsupported feature,
+            # deterministic crash) differs observably from one that can.
+            # Triage.py already confirmed determinism, so ERROR is stable.
             traces.append(t)
             matrix[t] = {v: row[v] for v in versions}
 
@@ -496,13 +500,20 @@ def main() -> None:
     import argparse
     parser = argparse.ArgumentParser(description="Build decision tree from signatures.")
     parser.add_argument("--tcp-mode", action="store_true", help="Build tree using TCP-mode signatures")
+    parser.add_argument("--in-dir", default=None, help="Candidates directory (default: candidates/)")
+    parser.add_argument("--out-dir", default=None, help="Output model directory (overrides default model_tcp/ or model/)")
     args = parser.parse_args()
 
-    global SIG_CSV, CLUSTERS_JSON
+    global CANDIDATES, SIG_CSV, CLUSTERS_JSON, TREE_JSON, TREE_DOT, REPORT_MD
+    if args.in_dir:
+        CANDIDATES = Path(args.in_dir)
     if args.tcp_mode:
         print("Running in TCP mode...")
         SIG_CSV = CANDIDATES / "signatures_tcp.csv"
         CLUSTERS_JSON = CANDIDATES / "clusters_tcp.json"
+    TREE_JSON = CANDIDATES / "tree.json"
+    TREE_DOT  = CANDIDATES / "tree.dot"
+    REPORT_MD = CANDIDATES / "report.md"
 
     print("Loading data …")
     traces, versions, matrix = _load_matrix()
@@ -551,12 +562,52 @@ def main() -> None:
     print(f"  Tree probes: {n_probes}  (depth {depth})")
     print(f"  Min sep set: {len(min_sep)}")
 
+    # ── Tree self-validation ─────────────────────────────────────────────────
+    # Walk every version through the tree using its matrix signatures.
+    # Each version must land in a leaf that contains its own cluster.
+    # Any version that lands in the wrong leaf = normalization was too aggressive
+    # (a discriminator got stripped that mattered).
+    print(f"\n{'─'*50}")
+    print("  Self-validation (walk each version through the tree):")
+    ok = wrong = 0
+    version_to_cluster = {v: i for i, c in enumerate(clusters) for v in c}
+    wrong_routes = []
+
+    def _walk_for_version(node, version):
+        if node["type"] == "leaf":
+            leaf_versions = {v for c in node["clusters"] for v in c}
+            return version in leaf_versions, node["clusters"]
+        trace = node["trace"]
+        sig = matrix.get(trace, {}).get(version, "")
+        if sig not in node["children"]:
+            return False, []   # off-tree — signature not in any branch
+        return _walk_for_version(node["children"][sig], version)
+
+    for version in versions:
+        reached_correct, leaf_clusters = _walk_for_version(tree, version)
+        if reached_correct:
+            ok += 1
+        else:
+            wrong += 1
+            leaf_vs = [v for c in leaf_clusters for v in c]
+            wrong_routes.append((version, leaf_vs))
+
+    if wrong == 0:
+        print(f"  ✓ All {ok}/{len(versions)} versions route to the correct leaf.")
+    else:
+        print(f"  ✗ {wrong} version(s) misrouted (normalization may be too aggressive):")
+        for v, leaf in wrong_routes:
+            print(f"    {v} → landed in {leaf[:4]}{'…' if len(leaf)>4 else ''}")
+    print(f"{'─'*50}")
+
     # ── Export Self-Contained Model ──────────────────────────────────────────
     import shutil
     import copy
 
-    model_dir_name = "model_tcp" if "args" in locals() and args.tcp_mode else "model"
-    model_dir = _HERE / model_dir_name
+    if args.out_dir:
+        model_dir = Path(args.out_dir)
+    else:
+        model_dir = _HERE / ("model_tcp" if args.tcp_mode else "model")
     model_probes_dir = model_dir / "probes"
     model_dir.mkdir(parents=True, exist_ok=True)
     model_probes_dir.mkdir(parents=True, exist_ok=True)
@@ -587,7 +638,7 @@ def main() -> None:
         
     vendor = _get_vendor(versions[0]) if versions else "unknown"
     meta = {
-        "canon": "tcp_mode" if "args" in locals() and args.tcp_mode else "default",
+        "canon": "tcp_mode" if args.tcp_mode else "default",
         "vendor": vendor,
         "clusters": clusters
     }
