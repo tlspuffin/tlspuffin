@@ -125,6 +125,17 @@ prints the resolved set.
 - **Old vs new tree format.** The WolfSSL model predates the `probe`/`default` node fields; `report.py`
   and `validate.py` tolerate their absence (probe index is recovered from the trace basename; an
   unseen sig with no `default` falls back gracefully). New trees from `build_tree.py` include both.
+- **Don't rebuild a shipped tree without its full probe set.** `build_tree.py` refuses to run when
+  `reference/<put>/probes_full/reps.txt` is absent — otherwise it would induce a tree from the partial
+  committed matrix and overwrite a validated model with a weaker one (a wildcard rebuild of the
+  WolfSSL tree from only its 8 committed traces drops live recognition from 23/24 to 3/24). OpenSSL
+  ships `probes_full/` (gitignored) so it rebuilds faithfully; the WolfSSL tree is reproduced by
+  re-walking it (`--stages validate,report`), not rebuilding. Hence the driver default is
+  `validate,report`, not a full rebuild.
+- **One prober per model's provenance.** A model's signatures depend on the prober's TCP read
+  timeout; re-probe a model with the binary it was built with (OpenSSL: 200 ms; record the prober in
+  practice). `pooled_sig`'s modal-at-max-depth makes OpenSSL (10-char sig keys) robust across probers;
+  WolfSSL (full-sig keys) is more sensitive.
 - **`experiments/` is gitignored** and large; the committed `probes/` holds only the decision-node
   traces. Rebuilding the matrix needs the full set (`mine_probes.py` regenerates it).
 - **Provenance.** Superseded scripts, exploratory dirs, and prior reports are in `archive/`

@@ -72,35 +72,47 @@ Run `python3 puts.py --put openssl wolfssl` to print the resolved configuration.
 
 ## Reproduce
 
-Rebuild the matrix, tree, validation and report for both PUTs from the committed probe set, then
-print a combined summary:
+### Live-test the committed models (default)
+
+Walk each committed decision tree against freshly-launched live servers for every version, R=5
+times, and print a combined summary. This is the default and the headline reproduction:
 
 ```
-python3 run_fingerprint.py --put openssl wolfssl
+python3 run_fingerprint.py --put openssl wolfssl \
+    --prober /path/to/tlspuffin --cores 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28 --jobs 12
 ```
 
-PUTs run **sequentially** (never two matrices in parallel) — this controlled-load discipline is what
-keeps the matrix uncorrupted (see DEVELOPER.md). Pin to a spread, lightly-loaded core set:
+PUTs run **sequentially** (never two in parallel) — this controlled-load discipline keeps live
+captures from truncating (see DEVELOPER.md). Expected combined summary (≈3–4 min):
 
 ```
-python3 run_fingerprint.py --put openssl \
-    --prober /path/to/tlspuffin --cores 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28 --jobs 15
+  openssl : 10 clusters, depth 3, recognised 61/61 consistently (<= 3 traces)
+  wolfssl : 14 clusters, depth 4, recognised 23/24 consistently (<= 4 traces)
 ```
 
-Run a subset of stages with `--stages` (default `matrix,tree,validate,report`; `mine` is off by
-default because it needs fresh differential campaigns):
+(The default `--stages` is `validate,report`. WolfSSL 5.3.0 is the one miss under the strict
+tree-walk; see the result note above.)
+
+### Rebuild the tree from scratch (OpenSSL)
+
+`build_matrix`/`build_tree` re-probe and re-induce the tree, so they need the **full** confirmed
+probe set, which `mine_probes` regenerates from the differential campaigns (it is gitignored, not
+committed). OpenSSL ships its full probe list (`reference/openssl/probes_full/reps.txt`), so its tree
+is fully rebuildable from the committed matrix:
 
 ```
-python3 run_fingerprint.py --put openssl --stages tree,validate,report   # from the committed matrix
+python3 run_fingerprint.py --put openssl --stages tree,validate,report   # -> 10 clusters, 61/61
 ```
 
-Outputs land in `reference/<put>/`. Expected: OpenSSL → 10 clusters, depth 3, 61/61; WolfSSL → 14
-clusters, depth 4, 24/24.
+The WolfSSL tree is a **pre-built, validated model** carried over from the earlier pipeline; the
+full WolfSSL probe set is not committed, so `build_tree.py --put wolfssl` deliberately **refuses**
+to rebuild (it would otherwise replace a 23/24 model with a weaker one). Reproduce WolfSSL with
+`--stages validate,report` (the default), or mine a fresh WolfSSL probe set first.
 
-### Mining probes from scratch (optional)
+### Mining probes from scratch (optional, both PUTs)
 
-`mine_probes.py` turns differential-campaign objective traces into a confirmed probe set. Point it
-at the campaigns with `--experiments-glob` (or `FP_EXPERIMENTS_GLOB`):
+`mine_probes.py` turns differential-campaign objective traces into a confirmed probe set, enabling a
+full `matrix,tree,validate,report` rebuild. Point it at the campaigns:
 
 ```
 python3 run_fingerprint.py --put openssl --stages mine,matrix,tree,validate,report \

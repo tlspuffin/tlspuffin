@@ -93,8 +93,10 @@ def main():
         return
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     puts.add_put_arg(ap, multi=True)
-    ap.add_argument("--stages", default="matrix,tree,validate,report",
-                    help="comma list of stages to run (mine,matrix,tree,validate,report)")
+    ap.add_argument("--stages", default="validate,report",
+                    help="comma list of stages (mine,matrix,tree,validate,report). Default "
+                         "'validate,report' live-tests the committed models. Full rebuild "
+                         "'matrix,tree,validate,report' needs the full probe set (run 'mine' first).")
     puts.add_common_args(ap)
     args = ap.parse_args()
     run_build(args)

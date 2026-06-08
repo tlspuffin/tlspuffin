@@ -39,6 +39,17 @@ def main():
     sig_len = puts.PUTS[put]["sig_len"]
     out = cfg.ref(put)
 
+    # Guard: rebuilding the tree requires the FULL probe set so every decision-node trace can be
+    # placed in probes/. Without it we would emit a tree referencing traces we cannot ship and might
+    # clobber a shipped, validated model with a weaker one. A pre-built model (e.g. the WolfSSL one)
+    # has no probes_full/ -> do not rebuild; reproduce it with `--stages validate,report` instead.
+    if not cfg.reps_file(put).exists():
+        raise SystemExit(
+            f"[build_tree] refusing to rebuild: no full probe set at {cfg.reps_file(put)}.\n"
+            f"  The committed {out}/tree.json is a pre-built, validated model -- reproduce it with\n"
+            f"  `run_fingerprint.py --put {put} --stages validate,report` (skip the tree stage),\n"
+            f"  or run `mine_probes.py --put {put}` first to regenerate the full probe set.")
+
     # ---- load the matrix (rows = probe basename, cols = version) ----
     rows = list(csv.reader(open(out / "signatures.csv")))
     all_versions = rows[0][1:]
