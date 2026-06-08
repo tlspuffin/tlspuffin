@@ -86,7 +86,7 @@ set(tls13_session_resumption yes)
 set(transcript_extraction yes)
 set(client_authentication_transcript_extraction yes)
 set(allow_setting_tls12_ciphers yes)
-set(allow_setting_tls13_ciphers yes)
+set(allow_setting_tls13_ciphers no)
 set(allow_setting_sigalgs yes)
 
 list(APPEND INSTALL_COMMANDS COMMAND ${CMAKE_COMMAND} -E make_directory "<INSTALL_DIR>/${CMAKE_INSTALL_LIBDIR}/")
