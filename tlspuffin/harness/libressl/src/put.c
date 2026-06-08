@@ -897,8 +897,21 @@ static void libressl_msg_callback(int write_p,
     } while (0)
 
 // Variant for the SERVER sending ServerHello: the raw transcript already
-// contains CH + SH (no freeze), but the hash context is not initialised yet
-// so we need the SH message as a hash algorithm hint only (no extra bytes).
+// contains CH + SH (no freeze).
+//
+// We must NOT trust the live hash context (tls1_transcript_hash_value) here.
+// In the HelloRetryRequest case tls13_synthetic_handshake_message() ran while
+// sending the HRR and left s->s3->handshake_hash poisoned with a stale CH1
+// prefix: Hash(CH1 || message_hash(Hash(CH1)) || ...). It is only reset to the
+// correct state later, in tls13_server_engage_record_protection(), which runs
+// AFTER this callback. So at ServerHello time the context is wrong (HRR) while
+// the raw transcript buffer is correct in both HRR and non-HRR cases.
+//
+// Passing a non-NULL extra_data (the SH bytes) with extra_len=0 signals
+// extract_transcript_hash_ex() to skip the hash-context fast path and recompute
+// from the raw buffer; extra_len=0 means nothing is appended (SH is already in
+// the buffer); the SH bytes still serve as the hash-algorithm hint. This
+// mirrors the HRR handling already done on the client side (ENQUEUE_CLAIM_CLIENT_SH).
 #define ENQUEUE_CLAIM_SERVER_SH(agent, ctype, msg_buf, msg_len)                                    \
     do                                                                                             \
     {                                                                                              \
@@ -910,7 +923,7 @@ static void libressl_msg_callback(int write_p,
                 extract_transcript_hash_ex((agent),                                                \
                                            (agent)->claimQueue[_idx].transcript,                   \
                                            sizeof((agent)->claimQueue[_idx].transcript),           \
-                                           NULL,                                                   \
+                                           (msg_buf),                                              \
                                            0,                                                      \
                                            (msg_buf),                                              \
                                            (msg_len));                                             \
@@ -974,10 +987,6 @@ static void libressl_msg_callback(int write_p,
             // Skip Hello Retry Request — same reason as on the client side.
             if (!is_hello_retry_request((const uint8_t *)buf, len))
             {
-                // On the server side the raw transcript already contains
-                // CH + SH (transcript is not frozen), but the hash context
-                // is not yet initialised.  Pass the SH message as a hash
-                // algorithm hint only (no extra bytes to append).
                 ENQUEUE_CLAIM_SERVER_SH(agent, CLAIM_TRANSCRIPT_CH_SH, (const uint8_t *)buf, len);
             }
             break;
