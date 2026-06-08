@@ -160,9 +160,6 @@ mod tests {
         assert!(version.expect("missing version string").contains("5.4.0"));
         #[cfg(feature = "wolfssl430")]
         assert!(version.expect("missing version string").contains("4.3.0"));
-        #[cfg(feature = "boringssl20260508")]
-        assert!(version
-            .expect("missing version string")
-            .contains("0.20260508.0"));
+        // We no longer have a working RustPUT for boringSSL
     }
 }

@@ -3667,20 +3667,21 @@ pub mod tests {
         }
     }
 
-    #[test_log::test]
-    #[cfg(all(has_put = "openssl340", has_put = "wolfssl580"))]
+    #[apply(test_differential_puts, first = "openssl340", second = "wolfssl580")]
     fn test_differential_openssl340_vs_wolfssl580() {
         assert_no_differential_differences("openssl340", "wolfssl580");
     }
 
-    #[test_log::test]
-    #[cfg(all(has_put = "openssl340", has_put = "libressl421"))]
+    #[apply(test_differential_puts, first = "openssl340", second = "libressl421")]
     fn test_differential_openssl340_vs_libressl421() {
         assert_no_differential_differences("openssl340", "libressl421");
     }
 
-    #[test_log::test]
-    #[cfg(all(has_put = "openssl340", has_put = "boringssl20260508"))]
+    #[apply(
+        test_differential_puts,
+        first = "openssl340",
+        second = "boringssl20260508"
+    )]
     fn test_differential_openssl340_vs_boringssl20260508() {
         assert_no_differential_differences("openssl340", "boringssl20260508");
     }
