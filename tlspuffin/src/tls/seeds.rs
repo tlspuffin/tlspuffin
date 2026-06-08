@@ -3117,6 +3117,8 @@ pub mod tests {
     /// Verify that TLS 1.2 cipher configuration takes effect.
     /// Uses the same seed selection logic as test_seed_successful12.
     /// Checks that the negotiated cipher is an ECDHE cipher as configured.
+    /// OpenSSL101f and OpenSSL102u are not instrumented for claims.
+    #[cfg(all(not(feature = "openssl101f"), not(feature = "openssl102u")))]
     #[apply(test_puts, filter = all(tls12, not(libressl)))]
     fn test_cipher_config_tls12_takes_effect(put: &str) {
         use crate::claims::Finished;
