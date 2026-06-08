@@ -1,11 +1,22 @@
-[boringssl20260211-asan]
-sources = { repo = "https://github.com/google/boringssl.git", branch = "main", version = "0.20260211.0" }
+[boringsslmain-asan]
+sources = { repo = "https://github.com/google/boringssl.git", branch = "main", version = "main" }
 builder = { type = "builtin", name = "boringssl" }
 asan = true
 sancov = true
 
-[boringssl20260211]
-sources = { repo = "https://github.com/google/boringssl.git", branch = "main", version = "0.20260211.0" }
+[boringsslmain]
+sources = { repo = "https://github.com/google/boringssl.git", branch = "main", version = "main" }
+builder = { type = "builtin", name = "boringssl" }
+sancov = true
+
+[boringssl20260508-asan]
+sources = { repo = "https://github.com/google/boringssl.git", branch = "0.20260508.0", version = "0.20260508.0" }
+builder = { type = "builtin", name = "boringssl" }
+asan = true
+sancov = true
+
+[boringssl20260508]
+sources = { repo = "https://github.com/google/boringssl.git", branch = "0.20260508.0", version = "0.20260508.0" }
 builder = { type = "builtin", name = "boringssl" }
 sancov = true
 

@@ -3678,8 +3678,8 @@ pub mod tests {
     }
 
     #[test_log::test]
-    #[cfg(all(has_put = "openssl340", has_put = "boringssl20260211"))]
-    fn test_differential_openssl340_vs_boringssl20260211() {
-        assert_no_differential_differences("openssl340", "boringssl20260211");
+    #[cfg(all(has_put = "openssl340", has_put = "boringssl20260508"))]
+    fn test_differential_openssl340_vs_boringssl20260508() {
+        assert_no_differential_differences("openssl340", "boringssl20260508");
     }
 }
