@@ -1,15 +1,21 @@
 #!/usr/bin/env python3
-"""
-Live TLS version fingerprinter (deterministic, AI-free).
+"""Live TLS version fingerprinter (deterministic, AI-free).
 
-Takes a model produced by build_tree.py (tree.json + meta.json + probes/), connects to a
-live server over TCP, replays the tree's probe traces, canonicalises each response with the
-SAME rules used offline, and walks the decision tree to a leaf.
+Connects to a live server over TCP, replays a decision tree's probe traces, canonicalises each
+response with the SAME rules used offline, and walks the tree to a leaf -> a version cluster.
 
-Robust against real-world conditions: resolves DNS itself (the `tcp` PUT needs an IP, not a
-hostname), distinguishes connection failures / no-response / divergent-stack / positive
-instead of collapsing everything to "unknown", optionally re-probes to detect load-balanced
-or flaky targets, and never confuses an operational failure with a true abstention.
+Two modes:
+  * `--put openssl wolfssl ...`  identify an UNKNOWN target: walk EACH PUT's committed model
+    (reference/<put>/) and report which library *and* which version-cluster, or abstain. A model
+    only "claims" the target if every decision probe's live response matched a real branch (no
+    forced default, no missing response); the wrong library's tree thus abstains instead of
+    forcing a bogus leaf.
+  * `--model DIR`                walk a single explicit model (legacy/standalone).
+
+Robust against real-world conditions: resolves DNS itself (the `tcp` PUT needs an IP), distinguishes
+connection failures / no-response / divergent-stack / positive instead of collapsing everything to
+"unknown", optionally re-probes to detect load-balanced or flaky targets, and never confuses an
+operational failure with a true abstention.
 """
 import argparse
 import hashlib
@@ -19,6 +25,7 @@ import socket
 import subprocess
 import sys
 import time
+from collections import Counter
 from contextlib import redirect_stdout
 from pathlib import Path
 
@@ -29,6 +36,7 @@ try:
 except ImportError:
     print("ERROR: could not import _canon.py", file=sys.stderr)
     sys.exit(1)
+import puts  # noqa: E402
 
 EMPTY_SIG = hashlib.sha256(b"").hexdigest()  # signature of a response with nothing observable
 _CONN_ERR_MARKERS = (
@@ -53,13 +61,9 @@ def _canon_quiet(data: dict, tcp_mode: bool) -> str:
         return canonicalize_execution(data, tcp_mode=tcp_mode, live_mode=True)
 
 
-def run_probe(binary: str, trace_path: Path, ip: str, port: int, sni: str | None,
-              timeout: float, retries: int) -> dict:
-    """
-    Replay one probe against ip:port. Returns a dict with 'outcome' in:
-      ok | connection_error | unreachable | binary_error | bad_output
-    plus 'data' (parsed JSON) when ok, and 'error' (the in-band PUT error) when relevant.
-    """
+def run_probe(binary, trace_path, ip, port, sni, timeout, retries) -> dict:
+    """Replay one probe against ip:port. Returns {'outcome': ok|connection_error|unreachable|
+    binary_error}, plus 'data' (parsed JSON) when ok."""
     cmd = [binary, "tcp", str(trace_path), "--host", ip, "--port", str(port), "--json"]
     if sni:
         cmd += ["--sni", sni]
@@ -89,59 +93,40 @@ def run_probe(binary: str, trace_path: Path, ip: str, port: int, sni: str | None
 
 
 def _executed_until(data: dict) -> int:
-    """How many trace steps the TCP engine managed to capture for this probe."""
     ex = data.get("execution") or {}
     return ex.get("executed_until", 0) or 0
 
 
 def node_signature(binary, trace_path, ip, port, sni, timeout, retries, repeat, tcp_mode) -> dict:
-    """
-    Probe one tree node up to `repeat` times and return {'outcome': ..., 'sig': ...}:
-      matched          -> a stable, non-empty signature (sig set)
-      no_tls_response  -> connected but nothing observable (empty signature)
-      inconsistent     -> signatures differed at the same capture depth (load-balanced)
-      connection_error / unreachable / binary_error / bad_output -> operational failure
-
-    Capture is over a real TCP socket whose read uses a fixed idle timeout
-    (tlspuffin's `tcp` PUT), so a slow flight can be *truncated*: the engine
-    records fewer steps (`executed_until`) than the server actually sent. This
-    only ever drops trailing flights, never invents them, so across `repeat`
-    probes the run with the largest `executed_until` is the complete response and
-    reproduces the offline (display-execute) signature exactly. We therefore keep
-    the most-complete capture rather than requiring every run to agree, and flag
-    `inconsistent` only when two *different* signatures tie at that maximum depth.
-    """
-    from collections import Counter
+    """Probe one node up to `repeat` times. Returns {'outcome': matched|no_tls_response|
+    inconsistent|...}. Keeps the most-complete capture (max executed_until), then the modal sig
+    among those, matching how the offline matrix is built (truncation only drops trailing flights)."""
     best_depth, captures, last_fail = -1, [], None
     for _ in range(max(1, repeat)):
         res = run_probe(binary, trace_path, ip, port, sni, timeout, retries)
         if res["outcome"] != "ok":
-            last_fail = res  # a single failed attempt should not abort the node
+            last_fail = res
             continue
         depth = _executed_until(res["data"])
-        sig = _canon_quiet(res["data"], tcp_mode)
-        captures.append((depth, sig))
+        captures.append((depth, _canon_quiet(res["data"], tcp_mode)))
         best_depth = max(best_depth, depth)
     if not captures:
-        return last_fail  # every attempt failed operationally
-    # Among the most-complete captures, take the modal signature. Live TCP has
-    # genuine same-depth response jitter; majority-at-max-depth is the stable
-    # value and matches how the offline matrix is built (same rule, build_live_matrix.py).
+        return last_fail
     at_best = Counter(sig for depth, sig in captures if depth == best_depth)
     ranked = at_best.most_common()
     if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
-        return {"outcome": "inconsistent", "sigs": sorted(s[:12] for s in at_best),
-                "depth": best_depth}
+        return {"outcome": "inconsistent", "sigs": sorted(s[:12] for s in at_best), "depth": best_depth}
     sig = ranked[0][0]
-    if sig == EMPTY_SIG:
-        return {"outcome": "no_tls_response", "sig": sig}
-    return {"outcome": "matched", "sig": sig}
+    return {"outcome": "no_tls_response" if sig == EMPTY_SIG else "matched", "sig": sig}
 
 
-def walk_tree(node, ctx, depth=0, path=None):
+def walk_tree(node, ctx, sig_len, depth=0, path=None, defaulted=0):
+    """Walk one model against the target. Tracks how many decision probes matched a real branch vs
+    fell back to the node `default` (the latter signals the model is the wrong library / off-model)."""
     path = path or []
     if node["type"] == "leaf":
-        return {"status": "identified", "cluster": node["clusters"], "path": path}
+        return {"status": "identified", "cluster": node["clusters"], "path": path,
+                "matched": depth - defaulted, "defaulted": defaulted, "depth": depth}
     if ctx["delay"] > 0:
         time.sleep(ctx["delay"])
     trace = ctx["model"] / node["trace"]
@@ -149,38 +134,77 @@ def walk_tree(node, ctx, depth=0, path=None):
                          ctx["timeout"], ctx["retries"], ctx["repeat"], ctx["tcp_mode"])
     out = res["outcome"]
     if out == "matched":
-        sig = res["sig"]
-        if sig not in node["children"]:
-            return {"status": "unknown_stack", "reason": "response did not match any model branch",
-                    "unmatched_sig": sig, "probe": node["trace"], "depth_reached": depth, "path": path}
-        return walk_tree(node["children"][sig], ctx, depth + 1, path + [node["trace"]])
-    # operational / non-decisive outcomes — NOT a true abstention
-    status = {
-        "no_tls_response": "no_tls_response",
-        "inconsistent": "inconsistent",
-        "connection_error": "connection_error",
-        "unreachable": "connection_error",
-        "binary_error": "binary_error",
-    }.get(out, "probe_failed")
-    return {"status": status, "detail": res, "probe": node["trace"],
-            "depth_reached": depth, "path": path}
+        key = res["sig"] if not sig_len else res["sig"][:sig_len]   # truncate to model's key length
+        if key in node["children"]:
+            return walk_tree(node["children"][key], ctx, sig_len, depth + 1,
+                             path + [node["trace"]], defaulted)
+        if node.get("default") in node["children"]:                 # unseen sig -> majority branch
+            return walk_tree(node["children"][node["default"]], ctx, sig_len, depth + 1,
+                             path + [node["trace"] + " (default)"], defaulted + 1)
+        return {"status": "unknown_stack", "reason": "response matched no model branch",
+                "unmatched_sig": key, "probe": node["trace"], "depth_reached": depth, "path": path,
+                "matched": depth - defaulted, "defaulted": defaulted}
+    status = {"no_tls_response": "no_tls_response", "inconsistent": "inconsistent",
+              "connection_error": "connection_error", "unreachable": "connection_error",
+              "binary_error": "binary_error"}.get(out, "probe_failed")
+    return {"status": status, "detail": res, "probe": node["trace"], "depth_reached": depth,
+            "path": path, "matched": depth - defaulted, "defaulted": defaulted}
+
+
+def identify_one(put, model_dir, ctx_base):
+    """Load reference/<put>/ model and walk it against the target. Returns the walk result + put."""
+    tree = json.loads((model_dir / "tree.json").read_text())
+    meta = json.loads((model_dir / "meta.json").read_text())
+    ctx = dict(ctx_base, model=model_dir, tcp_mode=(meta.get("canon") == "tcp_mode"))
+    res = walk_tree(tree, ctx, meta.get("sig_len", 0))
+    res["put"] = put
+    return res
+
+
+def _summary(r):
+    return {"put": r.get("put"), "status": r["status"], "matched": r.get("matched", 0),
+            "defaulted": r.get("defaulted", 0),
+            "cluster": r.get("cluster") if r["status"] == "identified" else None}
+
+
+def combine(results):
+    """Pick the library+cluster across per-PUT walks. A clean claim = reached a leaf with NO forced
+    defaults. Several clean claims -> most matched nodes wins; none -> best-effort or 'unknown'."""
+    clean = [r for r in results if r["status"] == "identified" and r.get("defaulted", 0) == 0]
+    leafed = [r for r in results if r["status"] == "identified"]
+    if len(clean) == 1:
+        pick, conf = clean[0], "high"
+    elif len(clean) > 1:
+        pick, conf = max(clean, key=lambda r: r["matched"]), "multiple_models_claimed"
+    elif leafed:
+        pick, conf = max(leafed, key=lambda r: r["matched"]), "weak_defaulted"
+    else:
+        return {"status": "unknown", "reason": "no PUT model recognised the target",
+                "per_put": [_summary(r) for r in results]}
+    return {"status": "identified", "put": pick["put"], "cluster": pick["cluster"],
+            "confidence": conf, "matched": pick["matched"], "path": pick["path"],
+            "per_put": [_summary(r) for r in results]}
 
 
 def main():
-    p = argparse.ArgumentParser(description="Live TLS version fingerprinter")
-    p.add_argument("--model", required=True, type=Path)
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--put", nargs="+", choices=puts.put_names(),
+                   help="identify an unknown target across these PUT models (reference/<put>/)")
+    p.add_argument("--model", type=Path, help="single explicit model dir (instead of --put)")
     p.add_argument("--url", help="Target URL, e.g. https://example.com")
     p.add_argument("--host", help="Target hostname or IP")
     p.add_argument("--port", type=int, default=443)
     p.add_argument("--sni", help="SNI to inject (defaults to the hostname)")
-    p.add_argument("--binary", default=os.environ.get("PUFFIN_BIN", "target/release/tlspuffin"),
-                   help="Path to the tlspuffin binary (or set PUFFIN_BIN)")
-    p.add_argument("--timeout", type=float, default=15.0, help="Per-probe timeout (s)")
-    p.add_argument("--retries", type=int, default=2, help="Retries per probe on timeout/parse fail")
-    p.add_argument("--repeat", type=int, default=1, help="Re-probe each node N times to detect flaky/load-balanced targets")
-    p.add_argument("--delay", type=float, default=0.0, help="Delay between probes (s) to pace requests")
+    p.add_argument("--binary", help="tlspuffin prober (default: --prober/PUFFIN_BIN/derived)")
+    p.add_argument("--timeout", type=float, default=15.0)
+    p.add_argument("--retries", type=int, default=2, help="retries per probe on timeout/parse fail")
+    p.add_argument("--repeat", type=int, default=3, help="re-probe each node N times (flaky targets)")
+    p.add_argument("--delay", type=float, default=0.0, help="delay between probes (s)")
     p.add_argument("--json", action="store_true")
+    # Only the path options (this script defines its own --timeout/--port/--binary etc.).
+    puts.add_common_args(p, only={"repo_root", "vendor_dir", "reference_dir", "prober"})
     args = p.parse_args()
+    cfg = puts.resolve(args)
 
     def emit(d, code=0):
         if args.json:
@@ -189,15 +213,15 @@ def main():
             print(f"{d['status'].upper()}: " + json.dumps({k: v for k, v in d.items() if k != 'status'}))
         sys.exit(code)
 
-    # ---- startup checks --------------------------------------------------------------
     if not args.url and not args.host:
         emit({"status": "usage_error", "error": "provide --url or --host"}, 2)
-    if not Path(args.binary).exists():
-        emit({"status": "binary_error", "error": f"binary not found: {args.binary}"}, 2)
-    tree_path, meta_path = args.model / "tree.json", args.model / "meta.json"
-    if not tree_path.exists() or not meta_path.exists():
-        emit({"status": "model_error", "error": f"{args.model} missing tree.json or meta.json"}, 2)
+    if not args.put and not args.model:
+        emit({"status": "usage_error", "error": "provide --put <list> or --model <dir>"}, 2)
+    binary = args.binary or cfg.prober()
+    if not Path(binary).exists():
+        emit({"status": "binary_error", "error": f"binary not found: {binary}"}, 2)
 
+    # ---- resolve target ----
     host, port, sni = args.host, args.port, args.sni
     if args.url:
         from urllib.parse import urlparse
@@ -207,8 +231,6 @@ def main():
         sni = sni or host
     if not sni and host and not host.replace(".", "").isdigit() and ":" not in host:
         sni = host
-
-    # ---- resolve DNS ourselves (tcp PUT needs an IP) ---------------------------------
     is_ip = host.replace(".", "").isdigit() or ":" in host
     if is_ip:
         ip, fam = host, "literal"
@@ -218,17 +240,28 @@ def main():
         except Exception as e:
             emit({"status": "connection_error", "error": f"DNS resolution failed for {host}: {e}"}, 1)
 
-    tree = json.loads(tree_path.read_text())
-    tcp_mode = json.loads(meta_path.read_text()).get("canon") == "tcp_mode"
+    ctx_base = {"binary": binary, "ip": ip, "port": port, "sni": sni, "timeout": args.timeout,
+                "retries": args.retries, "repeat": args.repeat, "delay": args.delay}
 
-    ctx = {"model": args.model, "binary": args.binary, "ip": ip, "port": port, "sni": sni,
-           "timeout": args.timeout, "retries": args.retries, "repeat": args.repeat,
-           "delay": args.delay, "tcp_mode": tcp_mode}
-    result = walk_tree(tree, ctx)
+    # ---- single explicit model ----
+    if args.model:
+        if not (args.model / "tree.json").exists():
+            emit({"status": "model_error", "error": f"{args.model} missing tree.json"}, 2)
+        result = identify_one(args.model.name, args.model, ctx_base)
+    # ---- multi-PUT identification of an unknown target ----
+    else:
+        results = []
+        for put in args.put:
+            mdir = cfg.ref(put)
+            if not (mdir / "tree.json").exists():
+                results.append({"status": "model_error", "put": put,
+                                "error": f"{mdir} missing tree.json", "matched": 0, "defaulted": 1})
+                continue
+            results.append(identify_one(put, mdir, ctx_base))
+        result = combine(results)
+
     result.update({"target": host, "resolved_ip": ip, "ip_family": fam, "sni": sni, "port": port})
-
-    code = 0 if result["status"] == "identified" else 1
-    emit(result, code)
+    emit(result, 0 if result["status"] == "identified" else 1)
 
 
 if __name__ == "__main__":

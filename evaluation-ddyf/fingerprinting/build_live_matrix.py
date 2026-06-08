@@ -46,11 +46,14 @@ def wait_listen(port, timeout=6.0):
 def server_argv(server_cmd, version, port):
     """(argv, env, cwd) to launch a real server of `version` on `port`.
     Both stacks are driven by their stock example server; the fingerprint never
-    looks at cert/cipher config, so the default/throw-away cert is fine."""
+    looks at cert/cipher config, so the default/throw-away cert is fine.
+    The vendored-servers root honors VENDOR_DIR (set by puts.Config from --vendor-dir)
+    at call time, so it is never a hardcoded absolute."""
+    vendor = Path(os.environ.get("VENDOR_DIR") or VENDOR)
     if server_cmd == "openssl":
         # vendored bin/openssl is a normal non-ASAN build; OPENSSL_CONF=/dev/null
         # because it cannot find its openssl.cnf at the build prefix.
-        binp = VENDOR / version / "bin" / "openssl"
+        binp = vendor / version / "bin" / "openssl"
         argv = [str(binp), "s_server", "-accept", str(port),
                 "-cert", str(LAB / "server.crt"), "-key", str(LAB / "server.key"), "-quiet"]
         return argv, dict(os.environ, OPENSSL_CONF="/dev/null"), None
@@ -58,8 +61,8 @@ def server_argv(server_cmd, version, port):
         # wolfssl example server (built by build_wolfssl_servers.sh): -i loops to
         # accept many connections, -d disables client-cert check, -b binds any iface.
         # Run from the wolfssl source root so ChangeToWolfRoot() finds certs/.
-        binp = VENDOR / version / "bin" / "server"
-        cwd = VENDOR / version / "src" / "vendor"
+        binp = vendor / version / "bin" / "server"
+        cwd = vendor / version / "src" / "vendor"
         # -x: keep running (print) on SSL errors instead of exiting on the first
         # malformed probe; -i loop; -d no client-cert; -b bind any iface.
         argv = [str(binp), "-p", str(port), "-x", "-d", "-i", "-b"]

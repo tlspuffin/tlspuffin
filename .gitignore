@@ -62,3 +62,17 @@ __pycache__/
 # bulky regenerable fingerprinting data
 evaluation-ddyf/fingerprinting/candidates/signatures.csv
 evaluation-ddyf/fingerprinting/candidates/manifest.csv
+
+# --- fingerprinting final-release artifact ---
+# superseded scripts/data and exploratory dirs kept on disk for provenance, not committed
+evaluation-ddyf/fingerprinting/archive/
+evaluation-ddyf/fingerprinting/log*
+evaluation-ddyf/fingerprinting/candidates_*/
+evaluation-ddyf/fingerprinting/model_*/
+evaluation-ddyf/fingerprinting/model/
+evaluation-ddyf/fingerprinting/sampled_experiments*/
+# full confirmed-probe working set is bulky/regenerable (mine_probes.py recreates it)
+evaluation-ddyf/fingerprinting/reference/*/probes_full/
+# ...but DO commit the few decision-tree probe traces the deployment model replays
+# (overrides the global *.trace ignore above; last-matching rule wins)
+!evaluation-ddyf/fingerprinting/reference/*/probes/*.trace
