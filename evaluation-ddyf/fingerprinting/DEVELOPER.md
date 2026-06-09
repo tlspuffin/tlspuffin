@@ -138,17 +138,19 @@ prints the resolved set.
   ships `probes_full/` (gitignored) so it rebuilds faithfully; the WolfSSL tree is reproduced by
   re-walking it (`--stages validate,report`), not rebuilding. Hence the driver default is
   `validate,report`, not a full rebuild.
-- **One prober per model's provenance, and the read-window trade-off.** A model's signatures depend
-  on the prober's TCP read window (`tlspuffin/src/tcp/mod.rs`, currently 2000 ms). Wider = fewer
-  truncated captures (robust) but slower probing; narrower (e.g. 200 ms) = fast but truncates slower
-  flights. OpenSSL flights are fast, so 200 ms gives a clean 0-UNSTABLE matrix in ~30 min and the
-  10-char sig keys are robust across windows. WolfSSL's example-server flights are slower/larger, so
-  200 ms truncates ~40% of cells to UNSTABLE while 2000 ms is clean but makes a full 77×26 matrix
-  rebuild take hours — which is why the committed WolfSSL matrix/tree come from the earlier
-  repeat-15 modal builder (`build_live_matrix.py`) rather than a unified `build_matrix` rerun. Its
-  confirmed probe set (`reference/wolfssl/probes_full/`, extracted from the same campaigns) and that
-  builder are both committed, so it is reproducible; a from-scratch unified rebuild wants a
-  mid-range read window. OpenSSL rebuilds end-to-end with `build_matrix` (0 UNSTABLE, 61/61).
+- **WolfSSL has intrinsic per-probe jitter; OpenSSL does not.** Measured at ZERO contention
+  (single server, fully sequential): OpenSSL gives 0 UNSTABLE cells (its matrix is fully
+  reproducible at a 200 ms read window → `build_matrix` rebuilds it end to end, 10 clusters, 61/61).
+  WolfSSL's example server, in contrast, returns genuinely non-reproducible responses to ~24/77 of
+  the probes — and this is **neither load nor read-window**: it persists at 200 ms *and* 2000 ms
+  (re-probing the 200 ms-UNSTABLE cells at 2000 ms stabilises 0 of them), and is unchanged by lowering
+  load. So a wider read window buys WolfSSL nothing (just slower probing); 200 ms is the right window
+  for both. The ~53 stable WolfSSL probes carry the signal (→ 14 clusters); the jittery 24 are
+  correctly treated as wildcards. Because that intrinsic jitter makes a greedy wildcard rebuild pick
+  flaky split probes (→ poor live walk), the committed WolfSSL tree is the earlier ID3/modal model
+  (`build_live_matrix.py` + the original `build_tree`, validated 23/24), whose probe set
+  (`reference/wolfssl/probes_full/`, from the same campaigns) is committed for reproducibility. A
+  future unified WolfSSL rebuild should bias `build_tree` toward low-jitter (low-UNSTABLE) probes.
 - **`experiments/` is gitignored** and large; the committed `probes/` holds only the decision-node
   traces. Rebuilding the matrix needs the full set (`mine_probes.py` regenerates it).
 - **Provenance.** Superseded scripts, exploratory dirs, and prior reports are in `archive/`

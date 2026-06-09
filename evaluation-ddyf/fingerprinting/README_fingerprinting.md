@@ -77,9 +77,10 @@ All paths follow **CLI flag → environment variable → derived default**, so n
 override the prober with `--prober PATH` / `PUFFIN_BIN`, the vendored servers with `--vendor-dir`,
 etc. Inspecting the committed `reference/<put>/report.md` needs none of the above.
 
-> Prober note: `target/release/tlspuffin` uses a 2000 ms TCP read window (`tlspuffin/src/tcp/mod.rs`)
-> — robust against truncation. A shorter window probes faster but can truncate slower WolfSSL flights
-> (see DEVELOPER.md); tune it there if you re-probe at scale.
+> Prober note: the TCP read window is set in `tlspuffin/src/tcp/mod.rs` (currently 2000 ms). 200 ms
+> is sufficient for both stacks and probes much faster — OpenSSL is fully reproducible at 200 ms, and
+> WolfSSL's residual per-probe jitter is intrinsic (a wider window does not reduce it; see
+> DEVELOPER.md). Lower the window if you re-probe at scale.
 
 ## Reproduce
 
