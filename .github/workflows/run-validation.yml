@@ -171,3 +171,14 @@ jobs:
       first_preset: openssl340
       second_vendor: libressl
       second_preset: libressl421
+
+  differential-openssl-boringssl:
+    needs: [ configure ]
+    if: ${{ contains(fromJson(needs.configure.outputs.checks), 'test') }}
+    uses: ./.github/workflows/run-differential-tests.yml
+    with:
+      name: openssl340-vs-boringssl20260508
+      first_vendor: openssl
+      first_preset: openssl340
+      second_vendor: boringssl
+      second_preset: boringssl20260508
