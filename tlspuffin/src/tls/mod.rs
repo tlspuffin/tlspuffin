@@ -259,8 +259,8 @@ define_signature!(
     fn_get_ticket_age_add [get]
     fn_get_ticket_nonce [get]
     fn_new_transcript12
-    fn_decode_server_ecdh_pubkey [opaque]
-    fn_decode_client_ecdh_pubkey [opaque]
+    fn_decode_server_ecdh_pubkey [opaque] [no_gen]
+    fn_decode_client_ecdh_pubkey [opaque] [no_gen]
     fn_sign_rsa_ecdhe_server_key_exchange12 [opaque]
     fn_encode_ec_pubkey12
     fn_new_pubkey12 [opaque]

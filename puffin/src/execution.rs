@@ -222,8 +222,8 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             let same_step = first_ctx.executed_until == second_ctx.executed_until;
             let record = match (&first_trace_status, &second_trace_status) {
                 (Err(Error::Put(_)), Err(Error::Put(_))) => !same_step,
-                (Err(Error::Put(_)), _) | (_, Err(Error::Put(_))) => true,
-                _ => false,
+                (Err(Error::Put(_)), Ok(_)) | (Ok(_), Err(Error::Put(_))) => true,
+                _ => false, // Drop if any side has Error::Fn, Error::Crypto, etc.
             };
             if record {
                 diff.push(

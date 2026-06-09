@@ -148,7 +148,7 @@ impl TcpClientPut {
                 // We are waiting 500ms for a response of the PUT behind the TCP socket.
                 // If we are expecting data from it and this timeout is reached, then we assume that
                 // no more will follow.
-                stream.set_read_timeout(Some(Duration::from_millis(200)))?;
+                stream.set_read_timeout(Some(Duration::from_millis(2000)))?;
                 stream.set_nodelay(true)?;
                 break Some(stream);
             }
@@ -197,7 +197,7 @@ impl TcpServerPut {
                 // If we are expecting data from it and this timeout is reached, then we assume that
                 // no more will follow.
                 stream
-                    .set_read_timeout(Some(Duration::from_millis(200)))
+                    .set_read_timeout(Some(Duration::from_millis(2000)))
                     .unwrap();
                 stream.set_nodelay(true).unwrap();
                 sender.send((stream, listener)).unwrap();

@@ -407,7 +407,11 @@ where
             !*disable_security_oracle,
         ) {
             Ok(_) => (ExitCode::SUCCESS, None),
-            Err(e) => (ExitCode::FAILURE, Some(e.to_string())),
+            Err(e) => {
+                let msg = e.to_string();
+                log::error!("{}", msg);
+                (ExitCode::FAILURE, Some(msg))
+            }
         };
 
         if *differential_post_computations {
@@ -445,6 +449,11 @@ where
         } else {
             println!("{}", exec);
         }
+
+        if res != ExitCode::SUCCESS {
+            std::process::exit(1);
+        }
+
         return res;
     } else if let Some(matches) = matches.subcommand_matches("binary-attack") {
         let input: &String = matches.get_one("input").unwrap();
@@ -608,8 +617,11 @@ where
                             println!("{}\n", diff);
                         }
                     }
+                    ExitCode::FAILURE
+                } else {
+                    log::error!("{}", e);
+                    std::process::exit(1);
                 }
-                ExitCode::FAILURE
             }
         };
     } else {
