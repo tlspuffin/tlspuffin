@@ -2785,26 +2785,34 @@ macro_rules! corpus {
 pub fn create_corpus(
     put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
 ) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
+    // Fingerprinting campaigns set FP_CLIENT_ATTACKER_ONLY to keep ONLY seeds where the PUT plays
+    // (only) the SERVER -- i.e. client-attacker seeds (`seed_client_attacker*`, and the
+    // session-resumption seeds which are client-attacker handshakes against a PUT server). It drops
+    // the MITM / full-handshake seeds (`seed_successful*`, which create BOTH a client and a server
+    // PUT agent) and the server-attacker seeds (`seed_server_attacker*`, where the PUT plays the
+    // CLIENT): those don't fit remote-server fingerprinting and their objective traces are rejected
+    // by our wire-signature canon anyway. Default (var unset) keeps the full corpus for other fuzzing.
+    let all = std::env::var("FP_CLIENT_ATTACKER_ONLY").is_err();
     corpus!(
-        // Full Handshakes
-        seed_successful: put.supports("tls13"),
-        seed_successful_with_ccs: put.supports("tls13"),
-        seed_successful_with_tickets: put.supports("tls13"),
-        seed_successful12: put.supports("tls12") && !put.supports("tls12_session_resumption"),
-        seed_successful12_with_tickets: put.supports("tls12") && put.supports("tls12_session_resumption"),
-        // Client Attackers
+        // Full Handshakes (MITM: both a client and a server PUT agent)
+        seed_successful: all && put.supports("tls13"),
+        seed_successful_with_ccs: all && put.supports("tls13"),
+        seed_successful_with_tickets: all && put.supports("tls13"),
+        seed_successful12: all && put.supports("tls12") && !put.supports("tls12_session_resumption"),
+        seed_successful12_with_tickets: all && put.supports("tls12") && put.supports("tls12_session_resumption"),
+        // Client Attackers (PUT = server) -- kept for fingerprinting
         seed_client_attacker: put.supports("tls13"),
         seed_client_attacker_full: put.supports("tls13"),
         seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
         seed_client_attacker12: put.supports("tls12"),
-        // Session resumption
+        // Session resumption (PUT = server, client-attacker handshakes) -- kept for fingerprinting
         seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
         seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption"),
-        // Server Attackers
-        seed_server_attacker_full: put.supports("tls13"),
-        seed_server_attacker_full_coalesced: put.supports("tls13"),
-        seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
-        seed_server_attacker12: put.supports("tls12"),
+        // Server Attackers (PUT = client)
+        seed_server_attacker_full: all && put.supports("tls13"),
+        seed_server_attacker_full_coalesced: all && put.supports("tls13"),
+        seed_server_attacker_with_hello_retry_request : all && put.supports("tls13"),
+        seed_server_attacker12: all && put.supports("tls12"),
     )
 }
 
