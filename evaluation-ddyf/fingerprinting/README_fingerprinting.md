@@ -14,7 +14,7 @@ The same pipeline runs on any supported PUT (Program-Under-Test). Today: **OpenS
 | PUT | versions | clusters | tree depth | probes used | live deployment validation |
 |---|---:|---:|---:|---:|---|
 | OpenSSL 3.x (3.0.0–3.6.2) | 61 | **10** | 3 | 3 | **61/61** recognised, consistently, ≤3 traces |
-| WolfSSL 5.x (5.0.0–5.9.1) | 24 | **14** | 4 | 8 | **23/24** recognised (5.3.0 misroutes), ≤4 traces |
+| WolfSSL 5.x (5.0.0–5.9.1) | 26 | **14** | 4 | 6 | **26/26** recognised, consistently, ≤4 traces |
 
 “Cluster” = a group of versions no probe can tell apart over the wire. The OpenSSL boundaries are
 dominated by upstream’s coordinated release waves (e.g. cluster {3.2.4, 3.3.3, 3.4.1} is exactly the
@@ -24,6 +24,11 @@ Feb-2025 backport set); see `reference/openssl/report.md`.
 > offline regime that *does* decrypt (display-execute / FFI signatures) resolves WolfSSL more
 > finely (26 versions → 21 clusters), because some WolfSSL changes are only visible in decrypted
 > content; live-TCP cannot see those and merges them. The artifact ships the honest live-TCP models.
+> Caveat on the WolfSSL 26/26: 5.5.0 and 5.5.1 have no working vendored example server (their build
+> is incomplete), so they emit no wire response and `validate.py` flags them explicitly; with all
+> cells UNSTABLE they follow the tree's default branch into cluster C0 — which does contain them — so
+> they count as recognised, but on default routing, not on observed behaviour. The other 24 are
+> recognised on their live responses.
 
 ## Layout
 
@@ -51,9 +56,13 @@ setup.sh             one-shot bootstrap: build prober + all vendored servers + c
 
 ## From a fresh clone
 
+Enter the dev shell **first**, then run the bootstrap *inside* it (the `nix-shell ... --run` one-liner
+does not work for this build):
+
 ```
 git clone <repo> && cd <repo>
-nix-shell ./shell.nix --run ./evaluation-ddyf/fingerprinting/setup.sh
+nix-shell ./shell.nix                       # drops you into the dev shell
+./evaluation-ddyf/fingerprinting/setup.sh   # run this INSIDE the nix-shell
 ```
 
 `setup.sh` is the one-shot bootstrap: it builds everything the pipeline expects **at its default
@@ -77,10 +86,12 @@ All paths follow **CLI flag → environment variable → derived default**, so n
 override the prober with `--prober PATH` / `PUFFIN_BIN`, the vendored servers with `--vendor-dir`,
 etc. Inspecting the committed `reference/<put>/report.md` needs none of the above.
 
-> Prober note: the TCP read window is set in `tlspuffin/src/tcp/mod.rs` (currently 2000 ms). 200 ms
-> is sufficient for both stacks and probes much faster — OpenSSL is fully reproducible at 200 ms, and
-> WolfSSL's residual per-probe jitter is intrinsic (a wider window does not reduce it; see
-> DEVELOPER.md). Lower the window if you re-probe at scale.
+> Prober note (read DEVELOPER.md): WolfSSL's example server crashes on the rapid TCP teardown unless
+> the prober pauses ~100 ms between actions — that pause (in `tlspuffin/src/tcp/mod.rs`) is what lifts
+> WolfSSL to **26/26**. OpenSSL does *not* need it (and a global fixed pause slightly perturbs it,
+> 61/61 → 59/61), so the pause is being finalised as a **per-PUT env-gate** (`PUFFIN_TCP_SLEEP_MS`,
+> 0 for OpenSSL / 100 for WolfSSL). **Until that prober change lands, reproduce OpenSSL with a
+> no-sleep prober (61/61) and WolfSSL with the 100 ms-sleep prober (26/26).**
 
 ## Reproduce
 
@@ -99,27 +110,26 @@ captures from truncating (see DEVELOPER.md). Expected combined summary (≈3–4
 
 ```
   openssl : 10 clusters, depth 3, recognised 61/61 consistently (<= 3 traces)
-  wolfssl : 14 clusters, depth 4, recognised 23/24 consistently (<= 4 traces)
+  wolfssl : 14 clusters, depth 4, recognised 26/26 consistently (<= 4 traces)
 ```
 
-(The default `--stages` is `validate,report`. WolfSSL 5.3.0 is the one miss under the strict
-tree-walk; see the result note above.)
+(The default `--stages` is `validate,report`.)
 
-### Rebuild the tree from scratch (OpenSSL)
+### Rebuild the tree (both PUTs)
 
-`build_matrix`/`build_tree` re-probe and re-induce the tree, so they need the **full** confirmed
-probe set, which `mine_probes` regenerates from the differential campaigns (it is gitignored, not
-committed). OpenSSL ships its full probe list (`reference/openssl/probes_full/reps.txt`), so its tree
-is fully rebuildable from the committed matrix:
+Both PUTs ship their **full** confirmed probe set under `reference/<put>/probes_full/` (committed),
+so the tree is re-inducible from the committed matrix without re-running campaigns:
 
 ```
-python3 run_fingerprint.py --put openssl --stages tree,validate,report   # -> 10 clusters, 61/61
+python3 run_fingerprint.py --put openssl wolfssl --stages tree,validate,report
+#   openssl -> 10 clusters, 61/61      wolfssl -> 14 clusters, 26/26
 ```
 
-The WolfSSL tree is a **pre-built, validated model** carried over from the earlier pipeline; the
-full WolfSSL probe set is not committed, so `build_tree.py --put wolfssl` deliberately **refuses**
-to rebuild (it would otherwise replace a 23/24 model with a weaker one). Reproduce WolfSSL with
-`--stages validate,report` (the default), or mine a fresh WolfSSL probe set first.
+A *full* rebuild that also re-probes the matrix (`--stages matrix,tree,validate,report`) re-reads
+`probes_full/`; it is fast for OpenSSL but slow for WolfSSL, because the prober's 100 ms inter-action
+pause (which is what makes the WolfSSL example server respond reproducibly — see DEVELOPER.md) makes
+the 77×26 re-probe take a while. `build_tree.py` refuses to run only if `probes_full/` is **absent**
+(so a model is never silently replaced by one whose probe traces aren't available).
 
 ### Full rebuild from the fuzzing campaigns (both PUTs)
 
@@ -141,12 +151,20 @@ The same two commands with `--put wolfssl` rebuild WolfSSL from its campaigns.
 
 ## Identify a live target
 
-Point the prober at a host:port. With a **list of PUTs** it determines *which library* and *which
-version-cluster*, abstaining cleanly if neither model matches:
+Point the prober at a `host:port`. With a **list of PUTs** it determines *which library* and *which
+version-cluster*, abstaining cleanly if neither model matches.
+
+`fingerprint_probe.py` needs something listening on the target port — against a closed port it just
+blocks/retries. To try it locally, start a vendored version as a TCP target with `serve.py` in one
+terminal, then probe it from another:
 
 ```
+# terminal 1 — start a live target (a vendored stock server on :4433)
+python3 serve.py --put openssl --version 3.6.2 --port 4433
+
+# terminal 2 — identify it across both PUT models
 python3 fingerprint_probe.py --host 127.0.0.1 --port 4433 --put openssl wolfssl --json
-# or via the driver:
+# or via the driver, against any real endpoint:
 python3 run_fingerprint.py identify --host example.com --port 443 --put openssl wolfssl
 ```
 

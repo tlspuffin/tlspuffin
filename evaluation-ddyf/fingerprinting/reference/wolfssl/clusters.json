@@ -1,14 +1,16 @@
 {
   "clusters": [
     {
-      "id": "C0",
+      "id": 0,
       "versions": [
         "wolfssl500",
-        "wolfssl521"
+        "wolfssl521",
+        "wolfssl550",
+        "wolfssl551"
       ]
     },
     {
-      "id": "C1",
+      "id": 1,
       "versions": [
         "wolfssl510",
         "wolfssl511",
@@ -16,32 +18,32 @@
       ]
     },
     {
-      "id": "C2",
+      "id": 2,
       "versions": [
         "wolfssl530"
       ]
     },
     {
-      "id": "C3",
+      "id": 3,
       "versions": [
         "wolfssl540"
       ]
     },
     {
-      "id": "C4",
+      "id": 4,
       "versions": [
         "wolfssl552",
         "wolfssl553"
       ]
     },
     {
-      "id": "C5",
+      "id": 5,
       "versions": [
         "wolfssl554"
       ]
     },
     {
-      "id": "C6",
+      "id": 6,
       "versions": [
         "wolfssl560",
         "wolfssl562",
@@ -50,31 +52,31 @@
       ]
     },
     {
-      "id": "C7",
+      "id": 7,
       "versions": [
         "wolfssl566"
       ]
     },
     {
-      "id": "C8",
+      "id": 8,
       "versions": [
         "wolfssl570"
       ]
     },
     {
-      "id": "C9",
+      "id": 9,
       "versions": [
         "wolfssl572"
       ]
     },
     {
-      "id": "C10",
+      "id": 10,
       "versions": [
         "wolfssl574"
       ]
     },
     {
-      "id": "C11",
+      "id": 11,
       "versions": [
         "wolfssl576",
         "wolfssl580",
@@ -82,13 +84,13 @@
       ]
     },
     {
-      "id": "C12",
+      "id": 12,
       "versions": [
         "wolfssl584"
       ]
     },
     {
-      "id": "C13",
+      "id": 13,
       "versions": [
         "wolfssl590",
         "wolfssl591"

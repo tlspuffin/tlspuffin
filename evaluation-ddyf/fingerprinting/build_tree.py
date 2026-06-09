@@ -64,32 +64,51 @@ def main():
     nP = len(probe_files)
     print(f"[build_tree] PUT={put}  versions={len(versions)}  probes available={nP}", flush=True)
 
-    stats = {"depth": 0, "used": set()}
+    stats = {"depth": 0, "used": set()}   # max tree depth, and the set of probe indices actually used
 
     def build(V, depth=0):
+        """Recursively split the version set V into the decision (sub)tree that separates it.
+
+        This is the core of the algorithm. At each node we pick, greedily, the single probe that
+        stably distinguishes the MOST still-merged version pairs in V, branch on the distinct
+        signatures that probe produces, and recurse on each branch. Versions whose cell for that
+        probe is MISSING (UNSTABLE/SRVFAIL -- "no information") do not count toward a split and are
+        routed down the majority branch, so a later probe they ARE stable on can still separate them.
+        Recursion stops when V is a single version, or when no probe stably separates any pair in V
+        (an indistinguishability leaf -- those versions are one cluster).
+        """
         stats["depth"] = max(stats["depth"], depth)
-        if len(V) <= 1:
+        if len(V) <= 1:                                    # nothing left to split -> singleton leaf
             return {"type": "leaf", "clusters": [sorted(V, key=lambda v: puts.vkey(put, v))]}
+
+        # Evaluate every probe; keep the one with the highest separation "gain" on V.
         best, best_gain, best_split = None, 0, None
         for pi in range(nP):
+            # Partition V by this probe's stable signature; collect MISSING-cell versions aside.
             groups, unstable = defaultdict(list), []
             for v in V:
                 s = M[v][pi]
                 (unstable if s in MISSING else groups[s]).append(v)
-            if len(groups) < 2:                            # separates no pair stably at this node
+            if len(groups) < 2:                            # all-same (or all-missing): separates nothing
                 continue
+            # Gain = number of version PAIRS this probe puts into different signature groups
+            # (sum over group pairs of |a|*|b|). Maximising it greedily shrinks the merged set fastest.
             gain = sum(len(a) * len(b) for a, b in combinations(groups.values(), 2))
             if gain > best_gain:
                 best, best_gain, best_split = pi, gain, (dict(groups), unstable)
-        if best is None:                                   # indistinguishable leaf
+
+        if best is None:                                   # no probe separates any pair -> cluster leaf
             return {"type": "leaf", "clusters": [sorted(V, key=lambda v: puts.vkey(put, v))]}
+
         stats["used"].add(best)
         groups, unstable = best_split
+        # The branch with the most versions is the `default`: versions UNSTABLE on this probe (and,
+        # at deploy time, any unseen live signature) follow it instead of dead-ending.
         default = max(groups, key=lambda k: len(groups[k]))
         if unstable:
-            groups[default] = groups[default] + unstable    # unstable-on-best -> majority branch
-        # `probe` (matrix column index) is extra metadata used by report.py; the live prober
-        # ignores it and routes purely on `trace`/`children`/`default`.
+            groups[default] = groups[default] + unstable
+        # `probe` (matrix column index) is extra metadata for report.py; the live prober ignores it
+        # and routes purely on `trace` (which trace to replay) / `children` (sig -> subtree) / `default`.
         return {"type": "node", "trace": f"probes/{probe_files[best]}", "probe": best,
                 "default": default,
                 "children": {s: build(g, depth + 1) for s, g in groups.items()}}

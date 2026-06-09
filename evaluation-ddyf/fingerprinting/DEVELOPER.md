@@ -87,7 +87,7 @@ These are not optional — each fixes a failure that *looked* like signal but wa
    `--jobs` servers in parallel), retries `UNSTABLE`, and re-checks stragglers single-threaded.
    Then `validate.py` does a **train/test split**: it walks the tree against *freshly-probed* live
    servers (R independent walks each). The honest robustness number is the validation count
-   (OpenSSL 61/61, WolfSSL 24/24), never the construction count. Always run on a quiet machine and,
+   (OpenSSL 61/61, WolfSSL 23/24), never the construction count. Always run on a quiet machine and,
    when others share it, pin to a spread idle core set via `--cores`.
 
 ## Canonicalisation (`_canon.py`)
@@ -138,19 +138,27 @@ prints the resolved set.
   ships `probes_full/` (gitignored) so it rebuilds faithfully; the WolfSSL tree is reproduced by
   re-walking it (`--stages validate,report`), not rebuilding. Hence the driver default is
   `validate,report`, not a full rebuild.
-- **WolfSSL has intrinsic per-probe jitter; OpenSSL does not.** Measured at ZERO contention
-  (single server, fully sequential): OpenSSL gives 0 UNSTABLE cells (its matrix is fully
-  reproducible at a 200 ms read window → `build_matrix` rebuilds it end to end, 10 clusters, 61/61).
-  WolfSSL's example server, in contrast, returns genuinely non-reproducible responses to ~24/77 of
-  the probes — and this is **neither load nor read-window**: it persists at 200 ms *and* 2000 ms
-  (re-probing the 200 ms-UNSTABLE cells at 2000 ms stabilises 0 of them), and is unchanged by lowering
-  load. So a wider read window buys WolfSSL nothing (just slower probing); 200 ms is the right window
-  for both. The ~53 stable WolfSSL probes carry the signal (→ 14 clusters); the jittery 24 are
-  correctly treated as wildcards. Because that intrinsic jitter makes a greedy wildcard rebuild pick
-  flaky split probes (→ poor live walk), the committed WolfSSL tree is the earlier ID3/modal model
-  (`build_live_matrix.py` + the original `build_tree`, validated 23/24), whose probe set
-  (`reference/wolfssl/probes_full/`, from the same campaigns) is committed for reproducibility. A
-  future unified WolfSSL rebuild should bias `build_tree` toward low-jitter (low-UNSTABLE) probes.
+- **WolfSSL instability was socket-abort crashes, fixed by a 100 ms inter-action sleep.** WolfSSL's
+  example server returned non-reproducible responses to ~24/77 probes — but this was **not** intrinsic
+  jitter, **not** load, and **not** the read window (an earlier "intrinsic" reading was a confounded
+  test: re-probing the *same already-crashed* server can't recover). The real cause: with no pause,
+  `tlspuffin` tore down the TCP connection the instant the fuzzer finished, while the server was still
+  digesting the payload — the resulting RST left the server crashed/hung, so runs 2–10 of the 10×
+  pool failed (`executed_until = -1`) and the cell flapped UNSTABLE. The fix (in
+  `tlspuffin/src/tcp/mod.rs`) is a **100 ms `thread::sleep` after each input write and each output
+  read**, giving the server time to finish before the next action / teardown. With it WolfSSL
+  validates **26/26** (26 versions, 14 clusters, depth 4, 6 probes) and rebuilds through the unified
+  pipeline like OpenSSL.
+  **The pause must be per-PUT, and the `tcp/mod.rs` edit is deferred to the prober owner (not
+  committed here).** A *global* fixed 100 ms sleep is NOT strictly better: OpenSSL tolerates the fast
+  teardown and does not need it, and the extra delay measurably perturbs OpenSSL (**61/61 → 59/61**),
+  while WolfSSL needs it. The intended resolution is a per-PUT env-gate — read `PUFFIN_TCP_SLEEP_MS`
+  (default 0) in `tcp/mod.rs` and have the pipeline set 0 for OpenSSL / 100 for WolfSSL — so one
+  binary yields OpenSSL 61/61 *and* WolfSSL 26/26. **Until that lands, the two committed numbers use
+  different prober settings:** OpenSSL 61/61 with a **no-sleep** prober (e.g. a 200 ms build),
+  WolfSSL 26/26 with the **100 ms-sleep** prober. *Further optimisation (open):* make the pause
+  adaptive — return early once a response or TCP FIN is seen — to recover the speed the fixed sleep
+  costs.
 - **`experiments/` is gitignored** and large; the committed `probes/` holds only the decision-node
   traces. Rebuilding the matrix needs the full set (`mine_probes.py` regenerates it).
 - **Provenance.** Superseded scripts, exploratory dirs, and prior reports are in `archive/`

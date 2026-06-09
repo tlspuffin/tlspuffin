@@ -1,8 +1,8 @@
 {
   "put": "wolfssl",
-  "correct": 23,
-  "consistent": 23,
-  "total": 24,
+  "correct": 26,
+  "consistent": 26,
+  "total": 26,
   "max_traces": 4,
   "walks": 5,
   "depth": 4

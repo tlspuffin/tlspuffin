@@ -63,13 +63,18 @@ def main():
             played += 1
         return frozenset(node["clusters"][0]), played
 
-    # Launch every server up front (walks touch only the few decision probes, so load stays light).
+    # Print FIRST (before any blocking work) so the run never looks frozen, then launch every server
+    # up front (walks touch only the few decision probes, so load stays light) and wait for each to
+    # listen -- a server that never comes up is flagged here rather than as a silent hang later.
+    print(f"[validate] PUT={put}  prober {cfg.prober(put)}  tree depth {tree_depth}  "
+          f"cores {cfg.cores or 'unpinned'}  -- launching {len(versions)} servers...", flush=True)
     ports = {v: cfg.base_port + i for i, v in enumerate(versions)}
     servers = {v: probe.launch(cfg, put, v, ports[v]) for v in versions}
-    for v in versions:
-        probe.wait_listen(ports[v])
-    print(f"[validate] PUT={put}  walking {len(versions)} live servers x {args.walks} "
-          f"(tree depth {tree_depth}, cores {cfg.cores or 'unpinned'})", flush=True)
+    not_up = [v for v in versions if not probe.wait_listen(ports[v])]
+    if not_up:
+        print(f"[validate] WARNING: {len(not_up)} server(s) never listened (vendored build missing, "
+              f"or port busy): {[puts.dotted(put, v) for v in not_up]}", flush=True)
+    print(f"[validate] servers up; walking each x {args.walks} (streaming verdicts)...", flush=True)
 
     def trial(v):
         leaves, plays = [], []
@@ -79,22 +84,24 @@ def main():
             plays.append(pl)
         return v, leaves, plays
 
-    t0, results = time.time(), {}
+    # Stream each server's verdict AS its walks finish (as_completed, not ordered map), so progress
+    # is visible live and a slow/stuck server is obvious instead of the run looking frozen.
+    from concurrent.futures import as_completed
+    t0, results, correct, consistent, maxplay = time.time(), {}, 0, 0, 0
     with ThreadPoolExecutor(max_workers=cfg.jobs) as ex:
-        for v, leaves, plays in ex.map(trial, versions):
+        futs = {ex.submit(trial, v): v for v in versions}
+        for n, fut in enumerate(as_completed(futs), 1):
+            v, leaves, plays = fut.result()
             results[v] = (leaves, plays)
+            in_leaf = all(v in lf for lf in leaves)   # version landed in a leaf containing it
+            same = len(set(leaves)) == 1               # every walk reached the SAME leaf
+            correct += in_leaf
+            consistent += in_leaf and same
+            maxplay = max(maxplay, max(plays))
+            flag = "OK" if (in_leaf and same) else ("ok-but-flips" if in_leaf else "WRONG")
+            print(f"  [{n:2d}/{len(versions)}] {puts.dotted(put, v):7s} {flag:13s} plays={plays}",
+                  flush=True)
     probe.kill(*servers.values())
-
-    correct = consistent = maxplay = 0
-    for v in versions:
-        leaves, plays = results[v]
-        maxplay = max(maxplay, max(plays))
-        in_leaf = all(v in lf for lf in leaves)
-        same = len(set(leaves)) == 1
-        correct += in_leaf
-        consistent += in_leaf and same
-        flag = "OK" if (in_leaf and same) else ("ok-but-flips" if in_leaf else "WRONG")
-        print(f"  {puts.dotted(put, v):7s} {flag:13s} plays={plays}", flush=True)
 
     print(f"\n[validate] === R={args.walks} walks/server, <= {tree_depth} traces each ===")
     print(f"recognised (lands in a leaf with its version): {correct}/{len(versions)}")
