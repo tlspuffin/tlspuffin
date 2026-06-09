@@ -155,6 +155,20 @@
     "labels": [
       "fast"
     ],
+    "name": "libressl421",
+    "mk_vendor": {
+      "vendor": "libressl",
+      "preset": "libressl421"
+    },
+    "cargo": {
+      "name": "",
+      "features": ["cputs"]
+    }
+  },
+  {
+    "labels": [
+      "fast"
+    ],
     "name": "wolfssl430",
     "mk_vendor": {
       "vendor": "wolfssl",
