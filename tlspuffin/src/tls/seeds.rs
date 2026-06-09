@@ -2795,7 +2795,7 @@ pub fn create_corpus(
         // Full Handshakes
         seed_successful: put.supports("tls13"),
         seed_successful_with_ccs: put.supports("tls13"),
-        seed_successful_with_tickets: put.supports("tls13"),
+        seed_successful_with_tickets: put.supports("tls13") && put.supports("tls13_session_resumption"),
         seed_successful12: put.supports("tls12") && !put.supports("tls12_session_resumption"),
         seed_successful12_with_tickets: put.supports("tls12") && put.supports("tls12_session_resumption"),
         // Client Attackers
