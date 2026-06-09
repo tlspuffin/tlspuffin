@@ -188,5 +188,13 @@ Per PUT, `reference/<put>/` holds the inspectable canonical result:
 `--reference-dir`/`--experiments-glob` elsewhere to run on a fresh campaign. The raw fuzzing output
 (`experiments/`) and superseded scripts/data (`archive/`) are gitignored.
 
-For the methodology, the three hard-won correctness invariants, and how to add a new PUT, see
-**DEVELOPER.md**. For the OpenSSL fixed-oracle story and exact campaign numbers, see **REPRODUCE.md**.
+### OpenSSL campaign funnel (provenance)
+
+The committed OpenSSL model came from: **24,235** fixed-oracle differential objectives →
+**2,110** that survive a first live screen → **275** confirmed probes (the strict 10×/≥7 filter),
+cross-applied to all 61 versions → a clean signature matrix → a wildcard tree of **depth 3 / 3
+probes** → **10 clusters** → **61/61** recognised on the train/test live walk. (WolfSSL: the
+2026-05-29 campaigns → 77 confirmed probes → 14 clusters → 26/26.)
+
+For the methodology, the three hard-won correctness invariants (wire-observable oracle, 10×/≥7
+confirmation, controlled-load + deployment-validate), and how to add a new PUT, see **DEVELOPER.md**.
