@@ -157,8 +157,23 @@ class Config:
         return self.ref(put) / "probes_full"
 
     def reps_file(self, put):
-        """List of full confirmed-probe trace paths (one per line) under probes_full/."""
+        """The probe list: one trace per line under probes_full/. Entries are normally bare
+        filenames resolved against probes_full/ (so the committed set is found by default); an
+        absolute path is used as-is (handy when pointing at fresh-campaign traces elsewhere)."""
         return self.probes_full_dir(put) / "reps.txt"
+
+    def read_reps(self, put):
+        """Return the confirmed-probe trace paths as resolved absolute paths. A bare filename is
+        looked up in probes_full/ (the committed default); an absolute line is kept verbatim."""
+        rf = self.reps_file(put)
+        full = self.probes_full_dir(put)
+        out = []
+        for line in rf.read_text().split("\n"):
+            e = line.strip()
+            if not e:
+                continue
+            out.append(e if os.path.isabs(e) else str(full / os.path.basename(e)))
+        return out
 
     def probes_dir(self, put):
         """Committed dir with ONLY the decision-tree probe traces (deployment model)."""

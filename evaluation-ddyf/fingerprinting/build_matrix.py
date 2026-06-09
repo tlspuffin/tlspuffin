@@ -43,7 +43,11 @@ def main():
     if not reps_file.exists():
         raise SystemExit(f"no probe list at {reps_file}; run mine_probes.py --put {put} first "
                          f"(or point --reference-dir at an existing reference tree)")
-    reps = [t for t in reps_file.read_text().split() if t]
+    reps = cfg.read_reps(put)   # committed probes_full/ by default; bare names resolved there
+    missing = [t for t in reps if not os.path.exists(t)]
+    if missing:
+        raise SystemExit(f"{len(missing)} probe trace(s) from {reps_file} not found, e.g. "
+                         f"{missing[0]} -- the committed set lives in {cfg.probes_full_dir(put)}")
     versions = cfg.versions(put)
     print(f"[build_matrix] PUT={put}  probes={len(reps)}  versions={len(versions)}  "
           f"servers in parallel={cfg.jobs} (each probed SEQUENTIALLY)  cores={cfg.cores or 'unpinned'}",

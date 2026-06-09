@@ -111,13 +111,8 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     probes_dir = cfg.probes_dir(put)
     probes_dir.mkdir(exist_ok=True)
-    # basename -> full path, from the (gitignored) full probe set if available
-    src = {}
-    reps_file = cfg.reps_file(put)
-    if reps_file.exists():
-        for p in reps_file.read_text().split():
-            if p:
-                src[os.path.basename(p)] = p
+    # basename -> resolved path, from the committed full probe set
+    src = {os.path.basename(p): p for p in cfg.read_reps(put)}
     used_files = sorted({probe_files[pi] for pi in stats["used"]})
     copied, missing = 0, []
     for bn in used_files:

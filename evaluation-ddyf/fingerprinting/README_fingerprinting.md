@@ -33,8 +33,9 @@ probe.py             shared live-probing primitives (the 10×/≥7 reproducibili
 _canon.py            wire-response canonicalisation (volatile fields stripped)
 build_live_matrix.py server_argv(): how to launch each stack's stock server
 
+run_campaigns.py     stage 0  launch the differential-fuzzing campaigns -> experiments/
 run_fingerprint.py   the driver (construction + identification)
-  mine_probes.py     stage 1  objectives -> confirmed probes
+  mine_probes.py     stage 1  objectives -> confirmed probes (-> probes_full/)
   build_matrix.py    stage 2  cross-apply matrix (controlled load)
   build_tree.py      stage 3  wildcard decision tree (the model)
   validate.py        stage 4  deployment validation (walk fresh live servers)
@@ -109,15 +110,23 @@ full WolfSSL probe set is not committed, so `build_tree.py --put wolfssl` delibe
 to rebuild (it would otherwise replace a 23/24 model with a weaker one). Reproduce WolfSSL with
 `--stages validate,report` (the default), or mine a fresh WolfSSL probe set first.
 
-### Mining probes from scratch (optional, both PUTs)
+### Full rebuild from the fuzzing campaigns (both PUTs)
 
-`mine_probes.py` turns differential-campaign objective traces into a confirmed probe set, enabling a
-full `matrix,tree,validate,report` rebuild. Point it at the campaigns:
+The whole pipeline is reproducible end to end — launch the campaigns, mine, then rebuild:
 
 ```
+# stage 0: run one differential campaign per adjacent version pair -> experiments/
+python3 run_campaigns.py --put openssl --timeout 1h --jobs 20 --cores 0-19
+# stages 1-5: mine the objectives -> matrix -> tree -> validate -> report
 python3 run_fingerprint.py --put openssl --stages mine,matrix,tree,validate,report \
-    --experiments-glob '/path/to/experiments/*openssl*fpp*/objective/*.trace'
+    --cores 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28 --jobs 15
 ```
+
+`mine_probes.py` reads the campaigns via `--experiments-glob` (default
+`<repo>/experiments/*<put>*fpp*/objective/*.trace`) and writes the confirmed probe set into
+`reference/<put>/probes_full/` (committed — see below), so `build_matrix`/`build_tree` find it by
+default. Override `--experiments-glob` / `--reference-dir` / `--probes` to point at a fresh run.
+The same two commands with `--put wolfssl` rebuild WolfSSL from its campaigns.
 
 ## Identify a live target
 
@@ -141,13 +150,14 @@ Per PUT, `reference/<put>/` holds the inspectable canonical result:
 - `signatures.csv` — the cross-apply matrix (probe × version → signature key)
 - `clusters.json` — the wildcard compatibility clusters
 - `tree.json` + `meta.json` — the deployment model the prober walks
-- `probes/` — **only** the decision-node probe traces the tree replays (+ `manifest.csv`)
+- `probes/` — the decision-node probe traces the tree replays (+ `manifest.csv`)
+- `probes_full/` — the **full** confirmed-probe set (`*.trace` + `reps.txt`) so `build_matrix`/
+  `build_tree` rebuild from the repo **without** needing the raw `experiments/`
 - `validation.json`, `report.md`, `heatmap.csv` — the deployment number and human report
 
-The **full** confirmed-probe set (hundreds of traces) needed to rebuild the matrix from scratch is
-bulky and regenerable, so it is **not** committed — `mine_probes.py` recreates it under
-`reference/<put>/probes_full/` (gitignored). Superseded scripts and exploratory data live in
-`archive/` (gitignored).
+`reps.txt` lists bare filenames resolved against `probes_full/` (the committed default); point
+`--reference-dir`/`--experiments-glob` elsewhere to run on a fresh campaign. The raw fuzzing output
+(`experiments/`) and superseded scripts/data (`archive/`) are gitignored.
 
 For the methodology, the three hard-won correctness invariants, and how to add a new PUT, see
 **DEVELOPER.md**. For the OpenSSL fixed-oracle story and exact campaign numbers, see **REPRODUCE.md**.

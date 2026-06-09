@@ -11,10 +11,15 @@ observer. The pipeline distills the few traces that produce a **robust, wire-obs
 into a deterministic decision tree, then *validates that tree against freshly-probed live servers*.
 
 ```
-differential campaigns ──▶ mine_probes ──▶ build_matrix ──▶ build_tree ──▶ validate ──▶ report
-   (objective traces)        confirmed       signature        wildcard      walk live      report.md
-                              probes          matrix           tree (model)  servers        + heatmap
+run_campaigns ──▶ mine_probes ──▶ build_matrix ──▶ build_tree ──▶ validate ──▶ report
+ differential      confirmed        signature        wildcard      walk live     report.md
+ campaigns         probes           matrix           tree (model)  servers       + heatmap
+ (experiments/)    (probes_full/)
 ```
+
+Both the confirmed probe set (`probes_full/`) and the deployment model (`tree.json` + `probes/`) are
+committed, so steps 2-5 reproduce from the repo alone; step 0 (`run_campaigns`) + step 1 regenerate
+`probes_full/` from scratch when you want to re-mine.
 
 Everything is parametrised by PUT; one driver (`run_fingerprint.py`) runs any list of PUTs.
 
@@ -26,6 +31,7 @@ Everything is parametrised by PUT; one driver (`run_fingerprint.py`) runs any li
 | `probe.py` | live-probing primitives: `pooled_sig` (10×/≥7), `batch`, `launch`, `sigkey` | — | — |
 | `_canon.py` | canonicalise a capture to a wire signature (strip volatile fields) | — | — |
 | `build_live_matrix.py` | `server_argv()` = how to launch each stack's stock server | — | — |
+| `run_campaigns.py` | stage 0: launch `differential-experiment` per adjacent pair | vendored servers | `experiments/*<put>*fpp*/objective/*.trace` |
 | `mine_probes.py` | screen→dedup→confirm objectives | `experiments_glob` | `reference/<put>/probes_full/{*.trace,reps.txt}` |
 | `build_matrix.py` | cross-apply probes × versions (controlled load) | `probes_full/reps.txt` | `reference/<put>/{signatures.csv,clusters.json}` |
 | `build_tree.py` | wildcard decision-tree induction | `signatures.csv` | `reference/<put>/{tree.json,meta.json,probes/}` |

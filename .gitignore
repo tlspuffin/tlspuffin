@@ -71,8 +71,8 @@ evaluation-ddyf/fingerprinting/candidates_*/
 evaluation-ddyf/fingerprinting/model_*/
 evaluation-ddyf/fingerprinting/model/
 evaluation-ddyf/fingerprinting/sampled_experiments*/
-# full confirmed-probe working set is bulky/regenerable (mine_probes.py recreates it)
-evaluation-ddyf/fingerprinting/reference/*/probes_full/
-# ...but DO commit the few decision-tree probe traces the deployment model replays
-# (overrides the global *.trace ignore above; last-matching rule wins)
+# DO commit the probe traces the pipeline replays (overrides the global *.trace ignore above;
+# last-matching rule wins): the deployment model's decision probes AND the full confirmed set
+# (probes_full/) so the matrix/tree are rebuildable from the repo without the raw experiments/.
 !evaluation-ddyf/fingerprinting/reference/*/probes/*.trace
+!evaluation-ddyf/fingerprinting/reference/*/probes_full/*.trace

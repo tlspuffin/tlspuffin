@@ -108,17 +108,18 @@ def main():
 
     print(f"[mine] confirmed distinguishing probes (no dedup): {len(confirmed)} of {ntot}", flush=True)
 
-    # Persist the full confirmed probe set (gitignored working dir) for build_matrix.
+    # Persist the full confirmed probe set into probes_full/ (committed input for build_matrix),
+    # writing reps.txt with bare filenames so the set is portable / committed-by-default.
     full_dir = cfg.probes_full_dir(put)
     full_dir.mkdir(parents=True, exist_ok=True)
     saved = []
     for t in confirmed:
-        dst = full_dir / os.path.basename(t)
+        bn = os.path.basename(t)
         try:
-            shutil.copy2(t, dst)
+            shutil.copy2(t, full_dir / bn)
         except Exception:
             pass
-        saved.append(str(dst if dst.exists() else t))
+        saved.append(bn)
     cfg.reps_file(put).write_text("\n".join(saved) + "\n")
     print(f"[mine] wrote {len(saved)} probe traces -> {full_dir} ; list -> {cfg.reps_file(put)}", flush=True)
 
