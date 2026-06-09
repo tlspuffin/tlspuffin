@@ -138,10 +138,17 @@ prints the resolved set.
   ships `probes_full/` (gitignored) so it rebuilds faithfully; the WolfSSL tree is reproduced by
   re-walking it (`--stages validate,report`), not rebuilding. Hence the driver default is
   `validate,report`, not a full rebuild.
-- **One prober per model's provenance.** A model's signatures depend on the prober's TCP read
-  timeout; re-probe a model with the binary it was built with (OpenSSL: 200 ms; record the prober in
-  practice). `pooled_sig`'s modal-at-max-depth makes OpenSSL (10-char sig keys) robust across probers;
-  WolfSSL (full-sig keys) is more sensitive.
+- **One prober per model's provenance, and the read-window trade-off.** A model's signatures depend
+  on the prober's TCP read window (`tlspuffin/src/tcp/mod.rs`, currently 2000 ms). Wider = fewer
+  truncated captures (robust) but slower probing; narrower (e.g. 200 ms) = fast but truncates slower
+  flights. OpenSSL flights are fast, so 200 ms gives a clean 0-UNSTABLE matrix in ~30 min and the
+  10-char sig keys are robust across windows. WolfSSL's example-server flights are slower/larger, so
+  200 ms truncates ~40% of cells to UNSTABLE while 2000 ms is clean but makes a full 77×26 matrix
+  rebuild take hours — which is why the committed WolfSSL matrix/tree come from the earlier
+  repeat-15 modal builder (`build_live_matrix.py`) rather than a unified `build_matrix` rerun. Its
+  confirmed probe set (`reference/wolfssl/probes_full/`, extracted from the same campaigns) and that
+  builder are both committed, so it is reproducible; a from-scratch unified rebuild wants a
+  mid-range read window. OpenSSL rebuilds end-to-end with `build_matrix` (0 UNSTABLE, 61/61).
 - **`experiments/` is gitignored** and large; the committed `probes/` holds only the decision-node
   traces. Rebuilding the matrix needs the full set (`mine_probes.py` regenerates it).
 - **Provenance.** Superseded scripts, exploratory dirs, and prior reports are in `archive/`

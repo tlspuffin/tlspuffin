@@ -43,33 +43,43 @@ run_fingerprint.py   the driver (construction + identification)
 fingerprint_probe.py identify a live host:port across one or more PUT models
 
 reference/<put>/     committed canonical model + results (see "What is committed")
-build_openssl3x.sh   vendor the OpenSSL servers
-build_wolfssl_servers.sh  vendor the WolfSSL example servers
+setup.sh             one-shot bootstrap: build prober + all vendored servers + cert
+  build_all.sh       vendor any PUT's versions (mk_vendor) + build the harness
+  build_openssl3x.sh vendor the OpenSSL servers
+  build_wolfssl_servers.sh + sancov_stub.c   compile the WolfSSL example servers
 ```
 
-## Prerequisites
+## From a fresh clone
 
-1. **Enter the dev shell** (from the repo root) so `cargo`, `taskset`, OpenSSL headers etc. are on
-   PATH:
-   ```
-   nix-shell ./shell.nix
-   ```
-2. **Build the prober binary** — a release `tlspuffin` with the PUTs compiled in. Its `tcp`
-   subcommand replays a trace against any host:port and prints the canonical capture as JSON:
-   ```
-   cargo build --release -p tlspuffin --features cputs
-   # -> target/release/tlspuffin   (the default prober path)
-   ```
-   Point the pipeline at any binary with `--prober PATH` or `PUFFIN_BIN=PATH`.
-3. **Vendor the per-version servers** (only needed to *re-probe*; not needed to inspect the
-   committed models):
-   ```
-   ./build_openssl3x.sh         # -> vendor/openssl3XX/bin/openssl
-   ./build_wolfssl_servers.sh   # -> vendor/wolfssl5XX/bin/server
-   ```
+```
+git clone <repo> && cd <repo>
+nix-shell ./shell.nix --run ./evaluation-ddyf/fingerprinting/setup.sh
+```
 
-All paths follow **CLI flag → environment variable → derived default**, so nothing is hardcoded.
-Run `python3 puts.py --put openssl wolfssl` to print the resolved configuration.
+`setup.sh` is the one-shot bootstrap: it builds everything the pipeline expects **at its default
+paths** —
+
+1. every vendored per-version library + server (`vendor/openssl3XX/bin/openssl`,
+   `vendor/wolfssl5XX/bin/server`) via `tools/mk_vendor` + the version presets,
+2. the `tlspuffin` prober/fuzzer at `target/release/tlspuffin` (the default `--prober`),
+3. the WolfSSL example servers (`build_wolfssl_servers.sh`), and
+4. a throwaway localhost cert the OpenSSL `s_server` needs.
+
+It is **long** (≈90 version builds + the harness) but idempotent (re-running skips what exists).
+Build a subset with e.g. `PUTS=openssl` or `VERSIONS_OPENSSL="3.6.2" VERSIONS_WOLFSSL="5.9.1"`.
+Then `python3 puts.py --put openssl wolfssl` prints the resolved configuration. After bootstrap:
+
+```
+python3 run_fingerprint.py --put openssl wolfssl     # live-test the committed models
+```
+
+All paths follow **CLI flag → environment variable → derived default**, so nothing is hardcoded;
+override the prober with `--prober PATH` / `PUFFIN_BIN`, the vendored servers with `--vendor-dir`,
+etc. Inspecting the committed `reference/<put>/report.md` needs none of the above.
+
+> Prober note: `target/release/tlspuffin` uses a 2000 ms TCP read window (`tlspuffin/src/tcp/mod.rs`)
+> — robust against truncation. A shorter window probes faster but can truncate slower WolfSSL flights
+> (see DEVELOPER.md); tune it there if you re-probe at scale.
 
 ## Reproduce
 
