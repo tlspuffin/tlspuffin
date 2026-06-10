@@ -71,6 +71,8 @@ evaluation-ddyf/fingerprinting/candidates_*/
 evaluation-ddyf/fingerprinting/model_*/
 evaluation-ddyf/fingerprinting/model/
 evaluation-ddyf/fingerprinting/sampled_experiments*/
+# scratch/iteration reference trees written by ad-hoc runs (not the canonical reference/)
+evaluation-ddyf/fingerprinting/reference_*/
 # DO commit the probe traces the pipeline replays (overrides the global *.trace ignore above;
 # last-matching rule wins): the deployment model's decision probes AND the full confirmed set
 # (probes_full/) so the matrix/tree are rebuildable from the repo without the raw experiments/.

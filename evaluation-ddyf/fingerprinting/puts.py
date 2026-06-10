@@ -128,6 +128,7 @@ class Config:
                                      self.this_dir / "reference"))
         self._prober = _first(g("prober"), os.environ.get("PUFFIN_BIN"))
         self._exp_glob = _first(g("experiments_glob"), os.environ.get("FP_EXPERIMENTS_GLOB"))
+        self._exp_dir = _first(g("experiments_dir"), os.environ.get("FP_EXPERIMENTS_DIR"))
         self.cores = _first(g("cores"), os.environ.get("CORES")) or ""  # "" == no taskset pin
         self.jobs = int(_first(g("jobs"), os.environ.get("JOBS"), 15))
         self.base_port = int(_first(g("base_port"), os.environ.get("BASE_PORT"), 27000))
@@ -183,10 +184,20 @@ class Config:
         return versions(put, self.vendor)
 
     def experiments_glob(self, put):
-        """Glob locating this PUT's differential-campaign objective traces (mine stage input)."""
+        """Glob locating this PUT's differential-campaign objective traces (mine stage input).
+
+        Precedence (CLI > env > derived default), so the pipeline works out of the box yet the
+        experiments location can be pinned anywhere:
+          1. ``--experiments-glob`` / ``FP_EXPERIMENTS_GLOB`` -- a full explicit glob (most precise;
+             e.g. to mine a single campaign batch or pair).
+          2. ``--experiments-dir`` / ``FP_EXPERIMENTS_DIR`` -- just the experiments *folder*; the
+             per-PUT layout ``*<put>*fpp*/objective/*.trace`` is appended automatically.
+          3. derived default: ``<repo>/experiments`` with the same per-PUT layout.
+        """
         if self._exp_glob:
             return self._exp_glob
-        return str(self.repo / "experiments" / f"*{put}*fpp*" / "objective" / "*.trace")
+        base = Path(self._exp_dir) if self._exp_dir else (self.repo / "experiments")
+        return str(base / f"*{put}*fpp*" / "objective" / "*.trace")
 
     def describe(self, puts=()):
         lines = [f"repo        = {self.repo}",
@@ -212,7 +223,8 @@ def add_common_args(parser, only=None):
         ("vendor_dir", "--vendor-dir", {}, "vendored servers dir [env VENDOR_DIR; default: <repo>/vendor]"),
         ("reference_dir", "--reference-dir", {}, "reference data dir [env FP_REFERENCE; default: ./reference]"),
         ("prober", "--prober", {}, "tlspuffin prober binary [env PUFFIN_BIN; default: <repo>/target/release/tlspuffin]"),
-        ("experiments_glob", "--experiments-glob", {}, "objective-trace glob for the mine stage [env FP_EXPERIMENTS_GLOB]"),
+        ("experiments_dir", "--experiments-dir", {}, "experiments FOLDER holding the campaigns [env FP_EXPERIMENTS_DIR; default <repo>/experiments]. The per-PUT layout */objective/*.trace is appended automatically."),
+        ("experiments_glob", "--experiments-glob", {}, "full objective-trace glob, overrides --experiments-dir [env FP_EXPERIMENTS_GLOB]"),
         ("cores", "--cores", {}, "taskset core list to pin probes/servers, e.g. 0,2,4,..,28 [env CORES]"),
         ("jobs", "--jobs", {"type": int}, "parallel workers [env JOBS; default 15]"),
         ("base_port", "--base-port", {"type": int}, "first localhost port for per-version servers [env BASE_PORT; default 27000]"),

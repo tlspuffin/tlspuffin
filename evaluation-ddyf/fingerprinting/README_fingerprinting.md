@@ -86,12 +86,16 @@ All paths follow **CLI flag → environment variable → derived default**, so n
 override the prober with `--prober PATH` / `PUFFIN_BIN`, the vendored servers with `--vendor-dir`,
 etc. Inspecting the committed `reference/<put>/report.md` needs none of the above.
 
-> Prober note (read DEVELOPER.md): WolfSSL's example server crashes on the rapid TCP teardown unless
-> the prober pauses ~100 ms between actions — that pause (in `tlspuffin/src/tcp/mod.rs`) is what lifts
-> WolfSSL to **26/26**. OpenSSL does *not* need it (and a global fixed pause slightly perturbs it,
-> 61/61 → 59/61), so the pause is being finalised as a **per-PUT env-gate** (`PUFFIN_TCP_SLEEP_MS`,
-> 0 for OpenSSL / 100 for WolfSSL). **Until that prober change lands, reproduce OpenSSL with a
-> no-sleep prober (61/61) and WolfSSL with the 100 ms-sleep prober (26/26).**
+> Prober note (read DEVELOPER.md): WolfSSL's example server is RST-killed by the rapid TCP teardown
+> unless the prober pauses ~100 ms around each socket I/O; without it the server crashes mid-handshake
+> and the 10×/≥7 confirm flaps UNSTABLE. That pause is **implemented** in `tlspuffin/src/tcp/mod.rs`
+> as an env-gate **`PUFFIN_TCP_IO_SLEEP_MS`** (default **100 ms**; `0` disables), applied *before each
+> read* (so the full flight buffers) and *after each write*. It is **universal, not per-PUT** — a
+> remote prober cannot know whether the target is OpenSSL or WolfSSL, so one setting must serve both;
+> 100 ms is what lets WolfSSL respond reproducibly, while only slightly perturbing OpenSSL (≈61/61 →
+> 59/61). A freshly-built `tlspuffin` therefore sleeps by default; to reproduce the original OpenSSL
+> **61/61** exactly, run its prober with `PUFFIN_TCP_IO_SLEEP_MS=0`. *(Open optimisation: make the
+> pause adaptive — return early on a response/FIN — to recover the speed the fixed sleep costs.)*
 
 ## Reproduce
 
@@ -143,11 +147,21 @@ python3 run_fingerprint.py --put openssl --stages mine,matrix,tree,validate,repo
     --cores 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28 --jobs 15
 ```
 
-`mine_probes.py` reads the campaigns via `--experiments-glob` (default
-`<repo>/experiments/*<put>*fpp*/objective/*.trace`) and writes the confirmed probe set into
+`mine_probes.py` reads the campaigns and writes the confirmed probe set into
 `reference/<put>/probes_full/` (committed — see below), so `build_matrix`/`build_tree` find it by
-default. Override `--experiments-glob` / `--reference-dir` / `--probes` to point at a fresh run.
-The same two commands with `--put wolfssl` rebuild WolfSSL from its campaigns.
+default. **Where it looks for the campaigns** follows CLI → env → derived default, so it works out of
+the box yet can be pinned anywhere:
+
+- **`--experiments-dir DIR`** / `FP_EXPERIMENTS_DIR` — just the experiments *folder*; the per-PUT
+  layout `*<put>*fpp*/objective/*.trace` is appended automatically. Use this to point at campaigns
+  living outside the repo (e.g. `--experiments-dir /data/ddyf/experiments`).
+- **`--experiments-glob GLOB`** / `FP_EXPERIMENTS_GLOB` — a full explicit glob; overrides
+  `--experiments-dir`. Use it to mine a single batch or one pair, e.g.
+  `--experiments-glob '<repo>/experiments/2026-06-10--wolfssl-*-1cfpp-*/objective/*.trace'`.
+- **default** (neither given): `<repo>/experiments/*<put>*fpp*/objective/*.trace`.
+
+The same two commands with `--put wolfssl` rebuild WolfSSL from its campaigns. Override
+`--reference-dir` to write the rebuilt model somewhere other than the committed `reference/`.
 
 ## Identify a live target
 

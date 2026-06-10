@@ -119,9 +119,22 @@ No stage script needs editing — they all read the registry and the resolver.
 
 All via CLI flag → env var → derived default (see `puts.add_common_args`):
 `--prober`/`PUFFIN_BIN`, `--vendor-dir`/`VENDOR_DIR`, `--reference-dir`/`FP_REFERENCE`,
-`--repo-root`/`DDYF_ROOT`, `--experiments-glob`/`FP_EXPERIMENTS_GLOB`, `--cores`/`CORES`,
-`--jobs`/`JOBS`, `--base-port`/`BASE_PORT`, `--timeout`/`TIMEOUT`. `python3 puts.py --put …`
-prints the resolved set.
+`--repo-root`/`DDYF_ROOT`, `--experiments-dir`/`FP_EXPERIMENTS_DIR`,
+`--experiments-glob`/`FP_EXPERIMENTS_GLOB`, `--cores`/`CORES`, `--jobs`/`JOBS`,
+`--base-port`/`BASE_PORT`, `--timeout`/`TIMEOUT`. `python3 puts.py --put …` prints the resolved set.
+
+**Locating the campaigns (mine stage).** `Config.experiments_glob(put)` resolves in three tiers:
+`--experiments-glob`/`FP_EXPERIMENTS_GLOB` (a full glob, most precise) > `--experiments-dir`/
+`FP_EXPERIMENTS_DIR` (just the folder; the `*<put>*fpp*/objective/*.trace` layout is appended) >
+the derived default `<repo>/experiments/...`. So the default works out of the box, a relocated
+experiments folder needs only `--experiments-dir`, and a single batch/pair is selectable with a
+precise `--experiments-glob`.
+
+**Prober I/O pause — `PUFFIN_TCP_IO_SLEEP_MS`.** The WolfSSL fix below is wired as a single env-gate
+read in `tcp/mod.rs` (`io_pacing_sleep()`), default **100 ms**, `0` disables. It sleeps before each
+`read_to_end` and after each write, on both the client- and server-side TCP puts. It is **universal,
+not per-PUT** (deployment can't know the target's library), so a freshly-built prober paces by
+default; set `PUFFIN_TCP_IO_SLEEP_MS=0` to reproduce OpenSSL's no-sleep 61/61.
 
 ## Gotchas
 
@@ -149,16 +162,33 @@ prints the resolved set.
   read**, giving the server time to finish before the next action / teardown. With it WolfSSL
   validates **26/26** (26 versions, 14 clusters, depth 4, 6 probes) and rebuilds through the unified
   pipeline like OpenSSL.
-  **The pause must be per-PUT, and the `tcp/mod.rs` edit is deferred to the prober owner (not
-  committed here).** A *global* fixed 100 ms sleep is NOT strictly better: OpenSSL tolerates the fast
-  teardown and does not need it, and the extra delay measurably perturbs OpenSSL (**61/61 → 59/61**),
-  while WolfSSL needs it. The intended resolution is a per-PUT env-gate — read `PUFFIN_TCP_SLEEP_MS`
-  (default 0) in `tcp/mod.rs` and have the pipeline set 0 for OpenSSL / 100 for WolfSSL — so one
-  binary yields OpenSSL 61/61 *and* WolfSSL 26/26. **Until that lands, the two committed numbers use
-  different prober settings:** OpenSSL 61/61 with a **no-sleep** prober (e.g. a 200 ms build),
-  WolfSSL 26/26 with the **100 ms-sleep** prober. *Further optimisation (open):* make the pause
-  adaptive — return early once a response or TCP FIN is seen — to recover the speed the fixed sleep
-  costs.
+  **This is now implemented** in `tcp/mod.rs` as `io_pacing_sleep()` reading the env-gate
+  **`PUFFIN_TCP_IO_SLEEP_MS`** (default **100**, `0` disables), called before each `read_to_end` and
+  after each write on both TCP puts. We chose a **universal** gate over a per-PUT one deliberately:
+  the deployment prober points at an unknown `host:port` and cannot know whether it is OpenSSL or
+  WolfSSL, so a per-PUT sleep is not realisable in the field — one setting must serve both. The
+  trade-off is real but small: 100 ms is essential for WolfSSL and measurably perturbs OpenSSL
+  (**61/61 → 59/61**); to reproduce OpenSSL's 61/61 exactly, run *its* prober with
+  `PUFFIN_TCP_IO_SLEEP_MS=0` (the gate makes this a runtime choice, no rebuild). *Further
+  optimisation (open):* make the pause adaptive — return early once a response or TCP FIN is seen —
+  to recover the speed the fixed sleep costs and shrink the OpenSSL perturbation toward zero.
+- **WolfSSL 5.5.0 / 5.5.1 have no vendored server binary.** Their example server fails to build
+  (`wolfSSL_get_early_data_status` / earlyData config), so `vendor/wolfssl550/bin/server` is *absent*
+  — `probe.launch` raises `FileNotFoundError` and `mine_probes` logs the pair as `SERVER-FAIL`. This
+  is a pre-existing build gap, **not** a probing/contention artifact: a pair `SERVER-FAIL` involving
+  5.5.0/5.5.1 is expected. In the matrix they show all-`UNSTABLE` columns and fall to the tree's
+  default branch. (Distinguish from a *transient* `SERVER-FAIL`, where both servers exist and come up
+  in other pairs of the same run — that one is a port-bind/`wait_listen` race, recoverable by
+  re-mining just that pair.)
+- **Concurrent runs must pin to *disjoint* cores, and verify the pin took.** Invariant 3 (controlled
+  load) is per-server-sequential *and* per-run-isolated: two matrices probing at once corrupt each
+  other's captures even at low aggregate load (a co-scheduled probe steals the CPU mid-`read_to_end`
+  and truncates the flight). Give each concurrent run a disjoint `--cores` set (e.g. OpenSSL `0-23`,
+  WolfSSL `25-39`) and **confirm** with `taskset -cp <server-pid>` that the servers actually carry the
+  mask — an unpinned run floats across *all* cores and silently contends with the others. If the
+  per-server `taskset` prefix ever misfires, wrap the whole run (`taskset -c 0-23 python3
+  run_fingerprint.py …`) so every child inherits the affinity. A killed orchestrator orphans its
+  `s_server`/`bin/server` children (they keep squatting cores/ports) — kill the children too.
 - **`experiments/` is gitignored** and large; the committed `probes/` holds only the decision-node
   traces. Rebuilding the matrix needs the full set (`mine_probes.py` regenerates it).
 - **Provenance.** Superseded scripts, exploratory dirs, and prior reports are in `archive/`

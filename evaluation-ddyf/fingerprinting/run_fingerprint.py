@@ -36,8 +36,9 @@ STAGE_ORDER = ["mine", "matrix", "tree", "validate", "report"]
 # Common path/runtime flags to forward to each stage subprocess, if the user set them.
 _FORWARD = [("repo_root", "--repo-root"), ("vendor_dir", "--vendor-dir"),
             ("reference_dir", "--reference-dir"), ("prober", "--prober"),
-            ("experiments_glob", "--experiments-glob"), ("cores", "--cores"),
-            ("jobs", "--jobs"), ("base_port", "--base-port"), ("timeout", "--timeout")]
+            ("experiments_dir", "--experiments-dir"), ("experiments_glob", "--experiments-glob"),
+            ("cores", "--cores"), ("jobs", "--jobs"), ("base_port", "--base-port"),
+            ("timeout", "--timeout")]
 
 
 def _forwarded(args):
