@@ -30,6 +30,14 @@ PUTS="${PUTS:-openssl wolfssl}"
 for vendor in $PUTS; do
   presets="puffin-build/vendors/$vendor/presets.toml"
   [ -f "$presets" ] || { echo "[setup] missing $presets"; exit 1; }
+  # The committed presets.toml ships only a few upstream presets, so without this setup would vendor
+  # a tiny subset (e.g. 3 OpenSSL versions). presets_gen.py appends the FULL per-version preset set
+  # (idempotent: skips presets already present) so all 61 OpenSSL / 26 WolfSSL versions are buildable.
+  if [ -f "$HERE/presets_gen.py" ]; then
+    python3 "$HERE/presets_gen.py" "$vendor" >/dev/null 2>&1 \
+      && echo "[setup] $vendor: presets.toml now defines $(grep -cE "^\[${vendor}[0-9]+\]" "$presets") version presets" \
+      || echo "[setup] WARN presets_gen.py $vendor failed (presets.toml left as-is)"
+  fi
   # default: every preset in the toml; override with VERSIONS_OPENSSL / VERSIONS_WOLFSSL (dotted)
   override_var="VERSIONS_${vendor^^}"
   if [ -n "${!override_var:-}" ]; then
