@@ -113,6 +113,7 @@ SSL_CTX *set_pkey(SSL_CTX *ssl_ctx, const PEM *pem_pkey)
         return NULL;
     }
 
+    EVP_PKEY_free(pkey);
     return ssl_ctx;
 }
 

@@ -3,6 +3,7 @@
 
 #include <claim-interface.h>
 #include <openssl/ssl.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C"

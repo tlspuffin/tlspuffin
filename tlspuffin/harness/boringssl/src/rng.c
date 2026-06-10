@@ -8,6 +8,9 @@ void rng_init()
 
 void rng_reseed(const uint8_t *buffer, size_t length)
 {
+    (void)buffer; // Avoid unused parameter warning.
+    (void)length;
+
     // Our patched BoringSSL has RAND_reset_for_fuzzing
     RAND_reset_for_fuzzing();
 }

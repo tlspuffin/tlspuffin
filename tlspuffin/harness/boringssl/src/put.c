@@ -1,8 +1,10 @@
+#include <ctype.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include <openssl/bio.h>
 #include <openssl/err.h>
@@ -814,7 +816,7 @@ RESULT boringssl_progress(AGENT agent)
         int ret = SSL_read(agent->ssl, &buf, sizeof(buf));
         if (ret > 0)
         {
-            result = get_result(agent, SSL_ERROR_NONE, false);
+            result = get_result(agent, ret, false);
         }
         else
         {
