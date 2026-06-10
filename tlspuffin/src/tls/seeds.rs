@@ -1383,6 +1383,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
             )))),
             fn_compressions,
             (fn_client_extensions_make(
+            (fn_client_extensions_append(
                 (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -1413,6 +1414,8 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
                     ))
                 )),
                 fn_supported_versions13_extension
+                )),
+                fn_psk_exchange_mode_dhe_ke_extension
             ))
         )))
     };
@@ -2142,6 +2145,7 @@ pub fn _seed_client_attacker_full(
             (fn_client_extensions_make(
                 (fn_client_extensions_append(
                 (fn_client_extensions_append(
+                (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
@@ -2170,6 +2174,8 @@ pub fn _seed_client_attacker_full(
                     ))
                 )),
                 fn_supported_versions13_extension
+                )),
+                fn_psk_exchange_mode_dhe_ke_extension
             ))
         )))
     };
@@ -2789,7 +2795,7 @@ pub fn create_corpus(
         // Full Handshakes
         seed_successful: put.supports("tls13"),
         seed_successful_with_ccs: put.supports("tls13"),
-        seed_successful_with_tickets: put.supports("tls13"),
+        seed_successful_with_tickets: put.supports("tls13") && put.supports("tls13_session_resumption"),
         seed_successful12: put.supports("tls12") && !put.supports("tls12_session_resumption"),
         seed_successful12_with_tickets: put.supports("tls12") && put.supports("tls12_session_resumption"),
         // Client Attackers
@@ -2799,7 +2805,7 @@ pub fn create_corpus(
         seed_client_attacker12: put.supports("tls12"),
         // Session resumption
         seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
-        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption") && put.supports("psk_ke_support"),
         // Server Attackers
         seed_server_attacker_full: put.supports("tls13"),
         seed_server_attacker_full_coalesced: put.supports("tls13"),
@@ -2850,7 +2856,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, client_authentication_transcript_extraction, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, client_authentication_transcript_extraction))]
     fn test_seed_client_attacker_auth(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_client_attacker_auth.build_trace();
@@ -2881,7 +2887,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls12, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls12))]
     fn test_seed_server_attacker12(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker12.build_trace();
@@ -2891,7 +2897,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_server_attacker_full(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker_full.build_trace();
@@ -2947,7 +2953,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_server_attacker_with_hello_retry_request(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker_with_hello_retry_request.build_trace();
@@ -2957,7 +2963,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth), not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth)))]
     fn test_seed_session_resumption_dhe(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_dhe.build_trace();
@@ -2967,7 +2973,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth), not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth)))]
     fn test_seed_session_resumption_dhe_full(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_dhe_full.build_trace();
@@ -2977,7 +2983,8 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth), not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, psk_ke_support, not(disable_postauth))
+    )]
     fn test_seed_session_resumption_ke(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_ke.build_trace();
@@ -2987,7 +2994,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_successful(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_successful.build_trace();
@@ -2997,7 +3004,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_successful_client_auth(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_successful_client_auth.build_trace();
@@ -3021,7 +3028,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_successful_with_ccs(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_successful_with_ccs.build_trace();
@@ -3033,7 +3040,7 @@ pub mod tests {
 
     // require version which supports TLS 1.3 and session resumption (else no tickets are sent)
     // LibreSSL does not yet support PSK
-    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption))]
     fn test_seed_successful_with_tickets(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_successful_with_tickets.build_trace();
@@ -3043,7 +3050,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls12, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls12))]
     fn test_seed_successful12(put: &str) {
         let runner = default_runner_for(put);
 
@@ -3056,6 +3063,94 @@ pub mod tests {
         let ctx = runner.execute(trace, &mut 0).unwrap();
 
         assert!(ctx.agents_successful());
+    }
+
+    /// Verify that cipher and sigalgs configuration actually takes effect.
+    /// This catches silent failures like BoringSSL ignoring unrecognised IANA cipher names.
+    /// For openssl we only test version 3.4.0 as it is the only one that has the right claims added
+    /// in our openssl github fork. Wolfssl430 does not have a C harness
+    #[cfg(not(feature = "wolfssl430"))]
+    #[apply(test_puts, filter = all(tls13, any(not(openssl), openssl340), not(libressl))
+    )]
+    fn test_cipher_config_takes_effect(put: &str) {
+        use crate::claims::Finished;
+
+        let client = AgentName::first();
+        let server = client.next();
+        let mut trace = seed_successful(client, server);
+        trace =
+            <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(trace);
+
+        let runner = default_runner_for(put);
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+        assert!(ctx.agents_successful());
+
+        // The uniformised TLS 1.3 config allows: AES-256-GCM, AES-128-GCM, CHACHA20
+        let allowed_ciphers: &[u16] = &[0x1301, 0x1302, 0x1303];
+
+        let claim = ctx
+            .find_claim(server, TypeShape::of::<Finished>())
+            .expect(&format!("no Finished claim for server agent in {put}"));
+        let finished = claim.as_ref().as_any().downcast_ref::<Finished>().unwrap();
+        assert!(
+            allowed_ciphers.contains(&finished.chosen_cipher),
+            "{put}: server chosen_cipher 0x{:04x} not in configured set {allowed_ciphers:?}",
+            finished.chosen_cipher,
+        );
+
+        // Verify sigalgs config took effect: the negotiated signature algorithm must be
+        // one of the configured RSA-PSS or RSA schemes.
+        // RSA-PSS+SHA256=0x0804, RSA-PSS+SHA384=0x0805, RSA-PSS+SHA512=0x0806,
+        // RSA+SHA256=0x0401, RSA+SHA384=0x0501, RSA+SHA512=0x0601
+        let allowed_sigalgs: &[i32] = &[0x0804, 0x0805, 0x0806, 0x0401, 0x0501, 0x0601];
+        assert!(
+            finished.signature_algorithm != 0,
+            "{put}: server signature_algorithm not reported (== 0)",
+        );
+        assert!(
+            allowed_sigalgs.contains(&finished.signature_algorithm),
+            "{put}: server signature_algorithm 0x{:04x} not in configured set {allowed_sigalgs:?}",
+            finished.signature_algorithm,
+        );
+    }
+
+    /// Verify that TLS 1.2 cipher configuration takes effect.
+    /// Uses the same seed selection logic as test_seed_successful12.
+    /// Checks that the negotiated cipher is an ECDHE cipher as configured.
+    /// OpenSSL101f and OpenSSL102u are not instrumented for claims.
+    #[cfg(all(not(feature = "openssl101f"), not(feature = "openssl102u")))]
+    #[apply(test_puts, filter = all(tls12, not(libressl)))]
+    fn test_cipher_config_tls12_takes_effect(put: &str) {
+        use crate::claims::Finished;
+
+        let trace = if supports!(put, "tls12_session_resumption") {
+            seed_successful12_with_tickets.build_trace()
+        } else {
+            seed_successful12.build_trace()
+        };
+        let server = AgentName::first().next();
+
+        let runner = default_runner_for(put);
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+        assert!(ctx.agents_successful());
+
+        let claim = ctx
+            .find_claim(server, TypeShape::of::<Finished>())
+            .expect(&format!("no Finished claim for server agent in {put}"));
+        let finished = claim.as_ref().as_any().downcast_ref::<Finished>().unwrap();
+        // The chosen cipher must be non-zero (i.e., actually reported)
+        assert!(
+            finished.chosen_cipher != 0,
+            "{put}: server Finished claim has chosen_cipher == 0 (cipher config not reported)",
+        );
+        // The chosen cipher must be an ECDHE cipher (0xC0xx range) since the seed uses
+        // ServerKeyExchange which only applies to ephemeral key exchange
+        assert!(
+            (finished.chosen_cipher >> 8) == 0xC0,
+            "{put}: server chosen_cipher 0x{:04x} is not an ECDHE cipher — \
+             cipher config may not have taken effect",
+            finished.chosen_cipher,
+        );
     }
 
     #[test_log::test]
@@ -3530,30 +3625,34 @@ pub mod tests {
                 <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
                     trace,
                 );
-            let first_mapping: Vec<_> = trace
-                .descriptors
+            // Map ALL agents in the trace (including prior traces) to the specified PUT.
+            // Without this, agents in prior traces silently fall back to the default PUT,
+            // producing mixed-PUT executions that hide real differences.
+            let first_mappings: Vec<_> = trace
+                .all_descriptors()
                 .iter()
-                .map(|descriptor| {
+                .map(|d| {
                     (
-                        descriptor.name,
+                        d.name,
                         PutDescriptor::new(first_put, registry.default_put_options().clone()),
                     )
                 })
                 .collect();
-            let second_mapping: Vec<_> = trace
-                .descriptors
+            let second_mappings: Vec<_> = trace
+                .all_descriptors()
                 .iter()
-                .map(|descriptor| {
+                .map(|d| {
                     (
-                        descriptor.name,
+                        d.name,
                         PutDescriptor::new(second_put, registry.default_put_options().clone()),
                     )
                 })
                 .collect();
+
             let runner = DifferentialRunner::new(
                 registry.clone(),
-                Spawner::new(registry.clone()).with_mapping(&first_mapping),
-                Spawner::new(registry.clone()).with_mapping(&second_mapping),
+                Spawner::new(registry.clone()).with_mapping(&first_mappings),
+                Spawner::new(registry.clone()).with_mapping(&second_mappings),
             );
 
             let result = runner.execute(trace, &mut 0);
@@ -3568,15 +3667,22 @@ pub mod tests {
         }
     }
 
-    #[test_log::test]
-    #[cfg(all(has_put = "openssl340", has_put = "wolfssl580"))]
+    #[apply(test_differential_puts, first = "openssl340", second = "wolfssl580")]
     fn test_differential_openssl340_vs_wolfssl580() {
         assert_no_differential_differences("openssl340", "wolfssl580");
     }
 
-    #[test_log::test]
-    #[cfg(all(has_put = "openssl340", has_put = "libressl421"))]
+    #[apply(test_differential_puts, first = "openssl340", second = "libressl421")]
     fn test_differential_openssl340_vs_libressl421() {
         assert_no_differential_differences("openssl340", "libressl421");
+    }
+
+    #[apply(
+        test_differential_puts,
+        first = "openssl340",
+        second = "boringssl20260508"
+    )]
+    fn test_differential_openssl340_vs_boringssl20260508() {
+        assert_no_differential_differences("openssl340", "boringssl20260508");
     }
 }

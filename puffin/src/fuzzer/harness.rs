@@ -93,22 +93,23 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
         input.clone(),
     );
 
+    // Map ALL agents in the trace (including prior traces) to the specified PUT.
+    // Without this, agents in prior traces silently fall back to the default PUT.
+    let first_mappings: Vec<_> = input
+        .all_descriptors()
+        .iter()
+        .map(|d| (d.name, first_put.clone()))
+        .collect();
+    let second_mappings: Vec<_> = input
+        .all_descriptors()
+        .iter()
+        .map(|d| (d.name, second_put.clone()))
+        .collect();
+
     let runner = DifferentialRunner::new(
         put_registry.clone(),
-        Spawner::new(put_registry.clone()).with_mapping(
-            &input
-                .descriptors
-                .iter()
-                .map(|d| (d.name, first_put.clone()))
-                .collect::<Vec<_>>(),
-        ),
-        Spawner::new(put_registry.clone()).with_mapping(
-            &input
-                .descriptors
-                .iter()
-                .map(|d| (d.name, second_put.clone()))
-                .collect::<Vec<_>>(),
-        ),
+        Spawner::new(put_registry.clone()).with_mapping(&first_mappings),
+        Spawner::new(put_registry.clone()).with_mapping(&second_mappings),
     );
 
     HARNESS_EXEC.increment();

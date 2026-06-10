@@ -204,7 +204,8 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             config_trace.check_security_violation,
         );
 
-        // check status first
+        // Check execution status first
+        // Only match Error::Put and ignore Error::Term, Error::Fn, etc.
         let mut diff = vec![];
         #[cfg(not(feature = "ddyf-disable-status"))]
         match (&first_trace_status, &second_trace_status) {

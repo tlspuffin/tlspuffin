@@ -63,6 +63,8 @@ struct AGENT_TYPE
     bool peer_authentication;
     uint32_t secret_size;
     uint8_t handshake_secret[SECRET_LEN];
+    uint16_t peer_sig_wire_value;  /* peer CertificateVerify sig algo, TLS wire format */
+    uint16_t local_sig_wire_value; /* own CertificateVerify sig algo, TLS wire format */
 };
 
 void CheckServerClaimFinished(AGENT agent, bool outbound);
@@ -176,6 +178,46 @@ static int extract_current_transcript(AGENT agent, unsigned char *buffer, int bu
     {
         _log(PUFFIN.warn, "wc_ShaXXXGetHash failed");
         return 0;
+    }
+}
+
+// Reconstruct the TLS wire-format signature algorithm code point from wolfSSL
+// internal fields.  Used as a fallback for TLS 1.3 outbound CertificateVerify,
+// which is not exposed via the message callback (encrypted as content_type=23).
+// wolfSSL stores sigAlgo and hashAlgo separately; the wire encoding mirrors
+// wolfSSL's EncodeSigAlg() in tls13.c:
+//   rsa_pss_sa_algo (8) : wire = (8 << 8) | hashAlgo  → 0x0804/05/06
+//   ed25519_sa_algo (9) : wire = 0x0807
+//   ed448_sa_algo  (11) : wire = 0x0808
+//   default (ECDSA=3, RSA-PKCS1=1): wire = (hashAlgo << 8) | sigAlgo
+// Field location changed between versions: Suites (< 5.8) → Options (>= 5.8).
+static int wolfssl_get_sig_wire_value(WOLFSSL *ssl)
+{
+    byte sigAlgo, hashAlgo;
+
+#if LIBWOLFSSL_VERSION_HEX >= 0x05008000 /* 5.8.0: fields moved from Suites to Options */
+    sigAlgo = ssl->options.sigAlgo;
+    hashAlgo = ssl->options.hashAlgo;
+#else
+    if (ssl->suites == NULL)
+        return 0;
+    sigAlgo = ssl->suites->sigAlgo;
+    hashAlgo = ssl->suites->hashAlgo;
+#endif
+
+    if (sigAlgo == 0)
+        return 0;
+
+    switch (sigAlgo)
+    {
+    case rsa_pss_sa_algo: /* 8 → 0x0804 / 0x0805 / 0x0806 */
+        return (sigAlgo << 8) | hashAlgo;
+    case ed25519_sa_algo: /* 9 → 0x0807 */
+        return 0x0807;
+    case ed448_sa_algo: /* 11 → 0x0808 */
+        return 0x0808;
+    default: /* ecc_dsa_sa_algo=3, rsa_sa_algo=1 → (hashAlgo<<8)|sigAlgo */
+        return (hashAlgo << 8) | sigAlgo;
     }
 }
 
@@ -444,22 +486,23 @@ static void fill_claim(AGENT agent, struct Claim *claim)
         _log(PUFFIN.warn, "wolfSSL_get_current_cipher returned NULL");
     }
 
-    /*int nid = -1;
-    int int_retval = wolfSSL_get_signature_nid(agent->ssl, &nid);
-    if (int_retval == WOLFSSL_SUCCESS) {
-      claim->signature_algorithm = nid;
-    } else {
-      claim->signature_algorithm = 0;
-      _log(PUFFIN.warn, "wolfSSL_get_signature_nid failed");
-    }*/
-
-    /*int_retval = wolfSSL_get_peer_signature_nid(agent->ssl, &nid);
-    if (int_retval == WOLFSSL_SUCCESS) {
-      claim->peer_signature_algorithm = nid;
-    } else {
-      claim->peer_signature_algorithm = 0;
-      _log(PUFFIN.warn, "wolfSSL_get_peer_signature_nid failed");
-    }*/
+    /* TLS 1.3: outbound CertificateVerify is sent as an encrypted application_data record
+     * (content_type=23), so the message callback does not expose it with content_type=22.
+     * Fall back to wolfssl internal fields which are reliable for TLS 1.3.
+     * TLS 1.2: those same internal fields are populated via the ServerKeyExchange path
+     * even without a CertificateVerify, producing a spurious non-zero value; use only
+     * the wire-captured value to stay symmetric with peer_signature_algorithm. */
+    if (strcmp(tls_version, "TLSv1.2") == 0)
+    {
+        claim->signature_algorithm = (int)agent->local_sig_wire_value;
+    }
+    else
+    {
+        claim->signature_algorithm = agent->local_sig_wire_value
+                                         ? (int)agent->local_sig_wire_value
+                                         : wolfssl_get_sig_wire_value(agent->ssl);
+    }
+    claim->peer_signature_algorithm = (int)agent->peer_sig_wire_value;
 
     claim->transcript.length =
         extract_current_transcript(agent, claim->transcript.data, CLAIM_MAX_SECRET_SIZE);
@@ -659,12 +702,32 @@ static void wolfssl_message_callback(int write_p,
             break;
         case 0x0f:
             agent->transcriptType = CLAIM_CERTIFICATE_VERIFY;
+            /* CertificateVerify body: [type(1)][len(3)][sig_algo(2)][sig_len(2)][sig] */
+            if (len >= 6)
+            {
+                const uint8_t *body = (const uint8_t *)buf;
+                agent->peer_sig_wire_value = ((uint16_t)body[4] << 8) | body[5];
+            }
             break;
         case 0x14:
             agent->transcriptType = CLAIM_TRANSCRIPT_CH_CLIENT_FIN;
             break;
         default:
             break;
+        }
+    }
+
+    if (write_p == 1) // packet being sent
+    {
+        switch (type)
+        {
+        case 0x0f:
+            /* CertificateVerify body: [type(1)][len(3)][sig_algo(2)][sig_len(2)][sig] */
+            if (len >= 6)
+            {
+                const uint8_t *body = (const uint8_t *)buf;
+                agent->local_sig_wire_value = ((uint16_t)body[4] << 8) | body[5];
+            }
         }
     }
 
@@ -1247,7 +1310,6 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
                                                         descriptor->cert->bytes,
                                                         descriptor->cert->length,
                                                         SSL_FILETYPE_PEM);
-        * /
 #endif
         if (int_retval != WOLFSSL_SUCCESS)
         {

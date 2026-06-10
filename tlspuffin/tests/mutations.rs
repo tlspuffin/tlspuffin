@@ -10,7 +10,6 @@ use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::{Corpus, Testcase};
 use puffin::libafl::mutators::{MutationResult, Mutator, MutatorsTuple};
 use puffin::libafl::state::HasCorpus;
-use puffin::libafl_bolts::tuples::HasConstLen;
 use puffin::libafl_bolts::HasLen;
 use puffin::test_utils::AssertExecution;
 use puffin::trace::{Action, Spawner, Step, Trace, TraceContext};
