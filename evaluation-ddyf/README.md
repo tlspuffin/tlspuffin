@@ -30,6 +30,10 @@ If not running in a nix-shell (highly discouraged), make sure to have at least `
 export LIBAFL_EDGES_MAP_SIZE=262144
 ```
 
+
+> DDYF can produce a lot of objectives/metadata files (> 4M for 24h runs), make sure that your filesystem can support this much files in one directory
+
+
 ## Running a differential fuzzing campaign
 
 Build the desired PUTs (for example for OpenSSL 3.4.0 and WolfSSL 5.8.0):
@@ -61,6 +65,7 @@ The results (corpus, objectives, metadata and logging) will be stored in a new f
 To run the triaging script on the results:
 ```bash
 # this script only works for campaigns between OpenSSL and WolfSSL
+# variants exist for OpenSSL vs LibreSSL and OpenSSL vs BoringSSL
 python -m DDYF.sort_objectives_ossl_wolf path_to_experiment/objective
 
 # list the content of the buckets
@@ -88,11 +93,12 @@ where
 
 Run the fuzzing campaigns using `reproducing_cves.sh` script after activation the Nix shell environment.
 
-You can edit the `TIMEOUT`, `RUNS` and `CORES` variables to setup the duration, number of campaigns and cores per campaigns.
-Note that a shorter time decreases the chances of finding any CVEs, the recommended value is 5h.
+You can edit the `TIMEOUT` and `CORE_PER_EXP` variables to setup the duration, number of campaigns and cores per campaigns.
+Note that a shorter time decreases the chances of finding any CVEs, the recommended value is 5h with a recent CPU.
 
 ```bash
-./evaluation-ddyf/reproducing_cves.sh
+# Run experiments 1 through 50
+./evaluation-ddyf/reproducing_cves.sh 1 50
 ```
 
 Generate a CSV file of all the traces triggering CVEs :
@@ -111,7 +117,7 @@ Analyze the file:
 python -m venv DDYF/.venv
 source DDYF/.venv/bin/activate
 pip install pandas
-python -m DDYF.cves_stats
+python -m DDYF.cves_stats cve_list.csv
 ```
 
 
@@ -120,15 +126,26 @@ python -m DDYF.cves_stats
 To measure the performances of DDYF run:
 
 ```bash
-./evaluation-ddyf/perf_bench_DDYF.sh 
+./evaluation-ddyf/perf_bench.sh 
 ```
 
-To measure the original performances of Puffin: clone the original puffin repo `https[://]github[.]com/tlspuffin/tlspuffin` and run in the main branch:
+This while run 5 1h experiments 10 times (to account for variability):
+- Classical DY fuzzing on OpenSSL
+- Classical DY fuzzing on wolfSSL
+- DDYF fuzzing on OpenSSL vs OpenSSL
+- DDYF fuzzing on wolfSSL vs wolfSSL
+- DDYF fuzzing on OpenSSL vs wolfSSL
+
+The result will be written to `results_perfs.csv` with the result of every run.
+
+To have a summary with mean execution per second and standard deviation run:
 
 ```bash
-./evaluation-ddyf/perf_bench_puffin.sh 
+python -m venv DDYF/.venv
+source DDYF/.venv/bin/activate
+pip install pandas
+python -m DDYF.perfs_stats results_perfs.csv
 ```
-
 
 ## Ablation study
 
@@ -138,21 +155,35 @@ After running a differential fuzzing campaign, run:
 ./evaluation-ddyf/ablation_study.sh path/to/objectives
 ```
 
-This will produce 5 files: `ablation-all.txt`, `ablation-no-status.txt`, `ablation-no-knowledges.txt`, `ablation-no-decryption.txt` and `ablation-no-claims.txt`. Each file contains 3 lines:
+This will produce an `ablation.csv` file containing the result for each experiment listing the number of traces that are still found and the number of traces lost during when disabling the feature.
 
-```txt
-non triaged : XXX # traces that could be detected with component deactivated
-objective/no_errors : XXX # traces that could not be detected
-total: XXX # total number of traces
-```
+## Per bucket ablation study
 
-## Fingerprinting experiment
-
-To run the fingerprinting experiment, run:
+You can run a per bucket ablation study using
 
 ```bash
-./evaluation-ddyf/fingerprinting_exp.sh
+./evaluation-ddyf/ablation_study_per_buckets.sh path/to/objectives
 ```
 
-This will produce 3 folders in your `./experiments` directory for each pair of PUTs between WolfSSL 5.0.0, 5.1.0, and 5.2.0.
+This will create an `ablation_per_bucket.csv` file containing the result of the each experiment per buckets.
 
+You can view a summary of the results using the following Python script:
+
+
+```bash
+python -m venv DDYF/.venv
+source DDYF/.venv/bin/activate
+pip install pandas
+python -m DDYF.ablation_study_stats ablation_per_bucket.csv
+```
+
+This script will give a summary of the number of buckets lost per set of enabled/disabled DDYF features.
+
+## Triaging from scratch with LLM
+
+You can use LLM to do a complete triaging and analysis of a campaign's objectives.
+
+The entry point for starting an LLM based triaging is the `evaluation-ddyf/prompts-v3/START_HERE.md` file that will explain the whole triaging procedure. The ORCHESTRATOR and AUDITOR prompts are expecting OpenSSL vs LibreSSL campaign but you can specify which PUT were used in the campaign to guide the LLMs.
+
+> This LLM triaging has been tested with Anthropic's Claude code (Sonnet 4.6 and Opus 4.8), GitHub Copilot (Sonnet 4.6) and Gemini 3.x.
+> The .md files explicitly reference Claude but you can use those prompts with other LLMs

@@ -4,8 +4,8 @@ set -euo pipefail
 export LIBAFL_EDGES_MAP_SIZE=262144
 
 TIMEOUT='1h'
-CORES="0-3"
-CORE_COUNT=4
+CORES="0"
+CORE_COUNT=1
 PORT=2000
 PIPENAME="pipe_1"
 OUTFILE=results_perfs.csv
