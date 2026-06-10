@@ -37,7 +37,11 @@ set(v500_or_later "$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},5.0.0>")
 set(before_v520 "$<VERSION_LESS:${VENDOR_VERSION},5.2.0>")
 set(require_define_xtime "$<AND:$<AND:${CPUT},${v500_or_later}>,${before_v520}>")
 
-set(require_user_ticks "$<AND:${CPUT},${v500_or_later}>")
+# USER_TICKS for ALL versions when the Common-PUT harness is linked: it tells wolfSSL NOT to define
+# its own LowResTimer/TimeNowInMilliseconds, avoiding a multiple-definition link conflict with the
+# harness (older <5.0.0 libs, e.g. 4.3.0, defined them as strong symbols). The harness's versions are
+# also __attribute__((weak)) (put.c) so the linker prefers them and tolerates a still-defining lib.
+set(require_user_ticks "${CPUT}")
 
 foreach(CVE IN LISTS fix)
   if(NOT HAS_${CVE})

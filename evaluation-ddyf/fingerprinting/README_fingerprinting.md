@@ -46,6 +46,9 @@ run_fingerprint.py   the driver (construction + identification)
   validate.py        stage 4  deployment validation (walk fresh live servers)
   report.py          stage 5  report.md + heatmap.csv
 fingerprint_probe.py identify a live host:port across one or more PUT models
+tree_report.py       inspect a model: ASCII tree + per-branch wire-observable flight labels
+                     (e.g. "0: HRR | 4: Alert(HandshakeFailure) | 5: (Terminated)"). Needs a
+                     PUT-linked tlspuffin (display-execute), not the tcp-only prober.
 
 reference/<put>/     committed canonical model + results (see "What is committed")
 setup.sh             one-shot bootstrap: build prober + all vendored servers + cert
@@ -62,6 +65,8 @@ does not work for this build):
 ```
 git clone <repo> && cd <repo>
 nix-shell ./shell.nix                       # drops you into the dev shell
+# If your NIX_PATH is empty / nix-shell warns about <nixpkgs>, pin nixpkgs explicitly:
+#   nix-shell -I nixpkgs=https://github.com/NixOS/nixpkgs/archive/nixos-23.11.tar.gz ./shell.nix
 ./evaluation-ddyf/fingerprinting/setup.sh   # run this INSIDE the nix-shell
 ```
 
@@ -162,6 +167,40 @@ the box yet can be pinned anywhere:
 
 The same two commands with `--put wolfssl` rebuild WolfSSL from its campaigns. Override
 `--reference-dir` to write the rebuilt model somewhere other than the committed `reference/`.
+
+### Reproduce from published experiment archives (no campaigns needed)
+
+The differential-fuzzing campaigns are the slow part (hours). For **full reproducibility without
+re-running them**, the campaigns' *objective traces* are published as archives; the pipeline then
+runs `mine → matrix → tree → validate → report` straight from them (only the live re-probing,
+minutes, is recomputed):
+
+| archive | contents | raw / compressed | sha256 |
+|---|---|---|---|
+| `wolfssl_lastnight_objectives.tar.gz` | WolfSSL 5.x campaigns, one focused 2-PUT run per adjacent pair (the clean last-night batch) | 4.6 GB / **256 MB** | `dbf1c9710a7ef6b239f40b3e2e75a81990569bcb5c21b48254065e87002fa47e` |
+| `wolfssl_all_objectives.tar.gz` | WolfSSL 5.x **all** campaigns (last-night + earlier batches) — more objectives for the older pairs, for a denser re-mine | 5.5 GB / **306 MB** | `d7b01db702243fb2a65a8c3defc350d2c59e42f0279dbbdae4c6cf2e61422558` |
+| `openssl_objectives.tar.gz` | OpenSSL 3.x adjacent-pair campaigns (objective traces) | 18 GB / **920 MB** | `b04d322ea48dc0364fc88f77f1d1cef8d6015b965ff1d45082eaa1929764cc49` |
+
+Download: **`<FILL IN URL AFTER UPLOAD>`** (e.g. Zenodo / GitHub release); verify against the sha256
+above. Each archive unpacks to `<campaign-dir>/objective/*.trace` — the layout the mine globs — so you
+point the pipeline at the extraction dir with `--experiments-dir`:
+
+```
+# 1. download + extract (preserves the <campaign>/objective/ layout)
+mkdir -p ~/ddyf_experiments
+tar -xf wolfssl_lastnight_objectives.tar.gz -C ~/ddyf_experiments
+
+# 2. mine the objectives (cap per-pair for speed; omit --a1-cap to use every objective)
+python3 mine_probes.py --put wolfssl --experiments-dir ~/ddyf_experiments \
+    --reference-dir ./reproduced --prober /path/to/tlspuffin --jobs 24 --a1-cap 400
+
+# 3. matrix -> tree -> validate -> report from the mined probe set
+python3 run_fingerprint.py --put wolfssl --stages matrix,tree,validate,report \
+    --reference-dir ./reproduced --prober /path/to/tlspuffin --jobs 24
+```
+
+(Same prober note as above: a freshly-built `tlspuffin` paces with `PUFFIN_TCP_IO_SLEEP_MS=100` by
+default, which WolfSSL needs.) Swap `--put openssl` + `openssl_objectives.tar.gz` for OpenSSL.
 
 ## Identify a live target
 

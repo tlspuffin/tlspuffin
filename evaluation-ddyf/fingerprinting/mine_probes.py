@@ -46,6 +46,10 @@ def main():
     puts.add_common_args(ap)
     ap.add_argument("--a1-cap", type=int, default=100000, help="per-pair A1 input cap (speed)")
     ap.add_argument("--rep-cap", type=int, default=4, help="representatives kept per (sigA,sigB) mechanism")
+    ap.add_argument("--pair-jobs", type=int, default=1,
+                    help="adjacent pairs to screen IN PARALLEL, each on its own port pair. Raises core "
+                         "use: per-pair throughput is capped by the single-connection example server, "
+                         "so N pairs in flight ~= N x the rate. Default 1 (sequential).")
     ap.add_argument("--cross-apply", action="store_true", help="also cross-apply + print cluster count")
     args = ap.parse_args()
     put = args.put
@@ -68,15 +72,21 @@ def main():
     if not pairs:
         raise SystemExit("no objective traces found; set --experiments-glob / FP_EXPERIMENTS_GLOB")
 
-    confirmed, port = [], cfg.base_port
-    for tag, (A, B, ts) in pairs.items():
-        pA, pB = port, port + 1
-        port += 2
+    # Screen each pair on its OWN port pair (cfg.base_port + 2*idx), so up to --pair-jobs pairs run
+    # at once. The single-connection example server caps per-pair throughput, so pair-level
+    # parallelism (not bigger --jobs) is what raises core utilisation. Within a pair, A1 screen and
+    # A2 confirm stay threaded at cfg.jobs.
+    confirmed = []
+    pair_list = list(enumerate(pairs.items()))   # (idx, (tag, (A, B, ts)))
+
+    def do_pair(item):
+        idx, (tag, (A, B, ts)) = item
+        pA, pB = cfg.base_port + 2 * idx, cfg.base_port + 2 * idx + 1
         sA, sB = probe.launch(cfg, put, A, pA), probe.launch(cfg, put, B, pB)
         if not (probe.wait_listen(pA) and probe.wait_listen(pB)):
-            print(f"  {tag}: SERVER-FAIL", flush=True)
             probe.kill(sA, sB)
-            continue
+            print(f"  {tag}: SERVER-FAIL", flush=True)
+            return []
         # A1: cheap screen of every trace (threaded; servers reused).
         def screen(t):
             a, b = probe.batch(cfg, t, pA), probe.batch(cfg, t, pB)
@@ -95,16 +105,19 @@ def main():
         def confirm(t):
             a, b = probe.pooled_sig(cfg, t, pA), probe.pooled_sig(cfg, t, pB)
             return t if (a != probe.UNSTABLE and b != probe.UNSTABLE and a != b) else None
-        kept = 0
+        kept = []
         with ThreadPoolExecutor(max_workers=cfg.jobs) as ex:
             for r in ex.map(confirm, reps_pair):
                 if r:
-                    confirmed.append(r)
-                    kept += 1
-        print(f"  {tag:16s} A1={len(surv):5d}/{len(ts):<5d}  mechanisms={len(buckets):3d}  confirmed={kept}",
-              flush=True)
+                    kept.append(r)
         probe.kill(sA, sB)
-        time.sleep(0.2)
+        print(f"  {tag:16s} A1={len(surv):5d}/{len(ts):<5d}  mechanisms={len(buckets):3d}  confirmed={len(kept)}",
+              flush=True)
+        return kept
+
+    with ThreadPoolExecutor(max_workers=args.pair_jobs) as pex:
+        for kept in pex.map(do_pair, pair_list):
+            confirmed.extend(kept)
 
     print(f"[mine] confirmed distinguishing probes (no dedup): {len(confirmed)} of {ntot}", flush=True)
 

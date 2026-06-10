@@ -22,7 +22,7 @@ for d in "$REPO"/vendor/wolfssl*/; do
   [ -f "$lib" ] && [ -d "$src/examples/server" ] && [ -x "$cfg" ] || { echo "skip $v (incomplete)"; continue; }
   out="$d/bin/server"
   compile() {  # $1 = extra defines
-    ( cd "$src" && taskset -c "$CORES" gcc $1 examples/server/server.c "$STUB" \
+    ( cd "$src" && taskset -c "$CORES" cc $1 examples/server/server.c "$STUB" \
         $("$cfg" --cflags) -I"$src" $("$cfg" --libs) -lm -o "$out" ) 2>"/tmp/wolfbuild_$v.err"
   }
   vnum="${v#wolfssl}"

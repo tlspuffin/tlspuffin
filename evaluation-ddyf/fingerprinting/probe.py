@@ -110,8 +110,15 @@ def stable_sig(cfg, trace, port, retry=3):
 
 
 def launch(cfg, put, ver, port):
-    """Start the vendored stock server for (put, ver) on `port`, pinned to cfg.cores."""
+    """Start the vendored stock server for (put, ver) on `port`, pinned to cfg.cores.
+
+    If the server binary is missing (e.g. wolfssl 5.5.0/5.5.1, whose example server does not build),
+    return a harmless already-exiting placeholder process: `wait_listen` then fails and the caller
+    records SERVER-FAIL. This avoids a FileNotFoundError -- which Popen raises only when UNPINNED
+    (with a taskset prefix the wrapper exists and merely exec-fails into a quick exit)."""
     argv, env, cwd = server_argv(_puts.PUTS[put]["server_cmd"], ver, port)
+    if not os.path.exists(argv[0]):
+        return subprocess.Popen(["true"])          # dead placeholder -> wait_listen fails -> SERVER-FAIL
     e = dict(os.environ)
     e.update(env or {})
     return subprocess.Popen(cfg.task_prefix() + argv, env=e, cwd=cwd,

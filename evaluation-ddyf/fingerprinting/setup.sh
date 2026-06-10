@@ -26,6 +26,14 @@ export LIBAFL_EDGES_MAP_ALLOCATED_SIZE="${LIBAFL_EDGES_MAP_ALLOCATED_SIZE:-67108
 
 PUTS="${PUTS:-openssl wolfssl}"
 
+# Fail early with a clear message if the toolchain is missing (the usual cause is running outside the
+# nix dev shell). mk_vendor and the harness build both need cargo.
+command -v cargo >/dev/null 2>&1 || {
+  echo "[setup] ERROR: 'cargo' not found in PATH -- run this script INSIDE the dev shell:"
+  echo "         nix-shell ./shell.nix     # then re-run ./evaluation-ddyf/fingerprinting/setup.sh"
+  exit 1
+}
+
 # ---- 1) vendor each version named in the presets (mk_vendor builds the lib + bin tools) ---------
 for vendor in $PUTS; do
   presets="puffin-build/vendors/$vendor/presets.toml"
@@ -44,7 +52,12 @@ for vendor in $PUTS; do
     presets_list=""
     for v in ${!override_var}; do presets_list="$presets_list ${vendor}${v//./}"; done
   else
-    presets_list="$(grep -oE "^\[${vendor}[0-9]+\]" "$presets" | tr -d '[]')"
+    # Fingerprinting scope is ONE major line per PUT (openssl 3.x, wolfssl 5.x). Restrict to it so we
+    # never vendor out-of-scope versions like wolfssl 4.3.0, whose old headers don't match the 5.x
+    # harness (put.c uses WOLFSSL_TIMEVAL / wc_CryptoInfo etc. -> compile error on 4.x). The `[0-9]+\]`
+    # tail already excludes the -asan and 1.1.1u presets.
+    case "$vendor" in openssl) ln=3;; wolfssl) ln=5;; *) ln="";; esac
+    presets_list="$(grep -oE "^\[${vendor}${ln}[0-9]+\]" "$presets" | tr -d '[]')"
   fi
   # success marker of a completed mk_vendor build (per vendor); a failed build leaves an empty
   # vendor/<preset> stub that mk_vendor would treat as "already built" and skip on re-run.
