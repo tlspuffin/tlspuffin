@@ -46,7 +46,18 @@ for vendor in $PUTS; do
   else
     presets_list="$(grep -oE "^\[${vendor}[0-9]+\]" "$presets" | tr -d '[]')"
   fi
+  # success marker of a completed mk_vendor build (per vendor); a failed build leaves an empty
+  # vendor/<preset> stub that mk_vendor would treat as "already built" and skip on re-run.
+  case "$vendor" in
+    openssl) marker_rel="bin/openssl";;
+    wolfssl) marker_rel="lib/libwolfssl.a";;
+    *)       marker_rel="";;
+  esac
   for preset in $presets_list; do
+    if [ -d "vendor/$preset" ] && [ -n "$marker_rel" ] && [ ! -e "vendor/$preset/$marker_rel" ]; then
+      echo "[setup] removing broken stub vendor/$preset (missing $marker_rel) so mk_vendor retries"
+      rm -rf "vendor/$preset"
+    fi
     echo "[setup] vendoring $vendor:$preset"
     ./tools/mk_vendor make "$vendor:$preset" >/dev/null 2>&1 || echo "[setup] WARN $preset build failed"
   done

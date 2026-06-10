@@ -22,16 +22,31 @@ OPENSSL_VERSIONS = [
     "3.6.0", "3.6.1", "3.6.2"
 ]
 
+def _upsert_block(content, block_name, new_block, upstream_marker):
+    """Idempotency = 'already CORRECT', not merely 'already present'.
+
+    If `block_name` exists and ITS body (scoped to this block, up to the next section header) already
+    points at `upstream_marker`, keep it untouched. If it exists but points elsewhere (e.g. a stale
+    tlspuffin-fork branch written by an earlier broken run), strip that block and append the correct
+    one -- a TOML parser would otherwise use the FIRST (wrong) occurrence. If absent, append it.
+    Returns (content, changed)."""
+    start = content.find(block_name)
+    if start != -1:
+        nxt = content.find("\n[", start + len(block_name))   # next section header
+        end = nxt + 1 if nxt != -1 else len(content)
+        if upstream_marker in content[start:end]:
+            return content, False                            # already correct -> skip
+        content = content[:start] + content[end:]            # wrong -> remove, then re-append below
+    return content + new_block, True
+
+
 def generate_wolfssl(content):
     blocks_added = 0
     for version in WOLFSSL_VERSIONS:
         name_ver = version.replace(".", "")
         block_name = f"[wolfssl{name_ver}]"
-        if block_name in content: continue
-
         v_parts = [int(x) for x in version.split(".")]
         fix_line = 'fix = ["AllowClaim"]' if v_parts >= [5, 5, 0] else ''
-
         new_block = f"""
 {block_name}
 sources = {{ repo = "https://github.com/wolfSSL/wolfssl.git", branch = "v{version}-stable", version = "{version}" }}
@@ -39,8 +54,8 @@ builder = {{ type = "builtin", name = "wolfssl" }}
 sancov = true
 {fix_line}
 """
-        content += new_block
-        blocks_added += 1
+        content, changed = _upsert_block(content, block_name, new_block, "github.com/wolfSSL/wolfssl.git")
+        blocks_added += 1 if changed else 0
     return content, blocks_added
 
 def generate_openssl(content):
@@ -48,16 +63,14 @@ def generate_openssl(content):
     for version in OPENSSL_VERSIONS:
         name_ver = version.replace(".", "")
         block_name = f"[openssl{name_ver}]"
-        if block_name in content: continue
-
         new_block = f"""
 {block_name}
 sources = {{ repo = "https://github.com/openssl/openssl.git", branch = "openssl-{version}", version = "{version}" }}
 builder = {{ type = "builtin", name = "openssl" }}
 sancov = true
 """
-        content += new_block
-        blocks_added += 1
+        content, changed = _upsert_block(content, block_name, new_block, "github.com/openssl/openssl.git")
+        blocks_added += 1 if changed else 0
     return content, blocks_added
 
 def main():
