@@ -78,3 +78,17 @@ evaluation-ddyf/fingerprinting/reference_*/
 # (probes_full/) so the matrix/tree are rebuildable from the repo without the raw experiments/.
 !evaluation-ddyf/fingerprinting/reference/*/probes/*.trace
 !evaluation-ddyf/fingerprinting/reference/*/probes_full/*.trace
+
+# --- transient / per-agent working dirs (decluttered, never committed here) ---
+# papier-diff-fuzzing/ is the paper (TeX): intentionally never committed in this repo.
+papier-diff-fuzzing/
+# Claude Code project state.
+.claude/
+# exploratory BoringSSL drift workspace.
+bssl_drift/
+# scratch wolfssl source/build dirs.
+tmp_wolfssl591/
+tmp_wolfssl_src/
+# git worktrees created by parallel agents.
+wt-boring/
+wt-libre/

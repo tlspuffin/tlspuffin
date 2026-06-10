@@ -25,11 +25,33 @@ for d in "$REPO"/vendor/wolfssl*/; do
     ( cd "$src" && taskset -c "$CORES" gcc $1 examples/server/server.c "$STUB" \
         $("$cfg" --cflags) -I"$src" $("$cfg" --libs) -lm -o "$out" ) 2>"/tmp/wolfbuild_$v.err"
   }
+  vnum="${v#wolfssl}"
+  extra_flags=""
+  if [[ "$vnum" > "499" ]]; then
+      extra_flags="-DUSER_TICKS"
+      if [[ "$vnum" < "520" ]]; then
+          extra_flags="$extra_flags -DXTIME=time_cb"
+      fi
+  fi
+
   # some versions' example server references earlyData under a mismatched guard
-  if compile "" || compile "-DWOLFSSL_EARLY_DATA"; then
-    echo "OK   $v -> $out"; built=$((built+1))
+  if compile "$extra_flags" || compile "$extra_flags -DWOLFSSL_EARLY_DATA"; then
+    # Smoke-test: does it actually serve? Must run from the wolfSSL source root ($src) with the
+    # same flags the pipeline uses (-x continue-on-error, -d no-client-cert, -i loop, -b any-addr),
+    # because ChangeToWolfRoot() looks for certs/ in the cwd. Running it from elsewhere exits
+    # immediately and used to be misreported as "crashes on launch" (a false negative).
+    ( cd "$src" && "$out" -x -d -i -b -p 27599 ) >/dev/null 2>&1 &
+    pid=$!
+    sleep 0.3
+    if kill -0 $pid 2>/dev/null; then
+      kill -9 $pid 2>/dev/null
+      echo "OK   $v -> $out"
+      built=$((built+1))
+    else
+      echo "FAIL $v (server exits immediately even from \$src -- see /tmp/wolfbuild_$v.err)"; failed=$((failed+1))
+    fi
   else
-    echo "FAIL $v (see /tmp/wolfbuild_$v.err)"; failed=$((failed+1))
+    echo "FAIL $v (compile error, see /tmp/wolfbuild_$v.err)"; failed=$((failed+1))
   fi
 done
 echo "=== built $built, failed $failed ==="
