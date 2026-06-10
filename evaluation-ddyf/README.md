@@ -34,6 +34,8 @@ export LIBAFL_EDGES_MAP_SIZE=262144
 > DDYF can produce a lot of objectives/metadata files (> 4M for 24h runs), make sure that your filesystem can support this much files in one directory
 
 
+> Do not run multiple experiments in the same directory at the same time to prevent them from interfering
+
 ## Running a differential fuzzing campaign
 
 Build the desired PUTs (for example for OpenSSL 3.4.0 and WolfSSL 5.8.0):
@@ -66,7 +68,7 @@ To run the triaging script on the results:
 ```bash
 # this script only works for campaigns between OpenSSL and WolfSSL
 # variants exist for OpenSSL vs LibreSSL and OpenSSL vs BoringSSL
-python -m DDYF.sort_objectives_ossl_wolf path_to_experiment/objective
+python -m evaluation-ddyf.sort_objectives_ossl_wolf path_to_experiment/objective
 
 # list the content of the buckets
 ./evaluation-ddyf/list_buckets.sh path_to_experiment/objective
@@ -98,7 +100,7 @@ Note that a shorter time decreases the chances of finding any CVEs, the recommen
 
 ```bash
 # Run experiments 1 through 50
-./evaluation-ddyf/reproducing_cves.sh 1 50
+./evaluation-ddyf/reproducing_cve.sh 1 50
 ```
 
 Generate a CSV file of all the traces triggering CVEs :
@@ -114,10 +116,10 @@ Analyze the file:
 
 > Due to an incompatibility between the Python version provided with the nix-shell and the pandas library, do not execute the following commands inside the nix environment and instead execute it directly with your system's python (make sure to use a version >= 3.12)
 ```bash
-python -m venv DDYF/.venv
-source DDYF/.venv/bin/activate
+python -m venv evaluation-ddyf/.venv
+source evaluation-ddyf/.venv/bin/activate
 pip install pandas
-python -m DDYF.cves_stats cve_list.csv
+python -m evaluation-ddyf.cves_stats cve_list.csv
 ```
 
 
@@ -129,7 +131,7 @@ To measure the performances of DDYF run:
 ./evaluation-ddyf/perf_bench.sh 
 ```
 
-This while run 5 1h experiments 10 times (to account for variability):
+This will run 5 1h experiments 10 times (to account for variability):
 - Classical DY fuzzing on OpenSSL
 - Classical DY fuzzing on wolfSSL
 - DDYF fuzzing on OpenSSL vs OpenSSL
@@ -141,10 +143,10 @@ The result will be written to `results_perfs.csv` with the result of every run.
 To have a summary with mean execution per second and standard deviation run:
 
 ```bash
-python -m venv DDYF/.venv
-source DDYF/.venv/bin/activate
+python -m venv evaluation-ddyf/.venv
+source evaluation-ddyf/.venv/bin/activate
 pip install pandas
-python -m DDYF.perfs_stats results_perfs.csv
+python -m evaluation-ddyf.perfs_stats results_perfs.csv
 ```
 
 ## Ablation study
@@ -171,10 +173,10 @@ You can view a summary of the results using the following Python script:
 
 
 ```bash
-python -m venv DDYF/.venv
-source DDYF/.venv/bin/activate
+python -m venv evaluation-ddyf/.venv
+source evaluation-ddyf/.venv/bin/activate
 pip install pandas
-python -m DDYF.ablation_study_stats ablation_per_bucket.csv
+python -m evaluation-ddyf.ablation_study_stats ablation_per_bucket.csv
 ```
 
 This script will give a summary of the number of buckets lost per set of enabled/disabled DDYF features.

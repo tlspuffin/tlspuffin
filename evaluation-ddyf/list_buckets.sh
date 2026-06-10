@@ -11,7 +11,7 @@ if [ "$#" -eq 1 ]; then
     folder="$1"
 fi
 
-local total=$(find "$folder" -maxdepth 1 -type f -regextype posix-egrep -regex '.*\.trace(-[0-9]+)?' | wc -l)
+total=$(find "$folder" -maxdepth 1 -type f -regextype posix-egrep -regex '.*\.trace(-[0-9]+)?' | wc -l)
 
 echo "non triaged : $total"
 
