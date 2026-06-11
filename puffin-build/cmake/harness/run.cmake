@@ -46,7 +46,13 @@ set(PARTIAL_RELOCATION_COMMANDS "")
 if(APPLE)
   list(APPEND PARTIAL_RELOCATION_COMMANDS COMMAND clang -o ${CMAKE_BINARY_DIR}/${PUT}.o "${CMAKE_C_FLAGS}" -flto -nostdlib -nodefaultlibs -nostartfiles -Wl,-no_pie -Wl,-exported_symbol,_${PUT_ID} -Wl,-r $<TARGET_OBJECTS:${PUT}> ${LINK_LIBRARIES})
 else()
-  list(APPEND PARTIAL_RELOCATION_COMMANDS COMMAND clang -o ${CMAKE_BINARY_DIR}/${PUT}.o "${CMAKE_C_FLAGS}" -flto -nostdlib -nodefaultlibs -nostartfiles -Wl,-no-pie -Wl,-whole-archive -Wl,-r $<TARGET_OBJECTS:${PUT}> ${LINK_LIBRARIES})
+  # OpenSSL 3.0.x ships libcrypto.a with DES compiled into BOTH the main library and the legacy
+  # provider (libcrypto-lib-des_enc.o AND liblegacy-lib-des_enc.o), so -whole-archive force-loads
+  # both and the DES_*/fcrypt_body symbols collide. Modern binutils ld (>= ~2.36) errors on that
+  # ("multiple definition"); --allow-multiple-definition keeps the first (the duplicate objects are
+  # identical DES code, and this relocatable link only re-exports ${PUT_ID} via objcopy below). It is
+  # a no-op when there are no duplicates, so it is safe for every PUT/toolchain.
+  list(APPEND PARTIAL_RELOCATION_COMMANDS COMMAND clang -o ${CMAKE_BINARY_DIR}/${PUT}.o "${CMAKE_C_FLAGS}" -flto -nostdlib -nodefaultlibs -nostartfiles -Wl,-no-pie -Wl,-whole-archive -Wl,--allow-multiple-definition -Wl,-r $<TARGET_OBJECTS:${PUT}> ${LINK_LIBRARIES})
   list(APPEND PARTIAL_RELOCATION_COMMANDS COMMAND objcopy -G "${PUT_ID}" "${CMAKE_BINARY_DIR}/${PUT}.o")
 endif()
 
