@@ -4,17 +4,21 @@
   "sig_len": 0,
   "clusters": [
     [
-      "wolfssl510",
-      "wolfssl511",
-      "wolfssl520",
       "wolfssl550",
-      "wolfssl551"
+      "wolfssl551",
+      "wolfssl552",
+      "wolfssl553"
     ],
     [
       "wolfssl560",
       "wolfssl562",
       "wolfssl563",
       "wolfssl564"
+    ],
+    [
+      "wolfssl510",
+      "wolfssl511",
+      "wolfssl520"
     ],
     [
       "wolfssl576",
@@ -26,20 +30,14 @@
       "wolfssl521"
     ],
     [
-      "wolfssl530",
-      "wolfssl540"
-    ],
-    [
-      "wolfssl552",
-      "wolfssl553"
-    ],
-    [
-      "wolfssl572",
-      "wolfssl574"
-    ],
-    [
       "wolfssl590",
       "wolfssl591"
+    ],
+    [
+      "wolfssl530"
+    ],
+    [
+      "wolfssl540"
     ],
     [
       "wolfssl554"
@@ -49,6 +47,12 @@
     ],
     [
       "wolfssl570"
+    ],
+    [
+      "wolfssl572"
+    ],
+    [
+      "wolfssl574"
     ],
     [
       "wolfssl584"

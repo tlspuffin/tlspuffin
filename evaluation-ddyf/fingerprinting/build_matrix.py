@@ -28,6 +28,16 @@ import puts
 from probe import MISSING, SRVFAIL, UNSTABLE
 
 
+def write_signatures(out, versions, reps, matrix):
+    """Write the rows=probe x cols=version signature matrix to <out>/signatures.csv."""
+    out.mkdir(parents=True, exist_ok=True)
+    with open(out / "signatures.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["trace"] + versions)
+        for pi, t in enumerate(reps):
+            w.writerow([os.path.basename(t)] + [matrix[v][pi] for v in versions])
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     puts.add_put_arg(ap)
@@ -79,32 +89,35 @@ def main():
             print(f"  [{done[0]:2d}/{len(versions)}] {puts.dotted(put, v):7s} "
                   f"{len(uns):3d} UNSTABLE  ({int(time.time() - t0)}s)", flush=True)
 
-    # Re-check any still-UNSTABLE cells single-threaded (ultra-light load) -- last line of defence.
-    tot = sum(len(u) for u in flagged.values())
-    print(f"[build_matrix] re-checking {tot} flagged-UNSTABLE cells single-threaded...", flush=True)
+    # Re-check still-UNSTABLE cells single-threaded (ultra-light load) -- last line of defence. But an
+    # "inactive" probe gets no response (UNSTABLE) from EVERY version, so re-probing it can never
+    # resolve anything; those cells otherwise dominate the recheck (retry*N_POOL hopeless replays each)
+    # for zero clustering benefit (UNSTABLE == "no information"). Skip them; only genuinely jittery
+    # ACTIVE cells get a second look. Mirrors incremental_matrix.py's inactive-probe filter.
+    out = cfg.ref(put)
+    inactive = {pi for pi in range(len(reps)) if all(matrix[v][pi] in MISSING for v in versions)}
+    recheck = {v: [pi for pi in flagged[v] if pi not in inactive] for v in versions}
+    tot = sum(len(u) for u in recheck.values())
+    write_signatures(out, versions, reps, matrix)   # checkpoint BEFORE the recheck (crash-safe)
+    print(f"[build_matrix] {len(inactive)} inactive probe(s) skipped; re-checking {tot} active "
+          f"flagged-UNSTABLE cells single-threaded...", flush=True)
     for vi, v in enumerate(versions):
-        if not flagged[v]:
+        if not recheck[v]:
             continue
         port = cfg.base_port + 1000 + vi
         srv = probe.launch(cfg, put, v, port)
         if probe.wait_listen(port):
-            for pi in flagged[v]:
+            for pi in recheck[v]:
                 s = probe.sigkey(probe.stable_sig(cfg, reps[pi], port, retry=args.retry), sig_len)
                 if s not in MISSING:
                     matrix[v][pi] = s
         srv.terminate()
     still = sum(1 for v in versions for c in matrix[v] if c in MISSING)
-    print(f"[build_matrix] still UNSTABLE after re-check: {still}/{len(reps) * len(versions)} cells",
-          flush=True)
+    print(f"[build_matrix] still UNSTABLE after re-check: {still}/{len(reps) * len(versions)} cells "
+          f"({len(inactive) * len(versions)} from {len(inactive)} inactive probes)", flush=True)
 
-    # Write the matrix (rows = probe basename, cols = version).
-    out = cfg.ref(put)
-    out.mkdir(parents=True, exist_ok=True)
-    with open(out / "signatures.csv", "w", newline="") as f:
-        w = csv.writer(f)
-        w.writerow(["trace"] + versions)
-        for pi, t in enumerate(reps):
-            w.writerow([os.path.basename(t)] + [matrix[v][pi] for v in versions])
+    # Write the final matrix (rows = probe basename, cols = version).
+    write_signatures(out, versions, reps, matrix)
 
     # Wildcard compatibility clusters (reference only; the real classifier is the tree).
     def compat(u, v):

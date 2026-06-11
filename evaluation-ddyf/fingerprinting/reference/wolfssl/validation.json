@@ -3,7 +3,7 @@
   "correct": 26,
   "consistent": 26,
   "total": 26,
-  "max_traces": 3,
+  "max_traces": 4,
   "walks": 5,
-  "depth": 3
+  "depth": 4
 }

@@ -136,10 +136,12 @@ precise `--experiments-glob`.
 model-build time:**
 - **OpenSSL: `=0`** (no pause) + `--timeout 12`. OpenSSL answers immediately; a pause only perturbs it.
 - **WolfSSL: `=150` + `--timeout 15`.** WolfSSL's distinguishing flights on several adjacent pairs are
-  slow; at 100 ms / 12 s they *undersample* and merge (→ only 12 clusters), at **150 ms / 15 s** they
-  are captured (→ **14**). So the WolfSSL number is sensitive to the pause/timeout — always rebuild it
-  with 150/15. (Some sparse older pairs may still not separate if their objective pool is tiny — the
-  count is data- *and* parameter-bound.)
+  slow; at 100 ms / 12 s the prober *undersamples* them — cells go UNSTABLE and adjacent versions
+  merge — so always probe WolfSSL at **150 ms / 15 s** for stable capture. *Given* stable capture, the
+  cluster **count** is then set by probe-set density: the committed dense **77-probe** set splits
+  5.3.0/5.4.0 and 5.7.2/5.7.4 (→ **14** clusters, depth 4); a sparser set lacks those discriminators
+  and merges both pairs (→ 12). So the WolfSSL number is both parameter-bound (150/15 for stability)
+  *and* probe-set-bound (the 77 probes carry the two extra splits).
 
 The env-gate is what lets one binary serve both (set the value per run). A genuinely *universal*
 deployment prober that doesn't know the target's library is the open problem — the adaptive-pause idea
@@ -149,7 +151,7 @@ deployment prober that doesn't know the target's library is the open problem —
 
 - **WolfSSL live (14) vs offline (21).** The live-TCP method merges versions whose only differences
   are in *decrypted* content. The offline decryption-enabled regime resolves 26 versions → 21
-  clusters; live-TCP resolves 24 → 14. This artifact ships the live models for both PUTs.
+  clusters; live-TCP resolves 26 → 14. This artifact ships the live models for both PUTs.
 - **Old vs new tree format.** The WolfSSL model predates the `probe`/`default` node fields; `report.py`
   and `validate.py` tolerate their absence (probe index is recovered from the trace basename; an
   unseen sig with no `default` falls back gracefully). New trees from `build_tree.py` include both.
@@ -169,7 +171,7 @@ deployment prober that doesn't know the target's library is the open problem —
   pool failed (`executed_until = -1`) and the cell flapped UNSTABLE. The fix (in
   `tlspuffin/src/tcp/mod.rs`) is a **100 ms `thread::sleep` after each input write and each output
   read**, giving the server time to finish before the next action / teardown. With it WolfSSL
-  validates **26/26** (26 versions, **12 clusters**, depth 3, 8 probes) and rebuilds through the
+  validates **26/26** (26 versions, **14 clusters**, depth 4, 7 probes) and rebuilds through the
   unified pipeline like OpenSSL.
   **This is implemented** in `tcp/mod.rs` as `io_pacing_sleep()` reading the env-gate
   **`PUFFIN_TCP_IO_SLEEP_MS`** (default **100**, `0` disables), called before each `read_to_end` and
@@ -179,14 +181,15 @@ deployment prober that doesn't know the target's library is the open problem —
   open problem — one fixed setting that fits both needs the adaptive idea below. *Further
   optimisation (open):* make the pause adaptive — return early once a response or TCP FIN is seen —
   to recover the speed the fixed sleep costs and shrink the OpenSSL perturbation toward zero.
-- **WolfSSL 5.5.0 / 5.5.1 have no vendored server binary.** Their example server fails to build
-  (`wolfSSL_get_early_data_status` / earlyData config), so `vendor/wolfssl550/bin/server` is *absent*
-  — `probe.launch` raises `FileNotFoundError` and `mine_probes` logs the pair as `SERVER-FAIL`. This
-  is a pre-existing build gap, **not** a probing/contention artifact: a pair `SERVER-FAIL` involving
-  5.5.0/5.5.1 is expected. In the matrix they show all-`UNSTABLE` columns and fall to the tree's
-  default branch. (Distinguish from a *transient* `SERVER-FAIL`, where both servers exist and come up
-  in other pairs of the same run — that one is a port-bind/`wait_listen` race, recoverable by
-  re-mining just that pair.)
+- **WolfSSL 5.5.0 / 5.5.1 need an extra build flag (now handled).** Their `examples/server/server.c`
+  references `earlyData` at an unguarded `(void) earlyData;` while the declaration sits under
+  `#ifdef WOLFSSL_EARLY_DATA`, *and* the vendored lib has no early-data symbols — so the plain build
+  fails to compile and `-DWOLFSSL_EARLY_DATA` then fails to *link* (`wolfSSL_get_early_data_status`).
+  `build_wolfssl_servers.sh` resolves this with a third fallback, **`-DearlyData=0`** (keep early data
+  off to match the lib, just neutralise the one stray reference). With it both servers build, respond
+  live, and cluster with 5.5.2/5.5.3 (the 5.5.x family) — no longer a `SERVER-FAIL`/default-routing
+  case. (Distinguish from a *transient* `SERVER-FAIL`, where a server exists but loses a
+  port-bind/`wait_listen` race — recoverable by re-probing just that version.)
 - **Concurrent runs must pin to *disjoint* cores, and verify the pin took.** Invariant 3 (controlled
   load) is per-server-sequential *and* per-run-isolated: two matrices probing at once corrupt each
   other's captures even at low aggregate load (a co-scheduled probe steals the CPU mid-`read_to_end`
