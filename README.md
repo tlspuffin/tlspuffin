@@ -1,104 +1,195 @@
-# DY Fuzzing: Formal Dolev-Yao Models Meet Cryptographic Protocol Fuzz Testing
+# DDYF
 
-[![unstable](http://badges.github.io/stability-badges/dist/unstable.svg)](http://github.com/badges/stability-badges)[![CI Status](https://img.shields.io/github/actions/workflow/status/tlspuffin/tlspuffin/on-pr-merged.yml?branch=main&style=flat-square&label=CI)](https://github.com/tlspuffin/tlspuffin/actions/workflows/on-pr-merged.yml)
+This is the companion artifact for the paper "DDYF: Differential Dolev-Yao Fuzzing of Cryptographic Protocols". We provide in this artifact:
+ - the code of Dpuffin: our implementation of DDYF, a differential fuzzer for cryptographic protocols, which is based on the DY fuzzer puffin
+ - various scripts to reproduce the experiments presented in Section 5
 
-## What is `puffin`?
+The code provided in this repository is a fork from (https[://]github[.]com/tlspuffin/tlspuffin) and is provided under the same licenses.
 
-The `puffin` fuzzer is the reference implementation for the [Dolev-Yao fuzzing approach](https://www.computer.org/csdl/pds/api/csdl/proceedings/download-article/1Ub234bjuWA/pdf) (eprint publicly accessible [here](https://eprint.iacr.org/2023/57)).
-It aims at fuzzing cryptographic protocol implementations. For now, it is shipped with harnesses for several TLS implementations (OpenSSL, BoringSSL, LibreSSL, and wolfSSL) and
-preliminary versions of a harness for OpenSSH. We built `puffin` so that new protocols and protocol implementations can be added.
-Internally, `puffin` uses the library [LibAFL](https://aflplus.plus/libafl-book/) to drive the fuzzing loop.
+> For more information about the usage of the puffin fuzzer you can find its original documentation at https[://]tlspuffin[.]github[.]io/docs/overview/
 
-We sometimes use `tlspuffin` instead of `puffin` to name the fuzzer and this project. This is because the first protocol we implemented was TLS. However, `puffin` and DY fuzzing in general are not limited to the TLS protocol.
+## Prerequisites
 
-## Building and using `puffin`
-Please refer to the up-to-date [user manual](https://tlspuffin.github.io/docs/overview).
-We also provide a [quickstart guide](https://tlspuffin.github.io/docs/guides/quickstart) for a fast setup.
+All experiments with DDYF where done on Linux and may not work on other operating systems.
 
-## License
+To ensure reproducibility, we use [Nix](https://nixos.org/) to manage dependencies.
+All experiments should be run inside a [Nix shell](https://nixos.wiki/wiki/Development_environment_with_nix-shell) environment:
+```bash
+nix-shell ./shell.nix
+```
 
-Licensed under either of
-
-* Apache License, Version 2.0
-  ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
-* MIT license
-  ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/blog/license/mit)
-
-at your option.
-Note that tlspuffin also contains code/modification from external projects. See [THIRD_PARTY](THIRD_PARTY) for more details.
-
-## Contributing to `puffin`
-We welcome any external contributions through [pull requests](https://github.com/tlspuffin/tlspuffin/pulls), see for example the [list](https://github.com/tlspuffin/tlspuffin/issues?q=is%3Aissue%20state%3Aopen%20(label%3A%22help%20wanted%22%20OR%20label%3A%22good%20first%20issue%22%20)%20) of "good first issues".  
-Please refer to the up-to-date [developer documentation](https://tlspuffin.github.io/docs/overview).
-Unless you explicitly state otherwise, any contribution intentionally submitted
-for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
-dual licensed as above, without any additional terms or conditions.
-
-
-## Background on DY Fuzzing
-Critical and widely used cryptographic protocols have repeatedly been found to contain flaws in their design and implementation. A prominent class of such vulnerabilities is **logical attacks**, e.g., attacks that exploit flawed protocol logic. Automated formal verification methods, based on the **Dolev-Yao (DY) attacker** (shown in green in the Figure below), formally define and excel at finding such flaws but operate only on abstract specification models. Fully automated verification of existing protocol implementations is today still out of reach. This leaves open whether such implementations are secure. Unfortunately, this blind spot hides numerous attacks, such as recent logical attacks on widely used TLS implementations introduced by implementation bugs.
-
-### Challenges in Detecting Implementation-Level Logical Attacks
-
-We are concerned with finding implementation-level logical attacks in large cryptographic protocol code bases. For this, we build on **fuzz testing**. However, state-of-the-art fuzzers (shown on the left in the Figure) cannot capture the class of logical attacks for two main reasons. First, they fail to effectively **capture the DY attacker**, particularly the ability of structural modifications on the term representation of messages in DY models (e.g., re-signing a message with some adversarial-controlled key), a prerequisite to capture logical attacks. We emphasize that logical attacks may trigger protocol or memory vulnerabilities. Second, they cannot detect **protocol vulnerabilities**, which are security violations at the protocol level, e.g., for the attacks that trigger protocol vulnerabilities, which are not memory-related, such as an authentication bypass.
-
-###  DY Model-Guided Fuzzing
-
-We answer in [1] by proposing a novel and effective technique called DY model-guided fuzzing, which precludes logical attacks against protocol implementations. The main idea is to consider as possible test cases the set of abstract DY executions of the DY attacker, and use a novel mutation-based fuzzer to explore this set (shown in the middle of the Figure). The DY fuzzer concretizes each abstract execution to test it on the program under test. This approach enables reasoning at a more structural and security-related level of messages represented as formal terms (e.g., decrypt a message and re-encrypt it with a different key) instead of random bit-level modifications that are much less likely to produce relevant logical adversarial behaviors.
-
-
-<center><img src="https://tlspuffin.github.io/assets/images/DYF_illustrations-7f3ce4e536a9e941373f30a7de1e1b94.png" width="900"></center>
-<center>The gap filled by DY fuzzing and tlspuffin (shown in the middle).</center>
-
-
-### Implementation
-
-[tlspuffin](https://github.com/tlspuffin/tlspuffin) is our reference implementation of such a DY fuzzer. It is built modularly so that new protocols and Programs Under Test (PUTs) can be integrated and tested. We have already integrated the TLS protocol and the OpenSSL, BoringSSL, WolfSSL, and LibreSSL PUTs. tlspuffin has already found 8 CVEs (see table below), including five new ones (including a critical one) that were all acknowledged and patched.
-Interestingly and as a witness to the claims above,
-those five newly found bugs are not currently found by state-of-the-art fuzzers [1].
-
-
-| CVE ID                                                             | CVSS | Type         | Novel                                   | Version   |
-|--------------------------------------------------------------------|-----|--------------|-----------------------------------------|---------|
-| [2021-3449](https://www.cve.org/CVERecord?id=CVE-2021-3449)        | 5.9 | Server DoS | ❌                                       | 1.1.1j   |
-| [2022-25638](https://www.cve.org/CVERecord?id=CVE-2022-25638)      | 6.5 | Auth. Bypass | ❌                                       | 5.1.0   |
-| [2022-25640](https://www.cve.org/CVERecord?id=CVE-2022-25640)      | ️7.5❗ | Auth. Bypass | ❌                                      | 5.1.0     |
-| [2022-38152](https://www.cve.org/CVERecord?id=CVE-2022-38152)      | 7.5❗ | Server DoS | ✅                                       | 5.4.0     |
-| [2022-38153](https://www.cve.org/CVERecord?id=CVE-2022-38153)      | 5.9 | Client DoS | ✅ | 5.3.0     |
-| [2022-39173](https://www.cve.org/CVERecord?id=CVE-2022-39173)      | 7.5❗ | Server DoS | ✅ | 5.5.0    |
-| [2022-42905](https://www.cve.org/CVERecord?id=CVE-2022-42905)      | 9.1❗ | Info. Leak | ✅ | 5.5.0   |
-| [2023-6936](https://www.cve.org/CVERecord?id=CVE-2023-6936)      | 5.3 | Info. Leak | ✅ | 5.6.6     |
-
-
-Some features:
-* Uses the [LibAFL fuzzing framework](https://github.com/AFLplusplus/LibAFL)
-* Fuzzer which is inspired by the [Dolev-Yao models](https://en.wikipedia.org/wiki/Dolev%E2%80%93Yao_model) used in protocol verification
-* Domain specific mutators for Protocol Fuzzing!
-* Supported Libraries Under Test:
-  * OpenSSL 1.0.1f, 1.0.2u, 1.1.1k
-  * LibreSSL 3.3.3
-  * wolfSSL 5.1.0 - 5.4.0
-  * BoringSSL (last commit tested 368d0d87d0bd00f8227f74ce18e8e4384eaf6afa)
-    - Disclaimer : there is a bug will building in debug mode with asan (set `lto=true` in `Cargo.toml` to circumvent)
-* Reproducible for each LUT. We use sources from fresh git clone of vendor libraries.
-* 70% Test Coverage
-* Written in Rust!
+To make sure that all scripts are executable, run:
+```bash
+chmod +x ./evaluation-ddyf/*sh
+```
 
 
 
-## Team
+Most scripts contain variables such as `TIMEOUT`, `CORES`, `RUNS` that can be edited. Default values correspond to the parameters used in the paper. 
+Python triaging scripts (`sort_objectives_ossl_wolf.py`, `ablatation_study_sort.py`, `find_known_cve.py`) contain a `PARALLELISM` variable to select how much files should be triaged in parallel (recommended maximum is 2x core count).
 
-- [Tom Gouville](https://github.com/aeyno) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Lucca Hirschi](https://members.loria.fr/LHirschi/) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Steve Kremer](https://members.loria.fr/SKremer/) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Michael Mera](https://github.com/michaelmera) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Max Ammann](https://github.com/maxammann)
+If not running in a nix-shell (highly discouraged), make sure to have at least `cargo`, `Python 3`, `autoconf`, `automake`, `just`, `cmake`, and `clang` installed on your computer. Also run the following environment variable export in your terminal before running the fuzzer:
 
-This project is partially funded by the [ANR JCJC project ProtoFuzz](https://project.inria.fr/protofuzz/).
-We are still looking to hire motivated students/postdocs/engineers in Nancy, France as part of this project.
+```bash
+export LIBAFL_EDGES_MAP_SIZE=262144
+```
 
-## References
 
-[1] [M. Ammann, L. Hirschi and S. Kremer, "DY Fuzzing: Formal Dolev-Yao Models Meet Cryptographic Protocol Fuzz Testing," in 2024 IEEE Symposium on Security and Privacy (SP), San Francisco, CA, USA, 2024 pp. 99-99.](https://www.computer.org/csdl/pds/api/csdl/proceedings/download-article/1Ub234bjuWA/pdf)
+> DDYF can produce a lot of objectives/metadata files (> 4M for 24h runs), make sure that your filesystem can support this much files in one directory
 
-[2] [DY Fuzzing Poster](https://tlspuffin.github.io/assets/files/SP24_Poster-f90cdd5b2df492a64fa18089c98a7b2e.pdf)
+
+> Do not run multiple experiments in the same directory at the same time to prevent them from interfering
+
+## Running a differential fuzzing campaign
+
+Build the desired PUTs (for example for OpenSSL 3.4.0 and WolfSSL 5.8.0):
+```bash
+chmod +x ./tools/mk_vendor # if mk_vendor is not executable
+./tools/mk_vendor make openssl:openssl340
+./tools/mk_vendor make wolfssl:wolfssl580
+```
+
+Build the fuzzer for the PUTs that have been built with `./tools/mk_vendor`:
+```bash
+cargo build --release --bin tlspuffin --features cputs
+```
+
+If you want to build the fuzzer with an other set of PUTs, run `cargo clean` before starting a new build.
+
+Generate the seed traces with:
+```bash
+./target/release/tlspuffin seed --differential
+```
+
+Launch a fuzzing campaign, here between OpenSSL 3.4.0 and WolfSSL 5.8.0 with an experiment name "my_experiment":
+```bash
+./target/release/tlspuffin differential-experiment openssl340 wolfssl580 -t "my_experiment" 
+```
+
+The results (corpus, objectives, metadata and logging) will be stored in a new folder located in `./experiments/`. Stop the campaign at any time with `CTRL+C`.
+
+To run the triaging script on the results:
+```bash
+# this script only works for campaigns between OpenSSL and WolfSSL
+# variants exist for OpenSSL vs LibreSSL and OpenSSL vs BoringSSL
+python -m evaluation-ddyf.sort_objectives_ossl_wolf path_to_experiment/objective
+
+# list the content of the buckets
+./evaluation-ddyf/list_buckets.sh path_to_experiment/objective
+```
+
+## Executing one trace with differential fuzzing
+
+To execute one trace (for example `path_to_trace`) on both OpenSSL 3.4.0 and WolfSSL 5.8.0 and display the differences:
+```bash
+./target/release/tlspuffin differential-execute openssl340 wolfssl580 path_to_trace
+```
+
+You can also see the details of an execution on one PUT (here WolfSSL 5.8.0) with:
+```bash
+./target/release/tlspuffin --put wolfssl580 display-execute -tckp path_to_trace
+```
+where
+- `-t`: Show the terms computed at each input step
+- `-c`: Show the claims emitted at each input step
+- `-k`: Show the knowledges gathered at each output step
+- `-p`: Evaluate the post execution terms used in differential fuzzing
+
+## CVE reproduction benchmark
+
+Run the fuzzing campaigns using `reproducing_cves.sh` script after activation the Nix shell environment.
+
+You can edit the `TIMEOUT` and `CORE_PER_EXP` variables to setup the duration, number of campaigns and cores per campaigns.
+Note that a shorter time decreases the chances of finding any CVEs, the recommended value is 5h with a recent CPU.
+
+```bash
+# Run experiments 1 through 50
+./evaluation-ddyf/reproducing_cve.sh 1 50
+```
+
+Generate a CSV file of all the traces triggering CVEs :
+
+```bash
+./evaluation-ddyf/listing_reproduced_cves.sh
+```
+
+This should create a `cve_list.csv` file.
+
+
+Analyze the file:
+
+> Due to an incompatibility between the Python version provided with the nix-shell and the pandas library, do not execute the following commands inside the nix environment and instead execute it directly with your system's python (make sure to use a version >= 3.12)
+```bash
+python -m venv evaluation-ddyf/.venv
+source evaluation-ddyf/.venv/bin/activate
+pip install pandas
+python -m evaluation-ddyf.cves_stats cve_list.csv
+```
+
+
+## Measuring performances
+
+To measure the performances of DDYF run:
+
+```bash
+./evaluation-ddyf/perf_bench.sh 
+```
+
+This will run 5 1h experiments 10 times (to account for variability):
+- Classical DY fuzzing on OpenSSL
+- Classical DY fuzzing on wolfSSL
+- DDYF fuzzing on OpenSSL vs OpenSSL
+- DDYF fuzzing on wolfSSL vs wolfSSL
+- DDYF fuzzing on OpenSSL vs wolfSSL
+
+The result will be written to `results_perfs.csv` with the result of every run.
+
+To have a summary with mean execution per second and standard deviation run:
+
+```bash
+python -m venv evaluation-ddyf/.venv
+source evaluation-ddyf/.venv/bin/activate
+pip install pandas
+python -m evaluation-ddyf.perfs_stats results_perfs.csv
+```
+
+## Ablation study
+
+After running a differential fuzzing campaign, run:
+
+```bash
+./evaluation-ddyf/ablation_study.sh path/to/objectives
+```
+
+This will produce an `ablation.csv` file containing the result for each experiment listing the number of traces that are still found and the number of traces lost during when disabling the feature.
+
+## Per bucket ablation study
+
+You can run a per bucket ablation study using
+
+```bash
+./evaluation-ddyf/ablation_study_per_buckets.sh path/to/objectives
+```
+
+This will create an `ablation_per_bucket.csv` file containing the result of the each experiment per buckets.
+
+You can view a summary of the results using the following Python script:
+
+
+```bash
+python -m venv evaluation-ddyf/.venv
+source evaluation-ddyf/.venv/bin/activate
+pip install pandas
+python -m evaluation-ddyf.ablation_study_stats ablation_per_bucket.csv
+```
+
+This script will give a summary of the number of buckets lost per set of enabled/disabled DDYF features.
+
+## Triaging from scratch with LLM
+
+You can use LLM to do a complete triaging and analysis of a campaign's objectives.
+
+The entry point for starting an LLM based triaging is the `evaluation-ddyf/prompts-v3/START_HERE.md` file that will explain the whole triaging procedure. The ORCHESTRATOR and AUDITOR prompts are expecting OpenSSL vs LibreSSL campaign but you can specify which PUT were used in the campaign to guide the LLMs.
+
+> This LLM triaging has been tested with Anthropic's Claude code (Sonnet 4.6 and Opus 4.8), GitHub Copilot (Sonnet 4.6) and Gemini 3.x.
+> The .md files explicitly reference Claude but you can use those prompts with other LLMs
