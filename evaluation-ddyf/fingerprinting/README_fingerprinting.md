@@ -239,9 +239,13 @@ python3 fingerprint_probe.py --host 127.0.0.1 --port 4433 --put openssl wolfssl 
 python3 run_fingerprint.py identify --host example.com --port 443 --put openssl wolfssl
 ```
 
-A model only *claims* a target when every decision probe’s live response matches a real branch
-(no forced default, no missing response), so an unrelated stack returns `unknown` rather than a
-false positive.
+Each PUT model walks the target and reports how many decision nodes it *matched* vs had to *default*;
+the verdict is the model with the most matched nodes (and fewest forced defaults), with `confidence`
+from the margin. The right library wins because an unrelated model matches little and defaults a lot —
+e.g. probing a live OpenSSL 3.6.2 server with `--put openssl wolfssl` returns `openssl → {3.6.2}` at
+high confidence (openssl matched 2 / defaulted 0; wolfssl matched 1 / defaulted 2 and loses). (A model
+*can* soft-claim with forced defaults, so the cross-model ranking — not a single model's walk — is
+what makes the verdict robust; if no model matches anything it returns `unknown`.)
 
 ## What is committed
 
