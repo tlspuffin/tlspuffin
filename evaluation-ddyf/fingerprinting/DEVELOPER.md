@@ -87,7 +87,7 @@ These are not optional — each fixes a failure that *looked* like signal but wa
    `--jobs` servers in parallel), retries `UNSTABLE`, and re-checks stragglers single-threaded.
    Then `validate.py` does a **train/test split**: it walks the tree against *freshly-probed* live
    servers (R independent walks each). The honest robustness number is the validation count
-   (OpenSSL 61/61, WolfSSL 23/24), never the construction count. Always run on a quiet machine and,
+   (OpenSSL 60/61, WolfSSL 26/26), never the construction count. Always run on a quiet machine and,
    when others share it, pin to a spread idle core set via `--cores`.
 
 ## Canonicalisation (`_canon.py`)
@@ -130,11 +130,20 @@ the derived default `<repo>/experiments/...`. So the default works out of the bo
 experiments folder needs only `--experiments-dir`, and a single batch/pair is selectable with a
 precise `--experiments-glob`.
 
-**Prober I/O pause — `PUFFIN_TCP_IO_SLEEP_MS`.** The WolfSSL fix below is wired as a single env-gate
-read in `tcp/mod.rs` (`io_pacing_sleep()`), default **100 ms**, `0` disables. It sleeps before each
-`read_to_end` and after each write, on both the client- and server-side TCP puts. It is **universal,
-not per-PUT** (deployment can't know the target's library), so a freshly-built prober paces by
-default; set `PUFFIN_TCP_IO_SLEEP_MS=0` to reproduce OpenSSL's no-sleep 61/61.
+**Prober I/O pause — `PUFFIN_TCP_IO_SLEEP_MS` (+ `--timeout`).** A single env-gate read in
+`tcp/mod.rs` (`io_pacing_sleep()`), default **100 ms**, `0` disables; it sleeps before each
+`read_to_end` and after each write on both TCP puts. **The right value is PUT-specific at
+model-build time:**
+- **OpenSSL: `=0`** (no pause) + `--timeout 12`. OpenSSL answers immediately; a pause only perturbs it.
+- **WolfSSL: `=150` + `--timeout 15`.** WolfSSL's distinguishing flights on several adjacent pairs are
+  slow; at 100 ms / 12 s they *undersample* and merge (→ only 12 clusters), at **150 ms / 15 s** they
+  are captured (→ **14**). So the WolfSSL number is sensitive to the pause/timeout — always rebuild it
+  with 150/15. (Some sparse older pairs may still not separate if their objective pool is tiny — the
+  count is data- *and* parameter-bound.)
+
+The env-gate is what lets one binary serve both (set the value per run). A genuinely *universal*
+deployment prober that doesn't know the target's library is the open problem — the adaptive-pause idea
+(return early on response/FIN) would shrink the OpenSSL perturbation and let one setting fit both.
 
 ## Gotchas
 
@@ -146,11 +155,11 @@ default; set `PUFFIN_TCP_IO_SLEEP_MS=0` to reproduce OpenSSL's no-sleep 61/61.
   unseen sig with no `default` falls back gracefully). New trees from `build_tree.py` include both.
 - **Don't rebuild a shipped tree without its full probe set.** `build_tree.py` refuses to run when
   `reference/<put>/probes_full/reps.txt` is absent — otherwise it would induce a tree from the partial
-  committed matrix and overwrite a validated model with a weaker one (a wildcard rebuild of the
-  WolfSSL tree from only its 8 committed traces drops live recognition from 23/24 to 3/24). OpenSSL
-  ships `probes_full/` (gitignored) so it rebuilds faithfully; the WolfSSL tree is reproduced by
-  re-walking it (`--stages validate,report`), not rebuilding. Hence the driver default is
-  `validate,report`, not a full rebuild.
+  committed matrix and overwrite the validated model with a weaker one. Both PUTs **ship**
+  `probes_full/` (committed — the `.gitignore` force-includes `reference/*/probes_full/*.trace`), so
+  both rebuild faithfully via `--stages tree,validate,report` (re-induce + re-walk) or
+  `matrix,tree,validate,report` (also re-probe the matrix). The driver default is `validate,report`
+  (no rebuild needed to reproduce the committed numbers).
 - **WolfSSL instability was socket-abort crashes, fixed by a 100 ms inter-action sleep.** WolfSSL's
   example server returned non-reproducible responses to ~24/77 probes — but this was **not** intrinsic
   jitter, **not** load, and **not** the read window (an earlier "intrinsic" reading was a confounded
@@ -160,16 +169,14 @@ default; set `PUFFIN_TCP_IO_SLEEP_MS=0` to reproduce OpenSSL's no-sleep 61/61.
   pool failed (`executed_until = -1`) and the cell flapped UNSTABLE. The fix (in
   `tlspuffin/src/tcp/mod.rs`) is a **100 ms `thread::sleep` after each input write and each output
   read**, giving the server time to finish before the next action / teardown. With it WolfSSL
-  validates **26/26** (26 versions, 14 clusters, depth 4, 6 probes) and rebuilds through the unified
-  pipeline like OpenSSL.
-  **This is now implemented** in `tcp/mod.rs` as `io_pacing_sleep()` reading the env-gate
+  validates **26/26** (26 versions, **12 clusters**, depth 3, 8 probes) and rebuilds through the
+  unified pipeline like OpenSSL.
+  **This is implemented** in `tcp/mod.rs` as `io_pacing_sleep()` reading the env-gate
   **`PUFFIN_TCP_IO_SLEEP_MS`** (default **100**, `0` disables), called before each `read_to_end` and
-  after each write on both TCP puts. We chose a **universal** gate over a per-PUT one deliberately:
-  the deployment prober points at an unknown `host:port` and cannot know whether it is OpenSSL or
-  WolfSSL, so a per-PUT sleep is not realisable in the field — one setting must serve both. The
-  trade-off is real but small: 100 ms is essential for WolfSSL and measurably perturbs OpenSSL
-  (**61/61 → 59/61**); to reproduce OpenSSL's 61/61 exactly, run *its* prober with
-  `PUFFIN_TCP_IO_SLEEP_MS=0` (the gate makes this a runtime choice, no rebuild). *Further
+  after each write on both TCP puts. **The value is set per PUT at model-build time** — WolfSSL
+  `=150` (+ `--timeout 15`; 100/12 undersamples its slow flights), OpenSSL `=0` (a pause only
+  perturbs it). A genuinely *universal* deployment prober that can't know the target's library is the
+  open problem — one fixed setting that fits both needs the adaptive idea below. *Further
   optimisation (open):* make the pause adaptive — return early once a response or TCP FIN is seen —
   to recover the speed the fixed sleep costs and shrink the OpenSSL perturbation toward zero.
 - **WolfSSL 5.5.0 / 5.5.1 have no vendored server binary.** Their example server fails to build
@@ -194,4 +201,4 @@ default; set `PUFFIN_TCP_IO_SLEEP_MS=0` to reproduce OpenSSL's no-sleep 61/61.
 - **Provenance.** Superseded scripts, exploratory dirs, and prior reports are in `archive/`
   (gitignored) — including the older strict-three-batch OpenSSL analysis (`confirm_*`,
   `robust_partition*`) that produced the coarse 3-group lower bound before the controlled-load
-  rebuild lifted it to the validated 10 clusters.
+  rebuild lifted it to the validated 11 clusters.

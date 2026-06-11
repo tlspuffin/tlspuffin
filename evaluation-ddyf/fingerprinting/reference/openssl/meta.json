@@ -58,7 +58,6 @@
       "openssl318"
     ],
     [
-      "openssl350",
       "openssl351",
       "openssl352",
       "openssl353",
@@ -77,6 +76,9 @@
     [
       "openssl360",
       "openssl361"
+    ],
+    [
+      "openssl350"
     ],
     [
       "openssl356"

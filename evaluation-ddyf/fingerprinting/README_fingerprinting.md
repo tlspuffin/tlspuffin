@@ -11,14 +11,28 @@ The same pipeline runs on any supported PUT (Program-Under-Test). Today: **OpenS
 
 ## Result (live-TCP, this artifact)
 
-| PUT | versions | clusters | tree depth | probes used | live deployment validation |
-|---|---:|---:|---:|---:|---|
-| OpenSSL 3.x (3.0.0–3.6.2) | 61 | **10** | 3 | 3 | **61/61** recognised, consistently, ≤3 traces |
-| WolfSSL 5.x (5.0.0–5.9.1) | 26 | **14** | 4 | 6 | **26/26** recognised, consistently, ≤4 traces |
+| PUT | versions | clusters | tree depth | probes used | live deployment validation | prober params |
+|---|---:|---:|---:|---:|---|---|
+| OpenSSL 3.x (3.0.0–3.6.2) | 61 | **11** | 4 | 4 | **60/61** recognised consistently, ≤4 traces | `PUFFIN_TCP_IO_SLEEP_MS=0` |
+| WolfSSL 5.x (5.0.0–5.9.1) | 26 | **12** | 3 | 8 | **26/26** recognised consistently, ≤3 traces | `PUFFIN_TCP_IO_SLEEP_MS=150 --timeout 15` |
 
 “Cluster” = a group of versions no probe can tell apart over the wire. The OpenSSL boundaries are
-dominated by upstream’s coordinated release waves (e.g. cluster {3.2.4, 3.3.3, 3.4.1} is exactly the
-Feb-2025 backport set); see `reference/openssl/report.md`.
+dominated by upstream’s coordinated release waves; see `reference/openssl/report.md`. The committed
+numbers were rebuilt with exactly the per-PUT prober params in the table.
+
+> **Prober params are per-PUT (model-build time).** OpenSSL needs **no** pause (`=0`) — it answers
+> immediately and a pause only perturbs it (the smaller-probe-set alternative is 10 clusters / 61-61,
+> fully robust; the committed 11/60-61 uses the larger 639-probe run, trading one fragile
+> single-version split). WolfSSL needs the pause + longer timeout (`150 ms` / `15 s`) to capture its
+> slower distinguishing flights.
+
+> **WolfSSL 12 vs 14 — it's server/data-bound, not method-bound.** This artifact's campaigns yield
+> **12** clusters (reproduced 3× here): a few sparse adjacent pairs — notably **5.3.0/5.4.0** — are
+> wire-identical on *these* vendored servers, so no probe separates them, even with the denser
+> combined campaigns (5.3.0-5.4.0 has 367 objectives yet 0 confirmed distinguishers). On a second
+> machine whose vendored 5.3.0/5.4.0 servers *do* differ on the wire, the same pipeline (150/15)
+> reaches **14** (5.3.0 and 5.4.0 become singletons). So **12 is the honest reproducible number for
+> this repo's data**; 14 is achievable with servers/objectives that split those pairs.
 
 > **Scope note.** These are the **live-TCP** numbers (a remote observer who never decrypts). An
 > offline regime that *does* decrypt (display-execute / FFI signatures) resolves WolfSSL more
@@ -81,10 +95,12 @@ paths** —
 
 It is **long** (≈90 version builds + the harness) but idempotent (re-running skips what exists).
 Build a subset with e.g. `PUTS=openssl` or `VERSIONS_OPENSSL="3.6.2" VERSIONS_WOLFSSL="5.9.1"`.
-Then `python3 puts.py --put openssl wolfssl` prints the resolved configuration. After bootstrap:
+Then `python3 puts.py --put openssl wolfssl` prints the resolved configuration. After bootstrap,
+live-test the committed models — **per-PUT prober env** (see Reproduce for the expected numbers):
 
 ```
-python3 run_fingerprint.py --put openssl wolfssl     # live-test the committed models
+PUFFIN_TCP_IO_SLEEP_MS=0   python3 run_fingerprint.py --put openssl --stages validate,report --timeout 12
+PUFFIN_TCP_IO_SLEEP_MS=150 python3 run_fingerprint.py --put wolfssl --stages validate,report --timeout 15
 ```
 
 All paths follow **CLI flag → environment variable → derived default**, so nothing is hardcoded;
@@ -92,52 +108,54 @@ override the prober with `--prober PATH` / `PUFFIN_BIN`, the vendored servers wi
 etc. Inspecting the committed `reference/<put>/report.md` needs none of the above.
 
 > Prober note (read DEVELOPER.md): WolfSSL's example server is RST-killed by the rapid TCP teardown
-> unless the prober pauses ~100 ms around each socket I/O; without it the server crashes mid-handshake
-> and the 10×/≥7 confirm flaps UNSTABLE. That pause is **implemented** in `tlspuffin/src/tcp/mod.rs`
-> as an env-gate **`PUFFIN_TCP_IO_SLEEP_MS`** (default **100 ms**; `0` disables), applied *before each
-> read* (so the full flight buffers) and *after each write*. It is **universal, not per-PUT** — a
-> remote prober cannot know whether the target is OpenSSL or WolfSSL, so one setting must serve both;
-> 100 ms is what lets WolfSSL respond reproducibly, while only slightly perturbing OpenSSL (≈61/61 →
-> 59/61). A freshly-built `tlspuffin` therefore sleeps by default; to reproduce the original OpenSSL
-> **61/61** exactly, run its prober with `PUFFIN_TCP_IO_SLEEP_MS=0`. *(Open optimisation: make the
-> pause adaptive — return early on a response/FIN — to recover the speed the fixed sleep costs.)*
+> unless the prober pauses around each socket I/O; without it the server crashes mid-handshake and the
+> 10×/≥7 confirm flaps UNSTABLE. That pause is an env-gate **`PUFFIN_TCP_IO_SLEEP_MS`** in
+> `tlspuffin/src/tcp/mod.rs` (default 100 ms; `0` disables), applied before each read and after each
+> write. **The value is set per PUT at model-build time** (one binary, env per run):
+> **OpenSSL `=0`** (it answers immediately; a pause only perturbs it) and **WolfSSL `=150` with
+> `--timeout 15`** (its distinguishing flights are slower; 100/12 undersamples). A genuinely universal
+> deployment prober that doesn't know the target's library is the open problem — the adaptive-pause
+> idea (return early on a response/FIN) would let one fixed setting fit both.
 
 ## Reproduce
 
 ### Live-test the committed models (default)
 
-Walk each committed decision tree against freshly-launched live servers for every version, R=5
-times, and print a combined summary. This is the default and the headline reproduction:
+Walk each committed decision tree against freshly-launched live servers for every version, R=5 times.
+**The prober pause differs per PUT** (see the params table), so run them **separately** with the right
+env each — one binary, value set per run:
 
 ```
-python3 run_fingerprint.py --put openssl wolfssl \
-    --prober /path/to/tlspuffin --cores 0,2,4,6,8,10,12,14,16,18,20,22,24,26,28 --jobs 12
+# OpenSSL — NO pause:
+PUFFIN_TCP_IO_SLEEP_MS=0   python3 run_fingerprint.py --put openssl --stages validate,report \
+    --prober target/release/tlspuffin --timeout 12 --jobs 12
+#   -> openssl : 11 clusters, depth 4, recognised 60/61 consistently (<= 4 traces)
+
+# WolfSSL — 150 ms pause + 15 s timeout:
+PUFFIN_TCP_IO_SLEEP_MS=150 python3 run_fingerprint.py --put wolfssl --stages validate,report \
+    --prober target/release/tlspuffin --timeout 15 --jobs 12
+#   -> wolfssl : 12 clusters, depth 3, recognised 26/26 consistently (<= 3 traces)
 ```
 
-PUTs run **sequentially** (never two in parallel) — this controlled-load discipline keeps live
-captures from truncating (see DEVELOPER.md). Expected combined summary (≈3–4 min):
-
-```
-  openssl : 10 clusters, depth 3, recognised 61/61 consistently (<= 3 traces)
-  wolfssl : 14 clusters, depth 4, recognised 26/26 consistently (<= 4 traces)
-```
-
-(The default `--stages` is `validate,report`.)
+Each PUT probes its servers one at a time (controlled load) so live captures don't truncate (see
+DEVELOPER.md). The default `--stages` is `validate,report`. (`target/release/tlspuffin` is what
+`setup.sh` builds; it carries the `io_pacing_sleep` gate, so the same binary serves both via the env.)
 
 ### Rebuild the tree (both PUTs)
 
 Both PUTs ship their **full** confirmed probe set under `reference/<put>/probes_full/` (committed),
-so the tree is re-inducible from the committed matrix without re-running campaigns:
+so the tree is re-inducible from the committed matrix without re-running campaigns (same per-PUT env):
 
 ```
-python3 run_fingerprint.py --put openssl wolfssl --stages tree,validate,report
-#   openssl -> 10 clusters, 61/61      wolfssl -> 14 clusters, 26/26
+PUFFIN_TCP_IO_SLEEP_MS=0   python3 run_fingerprint.py --put openssl --stages tree,validate,report --timeout 12
+PUFFIN_TCP_IO_SLEEP_MS=150 python3 run_fingerprint.py --put wolfssl --stages tree,validate,report --timeout 15
+#   openssl -> 11 clusters, 60/61      wolfssl -> 12 clusters, 26/26
 ```
 
 A *full* rebuild that also re-probes the matrix (`--stages matrix,tree,validate,report`) re-reads
-`probes_full/`; it is fast for OpenSSL but slow for WolfSSL, because the prober's 100 ms inter-action
+`probes_full/`; it is fast for OpenSSL (no pause) but slow for WolfSSL, because the 150 ms inter-action
 pause (which is what makes the WolfSSL example server respond reproducibly — see DEVELOPER.md) makes
-the 77×26 re-probe take a while. `build_tree.py` refuses to run only if `probes_full/` is **absent**
+the re-probe take a while. `build_tree.py` refuses to run only if `probes_full/` is **absent**
 (so a model is never silently replaced by one whose probe traces aren't available).
 
 ### Full rebuild from the fuzzing campaigns (both PUTs)
@@ -199,8 +217,8 @@ python3 run_fingerprint.py --put wolfssl --stages matrix,tree,validate,report \
     --reference-dir ./reproduced --prober /path/to/tlspuffin --jobs 24
 ```
 
-(Same prober note as above: a freshly-built `tlspuffin` paces with `PUFFIN_TCP_IO_SLEEP_MS=100` by
-default, which WolfSSL needs.) Swap `--put openssl` + `openssl_objectives.tar.gz` for OpenSSL.
+(Set the per-PUT prober env: WolfSSL `PUFFIN_TCP_IO_SLEEP_MS=150 --timeout 15`, OpenSSL
+`PUFFIN_TCP_IO_SLEEP_MS=0`.) Swap `--put openssl` + `openssl_objectives.tar.gz` for OpenSSL.
 
 ## Identify a live target
 
@@ -243,11 +261,13 @@ Per PUT, `reference/<put>/` holds the inspectable canonical result:
 
 ### OpenSSL campaign funnel (provenance)
 
-The committed OpenSSL model came from: **24,235** fixed-oracle differential objectives →
-**2,110** that survive a first live screen → **275** confirmed probes (the strict 10×/≥7 filter),
-cross-applied to all 61 versions → a clean signature matrix → a wildcard tree of **depth 3 / 3
-probes** → **10 clusters** → **61/61** recognised on the train/test live walk. (WolfSSL: the
-2026-05-29 campaigns → 77 confirmed probes → 14 clusters → 26/26.)
+The committed OpenSSL model (sleep=0) came from: **722,103** fixed-oracle differential objectives →
+**639** confirmed probes (the strict 10×/≥7 filter), cross-applied to all 61 versions → a clean
+signature matrix (0 UNSTABLE) → a wildcard tree of **depth 4 / 4 probes** → **11 clusters** →
+**60/61** recognised on the train/test live walk (one version routes inconsistently — the trade for
+the extra split; a smaller probe set gives the all-robust 10 / 61-61). WolfSSL (sleep=150, timeout=15)
+came from the 2026-06-10 last-night campaigns → confirmed probes → **12 clusters / 26-26** (depth 3,
+8 probes); see the WolfSSL 12-vs-14 note above.
 
 For the methodology, the three hard-won correctness invariants (wire-observable oracle, 10×/≥7
 confirmation, controlled-load + deployment-validate), and how to add a new PUT, see **DEVELOPER.md**.

@@ -1,13 +1,13 @@
 {
   "type": "node",
-  "trace": "probes/20260606-221222006-3439c80c7559bf32.trace",
-  "probe": 3,
-  "default": "cd04e40095",
+  "trace": "probes/20260530-204752305-e7af3188d2cd4bd0.trace",
+  "probe": 26,
+  "default": "b633e1e62b",
   "children": {
-    "cd04e40095": {
+    "b633e1e62b": {
       "type": "node",
-      "trace": "probes/20260608-011106598-46b81107715de459.trace",
-      "probe": 136,
+      "trace": "probes/20260530-212050106-38039c5796ff7415.trace",
+      "probe": 31,
       "default": "acfe6ab053",
       "children": {
         "acfe6ab053": {
@@ -58,16 +58,16 @@
         }
       }
     },
-    "e3b737848d": {
+    "26aca659ba": {
       "type": "node",
-      "trace": "probes/20260607-221552160-60a0f4c09e331850.trace",
-      "probe": 68,
+      "trace": "probes/20260607-223951010-666587518dcd84d2.trace",
+      "probe": 356,
       "default": "7553b875cf",
       "children": {
         "c6c53244a3": {
           "type": "node",
-          "trace": "probes/20260608-011106598-46b81107715de459.trace",
-          "probe": 136,
+          "trace": "probes/20260530-212050106-38039c5796ff7415.trace",
+          "probe": 31,
           "default": "acfe6ab053",
           "children": {
             "acfe6ab053": {
@@ -97,8 +97,8 @@
         },
         "7553b875cf": {
           "type": "node",
-          "trace": "probes/20260608-011106598-46b81107715de459.trace",
-          "probe": 136,
+          "trace": "probes/20260530-212050106-38039c5796ff7415.trace",
+          "probe": 31,
           "default": "fa28b84591",
           "children": {
             "fa28b84591": {
@@ -129,15 +129,38 @@
         },
         "c31dc737f3": {
           "type": "node",
-          "trace": "probes/20260608-011106598-46b81107715de459.trace",
-          "probe": 136,
+          "trace": "probes/20260602-165047239-50d6883ba2e9f7af.trace",
+          "probe": 330,
           "default": "fa28b84591",
           "children": {
+            "acfe6ab053": {
+              "type": "node",
+              "trace": "probes/20260530-212050106-38039c5796ff7415.trace",
+              "probe": 31,
+              "default": "fa28b84591",
+              "children": {
+                "fa28b84591": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "openssl350"
+                    ]
+                  ]
+                },
+                "acfe6ab053": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "openssl356"
+                    ]
+                  ]
+                }
+              }
+            },
             "fa28b84591": {
               "type": "leaf",
               "clusters": [
                 [
-                  "openssl350",
                   "openssl351",
                   "openssl352",
                   "openssl353",
@@ -145,23 +168,15 @@
                   "openssl355"
                 ]
               ]
-            },
-            "acfe6ab053": {
-              "type": "leaf",
-              "clusters": [
-                [
-                  "openssl356"
-                ]
-              ]
             }
           }
         }
       }
     },
-    "54aa424ca1": {
+    "5a2039478d": {
       "type": "node",
-      "trace": "probes/20260608-011106598-46b81107715de459.trace",
-      "probe": 136,
+      "trace": "probes/20260530-212050106-38039c5796ff7415.trace",
+      "probe": 31,
       "default": "fa28b84591",
       "children": {
         "fa28b84591": {

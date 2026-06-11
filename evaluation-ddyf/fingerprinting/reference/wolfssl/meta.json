@@ -26,18 +26,20 @@
       "wolfssl521"
     ],
     [
+      "wolfssl530",
+      "wolfssl540"
+    ],
+    [
       "wolfssl552",
       "wolfssl553"
     ],
     [
+      "wolfssl572",
+      "wolfssl574"
+    ],
+    [
       "wolfssl590",
       "wolfssl591"
-    ],
-    [
-      "wolfssl530"
-    ],
-    [
-      "wolfssl540"
     ],
     [
       "wolfssl554"
@@ -47,12 +49,6 @@
     ],
     [
       "wolfssl570"
-    ],
-    [
-      "wolfssl572"
-    ],
-    [
-      "wolfssl574"
     ],
     [
       "wolfssl584"

@@ -1,9 +1,9 @@
 {
   "put": "openssl",
-  "correct": 61,
-  "consistent": 61,
+  "correct": 60,
+  "consistent": 60,
   "total": 61,
-  "max_traces": 3,
+  "max_traces": 4,
   "walks": 5,
-  "depth": 3
+  "depth": 4
 }
