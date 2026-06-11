@@ -92,3 +92,4 @@ tmp_wolfssl_src/
 # git worktrees created by parallel agents.
 wt-boring/
 wt-libre/
+repro_data/
