@@ -37,8 +37,16 @@ export LIBAFL_EDGES_MAP_SIZE=262144
 
 > DDYF can produce a lot of objectives/metadata files (> 4M for 24h runs), make sure that your filesystem can support this much files in one directory
 
-
 > Do not run multiple experiments in the same directory at the same time to prevent them from interfering
+
+## Previous triaging results
+
+List of all the buckets/identified behavior for the different campaigns:
+
+- OpenSSL vs wolfSSL: './evaluation-ddyf/sort_objectives_ossl_wolf.py'
+- OpenSSL vs LibreSSL: './evaluation-ddyf/sort_objectives_ossl_libre.py'
+- OpenSSL vs BoringSSL: './evaluation-ddyf/sort_objectives_ossl_boring.py'
+
 
 ## Running a differential fuzzing campaign
 
@@ -193,3 +201,9 @@ The entry point for starting an LLM based triaging is the `evaluation-ddyf/promp
 
 > This LLM triaging has been tested with Anthropic's Claude code (Sonnet 4.6 and Opus 4.8), GitHub Copilot (Sonnet 4.6) and Gemini 3.x.
 > The .md files explicitly reference Claude but you can use those prompts with other LLMs
+
+
+## Fingerprinting
+
+To reproduce the fingerprinting experiments, we made a separate artifact available at [https://anonymous.4open.science/r/DDYF-Fingerprinting/](https://anonymous.4open.science/r/DDYF-Fingerprinting/README.md).
+
