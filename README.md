@@ -81,7 +81,7 @@ Download the objective archives, then run from stage 1:
 
 ```sh
 mkdir -p ~/ddyf_experiments
-tar -xf wolfssl_lastnight_objectives.tar.gz -C ~/ddyf_experiments
+tar -xf wolfssl_all_objectives.tar.gz -C ~/ddyf_experiments
 
 PUFFIN_TCP_IO_SLEEP_MS=150 python3 run_fingerprint.py --put wolfssl \
     --stages mine,matrix,tree,validate,report \

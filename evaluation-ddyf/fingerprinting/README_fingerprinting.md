@@ -180,7 +180,7 @@ the box yet can be pinned anywhere:
   living outside the repo (e.g. `--experiments-dir /data/ddyf/experiments`).
 - **`--experiments-glob GLOB`** / `FP_EXPERIMENTS_GLOB` — a full explicit glob; overrides
   `--experiments-dir`. Use it to mine a single batch or one pair, e.g.
-  `--experiments-glob '<repo>/experiments/2026-06-10--wolfssl-*-1cfpp-*/objective/*.trace'`.
+  `--experiments-glob '<repo>/experiments/*wolfssl*5.3.0-5.4.0*/objective/*.trace'` (one pair).
 - **default** (neither given): `<repo>/experiments/*<put>*fpp*/objective/*.trace`.
 
 The same two commands with `--put wolfssl` rebuild WolfSSL from its campaigns. Override
@@ -205,7 +205,7 @@ point the pipeline at the extraction dir with `--experiments-dir`:
 ```
 # 1. download + extract (preserves the <campaign>/objective/ layout)
 mkdir -p ~/ddyf_experiments
-tar -xf wolfssl_lastnight_objectives.tar.gz -C ~/ddyf_experiments
+tar -xf wolfssl_all_objectives.tar.gz -C ~/ddyf_experiments
 
 # 2. mine the objectives (cap per-pair for speed; omit --a1-cap to use every objective)
 python3 mine_probes.py --put wolfssl --experiments-dir ~/ddyf_experiments \
