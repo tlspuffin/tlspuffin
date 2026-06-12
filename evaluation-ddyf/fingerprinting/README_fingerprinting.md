@@ -14,7 +14,7 @@ The same pipeline runs on any supported PUT (Program-Under-Test). Today: **OpenS
 | PUT | versions | clusters | tree depth | probes used | live deployment validation | prober params |
 |---|---:|---:|---:|---:|---|---|
 | OpenSSL 3.x (3.0.0–3.6.2) | 61 | **11** | 4 | 4 | **60/61** recognised consistently, ≤4 traces | `PUFFIN_TCP_IO_SLEEP_MS=0` |
-| WolfSSL 5.x (5.0.0–5.9.1) | 26 | **14** | 4 | 7 | **26/26** recognised consistently, ≤4 traces | `PUFFIN_TCP_IO_SLEEP_MS=150 --timeout 15` |
+| WolfSSL 5.x (5.0.0–5.9.1) | 26 | **12** | 3 | 8 | **26/26** recognised consistently, ≤3 traces | `PUFFIN_TCP_IO_SLEEP_MS=150 --timeout 15` |
 
 “Cluster” = a group of versions no probe can tell apart over the wire. The OpenSSL boundaries are
 dominated by upstream’s coordinated release waves; see `reference/openssl/report.md`. The committed
@@ -26,23 +26,23 @@ numbers were rebuilt with exactly the per-PUT prober params in the table.
 > single-version split). WolfSSL needs the pause + longer timeout (`150 ms` / `15 s`) to capture its
 > slower distinguishing flights.
 
-> **WolfSSL 14 — probe-set-bound, not method-bound.** The cluster count depends on whether the
-> confirmed-probe set contains the traces that exercise the distinguishing behaviour. The committed
-> model uses a dense **77-probe** set that splits **5.3.0/5.4.0** and **5.7.2/5.7.4** (each into
-> singletons) on these vendored servers, giving **14** clusters / depth 4 / 26-26. A sparser earlier
-> probe set lacked those discriminators and merged both pairs into 12 — so the 12-vs-14 gap is *which
-> probes you replay*, not the servers or the method (the very same vendored 5.3.0/5.4.0 do differ on
-> the wire under the right probe). Re-running `matrix,tree,validate` (150/15) from the committed
-> `probes_full/` reproduces **14** here (26/26 consistent, ≤4 traces).
+> **WolfSSL 12 vs 14 — it's server/data-bound, not method-bound.** This artifact's campaigns yield
+> **12** clusters (reproduced 3× here): a few sparse adjacent pairs — notably **5.3.0/5.4.0** — are
+> wire-identical on *these* vendored servers, so no probe separates them, even with the denser
+> combined campaigns (5.3.0-5.4.0 has 367 objectives yet 0 confirmed distinguishers). On a second
+> machine whose vendored 5.3.0/5.4.0 servers *do* differ on the wire, the same pipeline (150/15)
+> reaches **14** (5.3.0 and 5.4.0 become singletons). So **12 is the honest reproducible number for
+> this repo's data**; 14 is achievable with servers/objectives that split those pairs.
 
 > **Scope note.** These are the **live-TCP** numbers (a remote observer who never decrypts). An
 > offline regime that *does* decrypt (display-execute / FFI signatures) resolves WolfSSL more
 > finely (26 versions → 21 clusters), because some WolfSSL changes are only visible in decrypted
 > content; live-TCP cannot see those and merges them. The artifact ships the honest live-TCP models.
-> On the WolfSSL 26/26: all 26 servers are recognised on their **live responses**. 5.5.0 and 5.5.1 —
-> whose example server needs one extra build flag (`-DearlyData=0`, now handled automatically by
-> `build_wolfssl_servers.sh`) — build and respond like the rest and cluster with 5.5.2/5.5.3 (the
-> 5.5.x family), so they are classified on observed behaviour, not on a default branch.
+> Caveat on the WolfSSL 26/26: 5.5.0 and 5.5.1 have no working vendored example server (their build
+> is incomplete), so they emit no wire response and `validate.py` flags them explicitly; with all
+> cells UNSTABLE they follow the tree's default branch into cluster C0 — which does contain them — so
+> they count as recognised, but on default routing, not on observed behaviour. The other 24 are
+> recognised on their live responses.
 
 ## Layout
 
@@ -128,13 +128,13 @@ env each — one binary, value set per run:
 ```
 # OpenSSL — NO pause:
 PUFFIN_TCP_IO_SLEEP_MS=0   python3 run_fingerprint.py --put openssl --stages validate,report \
-    --prober target/release/tlspuffin --timeout 12 --jobs 12
+    --prober ../../target/release/tlspuffin --timeout 12 --jobs 12
 #   -> openssl : 11 clusters, depth 4, recognised 60/61 consistently (<= 4 traces)
 
 # WolfSSL — 150 ms pause + 15 s timeout:
 PUFFIN_TCP_IO_SLEEP_MS=150 python3 run_fingerprint.py --put wolfssl --stages validate,report \
-    --prober target/release/tlspuffin --timeout 15 --jobs 12
-#   -> wolfssl : 14 clusters, depth 4, recognised 26/26 consistently (<= 4 traces)
+    --prober ../../target/release/tlspuffin --timeout 15 --jobs 12
+#   -> wolfssl : 12 clusters, depth 3, recognised 26/26 consistently (<= 3 traces)
 ```
 
 Each PUT probes its servers one at a time (controlled load) so live captures don't truncate (see
@@ -149,7 +149,7 @@ so the tree is re-inducible from the committed matrix without re-running campaig
 ```
 PUFFIN_TCP_IO_SLEEP_MS=0   python3 run_fingerprint.py --put openssl --stages tree,validate,report --timeout 12
 PUFFIN_TCP_IO_SLEEP_MS=150 python3 run_fingerprint.py --put wolfssl --stages tree,validate,report --timeout 15
-#   openssl -> 11 clusters, 60/61      wolfssl -> 14 clusters, 26/26
+#   openssl -> 11 clusters, 60/61      wolfssl -> 12 clusters, 26/26
 ```
 
 A *full* rebuild that also re-probes the matrix (`--stages matrix,tree,validate,report`) re-reads
@@ -270,9 +270,8 @@ The committed OpenSSL model (sleep=0) came from: **722,103** fixed-oracle differ
 signature matrix (0 UNSTABLE) → a wildcard tree of **depth 4 / 4 probes** → **11 clusters** →
 **60/61** recognised on the train/test live walk (one version routes inconsistently — the trade for
 the extra split; a smaller probe set gives the all-robust 10 / 61-61). WolfSSL (sleep=150, timeout=15)
-came from its differential campaigns → a dense **77** confirmed-probe set → a clean matrix →
-**14 clusters / 26-26** (depth 4, 7 probes); the 77-probe set is what splits 5.3.0/5.4.0 and
-5.7.2/5.7.4 — see the WolfSSL 14 note above.
+came from the 2026-06-10 last-night campaigns → confirmed probes → **12 clusters / 26-26** (depth 3,
+8 probes); see the WolfSSL 12-vs-14 note above.
 
 For the methodology, the three hard-won correctness invariants (wire-observable oracle, 10×/≥7
 confirmation, controlled-load + deployment-validate), and how to add a new PUT, see **DEVELOPER.md**.
