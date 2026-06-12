@@ -194,7 +194,7 @@ runs `mine → matrix → tree → validate → report` straight from them (only
 minutes, is recomputed):
 
 | archive | contents | raw / compressed |
-|---|---|---|---|
+|---|---|---|
 | `wolfssl_all_objectives.tar.gz` | WolfSSL 5.x adjacent-pair campaigns (objective traces) | 5.5 GB / **306 MB** |
 | `openssl_objectives.tar.gz` | OpenSSL 3.x adjacent-pair campaigns (objective traces) | 18 GB / **920 MB** |
 
