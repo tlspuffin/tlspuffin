@@ -195,7 +195,7 @@ minutes, is recomputed):
 
 | archive | contents | raw / compressed |
 |---|---|---|---|
-| `wolfssl_all_objectives.tar.gz` | WolfSSL 5.x **all** campaigns (objective traces) — more objectives for the older pairs, for a denser re-mine | 5.5 GB / **306 MB** |
+| `wolfssl_all_objectives.tar.gz` | WolfSSL 5.x adjacent-pair campaigns (objective traces) | 5.5 GB / **306 MB** |
 | `openssl_objectives.tar.gz` | OpenSSL 3.x adjacent-pair campaigns (objective traces) | 18 GB / **920 MB** |
 
 Download from https://drive.proton.me/urls/YXRNC05TD4#kffwtQT5dquG
