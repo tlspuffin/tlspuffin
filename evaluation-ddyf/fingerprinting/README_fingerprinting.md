@@ -193,14 +193,13 @@ re-running them**, the campaigns' *objective traces* are published as archives; 
 runs `mine → matrix → tree → validate → report` straight from them (only the live re-probing,
 minutes, is recomputed):
 
-| archive | contents | raw / compressed | sha256 |
+| archive | contents | raw / compressed |
 |---|---|---|---|
-| `wolfssl_lastnight_objectives.tar.gz` | WolfSSL 5.x campaigns, one focused 2-PUT run per adjacent pair (the clean last-night batch) | 4.6 GB / **256 MB** | `dbf1c9710a7ef6b239f40b3e2e75a81990569bcb5c21b48254065e87002fa47e` |
-| `wolfssl_all_objectives.tar.gz` | WolfSSL 5.x **all** campaigns (last-night + earlier batches) — more objectives for the older pairs, for a denser re-mine | 5.5 GB / **306 MB** | `d7b01db702243fb2a65a8c3defc350d2c59e42f0279dbbdae4c6cf2e61422558` |
-| `openssl_objectives.tar.gz` | OpenSSL 3.x adjacent-pair campaigns (objective traces) | 18 GB / **920 MB** | `b04d322ea48dc0364fc88f77f1d1cef8d6015b965ff1d45082eaa1929764cc49` |
+| `wolfssl_all_objectives.tar.gz` | WolfSSL 5.x **all** campaigns (objective traces) — more objectives for the older pairs, for a denser re-mine | 5.5 GB / **306 MB** |
+| `openssl_objectives.tar.gz` | OpenSSL 3.x adjacent-pair campaigns (objective traces) | 18 GB / **920 MB** |
 
-Download: **`<FILL IN URL AFTER UPLOAD>`** (e.g. Zenodo / GitHub release); verify against the sha256
-above. Each archive unpacks to `<campaign-dir>/objective/*.trace` — the layout the mine globs — so you
+Download from https://drive.proton.me/urls/YXRNC05TD4#kffwtQT5dquG
+Each archive unpacks to `<campaign-dir>/objective/*.trace` — the layout the mine globs — so you
 point the pipeline at the extraction dir with `--experiments-dir`:
 
 ```
@@ -247,7 +246,7 @@ high confidence (openssl matched 2 / defaulted 0; wolfssl matched 1 / defaulted 
 *can* soft-claim with forced defaults, so the cross-model ranking — not a single model's walk — is
 what makes the verdict robust; if no model matches anything it returns `unknown`.)
 
-## What is committed
+## What is already included
 
 Per PUT, `reference/<put>/` holds the inspectable canonical result:
 

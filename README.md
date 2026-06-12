@@ -1,8 +1,10 @@
 # TLS Library Version Fingerprinting
 
-Automatically build a decision tree that identifies **which version of a TLS library** a remote server runs — using a handful of fuzzer-discovered probe traces over a plain TCP socket, no decryption needed.
+This is the second artefact associated to our "DDYF: Differential Dolev-Yao Fuzzing of Cryptographic Protocols" paper. It contains the scripts and instructions to reproduce our DDYF-based fingerprinting methodology.
 
-Supported PUTs: **OpenSSL 3.x** (61 versions → 11 clusters) and **WolfSSL 5.x** (26 versions → 14 clusters).
+Our pipeline automatically builds a decision tree that identifies **which version of a TLS library** a remote server runs — using a handful of fuzzer-discovered probe traces over a plain TCP socket (no decryption needed).
+
+Supported PUTs: **OpenSSL 3.x** (61 versions → 11 clusters) and **WolfSSL 5.x** (26 versions → 14 clusters). Note that we only mention 40 OpenSSL versions in the paper, where we do not discuss the 21 versions of OpenSSL 3.0.x.
 
 See [evaluation-ddyf/fingerprinting/README_fingerprinting.md](evaluation-ddyf/fingerprinting/README_fingerprinting.md) for full methodology and details.
 
