@@ -34,8 +34,16 @@ for d in "$REPO"/vendor/wolfssl*/; do
       fi
   fi
 
-  # some versions' example server references earlyData under a mismatched guard
-  if compile "$extra_flags" || compile "$extra_flags -DWOLFSSL_EARLY_DATA"; then
+  # some versions' example server references earlyData under a mismatched guard. Two failure modes:
+  #  - earlyData is declared only under #ifdef WOLFSSL_EARLY_DATA but referenced unconditionally
+  #    (compile error "earlyData undeclared") -> defining the flag declares it;
+  #  - 5.5.0/5.5.1: same stray reference, but the vendored lib has NO early-data symbols, so
+  #    -DWOLFSSL_EARLY_DATA then fails at LINK (undefined wolfSSL_get_early_data_status). For those,
+  #    keep early data OFF (matches the lib) and just neutralise the stray ref with -DearlyData=0
+  #    (the genuine earlyData uses are all #ifdef'd out, so this only fixes the one unguarded line).
+  if compile "$extra_flags" \
+       || compile "$extra_flags -DWOLFSSL_EARLY_DATA" \
+       || compile "$extra_flags -DearlyData=0"; then
     # Smoke-test: does it actually serve? Must run from the wolfSSL source root ($src) with the
     # same flags the pipeline uses (-x continue-on-error, -d no-client-cert, -i loop, -b any-addr),
     # because ChangeToWolfRoot() looks for certs/ in the cwd. Running it from elsewhere exits
