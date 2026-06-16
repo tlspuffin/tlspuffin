@@ -95,9 +95,9 @@ struct AGENT_TYPE
     uint8_t name;
     SSH_AGENT_DESCRIPTOR descriptor;
 
-    int fuzz_fd; /* puffin reads/writes here */
-    /* libssh uses the other end (put_fd) via SSH_OPTIONS_FD;
-       we do not keep put_fd after handing it to libssh */
+    int fuzz_fd; /* puffin reads/writes here (socketpair end 0) */
+    int put_fd;  /* libssh's end (socketpair end 1); kept so destroy() can
+                    close it explicitly if ssh_free() leaves it open */
 
     ssh_session session;
     ssh_bind bind; /* server only; NULL for client */
@@ -278,6 +278,7 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
     agent->name        = descriptor->name;
     agent->descriptor  = *descriptor;
     agent->fuzz_fd     = fuzz_fd;
+    agent->put_fd      = put_fd;
     agent->session     = session;
     agent->bind        = bind;
     agent->state       = PUT_STATE_KEX;
@@ -300,6 +301,13 @@ static void libssh_destroy(AGENT agent)
 
     ssh_disconnect(agent->session);
     ssh_free(agent->session);
+
+    /* ssh_free() closes put_fd in most cases, but not when the session
+       errored before its socket layer was fully initialised (e.g. early
+       failure in attacker seeds).  We check with fcntl whether the fd is
+       still open before closing to avoid a double-close race. */
+    if (fcntl(agent->put_fd, F_GETFD) != -1)
+        close(agent->put_fd);
 
     free(agent);
 }
