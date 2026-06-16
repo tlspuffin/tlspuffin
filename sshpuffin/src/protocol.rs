@@ -16,6 +16,7 @@ use puffin::trace::Trace;
 use serde::{Deserialize, Serialize};
 
 use crate::claim::SshClaim;
+use crate::put_registry::ssh_registry;
 use crate::query::SshQueryMatcher;
 use crate::ssh::deframe::SshMessageDeframer;
 use crate::ssh::message::{RawSshMessage, SshMessage};
@@ -228,8 +229,12 @@ impl ProtocolBehavior for SshProtocolBehavior {
     type ProtocolTypes = SshProtocolTypes;
     type SecurityViolationPolicy = SshSecurityViolationPolicy;
 
-    fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
-        vec![] // TODO
+    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
+        crate::ssh::seeds::create_corpus(
+            ssh_registry()
+                .find_by_id(put.factory)
+                .expect("missing PUT in SSH registry"),
+        )
     }
 
     fn try_read_bytes(

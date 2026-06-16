@@ -13,25 +13,31 @@ keywords.workspace = true
 categories.workspace = true
 
 [features]
+default = ["sancov"]
 # Current put supports claims
 claims = []
 
+# Sanitizer / instrumentation flags forwarded to the C harness build
+asan    = ["puffin/asan"]
+sancov  = ["puffin/sancov"]
+gcov    = []
+llvm_cov = []
+
 [dependencies]
-libssh-sys = { path = "../crates/libssh-sys", features = ["libssh0104"] }
-puffin = { path = "../puffin" }
+puffin       = { path = "../puffin" }
 puffin-build = { path = "../puffin-build" }
 extractable-macro = { path = "../extractable-macro" }
-log = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-comparable = { workspace = true, features = ["derive"] }
-
-# libssh
-foreign-types = { workspace = true }
+log          = { workspace = true }
+serde        = { workspace = true, features = ["derive"] }
+comparable   = { workspace = true, features = ["derive"] }
+libc         = { workspace = true }
+once_cell    = { workspace = true }
 
 [dev-dependencies]
 env_logger = { workspace = true }
-test-log = { workspace = true }
+test-log   = { workspace = true }
 
 [build-dependencies]
-cmake = { workspace = true }
-bindgen = { workspace = true }
+puffin-build = { path = "../puffin-build" }
+bindgen      = { workspace = true }
+

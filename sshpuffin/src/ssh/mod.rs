@@ -12,7 +12,7 @@
 use puffin::algebra::dynamic_function::FunctionAttributes;
 pub mod deframe;
 pub mod message;
-mod seeds;
+pub(crate) mod seeds;
 #[path = "."]
 pub mod fn_impl {
     pub mod fn_constants;
@@ -49,4 +49,35 @@ define_signature!(
     fn_seq_15
     fn_seq_16
     fn_empty_bytes_vec
+    fn_raw_message
+    fn_onwire_message
+    fn_banner
+    fn_disconnect
+    fn_ignore
+    fn_unimplemented
+    fn_debug
+    fn_service_request
+    fn_service_accept
+    fn_kex_init
+    fn_kex_ecdh_init
+    fn_kex_ecdh_reply
+    fn_new_keys
+    fn_user_auth_request
+    fn_user_auth_failure
+    fn_user_auth_success
+    fn_user_auth_banner
+    fn_global_request
+    fn_request_success
+    fn_request_failure
+    fn_channel_open
+    fn_channel_open_confirmation
+    fn_channel_open_failure
+    fn_channel_window_adjust
+    fn_channel_data
+    fn_channel_extended_data
+    fn_channel_eof
+    fn_channel_close
+    fn_channel_request
+    fn_channel_success
+    fn_channel_failure
 );

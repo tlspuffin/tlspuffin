@@ -370,7 +370,9 @@ where
             Duration::new(5, 0),
         )?;
 
-        // In case the corpus is empty (on first run), reset
+        // In case the corpus is empty (on first run), (re)seed it.
+        let mut embedded_seeds = self.initial_inputs.take().unwrap_or_default();
+
         if state.corpus().is_empty() {
             if initial_corpus_dir.exists() {
                 state
@@ -387,10 +389,25 @@ where
                         )
                     });
                 log::info!("Imported {} inputs from disk.", state.corpus().count());
+
+                // If the directory exists but has no parseable entries, fall back to embedded seeds.
+                if state.corpus().is_empty() {
+                    log::warn!(
+                        "Initial corpus directory {:?} contained no usable seeds. Falling back to embedded seeds.",
+                        initial_corpus_dir
+                    );
+
+                    for (seed, name) in embedded_seeds.drain(..) {
+                        log::info!("Using embedded seed {}", name);
+                        fuzzer
+                            .add_input(&mut state, &mut executor, &mut self.event_manager, seed)
+                            .expect("Failed to add embedded input");
+                    }
+                }
             } else {
                 log::info!("Initial seed corpus not found. Using embedded seeds.");
 
-                for (seed, name) in self.initial_inputs.unwrap() {
+                for (seed, name) in embedded_seeds.drain(..) {
                     log::info!("Using seed {}", name);
                     fuzzer
                         .add_input(&mut state, &mut executor, &mut self.event_manager, seed)
