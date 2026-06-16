@@ -32,6 +32,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -137,6 +138,11 @@ static const SSH_PUT_INTERFACE LIBSSH_PUT = {
 
 const SSH_PUT_INTERFACE *REGISTER(void)
 {
+    struct rlimit rl;
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
+        rl.rlim_cur = (rl.rlim_max == RLIM_INFINITY) ? 65536 : rl.rlim_max;
+        setrlimit(RLIMIT_NOFILE, &rl);
+    }
     return &LIBSSH_PUT;
 }
 

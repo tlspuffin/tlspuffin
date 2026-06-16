@@ -9,8 +9,9 @@ use crate::ssh::message::{
     CompressionAlgorithms, DebugMessage, DisconnectMessage, EncryptionAlgorithms,
     GlobalRequestMessage, IgnoreMessage, KexAlgorithms, KexEcdhInitMessage, KexEcdhReplyMessage,
     KexInitMessage, MacAlgorithms, NameList, OnWireData, RawSshMessage, RequestSuccessMessage,
-    ServiceAcceptMessage, ServiceRequestMessage, SignatureSchemes, SshMessage,
-    UnimplementedMessage, UserAuthBannerMessage, UserAuthFailureMessage, UserAuthRequestMessage,
+    ServiceAcceptMessage, ServiceRequestMessage, SignatureSchemes, SshBytes, SshMessage,
+    SshPublicKey, SshSignature, UnimplementedMessage, UserAuthBannerMessage,
+    UserAuthFailureMessage, UserAuthRequestMessage,
 };
 
 pub fn fn_raw_message(message: &RawSshMessage) -> Result<RawSshMessage, FnError> {
@@ -25,10 +26,44 @@ pub fn fn_banner(banner: &String) -> Result<RawSshMessage, FnError> {
     Ok(RawSshMessage::Banner(banner.clone()))
 }
 
+// ── Constructor: SshBytes ────────────────────────────────────────────────────
+
+pub fn fn_ssh_bytes(data: &Vec<u8>) -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(data.clone()))
+}
+
+pub fn fn_ssh_bytes_empty() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::empty())
+}
+
+// ── Constructor: SshPublicKey / SshSignature ─────────────────────────────────
+
+pub fn fn_ssh_public_key(
+    algorithm: &SshBytes,
+    key_data: &SshBytes,
+) -> Result<SshPublicKey, FnError> {
+    Ok(SshPublicKey {
+        algorithm: algorithm.clone(),
+        key_data: key_data.clone(),
+    })
+}
+
+pub fn fn_ssh_signature(
+    algorithm: &SshBytes,
+    signature_data: &SshBytes,
+) -> Result<SshSignature, FnError> {
+    Ok(SshSignature {
+        algorithm: algorithm.clone(),
+        signature_data: signature_data.clone(),
+    })
+}
+
+// ── Message constructors ─────────────────────────────────────────────────────
+
 pub fn fn_disconnect(
     reason_code: &u32,
-    description: &Vec<u8>,
-    language_tag: &Vec<u8>,
+    description: &SshBytes,
+    language_tag: &SshBytes,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::Disconnect(DisconnectMessage {
         reason_code: *reason_code,
@@ -37,7 +72,7 @@ pub fn fn_disconnect(
     }))
 }
 
-pub fn fn_ignore(data: &Vec<u8>) -> Result<SshMessage, FnError> {
+pub fn fn_ignore(data: &SshBytes) -> Result<SshMessage, FnError> {
     Ok(SshMessage::Ignore(IgnoreMessage { data: data.clone() }))
 }
 
@@ -49,8 +84,8 @@ pub fn fn_unimplemented(packet_sequence_number: &u32) -> Result<SshMessage, FnEr
 
 pub fn fn_debug(
     always_display: &bool,
-    message: &Vec<u8>,
-    language_tag: &Vec<u8>,
+    message: &SshBytes,
+    language_tag: &SshBytes,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::Debug(DebugMessage {
         always_display: *always_display,
@@ -59,28 +94,28 @@ pub fn fn_debug(
     }))
 }
 
-pub fn fn_service_request(service_name: &Vec<u8>) -> Result<SshMessage, FnError> {
+pub fn fn_service_request(service_name: &SshBytes) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ServiceRequest(ServiceRequestMessage {
         service_name: service_name.clone(),
     }))
 }
 
-pub fn fn_service_accept(service_name: &Vec<u8>) -> Result<SshMessage, FnError> {
+pub fn fn_service_accept(service_name: &SshBytes) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ServiceAccept(ServiceAcceptMessage {
         service_name: service_name.clone(),
     }))
 }
 
-pub fn fn_kex_ecdh_init(ephemeral_public_key: &Vec<u8>) -> Result<SshMessage, FnError> {
+pub fn fn_kex_ecdh_init(ephemeral_public_key: &SshBytes) -> Result<SshMessage, FnError> {
     Ok(SshMessage::KexEcdhInit(KexEcdhInitMessage {
         ephemeral_public_key: ephemeral_public_key.clone(),
     }))
 }
 
 pub fn fn_kex_ecdh_reply(
-    public_host_key: &Vec<u8>,
-    ephemeral_public_key: &Vec<u8>,
-    signature: &Vec<u8>,
+    public_host_key: &SshPublicKey,
+    ephemeral_public_key: &SshBytes,
+    signature: &SshSignature,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::KexEcdhReply(KexEcdhReplyMessage {
         public_host_key: public_host_key.clone(),
@@ -94,9 +129,9 @@ pub fn fn_new_keys() -> Result<SshMessage, FnError> {
 }
 
 pub fn fn_user_auth_request(
-    user_name: &Vec<u8>,
-    service_name: &Vec<u8>,
-    method_name: &Vec<u8>,
+    user_name: &SshBytes,
+    service_name: &SshBytes,
+    method_name: &SshBytes,
     method_data: &Vec<u8>,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::UserAuthRequest(UserAuthRequestMessage {
@@ -122,8 +157,8 @@ pub fn fn_user_auth_success() -> Result<SshMessage, FnError> {
 }
 
 pub fn fn_user_auth_banner(
-    message: &Vec<u8>,
-    language_tag: &Vec<u8>,
+    message: &SshBytes,
+    language_tag: &SshBytes,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::UserAuthBanner(UserAuthBannerMessage {
         message: message.clone(),
@@ -132,7 +167,7 @@ pub fn fn_user_auth_banner(
 }
 
 pub fn fn_global_request(
-    request_name: &Vec<u8>,
+    request_name: &SshBytes,
     want_reply: &bool,
     request_data: &Vec<u8>,
 ) -> Result<SshMessage, FnError> {
@@ -154,7 +189,7 @@ pub fn fn_request_failure() -> Result<SshMessage, FnError> {
 }
 
 pub fn fn_channel_open(
-    channel_type: &Vec<u8>,
+    channel_type: &SshBytes,
     sender_channel: &u32,
     initial_window_size: &u32,
     maximum_packet_size: &u32,
@@ -190,8 +225,8 @@ pub fn fn_channel_open_confirmation(
 pub fn fn_channel_open_failure(
     recipient_channel: &u32,
     reason_code: &u32,
-    description: &Vec<u8>,
-    language_tag: &Vec<u8>,
+    description: &SshBytes,
+    language_tag: &SshBytes,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelOpenFailure(ChannelOpenFailureMessage {
         recipient_channel: *recipient_channel,
@@ -213,7 +248,7 @@ pub fn fn_channel_window_adjust(
     ))
 }
 
-pub fn fn_channel_data(recipient_channel: &u32, data: &Vec<u8>) -> Result<SshMessage, FnError> {
+pub fn fn_channel_data(recipient_channel: &u32, data: &SshBytes) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelData(ChannelDataMessage {
         recipient_channel: *recipient_channel,
         data: data.clone(),
@@ -223,7 +258,7 @@ pub fn fn_channel_data(recipient_channel: &u32, data: &Vec<u8>) -> Result<SshMes
 pub fn fn_channel_extended_data(
     recipient_channel: &u32,
     data_type_code: &u32,
-    data: &Vec<u8>,
+    data: &SshBytes,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::ChannelExtendedData(
         ChannelExtendedDataMessage {
@@ -248,7 +283,7 @@ pub fn fn_channel_close(recipient_channel: &u32) -> Result<SshMessage, FnError> 
 
 pub fn fn_channel_request(
     recipient_channel: &u32,
-    request_type: &Vec<u8>,
+    request_type: &SshBytes,
     want_reply: &bool,
     request_data: &Vec<u8>,
 ) -> Result<SshMessage, FnError> {

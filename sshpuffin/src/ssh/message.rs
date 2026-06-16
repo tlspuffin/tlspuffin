@@ -100,6 +100,53 @@ impl Codec for NameList {
     }
 }
 
+// ── SshBytes: u32-length-prefixed byte blob ──────────────────────────────────
+//
+// This is the standard SSH wire format for strings and opaque byte fields
+// (RFC 4251 §5).  Using a named type rather than Vec<u8> lets the DY fuzzer
+// extract SshBytes atoms from observed traffic and substitute them into any
+// position expecting the same type, enabling cross-field and cross-session
+// value reuse.
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct SshBytes(#[extractable_no_recursion] pub Vec<u8>);
+
+impl SshBytes {
+    pub fn new(data: impl Into<Vec<u8>>) -> Self {
+        Self(data.into())
+    }
+    pub fn empty() -> Self {
+        Self(vec![])
+    }
+}
+
+impl From<Vec<u8>> for SshBytes {
+    fn from(v: Vec<u8>) -> Self {
+        Self(v)
+    }
+}
+
+impl From<&[u8]> for SshBytes {
+    fn from(s: &[u8]) -> Self {
+        Self(s.to_vec())
+    }
+}
+
+impl Codec for SshBytes {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        (self.0.len() as u32).encode(bytes);
+        bytes.extend_from_slice(&self.0);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let length = u32::read(reader)?;
+        Some(SshBytes(Vec::from(reader.take(length as usize)?)))
+    }
+}
+
+// Keep helpers for the raw-tail fields (method_data, request_data, channel_data)
+// that are NOT length-prefixed.
 fn encode_ssh_bytes(bytes_value: &[u8], bytes: &mut Vec<u8>) {
     (bytes_value.len() as u32).encode(bytes);
     bytes.extend_from_slice(bytes_value);
@@ -164,24 +211,22 @@ pub enum SshMessage {
 #[extractable(SshProtocolTypes)]
 pub struct DisconnectMessage {
     pub reason_code: u32,
-    #[extractable_no_recursion]
-    pub description: Vec<u8>,
-    #[extractable_no_recursion]
-    pub language_tag: Vec<u8>,
+    pub description: SshBytes,
+    pub language_tag: SshBytes,
 }
 
 impl Codec for DisconnectMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.reason_code.encode(bytes);
-        encode_ssh_bytes(&self.description, bytes);
-        encode_ssh_bytes(&self.language_tag, bytes);
+        self.description.encode(bytes);
+        self.language_tag.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         Some(Self {
             reason_code: u32::read(reader)?,
-            description: read_ssh_bytes(reader)?,
-            language_tag: read_ssh_bytes(reader)?,
+            description: SshBytes::read(reader)?,
+            language_tag: SshBytes::read(reader)?,
         })
     }
 }
@@ -189,18 +234,17 @@ impl Codec for DisconnectMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct IgnoreMessage {
-    #[extractable_no_recursion]
-    pub data: Vec<u8>,
+    pub data: SshBytes,
 }
 
 impl Codec for IgnoreMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        encode_ssh_bytes(&self.data, bytes);
+        self.data.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         Some(Self {
-            data: read_ssh_bytes(reader)?,
+            data: SshBytes::read(reader)?,
         })
     }
 }
@@ -227,24 +271,22 @@ impl Codec for UnimplementedMessage {
 #[extractable(SshProtocolTypes)]
 pub struct DebugMessage {
     pub always_display: bool,
-    #[extractable_no_recursion]
-    pub message: Vec<u8>,
-    #[extractable_no_recursion]
-    pub language_tag: Vec<u8>,
+    pub message: SshBytes,
+    pub language_tag: SshBytes,
 }
 
 impl Codec for DebugMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
         (self.always_display as u8).encode(bytes);
-        encode_ssh_bytes(&self.message, bytes);
-        encode_ssh_bytes(&self.language_tag, bytes);
+        self.message.encode(bytes);
+        self.language_tag.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         Some(Self {
             always_display: u8::read(reader)? != 0,
-            message: read_ssh_bytes(reader)?,
-            language_tag: read_ssh_bytes(reader)?,
+            message: SshBytes::read(reader)?,
+            language_tag: SshBytes::read(reader)?,
         })
     }
 }
@@ -252,18 +294,17 @@ impl Codec for DebugMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct ServiceRequestMessage {
-    #[extractable_no_recursion]
-    pub service_name: Vec<u8>,
+    pub service_name: SshBytes,
 }
 
 impl Codec for ServiceRequestMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        encode_ssh_bytes(&self.service_name, bytes);
+        self.service_name.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         Some(Self {
-            service_name: read_ssh_bytes(reader)?,
+            service_name: SshBytes::read(reader)?,
         })
     }
 }
@@ -271,18 +312,17 @@ impl Codec for ServiceRequestMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct ServiceAcceptMessage {
-    #[extractable_no_recursion]
-    pub service_name: Vec<u8>,
+    pub service_name: SshBytes,
 }
 
 impl Codec for ServiceAcceptMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        encode_ssh_bytes(&self.service_name, bytes);
+        self.service_name.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         Some(Self {
-            service_name: read_ssh_bytes(reader)?,
+            service_name: SshBytes::read(reader)?,
         })
     }
 }
@@ -355,21 +395,78 @@ impl Codec for KexInitMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct KexEcdhInitMessage {
-    #[extractable_no_recursion]
-    pub ephemeral_public_key: Vec<u8>,
+    pub ephemeral_public_key: SshBytes,
 }
 
 impl Codec for KexEcdhInitMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        (self.ephemeral_public_key.len() as u32).encode(bytes);
-        bytes.extend_from_slice(&self.ephemeral_public_key);
+        self.ephemeral_public_key.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        let length = u32::read(reader)?;
-        let ephemeral_public_key = Vec::from(reader.take(length as usize)?);
         Some(KexEcdhInitMessage {
-            ephemeral_public_key,
+            ephemeral_public_key: SshBytes::read(reader)?,
+        })
+    }
+}
+
+// ── SshPublicKey / SshSignature ───────────────────────────────────────────────
+//
+// The KEX ECDH reply carries two outer SSH strings that each contain an inner
+// structured blob: <algo-name-string><key-or-sig-bytes-string>.  Giving these
+// their own types lets the DY fuzzer extract, substitute and compose the
+// algorithm name and the raw material independently.
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct SshPublicKey {
+    pub algorithm: SshBytes,
+    pub key_data: SshBytes,
+}
+
+impl Codec for SshPublicKey {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        let mut inner = Vec::new();
+        self.algorithm.encode(&mut inner);
+        self.key_data.encode(&mut inner);
+        (inner.len() as u32).encode(bytes);
+        bytes.extend_from_slice(&inner);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let len = u32::read(reader)? as usize;
+        let inner = reader.take(len)?;
+        let mut r = Reader::init(inner);
+        Some(SshPublicKey {
+            algorithm: SshBytes::read(&mut r)?,
+            key_data: SshBytes::read(&mut r)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct SshSignature {
+    pub algorithm: SshBytes,
+    pub signature_data: SshBytes,
+}
+
+impl Codec for SshSignature {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        let mut inner = Vec::new();
+        self.algorithm.encode(&mut inner);
+        self.signature_data.encode(&mut inner);
+        (inner.len() as u32).encode(bytes);
+        bytes.extend_from_slice(&inner);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let len = u32::read(reader)? as usize;
+        let inner = reader.take(len)?;
+        let mut r = Reader::init(inner);
+        Some(SshSignature {
+            algorithm: SshBytes::read(&mut r)?,
+            signature_data: SshBytes::read(&mut r)?,
         })
     }
 }
@@ -377,35 +474,23 @@ impl Codec for KexEcdhInitMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct KexEcdhReplyMessage {
-    #[extractable_no_recursion]
-    pub public_host_key: Vec<u8>,
-    #[extractable_no_recursion]
-    pub ephemeral_public_key: Vec<u8>,
-    #[extractable_no_recursion]
-    pub signature: Vec<u8>,
+    pub public_host_key: SshPublicKey,
+    pub ephemeral_public_key: SshBytes,
+    pub signature: SshSignature,
 }
 
 impl Codec for KexEcdhReplyMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        (self.public_host_key.len() as u32).encode(bytes);
-        bytes.extend_from_slice(&self.public_host_key);
-        (self.ephemeral_public_key.len() as u32).encode(bytes);
-        bytes.extend_from_slice(&self.ephemeral_public_key);
-        (self.signature.len() as u32).encode(bytes);
-        bytes.extend_from_slice(&self.signature);
+        self.public_host_key.encode(bytes);
+        self.ephemeral_public_key.encode(bytes);
+        self.signature.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        let length = u32::read(reader)?;
-        let public_host_key = Vec::from(reader.take(length as usize)?);
-        let length = u32::read(reader)?;
-        let ephemeral_public_key = Vec::from(reader.take(length as usize)?);
-        let length = u32::read(reader)?;
-        let signature = Vec::from(reader.take(length as usize)?);
         Some(KexEcdhReplyMessage {
-            public_host_key,
-            ephemeral_public_key,
-            signature,
+            public_host_key: SshPublicKey::read(reader)?,
+            ephemeral_public_key: SshBytes::read(reader)?,
+            signature: SshSignature::read(reader)?,
         })
     }
 }
@@ -413,34 +498,29 @@ impl Codec for KexEcdhReplyMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct UserAuthRequestMessage {
-    #[extractable_no_recursion]
-    pub user_name: Vec<u8>,
-    #[extractable_no_recursion]
-    pub service_name: Vec<u8>,
-    #[extractable_no_recursion]
-    pub method_name: Vec<u8>,
+    pub user_name: SshBytes,
+    pub service_name: SshBytes,
+    pub method_name: SshBytes,
+    // method_data is NOT a standard ssh-string: it is the raw remainder of the
+    // packet whose format depends on the auth method (RFC 4252).
     #[extractable_no_recursion]
     pub method_data: Vec<u8>,
 }
 
 impl Codec for UserAuthRequestMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        encode_ssh_bytes(&self.user_name, bytes);
-        encode_ssh_bytes(&self.service_name, bytes);
-        encode_ssh_bytes(&self.method_name, bytes);
+        self.user_name.encode(bytes);
+        self.service_name.encode(bytes);
+        self.method_name.encode(bytes);
         bytes.extend_from_slice(&self.method_data);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        let user_name = read_ssh_bytes(reader)?;
-        let service_name = read_ssh_bytes(reader)?;
-        let method_name = read_ssh_bytes(reader)?;
-        let method_data = Vec::from(reader.rest());
         Some(Self {
-            user_name,
-            service_name,
-            method_name,
-            method_data,
+            user_name: SshBytes::read(reader)?,
+            service_name: SshBytes::read(reader)?,
+            method_name: SshBytes::read(reader)?,
+            method_data: Vec::from(reader.rest()),
         })
     }
 }
@@ -469,22 +549,20 @@ impl Codec for UserAuthFailureMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct UserAuthBannerMessage {
-    #[extractable_no_recursion]
-    pub message: Vec<u8>,
-    #[extractable_no_recursion]
-    pub language_tag: Vec<u8>,
+    pub message: SshBytes,
+    pub language_tag: SshBytes,
 }
 
 impl Codec for UserAuthBannerMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        encode_ssh_bytes(&self.message, bytes);
-        encode_ssh_bytes(&self.language_tag, bytes);
+        self.message.encode(bytes);
+        self.language_tag.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         Some(Self {
-            message: read_ssh_bytes(reader)?,
-            language_tag: read_ssh_bytes(reader)?,
+            message: SshBytes::read(reader)?,
+            language_tag: SshBytes::read(reader)?,
         })
     }
 }
@@ -492,8 +570,7 @@ impl Codec for UserAuthBannerMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct GlobalRequestMessage {
-    #[extractable_no_recursion]
-    pub request_name: Vec<u8>,
+    pub request_name: SshBytes,
     pub want_reply: bool,
     #[extractable_no_recursion]
     pub request_data: Vec<u8>,
@@ -501,19 +578,16 @@ pub struct GlobalRequestMessage {
 
 impl Codec for GlobalRequestMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        encode_ssh_bytes(&self.request_name, bytes);
+        self.request_name.encode(bytes);
         (self.want_reply as u8).encode(bytes);
         bytes.extend_from_slice(&self.request_data);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        let request_name = read_ssh_bytes(reader)?;
-        let want_reply = u8::read(reader)? != 0;
-        let request_data = Vec::from(reader.rest());
         Some(Self {
-            request_name,
-            want_reply,
-            request_data,
+            request_name: SshBytes::read(reader)?,
+            want_reply: u8::read(reader)? != 0,
+            request_data: Vec::from(reader.rest()),
         })
     }
 }
@@ -539,8 +613,7 @@ impl Codec for RequestSuccessMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct ChannelOpenMessage {
-    #[extractable_no_recursion]
-    pub channel_type: Vec<u8>,
+    pub channel_type: SshBytes,
     pub sender_channel: u32,
     pub initial_window_size: u32,
     pub maximum_packet_size: u32,
@@ -550,7 +623,7 @@ pub struct ChannelOpenMessage {
 
 impl Codec for ChannelOpenMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        encode_ssh_bytes(&self.channel_type, bytes);
+        self.channel_type.encode(bytes);
         self.sender_channel.encode(bytes);
         self.initial_window_size.encode(bytes);
         self.maximum_packet_size.encode(bytes);
@@ -558,17 +631,12 @@ impl Codec for ChannelOpenMessage {
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        let channel_type = read_ssh_bytes(reader)?;
-        let sender_channel = u32::read(reader)?;
-        let initial_window_size = u32::read(reader)?;
-        let maximum_packet_size = u32::read(reader)?;
-        let channel_data = Vec::from(reader.rest());
         Some(Self {
-            channel_type,
-            sender_channel,
-            initial_window_size,
-            maximum_packet_size,
-            channel_data,
+            channel_type: SshBytes::read(reader)?,
+            sender_channel: u32::read(reader)?,
+            initial_window_size: u32::read(reader)?,
+            maximum_packet_size: u32::read(reader)?,
+            channel_data: Vec::from(reader.rest()),
         })
     }
 }
@@ -614,26 +682,24 @@ impl Codec for ChannelOpenConfirmationMessage {
 pub struct ChannelOpenFailureMessage {
     pub recipient_channel: u32,
     pub reason_code: u32,
-    #[extractable_no_recursion]
-    pub description: Vec<u8>,
-    #[extractable_no_recursion]
-    pub language_tag: Vec<u8>,
+    pub description: SshBytes,
+    pub language_tag: SshBytes,
 }
 
 impl Codec for ChannelOpenFailureMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.recipient_channel.encode(bytes);
         self.reason_code.encode(bytes);
-        encode_ssh_bytes(&self.description, bytes);
-        encode_ssh_bytes(&self.language_tag, bytes);
+        self.description.encode(bytes);
+        self.language_tag.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         Some(Self {
             recipient_channel: u32::read(reader)?,
             reason_code: u32::read(reader)?,
-            description: read_ssh_bytes(reader)?,
-            language_tag: read_ssh_bytes(reader)?,
+            description: SshBytes::read(reader)?,
+            language_tag: SshBytes::read(reader)?,
         })
     }
 }
@@ -663,20 +729,19 @@ impl Codec for ChannelWindowAdjustMessage {
 #[extractable(SshProtocolTypes)]
 pub struct ChannelDataMessage {
     pub recipient_channel: u32,
-    #[extractable_no_recursion]
-    pub data: Vec<u8>,
+    pub data: SshBytes,
 }
 
 impl Codec for ChannelDataMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.recipient_channel.encode(bytes);
-        encode_ssh_bytes(&self.data, bytes);
+        self.data.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         Some(Self {
             recipient_channel: u32::read(reader)?,
-            data: read_ssh_bytes(reader)?,
+            data: SshBytes::read(reader)?,
         })
     }
 }
@@ -686,22 +751,21 @@ impl Codec for ChannelDataMessage {
 pub struct ChannelExtendedDataMessage {
     pub recipient_channel: u32,
     pub data_type_code: u32,
-    #[extractable_no_recursion]
-    pub data: Vec<u8>,
+    pub data: SshBytes,
 }
 
 impl Codec for ChannelExtendedDataMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.recipient_channel.encode(bytes);
         self.data_type_code.encode(bytes);
-        encode_ssh_bytes(&self.data, bytes);
+        self.data.encode(bytes);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
         Some(Self {
             recipient_channel: u32::read(reader)?,
             data_type_code: u32::read(reader)?,
-            data: read_ssh_bytes(reader)?,
+            data: SshBytes::read(reader)?,
         })
     }
 }
@@ -746,8 +810,7 @@ impl Codec for ChannelCloseMessage {
 #[extractable(SshProtocolTypes)]
 pub struct ChannelRequestMessage {
     pub recipient_channel: u32,
-    #[extractable_no_recursion]
-    pub request_type: Vec<u8>,
+    pub request_type: SshBytes,
     pub want_reply: bool,
     #[extractable_no_recursion]
     pub request_data: Vec<u8>,
@@ -756,21 +819,17 @@ pub struct ChannelRequestMessage {
 impl Codec for ChannelRequestMessage {
     fn encode(&self, bytes: &mut Vec<u8>) {
         self.recipient_channel.encode(bytes);
-        encode_ssh_bytes(&self.request_type, bytes);
+        self.request_type.encode(bytes);
         (self.want_reply as u8).encode(bytes);
         bytes.extend_from_slice(&self.request_data);
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        let recipient_channel = u32::read(reader)?;
-        let request_type = read_ssh_bytes(reader)?;
-        let want_reply = u8::read(reader)? != 0;
-        let request_data = Vec::from(reader.rest());
         Some(Self {
-            recipient_channel,
-            request_type,
-            want_reply,
-            request_data,
+            recipient_channel: u32::read(reader)?,
+            request_type: SshBytes::read(reader)?,
+            want_reply: u8::read(reader)? != 0,
+            request_data: Vec::from(reader.rest()),
         })
     }
 }
@@ -1090,25 +1149,25 @@ mod tests {
         let samples = vec![
             SshMessage::Disconnect(DisconnectMessage {
                 reason_code: 1,
-                description: b"closed".to_vec(),
-                language_tag: b"en".to_vec(),
+                description: SshBytes::new(b"closed"),
+                language_tag: SshBytes::new(b"en"),
             }),
             SshMessage::Ignore(IgnoreMessage {
-                data: b"noop".to_vec(),
+                data: SshBytes::new(b"noop"),
             }),
             SshMessage::Unimplemented(UnimplementedMessage {
                 packet_sequence_number: 42,
             }),
             SshMessage::Debug(DebugMessage {
                 always_display: true,
-                message: b"dbg".to_vec(),
-                language_tag: b"en".to_vec(),
+                message: SshBytes::new(b"dbg"),
+                language_tag: SshBytes::new(b"en"),
             }),
             SshMessage::ServiceRequest(ServiceRequestMessage {
-                service_name: b"ssh-userauth".to_vec(),
+                service_name: SshBytes::new(b"ssh-userauth"),
             }),
             SshMessage::ServiceAccept(ServiceAcceptMessage {
-                service_name: b"ssh-userauth".to_vec(),
+                service_name: SshBytes::new(b"ssh-userauth"),
             }),
             SshMessage::KexInit(KexInitMessage {
                 cookie: [7u8; 16],
@@ -1130,17 +1189,23 @@ mod tests {
             }),
             SshMessage::NewKeys,
             SshMessage::KexEcdhInit(KexEcdhInitMessage {
-                ephemeral_public_key: vec![1, 2, 3],
+                ephemeral_public_key: SshBytes::new(vec![1, 2, 3]),
             }),
             SshMessage::KexEcdhReply(KexEcdhReplyMessage {
-                public_host_key: vec![1, 1, 1],
-                ephemeral_public_key: vec![2, 2, 2],
-                signature: vec![3, 3, 3],
+                public_host_key: SshPublicKey {
+                    algorithm: SshBytes::new(b"ssh-ed25519".as_ref()),
+                    key_data: SshBytes::new(vec![1u8; 32]),
+                },
+                ephemeral_public_key: SshBytes::new(vec![2u8; 32]),
+                signature: SshSignature {
+                    algorithm: SshBytes::new(b"ssh-ed25519".as_ref()),
+                    signature_data: SshBytes::new(vec![3u8; 64]),
+                },
             }),
             SshMessage::UserAuthRequest(UserAuthRequestMessage {
-                user_name: b"fuzzer".to_vec(),
-                service_name: b"ssh-connection".to_vec(),
-                method_name: b"password".to_vec(),
+                user_name: SshBytes::new(b"fuzzer".as_ref()),
+                service_name: SshBytes::new(b"ssh-connection".as_ref()),
+                method_name: SshBytes::new(b"password".as_ref()),
                 method_data: vec![0, 0, 0],
             }),
             SshMessage::UserAuthFailure(UserAuthFailureMessage {
@@ -1149,11 +1214,11 @@ mod tests {
             }),
             SshMessage::UserAuthSuccess,
             SshMessage::UserAuthBanner(UserAuthBannerMessage {
-                message: b"banner".to_vec(),
-                language_tag: b"en".to_vec(),
+                message: SshBytes::new(b"banner".as_ref()),
+                language_tag: SshBytes::new(b"en".as_ref()),
             }),
             SshMessage::GlobalRequest(GlobalRequestMessage {
-                request_name: b"tcpip-forward".to_vec(),
+                request_name: SshBytes::new(b"tcpip-forward".as_ref()),
                 want_reply: true,
                 request_data: vec![9, 9],
             }),
@@ -1162,7 +1227,7 @@ mod tests {
             }),
             SshMessage::RequestFailure,
             SshMessage::ChannelOpen(ChannelOpenMessage {
-                channel_type: b"session".to_vec(),
+                channel_type: SshBytes::new(b"session".as_ref()),
                 sender_channel: 1,
                 initial_window_size: 1024,
                 maximum_packet_size: 32768,
@@ -1178,8 +1243,8 @@ mod tests {
             SshMessage::ChannelOpenFailure(ChannelOpenFailureMessage {
                 recipient_channel: 1,
                 reason_code: 2,
-                description: b"failed".to_vec(),
-                language_tag: b"en".to_vec(),
+                description: SshBytes::new(b"failed".as_ref()),
+                language_tag: SshBytes::new(b"en".as_ref()),
             }),
             SshMessage::ChannelWindowAdjust(ChannelWindowAdjustMessage {
                 recipient_channel: 1,
@@ -1187,12 +1252,12 @@ mod tests {
             }),
             SshMessage::ChannelData(ChannelDataMessage {
                 recipient_channel: 1,
-                data: b"payload".to_vec(),
+                data: SshBytes::new(b"payload".as_ref()),
             }),
             SshMessage::ChannelExtendedData(ChannelExtendedDataMessage {
                 recipient_channel: 1,
                 data_type_code: 1,
-                data: b"stderr".to_vec(),
+                data: SshBytes::new(b"stderr".as_ref()),
             }),
             SshMessage::ChannelEof(ChannelEofMessage {
                 recipient_channel: 1,
@@ -1202,7 +1267,7 @@ mod tests {
             }),
             SshMessage::ChannelRequest(ChannelRequestMessage {
                 recipient_channel: 1,
-                request_type: b"exec".to_vec(),
+                request_type: SshBytes::new(b"exec".as_ref()),
                 want_reply: true,
                 request_data: b"id".to_vec(),
             }),
@@ -1224,6 +1289,7 @@ mod tests {
 
 atom_extract_knowledge!(SshProtocolTypes, String);
 atom_extract_knowledge!(SshProtocolTypes, OnWireData);
+// SshBytes derives Extractable directly — no atom_extract_knowledge! needed.
 atom_extract_knowledge!(SshProtocolTypes, u8);
 atom_extract_knowledge!(SshProtocolTypes, u32);
 atom_extract_knowledge!(SshProtocolTypes, u64);

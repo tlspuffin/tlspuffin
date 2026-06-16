@@ -49,6 +49,30 @@ define_signature!(
     fn_seq_15
     fn_seq_16
     fn_empty_bytes_vec
+    fn_u32_0
+    fn_u32_1
+    fn_u32_2
+    fn_ssh_userauth
+    fn_ssh_connection
+    fn_method_password
+    fn_method_publickey
+    fn_method_none
+    fn_username
+    fn_password
+    fn_channel_session
+    fn_placeholder_32bytes
+    fn_channel_exec
+    fn_channel_shell
+    fn_channel_pty_req
+    fn_disconnect_reason_protocol_error
+    fn_disconnect_reason_service_not_available
+    fn_password_auth_data
+    fn_none_auth_data
+    fn_exec_payload
+    fn_ssh_bytes
+    fn_ssh_bytes_empty
+    fn_ssh_public_key
+    fn_ssh_signature
     fn_raw_message
     fn_onwire_message
     fn_banner
