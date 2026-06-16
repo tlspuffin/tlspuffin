@@ -60,6 +60,12 @@ define_signature!(
     fn_username
     fn_password
     fn_channel_session
+    fn_algo_ssh_ed25519
+    fn_algo_ecdsa_sha2_nistp256
+    fn_algo_rsa_sha2_256
+    fn_algo_curve25519_sha256
+    fn_puffin_banner
+    fn_placeholder_16bytes
     fn_placeholder_32bytes
     fn_channel_exec
     fn_channel_shell

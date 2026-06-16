@@ -462,6 +462,129 @@ pub fn seed_auth_wrong_password(
     }
 }
 
+// ── Seed: server attacker ─────────────────────────────────────────────────────
+//
+// Only the CLIENT is a real libssh instance; the fuzzer constructs all server-
+// side messages from scratch.  This lets the fuzzer send arbitrary KexInit
+// algorithm combinations, bogus public-host-keys, and invalid signatures to
+// exercise the client's verification logic — things a legitimate server would
+// never produce.
+
+pub fn seed_server_attacker(client: AgentName) -> Trace<SshProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            SshDescriptorConfig { typ: AgentType::Client, try_reuse: false },
+        )],
+        steps: vec![
+            // Trigger the libssh client: it outputs its banner + KexInit.
+            OutputAction::new_step(client),
+            // Attacker → Client: server banner (constant string).
+            InputAction::new_step(client, term! { fn_banner(fn_puffin_banner) }),
+            // Attacker → Client: server KexInit, mirroring the client's own
+            // algorithm preferences so negotiation can proceed.
+            InputAction::new_step(
+                client,
+                term! {
+                    fn_kex_init(
+                        (fn_placeholder_16bytes),
+                        ((client, 0)[None]/KexAlgorithms),
+                        ((client, 0)[None]/SignatureSchemes),
+                        ((client, 0)[None]/EncryptionAlgorithms),
+                        ((client, 1)[None]/EncryptionAlgorithms),
+                        ((client, 0)[None]/MacAlgorithms),
+                        ((client, 1)[None]/MacAlgorithms),
+                        ((client, 0)[None]/CompressionAlgorithms),
+                        ((client, 1)[None]/CompressionAlgorithms)
+                    )
+                },
+            ),
+            // Attacker → Client: crafted KexEcdhReply with a valid algorithm
+            // name but bogus key material and signature bytes.  A realistic
+            // algorithm name gets past libssh's early name-check; the bogus
+            // material exercises the deeper key-parsing and signature-
+            // verification code paths that random bytes never reach.
+            InputAction::new_step(
+                client,
+                term! {
+                    fn_kex_ecdh_reply(
+                        (fn_ssh_public_key(
+                            (fn_algo_ssh_ed25519),
+                            (fn_placeholder_32bytes)
+                        )),
+                        (fn_placeholder_32bytes),
+                        (fn_ssh_signature(
+                            (fn_algo_ssh_ed25519),
+                            (fn_placeholder_32bytes)
+                        ))
+                    )
+                },
+            ),
+            // Attacker → Client: NewKeys.
+            InputAction::new_step(client, term! { fn_new_keys }),
+        ],
+        ..Default::default()
+    }
+}
+
+// ── Seed: client attacker ─────────────────────────────────────────────────────
+//
+// Only the SERVER is a real libssh instance; the fuzzer constructs all client-
+// side messages from scratch.  This lets the fuzzer send arbitrary KexInit
+// combinations, garbage ECDH ephemeral keys, and out-of-order messages to
+// exercise the server's key-exchange and auth-request handling.
+
+pub fn seed_client_attacker(server: AgentName) -> Trace<SshProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+        )],
+        steps: vec![
+            // Trigger the libssh server: it outputs its banner + KexInit.
+            OutputAction::new_step(server),
+            // Attacker → Server: client banner.
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            // Attacker → Server: client KexInit, mirroring the server's
+            // algorithm list so negotiation can proceed.
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_kex_init(
+                        (fn_placeholder_16bytes),
+                        ((server, 0)[None]/KexAlgorithms),
+                        ((server, 0)[None]/SignatureSchemes),
+                        ((server, 0)[None]/EncryptionAlgorithms),
+                        ((server, 1)[None]/EncryptionAlgorithms),
+                        ((server, 0)[None]/MacAlgorithms),
+                        ((server, 1)[None]/MacAlgorithms),
+                        ((server, 0)[None]/CompressionAlgorithms),
+                        ((server, 1)[None]/CompressionAlgorithms)
+                    )
+                },
+            ),
+            // Attacker → Server: client KexEcdhInit with a placeholder key.
+            // The server will try to compute a shared secret from this; a non-
+            // valid curve point exercises the server's key-validation paths.
+            InputAction::new_step(
+                server,
+                term! { fn_kex_ecdh_init((fn_placeholder_32bytes)) },
+            ),
+            // Attacker → Server: NewKeys.
+            InputAction::new_step(server, term! { fn_new_keys }),
+            // Attacker → Server: structured service request (plaintext; will
+            // be decryption-rejected post-NewKeys, but exercises that path).
+            InputAction::new_step(
+                server,
+                term! { fn_service_request((fn_ssh_userauth)) },
+            ),
+        ],
+        ..Default::default()
+    }
+}
+
 pub fn create_corpus(
     _put: &dyn puffin::put_registry::Factory<SshProtocolBehavior>,
 ) -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
@@ -474,6 +597,8 @@ pub fn create_corpus(
         (seed_disconnect_early(client, server), "seed_disconnect_early"),
         (seed_none_auth_probe(client, server), "seed_none_auth_probe"),
         (seed_auth_wrong_password(client, server), "seed_auth_wrong_password"),
+        (seed_server_attacker(client), "seed_server_attacker"),
+        (seed_client_attacker(server), "seed_client_attacker"),
     ]
 }
 

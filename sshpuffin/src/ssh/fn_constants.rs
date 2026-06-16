@@ -119,6 +119,33 @@ pub fn fn_channel_session() -> Result<SshBytes, FnError> {
 // 32 bytes of non-zero data so the fuzzer can build a KexEcdhInit that passes
 // the "empty key" guard in libssh and reaches the actual key-validation logic.
 
+// ── SSH algorithm name constants ──────────────────────────────────────────────
+//
+// Having realistic algorithm strings (not just random bytes) lets the attacker
+// seeds get past the early algorithm-name validation and exercise deeper code
+// paths in key verification and signature checking.
+
+pub fn fn_algo_ssh_ed25519() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"ssh-ed25519".to_vec()))
+}
+pub fn fn_algo_ecdsa_sha2_nistp256() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"ecdsa-sha2-nistp256".to_vec()))
+}
+pub fn fn_algo_rsa_sha2_256() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"rsa-sha2-256".to_vec()))
+}
+pub fn fn_algo_curve25519_sha256() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"curve25519-sha256".to_vec()))
+}
+
+pub fn fn_puffin_banner() -> Result<String, FnError> {
+    Ok("SSH-2.0-puffin\r\n".to_string())
+}
+
+pub fn fn_placeholder_16bytes() -> Result<[u8; 16], FnError> {
+    Ok([0x07u8; 16])
+}
+
 pub fn fn_placeholder_32bytes() -> Result<SshBytes, FnError> {
     Ok(SshBytes::new(vec![
         0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
