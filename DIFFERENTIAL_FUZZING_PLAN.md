@@ -121,7 +121,7 @@ divergence is EXPECTED and handled by annotations + blacklist, not by RNG.
   - [x] `rng_reseed` infra added (limited by OpenSSL 3.x; documented above).
   - [x] Determined that meaningful comparison needs Phase 1 (decryption recipes
         + whitelist + field annotations), NOT RNG determinism or uniformise.
-- [~] Phase 1 — pre-NewKeys comparison DONE; post-NewKeys decryption deferred:
+- [x] Phase 1 — COMPLETE (plaintext handshake + encrypted record layer):
   - [x] `fn_decrypt_packet` (inverse of `fn_encrypt_packet`) + roundtrip tests.
   - [x] `differential_fuzzing_whitelist`: SshMessage, SshMessageFlight,
         KexInitMessage, KexEcdhReplyMessage (opaque/ciphertext types excluded).
@@ -132,12 +132,28 @@ divergence is EXPECTED and handled by annotations + blacklist, not by RNG.
         annotations, not RNG); 0114-vs-0104 surfaces the genuine KexInit
         divergence (kex-strict-s-v00@openssh.com / Terrapin CVE-2023-48795 +
         zlib). `filter_diff` left permissive (cross diffs are real signal).
-  - [ ] DEFERRED: `differential_fuzzing_terms_to_eval` — decryption recipes for
-        the POST-NewKeys encrypted layer. Design worked out (decrypt server
-        OnWire outputs with s2c key reconstructed from KEX knowledge, seqno 3+),
-        but it is seed-shape-specific and requires reconstructing I_C (the
-        fuzzer's own client KexInit contribution) inside a descriptors-only
-        recipe. Sizable; tracked for a follow-up. Pre-NewKeys comparison already
-        finds real divergences without it.
-- [ ] Phase 3 (wolfSSH)
+  - [x] `differential_fuzzing_terms_to_eval` — DONE. `server_decryption_recipes`
+        (seeds.rs) reconstructs the s2c key from observed KEX output and
+        decrypts the server's encrypted responses with `fn_decrypt_packet`.
+        Emits recipes at both strict (0,1,2) and non-strict (3,4,5) s2c seqnos;
+        wrong seqno fails the tag and is skipped, keeping stores aligned.
+        Verified: 0114 decrypts at 0,1 (strict) and 0104 at 3,4 (non-strict),
+        both → [ServiceAccept, UserAuthSuccess]; decrypted layer compares EQUAL,
+        so only the pre-NewKeys KexInit diffs remain. PHASE 1 COMPLETE.
+- [~] Phase 3 (wolfSSH) — scoped; build-infra challenge identified:
+  - puffin-build has NO cross-vendor dependency mechanism. Each vendor fetches
+    ONE source URL (`SOURCES`) and runs CONFIGURE/BUILD/INSTALL. wolfSSH needs
+    wolfSSL at build time (`--with-wolfssl=<prefix>`), so the wolfssh
+    `builder.cmake` must fetch+build BOTH libraries (nested ExternalProject or
+    shell steps): build wolfSSL (autotools, asan+sancov) → install to a prefix →
+    build wolfSSH (`--with-wolfssl=<prefix>`, asan+sancov) → install.
+  - Then a new C harness `sshpuffin/harness/wolfssh/src/put.c` implementing
+    SSH_PUT_INTERFACE against wolfSSH (`wolfSSH_accept/connect`, `wolfSSH_set_fd`,
+    `wolfSSH_CTX_SetUserAuth` callback returning SUCCESS), reusing the socketpair
+    model + FD-leak fix from the libssh harness.
+  - Effort: large, multiple build-debug cycles, long from-source compiles that
+    compete with the running campaigns for CPU. Low protocol-maturity target.
 - [ ] Phase 2 (claims + DY properties)
+- [ ] DEFERRED (self-contained alternative): terms_to_eval post-NewKeys
+      decryption recipes — completes Phase 1's encrypted-layer comparison with
+      no external dependencies.

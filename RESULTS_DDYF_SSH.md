@@ -185,14 +185,33 @@ ASAN_OPTIONS=verify_asan_link_order=1:detect_leaks=0:abort_on_error=1 \
 | PUT reseed wiring | `sshpuffin/src/libssh/mod.rs` (`Factory::rng_reseed`) |
 | DDYF comparison engine | `puffin/src/trace.rs::compare`, `puffin/src/protocol.rs` (`CompareKnowledge`), `puffin/src/differential.rs` |
 
+## 7b. Post-NewKeys encrypted layer (DONE)
+
+`differential_fuzzing_terms_to_eval` now decrypts the server's encrypted
+responses so they are compared structurally. For each libssh server agent,
+`server_decryption_recipes` (in `seeds.rs`) reconstructs the server→client (s2c)
+key from the observed KEX output (same derivation as the attacker-full seed, but
+the 'D' direction) and applies `fn_decrypt_packet` to each encrypted output.
+
+The s2c sequence number after NEWKEYS depends on **strict KEX**: 0.11.4 resets
+the counter to 0, 0.10.4 continues (first encrypted = 3). Recipes are emitted at
+both conventions (0,1,2 and 3,4,5); the wrong seqno fails the Poly1305 tag and
+is skipped, so the two PUTs' decrypted stores fill in message order and align.
+
+Result on `seed_client_attacker_full`:
+- 0.11.4 decrypts at seqno 0,1 (strict); 0.10.4 at seqno 3,4 (non-strict).
+- Both yield `[ServiceAccept(ssh-userauth), UserAuthSuccess]`.
+- The decrypted post-NewKeys layer compares **EQUAL** across versions — the auth
+  layer behaves identically; only the pre-NewKeys KEXINIT differs (§5).
+- Bonus: *which* recipes succeed directly reveals the strict-kex seqno-reset
+  behavior (a real, observable behavioral difference between the versions).
+
+**Phase 1 is therefore complete**: both the plaintext handshake and the
+encrypted record layer are compared, with zero false positives.
+
 ## 8. Current limitations & next steps
 
-- **Post-NewKeys layer not yet compared.** Encrypted record-layer traffic
-  (ServiceAccept, UserAuth replies, channel responses) is still opaque `OnWire`
-  knowledge. Comparing it requires `differential_fuzzing_terms_to_eval`
-  decryption recipes (design in the plan): decrypt each PUT's server output with
-  the s2c key reconstructed from KEX knowledge (seqno 3+) using `fn_decrypt_packet`.
-  Deferred — the pre-NewKeys comparison already finds real divergences.
+- **Claims/SecurityClaim comparison inactive** (Phase 2): see below.
 - **Claims/SecurityClaim comparison inactive.** `SshClaim` is a dummy and
   `register_claimer` is a no-op (Phase 2): no auth/secret/session claims are
   emitted yet, so the Claims and SecurityClaim diff channels are silent.
