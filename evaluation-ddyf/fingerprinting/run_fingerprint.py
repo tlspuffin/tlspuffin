@@ -38,7 +38,7 @@ _FORWARD = [("repo_root", "--repo-root"), ("vendor_dir", "--vendor-dir"),
             ("reference_dir", "--reference-dir"), ("prober", "--prober"),
             ("experiments_dir", "--experiments-dir"), ("experiments_glob", "--experiments-glob"),
             ("cores", "--cores"), ("jobs", "--jobs"), ("base_port", "--base-port"),
-            ("timeout", "--timeout")]
+            ("timeout", "--timeout"), ("stable_only", "--stable-only")]
 
 
 def _forwarded(args):
@@ -46,7 +46,11 @@ def _forwarded(args):
     for attr, flag in _FORWARD:
         v = getattr(args, attr, None)
         if v is not None:
-            out += [flag, str(v)]
+            if isinstance(v, bool):
+                if v:
+                    out += [flag]
+            else:
+                out += [flag, str(v)]
     return out
 
 
@@ -61,7 +65,11 @@ def run_build(args):
     t0 = time.time()
     for put in args.put:                              # PUTs strictly sequential (controlled load)
         for stage in stages:
-            cmd = [sys.executable, str(HERE / STAGE_SCRIPT[stage]), "--put", put] + fwd
+            stage_fwd = fwd
+            if stage != "tree":
+                stage_fwd = [f for f in fwd if f != "--stable-only"]
+
+            cmd = [sys.executable, str(HERE / STAGE_SCRIPT[stage]), "--put", put] + stage_fwd
             print(f"\n--- [{put}] stage '{stage}': {' '.join(cmd)} ---", flush=True)
             rc = subprocess.run(cmd).returncode
             if rc != 0:
@@ -98,6 +106,7 @@ def main():
                     help="comma list of stages (mine,matrix,tree,validate,report). Default "
                          "'validate,report' live-tests the committed models. Full rebuild "
                          "'matrix,tree,validate,report' needs the full probe set (run 'mine' first).")
+    ap.add_argument("--stable-only", action="store_true", help="exclude probes with any MISSING values in tree induction")
     puts.add_common_args(ap)
     args = ap.parse_args()
     run_build(args)

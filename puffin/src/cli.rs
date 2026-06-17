@@ -11,7 +11,7 @@ use libafl::inputs::Input;
 use log::LevelFilter;
 use puffin_build::puffin;
 
-use crate::agent::AgentName;
+use crate::agent::{AgentName, ProtocolDescriptorConfig};
 use crate::algebra::TermType;
 use crate::execution::{DifferentialRunner, ForkedRunner, Runner, TraceRunner};
 use crate::experiment::{format_title, write_experiment_markdown};
@@ -100,6 +100,8 @@ where
                 .arg(arg!(-a --args [a] "The args of the program"))
                 .arg(arg!(-t --host [h] "The host to connect to, or the server host"))
                 .arg(arg!(-s --sni [h] "Server Name Indication (SNI) to inject into the ClientHello"))
+                .arg(arg!(-g --agent [n] "The agent index to map to TCP")
+                    .value_parser(value_parser!(usize)))
                 .arg(arg!(-p --port [n] "The client port to connect to, or the server port")
                     .value_parser(value_parser!(u16).range(1..)))
                 .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool))),
@@ -496,7 +498,14 @@ where
             options.push(("cwd", cwd));
         }
 
-        let server_name = trace.descriptors[0].name;
+        let agent_index: usize = matches.get_one::<usize>("agent").copied().unwrap_or_else(|| {
+            trace
+                .descriptors
+                .iter()
+                .position(|d| d.protocol_config.is_server())
+                .unwrap_or(0)
+        });
+        let server_name = trace.descriptors[agent_index].name;
         let put = PutDescriptor::new(TCP_PUT, options);
         let mut context = TraceContext::new(Spawner::new(put_registry).with_mapping(&[(server_name, put)]));
 

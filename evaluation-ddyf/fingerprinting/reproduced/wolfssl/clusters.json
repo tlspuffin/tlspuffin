@@ -1,0 +1,138 @@
+{
+  "clusters": [
+    {
+      "id": 0,
+      "versions": [
+        "wolfssl500"
+      ]
+    },
+    {
+      "id": 1,
+      "versions": [
+        "wolfssl510",
+        "wolfssl511"
+      ]
+    },
+    {
+      "id": 2,
+      "versions": [
+        "wolfssl520"
+      ]
+    },
+    {
+      "id": 3,
+      "versions": [
+        "wolfssl521"
+      ]
+    },
+    {
+      "id": 4,
+      "versions": [
+        "wolfssl530"
+      ]
+    },
+    {
+      "id": 5,
+      "versions": [
+        "wolfssl540"
+      ]
+    },
+    {
+      "id": 6,
+      "versions": [
+        "wolfssl552"
+      ]
+    },
+    {
+      "id": 7,
+      "versions": [
+        "wolfssl553"
+      ]
+    },
+    {
+      "id": 8,
+      "versions": [
+        "wolfssl554"
+      ]
+    },
+    {
+      "id": 9,
+      "versions": [
+        "wolfssl560"
+      ]
+    },
+    {
+      "id": 10,
+      "versions": [
+        "wolfssl562",
+        "wolfssl563"
+      ]
+    },
+    {
+      "id": 11,
+      "versions": [
+        "wolfssl564"
+      ]
+    },
+    {
+      "id": 12,
+      "versions": [
+        "wolfssl566"
+      ]
+    },
+    {
+      "id": 13,
+      "versions": [
+        "wolfssl570"
+      ]
+    },
+    {
+      "id": 14,
+      "versions": [
+        "wolfssl572"
+      ]
+    },
+    {
+      "id": 15,
+      "versions": [
+        "wolfssl574"
+      ]
+    },
+    {
+      "id": 16,
+      "versions": [
+        "wolfssl576"
+      ]
+    },
+    {
+      "id": 17,
+      "versions": [
+        "wolfssl580"
+      ]
+    },
+    {
+      "id": 18,
+      "versions": [
+        "wolfssl582"
+      ]
+    },
+    {
+      "id": 19,
+      "versions": [
+        "wolfssl584"
+      ]
+    },
+    {
+      "id": 20,
+      "versions": [
+        "wolfssl590"
+      ]
+    },
+    {
+      "id": 21,
+      "versions": [
+        "wolfssl591"
+      ]
+    }
+  ]
+}

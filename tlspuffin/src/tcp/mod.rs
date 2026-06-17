@@ -206,7 +206,9 @@ impl TcpServerPut {
         let (sender, stream_receiver) = channel();
         let addr = addr_from_config(options).map_err(|err| Error::Put(err.to_string()))?;
 
-        let listener = TcpListener::bind(addr).unwrap();
+        let listener = TcpListener::bind(addr).map_err(|err| {
+            Error::Put(format!("TcpServerPut failed to bind to {addr}: {err}"))
+        })?;
 
         thread::spawn(move || {
             if let Some(new_stream) = listener.incoming().next() {

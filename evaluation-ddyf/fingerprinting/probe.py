@@ -31,6 +31,7 @@ import puts as _puts                                        # noqa: E402
 
 EMPTY = hashlib.sha256(b"").hexdigest()   # canonical signature of "nothing observable"
 UNSTABLE = "UNSTABLE"                      # cell sentinel: no reproducible response
+TIMEOUT = "TIMEOUT"                        # cell sentinel: server stably timed out
 SRVFAIL = "SRVFAIL"                        # cell sentinel: server never came up
 MISSING = {UNSTABLE, SRVFAIL, ""}          # treated as "no information" by clustering/tree
 N_POOL = 10                                # probes per cell
@@ -49,7 +50,7 @@ def sigkey(full_sig, sig_len):
     The committed OpenSSL model keys on the 10-char prefix; the WolfSSL model on full sigs. A live
     probe always yields the full sig, so callers truncate via this helper before matching.
     """
-    if full_sig in (UNSTABLE, SRVFAIL):
+    if full_sig in (UNSTABLE, SRVFAIL, TIMEOUT):
         return full_sig
     return full_sig if not sig_len else full_sig[:sig_len]
 
@@ -61,7 +62,7 @@ def _run_once(cfg, binary, trace, port):
                                                 "--port", str(port), "--json"],
                            capture_output=True, text=True, timeout=cfg.timeout)
     except subprocess.TimeoutExpired:
-        return None
+        return (0, TIMEOUT)
     i = r.stdout.find("{")
     if i < 0:
         return (0, EMPTY)
@@ -81,7 +82,7 @@ def batch(cfg, trace, port, k=7, resp_min=5):
     if not caps:
         return None
     best = max(d for d, _ in caps)
-    if sum(1 for d, _ in caps if d > 0) < resp_min:
+    if len(caps) < resp_min:
         return None
     return Counter(s for d, s in caps if d == best).most_common(1)[0][0]
 
@@ -94,8 +95,6 @@ def pooled_sig(cfg, trace, port, n_pool=N_POOL, dom=DOM):
     if not caps:
         return UNSTABLE
     best = max(d for d, _ in caps)
-    if best == 0:
-        return UNSTABLE
     sig, cnt = Counter(s for d, s in caps if d == best).most_common(1)[0]
     return sig if cnt >= dom else UNSTABLE
 

@@ -382,7 +382,7 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
 
     SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_NONE, NULL);
 
-    if (descriptor->client_authentication)
+    if (false && descriptor->client_authentication)
     {
         ssl_ctx = set_cert(ssl_ctx, descriptor->cert);
         ssl_ctx = set_pkey(ssl_ctx, descriptor->pkey);
@@ -392,7 +392,7 @@ AGENT openssl_create_client(const TLS_AGENT_DESCRIPTOR *descriptor)
         }
     }
 
-    if (descriptor->server_authentication)
+    if (false && descriptor->server_authentication)
     {
         SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 

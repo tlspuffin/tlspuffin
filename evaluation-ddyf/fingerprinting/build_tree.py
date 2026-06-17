@@ -33,6 +33,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     puts.add_put_arg(ap)
     puts.add_common_args(ap)
+    ap.add_argument("--stable-only", action="store_true", help="exclude probes with any MISSING values")
     args = ap.parse_args()
     put = args.put
     cfg = puts.resolve(args)
@@ -89,6 +90,10 @@ def main():
             for v in V:
                 s = M[v][pi]
                 (unstable if s in MISSING else groups[s]).append(v)
+
+            if args.stable_only and unstable:
+                continue
+
             if len(groups) < 2:                            # all-same (or all-missing): separates nothing
                 continue
             # Gain = number of version PAIRS this probe puts into different signature groups

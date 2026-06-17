@@ -2793,18 +2793,20 @@ pub fn create_corpus(
     // CLIENT): those don't fit remote-server fingerprinting and their objective traces are rejected
     // by our wire-signature canon anyway. Default (var unset) keeps the full corpus for other fuzzing.
     let all = std::env::var("FP_CLIENT_ATTACKER_ONLY").is_err();
+    let v13_only = std::env::var("FP_V13_ONLY").is_ok();
+
     corpus!(
         // Full Handshakes (MITM: both a client and a server PUT agent)
         seed_successful: all && put.supports("tls13"),
         seed_successful_with_ccs: all && put.supports("tls13"),
         seed_successful_with_tickets: all && put.supports("tls13"),
-        seed_successful12: all && put.supports("tls12") && !put.supports("tls12_session_resumption"),
-        seed_successful12_with_tickets: all && put.supports("tls12") && put.supports("tls12_session_resumption"),
+        seed_successful12: !v13_only && all && put.supports("tls12") && !put.supports("tls12_session_resumption"),
+        seed_successful12_with_tickets: !v13_only && all && put.supports("tls12") && put.supports("tls12_session_resumption"),
         // Client Attackers (PUT = server) -- kept for fingerprinting
         seed_client_attacker: put.supports("tls13"),
         seed_client_attacker_full: put.supports("tls13"),
         seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
-        seed_client_attacker12: put.supports("tls12"),
+        seed_client_attacker12: !v13_only && put.supports("tls12"),
         // Session resumption (PUT = server, client-attacker handshakes) -- kept for fingerprinting
         seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
         seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption"),
@@ -2812,7 +2814,7 @@ pub fn create_corpus(
         seed_server_attacker_full: all && put.supports("tls13"),
         seed_server_attacker_full_coalesced: all && put.supports("tls13"),
         seed_server_attacker_with_hello_retry_request : all && put.supports("tls13"),
-        seed_server_attacker12: all && put.supports("tls12"),
+        seed_server_attacker12: !v13_only && all && put.supports("tls12"),
     )
 }
 

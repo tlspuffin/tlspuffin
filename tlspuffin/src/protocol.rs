@@ -428,6 +428,10 @@ impl ProtocolDescriptorConfig for TLSDescriptorConfig {
             && self.groups == other.groups
             && self.sigalgs == other.sigalgs
     }
+
+    fn is_server(&self) -> bool {
+        self.typ == AgentType::Server
+    }
 }
 
 // Bulk strings are not well-supported across wolfssl versions (better in later ones)
