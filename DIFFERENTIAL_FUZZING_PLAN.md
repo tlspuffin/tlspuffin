@@ -121,13 +121,23 @@ divergence is EXPECTED and handled by annotations + blacklist, not by RNG.
   - [x] `rng_reseed` infra added (limited by OpenSSL 3.x; documented above).
   - [x] Determined that meaningful comparison needs Phase 1 (decryption recipes
         + whitelist + field annotations), NOT RNG determinism or uniformise.
-- [ ] Phase 1 — the real work (revised, ordered):
-  - [ ] `fn_decrypt_packet` (inverse of `fn_encrypt_packet`) in `fn_crypto.rs`.
-  - [ ] `differential_fuzzing_terms_to_eval`: recipes that decrypt/parse PUT
-        output into `SshMessage` so comparison is structural.
-  - [ ] `differential_fuzzing_whitelist`: `SshMessage` (+ negotiated name-lists).
-  - [ ] `#[comparable_ignore]` on divergent fields: KexInit `cookie`, ECDH
-        `ephemeral_public_key`/`signature`/`public_host_key`, MACs, ciphertext.
-  - [ ] `differential_fuzzing_filter_diff`: banner version string, etc.
+- [~] Phase 1 — pre-NewKeys comparison DONE; post-NewKeys decryption deferred:
+  - [x] `fn_decrypt_packet` (inverse of `fn_encrypt_packet`) + roundtrip tests.
+  - [x] `differential_fuzzing_whitelist`: SshMessage, SshMessageFlight,
+        KexInitMessage, KexEcdhReplyMessage (opaque/ciphertext types excluded).
+  - [x] `#[comparable_ignore]` on divergent fields: KexInit `cookie`,
+        KexEcdhInit `ephemeral_public_key`, KexEcdhReply `ephemeral_public_key`
+        + `signature` (host key KEPT — same embedded key, a diff = real finding).
+  - [x] Verified: ALL seeds give same-vs-same = 0 (deterministic comparison via
+        annotations, not RNG); 0114-vs-0104 surfaces the genuine KexInit
+        divergence (kex-strict-s-v00@openssh.com / Terrapin CVE-2023-48795 +
+        zlib). `filter_diff` left permissive (cross diffs are real signal).
+  - [ ] DEFERRED: `differential_fuzzing_terms_to_eval` — decryption recipes for
+        the POST-NewKeys encrypted layer. Design worked out (decrypt server
+        OnWire outputs with s2c key reconstructed from KEX knowledge, seqno 3+),
+        but it is seed-shape-specific and requires reconstructing I_C (the
+        fuzzer's own client KexInit contribution) inside a descriptors-only
+        recipe. Sizable; tracked for a follow-up. Pre-NewKeys comparison already
+        finds real divergences without it.
 - [ ] Phase 3 (wolfSSH)
 - [ ] Phase 2 (claims + DY properties)
