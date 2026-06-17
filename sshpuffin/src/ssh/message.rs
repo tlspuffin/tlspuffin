@@ -405,6 +405,8 @@ impl Codec for KexInitMessage {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct KexEcdhInitMessage {
+    // Client ephemeral X25519 key: fresh random per run → ignore in DDYF.
+    #[comparable_ignore]
     pub ephemeral_public_key: SshBytes,
 }
 
