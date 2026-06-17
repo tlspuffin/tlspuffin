@@ -207,9 +207,20 @@ impl ProtocolTypes for SshProtocolTypes {
     }
 
     fn differential_fuzzing_terms_to_eval(
-        _agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
+        agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
     ) -> Vec<puffin::algebra::Term<Self>> {
-        vec![]
+        // For every libssh server agent, emit recipes that decrypt its
+        // post-NewKeys encrypted output into structured SshMessages so the two
+        // PUTs' encrypted record-layer responses can be compared. Recipes whose
+        // queries / sequence numbers don't match a given PUT's run evaluate to
+        // an error and are silently skipped by the differential engine.
+        let mut terms = vec![];
+        for agent in agents {
+            if agent.protocol_config.typ == AgentType::Server {
+                terms.extend(crate::ssh::seeds::server_decryption_recipes(agent.name));
+            }
+        }
+        terms
     }
 
     fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
