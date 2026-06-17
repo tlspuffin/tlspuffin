@@ -130,6 +130,7 @@ define_signature!(
     fn_derive_enc_key_c2s
     fn_derive_enc_key_s2c
     fn_encrypt_packet
+    fn_decrypt_packet
     fn_server_rsa_pubkey
     fn_server_rsa_pubkey_bytes
     fn_sign_exchange_hash

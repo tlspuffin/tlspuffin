@@ -356,6 +356,90 @@ pub fn fn_encrypt_packet(
     Ok(RawSshMessage::OnWire(OnWireData(out)))
 }
 
+/// Decrypt a ChaCha20-Poly1305@openssh packet (the inverse of
+/// `fn_encrypt_packet`) and parse the plaintext payload back into an
+/// `SshMessage`.
+///
+/// Used by differential fuzzing's `terms_to_eval`: a PUT's encrypted
+/// record-layer output is opaque `OnWire` bytes, so to compare two PUTs
+/// structurally we decrypt with the derived key + sequence number and parse
+/// the cleartext into a typed `SshMessage`.
+///
+/// `data` is the raw on-wire packet: `[enc_len(4)][enc_body(packet_len)][tag(16)]`.
+pub fn fn_decrypt_packet(
+    data: &OnWireData,
+    key: &SshBytes,
+    seqno: &u32,
+) -> Result<SshMessage, FnError> {
+    use puffin::codec::Reader;
+
+    if key.0.len() != 64 {
+        return Err(FnError::Unknown("decryption key must be 64 bytes".into()));
+    }
+    let wire = &data.0;
+    if wire.len() < 4 + 16 {
+        return Err(FnError::Unknown("packet too short to decrypt".into()));
+    }
+
+    let k2 = chacha20::Key::from_slice(&key.0[0..32]);
+    let k1 = chacha20::Key::from_slice(&key.0[32..64]);
+
+    let nonce_bytes: [u8; 8] = (*seqno as u64).to_be_bytes();
+    let nonce = LegacyNonce::from_slice(&nonce_bytes);
+
+    // Step 1: regenerate the Poly1305 key from k2 at counter 0.
+    let mut cipher_k2 = ChaCha20Legacy::new(k2, nonce);
+    let mut poly_key = [0u8; 32];
+    cipher_k2.apply_keystream(&mut poly_key);
+
+    // Step 2: decrypt the 4-byte length field with k1 at counter 0.
+    let mut cipher_k1 = ChaCha20Legacy::new(k1, nonce);
+    let mut len_buf = [0u8; 4];
+    len_buf.copy_from_slice(&wire[0..4]);
+    cipher_k1.apply_keystream(&mut len_buf);
+    let packet_len = u32::from_be_bytes(len_buf) as usize;
+
+    // Bounds: wire must hold enc_len(4) + enc_body(packet_len) + tag(16).
+    if wire.len() < 4 + packet_len + 16 {
+        return Err(FnError::Unknown(
+            "declared packet length exceeds available bytes".into(),
+        ));
+    }
+    let enc_body = &wire[4..4 + packet_len];
+    let tag_bytes = &wire[4 + packet_len..4 + packet_len + 16];
+
+    // Step 3: verify the Poly1305 tag over [enc_len || enc_body].
+    use poly1305::universal_hash::{KeyInit, UniversalHash};
+    use poly1305::{Key as Poly1305Key, Poly1305};
+    let poly = Poly1305::new(Poly1305Key::from_slice(&poly_key));
+    let mut mac_input = Vec::with_capacity(4 + packet_len);
+    mac_input.extend_from_slice(&wire[0..4]);
+    mac_input.extend_from_slice(enc_body);
+    let expected = poly.compute_unpadded(&mac_input);
+    if expected.as_slice() != tag_bytes {
+        return Err(FnError::Unknown("Poly1305 tag mismatch".into()));
+    }
+
+    // Step 4: decrypt the body with k2 at counter 1 (byte offset 64).
+    let mut body = enc_body.to_vec();
+    cipher_k2.seek(64u64);
+    cipher_k2.apply_keystream(&mut body);
+
+    // body = [pad_len: u8][payload][padding]; strip framing and parse payload.
+    if body.is_empty() {
+        return Err(FnError::Unknown("empty decrypted body".into()));
+    }
+    let pad_len = body[0] as usize;
+    if 1 + pad_len > body.len() {
+        return Err(FnError::Unknown("invalid padding length".into()));
+    }
+    let payload = &body[1..body.len() - pad_len];
+
+    let mut reader = Reader::init(payload);
+    SshMessage::read(&mut reader)
+        .ok_or_else(|| FnError::Unknown("failed to parse decrypted SshMessage".into()))
+}
+
 // ── Server-attacker helpers ───────────────────────────────────────────────────
 
 /// The embedded server RSA private key in OpenSSH format (same key as put.c).
@@ -479,4 +563,43 @@ pub fn fn_rsa_sha2_256_signature(sig_data: &SshBytes) -> Result<SshSignature, Fn
         algorithm: SshBytes::new(b"rsa-sha2-256".to_vec()),
         signature_data: sig_data.clone(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ssh::message::{ServiceRequestMessage, SshMessage};
+
+    #[test]
+    fn test_encrypt_decrypt_roundtrip() {
+        // A 64-byte key (two ChaCha20 keys) and a couple of sequence numbers.
+        let key = SshBytes::new((0u8..64).collect::<Vec<u8>>());
+        let msg = SshMessage::ServiceRequest(ServiceRequestMessage {
+            service_name: SshBytes::new(b"ssh-userauth".to_vec()),
+        });
+
+        for seqno in [0u32, 1, 7, 42] {
+            let encrypted = fn_encrypt_packet(&msg, &key, &seqno).expect("encrypt");
+            let onwire = match encrypted {
+                RawSshMessage::OnWire(d) => d,
+                _ => panic!("expected OnWire"),
+            };
+            let decrypted = fn_decrypt_packet(&onwire, &key, &seqno).expect("decrypt");
+            assert_eq!(decrypted, msg, "roundtrip mismatch at seqno {seqno}");
+        }
+    }
+
+    #[test]
+    fn test_decrypt_wrong_key_fails() {
+        let key = SshBytes::new((0u8..64).collect::<Vec<u8>>());
+        let wrong = SshBytes::new((1u8..65).collect::<Vec<u8>>());
+        let msg = SshMessage::NewKeys;
+        let encrypted = fn_encrypt_packet(&msg, &key, &0).expect("encrypt");
+        let onwire = match encrypted {
+            RawSshMessage::OnWire(d) => d,
+            _ => panic!("expected OnWire"),
+        };
+        // Wrong key must fail the Poly1305 tag check.
+        assert!(fn_decrypt_packet(&onwire, &wrong, &0).is_err());
+    }
 }

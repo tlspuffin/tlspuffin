@@ -189,7 +189,21 @@ impl ProtocolTypes for SshProtocolTypes {
     }
 
     fn differential_fuzzing_whitelist() -> Option<Vec<std::any::TypeId>> {
-        None
+        use crate::ssh::message::{KexEcdhReplyMessage, KexInitMessage, SshMessage};
+        // Only compare structured, semantically-meaningful messages. Opaque
+        // types (RawSshMessage, OnWireData, BinaryPacket, Vec<u8>, raw flights,
+        // banner String) are excluded: they carry ciphertext / framing /
+        // version strings that legitimately differ across implementations and
+        // would otherwise drown real divergences in noise. Random/derived
+        // sub-fields within the kept types are dropped via #[comparable_ignore]
+        // (e.g. KexInit cookie, ECDH ephemeral key + signature).
+        Some(vec![
+            TypeId::of::<SshMessage>(),
+            TypeId::of::<SshMessageFlight>(),
+            TypeId::of::<KexInitMessage>(),
+            TypeId::of::<KexEcdhReplyMessage>(),
+        ])
+        // SshMessageFlight is defined in this module (see above).
     }
 
     fn differential_fuzzing_terms_to_eval(

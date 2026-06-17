@@ -343,6 +343,9 @@ declare_name_list!(CompressionAlgorithms);
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct KexInitMessage {
+    // The cookie is 16 random bytes; it differs on every run and between
+    // implementations, so it must not contribute to differential comparison.
+    #[comparable_ignore]
     pub cookie: [u8; 16],
     pub kex_algorithms: KexAlgorithms,
     pub server_host_key_algorithms: SignatureSchemes,
@@ -498,8 +501,15 @@ impl Codec for SshSignature {
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(SshProtocolTypes)]
 pub struct KexEcdhReplyMessage {
+    // Persistent host key: deterministic (same embedded key across PUTs), so a
+    // difference here would be a genuine finding — keep it in the comparison.
     pub public_host_key: SshPublicKey,
+    // Server ephemeral X25519 key: fresh random per run → ignore in DDYF.
+    #[comparable_ignore]
     pub ephemeral_public_key: SshBytes,
+    // Signature over the exchange hash (which includes the random ephemeral
+    // key) → differs every run → ignore in DDYF.
+    #[comparable_ignore]
     pub signature: SshSignature,
 }
 
