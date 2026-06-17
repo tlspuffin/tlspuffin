@@ -18,6 +18,14 @@ pub fn fn_raw_message(message: &RawSshMessage) -> Result<RawSshMessage, FnError>
     Ok(message.clone())
 }
 
+/// Wraps an SshMessage into a properly framed RawSshMessage::Packet.
+/// Use this when sending structured messages in InputActions, since InputAction
+/// serializes via Codec::encode() which for SshMessage omits the binary packet framing.
+pub fn fn_packet(msg: &SshMessage) -> Result<RawSshMessage, FnError> {
+    use puffin::protocol::ProtocolMessage;
+    Ok(msg.create_opaque())
+}
+
 pub fn fn_onwire_message(data: &OnWireData) -> Result<RawSshMessage, FnError> {
     Ok(RawSshMessage::OnWire(data.clone()))
 }

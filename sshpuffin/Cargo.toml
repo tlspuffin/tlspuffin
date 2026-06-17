@@ -33,6 +33,15 @@ comparable   = { workspace = true, features = ["derive"] }
 libc         = { workspace = true }
 once_cell    = { workspace = true }
 
+# Crypto primitives for SSH key exchange, derivation, and packet encryption
+x25519-dalek  = { version = "2", features = ["static_secrets"] }
+sha2          = "0.10"
+chacha20      = "0.9"
+poly1305      = "0.8"
+signature     = "2"
+rsa           = { version = "0.9", features = ["sha2"] }
+ssh-key       = { version = "0.6", features = ["rsa", "std"] }
+
 [dev-dependencies]
 env_logger = { workspace = true }
 test-log   = { workspace = true }

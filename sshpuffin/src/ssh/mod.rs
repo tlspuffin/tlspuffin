@@ -16,9 +16,11 @@ pub(crate) mod seeds;
 #[path = "."]
 pub mod fn_impl {
     pub mod fn_constants;
+    pub mod fn_crypto;
     pub mod fn_message;
 
     pub use fn_constants::*;
+    pub use fn_crypto::*;
     pub use fn_message::*;
 }
 
@@ -52,6 +54,10 @@ define_signature!(
     fn_u32_0
     fn_u32_1
     fn_u32_2
+    fn_u32_3
+    fn_u32_4
+    fn_u32_5
+    fn_u32_6
     fn_ssh_userauth
     fn_ssh_connection
     fn_method_password
@@ -65,6 +71,7 @@ define_signature!(
     fn_algo_rsa_sha2_256
     fn_algo_curve25519_sha256
     fn_puffin_banner
+    fn_puffin_id
     fn_placeholder_16bytes
     fn_placeholder_32bytes
     fn_channel_exec
@@ -80,6 +87,7 @@ define_signature!(
     fn_ssh_public_key
     fn_ssh_signature
     fn_raw_message
+    fn_packet
     fn_onwire_message
     fn_banner
     fn_disconnect
@@ -110,4 +118,20 @@ define_signature!(
     fn_channel_request
     fn_channel_success
     fn_channel_failure
+    fn_client_ecdh_privkey
+    fn_client_ecdh_pubkey
+    fn_ecdh_shared_secret
+    fn_banner_id
+    fn_kexinit_payload
+    fn_server_ecdh_pubkey
+    fn_server_hostkey
+    fn_server_hostkey_raw
+    fn_kex_exchange_hash
+    fn_derive_enc_key_c2s
+    fn_derive_enc_key_s2c
+    fn_encrypt_packet
+    fn_server_rsa_pubkey
+    fn_server_rsa_pubkey_bytes
+    fn_sign_exchange_hash
+    fn_rsa_sha2_256_signature
 );

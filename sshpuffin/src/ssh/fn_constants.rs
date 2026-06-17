@@ -110,6 +110,24 @@ pub fn fn_username() -> Result<SshBytes, FnError> {
 pub fn fn_password() -> Result<Vec<u8>, FnError> {
     Ok(b"test".to_vec())
 }
+
+pub fn fn_u32_3() -> Result<u32, FnError> {
+    Ok(3)
+}
+pub fn fn_u32_4() -> Result<u32, FnError> {
+    Ok(4)
+}
+pub fn fn_u32_5() -> Result<u32, FnError> {
+    Ok(5)
+}
+pub fn fn_u32_6() -> Result<u32, FnError> {
+    Ok(6)
+}
+
+/// "SSH-2.0-puffin" as SshBytes (no \\r\\n) — used as the attacker's banner ID.
+pub fn fn_puffin_id() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"SSH-2.0-puffin".to_vec()))
+}
 pub fn fn_channel_session() -> Result<SshBytes, FnError> {
     Ok(SshBytes::new(b"session".to_vec()))
 }

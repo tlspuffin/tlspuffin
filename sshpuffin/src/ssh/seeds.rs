@@ -1,4 +1,5 @@
 use puffin::agent::{AgentDescriptor, AgentName};
+use puffin::algebra::Term;
 use puffin::term;
 use puffin::trace::{InputAction, OutputAction, Trace};
 
@@ -6,7 +7,7 @@ use crate::protocol::{AgentType, SshDescriptorConfig, SshProtocolBehavior, SshPr
 use crate::ssh::fn_impl::*;
 use crate::ssh::message::{
     CompressionAlgorithms, EncryptionAlgorithms, KexAlgorithms, MacAlgorithms, OnWireData,
-    RawSshMessage, SignatureSchemes, SshBytes,
+    RawSshMessage, SignatureSchemes, SshBytes, SshMessage,
 };
 
 pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
@@ -585,6 +586,251 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<SshProtocolTypes> {
     }
 }
 
+// ── Seed: client attacker with full handshake and encrypted post-NewKeys ──────
+//
+// The fuzzer acts as the SSH client; the server is a real libssh instance.
+// We compute the exchange hash using the actual server ephemeral ECDH key and
+// derive the encryption key so we can send properly encrypted post-NewKeys
+// messages (ServiceRequest, UserAuthRequest, ChannelOpen, ChannelRequest).
+
+pub fn seed_client_attacker_full(server: AgentName) -> Trace<SshProtocolTypes> {
+    // Knowledge available after OutputAction + sending banner/kexinit/EcdhInit:
+    //   (server, 0)[None]/RawSshMessage → server banner
+    //   (server, 0)[None]/SshMessage    → server KexInit
+    //   (server, 1)[None]/SshMessage    → server KexEcdhReply
+
+    let server_banner_raw = term! { (server, 0)[None]/RawSshMessage };
+    let server_banner_id = term! { fn_banner_id((@server_banner_raw)) };
+
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    // Use RawSshMessage for K_S extraction (SshMessage lossy-parses RSA keys).
+    // RawSshMessage indices: 0=Banner, 1=KexInit, 2=KexEcdhReply, 3=NewKeys
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+
+    let shared = term! {
+        fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub))
+    };
+
+    // Our kexinit mirrors server's algorithms.
+    let our_kexinit = term! {
+        fn_kex_init(
+            (fn_placeholder_16bytes),
+            ((server, 0)[None]/KexAlgorithms),
+            ((server, 0)[None]/SignatureSchemes),
+            ((server, 0)[None]/EncryptionAlgorithms),
+            ((server, 1)[None]/EncryptionAlgorithms),
+            ((server, 0)[None]/MacAlgorithms),
+            ((server, 1)[None]/MacAlgorithms),
+            ((server, 0)[None]/CompressionAlgorithms),
+            ((server, 1)[None]/CompressionAlgorithms)
+        )
+    };
+
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id),
+            (@server_banner_id),
+            (@i_c),
+            (@i_s),
+            (@server_hostkey),
+            (fn_client_ecdh_pubkey),
+            (@server_ecdh_pub),
+            (@shared)
+        )
+    };
+
+    let enc_key = term! {
+        fn_derive_enc_key_c2s((@shared), (@exch_hash), (@exch_hash))
+    };
+
+    // Sequence numbers: banner is NOT a binary packet.
+    // Binary packets we send: KexInit(0), KexEcdhInit(1), NewKeys(2)
+    // First encrypted packets: ServiceRequest(3), AuthRequest(4),
+    //   ChannelOpen(5), ChannelRequest(6)
+    let svc_req = term! {
+        fn_encrypt_packet(
+            (fn_service_request((fn_ssh_userauth))),
+            (@enc_key),
+            (fn_u32_3)
+        )
+    };
+    let auth_req = term! {
+        fn_encrypt_packet(
+            (fn_user_auth_request(
+                (fn_username),
+                (fn_ssh_connection),
+                (fn_method_password),
+                (fn_password_auth_data((fn_password)))
+            )),
+            (@enc_key),
+            (fn_u32_4)
+        )
+    };
+    let chan_open = term! {
+        fn_encrypt_packet(
+            (fn_channel_open(
+                (fn_channel_session),
+                (fn_u32_0),
+                (fn_u32_1),
+                (fn_u32_2),
+                (fn_empty_bytes_vec)
+            )),
+            (@enc_key),
+            (fn_u32_5)
+        )
+    };
+    let chan_req = term! {
+        fn_encrypt_packet(
+            (fn_channel_request(
+                (fn_u32_0),
+                (fn_channel_exec),
+                (fn_true),
+                (fn_exec_payload((fn_ssh_userauth)))
+            )),
+            (@enc_key),
+            (fn_u32_6)
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(server, term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) }),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @chan_open }),
+            InputAction::new_step(server, term! { @chan_req }),
+        ],
+        ..Default::default()
+    }
+}
+
+// ── Seed: server attacker with full handshake ─────────────────────────────────
+//
+// The fuzzer acts as the SSH server; the client is a real libssh instance.
+// We use our embedded RSA key to sign the exchange hash so libssh will accept
+// the ECDH reply. Then we send encrypted server-to-client messages after NewKeys.
+
+pub fn seed_server_attacker_full(client: AgentName) -> Trace<SshProtocolTypes> {
+    // After OutputAction(client):
+    //   (client, 0)[None]/RawSshMessage → client banner
+    //   (client, 0)[None]/SshMessage    → client KexInit
+    // After sending banner + kexinit, client sends KexEcdhInit:
+    //   (client, 0)[None]/SshBytes      → client ephemeral pubkey Q_C
+
+    let client_banner_raw = term! { (client, 0)[None]/RawSshMessage };
+    let client_banner_id = term! { fn_banner_id((@client_banner_raw)) };
+    let client_kexinit = term! { (client, 0)[None]/SshMessage };
+    let q_c = term! { (client, 0)[None]/SshBytes };
+
+    let our_kexinit = term! {
+        fn_kex_init(
+            (fn_placeholder_16bytes),
+            ((client, 0)[None]/KexAlgorithms),
+            ((client, 0)[None]/SignatureSchemes),
+            ((client, 0)[None]/EncryptionAlgorithms),
+            ((client, 1)[None]/EncryptionAlgorithms),
+            ((client, 0)[None]/MacAlgorithms),
+            ((client, 1)[None]/MacAlgorithms),
+            ((client, 0)[None]/CompressionAlgorithms),
+            ((client, 1)[None]/CompressionAlgorithms)
+        )
+    };
+
+    let shared = term! {
+        fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@q_c))
+    };
+
+    let i_c = term! { fn_kexinit_payload((@client_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@our_kexinit)) };
+
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (@client_banner_id),
+            (fn_puffin_id),
+            (@i_c),
+            (@i_s),
+            (fn_server_rsa_pubkey_bytes),
+            (@q_c),
+            (fn_client_ecdh_pubkey),
+            (@shared)
+        )
+    };
+
+    let sig = term! { fn_sign_exchange_hash((@exch_hash)) };
+
+    let enc_key_s2c = term! {
+        fn_derive_enc_key_s2c((@shared), (@exch_hash), (@exch_hash))
+    };
+
+    // Sequence numbers for the server attacker:
+    // Attacker sends: banner (not counted), KexInit(0), KexEcdhReply(1), NewKeys(2)
+    // First encrypted packets: ServiceAccept(3), UserAuthSuccess(4)
+    let svc_accept = term! {
+        fn_encrypt_packet(
+            (fn_service_accept((fn_ssh_userauth))),
+            (@enc_key_s2c),
+            (fn_u32_3)
+        )
+    };
+    let auth_success = term! {
+        fn_encrypt_packet(
+            (fn_user_auth_success),
+            (@enc_key_s2c),
+            (fn_u32_4)
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            SshDescriptorConfig {
+                typ: AgentType::Client,
+                try_reuse: false,
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(client),
+            InputAction::new_step(client, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(client, term! { fn_packet((@our_kexinit)) }),
+            // After sending kexinit, client emits KexEcdhInit (captured as q_c above)
+            InputAction::new_step(client, term! {
+                fn_packet((fn_kex_ecdh_reply(
+                    (fn_server_rsa_pubkey),
+                    (fn_client_ecdh_pubkey),
+                    (fn_ssh_signature(
+                        (fn_algo_rsa_sha2_256),
+                        (@sig)
+                    ))
+                )))
+            }),
+            InputAction::new_step(client, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(client, term! { @svc_accept }),
+            InputAction::new_step(client, term! { @auth_success }),
+        ],
+        ..Default::default()
+    }
+}
+
 pub fn create_corpus(
     _put: &dyn puffin::put_registry::Factory<SshProtocolBehavior>,
 ) -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
@@ -599,6 +845,8 @@ pub fn create_corpus(
         (seed_auth_wrong_password(client, server), "seed_auth_wrong_password"),
         (seed_server_attacker(client), "seed_server_attacker"),
         (seed_client_attacker(server), "seed_client_attacker"),
+        (seed_client_attacker_full(server), "seed_client_attacker_full"),
+        (seed_server_attacker_full(client), "seed_server_attacker_full"),
     ]
 }
 
@@ -607,7 +855,7 @@ mod tests {
     use puffin::execution::{Runner, TraceRunner};
     use puffin::trace::Spawner;
 
-    use crate::ssh::seeds::seed_successful;
+    use crate::ssh::seeds::{seed_client_attacker_full, seed_server_attacker_full, seed_successful};
     use crate::ssh_registry;
 
     #[test_log::test]
@@ -621,5 +869,35 @@ mod tests {
         let context = runner.execute(trace, &mut 0).unwrap();
 
         assert!(context.find_agent(client).unwrap().is_state_successful())
+    }
+
+    #[test_log::test]
+    fn test_seed_client_attacker_full() {
+        let registry = ssh_registry();
+        let runner = Runner::new(registry.clone(), Spawner::new(registry));
+        let server = puffin::agent::AgentName::first();
+        let trace = seed_client_attacker_full(server);
+        let result = runner.execute(trace, &mut 0);
+        // The trace must execute without hard errors
+        let context = result.unwrap();
+        // The server should have processed auth and be in DONE state
+        assert!(
+            context.find_agent(server).unwrap().is_state_successful(),
+            "server did not reach DONE state"
+        );
+    }
+
+    #[test_log::test]
+    fn test_seed_server_attacker_full() {
+        let registry = ssh_registry();
+        let runner = Runner::new(registry.clone(), Spawner::new(registry));
+        let client = puffin::agent::AgentName::first();
+        let trace = seed_server_attacker_full(client);
+        let context = runner.execute(trace, &mut 0).unwrap();
+        // The client should have completed authentication
+        assert!(
+            context.find_agent(client).unwrap().is_state_successful(),
+            "client did not reach DONE state"
+        );
     }
 }

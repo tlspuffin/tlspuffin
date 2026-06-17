@@ -41,6 +41,13 @@ pub struct BinaryPacket {
     mac: Vec<u8>,
 }
 
+impl BinaryPacket {
+    /// Returns the payload bytes (type byte + message fields, without framing or padding).
+    pub fn payload(&self) -> &[u8] {
+        &self.payload
+    }
+}
+
 impl Codec for BinaryPacket {
     fn encode(&self, bytes: &mut Vec<u8>) {
         let padding_length = self.random_padding.len();
@@ -428,7 +435,17 @@ impl Codec for SshPublicKey {
     fn encode(&self, bytes: &mut Vec<u8>) {
         let mut inner = Vec::new();
         self.algorithm.encode(&mut inner);
-        self.key_data.encode(&mut inner);
+        // For RSA ("ssh-rsa") and other multi-field key types, key_data
+        // contains the raw remaining inner bytes ([mpint e][mpint n] for RSA),
+        // NOT wrapped in an additional SSH string.  We detect this by checking
+        // if the key_data starts with what looks like an mpint (i.e., the field
+        // does NOT look like a nested SSH string holding the entire remaining
+        // blob).  The heuristic: if algorithm is "ssh-rsa", write key_data raw.
+        if self.algorithm.0 == b"ssh-rsa" {
+            inner.extend_from_slice(&self.key_data.0);
+        } else {
+            self.key_data.encode(&mut inner);
+        }
         (inner.len() as u32).encode(bytes);
         bytes.extend_from_slice(&inner);
     }
@@ -437,10 +454,17 @@ impl Codec for SshPublicKey {
         let len = u32::read(reader)? as usize;
         let inner = reader.take(len)?;
         let mut r = Reader::init(inner);
-        Some(SshPublicKey {
-            algorithm: SshBytes::read(&mut r)?,
-            key_data: SshBytes::read(&mut r)?,
-        })
+        let algorithm = SshBytes::read(&mut r)?;
+        // For RSA ("ssh-rsa"): the remaining bytes are raw mpints [e][n], not
+        // wrapped in a single SSH string. We store them as-is.
+        // For all other key types (ed25519, ecdsa, etc.): the next field is
+        // a single SSH string which we read normally.
+        let key_data = if algorithm.0 == b"ssh-rsa" {
+            SshBytes::new(r.rest().to_vec())
+        } else {
+            SshBytes::read(&mut r)?
+        };
+        Some(SshPublicKey { algorithm, key_data })
     }
 }
 
@@ -1114,20 +1138,32 @@ impl Codec for RawSshMessage {
     }
 
     fn read(reader: &mut Reader) -> Option<Self> {
-        let banner = "SSH-2.0-libssh_0.10.4\r\n"; // FIXME: hardcoded version of libssh
-        let banner_bytes = banner.as_bytes();
+        // Detect any SSH version banner: starts with "SSH-" and ends with "\n"
+        // We peek up to 256 bytes to find the newline, but handle shorter buffers too.
+        const MAX_BANNER: usize = 256;
+        let peek_len = MAX_BANNER.min(reader.left());
+        if peek_len < 4 {
+            // Not enough data to determine banner vs packet
+            return Some(RawSshMessage::Packet(BinaryPacket::read(reader)?));
+        }
+        let buf = reader.peek(peek_len)?;
 
-        let is_banner = if let Some(received) = reader.peek(banner_bytes.len()) {
-            received == banner_bytes
-        } else {
-            false
-        };
+        // Check if data starts with "SSH-"
+        if &buf[..4] != b"SSH-" {
+            return Some(RawSshMessage::Packet(BinaryPacket::read(reader)?));
+        }
 
-        if is_banner {
-            reader.take(banner_bytes.len())?;
-            Some(RawSshMessage::Banner(banner.to_string()))
+        // Find the \n that terminates the banner
+        let banner_end = buf.iter().position(|&b| b == b'\n').map(|i| i + 1);
+
+        if let Some(end) = banner_end {
+            let banner_bytes = reader.take(end)?;
+            let banner = String::from_utf8_lossy(banner_bytes).into_owned();
+            Some(RawSshMessage::Banner(banner))
         } else {
-            Some(RawSshMessage::Packet(BinaryPacket::read(reader)?))
+            // Banner line not complete yet (no newline found in the buffer)
+            // Treat as partial — return None so the deframer waits for more data.
+            None
         }
     }
 }

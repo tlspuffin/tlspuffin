@@ -3,7 +3,10 @@
 //! 1. Generates Rust FFI bindings from `sshpuffin/include/puffin/ssh.h`.
 //! 2. Finds every libssh instance in the vendor directory and compiles the C
 //!    harness (`sshpuffin/harness/libssh/`) against it via puffin-build.
-//! 3. Emits ASAN / coverage linker flags when the corresponding features are
+//! 3. Compiles `harness/libssh/crypto/crypto.c` as a separate static library
+//!    so that the puffin_* FFI functions are available to Rust without being
+//!    stripped by the PUT partial-relocation step.
+//! 4. Emits ASAN / coverage linker flags when the corresponding features are
 //!    active.
 
 use std::path::PathBuf;
@@ -59,9 +62,35 @@ fn main() {
 
     let out_bundle = PathBuf::from(&out_dir).join("harness_bundle");
 
-    let puts: Vec<harness::Put> = ensure_libssh_vendors()
-        .into_iter()
-        .filter_map(|lib| build_harness(lib, &out_bundle))
+    let libssh_vendors = ensure_libssh_vendors();
+
+    // ── 2b. Compile crypto.c FIRST so it appears before puts-bundle in link order.
+    // The puffin_* functions must be globally visible to Rust FFI but the PUT
+    // partial-relocation step strips all symbols except REGISTER.  We compile
+    // crypto.c independently so its symbols are never stripped.
+    // IMPORTANT: puffin_crypto references libssh symbols (ssh_pki_import_privkey_base64
+    // etc.) which are defined in puts-bundle. The linker resolves symbols left-to-right
+    // for static libs, so puffin_crypto MUST come BEFORE puts-bundle for forward refs
+    // to work. Actually for Linux, the order is: library that NEEDS symbols first,
+    // then the library that PROVIDES symbols. So puffin_crypto (needs libssh) comes
+    // first, then puts-bundle (provides libssh) comes after. Wait, that's backwards:
+    // in GNU ld, libraries are processed left-to-right. When processing puffin_crypto.a,
+    // it picks up symbols that puffin_crypto references as "needed". Then when
+    // puts-bundle is processed, it resolves those needs.
+    // Actually, GNU ld processes: for each .a, it includes .o files that satisfy
+    // currently-unresolved symbols. So puffin_crypto must come AFTER puts-bundle
+    // for its own symbols to be resolved... but then Rust code calling puffin_* finds
+    // them in puffin_crypto which is after.
+    // The correct order for GNU ld: puts-bundle, then puffin_crypto.
+    // But we need puffin_crypto symbols to be visible to Rust. They should be in any
+    // position since Rust code is the "application" and its undefined refs will be
+    // resolved by static libs in order. As long as puffin_crypto comes AFTER puts-bundle
+    // (so that puffin_crypto's refs to libssh can be resolved), it should work.
+    // Let us move crypto building AFTER the bundle printing.
+
+    let puts: Vec<harness::Put> = libssh_vendors
+        .iter()
+        .filter_map(|lib| build_harness(lib.clone(), &out_bundle))
         .collect();
 
     let bundle = harness::bundle(puts).build(&out_bundle);
@@ -147,6 +176,7 @@ fn build_harness(lib: library::Library, out_bundle: &std::path::Path) -> Option<
     harness::Harness::harness_for("ssh", lib, harness::Kind::C)
         .map(|h| h.wrap(out_dir).expect("failed to compile libssh C harness"))
 }
+
 
 
 

@@ -262,6 +262,19 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
         /* A dummy hostname is required; the actual connection uses put_fd */
         ssh_options_set(session, SSH_OPTIONS_HOST, "puffin-dummy");
         ssh_options_set(session, SSH_OPTIONS_FD, &put_fd);
+        /* Pre-set user and ssh_dir to avoid ssh_options_apply failures in
+         * restricted environments. */
+        const char *user = getenv("USER");
+        if (user == NULL) user = "puffin";
+        ssh_options_set(session, SSH_OPTIONS_USER, user);
+        const char *home = getenv("HOME");
+        char sshdir[4096];
+        if (home != NULL) {
+            snprintf(sshdir, sizeof(sshdir), "%s/.ssh", home);
+        } else {
+            snprintf(sshdir, sizeof(sshdir), "/tmp/.ssh-puffin");
+        }
+        ssh_options_set(session, SSH_OPTIONS_SSH_DIR, sshdir);
         /* put_fd is now owned by the session */
     }
 
@@ -320,7 +333,34 @@ static RESULT libssh_progress(AGENT agent)
         return error_result("agent is in error state");
 
     if (agent->state == PUT_STATE_DONE)
+    {
+        /* Handle channel-level traffic so the fuzzer can exercise channel code paths */
+        if (agent->descriptor.role == SSH_SERVER)
+        {
+            ssh_message msg;
+            for (int i = 0; i < 8; ++i)
+            {
+                msg = ssh_message_get(agent->session);
+                if (!msg)
+                    break;
+                int type = ssh_message_type(msg);
+                if (type == SSH_REQUEST_CHANNEL_OPEN)
+                {
+                    ssh_message_channel_request_open_reply_accept(msg);
+                }
+                else if (type == SSH_REQUEST_CHANNEL)
+                {
+                    ssh_message_channel_request_reply_success(msg);
+                }
+                else
+                {
+                    ssh_message_reply_default(msg);
+                }
+                ssh_message_free(msg);
+            }
+        }
         return ok_result();
+    }
 
     if (agent->descriptor.role == SSH_SERVER)
     {
@@ -354,7 +394,18 @@ static RESULT libssh_progress(AGENT agent)
             {
                 ssh_message msg = ssh_message_get(agent->session);
                 if (!msg)
+                {
+                    /* Check if the session is in error state (e.g. MAC failure) */
+                    if (ssh_get_status(agent->session) & SSH_CLOSED_ERROR)
+                    {
+                        agent->state = PUT_STATE_ERROR;
+                        snprintf(agent->state_desc, sizeof(agent->state_desc),
+                                 "AUTH/SESSION_ERROR: %s",
+                                 ssh_get_error(agent->session));
+                        return error_result(agent->state_desc);
+                    }
                     break;
+                }
 
                 int msg_type = ssh_message_type(msg);
                 if (msg_type == SSH_REQUEST_AUTH)
@@ -364,6 +415,11 @@ static RESULT libssh_progress(AGENT agent)
                     snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
                     ssh_message_free(msg);
                     break;
+                }
+                else if (msg_type == SSH_REQUEST_SERVICE)
+                {
+                    /* Accept the service request so the client can proceed to auth */
+                    ssh_message_service_reply_success(msg);
                 }
                 else
                 {
