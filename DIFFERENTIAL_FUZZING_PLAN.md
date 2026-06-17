@@ -140,7 +140,16 @@ divergence is EXPECTED and handled by annotations + blacklist, not by RNG.
         Verified: 0114 decrypts at 0,1 (strict) and 0104 at 3,4 (non-strict),
         both → [ServiceAccept, UserAuthSuccess]; decrypted layer compares EQUAL,
         so only the pre-NewKeys KexInit diffs remain. PHASE 1 COMPLETE.
-- [~] Phase 3 (wolfSSH) — scoped; build-infra challenge identified:
+- [x] Phase 3 (wolfSSH) — DONE (cross-implementation differential runs):
+  - wolfSSL (--enable-ssh) + wolfSSH built static with ASAN+sancov via
+    harness/wolfssh/build_wolfssh_vendor.sh; staged as vendor/wolfssh-asan.
+  - harness/wolfssh/src/put.c drives wolfSSH's embeddable API; build.rs
+    discovers wolfssh vendors and builds the harness alongside libssh.
+  - wolfssh-asan registers; differential libssh0114 vs wolfSSH runs and reports
+    a status divergence (wolfSSH lacks chacha20-poly1305 → fails the libssh-tuned
+    seed at the first encrypted message). Refinement: add a wolfSSH-compatible
+    seed for structural KEX/record comparison.
+  Original scoping note (kept for reference):
   - puffin-build has NO cross-vendor dependency mechanism. Each vendor fetches
     ONE source URL (`SOURCES`) and runs CONFIGURE/BUILD/INSTALL. wolfSSH needs
     wolfSSL at build time (`--with-wolfssl=<prefix>`), so the wolfssh

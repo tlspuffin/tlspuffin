@@ -209,9 +209,41 @@ Result on `seed_client_attacker_full`:
 **Phase 1 is therefore complete**: both the plaintext handshake and the
 encrypted record layer are compared, with zero false positives.
 
+## 7c. Cross-implementation: libssh vs wolfSSH (Phase 3, DONE)
+
+A second, independent implementation — **wolfSSH** (with wolfCrypt) — is now a
+registered PUT (`wolfssh-asan`), built static with ASAN+sancov via
+`harness/wolfssh/build_wolfssh_vendor.sh` (wolfSSL `--enable-ssh` + wolfSSH).
+The C harness `harness/wolfssh/src/put.c` drives wolfSSH's embeddable API
+(`wolfSSH_accept`/`connect`, `SetUserAuth` accept-all callback, `wolfSSH_worker`).
+
+First cross-implementation differential, `libssh0114-asan` vs `wolfssh-asan` on
+`seed_client_attacker_full`:
+```
+libssh0114: step 9/9 Success
+wolfSSH:    step 5/9 "would overflow if continued" (status difference)
+```
+wolfSSH completes KEX (banner `SSH-2.0-wolfSSHv1.5.0`, KexInit, KexEcdhReply)
+but diverges at the first encrypted message: the libssh-tuned seed encrypts with
+chacha20-poly1305, which **wolfSSH does not offer**. Its KEXINIT advertises a
+markedly different algorithm set:
+- ciphers: aes256/192/128-gcm only (no chacha20-poly1305, no aes-ctr)
+- macs: hmac-sha2-256/512 (no -etm variants)
+- kex: curve25519/ecdh/dh + `ext-info-s` (no `kex-strict-s-v00@openssh.com`)
+
+This is a genuine, interpretable cross-implementation behavioral divergence.
+
+**Refinement for richer comparison:** the DDYF engine reports a status diff
+*first* and skips knowledge comparison when statuses differ. To structurally
+compare the two implementations' KEXINITs (and post-NewKeys behavior), add a
+wolfSSH-compatible seed (aes-gcm cipher; both PUTs complete to the same step) or
+a KEX-only seed. The harness, vendor, and registration are all in place.
+
 ## 8. Current limitations & next steps
 
 - **Claims/SecurityClaim comparison inactive** (Phase 2): see below.
+- **wolfSSH comparison currently status-level**; a wolfSSH-compatible seed would
+  unlock structural KEX/record comparison across implementations (see §7c).
 - **Claims/SecurityClaim comparison inactive.** `SshClaim` is a dummy and
   `register_claimer` is a no-op (Phase 2): no auth/secret/session claims are
   emitted yet, so the Claims and SecurityClaim diff channels are silent.
