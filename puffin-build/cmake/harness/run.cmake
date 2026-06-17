@@ -46,7 +46,7 @@ set(PARTIAL_RELOCATION_COMMANDS "")
 if(APPLE)
   list(APPEND PARTIAL_RELOCATION_COMMANDS COMMAND clang -o ${CMAKE_BINARY_DIR}/${PUT}.o "${CMAKE_C_FLAGS}" -flto -nostdlib -nodefaultlibs -nostartfiles -Wl,-no_pie -Wl,-exported_symbol,_${PUT_ID} -Wl,-r $<TARGET_OBJECTS:${PUT}> ${LINK_LIBRARIES})
 else()
-  list(APPEND PARTIAL_RELOCATION_COMMANDS COMMAND clang -o ${CMAKE_BINARY_DIR}/${PUT}.o "${CMAKE_C_FLAGS}" -flto -nostdlib -nodefaultlibs -nostartfiles -Wl,-no-pie -Wl,-whole-archive -Wl,-r $<TARGET_OBJECTS:${PUT}> ${LINK_LIBRARIES})
+  list(APPEND PARTIAL_RELOCATION_COMMANDS COMMAND clang -o ${CMAKE_BINARY_DIR}/${PUT}.o "${CMAKE_C_FLAGS}" -flto -nostdlib -nodefaultlibs -nostartfiles -Wl,-no-pie -Wl,-whole-archive -Wl,--allow-multiple-definition -Wl,-r $<TARGET_OBJECTS:${PUT}> ${LINK_LIBRARIES})
   list(APPEND PARTIAL_RELOCATION_COMMANDS COMMAND objcopy -G "${PUT_ID}" "${CMAKE_BINARY_DIR}/${PUT}.o")
 endif()
 
