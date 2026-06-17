@@ -88,8 +88,12 @@ fn main() {
     // (so that puffin_crypto's refs to libssh can be resolved), it should work.
     // Let us move crypto building AFTER the bundle printing.
 
+    // wolfSSH vendors are discovered from vendor/ (pre-built); no preset build.
+    let wolfssh_vendors = discover_wolfssh_vendors();
+
     let puts: Vec<harness::Put> = libssh_vendors
         .iter()
+        .chain(wolfssh_vendors.iter())
         .filter_map(|lib| build_harness(lib.clone(), &out_bundle))
         .collect();
 
@@ -99,6 +103,9 @@ fn main() {
     // libssh static archives depend on OpenSSL's libcrypto and zlib.
     println!("cargo:rustc-link-lib=crypto");
     println!("cargo:rustc-link-lib=z");
+    // wolfSSL (bundled in the wolfssh vendor) needs libm and libpthread.
+    println!("cargo:rustc-link-lib=m");
+    println!("cargo:rustc-link-lib=pthread");
 
     // ── 3. Sanitizer / coverage linker flags ──────────────────────────────
 
@@ -124,6 +131,20 @@ fn main() {
         println!("cargo:rustc-link-arg=-fprofile-instr-generate");
         println!("cargo:rustc-link-arg=-fcoverage-mapping");
     }
+}
+
+/// Discover pre-built wolfSSH vendors in the vendor directory. Unlike libssh,
+/// wolfSSH is not auto-built from a preset here (it requires building wolfSSL
+/// first); it is staged manually under `vendor/wolfssh-*`.
+fn discover_wolfssh_vendors() -> Vec<library::Library> {
+    vendor_dir::from_env()
+        .all()
+        .into_iter()
+        .filter(|lib| lib.metadata().vendor == "wolfssh")
+        .filter(|lib| {
+            lib.path().join("include/wolfssh/ssh.h").exists() && !lib.link_libraries().is_empty()
+        })
+        .collect()
 }
 
 fn ensure_libssh_vendors() -> Vec<library::Library> {
