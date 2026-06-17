@@ -34,6 +34,14 @@ extern "C"
          */
         AGENT (*const create)(const SSH_AGENT_DESCRIPTOR *descriptor);
 
+        /*
+         * Reseed the PUT's deterministic RNG. Called by the fuzzer before each
+         * trace execution so that runs are reproducible (required for
+         * differential fuzzing). Passing a NULL buffer resets to the default
+         * seed.
+         */
+        void (*const rng_reseed)(const uint8_t *buffer, size_t length);
+
         AGENT_INTERFACE agent_interface;
     } SSH_PUT_INTERFACE;
 

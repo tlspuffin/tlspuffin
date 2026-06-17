@@ -37,6 +37,7 @@
 #include <unistd.h>
 
 #include "bindings.h"
+#include "rng.h"
 
 /* ── Embedded RSA host key (server only) ─────────────────────────────────── */
 
@@ -122,6 +123,7 @@ static RESULT   libssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_len
 
 static const SSH_PUT_INTERFACE LIBSSH_PUT = {
     .create = libssh_create,
+    .rng_reseed = rng_reseed,
     .agent_interface = {
         .destroy            = libssh_destroy,
         .progress           = libssh_progress,
@@ -143,6 +145,8 @@ const SSH_PUT_INTERFACE *REGISTER(void)
         rl.rlim_cur = (rl.rlim_max == RLIM_INFINITY) ? 65536 : rl.rlim_max;
         setrlimit(RLIMIT_NOFILE, &rl);
     }
+    /* Install the deterministic PRNG so handshakes are reproducible. */
+    rng_init();
     return &LIBSSH_PUT;
 }
 

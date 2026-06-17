@@ -76,6 +76,15 @@ impl Factory<SshProtocolBehavior> for CSshPut {
     fn clone_factory(&self) -> Box<dyn Factory<SshProtocolBehavior>> {
         Box::new(self.clone())
     }
+
+    fn rng_reseed(&self) {
+        // Reset the PUT's deterministic PRNG to its default seed (NULL buffer).
+        // Required before each trace execution so runs are reproducible.
+        match self.interface.rng_reseed {
+            Some(reseed) => unsafe { reseed(std::ptr::null(), 0) },
+            None => log::warn!("[RNG] reseed not available for {}", self.name),
+        }
+    }
 }
 
 // ── macros mirrored from tlspuffin/src/put.rs ─────────────────────────────
