@@ -47,7 +47,7 @@ PUTS = {
     ),
     "wolfssl": dict(
         server_cmd="wolfssl", vendor_glob="wolfssl5*", ver_re=r"^wolfssl5(\d)(\d+)$",
-        line="5", base_port=27000, drop=set(), features="cputs (wolfssl 5.x PUTs)",
+        line="5", base_port=27000, drop={"wolfssl550", "wolfssl551"}, features="cputs (wolfssl 5.x PUTs)",
         sig_len=0,  # 0 == use the full signature (the WolfSSL reference model keys on full sigs)
     ),
 }

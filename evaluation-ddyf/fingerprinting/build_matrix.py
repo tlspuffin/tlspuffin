@@ -53,12 +53,30 @@ def main():
           f"servers in parallel={cfg.jobs} (each probed SEQUENTIALLY)  cores={cfg.cores or 'unpinned'}",
           flush=True)
 
+    # Write the matrix (rows = probe basename, cols = version).
+    out = cfg.ref(put)
+    out.mkdir(parents=True, exist_ok=True)
+
+    # Persistence: save partial columns
+    part_dir = out / "parts"
+    part_dir.mkdir(parents=True, exist_ok=True)
+
     matrix, flagged, done, t0 = {}, {}, [0], time.time()
 
     def do_version(args_):
         """Probe ALL reps against one server, sequentially. Returns (ver, column, unstable_idxs)."""
         vi, v = args_
         port = cfg.base_port + vi
+
+        # Check for cached result
+        cache_path = part_dir / f"{v}.json"
+        if cache_path.exists():
+            try:
+                cached = json.load(open(cache_path))
+                return v, cached["col"], cached["uns"]
+            except Exception:
+                pass
+
         srv = probe.launch(cfg, put, v, port)
         if not probe.wait_listen(port):
             srv.terminate()
@@ -70,6 +88,10 @@ def main():
             if s == UNSTABLE:
                 uns.append(pi)
         srv.terminate()
+
+        # Save partial result
+        json.dump({"col": col, "uns": uns}, open(cache_path, "w"))
+
         return v, col, uns
 
     with ThreadPoolExecutor(max_workers=cfg.jobs) as ex:
