@@ -238,9 +238,9 @@ impl ProtocolBehavior for SshProtocolBehavior {
     }
 
     fn try_read_bytes(
-        _bitstring: &[u8],
-        _ty: TypeId,
+        bitstring: &[u8],
+        ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
-        todo!()
+        crate::ssh::message::try_read_bytes(bitstring, ty)
     }
 }

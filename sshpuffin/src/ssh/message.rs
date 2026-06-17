@@ -1180,6 +1180,55 @@ mod tests {
         }
     }
 
+    /// Verify `try_read_bytes` reconstructs each type from its encoded bytes
+    /// and that the dynamically-read value re-encodes to the same bytes.
+    /// This is the property bit-level mutations (`--with-bit`) rely on.
+    #[test]
+    fn test_try_read_bytes_roundtrip() {
+        // (encoded bytes, TypeId of the source type)
+        let cases: Vec<(Vec<u8>, std::any::TypeId)> = vec![
+            {
+                let v = SshBytes::new(b"hello");
+                (v.get_encoding(), std::any::TypeId::of::<SshBytes>())
+            },
+            {
+                let v: u32 = 0xdead_beef;
+                (v.get_encoding(), std::any::TypeId::of::<u32>())
+            },
+            {
+                let v: u8 = 42;
+                (v.get_encoding(), std::any::TypeId::of::<u8>())
+            },
+            {
+                let v: Vec<u8> = vec![1, 2, 3, 4];
+                (v.get_encoding(), std::any::TypeId::of::<Vec<u8>>())
+            },
+            {
+                let v = SshMessage::NewKeys;
+                (v.get_encoding(), std::any::TypeId::of::<SshMessage>())
+            },
+            {
+                let v = ChannelEofMessage {
+                    recipient_channel: 7,
+                };
+                (v.get_encoding(), std::any::TypeId::of::<ChannelEofMessage>())
+            },
+            {
+                let v = KexAlgorithms(nl(&["curve25519-sha256"]));
+                (v.get_encoding(), std::any::TypeId::of::<KexAlgorithms>())
+            },
+        ];
+
+        for (bytes, ty) in cases {
+            let read = try_read_bytes(&bytes, ty)
+                .unwrap_or_else(|e| panic!("try_read_bytes failed for {ty:?}: {e}"));
+            // Re-encode the dynamically read value and confirm it matches.
+            let mut reencoded = Vec::new();
+            read.encode(&mut reencoded);
+            assert_eq!(reencoded, bytes, "re-encode mismatch for {ty:?}");
+        }
+    }
+
     #[test]
     fn test_all_message_codecs_roundtrip() {
         let samples = vec![
@@ -1337,3 +1386,110 @@ atom_extract_knowledge!(SshProtocolTypes, [u8; 16]);
 atom_extract_knowledge!(SshProtocolTypes, MacAlgorithms);
 atom_extract_knowledge!(SshProtocolTypes, SignatureSchemes);
 dummy_extract_knowledge!(SshProtocolTypes, bool);
+
+// ── try_read_bytes: read a bitstring back into a typed EvaluatedTerm ──────────
+//
+// Required for bit-level mutations (`--with-bit`): the bit-level mutator
+// evaluates a sub-term to bytes, mutates those bytes, then must re-read them as
+// the sub-term's original type.  Since the target type is only known at runtime
+// (via `TypeId`), we dispatch over every type that can appear as a term in the
+// SSH signature.  Mirrors tlspuffin's `try_read_bytes`.
+
+use std::any::TypeId;
+
+use puffin::protocol::EvaluatedTerm;
+
+use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
+
+macro_rules! try_read {
+    ($bitstring:expr, $ti:expr, $T:ty, $($Ts:ty),+) => {{
+        if $ti == TypeId::of::<$T>() {
+            <$T>::read_bytes($bitstring)
+                .ok_or_else(|| Error::Term(format!(
+                    "[try_read_bytes] Failed to read type {:?} from bitstring {:?}",
+                    core::any::type_name::<$T>(), $bitstring
+                )))
+                .map(|v| Box::new(v) as Box<dyn EvaluatedTerm<SshProtocolTypes>>)
+        } else {
+            try_read!($bitstring, $ti, $($Ts),+)
+        }
+    }};
+    ($bitstring:expr, $ti:expr, $T:ty) => {{
+        if $ti == TypeId::of::<$T>() {
+            <$T>::read_bytes($bitstring)
+                .ok_or_else(|| Error::Term(format!(
+                    "[try_read_bytes] Failed to read type {:?} from bitstring {:?}",
+                    core::any::type_name::<$T>(), $bitstring
+                )))
+                .map(|v| Box::new(v) as Box<dyn EvaluatedTerm<SshProtocolTypes>>)
+        } else {
+            Err(Error::TermBug(format!(
+                "[try_read_bytes] No SSH type matches TypeId {:?} for bitstring {:?}",
+                $ti, $bitstring
+            )))
+        }
+    }};
+}
+
+/// Read a `bitstring` into the `EvaluatedTerm` whose runtime type matches `ty`.
+pub fn try_read_bytes(
+    bitstring: &[u8],
+    ty: TypeId,
+) -> Result<Box<dyn EvaluatedTerm<SshProtocolTypes>>, Error> {
+    try_read!(
+        bitstring,
+        ty,
+        // Top-level messages / flights
+        SshMessage,
+        RawSshMessage,
+        BinaryPacket,
+        OnWireData,
+        SshMessageFlight,
+        RawSshMessageFlight,
+        // Structured byte / key types
+        SshBytes,
+        SshPublicKey,
+        SshSignature,
+        // Name lists
+        NameList,
+        KexAlgorithms,
+        SignatureSchemes,
+        EncryptionAlgorithms,
+        MacAlgorithms,
+        CompressionAlgorithms,
+        // Per-message payloads
+        DisconnectMessage,
+        IgnoreMessage,
+        UnimplementedMessage,
+        DebugMessage,
+        ServiceRequestMessage,
+        ServiceAcceptMessage,
+        KexInitMessage,
+        KexEcdhInitMessage,
+        KexEcdhReplyMessage,
+        UserAuthRequestMessage,
+        UserAuthFailureMessage,
+        UserAuthBannerMessage,
+        GlobalRequestMessage,
+        RequestSuccessMessage,
+        ChannelOpenMessage,
+        ChannelOpenConfirmationMessage,
+        ChannelOpenFailureMessage,
+        ChannelWindowAdjustMessage,
+        ChannelDataMessage,
+        ChannelExtendedDataMessage,
+        ChannelEofMessage,
+        ChannelCloseMessage,
+        ChannelRequestMessage,
+        ChannelSuccessMessage,
+        ChannelFailureMessage,
+        // Atoms
+        String,
+        Vec<u8>,
+        u64,
+        u32,
+        u8,
+        [u8; 16],
+        bool
+    )
+}
