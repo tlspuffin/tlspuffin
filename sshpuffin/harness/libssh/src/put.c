@@ -105,6 +105,9 @@ struct AGENT_TYPE
 
     PutState state;
     char state_desc[256]; /* human-readable state for describe_state */
+
+    const CLAIMER_CB *claimer; /* registered claim callback, or NULL */
+    bool claim_emitted;        /* guard so the handshake claim fires once */
 };
 
 /* ── Forward declarations ────────────────────────────────────────────────── */
@@ -331,6 +334,38 @@ static void libssh_destroy(AGENT agent)
 
 /* ── progress ────────────────────────────────────────────────────────────── */
 
+/* ── claim emission ──────────────────────────────────────────────────────── */
+
+/* Copy a libssh getter string (may be NULL) into a fixed-size claim buffer. */
+static void claim_set(char *dst, const char *src)
+{
+    if (src == NULL)
+        src = "";
+    snprintf(dst, SSH_CLAIM_STR_LEN, "%s", src);
+}
+
+/*
+ * Build a HandshakeComplete claim from the session's negotiated parameters and
+ * hand it to the registered callback. Fires at most once per agent (guarded by
+ * <claim_emitted>); a no-op when no claimer is registered.
+ */
+static void emit_handshake_claim(AGENT agent)
+{
+    if (agent->claimer == NULL || agent->claim_emitted)
+        return;
+
+    Claim claim;
+    memset(&claim, 0, sizeof(claim));
+    claim_set(claim.kex, ssh_get_kex_algo(agent->session));
+    claim_set(claim.cipher_in, ssh_get_cipher_in(agent->session));
+    claim_set(claim.cipher_out, ssh_get_cipher_out(agent->session));
+    claim_set(claim.hmac_in, ssh_get_hmac_in(agent->session));
+    claim_set(claim.hmac_out, ssh_get_hmac_out(agent->session));
+
+    agent->claimer->notify(agent->claimer->context, &claim);
+    agent->claim_emitted = true;
+}
+
 static RESULT libssh_progress(AGENT agent)
 {
     if (agent->state == PUT_STATE_ERROR)
@@ -417,6 +452,7 @@ static RESULT libssh_progress(AGENT agent)
                     ssh_message_auth_reply_success(msg, 0);
                     agent->state = PUT_STATE_DONE;
                     snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
+                    emit_handshake_claim(agent);
                     ssh_message_free(msg);
                     break;
                 }
@@ -472,6 +508,7 @@ static RESULT libssh_progress(AGENT agent)
                 {
                     agent->state = PUT_STATE_DONE;
                     snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
+                    emit_handshake_claim(agent);
                     return ok_result();
                 }
                 if (rc == SSH_AUTH_DENIED || rc == SSH_AUTH_PARTIAL)
@@ -517,9 +554,10 @@ static bool libssh_is_successful(AGENT agent)
 
 static void libssh_register_claimer(AGENT agent, const CLAIMER_CB *claimer)
 {
-    /* Claims extraction is not yet implemented for SSH. */
-    (void)agent;
-    (void)claimer;
+    /* Store the callback; ownership of the CB (and its context) stays with the
+     * caller, which must keep it alive for the agent's lifetime and free it
+     * via the CB's own destroy hook. */
+    agent->claimer = claimer;
 }
 
 /* ── add_inbound ─────────────────────────────────────────────────────────── */

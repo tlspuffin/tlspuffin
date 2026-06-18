@@ -9,8 +9,24 @@ use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledg
 
 use crate::protocol::SshProtocolTypes;
 
+/// The security-relevant state captured at a claim point. Currently a single
+/// claim type — emitted once the SSH transport handshake completes — carrying
+/// the negotiated algorithms and the agent's role. This is what the DY security
+/// oracle (`violation.rs`) compares between the client and the server.
 #[derive(Debug, Clone, Comparable, PartialEq)]
-pub struct SshClaimInner;
+pub struct SshClaimInner {
+    /// true if this claim was emitted by the server side of the connection.
+    pub is_server: bool,
+    /// Negotiated key-exchange algorithm (`ssh_get_kex_algo`).
+    pub kex: String,
+    /// Negotiated incoming/outgoing ciphers (`ssh_get_cipher_in/out`).
+    pub cipher_in: String,
+    pub cipher_out: String,
+    /// Negotiated incoming/outgoing MACs (`ssh_get_hmac_in/out`).
+    pub hmac_in: String,
+    pub hmac_out: String,
+}
+
 dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 
 #[derive(Debug, Clone, Comparable, PartialEq)]
@@ -18,6 +34,21 @@ pub struct SshClaim {
     agent_name: AgentName,
     inner: Box<SshClaimInner>,
     step: Option<StepNumber>,
+}
+
+impl SshClaim {
+    pub fn new(agent_name: AgentName, inner: SshClaimInner) -> Self {
+        Self {
+            agent_name,
+            inner: Box::new(inner),
+            step: None,
+        }
+    }
+
+    /// Access the captured security state.
+    pub fn data(&self) -> &SshClaimInner {
+        &self.inner
+    }
 }
 
 dummy_extract_knowledge_codec!(SshProtocolTypes, SshClaim);

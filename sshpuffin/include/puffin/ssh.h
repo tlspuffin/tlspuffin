@@ -18,6 +18,29 @@ extern "C"
         SSH_SERVER
     } SSH_AGENT_ROLE;
 
+    /*
+     * Completes the opaque <Claim> declared in <puffin/puffin.h>.
+     *
+     * An SSH claim captures the security-relevant transport state of an agent
+     * at a claim point (currently emitted once when the transport handshake
+     * completes). The negotiated-algorithm strings are fixed-size buffers so
+     * that the whole structure is plain-old-data and can be mirrored by a
+     * `#[repr(C)]` Rust type without any heap ownership crossing the FFI
+     * boundary.
+     */
+#define SSH_CLAIM_STR_LEN 128
+    struct Claim
+    {
+        /* Negotiated key-exchange algorithm. */
+        char kex[SSH_CLAIM_STR_LEN];
+        /* Negotiated incoming/outgoing ciphers. */
+        char cipher_in[SSH_CLAIM_STR_LEN];
+        char cipher_out[SSH_CLAIM_STR_LEN];
+        /* Negotiated incoming/outgoing MACs. */
+        char hmac_in[SSH_CLAIM_STR_LEN];
+        char hmac_out[SSH_CLAIM_STR_LEN];
+    };
+
     typedef struct
     {
         uint8_t name;

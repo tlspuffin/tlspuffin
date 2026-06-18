@@ -2,9 +2,10 @@
 #![allow(dead_code)]
 
 use std::collections::HashSet;
+use std::ffi::{c_char, c_void, CStr};
 use std::io::Read;
 
-use puffin::agent::AgentDescriptor;
+use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::claims::GlobalClaimList;
 use puffin::error::Error;
 use puffin::harness::{to_string, CError};
@@ -13,11 +14,75 @@ use puffin::put::{Put, PutOptions};
 use puffin::put_registry::Factory;
 use puffin::stream::Stream;
 
+use crate::claim::{SshClaim, SshClaimInner};
 use crate::protocol::{AgentType, RawSshMessageFlight, SshDescriptorConfig, SshProtocolBehavior};
 use crate::put_registry::bindings::{
-    AGENT, SSH_AGENT_DESCRIPTOR, SSH_AGENT_ROLE, SSH_PUT_INTERFACE,
+    Claim, AGENT, CLAIMER_CB, SSH_AGENT_DESCRIPTOR, SSH_AGENT_ROLE, SSH_PUT_INTERFACE,
 };
 use crate::ssh::deframe::SshMessageDeframer;
+
+// ── Claim FFI bridge ──────────────────────────────────────────────────────
+//
+// bindgen treats `struct Claim` as opaque (it is forward-declared in
+// puffin.h), so we mirror the real C layout from `puffin/ssh.h` ourselves and
+// cast the opaque `*mut Claim` through it. Keep these in lockstep.
+
+const SSH_CLAIM_STR_LEN: usize = 128;
+
+#[repr(C)]
+struct CSshClaim {
+    kex: [c_char; SSH_CLAIM_STR_LEN],
+    cipher_in: [c_char; SSH_CLAIM_STR_LEN],
+    cipher_out: [c_char; SSH_CLAIM_STR_LEN],
+    hmac_in: [c_char; SSH_CLAIM_STR_LEN],
+    hmac_out: [c_char; SSH_CLAIM_STR_LEN],
+}
+
+/// Decode a NUL-terminated, fixed-size C claim field into an owned `String`.
+fn claim_field(buf: &[c_char; SSH_CLAIM_STR_LEN]) -> String {
+    unsafe { CStr::from_ptr(buf.as_ptr()) }
+        .to_string_lossy()
+        .into_owned()
+}
+
+/// Opaque data handed back to us on every `notify`/`destroy` call. Owns a clone
+/// of the per-execution claim list and the agent identity needed to build a
+/// `SshClaim`. Boxed and leaked into the C side; reclaimed by `ssh_claim_destroy`.
+struct ClaimerContext {
+    claims: GlobalClaimList<SshClaim>,
+    agent_name: AgentName,
+    is_server: bool,
+}
+
+/// `notify` trampoline: invoked by the C harness when an agent reaches a claim
+/// point. Reconstructs a `SshClaim` and pushes it onto the global claim list.
+extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
+    if context.is_null() || claim.is_null() {
+        return;
+    }
+    let ctx = unsafe { &*(context as *const ClaimerContext) };
+    let c = unsafe { &*(claim as *const CSshClaim) };
+
+    let inner = SshClaimInner {
+        is_server: ctx.is_server,
+        kex: claim_field(&c.kex),
+        cipher_in: claim_field(&c.cipher_in),
+        cipher_out: claim_field(&c.cipher_out),
+        hmac_in: claim_field(&c.hmac_in),
+        hmac_out: claim_field(&c.hmac_out),
+    };
+
+    ctx.claims
+        .deref_borrow_mut()
+        .claim_sized(SshClaim::new(ctx.agent_name, inner));
+}
+
+/// `destroy` trampoline: reclaims the boxed `ClaimerContext`.
+extern "C" fn ssh_claim_destroy(context: *mut c_void) {
+    if !context.is_null() {
+        drop(unsafe { Box::from_raw(context as *mut ClaimerContext) });
+    }
+}
 
 // ── CSshPut: wraps a compiled C PUT registration ──────────────────────────
 
@@ -52,10 +117,10 @@ impl Factory<SshProtocolBehavior> for CSshPut {
     fn create(
         &self,
         agent_descriptor: &AgentDescriptor<SshDescriptorConfig>,
-        _claims: &GlobalClaimList<<SshProtocolBehavior as ProtocolBehavior>::Claim>,
+        claims: &GlobalClaimList<<SshProtocolBehavior as ProtocolBehavior>::Claim>,
         _options: &PutOptions,
     ) -> Result<Box<dyn Put<SshProtocolBehavior>>, Error> {
-        Ok(Box::new(CAgent::new(self, agent_descriptor)?))
+        Ok(Box::new(CAgent::new(self, agent_descriptor, claims)?))
     }
 
     fn name(&self) -> String {
@@ -120,12 +185,17 @@ pub struct CAgent {
     descriptor: AgentDescriptor<SshDescriptorConfig>,
     deframer: SshMessageDeframer,
     c_agent: AGENT,
+    /// Heap-stable claim callback registered with the C agent. The C side holds
+    /// `&*claimer`, so this box must not move for the agent's lifetime, and its
+    /// owned `context` is reclaimed in `Drop` via the CB's `destroy` hook.
+    claimer: Option<Box<CLAIMER_CB>>,
 }
 
 impl CAgent {
     fn new(
         put: &CSshPut,
         descriptor: &AgentDescriptor<SshDescriptorConfig>,
+        claims: &GlobalClaimList<SshClaim>,
     ) -> Result<Self, Error> {
         let c_descriptor = SSH_AGENT_DESCRIPTOR {
             name: descriptor.name.into(),
@@ -141,11 +211,28 @@ impl CAgent {
             return Err(Error::Put("C SSH agent creation failed".to_owned()));
         }
 
+        // Register the claim callback. The context owns a clone of the global
+        // claim list (Rc-backed) plus this agent's identity.
+        let context = Box::new(ClaimerContext {
+            claims: claims.clone(),
+            agent_name: descriptor.name,
+            is_server: matches!(descriptor.protocol_config.typ, AgentType::Server),
+        });
+        let claimer = Box::new(CLAIMER_CB {
+            context: Box::into_raw(context) as *mut c_void,
+            notify: Some(ssh_claim_notify),
+            destroy: Some(ssh_claim_destroy),
+        });
+        if let Some(register) = put.interface.agent_interface.register_claimer {
+            unsafe { register(c_agent, &*claimer as *const _) };
+        }
+
         Ok(Self {
             put: put.clone(),
             descriptor: descriptor.clone(),
             deframer: SshMessageDeframer::new(),
             c_agent,
+            claimer: Some(claimer),
         })
     }
 }
@@ -238,8 +325,15 @@ impl Stream<SshProtocolBehavior> for CAgent {
 
 impl Drop for CAgent {
     fn drop(&mut self) {
+        // Destroy the C agent first so it can no longer invoke the callback,
+        // then reclaim the callback's context.
         unsafe {
             ccall!(self.put, destroy, self.c_agent);
+        }
+        if let Some(claimer) = self.claimer.take() {
+            if let Some(destroy) = claimer.destroy {
+                unsafe { destroy(claimer.context) };
+            }
         }
     }
 }

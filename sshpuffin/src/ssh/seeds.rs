@@ -518,4 +518,44 @@ mod tests {
             "client did not reach DONE state"
         );
     }
+
+    /// End-to-end check that the libssh harness emits a HandshakeComplete claim
+    /// once the transport handshake finishes, and that it travels through the
+    /// notify trampoline into the global claim list with sane negotiated values.
+    #[test_log::test]
+    fn test_handshake_claim_emitted() {
+        use puffin::algebra::dynamic_function::TypeShape;
+
+        use crate::claim::SshClaimInner;
+
+        let registry = ssh_registry();
+        let runner = Runner::new(registry.clone(), Spawner::new(registry));
+        let server = puffin::agent::AgentName::first();
+        let trace = seed_client_attacker_full(server);
+        let context = runner.execute(trace, &mut 0).unwrap();
+
+        let claim = context
+            .find_claim(server, TypeShape::of::<SshClaimInner>())
+            .expect("server emitted no HandshakeComplete claim");
+
+        // `Claim::inner` boxes a `Box<SshClaimInner>`, so that is the concrete
+        // type behind the trait object.
+        let inner = claim
+            .as_any()
+            .downcast_ref::<Box<SshClaimInner>>()
+            .expect("claim inner was not an SshClaimInner");
+
+        assert!(inner.is_server, "server claim should have is_server = true");
+        assert!(
+            inner.kex.contains("curve25519"),
+            "unexpected negotiated kex: {:?}",
+            inner.kex
+        );
+        assert!(
+            !inner.cipher_in.is_empty() && !inner.cipher_out.is_empty(),
+            "negotiated ciphers should be populated: in={:?} out={:?}",
+            inner.cipher_in,
+            inner.cipher_out
+        );
+    }
 }
