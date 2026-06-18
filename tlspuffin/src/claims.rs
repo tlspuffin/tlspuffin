@@ -8,11 +8,21 @@ use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source, StepNumber};
 use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
 use smallvec::SmallVec;
+use serde::Serialize;
 
 use crate::protocol::{AgentType, TLSProtocolTypes, TLSVersion};
-
-#[derive(Debug, Clone)]
-pub struct TlsTranscript(pub [u8; 64], pub i32);
+fn serialize_array_as_slice<S>(array: &[u8; 64], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    array.as_slice().serialize(serializer)
+}
+#[derive(Debug, Clone, Serialize)]
+pub struct TlsTranscript(
+    #[serde(serialize_with = "serialize_array_as_slice")]
+    pub [u8; 64],
+    pub i32
+);
 
 impl codec::Codec for TlsTranscript {
     fn encode(&self, b: &mut Vec<u8>) {
@@ -33,7 +43,7 @@ impl codec::Codec for TlsTranscript {
 }
 dummy_extract_knowledge!(TLSProtocolTypes, TlsTranscript);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TranscriptClientHello(pub TlsTranscript);
 impl Transcript for TranscriptClientHello {
     fn as_slice(&self) -> &[u8] {
@@ -54,7 +64,7 @@ impl codec::Codec for TranscriptClientHello {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptClientHello);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TranscriptPartialClientHello(pub TlsTranscript);
 impl Transcript for TranscriptPartialClientHello {
     fn as_slice(&self) -> &[u8] {
@@ -75,7 +85,7 @@ impl codec::Codec for TranscriptPartialClientHello {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptPartialClientHello);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TranscriptServerHello(pub TlsTranscript);
 impl Transcript for TranscriptServerHello {
     fn as_slice(&self) -> &[u8] {
@@ -97,7 +107,7 @@ impl codec::Codec for TranscriptServerHello {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptServerHello);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TranscriptServerFinished(pub TlsTranscript);
 impl Transcript for TranscriptServerFinished {
     fn as_slice(&self) -> &[u8] {
@@ -118,7 +128,7 @@ impl codec::Codec for TranscriptServerFinished {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptServerFinished);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TranscriptClientFinished(pub TlsTranscript);
 impl Transcript for TranscriptClientFinished {
     fn as_slice(&self) -> &[u8] {
@@ -139,7 +149,7 @@ impl codec::Codec for TranscriptClientFinished {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptClientFinished);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TranscriptCertificate(pub TlsTranscript);
 impl Transcript for TranscriptCertificate {
     fn as_slice(&self) -> &[u8] {
@@ -163,20 +173,20 @@ pub trait Transcript {
     fn as_slice(&self) -> &[u8];
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ClientHello;
 // We do not expect to encode/read claims!
 dummy_extract_knowledge_codec!(TLSProtocolTypes, ClientHello);
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ServerHello;
 dummy_extract_knowledge_codec!(TLSProtocolTypes, ServerHello);
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Certificate;
 dummy_extract_knowledge_codec!(TLSProtocolTypes, Certificate);
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct CertificateVerify;
 dummy_extract_knowledge_codec!(TLSProtocolTypes, CertificateVerify);
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct Finished {
     pub outbound: bool,
 
@@ -226,7 +236,7 @@ pub struct Finished {
 }
 dummy_extract_knowledge_codec!(TLSProtocolTypes, Finished);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ClaimDataTranscript {
     ClientHello(TranscriptClientHello),
     PartialClientHello(TranscriptPartialClientHello),
@@ -236,7 +246,7 @@ pub enum ClaimDataTranscript {
     ClientFinished(TranscriptClientFinished),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ClaimDataMessage {
     ClientHello(ClientHello),
     ServerHello(ServerHello),
@@ -245,13 +255,13 @@ pub enum ClaimDataMessage {
     Finished(Finished),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub enum ClaimData {
     Transcript(ClaimDataTranscript),
     Message(ClaimDataMessage),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TlsClaim {
     pub agent_name: AgentName,
     pub origin: AgentType,

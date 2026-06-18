@@ -352,7 +352,7 @@ itertools = { workspace = true }
 libc = { workspace = true }
 hex = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-smallvec = { workspace = true }
+smallvec = { workspace = true, version = "1.10", features = ["serde"] }
 once_cell = { workspace = true }
 
 ring = { version = "0.16.20", features = ["std"] }
