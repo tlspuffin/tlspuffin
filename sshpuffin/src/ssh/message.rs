@@ -63,7 +63,12 @@ impl Codec for BinaryPacket {
     fn read(reader: &mut Reader) -> Option<Self> {
         let packet_length = u32::read(reader)?;
         let padding_length = u8::read(reader)?;
-        let payload_length = packet_length as usize - padding_length as usize - 1;
+        // Guard against underflow: on encrypted (e.g. AES-GCM) packets the bytes
+        // we read as `padding_length` are really ciphertext and can exceed
+        // `packet_length`. Treat such frames as unparseable rather than panicking.
+        let payload_length = (packet_length as usize)
+            .checked_sub(padding_length as usize)
+            .and_then(|v| v.checked_sub(1))?;
         let payload = Vec::from(reader.take(payload_length)?);
         let random_padding = Vec::from(reader.take(padding_length as usize)?);
         let mac = Vec::from(reader.take(0_usize)?); // TODO: parse non-zero
