@@ -723,6 +723,80 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<SshProtocolTypes> {
     }
 }
 
+// ── Seed: client attacker full handshake over AES-256-GCM ─────────────────────
+//
+// Same shape as seed_client_attacker_full but forces aes256-gcm@openssh.com
+// (offered by BOTH libssh and wolfSSH), so this single seed completes the full
+// handshake + encrypted record layer against both implementations. The fuzzer
+// is the client; the libssh/wolfSSH server is the PUT.
+pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id = term! { fn_banner_id(((server, 0)[None]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    // Fixed client KexInit offering only aes256-gcm.
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    // c2s AES-256-GCM key + IV.
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let iv  = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+
+    // AES-GCM invocation counter = per-direction packet index since NewKeys (0,1,2,3).
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request((fn_username), (fn_ssh_connection), (fn_method_password),
+                                  (fn_password_auth_data((fn_password))))),
+            (@key), (@iv), (fn_u32_1))
+    };
+    let chan_open = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+                             (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_2))
+    };
+    let chan_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
+                                (fn_exec_payload((fn_ssh_userauth))))),
+            (@key), (@iv), (fn_u32_3))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(server, term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) }),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @chan_open }),
+            InputAction::new_step(server, term! { @chan_req }),
+        ],
+        ..Default::default()
+    }
+}
+
 // ── Seed: server attacker with full handshake ─────────────────────────────────
 //
 // The fuzzer acts as the SSH server; the client is a real libssh instance.
@@ -922,6 +996,7 @@ pub fn create_corpus(
         (seed_client_attacker(server), "seed_client_attacker"),
         (seed_client_attacker_full(server), "seed_client_attacker_full"),
         (seed_server_attacker_full(client), "seed_server_attacker_full"),
+        (seed_client_attacker_full_aesgcm(server), "seed_client_attacker_full_aesgcm"),
     ]
 }
 

@@ -85,6 +85,12 @@ impl NameList {
     pub fn empty() -> NameList {
         Self { names: vec![] }
     }
+
+    pub fn from_strs(names: &[&str]) -> NameList {
+        Self {
+            names: names.iter().map(|s| s.to_string()).collect(),
+        }
+    }
 }
 
 impl Codec for NameList {

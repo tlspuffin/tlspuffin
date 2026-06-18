@@ -273,6 +273,136 @@ pub fn fn_derive_enc_key_s2c(
     Ok(derive_key(shared, h, sid, b'D', 64))
 }
 
+// ── AES-256-GCM key/IV derivation (RFC 5647) ─────────────────────────────────
+//
+// aes256-gcm@openssh.com uses a 32-byte encryption key (id 'C'/'D') and a
+// 12-byte initial IV (id 'A'/'B'). The IV is fixed_salt(4) || invocation
+// counter(8); the counter starts at the derived value and increments per packet.
+
+/// Client-to-server AES-256-GCM key (id `'C'`, 32 bytes).
+pub fn fn_derive_aes_key_c2s(s: &SshBytes, h: &SshBytes, sid: &SshBytes) -> Result<SshBytes, FnError> {
+    Ok(derive_key(s, h, sid, b'C', 32))
+}
+/// Server-to-client AES-256-GCM key (id `'D'`, 32 bytes).
+pub fn fn_derive_aes_key_s2c(s: &SshBytes, h: &SshBytes, sid: &SshBytes) -> Result<SshBytes, FnError> {
+    Ok(derive_key(s, h, sid, b'D', 32))
+}
+/// Client-to-server initial IV (id `'A'`, 12 bytes).
+pub fn fn_derive_iv_c2s(s: &SshBytes, h: &SshBytes, sid: &SshBytes) -> Result<SshBytes, FnError> {
+    Ok(derive_key(s, h, sid, b'A', 12))
+}
+/// Server-to-client initial IV (id `'B'`, 12 bytes).
+pub fn fn_derive_iv_s2c(s: &SshBytes, h: &SshBytes, sid: &SshBytes) -> Result<SshBytes, FnError> {
+    Ok(derive_key(s, h, sid, b'B', 12))
+}
+
+// ── AES-256-GCM packet encryption (aes256-gcm@openssh.com, RFC 5647) ──────────
+//
+// Wire format: [uint32 packet_length (cleartext, used as AAD)]
+//              [AES-GCM ciphertext of: padding_length(1) || payload || padding]
+//              [16-byte GCM tag]
+// The encrypted plaintext length (1 + payload + padding) MUST be a multiple of
+// 16 (the AES block size); the 4-byte length field is NOT counted. Nonce =
+// iv[0..4] || be64(be64(iv[4..12]) + invocation_counter).
+
+use aes_gcm::aead::{Aead, KeyInit, Payload};
+use aes_gcm::{Aes256Gcm, Key as AesKey, Nonce as AesNonce};
+
+fn aesgcm_nonce(iv: &[u8], counter: u64) -> [u8; 12] {
+    let mut nonce = [0u8; 12];
+    nonce[0..4].copy_from_slice(&iv[0..4]);
+    let base = u64::from_be_bytes(iv[4..12].try_into().unwrap());
+    nonce[4..12].copy_from_slice(&base.wrapping_add(counter).to_be_bytes());
+    nonce
+}
+
+/// Encrypt one SSH message as an aes256-gcm@openssh.com binary packet.
+/// `iv` is the 12-byte initial IV; `counter` is the per-direction packet index
+/// since NewKeys (0 for the first encrypted packet). Returns `RawSshMessage::OnWire`.
+pub fn fn_encrypt_packet_aesgcm(
+    msg: &SshMessage,
+    key: &SshBytes,
+    iv: &SshBytes,
+    counter: &u32,
+) -> Result<RawSshMessage, FnError> {
+    if key.0.len() != 32 {
+        return Err(FnError::Unknown("AES-GCM key must be 32 bytes".into()));
+    }
+    if iv.0.len() != 12 {
+        return Err(FnError::Unknown("AES-GCM IV must be 12 bytes".into()));
+    }
+
+    let plaintext = msg.get_encoding();
+    // (1 + payload + pad) % 16 == 0, pad >= 4
+    let block = 16usize;
+    let unpadded = 1 + plaintext.len();
+    let mut pad = block - (unpadded % block);
+    if pad < 4 {
+        pad += block;
+    }
+    let enc_len = 1 + plaintext.len() + pad; // length field value (== plaintext to encrypt)
+
+    let mut pt = Vec::with_capacity(enc_len);
+    pt.push(pad as u8);
+    pt.extend_from_slice(&plaintext);
+    pt.resize(enc_len, 0u8);
+
+    let nonce = aesgcm_nonce(&iv.0, *counter as u64);
+    let cipher = Aes256Gcm::new(AesKey::<Aes256Gcm>::from_slice(&key.0));
+    let len_be = (enc_len as u32).to_be_bytes();
+    let ct = cipher
+        .encrypt(AesNonce::from_slice(&nonce), Payload { msg: &pt, aad: &len_be })
+        .map_err(|_| FnError::Unknown("AES-GCM encryption failed".into()))?;
+    // ct = ciphertext || 16-byte tag (the aes-gcm crate appends the tag)
+
+    let mut out = Vec::with_capacity(4 + ct.len());
+    out.extend_from_slice(&len_be);
+    out.extend_from_slice(&ct);
+    Ok(RawSshMessage::OnWire(OnWireData(out)))
+}
+
+/// Decrypt an aes256-gcm@openssh.com packet back into an `SshMessage`.
+pub fn fn_decrypt_packet_aesgcm(
+    data: &OnWireData,
+    key: &SshBytes,
+    iv: &SshBytes,
+    counter: &u32,
+) -> Result<SshMessage, FnError> {
+    use puffin::codec::Reader;
+
+    if key.0.len() != 32 || iv.0.len() != 12 {
+        return Err(FnError::Unknown("AES-GCM key/IV size".into()));
+    }
+    let wire = &data.0;
+    if wire.len() < 4 + 16 {
+        return Err(FnError::Unknown("packet too short".into()));
+    }
+    let len_be: [u8; 4] = wire[0..4].try_into().unwrap();
+    let enc_len = u32::from_be_bytes(len_be) as usize;
+    if wire.len() < 4 + enc_len + 16 {
+        return Err(FnError::Unknown("declared length exceeds packet".into()));
+    }
+    let ct_and_tag = &wire[4..4 + enc_len + 16];
+
+    let nonce = aesgcm_nonce(&iv.0, *counter as u64);
+    let cipher = Aes256Gcm::new(AesKey::<Aes256Gcm>::from_slice(&key.0));
+    let pt = cipher
+        .decrypt(AesNonce::from_slice(&nonce), Payload { msg: ct_and_tag, aad: &len_be })
+        .map_err(|_| FnError::Unknown("AES-GCM tag mismatch".into()))?;
+
+    if pt.is_empty() {
+        return Err(FnError::Unknown("empty plaintext".into()));
+    }
+    let pad = pt[0] as usize;
+    if 1 + pad > pt.len() {
+        return Err(FnError::Unknown("invalid padding".into()));
+    }
+    let payload = &pt[1..pt.len() - pad];
+    let mut reader = Reader::init(payload);
+    SshMessage::read(&mut reader)
+        .ok_or_else(|| FnError::Unknown("failed to parse decrypted SshMessage".into()))
+}
+
 // ── ChaCha20-Poly1305@openssh.com packet encryption ──────────────────────────
 //
 // Two 32-byte keys (per PROTOCOL.chacha20poly1305 from OpenSSH):
@@ -587,6 +717,28 @@ mod tests {
             let decrypted = fn_decrypt_packet(&onwire, &key, &seqno).expect("decrypt");
             assert_eq!(decrypted, msg, "roundtrip mismatch at seqno {seqno}");
         }
+    }
+
+    #[test]
+    fn test_aesgcm_encrypt_decrypt_roundtrip() {
+        let key = SshBytes::new((0u8..32).collect::<Vec<u8>>()); // 32-byte AES-256 key
+        let iv = SshBytes::new((0u8..12).collect::<Vec<u8>>()); // 12-byte IV
+        let msg = SshMessage::ServiceRequest(ServiceRequestMessage {
+            service_name: SshBytes::new(b"ssh-userauth".to_vec()),
+        });
+        for counter in [0u32, 1, 5, 99] {
+            let enc = fn_encrypt_packet_aesgcm(&msg, &key, &iv, &counter).expect("aesgcm encrypt");
+            let onwire = match enc {
+                RawSshMessage::OnWire(d) => d,
+                _ => panic!("expected OnWire"),
+            };
+            let dec = fn_decrypt_packet_aesgcm(&onwire, &key, &iv, &counter).expect("aesgcm decrypt");
+            assert_eq!(dec, msg, "aes-gcm roundtrip mismatch at counter {counter}");
+        }
+        // Wrong counter (nonce) must fail the GCM tag.
+        let enc = fn_encrypt_packet_aesgcm(&msg, &key, &iv, &0).unwrap();
+        let onwire = match enc { RawSshMessage::OnWire(d) => d, _ => unreachable!() };
+        assert!(fn_decrypt_packet_aesgcm(&onwire, &key, &iv, &1).is_err());
     }
 
     #[test]

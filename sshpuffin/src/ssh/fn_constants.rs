@@ -155,6 +155,9 @@ pub fn fn_algo_rsa_sha2_256() -> Result<SshBytes, FnError> {
 pub fn fn_algo_curve25519_sha256() -> Result<SshBytes, FnError> {
     Ok(SshBytes::new(b"curve25519-sha256".to_vec()))
 }
+pub fn fn_algo_aes256_gcm() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"aes256-gcm@openssh.com".to_vec()))
+}
 
 pub fn fn_puffin_banner() -> Result<String, FnError> {
     Ok("SSH-2.0-puffin\r\n".to_string())

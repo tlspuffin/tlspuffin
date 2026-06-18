@@ -38,6 +38,7 @@ x25519-dalek  = { version = "2", features = ["static_secrets"] }
 sha2          = "0.10"
 chacha20      = "0.9"
 poly1305      = "0.8"
+aes-gcm       = "0.10"
 signature     = "2"
 rsa           = { version = "0.9", features = ["sha2"] }
 ssh-key       = { version = "0.6", features = ["rsa", "std"] }

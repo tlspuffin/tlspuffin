@@ -136,6 +136,43 @@ pub fn fn_new_keys() -> Result<SshMessage, FnError> {
     Ok(SshMessage::NewKeys)
 }
 
+/// A fixed client KexInit that offers ONLY aes256-gcm@openssh.com (plus
+/// curve25519-sha256 / rsa-sha2 / none), so that both libssh and wolfSSH
+/// negotiate AES-256-GCM. This makes a single seed valid against both
+/// implementations (unlike the algorithm-mirroring seeds, which let each PUT
+/// pick its own top cipher — chacha20 for libssh, aes-gcm for wolfSSH).
+pub fn fn_client_kexinit_aesgcm(cookie: &[u8; 16]) -> Result<SshMessage, FnError> {
+    use crate::ssh::message::{
+        CompressionAlgorithms, EncryptionAlgorithms, KexAlgorithms, MacAlgorithms, NameList,
+        SignatureSchemes,
+    };
+    Ok(SshMessage::KexInit(KexInitMessage {
+        cookie: *cookie,
+        kex_algorithms: KexAlgorithms(NameList::from_strs(&["curve25519-sha256"])),
+        server_host_key_algorithms: SignatureSchemes(NameList::from_strs(&[
+            "rsa-sha2-512",
+            "rsa-sha2-256",
+        ])),
+        encryption_algorithms_client_to_server: EncryptionAlgorithms(NameList::from_strs(&[
+            "aes256-gcm@openssh.com",
+        ])),
+        encryption_algorithms_server_to_client: EncryptionAlgorithms(NameList::from_strs(&[
+            "aes256-gcm@openssh.com",
+        ])),
+        mac_algorithms_client_to_server: MacAlgorithms(NameList::from_strs(&["hmac-sha2-256"])),
+        mac_algorithms_server_to_client: MacAlgorithms(NameList::from_strs(&["hmac-sha2-256"])),
+        compression_algorithms_client_to_server: CompressionAlgorithms(NameList::from_strs(&[
+            "none",
+        ])),
+        compression_algorithms_server_to_client: CompressionAlgorithms(NameList::from_strs(&[
+            "none",
+        ])),
+        languages_client_to_server: NameList::empty(),
+        languages_server_to_client: NameList::empty(),
+        first_kex_packet_follows: false,
+    }))
+}
+
 pub fn fn_user_auth_request(
     user_name: &SshBytes,
     service_name: &SshBytes,

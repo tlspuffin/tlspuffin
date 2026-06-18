@@ -100,6 +100,7 @@ define_signature!(
     fn_kex_ecdh_init
     fn_kex_ecdh_reply
     fn_new_keys
+    fn_client_kexinit_aesgcm
     fn_user_auth_request
     fn_user_auth_failure
     fn_user_auth_success
@@ -131,6 +132,13 @@ define_signature!(
     fn_derive_enc_key_s2c
     fn_encrypt_packet
     fn_decrypt_packet
+    fn_derive_aes_key_c2s
+    fn_derive_aes_key_s2c
+    fn_derive_iv_c2s
+    fn_derive_iv_s2c
+    fn_encrypt_packet_aesgcm
+    fn_decrypt_packet_aesgcm
+    fn_algo_aes256_gcm
     fn_server_rsa_pubkey
     fn_server_rsa_pubkey_bytes
     fn_sign_exchange_hash
