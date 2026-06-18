@@ -233,11 +233,25 @@ markedly different algorithm set:
 
 This is a genuine, interpretable cross-implementation behavioral divergence.
 
-**Refinement for richer comparison:** the DDYF engine reports a status diff
-*first* and skips knowledge comparison when statuses differ. To structurally
-compare the two implementations' KEXINITs (and post-NewKeys behavior), add a
-wolfSSH-compatible seed (aes-gcm cipher; both PUTs complete to the same step) or
-a KEX-only seed. The harness, vendor, and registration are all in place.
+### Structural cross-implementation comparison (AES-GCM seed)
+
+The status-only result above came from a chacha20-poly1305 seed that wolfSSH
+can't complete. `seed_client_attacker_full_aesgcm` fixes this: it forces
+`aes256-gcm@openssh.com` (offered by BOTH libssh and wolfSSH) via a fixed client
+KexInit (`fn_client_kexinit_aesgcm`) and encrypts the record layer with the new
+`fn_encrypt_packet_aesgcm` (RFC 5647). Result:
+
+- **Both libssh0114 and wolfSSH complete the full handshake (9/9 steps, 0 errors)**
+  — one seed, two independent implementations.
+- The `libssh0114 vs wolfSSH` differential is now **structural** (knowledge-level,
+  not just status): it surfaces the genuine `KexInitMessage` algorithm-list
+  differences and the `KexEcdhReplyMessage` host-key difference (libssh's
+  embedded RSA key vs wolfSSH's hansel key).
+
+wolfSSH is built as a **first-class puffin-build vendor**:
+`puffin-build/vendors/wolfssh/{presets.toml,builder.cmake,build_wolfssl_dep.sh}`
+— `mk_vendor make wolfssh:wolfssh-asan` builds wolfSSL (`--enable-ssh`) then
+wolfSSH and stages a self-contained `vendor/wolfssh-asan`.
 
 ## 8. Current limitations & next steps
 
