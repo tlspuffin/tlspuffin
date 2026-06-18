@@ -905,6 +905,66 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<SshProtocolTypes> {
     }
 }
 
+// ── Seed: server attacker full handshake over AES-256-GCM ─────────────────────
+//
+// Fuzzer is the SERVER; the libssh/wolfSSH client is the PUT. Forces
+// aes256-gcm@openssh.com and offers only rsa-sha2-256 as the host-key algorithm
+// (so the negotiated algorithm matches the rsa-sha2-256 signature). Completes
+// the full handshake + encrypted server responses against BOTH implementations.
+pub fn seed_server_attacker_full_aesgcm(client: AgentName) -> Trace<SshProtocolTypes> {
+    let client_banner_id = term! { fn_banner_id(((client, 0)[None]/RawSshMessage)) };
+    let client_kexinit = term! { (client, 0)[None]/SshMessage };
+    let q_c = term! { (client, 0)[None]/SshBytes };
+
+    // Fixed server KexInit (aes256-gcm, rsa-sha2-256 host key).
+    let our_kexinit = term! { fn_server_kexinit_aesgcm((fn_placeholder_16bytes)) };
+
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@q_c)) };
+    let i_c = term! { fn_kexinit_payload((@client_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@our_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (@client_banner_id), (fn_puffin_id), (@i_c), (@i_s),
+            (fn_server_rsa_pubkey_bytes), (@q_c), (fn_client_ecdh_pubkey), (@shared)
+        )
+    };
+    let sig = term! { fn_sign_exchange_hash((@exch_hash)) };
+    // s2c AES-256-GCM key + IV (direction the server encrypts towards the client).
+    let key = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@exch_hash)) };
+    let iv  = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@exch_hash)) };
+
+    let svc_accept = term! {
+        fn_encrypt_packet_aesgcm((fn_service_accept((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+    };
+    let auth_success = term! {
+        fn_encrypt_packet_aesgcm((fn_user_auth_success), (@key), (@iv), (fn_u32_1))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            SshDescriptorConfig { typ: AgentType::Client, try_reuse: false },
+        )],
+        steps: vec![
+            OutputAction::new_step(client),
+            InputAction::new_step(client, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(client, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(client, term! {
+                fn_packet((fn_kex_ecdh_reply(
+                    (fn_server_rsa_pubkey),
+                    (fn_client_ecdh_pubkey),
+                    (fn_ssh_signature((fn_algo_rsa_sha2_256), (@sig)))
+                )))
+            }),
+            InputAction::new_step(client, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(client, term! { @svc_accept }),
+            InputAction::new_step(client, term! { @auth_success }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// Differential-fuzzing decryption recipes for a libssh **server** agent.
 ///
 /// After NewKeys the server's responses are opaque `OnWire` ciphertext, so to
@@ -997,6 +1057,7 @@ pub fn create_corpus(
         (seed_client_attacker_full(server), "seed_client_attacker_full"),
         (seed_server_attacker_full(client), "seed_server_attacker_full"),
         (seed_client_attacker_full_aesgcm(server), "seed_client_attacker_full_aesgcm"),
+        (seed_server_attacker_full_aesgcm(client), "seed_server_attacker_full_aesgcm"),
     ]
 }
 

@@ -65,14 +65,29 @@ static void        wolfssh_rng_reseed(const uint8_t *buffer, size_t length);
 
 /* ── auth callback: accept everything ────────────────────────────────────── */
 
+static const char WOLFSSH_AUTH_PASSWORD[] = "password";
+
 static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
 {
-    (void)authType;
-    (void)authData;
     (void)ctx;
-    /* Accept any credential so the fuzzer reaches the post-auth (channel) layer,
-       mirroring the libssh harness which always replies auth-success. */
+    /* Dual purpose: as a SERVER, accept any credential (return SUCCESS); as a
+       CLIENT, *provide* a password so SendUserAuthRequest has something to send
+       (wolfSSH calls the same callback to obtain client credentials). */
+    if (authType == WOLFSSH_USERAUTH_PASSWORD && authData != NULL) {
+        authData->sf.password.password = (const uint8_t *)WOLFSSH_AUTH_PASSWORD;
+        authData->sf.password.passwordSz = (uint32_t)(sizeof(WOLFSSH_AUTH_PASSWORD) - 1);
+    }
     return WOLFSSH_USERAUTH_SUCCESS;
+}
+
+/* Client-side host-key check: accept any server key. Without this, wolfSSH's
+   client rejects the (fuzzer-supplied) host key and aborts the handshake. */
+static int public_key_check_callback(const uint8_t *publicKey, uint32_t publicKeySz, void *ctx)
+{
+    (void)publicKey;
+    (void)publicKeySz;
+    (void)ctx;
+    return 0; /* 0 = accept */
 }
 
 /* ── PUT interface table ─────────────────────────────────────────────────── */
@@ -102,6 +117,9 @@ const SSH_PUT_INTERFACE *REGISTER(void)
         setrlimit(RLIMIT_NOFILE, &rl);
     }
     wolfSSH_Init();
+#ifdef PUFFIN_WOLFSSH_DEBUG
+    wolfSSH_Debugging_ON();
+#endif
     return &WOLFSSH_PUT;
 }
 
@@ -167,8 +185,12 @@ static AGENT wolfssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
     }
 
     if (!is_server) {
-        /* A username is required before connect; the auth callback accepts it. */
+        /* Client also uses the userauth callback — here to PROVIDE a password. */
+        wolfSSH_SetUserAuth(ctx, auth_callback);
+        /* A username is required before connect. */
         wolfSSH_SetUsername(ssh, "user");
+        /* Accept the server's host key (fuzzer-supplied) rather than rejecting. */
+        wolfSSH_CTX_SetPublicKeyCheck(ctx, public_key_check_callback);
     }
 
     wolfSSH_set_fd(ssh, put_fd);
@@ -238,6 +260,9 @@ static RESULT wolfssh_progress(AGENT agent)
                          "HANDSHAKE/WOULD_BLOCK");
                 return ok_result();
             }
+            _log(PUFFIN.error, "wolfssh %s failed: rc=%d gerr=%d (%s)",
+                 agent->descriptor.role == SSH_SERVER ? "accept" : "connect",
+                 rc, gerr, wolfSSH_ErrorToName(gerr));
             agent->state = PUT_STATE_ERROR;
             snprintf(agent->state_desc, sizeof(agent->state_desc),
                      "HANDSHAKE/ERROR rc=%d gerr=%d", rc, gerr);

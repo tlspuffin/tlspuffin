@@ -136,23 +136,18 @@ pub fn fn_new_keys() -> Result<SshMessage, FnError> {
     Ok(SshMessage::NewKeys)
 }
 
-/// A fixed client KexInit that offers ONLY aes256-gcm@openssh.com (plus
-/// curve25519-sha256 / rsa-sha2 / none), so that both libssh and wolfSSH
-/// negotiate AES-256-GCM. This makes a single seed valid against both
-/// implementations (unlike the algorithm-mirroring seeds, which let each PUT
-/// pick its own top cipher — chacha20 for libssh, aes-gcm for wolfSSH).
-pub fn fn_client_kexinit_aesgcm(cookie: &[u8; 16]) -> Result<SshMessage, FnError> {
+// Shared builder for a fixed aes256-gcm KexInit. `host_key_algos` lets the
+// caller restrict the offered host-key algorithms (the server-attacker seed
+// offers only rsa-sha2-256 so the negotiated algorithm matches its signature).
+fn kexinit_aesgcm(cookie: &[u8; 16], host_key_algos: &[&str]) -> SshMessage {
     use crate::ssh::message::{
         CompressionAlgorithms, EncryptionAlgorithms, KexAlgorithms, MacAlgorithms, NameList,
         SignatureSchemes,
     };
-    Ok(SshMessage::KexInit(KexInitMessage {
+    SshMessage::KexInit(KexInitMessage {
         cookie: *cookie,
         kex_algorithms: KexAlgorithms(NameList::from_strs(&["curve25519-sha256"])),
-        server_host_key_algorithms: SignatureSchemes(NameList::from_strs(&[
-            "rsa-sha2-512",
-            "rsa-sha2-256",
-        ])),
+        server_host_key_algorithms: SignatureSchemes(NameList::from_strs(host_key_algos)),
         encryption_algorithms_client_to_server: EncryptionAlgorithms(NameList::from_strs(&[
             "aes256-gcm@openssh.com",
         ])),
@@ -170,7 +165,24 @@ pub fn fn_client_kexinit_aesgcm(cookie: &[u8; 16]) -> Result<SshMessage, FnError
         languages_client_to_server: NameList::empty(),
         languages_server_to_client: NameList::empty(),
         first_kex_packet_follows: false,
-    }))
+    })
+}
+
+/// A fixed client KexInit that offers ONLY aes256-gcm@openssh.com (plus
+/// curve25519-sha256 / rsa-sha2 / none), so that both libssh and wolfSSH
+/// negotiate AES-256-GCM. This makes a single seed valid against both
+/// implementations (unlike the algorithm-mirroring seeds, which let each PUT
+/// pick its own top cipher — chacha20 for libssh, aes-gcm for wolfSSH).
+pub fn fn_client_kexinit_aesgcm(cookie: &[u8; 16]) -> Result<SshMessage, FnError> {
+    Ok(kexinit_aesgcm(cookie, &["rsa-sha2-512", "rsa-sha2-256"]))
+}
+
+/// A fixed SERVER KexInit offering aes256-gcm and ONLY rsa-sha2-256 as the
+/// host-key algorithm, so the client negotiates rsa-sha2-256 — matching the
+/// rsa-sha2-256 signature the server-attacker seed produces. Used by the
+/// fuzzer when it plays the server against a libssh/wolfSSH client.
+pub fn fn_server_kexinit_aesgcm(cookie: &[u8; 16]) -> Result<SshMessage, FnError> {
+    Ok(kexinit_aesgcm(cookie, &["rsa-sha2-256"]))
 }
 
 pub fn fn_user_auth_request(

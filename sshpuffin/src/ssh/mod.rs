@@ -101,6 +101,7 @@ define_signature!(
     fn_kex_ecdh_reply
     fn_new_keys
     fn_client_kexinit_aesgcm
+    fn_server_kexinit_aesgcm
     fn_user_auth_request
     fn_user_auth_failure
     fn_user_auth_success
