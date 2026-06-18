@@ -3,7 +3,9 @@ use puffin::algebra::Term;
 use puffin::term;
 use puffin::trace::{InputAction, OutputAction, Trace};
 
-use crate::protocol::{AgentType, SshDescriptorConfig, SshProtocolBehavior, SshProtocolTypes};
+use crate::protocol::{
+    AgentType, RawSshMessageFlight, SshDescriptorConfig, SshProtocolBehavior, SshProtocolTypes,
+};
 use crate::ssh::fn_impl::*;
 use crate::ssh::message::{
     CompressionAlgorithms, EncryptionAlgorithms, KexAlgorithms, MacAlgorithms, OnWireData,
@@ -464,6 +466,49 @@ pub fn server_decryption_recipes(server: AgentName) -> Vec<Term<SshProtocolTypes
     ]
 }
 
+/// Two-honest-party handshake: both the client and the server are real PUTs,
+/// and the Dolev-Yao attacker sits on the wire, here simply relaying each
+/// party's output flight to the other faithfully (the benign baseline). This is
+/// the trace shape required for the *matching-conversation* property — a
+/// security property that is only definable with two honest endpoints to
+/// compare. Mutations of this seed (drop / insert / reorder relayed messages)
+/// are what a transcript-integrity attack like Terrapin would exercise.
+pub fn seed_handshake_two_party(
+    client: AgentName,
+    server: AgentName,
+) -> Trace<SshProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::from_config(
+                client,
+                SshDescriptorConfig { typ: AgentType::Client, try_reuse: false },
+            ),
+            AgentDescriptor::from_config(
+                server,
+                SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+            ),
+        ],
+        steps: vec![
+            // Bootstrap: both peers emit their banner + KEXINIT without waiting.
+            OutputAction::new_step(client),
+            OutputAction::new_step(server),
+            // Relay, letting each delivery drive the receiver's next output.
+            InputAction::new_step(server, term! { (client, 0)/RawSshMessageFlight }),
+            InputAction::new_step(client, term! { (server, 0)/RawSshMessageFlight }),
+            InputAction::new_step(server, term! { (client, 1)/RawSshMessageFlight }),
+            InputAction::new_step(client, term! { (server, 1)/RawSshMessageFlight }),
+            InputAction::new_step(server, term! { (client, 2)/RawSshMessageFlight }),
+            InputAction::new_step(client, term! { (server, 2)/RawSshMessageFlight }),
+            InputAction::new_step(server, term! { (client, 3)/RawSshMessageFlight }),
+            InputAction::new_step(client, term! { (server, 3)/RawSshMessageFlight }),
+            InputAction::new_step(server, term! { (client, 4)/RawSshMessageFlight }),
+            InputAction::new_step(client, term! { (server, 4)/RawSshMessageFlight }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// AES-256-GCM counterpart of [`server_decryption_recipes`], for the AES-GCM
 /// flow (mirrors `seed_client_attacker_full_aesgcm`). Decrypts the server's
 /// first three post-NewKeys s2c packets. The GCM invocation counter restarts at
@@ -597,6 +642,57 @@ mod tests {
             "negotiated ciphers should be populated: in={:?} out={:?}",
             inner.cipher_in,
             inner.cipher_out
+        );
+    }
+
+    /// Diagnostic: drive two real libssh PUTs through a handshake purely by DY
+    /// relay, and report how far each gets. This validates the two-honest-party
+    /// trace shape needed for the matching-conversation property.
+    #[test_log::test]
+    fn test_handshake_two_party() {
+        use puffin::algebra::dynamic_function::TypeShape;
+
+        use crate::claim::SshClaimInner;
+        use crate::ssh::seeds::seed_handshake_two_party;
+
+        let registry = ssh_registry();
+        let runner = Runner::new(registry.clone(), Spawner::new(registry));
+        let client = puffin::agent::AgentName::first();
+        let server = client.next();
+        let trace = seed_handshake_two_party(client, server);
+
+        let context = runner.execute(trace, &mut 0).unwrap();
+
+        // Both honest endpoints must complete the handshake by pure relay.
+        assert!(
+            context.find_agent(client).unwrap().is_state_successful(),
+            "client did not reach DONE"
+        );
+        assert!(
+            context.find_agent(server).unwrap().is_state_successful(),
+            "server did not reach DONE"
+        );
+
+        // Both endpoints must emit a HandshakeComplete claim — the two honest
+        // views the matching-conversation oracle compares.
+        assert!(
+            context
+                .find_claim(client, TypeShape::of::<SshClaimInner>())
+                .is_some(),
+            "client emitted no claim"
+        );
+        assert!(
+            context
+                .find_claim(server, TypeShape::of::<SshClaimInner>())
+                .is_some(),
+            "server emitted no claim"
+        );
+
+        // On the benign relay the two views must agree: the matching-conversation
+        // oracle reports no violation.
+        assert!(
+            context.verify_security_violations().is_ok(),
+            "matching-conversation oracle fired on a benign honest relay (false positive)"
         );
     }
 
