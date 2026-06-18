@@ -357,7 +357,7 @@ pub struct TraceContext<PB: ProtocolBehavior> {
     /// The knowledge of the attacker
     pub knowledge_store: KnowledgeStore<PB::ProtocolTypes>,
     agents: Vec<Agent<PB>>,
-    claims: GlobalClaimList<PB::Claim>,
+    pub claims: GlobalClaimList<PB::Claim>,
     pub config_trace: ConfigTrace,
 
     spawner: Spawner<PB>,

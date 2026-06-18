@@ -8,9 +8,11 @@ use crate::fuzzer::stats_stage::{
     HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
     TERM_SIZE, TRACE_LENGTH,
 };
+use crate::fuzzer::claim_observer::CAPTURED_CLAIMS;
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
 use crate::trace::{Action, Spawner, Trace};
+use crate::claims::Claim;
 
 pub fn harness<PB: ProtocolBehavior + 'static>(
     put_registry: &PutRegistry<PB>,
@@ -38,6 +40,20 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     let runner = Runner::new(put_registry.clone(), Spawner::new(put_registry.clone()));
     let mut fail_at_step = 0;
     if let Ok(ctx) = runner.execute(input, &mut fail_at_step) {
+        CAPTURED_CLAIMS.with(|captured| {
+           let claims_borrow = ctx.claims.claims.borrow();
+           let mut claim_keys: Vec<String> = Vec::new();
+           for claim in claims_borrow.iter() {
+                let agent = claim.agent_name();
+                let step_num = claim.get_step();
+                let step = step_num.map(|s| s.step).unwrap_or(0);
+                let claim_type = format!("{:?}", claim.id());
+                
+                let key = format!("{}-{}-{}", agent, step, claim_type);
+                claim_keys.push(key);
+            }
+            *captured.borrow_mut() = Some(Box::new(claim_keys));
+        });
         HARNESS_EXEC_SUCCESS.increment();
         if cfg!(feature = "introspection") {
             if ctx.agents_successful() {

@@ -14,6 +14,8 @@ use crate::fuzzer::bit_mutations::{
     bit_mutations_dy, havoc_mutations_dy, MakeMessage, ReadMessage,
 };
 use crate::fuzzer::feedback::MinimizingFeedback;
+use crate::fuzzer::claim_feedback::ClaimFeedback;
+use crate::fuzzer::claim_observer::ClaimObserver;
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
 use crate::fuzzer::stages::PuffinMutationalStage;
 use crate::fuzzer::stats_monitor::StatsMonitor;
@@ -443,7 +445,7 @@ type ConcreteMinimizer<S> = IndexesLenTimeMinimizerScheduler<QueueScheduler<S>>;
 
 type ConcreteObservers<'a> = (
     HitcountsMapObserver<StdMapObserver<'a, u8, false>>,
-    (TimeObserver, ()),
+    (TimeObserver, (ClaimObserver, ())),
 );
 
 type ConcreteFeedback<'a, S> = CombinedFeedback<
@@ -454,7 +456,12 @@ type ConcreteFeedback<'a, S> = CombinedFeedback<
         S,
         u8,
     >,
-    TimeFeedback,
+    CombinedFeedback<
+        TimeFeedback,
+        ClaimFeedback<S>,
+        LogicEagerOr,
+        S,
+    >,
     LogicEagerOr,
     S,
 >;
@@ -490,7 +497,17 @@ impl<'harness, 'a, H, SC, C, R, EM, OF, CS, PT>
                     >,
                     u8,
                 >,
-                TimeFeedback,
+                CombinedFeedback<
+                    TimeFeedback,
+                    ClaimFeedback<StdState<
+                            Trace<PT>, 
+                            CachedOnDiskCorpus<Trace<PT>>, 
+                            RomuDuoJrRand, 
+                            CachedOnDiskCorpus<Trace<PT>>
+                        >>,
+                    LogicEagerOr,
+                    StdState<Trace<PT>, CachedOnDiskCorpus<Trace<PT>>, RomuDuoJrRand, CachedOnDiskCorpus<Trace<PT>>>,
+                >,
                 LogicEagerOr,
                 StdState<
                     Trace<PT>,
@@ -542,10 +559,11 @@ where
 {
     fn create_feedback_observers(
         &self,
-    ) -> (
-        ConcreteFeedback<'a, ConcreteState<C, R, SC, Trace<PT>>>,
+    )-> (
+        ConcreteFeedback<'a, ConcreteState<C, R, SC, Trace<PT>>>, 
         ConcreteObservers<'a>,
-    ) {
+    )
+    {
         #[cfg(not(test))]
         let map = unsafe {
             pub use libafl_targets::{EDGES_MAP, MAX_EDGES_NUM};
@@ -561,7 +579,13 @@ where
             &mut EDGES_MAP[0..MAX_EDGES_NUM]
         };
 
-        let map_feedback = MaxMapFeedback::with_names_tracking(
+        let map_feedback: MapFeedback<
+            DifferentIsNovel,
+            HitcountsMapObserver<StdMapObserver<'_, u8, false>>,
+            MaxReducer,
+            ConcreteState<C, R, SC, Trace<PT>>,
+            u8,
+        > = MaxMapFeedback::with_names_tracking(
             MAP_FEEDBACK_NAME,
             EDGES_OBSERVER_NAME,
             true,
@@ -572,6 +596,8 @@ where
             let time_observer = TimeObserver::new("time");
             let edges_observer =
                 HitcountsMapObserver::new(unsafe { StdMapObserver::new(EDGES_OBSERVER_NAME, map) });
+            let claim_observer = ClaimObserver::new("claim_observer");
+            let claim_feedback = ClaimFeedback::new();
             let feedback = feedback_or!(
                 // New maximization map feedback linked to the edges observer and the feedback
                 // state `track_indexes` needed because of
@@ -579,9 +605,10 @@ where
                 map_feedback,
                 // Time feedback, this one does not need a feedback state
                 // needed for IndexesLenTimeMinimizerCorpusScheduler
-                TimeFeedback::with_observer(&time_observer)
+                TimeFeedback::with_observer(&time_observer),
+                claim_feedback  
             );
-            let observers = tuple_list!(edges_observer, time_observer);
+            let observers = tuple_list!(edges_observer, time_observer, claim_observer);
             (feedback, observers)
         }
     }

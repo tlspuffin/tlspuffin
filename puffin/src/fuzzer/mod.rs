@@ -11,6 +11,8 @@ use crate::protocol::ProtocolTypes;
 use crate::trace::Trace;
 
 pub mod harness;
+pub mod claim_feedback;
+pub mod claim_observer;
 mod libafl_setup;
 pub mod sanitizer;
 mod stages;

@@ -10,6 +10,7 @@ use crate::agent::AgentName;
 use crate::algebra::dynamic_function::TypeShape;
 use crate::protocol::{EvaluatedTerm, ProtocolTypes};
 use crate::trace::StepNumber;
+use crate::protocol::ProtocolBehavior;
 
 pub trait Claim: EvaluatedTerm<Self::PT> + Debug {
     type PT: ProtocolTypes;
@@ -98,7 +99,7 @@ impl<C: Claim> ClaimList<C> {
 
 #[derive(Default, Clone, PartialEq, Debug)]
 pub struct GlobalClaimList<C: Claim> {
-    claims: Rc<RefCell<ClaimList<C>>>,
+    pub claims: Rc<RefCell<ClaimList<C>>>,
 }
 
 impl<C: Claim> GlobalClaimList<C> {
