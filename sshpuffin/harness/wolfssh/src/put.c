@@ -48,6 +48,9 @@ struct AGENT_TYPE
 
     PutState state;
     char state_desc[256];
+
+    const CLAIMER_CB *claimer; /* registered claim callback, or NULL */
+    bool claim_emitted;        /* guard so the handshake claim fires once */
 };
 
 /* ── Forward declarations ────────────────────────────────────────────────── */
@@ -236,6 +239,38 @@ static int is_would_block(int rc)
     return rc == WS_WANT_READ || rc == WS_WANT_WRITE;
 }
 
+/* ── claim emission ──────────────────────────────────────────────────────── */
+
+/* Write the negotiated text value identified by <id> into a fixed claim buffer. */
+static void claim_get_text(AGENT agent, WS_Text id, char *dst)
+{
+    dst[0] = '\0';
+    /* wolfSSH_GetText returns the number of chars that would be written; it may
+       exceed the buffer (truncation) but never overruns it. */
+    (void)wolfSSH_GetText(agent->ssh, id, dst, SSH_CLAIM_STR_LEN);
+}
+
+/*
+ * Build a HandshakeComplete claim from the session's negotiated parameters and
+ * hand it to the registered callback. Fires at most once per agent.
+ */
+static void emit_handshake_claim(AGENT agent)
+{
+    if (agent->claimer == NULL || agent->claim_emitted)
+        return;
+
+    Claim claim;
+    memset(&claim, 0, sizeof(claim));
+    claim_get_text(agent, WOLFSSH_TEXT_KEX_ALGO, claim.kex);
+    claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_IN_CIPHER, claim.cipher_in);
+    claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_OUT_CIPHER, claim.cipher_out);
+    claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_IN_MAC, claim.hmac_in);
+    claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_OUT_MAC, claim.hmac_out);
+
+    agent->claimer->notify(agent->claimer->context, &claim);
+    agent->claim_emitted = true;
+}
+
 static RESULT wolfssh_progress(AGENT agent)
 {
     if (agent->state == PUT_STATE_ERROR)
@@ -248,6 +283,7 @@ static RESULT wolfssh_progress(AGENT agent)
         if (rc == WS_SUCCESS) {
             agent->state = PUT_STATE_DONE;
             snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
+            emit_handshake_claim(agent);
         } else if (is_would_block(rc)) {
             snprintf(agent->state_desc, sizeof(agent->state_desc), "HANDSHAKE/WOULD_BLOCK");
             return ok_result();
@@ -298,8 +334,8 @@ static bool wolfssh_is_successful(AGENT agent) { return agent->state == PUT_STAT
 
 static void wolfssh_register_claimer(AGENT agent, const CLAIMER_CB *claimer)
 {
-    (void)agent;
-    (void)claimer;
+    /* Ownership of the CB (and its context) stays with the caller. */
+    agent->claimer = claimer;
 }
 
 /* ── add_inbound / take_outbound (puffin <-> fuzz_fd) ─────────────────────── */

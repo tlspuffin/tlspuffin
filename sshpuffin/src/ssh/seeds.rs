@@ -558,4 +558,55 @@ mod tests {
             inner.cipher_out
         );
     }
+
+    /// Same end-to-end claim check, but driving the wolfSSH PUT (if compiled in)
+    /// over the AES-GCM seed, proving the claimer is wired for the second vendor.
+    #[test_log::test]
+    fn test_handshake_claim_emitted_wolfssh() {
+        use puffin::algebra::dynamic_function::TypeShape;
+        use puffin::put::{PutDescriptor, PutOptions};
+
+        use crate::claim::SshClaimInner;
+        use crate::ssh::seeds::seed_client_attacker_full_aesgcm;
+
+        let registry = ssh_registry();
+
+        // Discover the wolfSSH PUT by name; skip if this build has none.
+        let Some(wolfssh_put) = registry
+            .puts()
+            .map(|(name, _)| name.to_owned())
+            .find(|name| name.contains("wolfssh"))
+        else {
+            eprintln!("no wolfSSH PUT compiled in; skipping");
+            return;
+        };
+
+        let server = puffin::agent::AgentName::first();
+        let spawner = Spawner::new(registry.clone())
+            .with_mapping(&[(server, PutDescriptor::new(wolfssh_put, PutOptions::default()))]);
+        let runner = Runner::new(registry, spawner);
+        let trace = seed_client_attacker_full_aesgcm(server);
+        let context = runner.execute(trace, &mut 0).unwrap();
+
+        let claim = context
+            .find_claim(server, TypeShape::of::<SshClaimInner>())
+            .expect("wolfSSH server emitted no HandshakeComplete claim");
+        let inner = claim
+            .as_any()
+            .downcast_ref::<Box<SshClaimInner>>()
+            .expect("claim inner was not an SshClaimInner");
+
+        assert!(inner.is_server, "server claim should have is_server = true");
+        assert!(
+            !inner.kex.is_empty() && inner.kex != "none",
+            "wolfSSH negotiated kex should be populated: {:?}",
+            inner.kex
+        );
+        assert!(
+            !inner.cipher_in.is_empty() && !inner.cipher_out.is_empty(),
+            "wolfSSH negotiated ciphers should be populated: in={:?} out={:?}",
+            inner.cipher_in,
+            inner.cipher_out
+        );
+    }
 }
