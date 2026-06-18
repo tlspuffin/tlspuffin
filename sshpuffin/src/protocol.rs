@@ -217,7 +217,11 @@ impl ProtocolTypes for SshProtocolTypes {
         let mut terms = vec![];
         for agent in agents {
             if agent.protocol_config.typ == AgentType::Server {
+                // Emit both the ChaCha20-Poly1305 and AES-256-GCM recipe sets;
+                // those that do not match the cipher actually negotiated in a
+                // given run fail their AEAD tag and are silently skipped.
                 terms.extend(crate::ssh::seeds::server_decryption_recipes(agent.name));
+                terms.extend(crate::ssh::seeds::server_decryption_recipes_aesgcm(agent.name));
             }
         }
         terms

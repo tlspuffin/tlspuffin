@@ -464,6 +464,47 @@ pub fn server_decryption_recipes(server: AgentName) -> Vec<Term<SshProtocolTypes
     ]
 }
 
+/// AES-256-GCM counterpart of [`server_decryption_recipes`], for the AES-GCM
+/// flow (mirrors `seed_client_attacker_full_aesgcm`). Decrypts the server's
+/// first three post-NewKeys s2c packets. The GCM invocation counter restarts at
+/// 0 at NewKeys, so it matches the per-direction packet index directly (no
+/// strict/non-strict ambiguity as in the ChaCha20 case).
+pub fn server_decryption_recipes_aesgcm(server: AgentName) -> Vec<Term<SshProtocolTypes>> {
+    let server_banner_id = term! { fn_banner_id(((server, 0)[None]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    // The client KexInit is the fixed AES-GCM offer, so I_C is reconstructible
+    // without consulting any PUT knowledge.
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@exch_hash)) };
+    let iv = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@exch_hash)) };
+
+    let mk = |idx_term: Term<SshProtocolTypes>, counter: Term<SshProtocolTypes>| {
+        let key = key.clone();
+        let iv = iv.clone();
+        term! { fn_decrypt_packet_aesgcm((@idx_term), (@key), (@iv), (@counter)) }
+    };
+
+    vec![
+        mk(term! { (server, 0)[None]/OnWireData }, term! { fn_u32_0 }),
+        mk(term! { (server, 1)[None]/OnWireData }, term! { fn_u32_1 }),
+        mk(term! { (server, 2)[None]/OnWireData }, term! { fn_u32_2 }),
+    ]
+}
+
 pub fn create_corpus(
     _put: &dyn puffin::put_registry::Factory<SshProtocolBehavior>,
 ) -> Vec<(Trace<SshProtocolTypes>, &'static str)> {
@@ -556,6 +597,31 @@ mod tests {
             "negotiated ciphers should be populated: in={:?} out={:?}",
             inner.cipher_in,
             inner.cipher_out
+        );
+    }
+
+    /// The AES-GCM s2c decryption recipes must actually decrypt the libssh
+    /// server's post-NewKeys output, otherwise they contribute nothing to the
+    /// encrypted-layer differential.
+    #[test_log::test]
+    fn test_aesgcm_decryption_recipes_decrypt() {
+        use puffin::algebra::TermType;
+
+        use crate::ssh::seeds::{seed_client_attacker_full_aesgcm, server_decryption_recipes_aesgcm};
+
+        let registry = ssh_registry();
+        let runner = Runner::new(registry.clone(), Spawner::new(registry));
+        let server = puffin::agent::AgentName::first();
+        let trace = seed_client_attacker_full_aesgcm(server);
+        let context = runner.execute(trace, &mut 0).unwrap();
+
+        let decrypted = server_decryption_recipes_aesgcm(server)
+            .iter()
+            .filter(|t| t.evaluate_dy(&context).is_ok())
+            .count();
+        assert!(
+            decrypted >= 1,
+            "no AES-GCM s2c packet decrypted; recipes are dead"
         );
     }
 
