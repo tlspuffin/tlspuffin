@@ -89,7 +89,7 @@ fn main() {
     // Let us move crypto building AFTER the bundle printing.
 
     // wolfSSH vendors are discovered from vendor/ (pre-built); no preset build.
-    let wolfssh_vendors = discover_wolfssh_vendors();
+    let wolfssh_vendors = ensure_wolfssh_vendors();
 
     let puts: Vec<harness::Put> = libssh_vendors
         .iter()
@@ -133,18 +133,50 @@ fn main() {
     }
 }
 
-/// Discover pre-built wolfSSH vendors in the vendor directory. Unlike libssh,
-/// wolfSSH is not auto-built from a preset here (it requires building wolfSSL
-/// first); it is staged manually under `vendor/wolfssh-*`.
-fn discover_wolfssh_vendors() -> Vec<library::Library> {
-    vendor_dir::from_env()
-        .all()
-        .into_iter()
-        .filter(|lib| lib.metadata().vendor == "wolfssh")
-        .filter(|lib| {
-            lib.path().join("include/wolfssh/ssh.h").exists() && !lib.link_libraries().is_empty()
-        })
-        .collect()
+const WOLFSSH_PRESET: &str = "wolfssh";
+
+/// Ensure at least one wolfSSH vendor is available, building it from the
+/// puffin-build `wolfssh` preset (which builds wolfSSL --enable-ssh then
+/// wolfSSH) if none is present. Mirrors `ensure_libssh_vendors`.
+fn ensure_wolfssh_vendors() -> Vec<library::Library> {
+    let vendor = vendor_dir::from_env();
+    let is_wolfssh = |lib: &library::Library| {
+        lib.metadata().vendor == "wolfssh"
+            && lib.path().join("include/wolfssh/ssh.h").exists()
+            && !lib.link_libraries().is_empty()
+    };
+
+    let existing: Vec<library::Library> =
+        vendor.all().into_iter().filter(|l| is_wolfssh(l)).collect();
+    if !existing.is_empty() {
+        return existing;
+    }
+
+    let mut config = match library::Config::preset("wolfssh", WOLFSSH_PRESET) {
+        Some(c) => c,
+        None => {
+            // No preset and no pre-built vendor: nothing to build (optional PUT).
+            return vec![];
+        }
+    };
+    apply_instrumentation_options(&mut config);
+
+    let name = if cfg!(feature = "asan") {
+        format!("{WOLFSSH_PRESET}-asan")
+    } else {
+        WOLFSSH_PRESET.to_string()
+    };
+
+    if let Some(Ok(_)) = vendor.library_dir(&name).ok().map(|dir| dir.make(&config, false)) {
+        // built successfully
+    } else {
+        // wolfSSH is an optional second PUT; if its build fails, continue with
+        // libssh only rather than breaking the whole sshpuffin build.
+        println!("cargo:warning=wolfSSH vendor '{name}' unavailable; building without it");
+        return vec![];
+    }
+
+    vendor.all().into_iter().filter(|l| is_wolfssh(l)).collect()
 }
 
 fn ensure_libssh_vendors() -> Vec<library::Library> {
