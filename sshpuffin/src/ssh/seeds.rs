@@ -305,6 +305,85 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
     }
 }
 
+// ── Seed: client attacker, PUBLIC KEY auth over AES-256-GCM (both vendors) ────
+//
+// Like seed_client_attacker_pubkey but over the AES-GCM record layer, so it
+// completes on wolfSSH (which lacks chacha20-poly1305) as well as libssh. This
+// is the cross-vendor baseline for the entity-authentication / impersonation
+// oracle.
+pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id = term! { fn_banner_id(((server, 0)[None]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let iv  = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+    };
+    let sig = term! {
+        fn_sign_userauth((@exch_hash), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username),
+                (fn_ssh_connection),
+                (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_1))
+    };
+    // Channel traffic after auth — also pumps extra progress() iterations, which
+    // wolfSSH's single-step accept() needs to finish processing the auth.
+    let chan_open = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+                             (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_2))
+    };
+    let chan_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
+                                (fn_exec_payload((fn_ssh_userauth))))),
+            (@key), (@iv), (fn_u32_3))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(server, term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) }),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @chan_open }),
+            InputAction::new_step(server, term! { @chan_req }),
+        ],
+        ..Default::default()
+    }
+}
+
 // ── Seed: server attacker with full handshake ─────────────────────────────────
 //
 // The fuzzer acts as the SSH server; the client is a real libssh instance.
@@ -648,8 +727,10 @@ pub fn create_corpus(
         (seed_server_attacker_full_aesgcm(client), "seed_server_attacker_full_aesgcm"),
         // Publickey login as key A — the baseline for the entity-authentication
         // / impersonation oracle. Mutations that make the server authenticate a
-        // different key are flagged as impersonation.
+        // different key are flagged as impersonation. The chacha20 variant is
+        // libssh-only; the aesgcm variant completes on both libssh and wolfSSH.
         (seed_client_attacker_pubkey(server), "seed_client_attacker_pubkey"),
+        (seed_client_attacker_pubkey_aesgcm(server), "seed_client_attacker_pubkey_aesgcm"),
     ]
 }
 
@@ -706,6 +787,47 @@ mod tests {
             ATTACKER_PUBKEY_SHA256.as_slice(),
             "server authenticated a key other than A"
         );
+    }
+
+    /// Cross-vendor: the AES-GCM publickey login as A completes against BOTH
+    /// libssh and wolfSSH, the server records A's fingerprint, and the
+    /// entity-authentication oracle is clean on both (no impersonation).
+    #[test_log::test]
+    fn test_seed_client_attacker_pubkey_aesgcm_both_puts() {
+        use puffin::algebra::dynamic_function::TypeShape;
+        use puffin::put::{PutDescriptor, PutOptions};
+
+        use crate::claim::{SshClaimInner, ATTACKER_PUBKEY_SHA256};
+        use crate::ssh::seeds::seed_client_attacker_pubkey_aesgcm;
+
+        let registry = ssh_registry();
+        let server = puffin::agent::AgentName::first();
+
+        // Run on every PUT that completes the AES-GCM handshake (libssh + wolfSSH).
+        let puts: Vec<String> = registry.puts().map(|(n, _)| n.to_owned()).collect();
+        for put in puts {
+            let spawner = Spawner::new(registry.clone())
+                .with_mapping(&[(server, PutDescriptor::new(put.clone(), PutOptions::default()))]);
+            let runner = Runner::new(registry.clone(), spawner);
+            let context = runner
+                .execute(seed_client_attacker_pubkey_aesgcm(server), &mut 0)
+                .unwrap_or_else(|e| panic!("pubkey-aesgcm failed on {put}: {e}"));
+
+            assert!(
+                context.find_agent(server).unwrap().is_state_successful(),
+                "{put}: server did not reach DONE via publickey auth"
+            );
+            let claim = context
+                .find_claim(server, TypeShape::of::<SshClaimInner>())
+                .unwrap_or_else(|| panic!("{put}: no claim"));
+            let inner = claim.as_any().downcast_ref::<Box<SshClaimInner>>().unwrap();
+            assert_eq!(inner.auth_method, "publickey", "{put}: expected publickey auth");
+            assert_eq!(
+                inner.auth_key_fingerprint.as_slice(),
+                ATTACKER_PUBKEY_SHA256.as_slice(),
+                "{put}: server authenticated a key other than A"
+            );
+        }
     }
 
     #[test_log::test]
