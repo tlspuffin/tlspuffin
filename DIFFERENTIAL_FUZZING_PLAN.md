@@ -145,10 +145,11 @@ divergence is EXPECTED and handled by annotations + blacklist, not by RNG.
     harness/wolfssh/build_wolfssh_vendor.sh; staged as vendor/wolfssh-asan.
   - harness/wolfssh/src/put.c drives wolfSSH's embeddable API; build.rs
     discovers wolfssh vendors and builds the harness alongside libssh.
-  - wolfssh-asan registers; differential libssh0114 vs wolfSSH runs and reports
-    a status divergence (wolfSSH lacks chacha20-poly1305 → fails the libssh-tuned
-    seed at the first encrypted message). Refinement: add a wolfSSH-compatible
-    seed for structural KEX/record comparison.
+  - wolfssh-asan registers; the AES-GCM seeds complete on BOTH wolfSSH and
+    libssh (wolfSSH lacks chacha20-poly1305, so the chacha20 seeds are
+    libssh-only), giving structural KEX + encrypted-record comparison across
+    vendors. wolfSSH also emits claims and records authentication identity, so
+    the Phase 2 oracles cover it symmetrically with libssh.
   Original scoping note (kept for reference):
   - puffin-build has NO cross-vendor dependency mechanism. Each vendor fetches
     ONE source URL (`SOURCES`) and runs CONFIGURE/BUILD/INSTALL. wolfSSH needs
@@ -162,7 +163,39 @@ divergence is EXPECTED and handled by annotations + blacklist, not by RNG.
     model + FD-leak fix from the libssh harness.
   - Effort: large, multiple build-debug cycles, long from-source compiles that
     compete with the running campaigns for CPU. Low protocol-maturity target.
-- [ ] Phase 2 (claims + DY properties)
-- [ ] DEFERRED (self-contained alternative): terms_to_eval post-NewKeys
-      decryption recipes — completes Phase 1's encrypted-layer comparison with
-      no external dependencies.
+- [x] Phase 1 extension — AES-256-GCM decryption recipes added alongside
+      ChaCha20 (`server_decryption_recipes_aesgcm`); both recipe sets emitted, so
+      the encrypted-layer differential covers wolfSSH's GCM responses too. The
+      libssh-vs-wolfSSH AES-GCM differential surfaces a real divergence
+      (UserAuthSuccess-first vs ServiceAccept-first), clean within one vendor.
+- [x] Phase 2 (claims + DY properties) — DONE:
+  - Claims subsystem: SshClaim/SshClaimInner carry negotiated kex/cipher/MAC and
+    the server's authentication belief (method / user / verified-key
+    fingerprint). The libssh AND wolfSSH harnesses emit claims via a notify
+    trampoline (CAgent registers an extern "C" callback pushing onto the
+    GlobalClaimList; reclaimed on Drop).
+  - Negotiation-level matching-conversation oracle (kex/cipher/MAC must agree
+    crosswise between the two honest endpoints).
+  - Entity-authentication / impersonation oracle: a server that completes
+    PUBLICKEY auth for any key other than the attacker-controlled A
+    (ATTACKER_PUBKEY_SHA256) is impersonation — A is the only client key with a
+    signing function in the term algebra, so no honest trace can authenticate as
+    another key. Wired symmetrically for libssh and wolfSSH; end-to-end seeds
+    (chacha20 libssh-only, aesgcm both vendors) complete as A with the oracle
+    clean (true negative).
+  - Two-honest-party relay seed (`seed_handshake_two_party`): both client and
+    server are real PUTs; the required shape for matching conversation.
+- [~] Matching conversation / Terrapin (transcript integrity):
+  - The wire-byte-digest approach was tried and REVERTED — wrong layer (libssh
+    flips its cipher at packet-processing time, not byte-I/O time, so a byte gate
+    is asymmetric across peers). Lesson recorded.
+  - Trace-analysis primitive `delivered_to(trace, ctx, agent)` added instead:
+    re-evaluates the trace's input recipes to recover what each honest party
+    received on the wire, with no PUT introspection. Detects a dropped/injected
+    relay message (the Terrapin truncation primitive). Remaining: the full
+    within-trace two-view oracle + fuzzer-objective wiring.
+- [ ] CVE positive demonstration (e.g. CVE-2018-10933 auth bypass): BLOCKED on
+      building a vulnerable PUT. libssh 0.8.3's CMake OpenSSL detection is
+      fixable via OPENSSL_ROOT_DIR, but the build then needs a clean nix-shell
+      (outside it, clang mixes nix-glibc and /usr/include). Better long-term: the
+      trace-analysis path above, which needs no patched/old vendor.
