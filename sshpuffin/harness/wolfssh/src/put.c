@@ -330,7 +330,12 @@ static RESULT wolfssh_progress(AGENT agent)
                          "HANDSHAKE/WOULD_BLOCK");
                 return ok_result();
             }
-            _log(PUFFIN.error, "wolfssh %s failed: rc=%d gerr=%d (%s)",
+            /* A failed handshake is the common, expected outcome when the
+               fuzzer feeds mutated input — the PUT is correctly rejecting it.
+               Report it through error_result (the channel the fuzzer handles)
+               and keep it at trace level, like the libssh harness, instead of
+               flooding error.log. */
+            _log(PUFFIN.trace, "wolfssh %s failed: rc=%d gerr=%d (%s)",
                  agent->descriptor.role == SSH_SERVER ? "accept" : "connect",
                  rc, gerr, wolfSSH_ErrorToName(gerr));
             agent->state = PUT_STATE_ERROR;
