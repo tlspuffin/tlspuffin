@@ -149,6 +149,88 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<SshProtocolTypes> {
     }
 }
 
+// ── Seed: client attacker authenticating with PUBLIC KEY (identity A) ─────────
+//
+// Same handshake as seed_client_attacker_full, but instead of password auth the
+// fuzzer logs in with publickey method, signing the RFC 4252 §7 blob with client
+// identity key A (the only client key whose private half is in the signature).
+// This is the honest baseline for the entity-authentication / impersonation
+// oracle: it completes as A; any mutation that makes the server authenticate a
+// *different* key is flagged as impersonation.
+pub fn seed_client_attacker_pubkey(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_raw = term! { (server, 0)[None]/RawSshMessage };
+    let server_banner_id = term! { fn_banner_id((@server_banner_raw)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! {
+        fn_kex_init(
+            (fn_placeholder_16bytes),
+            ((server, 0)[None]/KexAlgorithms),
+            ((server, 0)[None]/SignatureSchemes),
+            ((server, 0)[None]/EncryptionAlgorithms),
+            ((server, 1)[None]/EncryptionAlgorithms),
+            ((server, 0)[None]/MacAlgorithms),
+            ((server, 1)[None]/MacAlgorithms),
+            ((server, 0)[None]/CompressionAlgorithms),
+            ((server, 1)[None]/CompressionAlgorithms)
+        )
+    };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let enc_key = term! { fn_derive_enc_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+
+    let svc_req = term! {
+        fn_encrypt_packet((fn_service_request((fn_ssh_userauth))), (@enc_key), (fn_u32_3))
+    };
+
+    // Publickey auth: sign the §7 blob (over the session id = exchange hash) with
+    // key A, then carry A's blob + the signature in the request.
+    let sig = term! {
+        fn_sign_userauth((@exch_hash), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet(
+            (fn_user_auth_request(
+                (fn_username),
+                (fn_ssh_connection),
+                (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@enc_key),
+            (fn_u32_4)
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(server, term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) }),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+        ],
+        ..Default::default()
+    }
+}
+
 // ── Seed: client attacker full handshake over AES-256-GCM ─────────────────────
 //
 // Same shape as seed_client_attacker_full but forces aes256-gcm@openssh.com
@@ -564,6 +646,10 @@ pub fn create_corpus(
         (seed_server_attacker_full(client), "seed_server_attacker_full"),
         (seed_client_attacker_full_aesgcm(server), "seed_client_attacker_full_aesgcm"),
         (seed_server_attacker_full_aesgcm(client), "seed_server_attacker_full_aesgcm"),
+        // Publickey login as key A — the baseline for the entity-authentication
+        // / impersonation oracle. Mutations that make the server authenticate a
+        // different key are flagged as impersonation.
+        (seed_client_attacker_pubkey(server), "seed_client_attacker_pubkey"),
     ]
 }
 
@@ -574,6 +660,53 @@ mod tests {
 
     use crate::ssh::seeds::{seed_client_attacker_full, seed_server_attacker_full};
     use crate::ssh_registry;
+
+    #[test]
+    fn attacker_key_fingerprint_matches_constant() {
+        use sha2::{Digest, Sha256};
+
+        use crate::claim::ATTACKER_PUBKEY_SHA256;
+        use crate::ssh::fn_impl::fn_client_a_pubkey_blob;
+        let blob = fn_client_a_pubkey_blob().unwrap();
+        let fp = Sha256::digest(&blob.0);
+        assert_eq!(
+            fp.as_slice(),
+            ATTACKER_PUBKEY_SHA256.as_slice(),
+            "ATTACKER_PUBKEY_SHA256 is out of sync with key A's public key"
+        );
+    }
+
+    /// End-to-end: the honest publickey login as A completes against the real
+    /// libssh server, and the entity-authentication oracle is clean (A is the
+    /// key the attacker legitimately controls — no impersonation).
+    #[test_log::test]
+    fn test_seed_client_attacker_pubkey() {
+        use puffin::algebra::dynamic_function::TypeShape;
+
+        use crate::claim::{SshClaimInner, ATTACKER_PUBKEY_SHA256};
+        use crate::ssh::seeds::seed_client_attacker_pubkey;
+
+        let registry = ssh_registry();
+        let runner = Runner::new(registry.clone(), Spawner::new(registry));
+        let server = puffin::agent::AgentName::first();
+        let context = runner.execute(seed_client_attacker_pubkey(server), &mut 0).unwrap();
+
+        assert!(
+            context.find_agent(server).unwrap().is_state_successful(),
+            "server did not reach DONE via publickey auth"
+        );
+
+        let claim = context
+            .find_claim(server, TypeShape::of::<SshClaimInner>())
+            .expect("server emitted no claim");
+        let inner = claim.as_any().downcast_ref::<Box<SshClaimInner>>().unwrap();
+        assert_eq!(inner.auth_method, "publickey", "expected publickey auth");
+        assert_eq!(
+            inner.auth_key_fingerprint.as_slice(),
+            ATTACKER_PUBKEY_SHA256.as_slice(),
+            "server authenticated a key other than A"
+        );
+    }
 
     #[test_log::test]
     fn test_seed_client_attacker_full() {

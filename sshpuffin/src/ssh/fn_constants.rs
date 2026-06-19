@@ -217,6 +217,30 @@ pub fn fn_none_auth_data() -> Result<Vec<u8>, FnError> {
     Ok(vec![])
 }
 
+/// RFC 4252 §7 publickey method_data, WITH signature:
+///   boolean TRUE
+///   string  public key algorithm name ("rsa-sha2-256")
+///   string  public key blob
+///   string  signature  (= string "rsa-sha2-256" || string raw signature)
+pub fn fn_publickey_auth_data(
+    pubkey_blob: &SshBytes,
+    signature_raw: &SshBytes,
+) -> Result<Vec<u8>, FnError> {
+    fn push_str(buf: &mut Vec<u8>, s: &[u8]) {
+        buf.extend_from_slice(&(s.len() as u32).to_be_bytes());
+        buf.extend_from_slice(s);
+    }
+    let mut data = vec![0x01]; // has-signature = TRUE
+    push_str(&mut data, b"rsa-sha2-256");
+    push_str(&mut data, &pubkey_blob.0);
+    // The signature field is itself an SSH string wrapping [algo][raw sig].
+    let mut sig_blob = Vec::new();
+    push_str(&mut sig_blob, b"rsa-sha2-256");
+    push_str(&mut sig_blob, &signature_raw.0);
+    push_str(&mut data, &sig_blob);
+    Ok(data)
+}
+
 // ── Exec command payload (raw bytes for ChannelRequest with type "exec") ─────
 
 pub fn fn_exec_payload(command: &SshBytes) -> Result<Vec<u8>, FnError> {

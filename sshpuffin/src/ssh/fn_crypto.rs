@@ -695,6 +695,65 @@ pub fn fn_rsa_sha2_256_signature(sig_data: &SshBytes) -> Result<SshSignature, Fn
     })
 }
 
+/// Client identity key A's public key blob (`["ssh-rsa"][mpint e][mpint n]`),
+/// reusing the embedded RSA key as the attacker's client credential. This is the
+/// blob carried in a publickey USERAUTH_REQUEST and hashed (SHA-256) to the
+/// fingerprint the server records — `ATTACKER_PUBKEY_SHA256` must match it.
+pub fn fn_client_a_pubkey_blob() -> Result<SshBytes, FnError> {
+    let key = load_server_key()?;
+    // ssh-key's to_bytes() returns the inner blob without an outer length prefix,
+    // which is exactly the publickey-blob format used in USERAUTH_REQUEST.
+    let wire = key
+        .public_key()
+        .to_bytes()
+        .map_err(|e| FnError::Unknown(format!("pubkey encoding failed: {e}")))?;
+    Ok(SshBytes::new(wire))
+}
+
+/// Sign a publickey USERAUTH_REQUEST with client identity key A (the embedded
+/// RSA key). Produces the raw rsa-sha2-256 signature over the RFC 4252 §7 blob:
+///   string session id, byte 50, string user, string service, string "publickey",
+///   boolean TRUE, string "rsa-sha2-256", string public-key blob.
+pub fn fn_sign_userauth(
+    session_id: &SshBytes,
+    user: &SshBytes,
+    service: &SshBytes,
+    pubkey_blob: &SshBytes,
+) -> Result<SshBytes, FnError> {
+    use rsa::pkcs1v15::SigningKey;
+    use rsa::signature::{SignatureEncoding, Signer};
+    use rsa::{BigUint, RsaPrivateKey};
+    use sha2::Sha256;
+
+    let mut data = Vec::new();
+    push_ssh_string(&mut data, &session_id.0);
+    data.push(50u8); // SSH_MSG_USERAUTH_REQUEST
+    push_ssh_string(&mut data, &user.0);
+    push_ssh_string(&mut data, &service.0);
+    push_ssh_string(&mut data, b"publickey");
+    data.push(0x01); // has-signature = TRUE
+    push_ssh_string(&mut data, b"rsa-sha2-256");
+    push_ssh_string(&mut data, &pubkey_blob.0);
+
+    let key = load_server_key()?;
+    let rsa_keypair = match key.key_data() {
+        ssh_key::private::KeypairData::Rsa(r) => r,
+        _ => return Err(FnError::Unknown("client key A is not RSA".into())),
+    };
+    let n = BigUint::from_bytes_be(rsa_keypair.public.n.as_bytes());
+    let e = BigUint::from_bytes_be(rsa_keypair.public.e.as_bytes());
+    let d = BigUint::from_bytes_be(rsa_keypair.private.d.as_bytes());
+    let p = BigUint::from_bytes_be(rsa_keypair.private.p.as_bytes());
+    let q = BigUint::from_bytes_be(rsa_keypair.private.q.as_bytes());
+    let priv_key = RsaPrivateKey::from_components(n, e, d, vec![p, q])
+        .map_err(|e| FnError::Unknown(format!("RSA key conversion failed: {e}")))?;
+    let signing_key = SigningKey::<Sha256>::new(priv_key);
+    let signature = signing_key
+        .try_sign(&data)
+        .map_err(|e| FnError::Unknown(format!("userauth signing failed: {e}")))?;
+    Ok(SshBytes::new(signature.to_bytes().to_vec()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

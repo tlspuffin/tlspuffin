@@ -144,4 +144,7 @@ define_signature!(
     fn_server_rsa_pubkey_bytes
     fn_sign_exchange_hash
     fn_rsa_sha2_256_signature
+    fn_client_a_pubkey_blob
+    fn_sign_userauth
+    fn_publickey_auth_data
 );

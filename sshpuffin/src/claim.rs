@@ -41,8 +41,13 @@ pub struct SshClaimInner {
 /// signature. It is the only publickey identity a Dolev-Yao attacker can produce
 /// a valid signature for. Authenticating as any other key is impersonation.
 ///
-/// Kept in lockstep with the public key the libssh harness authorizes for A.
-pub const ATTACKER_PUBKEY_SHA256: [u8; 32] = [0u8; 32];
+/// Kept in lockstep with key A (`fn_client_a_pubkey_blob`): this is
+/// `SHA-256(A's public-key blob)`, matching what libssh reports via
+/// `ssh_get_publickey_hash`. Verified by `print_attacker_key_fingerprint`.
+pub const ATTACKER_PUBKEY_SHA256: [u8; 32] = [
+    164, 158, 186, 199, 118, 204, 58, 128, 55, 44, 68, 42, 197, 76, 45, 122, 159, 212, 94, 126,
+    147, 234, 100, 129, 209, 165, 90, 44, 126, 27, 39, 41,
+];
 
 dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 
