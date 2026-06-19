@@ -6,7 +6,6 @@ use libafl::executors::ExitKind;
 use libafl::state::State;
 use libafl::inputs::UsesInput;
 use libafl_bolts::{Error, Named};
-use crate::claims::{Claim, ClaimList};
 use serde::{Serialize, Deserialize};
 thread_local! {
     pub static CAPTURED_CLAIMS: RefCell<Option<Box<dyn Any>>> = RefCell::new(None);

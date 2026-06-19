@@ -7,7 +7,7 @@ use libafl::state::State;
 use libafl_bolts::{Error, ErrorBacktrace, Named};
 use core::marker::PhantomData;
 use std::collections::HashSet;
-use crate::fuzzer::claim_observer::ClaimObserver;
+use crate::fuzzer::feedback::claim_observer::ClaimObserver;
 use std::fs::File;
 use std::io::Write;
 use std::fs::OpenOptions;
@@ -63,6 +63,19 @@ where
             }
         }
         if discovered_new_claim {
+            // ======= DEBUG LOCAL START =======
+            if let Ok(mut f) = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open("FEEDBACK_EST_VIVANT.txt") 
+            {
+                for unique_claim in new_keys_this_exec {
+                    let msg = format!("Nouvelle claim : {}\n", unique_claim);
+                    let _: std::io::Result<()> = f.write_all(msg.as_bytes());
+                }
+                let _ = f.flush();
+            }
+            // ======= DEBUG LOCAL END =========
             return Ok(true);
         }
         Ok(false)

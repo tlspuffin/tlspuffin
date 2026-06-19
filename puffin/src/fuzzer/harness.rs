@@ -3,12 +3,12 @@ use rand::Rng;
 
 use crate::algebra::TermType;
 use crate::execution::{Runner, TraceRunner};
-use crate::fuzzer::feedback::FAIL_AT_STEP;
+use crate::fuzzer::minimizer::FAIL_AT_STEP;
 use crate::fuzzer::stats_stage::{
     HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
     TERM_SIZE, TRACE_LENGTH,
 };
-use crate::fuzzer::claim_observer::CAPTURED_CLAIMS;
+use crate::fuzzer::feedback::claim_observer::CAPTURED_CLAIMS;
 use crate::protocol::ProtocolBehavior;
 use crate::put_registry::PutRegistry;
 use crate::trace::{Action, Spawner, Trace};
