@@ -108,6 +108,12 @@ struct AGENT_TYPE
 
     const CLAIMER_CB *claimer; /* registered claim callback, or NULL */
     bool claim_emitted;        /* guard so the handshake claim fires once */
+
+    /* Authentication belief recorded by the server auth handler. */
+    char auth_method[SSH_CLAIM_STR_LEN];
+    char auth_user[SSH_CLAIM_STR_LEN];
+    uint8_t auth_key_fp[32];
+    uint8_t auth_key_fp_len;
 };
 
 /* ── Forward declarations ────────────────────────────────────────────────── */
@@ -345,6 +351,48 @@ static void claim_set(char *dst, const char *src)
 }
 
 /*
+ * Server-side publickey authentication.
+ *
+ * libssh performs the cryptographic signature verification itself; we only make
+ * the *authorization* decision and record the agent's belief about which key
+ * authenticated. Returns 1 to accept (signature verified), 0 if a "pk_ok" probe
+ * reply was sent and we must await the signature, and -1 to reject.
+ *
+ * On accept we record the SHA-256 fingerprint of the verified key. The
+ * impersonation oracle later checks that fingerprint against the single client
+ * key the attacker can sign for; any other key means the library accepted a
+ * credential the attacker could not legitimately produce.
+ */
+static int handle_publickey_auth(AGENT agent, ssh_message msg, const char *user)
+{
+    enum ssh_publickey_state_e state = ssh_message_auth_publickey_state(msg);
+
+    if (state == SSH_PUBLICKEY_STATE_NONE)
+    {
+        /* Probe: tell the client the key is acceptable, so it sends a signature. */
+        ssh_message_auth_reply_pk_ok_simple(msg);
+        return 0;
+    }
+    if (state != SSH_PUBLICKEY_STATE_VALID)
+        return -1;
+
+    ssh_key key = ssh_message_auth_pubkey(msg);
+    unsigned char *hash = NULL;
+    size_t hlen = 0;
+    if (key != NULL &&
+        ssh_get_publickey_hash(key, SSH_PUBLICKEY_HASH_SHA256, &hash, &hlen) == 0)
+    {
+        size_t n = hlen > sizeof(agent->auth_key_fp) ? sizeof(agent->auth_key_fp) : hlen;
+        memcpy(agent->auth_key_fp, hash, n);
+        agent->auth_key_fp_len = (uint8_t)n;
+        ssh_clean_pubkey_hash(&hash);
+    }
+    snprintf(agent->auth_method, sizeof(agent->auth_method), "publickey");
+    snprintf(agent->auth_user, sizeof(agent->auth_user), "%s", user ? user : "");
+    return 1;
+}
+
+/*
  * Build a HandshakeComplete claim from the session's negotiated parameters and
  * hand it to the registered callback. Fires at most once per agent (guarded by
  * <claim_emitted>); a no-op when no claimer is registered.
@@ -361,6 +409,13 @@ static void emit_handshake_claim(AGENT agent)
     claim_set(claim.cipher_out, ssh_get_cipher_out(agent->session));
     claim_set(claim.hmac_in, ssh_get_hmac_in(agent->session));
     claim_set(claim.hmac_out, ssh_get_hmac_out(agent->session));
+    claim_set(claim.auth_method, agent->auth_method);
+    claim_set(claim.auth_user, agent->auth_user);
+    if (agent->auth_key_fp_len > 0)
+    {
+        memcpy(claim.auth_key_fp, agent->auth_key_fp, agent->auth_key_fp_len);
+        claim.auth_key_fp_len = agent->auth_key_fp_len;
+    }
 
     agent->claimer->notify(agent->claimer->context, &claim);
     agent->claim_emitted = true;
@@ -449,12 +504,45 @@ static RESULT libssh_progress(AGENT agent)
                 int msg_type = ssh_message_type(msg);
                 if (msg_type == SSH_REQUEST_AUTH)
                 {
-                    ssh_message_auth_reply_success(msg, 0);
-                    agent->state = PUT_STATE_DONE;
-                    snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
-                    emit_handshake_claim(agent);
-                    ssh_message_free(msg);
-                    break;
+                    int method = ssh_message_subtype(msg);
+                    const char *user = ssh_message_auth_user(msg);
+                    if (method == SSH_AUTH_METHOD_PUBLICKEY)
+                    {
+                        /* libssh cryptographically verifies the signature; when
+                         * the state is VALID we record exactly which public key
+                         * was accepted, so the impersonation oracle can check it
+                         * against the only key the attacker can sign for. */
+                        int pk = handle_publickey_auth(agent, msg, user);
+                        if (pk == 1)
+                        {
+                            ssh_message_auth_reply_success(msg, 0);
+                            agent->state = PUT_STATE_DONE;
+                            snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
+                            emit_handshake_claim(agent);
+                            ssh_message_free(msg);
+                            break;
+                        }
+                        else if (pk < 0)
+                        {
+                            ssh_message_reply_default(msg);
+                        }
+                        /* pk == 0: a pk_ok probe reply was sent; await signature. */
+                    }
+                    else
+                    {
+                        /* Password / other: accepted as before (the impersonation
+                         * property is publickey-specific). */
+                        snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
+                        snprintf(agent->auth_user, sizeof(agent->auth_user), "%s",
+                                 user ? user : "");
+                        agent->auth_key_fp_len = 0;
+                        ssh_message_auth_reply_success(msg, 0);
+                        agent->state = PUT_STATE_DONE;
+                        snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
+                        emit_handshake_claim(agent);
+                        ssh_message_free(msg);
+                        break;
+                    }
                 }
                 else if (msg_type == SSH_REQUEST_SERVICE)
                 {

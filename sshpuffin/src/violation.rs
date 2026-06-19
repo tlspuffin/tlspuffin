@@ -1,6 +1,6 @@
 use puffin::claims::SecurityViolationPolicy;
 
-use crate::claim::SshClaim;
+use crate::claim::{SshClaim, ATTACKER_PUBKEY_SHA256};
 
 pub struct SshSecurityViolationPolicy;
 
@@ -30,6 +30,24 @@ impl SecurityViolationPolicy for SshSecurityViolationPolicy {
             }
             if is_null_cipher(&d.cipher_in) || is_null_cipher(&d.cipher_out) {
                 return Some("transport handshake completed with a null/none cipher");
+            }
+            // Entity authentication / no impersonation: a Dolev-Yao attacker can
+            // only produce a valid publickey signature for a key whose private
+            // half is in its knowledge (the term-algebra signature). The only
+            // such client key is A (`ATTACKER_PUBKEY_SHA256`). So if a server
+            // completed *publickey* authentication for any other key, the peer
+            // authenticated as a principal whose private key it does not hold —
+            // an impersonation / authentication bypass. Mechanism-blind: it never
+            // inspects *how* the bypass happened, only that an unforgeable
+            // credential was accepted.
+            if d.is_server
+                && d.auth_method == "publickey"
+                && d.auth_key_fingerprint != ATTACKER_PUBKEY_SHA256
+            {
+                return Some(
+                    "server authenticated a publickey identity the attacker cannot sign for \
+                     (impersonation / authentication bypass)",
+                );
             }
         }
 
@@ -80,8 +98,45 @@ mod tests {
                 cipher_out: cipher_out.to_string(),
                 hmac_in: String::new(),
                 hmac_out: String::new(),
+                auth_method: String::new(),
+                auth_user: String::new(),
+                auth_key_fingerprint: Vec::new(),
             },
         )
+    }
+
+    fn pubkey_auth_claim(user: &str, key_fp: Vec<u8>) -> SshClaim {
+        SshClaim::new(
+            AgentName::first(),
+            SshClaimInner {
+                is_server: true,
+                kex: "curve25519-sha256".to_string(),
+                cipher_in: "c2s".to_string(),
+                cipher_out: "s2c".to_string(),
+                hmac_in: String::new(),
+                hmac_out: String::new(),
+                auth_method: "publickey".to_string(),
+                auth_user: user.to_string(),
+                auth_key_fingerprint: key_fp,
+            },
+        )
+    }
+
+    #[test]
+    fn publickey_auth_as_attacker_key_is_accepted() {
+        // Authenticating as key A (the key the attacker can sign for) is legit.
+        let claims = vec![pubkey_auth_claim("alice", ATTACKER_PUBKEY_SHA256.to_vec())];
+        assert_eq!(SshSecurityViolationPolicy::check_violation(&claims), None);
+    }
+
+    #[test]
+    fn publickey_impersonation_is_flagged() {
+        // Authenticating as a different key (B, whose private key is NOT in the
+        // mapper) is an impersonation / authentication bypass.
+        let victim_fp = vec![0xB0u8; 32];
+        assert_ne!(victim_fp.as_slice(), ATTACKER_PUBKEY_SHA256.as_slice());
+        let claims = vec![pubkey_auth_claim("victim", victim_fp)];
+        assert!(SshSecurityViolationPolicy::check_violation(&claims).is_some());
     }
 
     #[test]

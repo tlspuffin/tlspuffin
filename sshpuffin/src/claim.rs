@@ -25,7 +25,24 @@ pub struct SshClaimInner {
     /// Negotiated incoming/outgoing MACs (`ssh_get_hmac_in/out`).
     pub hmac_in: String,
     pub hmac_out: String,
+    /// The agent's belief about how (and as whom) the peer authenticated, used
+    /// by the entity-authentication / impersonation oracle. On the server side:
+    /// the method that succeeded ("password" / "publickey" / ""), the user name,
+    /// and — for publickey — the SHA-256 fingerprint of the public key the
+    /// server cryptographically verified and authorized. Empty fingerprint for
+    /// non-publickey methods.
+    pub auth_method: String,
+    pub auth_user: String,
+    pub auth_key_fingerprint: Vec<u8>,
 }
+
+/// SHA-256 fingerprint of the *attacker-controlled* client identity key (key A):
+/// the one whose private key / signing function IS present in the term-algebra
+/// signature. It is the only publickey identity a Dolev-Yao attacker can produce
+/// a valid signature for. Authenticating as any other key is impersonation.
+///
+/// Kept in lockstep with the public key the libssh harness authorizes for A.
+pub const ATTACKER_PUBKEY_SHA256: [u8; 32] = [0u8; 32];
 
 dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 

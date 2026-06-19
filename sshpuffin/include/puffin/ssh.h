@@ -39,6 +39,16 @@ extern "C"
         /* Negotiated incoming/outgoing MACs. */
         char hmac_in[SSH_CLAIM_STR_LEN];
         char hmac_out[SSH_CLAIM_STR_LEN];
+        /*
+         * Authentication belief (server side): the method that succeeded
+         * ("password" / "publickey" / ""), the user name, and — for publickey —
+         * the SHA-256 fingerprint of the verified+authorized public key. Used by
+         * the entity-authentication / impersonation oracle.
+         */
+        char auth_method[SSH_CLAIM_STR_LEN];
+        char auth_user[SSH_CLAIM_STR_LEN];
+        uint8_t auth_key_fp[32];
+        uint8_t auth_key_fp_len;
     };
 
     typedef struct
