@@ -253,17 +253,59 @@ wolfSSH is built as a **first-class puffin-build vendor**:
 — `mk_vendor make wolfssh:wolfssh-asan` builds wolfSSL (`--enable-ssh`) then
 wolfSSH and stages a self-contained `vendor/wolfssh-asan`.
 
-## 8. Current limitations & next steps
+## 8. Claims subsystem & DY security properties (Phase 2, DONE)
 
-- **Claims/SecurityClaim comparison inactive** (Phase 2): see below.
-- **wolfSSH comparison currently status-level**; a wolfSSH-compatible seed would
-  unlock structural KEX/record comparison across implementations (see §7c).
-- **Claims/SecurityClaim comparison inactive.** `SshClaim` is a dummy and
-  `register_claimer` is a no-op (Phase 2): no auth/secret/session claims are
-  emitted yet, so the Claims and SecurityClaim diff channels are silent.
-- **Single implementation family.** Only libssh-vs-libssh (version differential).
-  A genuinely independent implementation (wolfSSH, Phase 3) would turn
-  divergences into cross-implementation interoperability/security findings.
+The claims subsystem is live on **both** libssh and wolfSSH. Each PUT emits a
+`SshClaim` at handshake completion via a C-harness `notify` trampoline that
+pushes onto the `GlobalClaimList`. The claim carries the negotiated
+kex/cipher/MAC and the server's **authentication belief**: the method that
+succeeded (`password`/`publickey`), the user, and — for publickey — the SHA-256
+fingerprint of the key the library cryptographically verified.
+
+Active oracles in `violation.rs` (all mechanism-blind — they state a property,
+never look for a specific attack):
+
+- **Negotiation-level matching conversation** — client and server must agree
+  crosswise on the negotiated kex/cipher/MAC.
+- **No null cipher / no missing KEX** at completion.
+- **Entity authentication / impersonation** — a server that completes
+  *publickey* auth for any key other than the attacker-controlled A
+  (`ATTACKER_PUBKEY_SHA256`, the only client key with a signing function in the
+  term algebra) has admitted a principal the attacker cannot be. End-to-end
+  publickey seeds (chacha20 = libssh; aesgcm = both vendors) complete as A with
+  the oracle clean (true negative).
+- **Authentication bypass** — a server that reaches the authenticated state with
+  no recorded auth method (`completion ⟹ authentication`).
+
+### 8.1 CVE-2018-10933 — positive demonstration
+`seed_client_attacker_auth_bypass` injects `SSH_MSG_USERAUTH_SUCCESS` + a channel
+open instead of authenticating. The auth-bypass oracle **fires on libssh 0.8.3**
+(vulnerable) and is **silent on 0.10.4/0.11.4** (patched — they reject the stray
+packet via the very filter that fixed the CVE). Distinguished by the property,
+not a coded mechanism. libssh 0.8.3 is built with `-DBUILD_STATIC_LIB=ON` inside
+the nix-shell (the 2018 source only warns under OpenSSL 3.x).
+
+### 8.2 Autonomous finding — pre-auth NULL-deref in libssh 0.8.3
+A continuous campaign on libssh 0.8.3 (ASAN) autonomously found a remote,
+unauthenticated NULL-pointer dereference (DoS): a mutated `KEX_ECDH_INIT` drives
+`ssh_packet_kexdh_init → ssh_server_curve25519_init → ssh_make_sessionid` with
+`session->out_hashbuf == NULL`, crashing in `ssh_buffer_add_data`. Trivially
+reachable (hundreds of objectives, all the same site); patched libssh unaffected.
+A known, already-fixed 0.8.x-era bug — but a genuine autonomous true-positive
+validating the whole pipeline (DY mutation → deep KEX code → ASAN → differential).
+
+## 9. Limitations & next steps
+
+- **Matching conversation / Terrapin (transcript truncation)** — the divergent
+  view is the post-handshake message sequence, which is neither in claims (no
+  libssh public seqno/session-id API; internal headers don't compile standalone)
+  nor at the negotiation level. The trace-analysis primitive `delivered_to`
+  recovers each honest party's received wire transcript from the trace and
+  detects a dropped/injected relayed message. Turning it into a *live fuzzer
+  objective* needs a puffin-core hook to pass the trace/knowledge to the security
+  check (`check_violation` currently sees only claims) — the main open item.
+- **Richer DY properties** (data-before-auth, rekey downgrade, session-key
+  secrecy) — the claims framework is ready; each needs its own claim data
+  (a claim at data receipt, the rekey count, the keys), i.e. harness work.
 - **`NameList` codec** treats a trailing separator as a distinguishable empty
-  token — correct for surfacing wire differences (see §5.3); keep as-is rather
-  than normalize.
+  token — correct for surfacing wire differences (§5.3); keep as-is.
