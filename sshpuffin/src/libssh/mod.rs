@@ -36,6 +36,8 @@ struct CSshClaim {
     cipher_out: [c_char; SSH_CLAIM_STR_LEN],
     hmac_in: [c_char; SSH_CLAIM_STR_LEN],
     hmac_out: [c_char; SSH_CLAIM_STR_LEN],
+    rx_digest: u64,
+    tx_digest: u64,
 }
 
 /// Decode a NUL-terminated, fixed-size C claim field into an owned `String`.
@@ -70,6 +72,8 @@ extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
         cipher_out: claim_field(&c.cipher_out),
         hmac_in: claim_field(&c.hmac_in),
         hmac_out: claim_field(&c.hmac_out),
+        rx_digest: c.rx_digest,
+        tx_digest: c.tx_digest,
     };
 
     ctx.claims

@@ -25,6 +25,11 @@ pub struct SshClaimInner {
     /// Negotiated incoming/outgoing MACs (`ssh_get_hmac_in/out`).
     pub hmac_in: String,
     pub hmac_out: String,
+    /// Rolling FNV-1a digest of the raw byte stream this agent received (rx)
+    /// and sent (tx) up to the claim point. The matching-conversation oracle
+    /// compares one peer's `tx_digest` against the other's `rx_digest`.
+    pub rx_digest: u64,
+    pub tx_digest: u64,
 }
 
 dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
