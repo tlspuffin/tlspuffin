@@ -1,6 +1,6 @@
 use puffin::claims::SecurityViolationPolicy;
 
-use crate::claim::{SshClaim, SshClaimInner};
+use crate::claim::SshClaim;
 
 pub struct SshSecurityViolationPolicy;
 
@@ -53,36 +53,10 @@ impl SecurityViolationPolicy for SshSecurityViolationPolicy {
                     "client and server disagree on the negotiated MAC (possible downgrade)",
                 );
             }
-            // Matching conversation at the wire-transcript level — see
-            // `handshake_transcripts_agree`. Only the cleanly-separable s2c
-            // direction is sound today; the c2s direction needs a packet-aligned
-            // relay (the client pipelines its first encrypted packet right after
-            // NEWKEYS, so a byte-level digest captures it asymmetrically). Wired
-            // in once that lands; the negotiation-level checks above are the
-            // active matching-conversation oracle for now.
         }
 
         None
     }
-}
-
-/// Transcript-agreement check for the matching-conversation property: each
-/// honest peer's sent handshake stream must equal the other's received stream.
-/// A divergence means the two endpoints completed believing in different
-/// transcripts — the generic, mechanism-blind signature of a transcript
-/// integrity attack such as prefix truncation (Terrapin).
-///
-/// NOTE: built on the wire-byte handshake digests, which are currently sound
-/// only for the s2c direction (see the harness note in `libssh_add_inbound`).
-/// Returns the per-direction agreement so callers/tests can assert each.
-#[must_use]
-pub fn handshake_transcripts_agree(
-    server: &SshClaimInner,
-    client: &SshClaimInner,
-) -> (bool, bool) {
-    let c2s_agrees = client.tx_digest == server.rx_digest;
-    let s2c_agrees = server.tx_digest == client.rx_digest;
-    (c2s_agrees, s2c_agrees)
 }
 
 fn is_null_cipher(cipher: &str) -> bool {
@@ -97,17 +71,6 @@ mod tests {
     use crate::claim::SshClaimInner;
 
     fn claim(is_server: bool, kex: &str, cipher_in: &str, cipher_out: &str) -> SshClaim {
-        claim_tx(is_server, kex, cipher_in, cipher_out, 0, 0)
-    }
-
-    fn claim_tx(
-        is_server: bool,
-        kex: &str,
-        cipher_in: &str,
-        cipher_out: &str,
-        rx_digest: u64,
-        tx_digest: u64,
-    ) -> SshClaim {
         SshClaim::new(
             AgentName::first(),
             SshClaimInner {
@@ -117,8 +80,6 @@ mod tests {
                 cipher_out: cipher_out.to_string(),
                 hmac_in: String::new(),
                 hmac_out: String::new(),
-                rx_digest,
-                tx_digest,
             },
         )
     }
@@ -131,28 +92,6 @@ mod tests {
             claim(false, "curve25519-sha256", "cipher-s2c", "cipher-c2s"),
         ];
         assert_eq!(SshSecurityViolationPolicy::check_violation(&claims), None);
-    }
-
-    #[test]
-    fn matching_transcripts_agree() {
-        // Crosswise digests agree: server.rx == client.tx and server.tx == client.rx.
-        let s = claim_tx(true, "curve25519-sha256", "c2s", "s2c", 0xC2, 0x5C);
-        let c = claim_tx(false, "curve25519-sha256", "s2c", "c2s", 0x5C, 0xC2);
-        assert_eq!(
-            handshake_transcripts_agree(s.data(), c.data()),
-            (true, true)
-        );
-    }
-
-    #[test]
-    fn diverging_transcript_is_detected() {
-        // Server received a different c2s stream than the client sent
-        // (prefix-truncation signature): server.rx_digest != client.tx_digest.
-        let s = claim_tx(true, "curve25519-sha256", "c2s", "s2c", 0xDEAD, 0x5C);
-        let c = claim_tx(false, "curve25519-sha256", "s2c", "c2s", 0x5C, 0xC2);
-        let (c2s_agrees, s2c_agrees) = handshake_transcripts_agree(s.data(), c.data());
-        assert!(!c2s_agrees, "c2s divergence should be detected");
-        assert!(s2c_agrees, "s2c should still agree");
     }
 
     #[test]

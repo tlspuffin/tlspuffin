@@ -688,40 +688,11 @@ mod tests {
             "server emitted no claim"
         );
 
-        // On the benign relay the two views must agree: the (negotiation-level)
-        // matching-conversation oracle reports no violation.
+        // On the benign relay the two views must agree: the matching-conversation
+        // oracle reports no violation.
         assert!(
             context.verify_security_violations().is_ok(),
             "matching-conversation oracle fired on a benign honest relay (false positive)"
-        );
-
-        // Wire-transcript agreement: on a faithful relay each peer's sent
-        // handshake stream equals the other's received stream. The s2c direction
-        // is cleanly separable and must agree exactly. The c2s direction is not
-        // yet sound at the byte level (the client pipelines its first encrypted
-        // packet right after NEWKEYS, so the server's byte digest captures it
-        // before `progress` activates the inbound cipher) — a packet-aligned
-        // relay is required there, which is also the substrate for a Terrapin
-        // truncation trace.
-        let server_claim = context
-            .find_claim(server, TypeShape::of::<SshClaimInner>())
-            .unwrap();
-        let server_inner = server_claim
-            .as_any()
-            .downcast_ref::<Box<SshClaimInner>>()
-            .unwrap();
-        let client_claim = context
-            .find_claim(client, TypeShape::of::<SshClaimInner>())
-            .unwrap();
-        let client_inner = client_claim
-            .as_any()
-            .downcast_ref::<Box<SshClaimInner>>()
-            .unwrap();
-        let (_c2s_agrees, s2c_agrees) =
-            crate::violation::handshake_transcripts_agree(server_inner, client_inner);
-        assert!(
-            s2c_agrees,
-            "s2c handshake transcripts must agree on a benign relay"
         );
     }
 

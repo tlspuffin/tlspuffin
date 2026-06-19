@@ -39,14 +39,6 @@ extern "C"
         /* Negotiated incoming/outgoing MACs. */
         char hmac_in[SSH_CLAIM_STR_LEN];
         char hmac_out[SSH_CLAIM_STR_LEN];
-        /*
-         * Rolling FNV-1a digest of the raw byte stream this agent has received
-         * (rx) and sent (tx) up to the claim point. Used by the
-         * matching-conversation oracle: one honest peer's tx stream must equal
-         * the other's rx stream. Decryption-free wire-transcript fingerprint.
-         */
-        uint64_t rx_digest;
-        uint64_t tx_digest;
     };
 
     typedef struct

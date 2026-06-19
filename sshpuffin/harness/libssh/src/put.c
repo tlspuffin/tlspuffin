@@ -108,23 +108,7 @@ struct AGENT_TYPE
 
     const CLAIMER_CB *claimer; /* registered claim callback, or NULL */
     bool claim_emitted;        /* guard so the handshake claim fires once */
-
-    uint64_t rx_digest; /* FNV-1a over the raw received byte stream */
-    uint64_t tx_digest; /* FNV-1a over the raw sent byte stream */
 };
-
-/* FNV-1a 64-bit, used as a cheap order-sensitive wire-transcript fingerprint. */
-#define FNV1A64_OFFSET 14695981039346656037ULL
-#define FNV1A64_PRIME 1099511628211ULL
-static uint64_t fnv1a64_update(uint64_t hash, const uint8_t *bytes, size_t length)
-{
-    for (size_t i = 0; i < length; ++i)
-    {
-        hash ^= (uint64_t)bytes[i];
-        hash *= FNV1A64_PRIME;
-    }
-    return hash;
-}
 
 /* ── Forward declarations ────────────────────────────────────────────────── */
 
@@ -318,8 +302,6 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
     agent->session     = session;
     agent->bind        = bind;
     agent->state       = PUT_STATE_KEX;
-    agent->rx_digest   = FNV1A64_OFFSET;
-    agent->tx_digest   = FNV1A64_OFFSET;
     snprintf(agent->state_desc, sizeof(agent->state_desc), "KEX");
 
     return agent;
@@ -379,8 +361,6 @@ static void emit_handshake_claim(AGENT agent)
     claim_set(claim.cipher_out, ssh_get_cipher_out(agent->session));
     claim_set(claim.hmac_in, ssh_get_hmac_in(agent->session));
     claim_set(claim.hmac_out, ssh_get_hmac_out(agent->session));
-    claim.rx_digest = agent->rx_digest;
-    claim.tx_digest = agent->tx_digest;
 
     agent->claimer->notify(agent->claimer->context, &claim);
     agent->claim_emitted = true;
@@ -602,13 +582,6 @@ static RESULT libssh_add_inbound(AGENT agent, const uint8_t *bytes, size_t lengt
         return error_result(strerror(errno));
     }
 
-    /* Fingerprint the *unencrypted handshake* receive transcript only: stop
-     * once the inbound cipher is active. This bounds the digest to the part of
-     * the conversation both peers fully exchange before completing (avoiding
-     * post-handshake boundary skew) and is exactly the transcript a prefix
-     * truncation tampers with. */
-    if (ssh_get_cipher_in(agent->session) == NULL)
-        agent->rx_digest = fnv1a64_update(agent->rx_digest, bytes, (size_t)n);
     *written = (size_t)n;
     return ok_result();
 }
@@ -635,10 +608,6 @@ static RESULT libssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_lengt
         return error_result(strerror(errno));
     }
 
-    /* Fingerprint the unencrypted handshake send transcript only (see
-     * libssh_add_inbound): stop once the outbound cipher is active. */
-    if (ssh_get_cipher_out(agent->session) == NULL)
-        agent->tx_digest = fnv1a64_update(agent->tx_digest, bytes, (size_t)n);
     *readbytes = (size_t)n;
     return ok_result();
 }
