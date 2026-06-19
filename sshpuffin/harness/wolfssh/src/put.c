@@ -22,6 +22,7 @@
 
 #include <wolfssh/ssh.h>
 #include <wolfssh/error.h>
+#include <wolfssl/wolfcrypt/sha256.h>
 
 #include "bindings.h"
 #include "server_key.h"
@@ -51,6 +52,12 @@ struct AGENT_TYPE
 
     const CLAIMER_CB *claimer; /* registered claim callback, or NULL */
     bool claim_emitted;        /* guard so the handshake claim fires once */
+
+    /* Authentication belief recorded by the userauth callback (server side). */
+    char auth_method[SSH_CLAIM_STR_LEN];
+    char auth_user[SSH_CLAIM_STR_LEN];
+    uint8_t auth_key_fp[32];
+    uint8_t auth_key_fp_len;
 };
 
 /* ── Forward declarations ────────────────────────────────────────────────── */
@@ -72,13 +79,31 @@ static const char WOLFSSH_AUTH_PASSWORD[] = "password";
 
 static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
 {
-    (void)ctx;
+    AGENT agent = (AGENT)ctx;
     /* Dual purpose: as a SERVER, accept any credential (return SUCCESS); as a
        CLIENT, *provide* a password so SendUserAuthRequest has something to send
        (wolfSSH calls the same callback to obtain client credentials). */
     if (authType == WOLFSSH_USERAUTH_PASSWORD && authData != NULL) {
         authData->sf.password.password = (const uint8_t *)WOLFSSH_AUTH_PASSWORD;
         authData->sf.password.passwordSz = (uint32_t)(sizeof(WOLFSSH_AUTH_PASSWORD) - 1);
+    }
+
+    /* Record the server's authentication belief for the claim. wolfSSH has
+       cryptographically verified the publickey signature by the time it calls
+       us with hasSignature set, so this mirrors the libssh harness: the method,
+       user, and — for publickey — the SHA-256 fingerprint of the verified key. */
+    if (agent != NULL && agent->descriptor.role == SSH_SERVER && authData != NULL) {
+        snprintf(agent->auth_user, sizeof(agent->auth_user), "%.*s",
+                 (int)authData->usernameSz, authData->username ? (const char *)authData->username : "");
+        if (authType == WOLFSSH_USERAUTH_PUBLICKEY && authData->sf.publicKey.hasSignature) {
+            snprintf(agent->auth_method, sizeof(agent->auth_method), "publickey");
+            wc_Sha256Hash(authData->sf.publicKey.publicKey,
+                          authData->sf.publicKey.publicKeySz, agent->auth_key_fp);
+            agent->auth_key_fp_len = 32;
+        } else if (authType == WOLFSSH_USERAUTH_PASSWORD) {
+            snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
+            agent->auth_key_fp_len = 0;
+        }
     }
     return WOLFSSH_USERAUTH_SUCCESS;
 }
@@ -212,6 +237,9 @@ static AGENT wolfssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
     agent->ssh        = ssh;
     agent->state      = PUT_STATE_HANDSHAKE;
     snprintf(agent->state_desc, sizeof(agent->state_desc), "HANDSHAKE");
+    /* Hand the agent to the userauth callback so it can record the server's
+     * authentication belief (method / user / verified-key fingerprint). */
+    wolfSSH_SetUserAuthCtx(ssh, agent);
     return agent;
 }
 
@@ -266,6 +294,12 @@ static void emit_handshake_claim(AGENT agent)
     claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_OUT_CIPHER, claim.cipher_out);
     claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_IN_MAC, claim.hmac_in);
     claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_OUT_MAC, claim.hmac_out);
+    snprintf(claim.auth_method, SSH_CLAIM_STR_LEN, "%s", agent->auth_method);
+    snprintf(claim.auth_user, SSH_CLAIM_STR_LEN, "%s", agent->auth_user);
+    if (agent->auth_key_fp_len > 0) {
+        memcpy(claim.auth_key_fp, agent->auth_key_fp, agent->auth_key_fp_len);
+        claim.auth_key_fp_len = agent->auth_key_fp_len;
+    }
 
     agent->claimer->notify(agent->claimer->context, &claim);
     agent->claim_emitted = true;
