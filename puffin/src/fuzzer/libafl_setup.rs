@@ -13,6 +13,7 @@ use super::harness;
 use crate::fuzzer::bit_mutations::{
     bit_mutations_dy, havoc_mutations_dy, MakeMessage, ReadMessage,
 };
+use crate::fuzzer::feedback;
 use crate::fuzzer::minimizer::MinimizingFeedback;
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
 use crate::fuzzer::stages::PuffinMutationalStage;
@@ -23,7 +24,6 @@ use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
 use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
-use crate::fuzzer::feedback;
 
 const MIN_BIT_EXECS: usize = 5_000; // one 1 core
 const MIN_BIT_CORPUS: usize = 200; // on 1 core

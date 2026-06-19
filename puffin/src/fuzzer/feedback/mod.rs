@@ -1,6 +1,6 @@
 pub mod claim_feedback;
 pub use claim_feedback::ClaimFeedback;
-pub mod claim_observer; 
+pub mod claim_observer;
 pub use claim_observer::ClaimObserver;
 use libafl::prelude::*;
 use libafl_bolts::tuples::tuple_list;
@@ -8,7 +8,10 @@ use libafl_bolts::tuples::tuple_list;
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
 
-pub fn build_feedback_and_observers<'a, S>() -> (impl Feedback<S> + 'a, impl ObserversTuple<S> + serde::Serialize + serde::de::DeserializeOwned + 'a)
+pub fn build_feedback_and_observers<'a, S>() -> (
+    impl Feedback<S> + 'a,
+    impl ObserversTuple<S> + serde::Serialize + serde::de::DeserializeOwned + 'a,
+)
 where
     S: UsesInput + HasNamedMetadata + HasClientPerfMonitor + State + 'static,
 {
@@ -26,7 +29,8 @@ where
     };
 
     let time_observer = TimeObserver::new("time");
-    let edges_observer = HitcountsMapObserver::new(unsafe { StdMapObserver::new(EDGES_OBSERVER_NAME, map) });
+    let edges_observer =
+        HitcountsMapObserver::new(unsafe { StdMapObserver::new(EDGES_OBSERVER_NAME, map) });
     let claim_observer = ClaimObserver::new("claim_observer");
     let time_feedback = TimeFeedback::with_observer(&time_observer);
     let observers = tuple_list!(edges_observer, time_observer, claim_observer);
@@ -37,19 +41,10 @@ where
         MaxReducer,
         S,
         u8,
-    > = MaxMapFeedback::with_names_tracking(
-        MAP_FEEDBACK_NAME,
-        EDGES_OBSERVER_NAME,
-        true,
-        false,
-    );
+    > = MaxMapFeedback::with_names_tracking(MAP_FEEDBACK_NAME, EDGES_OBSERVER_NAME, true, false);
 
     let claim_feedback: ClaimFeedback<S> = ClaimFeedback::new();
-    let feedback = feedback_or!(
-        map_feedback,
-        time_feedback,
-        claim_feedback
-    );
+    let feedback = feedback_or!(map_feedback, time_feedback, claim_feedback);
 
     (feedback, observers)
 }

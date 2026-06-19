@@ -8,9 +8,8 @@ use itertools::Itertools;
 
 use crate::agent::AgentName;
 use crate::algebra::dynamic_function::TypeShape;
-use crate::protocol::{EvaluatedTerm, ProtocolTypes};
+use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::StepNumber;
-use crate::protocol::ProtocolBehavior;
 
 pub trait Claim: EvaluatedTerm<Self::PT> + Debug {
     type PT: ProtocolTypes;

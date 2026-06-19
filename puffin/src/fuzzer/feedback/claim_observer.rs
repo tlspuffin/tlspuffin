@@ -1,22 +1,22 @@
 use std::any::Any;
 use std::cell::RefCell;
 
-use libafl::observers::Observer;
 use libafl::executors::ExitKind;
-use libafl::state::State;
 use libafl::inputs::UsesInput;
+use libafl::observers::Observer;
+use libafl::state::State;
 use libafl_bolts::{Error, Named};
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 thread_local! {
     pub static CAPTURED_CLAIMS: RefCell<Option<Box<dyn Any>>> = RefCell::new(None);
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ClaimObserver{
+pub struct ClaimObserver {
     name: String,
     pub claims: Vec<String>,
 }
 
-impl ClaimObserver{
+impl ClaimObserver {
     /// Creates a new [`ClaimObserver`] with the given name.
     pub fn new(name: &'static str) -> Self {
         Self {
@@ -24,7 +24,6 @@ impl ClaimObserver{
             claims: Vec::new(),
         }
     }
-    
 }
 impl<S: State> Observer<S> for ClaimObserver
 where
@@ -47,7 +46,7 @@ where
         Ok(())
     }
 }
-impl Named for ClaimObserver{
+impl Named for ClaimObserver {
     fn name(&self) -> &str {
         &self.name
     }

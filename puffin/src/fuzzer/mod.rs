@@ -10,8 +10,8 @@ use libafl_bolts::HasLen;
 use crate::protocol::ProtocolTypes;
 use crate::trace::Trace;
 
-pub mod harness;
 pub mod feedback;
+pub mod harness;
 mod libafl_setup;
 pub mod sanitizer;
 mod stages;

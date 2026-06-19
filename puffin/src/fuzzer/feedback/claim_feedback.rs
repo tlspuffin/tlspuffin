@@ -1,22 +1,26 @@
-use libafl::feedbacks::Feedback;
-use libafl::feedbacks::new_hash_feedback::HashSetState;
-use libafl::observers::ObserversTuple;
-use libafl::events::EventFirer;
-use libafl::executors::ExitKind;
-use libafl::state::State;
-use libafl_bolts::{Error, ErrorBacktrace, Named};
 use core::marker::PhantomData;
 use std::collections::HashSet;
-use crate::fuzzer::feedback::claim_observer::ClaimObserver;
-use std::fs::File;
+use std::fs::{File, OpenOptions};
 use std::io::Write;
-use std::fs::OpenOptions;
-pub struct ClaimFeedback<S>{
+
+use libafl::events::EventFirer;
+use libafl::executors::ExitKind;
+use libafl::feedbacks::new_hash_feedback::HashSetState;
+use libafl::feedbacks::Feedback;
+use libafl::observers::ObserversTuple;
+use libafl::state::State;
+use libafl_bolts::{Error, ErrorBacktrace, Named};
+
+use crate::fuzzer::feedback::claim_observer::ClaimObserver;
+pub struct ClaimFeedback<S> {
     pub seen_claims: HashSet<String>,
     phantom: PhantomData<S>,
 }
 
-impl<S> ClaimFeedback<S> where S: State{
+impl<S> ClaimFeedback<S>
+where
+    S: State,
+{
     pub fn new() -> Self {
         Self {
             seen_claims: HashSet::new(),
@@ -25,7 +29,14 @@ impl<S> ClaimFeedback<S> where S: State{
     }
 }
 
-impl<S> Named for ClaimFeedback<S> where S: State { fn name(&self) -> &str { "ClaimFeedback" } }
+impl<S> Named for ClaimFeedback<S>
+where
+    S: State,
+{
+    fn name(&self) -> &str {
+        "ClaimFeedback"
+    }
+}
 
 impl<S> Feedback<S> for ClaimFeedback<S>
 where
@@ -42,14 +53,11 @@ where
     where
         EM: EventFirer<State = S>,
         OT: ObserversTuple<S>,
-    {   
+    {
         let claim_observer = observers
             .match_name::<ClaimObserver>("claim_observer")
             .ok_or_else(|| {
-                Error::KeyNotFound(
-                    "ClaimObserver not found".to_string(),
-                    ErrorBacktrace::new(),
-                )
+                Error::KeyNotFound("ClaimObserver not found".to_string(), ErrorBacktrace::new())
             })?;
 
         let mut discovered_new_claim = false;
