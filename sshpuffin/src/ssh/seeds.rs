@@ -789,6 +789,53 @@ mod tests {
         );
     }
 
+    /// Trace-analysis matching conversation: recover, by re-evaluating the
+    /// trace's input recipes, what each honest party received on the wire — and
+    /// show that dropping a relayed message (the Terrapin truncation primitive)
+    /// changes the delivered transcript. No PUT introspection, mechanism-blind.
+    #[test_log::test]
+    fn test_delivered_transcript_detects_dropped_message() {
+        use puffin::trace::Action;
+
+        use crate::ssh::seeds::seed_handshake_two_party;
+        use crate::violation::delivered_to;
+
+        let registry = ssh_registry();
+        let client = puffin::agent::AgentName::first();
+        let server = client.next();
+
+        // Honest relay: recover both parties' received transcripts.
+        let honest = seed_handshake_two_party(client, server);
+        let runner = Runner::new(registry.clone(), Spawner::new(registry.clone()));
+        let ctx = runner.execute(honest.clone(), &mut 0).unwrap();
+        let server_rx_honest = delivered_to(&honest, &ctx, server);
+        let client_rx_honest = delivered_to(&honest, &ctx, client);
+        assert!(!server_rx_honest.is_empty(), "no transcript delivered to server");
+        assert!(!client_rx_honest.is_empty(), "no transcript delivered to client");
+
+        // Tampered relay: the attacker drops the last c2s forward. The delivered
+        // transcript to the server must shrink — the manipulation is visible
+        // purely from the trace.
+        let mut tampered = honest.clone();
+        let drop_idx = tampered
+            .steps
+            .iter()
+            .rposition(|s| s.agent == server && matches!(s.action, Action::Input(_)))
+            .expect("no server input step to drop");
+        tampered.steps.remove(drop_idx);
+
+        // Evaluate the tampered trace's deliveries against the (honest) context;
+        // the dropped forward simply isn't delivered, so the transcript shrinks.
+        let server_rx_tampered = delivered_to(&tampered, &ctx, server);
+        assert!(
+            server_rx_tampered.len() < server_rx_honest.len(),
+            "dropping a relayed message should shrink the server's received transcript \
+             (honest {} vs tampered {})",
+            server_rx_honest.len(),
+            server_rx_tampered.len()
+        );
+    }
+
     /// Cross-vendor: the AES-GCM publickey login as A completes against BOTH
     /// libssh and wolfSSH, the server records A's fingerprint, and the
     /// entity-authentication oracle is clean on both (no impersonation).

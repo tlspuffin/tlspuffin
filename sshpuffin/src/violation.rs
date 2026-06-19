@@ -81,6 +81,43 @@ fn is_null_cipher(cipher: &str) -> bool {
     cipher.is_empty() || cipher == "none"
 }
 
+/// Trace-analysis view of the matching-conversation property.
+///
+/// Re-evaluates the executed trace's input recipes against the final context to
+/// recover the exact byte stream delivered to `agent` — i.e. *what this honest
+/// party actually received on the wire* — using only the trace and the symbolic
+/// term algebra, with no PUT introspection and no decryption.
+///
+/// This is the building block for matching conversation: in a faithful relay
+/// each honest peer's received stream equals what its partner sent, so dropping,
+/// injecting or reordering a relayed message (e.g. a Terrapin prefix truncation)
+/// changes the delivered stream and is detectable here — mechanism-blind, by
+/// comparing transcripts rather than recognising any specific attack.
+pub fn delivered_to<PB>(
+    trace: &puffin::trace::Trace<PB::ProtocolTypes>,
+    ctx: &puffin::trace::TraceContext<PB>,
+    agent: puffin::agent::AgentName,
+) -> Vec<u8>
+where
+    PB: puffin::protocol::ProtocolBehavior,
+{
+    use puffin::algebra::TermType;
+    use puffin::trace::Action;
+
+    let mut delivered = Vec::new();
+    for step in &trace.steps {
+        if step.agent != agent {
+            continue;
+        }
+        if let Action::Input(input) = &step.action {
+            if let Ok(message) = input.recipe.evaluate(ctx) {
+                delivered.extend_from_slice(&message);
+            }
+        }
+    }
+    delivered
+}
+
 #[cfg(test)]
 mod tests {
     use puffin::agent::AgentName;
