@@ -128,6 +128,62 @@ where
     delivered
 }
 
+/// `true` if one byte stream is a prefix of the other — i.e. the two honest
+/// peers agree on the common part of the transcript (any difference is only an
+/// undelivered, in-flight tail, not a disagreement).
+fn transcripts_agree(a: &[u8], b: &[u8]) -> bool {
+    a.starts_with(b) || b.starts_with(a)
+}
+
+/// Trace-aware **matching-conversation** oracle for two-honest-party traces.
+///
+/// For a client PUT and a server PUT relayed by the Dolev-Yao attacker, each
+/// peer must have received exactly what its partner sent (up to an undelivered
+/// tail). We recover *received* with [`delivered_to`] (re-evaluating the input
+/// recipes) and *sent* with `TraceContext::agent_output_messages` (the agent's
+/// emitted flights), and compare crosswise. A mid-stream divergence — a dropped,
+/// injected or reordered relayed message, i.e. the Terrapin prefix-truncation
+/// primitive — breaks the prefix relation and is flagged. Returns `None` for
+/// single-party traces (no two honest views to compare).
+pub fn matching_conversation_violation(
+    trace: &puffin::trace::Trace<crate::protocol::SshProtocolTypes>,
+    ctx: &puffin::trace::TraceContext<crate::protocol::SshProtocolBehavior>,
+) -> Option<&'static str> {
+    use std::any::TypeId;
+
+    use crate::protocol::{AgentType, RawSshMessageFlight};
+
+    let agent_of = |typ: AgentType| {
+        trace
+            .descriptors
+            .iter()
+            .find(|d| d.protocol_config.typ == typ)
+            .map(|d| d.name)
+    };
+    let client = agent_of(AgentType::Client)?;
+    let server = agent_of(AgentType::Server)?;
+
+    let flight_ty = TypeId::of::<RawSshMessageFlight>();
+    let server_received = delivered_to(trace, ctx, server); // c2s the server got
+    let client_received = delivered_to(trace, ctx, client); // s2c the client got
+    let client_sent = ctx.agent_output_messages(client, flight_ty).concat(); // c2s sent
+    let server_sent = ctx.agent_output_messages(server, flight_ty).concat(); // s2c sent
+
+    if !transcripts_agree(&server_received, &client_sent) {
+        return Some(
+            "client and server disagree on the client->server transcript \
+             (matching-conversation violation)",
+        );
+    }
+    if !transcripts_agree(&client_received, &server_sent) {
+        return Some(
+            "client and server disagree on the server->client transcript \
+             (matching-conversation violation)",
+        );
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use puffin::agent::AgentName;

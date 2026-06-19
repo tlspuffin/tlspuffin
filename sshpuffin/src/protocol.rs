@@ -274,4 +274,11 @@ impl ProtocolBehavior for SshProtocolBehavior {
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
         crate::ssh::message::try_read_bytes(bitstring, ty)
     }
+
+    fn check_trace_security_violation(
+        trace: &Trace<Self::ProtocolTypes>,
+        ctx: &puffin::trace::TraceContext<Self>,
+    ) -> Option<&'static str> {
+        crate::violation::matching_conversation_violation(trace, ctx)
+    }
 }

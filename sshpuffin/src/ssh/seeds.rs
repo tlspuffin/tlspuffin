@@ -1016,6 +1016,46 @@ mod tests {
         );
     }
 
+    /// The live matching-conversation oracle: a faithful relay agrees (no
+    /// violation), but dropping a *mid-stream* relayed message (the Terrapin
+    /// truncation primitive) breaks the transcript prefix relation and is
+    /// flagged. Exercises `matching_conversation_violation` — the function the
+    /// trace-aware security hook runs.
+    #[test_log::test]
+    fn test_matching_conversation_oracle() {
+        use puffin::trace::Action;
+
+        use crate::ssh::seeds::seed_handshake_two_party;
+        use crate::violation::matching_conversation_violation;
+
+        let registry = ssh_registry();
+        let client = puffin::agent::AgentName::first();
+        let server = client.next();
+        let honest = seed_handshake_two_party(client, server);
+        let runner = Runner::new(registry.clone(), Spawner::new(registry));
+        let ctx = runner.execute(honest.clone(), &mut 0).unwrap();
+
+        // Faithful relay: the two views agree.
+        assert_eq!(matching_conversation_violation(&honest, &ctx), None);
+
+        // Drop a MID-STREAM client->server forward (not the in-flight tail): the
+        // server's received transcript diverges from what the client sent.
+        let server_inputs: Vec<usize> = honest
+            .steps
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.agent == server && matches!(s.action, Action::Input(_)))
+            .map(|(i, _)| i)
+            .collect();
+        let mut tampered = honest.clone();
+        tampered.steps.remove(server_inputs[server_inputs.len() / 2]);
+
+        assert!(
+            matching_conversation_violation(&tampered, &ctx).is_some(),
+            "dropping a mid-stream relayed message must trip the matching-conversation oracle"
+        );
+    }
+
     /// Cross-vendor: the AES-GCM publickey login as A completes against BOTH
     /// libssh and wolfSSH, the server records A's fingerprint, and the
     /// entity-authentication oracle is clean on both (no impersonation).
