@@ -8,4 +8,3 @@
 #include <libssh/server.h>
 
 #endif // PUFFIN_HARNESS_SSH_LIBSSH_BINDINGS_H
-

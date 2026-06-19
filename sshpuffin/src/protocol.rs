@@ -221,7 +221,9 @@ impl ProtocolTypes for SshProtocolTypes {
                 // those that do not match the cipher actually negotiated in a
                 // given run fail their AEAD tag and are silently skipped.
                 terms.extend(crate::ssh::seeds::server_decryption_recipes(agent.name));
-                terms.extend(crate::ssh::seeds::server_decryption_recipes_aesgcm(agent.name));
+                terms.extend(crate::ssh::seeds::server_decryption_recipes_aesgcm(
+                    agent.name,
+                ));
             }
         }
         terms

@@ -134,6 +134,7 @@ impl SshBytes {
     pub fn new(data: impl Into<Vec<u8>>) -> Self {
         Self(data.into())
     }
+
     pub fn empty() -> Self {
         Self(vec![])
     }
@@ -480,7 +481,10 @@ impl Codec for SshPublicKey {
         } else {
             SshBytes::read(&mut r)?
         };
-        Some(SshPublicKey { algorithm, key_data })
+        Some(SshPublicKey {
+            algorithm,
+            key_data,
+        })
     }
 }
 
@@ -1234,7 +1238,10 @@ mod tests {
                 let v = ChannelEofMessage {
                     recipient_channel: 7,
                 };
-                (v.get_encoding(), std::any::TypeId::of::<ChannelEofMessage>())
+                (
+                    v.get_encoding(),
+                    std::any::TypeId::of::<ChannelEofMessage>(),
+                )
             },
             {
                 let v = KexAlgorithms(nl(&["curve25519-sha256"]));

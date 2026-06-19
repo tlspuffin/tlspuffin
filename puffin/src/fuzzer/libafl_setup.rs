@@ -390,7 +390,8 @@ where
                     });
                 log::info!("Imported {} inputs from disk.", state.corpus().count());
 
-                // If the directory exists but has no parseable entries, fall back to embedded seeds.
+                // If the directory exists but has no parseable entries, fall back to embedded
+                // seeds.
                 if state.corpus().is_empty() {
                     log::warn!(
                         "Initial corpus directory {:?} contained no usable seeds. Falling back to embedded seeds.",

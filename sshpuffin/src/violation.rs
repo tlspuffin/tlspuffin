@@ -11,17 +11,15 @@ impl SecurityViolationPolicy for SshSecurityViolationPolicy {
     ///
     /// Two families of properties are checked:
     ///
-    /// 1. **Per-endpoint soundness** — an agent that reports a completed
-    ///    handshake must have negotiated a real key exchange and a real
-    ///    (non-null) cipher in both directions. Reaching the authenticated
-    ///    state over a `none` cipher means the transport is unprotected.
+    /// 1. **Per-endpoint soundness** — an agent that reports a completed handshake must have
+    ///    negotiated a real key exchange and a real (non-null) cipher in both directions. Reaching
+    ///    the authenticated state over a `none` cipher means the transport is unprotected.
     ///
-    /// 2. **Matching conversation (cross-endpoint agreement)** — if both a
-    ///    client and a server completed, they must agree on the negotiated
-    ///    parameters. Directional values are mirrored: one peer's inbound
-    ///    channel is the other's outbound channel. A disagreement is the
-    ///    signature of a downgrade / Terrapin-style attack where the two
-    ///    endpoints end up with different views of the session.
+    /// 2. **Matching conversation (cross-endpoint agreement)** — if both a client and a server
+    ///    completed, they must agree on the negotiated parameters. Directional values are mirrored:
+    ///    one peer's inbound channel is the other's outbound channel. A disagreement is the
+    ///    signature of a downgrade / Terrapin-style attack where the two endpoints end up with
+    ///    different views of the session.
     fn check_violation(claims: &[SshClaim]) -> Option<&'static str> {
         for claim in claims {
             let d = claim.data();
@@ -150,7 +148,11 @@ mod tests {
                 // Server claims need a valid auth method or the bypass oracle
                 // (rightly) flags them; these negotiation-level tests aren't
                 // about authentication, so use a benign "password".
-                auth_method: if is_server { "password".to_string() } else { String::new() },
+                auth_method: if is_server {
+                    "password".to_string()
+                } else {
+                    String::new()
+                },
                 auth_user: String::new(),
                 auth_key_fingerprint: Vec::new(),
             },
@@ -214,7 +216,12 @@ mod tests {
     fn cipher_disagreement_is_flagged() {
         let claims = vec![
             claim(true, "curve25519-sha256", "aes256-gcm", "aes256-gcm"),
-            claim(false, "curve25519-sha256", "chacha20-poly1305", "chacha20-poly1305"),
+            claim(
+                false,
+                "curve25519-sha256",
+                "chacha20-poly1305",
+                "chacha20-poly1305",
+            ),
         ];
         assert!(SshSecurityViolationPolicy::check_violation(&claims).is_some());
     }

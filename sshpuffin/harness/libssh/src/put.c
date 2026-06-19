@@ -118,31 +118,33 @@ struct AGENT_TYPE
 
 /* ── Forward declarations ────────────────────────────────────────────────── */
 
-static AGENT    libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor);
-static void     libssh_destroy(AGENT agent);
-static RESULT   libssh_progress(AGENT agent);
-static RESULT   libssh_reset(AGENT agent, uint8_t new_name, uint8_t use_clear);
+static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor);
+static void libssh_destroy(AGENT agent);
+static RESULT libssh_progress(AGENT agent);
+static RESULT libssh_reset(AGENT agent, uint8_t new_name, uint8_t use_clear);
 static const char *libssh_describe_state(AGENT agent);
-static bool     libssh_is_successful(AGENT agent);
-static void     libssh_register_claimer(AGENT agent, const CLAIMER_CB *claimer);
-static RESULT   libssh_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written);
-static RESULT   libssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
+static bool libssh_is_successful(AGENT agent);
+static void libssh_register_claimer(AGENT agent, const CLAIMER_CB *claimer);
+static RESULT libssh_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written);
+static RESULT
+libssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 
 /* ── PUT interface table ─────────────────────────────────────────────────── */
 
 static const SSH_PUT_INTERFACE LIBSSH_PUT = {
     .create = libssh_create,
     .rng_reseed = rng_reseed,
-    .agent_interface = {
-        .destroy            = libssh_destroy,
-        .progress           = libssh_progress,
-        .reset              = libssh_reset,
-        .describe_state     = libssh_describe_state,
-        .is_state_successful = libssh_is_successful,
-        .register_claimer   = libssh_register_claimer,
-        .add_inbound        = libssh_add_inbound,
-        .take_outbound      = libssh_take_outbound,
-    },
+    .agent_interface =
+        {
+            .destroy = libssh_destroy,
+            .progress = libssh_progress,
+            .reset = libssh_reset,
+            .describe_state = libssh_describe_state,
+            .is_state_successful = libssh_is_successful,
+            .register_claimer = libssh_register_claimer,
+            .add_inbound = libssh_add_inbound,
+            .take_outbound = libssh_take_outbound,
+        },
 };
 
 /* ── REGISTER entry point (called by puffin-build bundle machinery) ─────── */
@@ -150,7 +152,8 @@ static const SSH_PUT_INTERFACE LIBSSH_PUT = {
 const SSH_PUT_INTERFACE *REGISTER(void)
 {
     struct rlimit rl;
-    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0)
+    {
         rl.rlim_cur = (rl.rlim_max == RLIM_INFINITY) ? 65536 : rl.rlim_max;
         setrlimit(RLIMIT_NOFILE, &rl);
     }
@@ -200,7 +203,7 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
     }
 
     int fuzz_fd = sv[0];
-    int put_fd  = sv[1];
+    int put_fd = sv[1];
 
     if (set_nonblocking(fuzz_fd) < 0 || set_nonblocking(put_fd) < 0)
     {
@@ -285,13 +288,17 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
         /* Pre-set user and ssh_dir to avoid ssh_options_apply failures in
          * restricted environments. */
         const char *user = getenv("USER");
-        if (user == NULL) user = "puffin";
+        if (user == NULL)
+            user = "puffin";
         ssh_options_set(session, SSH_OPTIONS_USER, user);
         const char *home = getenv("HOME");
         char sshdir[4096];
-        if (home != NULL) {
+        if (home != NULL)
+        {
             snprintf(sshdir, sizeof(sshdir), "%s/.ssh", home);
-        } else {
+        }
+        else
+        {
             snprintf(sshdir, sizeof(sshdir), "/tmp/.ssh-puffin");
         }
         ssh_options_set(session, SSH_OPTIONS_SSH_DIR, sshdir);
@@ -308,13 +315,13 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
         return NULL;
     }
 
-    agent->name        = descriptor->name;
-    agent->descriptor  = *descriptor;
-    agent->fuzz_fd     = fuzz_fd;
-    agent->put_fd      = put_fd;
-    agent->session     = session;
-    agent->bind        = bind;
-    agent->state       = PUT_STATE_KEX;
+    agent->name = descriptor->name;
+    agent->descriptor = *descriptor;
+    agent->fuzz_fd = fuzz_fd;
+    agent->put_fd = put_fd;
+    agent->session = session;
+    agent->bind = bind;
+    agent->state = PUT_STATE_KEX;
     snprintf(agent->state_desc, sizeof(agent->state_desc), "KEX");
 
     return agent;
@@ -386,8 +393,7 @@ static int handle_publickey_auth(AGENT agent, ssh_message msg, const char *user)
     ssh_key key = ssh_message_auth_pubkey(msg);
     unsigned char *hash = NULL;
     size_t hlen = 0;
-    if (key != NULL &&
-        ssh_get_publickey_hash(key, SSH_PUBLICKEY_HASH_SHA256, &hash, &hlen) == 0)
+    if (key != NULL && ssh_get_publickey_hash(key, SSH_PUBLICKEY_HASH_SHA256, &hash, &hlen) == 0)
     {
         size_t n = hlen > sizeof(agent->auth_key_fp) ? sizeof(agent->auth_key_fp) : hlen;
         memcpy(agent->auth_key_fp, hash, n);
@@ -500,7 +506,8 @@ static RESULT libssh_progress(AGENT agent)
                     if (ssh_get_status(agent->session) & SSH_CLOSED_ERROR)
                     {
                         agent->state = PUT_STATE_ERROR;
-                        snprintf(agent->state_desc, sizeof(agent->state_desc),
+                        snprintf(agent->state_desc,
+                                 sizeof(agent->state_desc),
                                  "AUTH/SESSION_ERROR: %s",
                                  ssh_get_error(agent->session));
                         return error_result(agent->state_desc);
@@ -540,7 +547,9 @@ static RESULT libssh_progress(AGENT agent)
                         /* Password / other: accepted as before (the impersonation
                          * property is publickey-specific). */
                         snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
-                        snprintf(agent->auth_user, sizeof(agent->auth_user), "%s",
+                        snprintf(agent->auth_user,
+                                 sizeof(agent->auth_user),
+                                 "%s",
                                  user ? user : "");
                         agent->auth_key_fp_len = 0;
                         ssh_message_auth_reply_success(msg, 0);
@@ -562,8 +571,7 @@ static RESULT libssh_progress(AGENT agent)
                        (e.g. CVE-2018-10933). The handshake "completes" with no
                        auth method recorded, which the entity-authentication
                        oracle flags. */
-                    snprintf(agent->state_desc, sizeof(agent->state_desc),
-                             "DONE/AUTH-BYPASS");
+                    snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE/AUTH-BYPASS");
                     agent->state = PUT_STATE_DONE;
                     emit_handshake_claim(agent);
                     ssh_message_free(msg);
@@ -701,7 +709,8 @@ static RESULT libssh_add_inbound(AGENT agent, const uint8_t *bytes, size_t lengt
 
 /* ── take_outbound ───────────────────────────────────────────────────────── */
 
-static RESULT libssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes)
+static RESULT
+libssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes)
 {
     if (max_length == 0)
     {
@@ -724,4 +733,3 @@ static RESULT libssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_lengt
     *readbytes = (size_t)n;
     return ok_result();
 }
-

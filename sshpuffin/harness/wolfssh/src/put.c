@@ -20,8 +20,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include <wolfssh/ssh.h>
 #include <wolfssh/error.h>
+#include <wolfssh/ssh.h>
 #include <wolfssl/wolfcrypt/sha256.h>
 
 #include "bindings.h"
@@ -62,16 +62,18 @@ struct AGENT_TYPE
 
 /* ── Forward declarations ────────────────────────────────────────────────── */
 
-static AGENT       wolfssh_create(const SSH_AGENT_DESCRIPTOR *descriptor);
-static void        wolfssh_destroy(AGENT agent);
-static RESULT      wolfssh_progress(AGENT agent);
-static RESULT      wolfssh_reset(AGENT agent, uint8_t new_name, uint8_t use_clear);
+static AGENT wolfssh_create(const SSH_AGENT_DESCRIPTOR *descriptor);
+static void wolfssh_destroy(AGENT agent);
+static RESULT wolfssh_progress(AGENT agent);
+static RESULT wolfssh_reset(AGENT agent, uint8_t new_name, uint8_t use_clear);
 static const char *wolfssh_describe_state(AGENT agent);
-static bool        wolfssh_is_successful(AGENT agent);
-static void        wolfssh_register_claimer(AGENT agent, const CLAIMER_CB *claimer);
-static RESULT      wolfssh_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written);
-static RESULT      wolfssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
-static void        wolfssh_rng_reseed(const uint8_t *buffer, size_t length);
+static bool wolfssh_is_successful(AGENT agent);
+static void wolfssh_register_claimer(AGENT agent, const CLAIMER_CB *claimer);
+static RESULT
+wolfssh_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written);
+static RESULT
+wolfssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
+static void wolfssh_rng_reseed(const uint8_t *buffer, size_t length);
 
 /* ── auth callback: accept everything ────────────────────────────────────── */
 
@@ -83,7 +85,8 @@ static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
     /* Dual purpose: as a SERVER, accept any credential (return SUCCESS); as a
        CLIENT, *provide* a password so SendUserAuthRequest has something to send
        (wolfSSH calls the same callback to obtain client credentials). */
-    if (authType == WOLFSSH_USERAUTH_PASSWORD && authData != NULL) {
+    if (authType == WOLFSSH_USERAUTH_PASSWORD && authData != NULL)
+    {
         authData->sf.password.password = (const uint8_t *)WOLFSSH_AUTH_PASSWORD;
         authData->sf.password.passwordSz = (uint32_t)(sizeof(WOLFSSH_AUTH_PASSWORD) - 1);
     }
@@ -92,15 +95,23 @@ static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
        cryptographically verified the publickey signature by the time it calls
        us with hasSignature set, so this mirrors the libssh harness: the method,
        user, and — for publickey — the SHA-256 fingerprint of the verified key. */
-    if (agent != NULL && agent->descriptor.role == SSH_SERVER && authData != NULL) {
-        snprintf(agent->auth_user, sizeof(agent->auth_user), "%.*s",
-                 (int)authData->usernameSz, authData->username ? (const char *)authData->username : "");
-        if (authType == WOLFSSH_USERAUTH_PUBLICKEY && authData->sf.publicKey.hasSignature) {
+    if (agent != NULL && agent->descriptor.role == SSH_SERVER && authData != NULL)
+    {
+        snprintf(agent->auth_user,
+                 sizeof(agent->auth_user),
+                 "%.*s",
+                 (int)authData->usernameSz,
+                 authData->username ? (const char *)authData->username : "");
+        if (authType == WOLFSSH_USERAUTH_PUBLICKEY && authData->sf.publicKey.hasSignature)
+        {
             snprintf(agent->auth_method, sizeof(agent->auth_method), "publickey");
             wc_Sha256Hash(authData->sf.publicKey.publicKey,
-                          authData->sf.publicKey.publicKeySz, agent->auth_key_fp);
+                          authData->sf.publicKey.publicKeySz,
+                          agent->auth_key_fp);
             agent->auth_key_fp_len = 32;
-        } else if (authType == WOLFSSH_USERAUTH_PASSWORD) {
+        }
+        else if (authType == WOLFSSH_USERAUTH_PASSWORD)
+        {
             snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
             agent->auth_key_fp_len = 0;
         }
@@ -123,16 +134,17 @@ static int public_key_check_callback(const uint8_t *publicKey, uint32_t publicKe
 static const SSH_PUT_INTERFACE WOLFSSH_PUT = {
     .create = wolfssh_create,
     .rng_reseed = wolfssh_rng_reseed,
-    .agent_interface = {
-        .destroy             = wolfssh_destroy,
-        .progress            = wolfssh_progress,
-        .reset               = wolfssh_reset,
-        .describe_state      = wolfssh_describe_state,
-        .is_state_successful = wolfssh_is_successful,
-        .register_claimer    = wolfssh_register_claimer,
-        .add_inbound         = wolfssh_add_inbound,
-        .take_outbound       = wolfssh_take_outbound,
-    },
+    .agent_interface =
+        {
+            .destroy = wolfssh_destroy,
+            .progress = wolfssh_progress,
+            .reset = wolfssh_reset,
+            .describe_state = wolfssh_describe_state,
+            .is_state_successful = wolfssh_is_successful,
+            .register_claimer = wolfssh_register_claimer,
+            .add_inbound = wolfssh_add_inbound,
+            .take_outbound = wolfssh_take_outbound,
+        },
 };
 
 /* ── REGISTER entry point ────────────────────────────────────────────────── */
@@ -140,7 +152,8 @@ static const SSH_PUT_INTERFACE WOLFSSH_PUT = {
 const SSH_PUT_INTERFACE *REGISTER(void)
 {
     struct rlimit rl;
-    if (getrlimit(RLIMIT_NOFILE, &rl) == 0) {
+    if (getrlimit(RLIMIT_NOFILE, &rl) == 0)
+    {
         rl.rlim_cur = (rl.rlim_max == RLIM_INFINITY) ? 65536 : rl.rlim_max;
         setrlimit(RLIMIT_NOFILE, &rl);
     }
@@ -161,58 +174,79 @@ static int set_nonblocking(int fd)
     return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
 }
 
-static RESULT ok_result(void)             { return PUFFIN.make_result(RESULT_OK, "ok"); }
-static RESULT would_block_result(const char *r) { return PUFFIN.make_result(RESULT_IO_WOULD_BLOCK, r); }
-static RESULT error_result(const char *r) { return PUFFIN.make_result(RESULT_ERROR_OTHER, r); }
+static RESULT ok_result(void)
+{
+    return PUFFIN.make_result(RESULT_OK, "ok");
+}
+static RESULT would_block_result(const char *r)
+{
+    return PUFFIN.make_result(RESULT_IO_WOULD_BLOCK, r);
+}
+static RESULT error_result(const char *r)
+{
+    return PUFFIN.make_result(RESULT_ERROR_OTHER, r);
+}
 
 /* ── create ──────────────────────────────────────────────────────────────── */
 
 static AGENT wolfssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
 {
     int sv[2];
-    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) < 0) {
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) < 0)
+    {
         _log(PUFFIN.error, "wolfssh create: socketpair() failed: %s", strerror(errno));
         return NULL;
     }
     int fuzz_fd = sv[0];
-    int put_fd  = sv[1];
+    int put_fd = sv[1];
 
-    if (set_nonblocking(fuzz_fd) < 0 || set_nonblocking(put_fd) < 0) {
+    if (set_nonblocking(fuzz_fd) < 0 || set_nonblocking(put_fd) < 0)
+    {
         _log(PUFFIN.error, "wolfssh create: set_nonblocking() failed: %s", strerror(errno));
-        close(fuzz_fd); close(put_fd);
+        close(fuzz_fd);
+        close(put_fd);
         return NULL;
     }
 
     uint8_t is_server = (descriptor->role == SSH_SERVER);
-    WOLFSSH_CTX *ctx = wolfSSH_CTX_new(
-        is_server ? WOLFSSH_ENDPOINT_SERVER : WOLFSSH_ENDPOINT_CLIENT, NULL);
-    if (!ctx) {
+    WOLFSSH_CTX *ctx =
+        wolfSSH_CTX_new(is_server ? WOLFSSH_ENDPOINT_SERVER : WOLFSSH_ENDPOINT_CLIENT, NULL);
+    if (!ctx)
+    {
         _log(PUFFIN.error, "wolfssh create: wolfSSH_CTX_new() failed");
-        close(fuzz_fd); close(put_fd);
+        close(fuzz_fd);
+        close(put_fd);
         return NULL;
     }
 
-    if (is_server) {
+    if (is_server)
+    {
         wolfSSH_SetUserAuth(ctx, auth_callback);
-        if (wolfSSH_CTX_UsePrivateKey_buffer(ctx, SERVER_KEY_DER,
+        if (wolfSSH_CTX_UsePrivateKey_buffer(ctx,
+                                             SERVER_KEY_DER,
                                              (uint32_t)SERVER_KEY_DER_LEN,
-                                             WOLFSSH_FORMAT_ASN1) < 0) {
+                                             WOLFSSH_FORMAT_ASN1) < 0)
+        {
             _log(PUFFIN.error, "wolfssh create: failed to load host key");
             wolfSSH_CTX_free(ctx);
-            close(fuzz_fd); close(put_fd);
+            close(fuzz_fd);
+            close(put_fd);
             return NULL;
         }
     }
 
     WOLFSSH *ssh = wolfSSH_new(ctx);
-    if (!ssh) {
+    if (!ssh)
+    {
         _log(PUFFIN.error, "wolfssh create: wolfSSH_new() failed");
         wolfSSH_CTX_free(ctx);
-        close(fuzz_fd); close(put_fd);
+        close(fuzz_fd);
+        close(put_fd);
         return NULL;
     }
 
-    if (!is_server) {
+    if (!is_server)
+    {
         /* Client also uses the userauth callback — here to PROVIDE a password. */
         wolfSSH_SetUserAuth(ctx, auth_callback);
         /* A username is required before connect. */
@@ -224,18 +258,21 @@ static AGENT wolfssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
     wolfSSH_set_fd(ssh, put_fd);
 
     AGENT agent = calloc(1, sizeof(struct AGENT_TYPE));
-    if (!agent) {
-        wolfSSH_free(ssh); wolfSSH_CTX_free(ctx);
-        close(fuzz_fd); close(put_fd);
+    if (!agent)
+    {
+        wolfSSH_free(ssh);
+        wolfSSH_CTX_free(ctx);
+        close(fuzz_fd);
+        close(put_fd);
         return NULL;
     }
-    agent->name       = descriptor->name;
+    agent->name = descriptor->name;
     agent->descriptor = *descriptor;
-    agent->fuzz_fd    = fuzz_fd;
-    agent->put_fd     = put_fd;
-    agent->ctx        = ctx;
-    agent->ssh        = ssh;
-    agent->state      = PUT_STATE_HANDSHAKE;
+    agent->fuzz_fd = fuzz_fd;
+    agent->put_fd = put_fd;
+    agent->ctx = ctx;
+    agent->ssh = ssh;
+    agent->state = PUT_STATE_HANDSHAKE;
     snprintf(agent->state_desc, sizeof(agent->state_desc), "HANDSHAKE");
     /* Hand the agent to the userauth callback so it can record the server's
      * authentication belief (method / user / verified-key fingerprint). */
@@ -296,7 +333,8 @@ static void emit_handshake_claim(AGENT agent)
     claim_get_text(agent, WOLFSSH_TEXT_CRYPTO_OUT_MAC, claim.hmac_out);
     snprintf(claim.auth_method, SSH_CLAIM_STR_LEN, "%s", agent->auth_method);
     snprintf(claim.auth_user, SSH_CLAIM_STR_LEN, "%s", agent->auth_user);
-    if (agent->auth_key_fp_len > 0) {
+    if (agent->auth_key_fp_len > 0)
+    {
         memcpy(claim.auth_key_fp, agent->auth_key_fp, agent->auth_key_fp_len);
         claim.auth_key_fp_len = agent->auth_key_fp_len;
     }
@@ -310,24 +348,29 @@ static RESULT wolfssh_progress(AGENT agent)
     if (agent->state == PUT_STATE_ERROR)
         return error_result("agent in error state");
 
-    if (agent->state == PUT_STATE_HANDSHAKE) {
-        int rc = (agent->descriptor.role == SSH_SERVER)
-                     ? wolfSSH_accept(agent->ssh)
-                     : wolfSSH_connect(agent->ssh);
-        if (rc == WS_SUCCESS) {
+    if (agent->state == PUT_STATE_HANDSHAKE)
+    {
+        int rc = (agent->descriptor.role == SSH_SERVER) ? wolfSSH_accept(agent->ssh)
+                                                        : wolfSSH_connect(agent->ssh);
+        if (rc == WS_SUCCESS)
+        {
             agent->state = PUT_STATE_DONE;
             snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE");
             emit_handshake_claim(agent);
-        } else if (is_would_block(rc)) {
+        }
+        else if (is_would_block(rc))
+        {
             snprintf(agent->state_desc, sizeof(agent->state_desc), "HANDSHAKE/WOULD_BLOCK");
             return ok_result();
-        } else {
+        }
+        else
+        {
             /* wolfSSH signals non-blocking wait via get_error (WS_WANT_READ/
                WRITE) while the function return is the generic WS_ERROR. */
             int gerr = wolfSSH_get_error(agent->ssh);
-            if (is_would_block(gerr)) {
-                snprintf(agent->state_desc, sizeof(agent->state_desc),
-                         "HANDSHAKE/WOULD_BLOCK");
+            if (is_would_block(gerr))
+            {
+                snprintf(agent->state_desc, sizeof(agent->state_desc), "HANDSHAKE/WOULD_BLOCK");
                 return ok_result();
             }
             /* A failed handshake is the common, expected outcome when the
@@ -335,21 +378,29 @@ static RESULT wolfssh_progress(AGENT agent)
                Report it through error_result (the channel the fuzzer handles)
                and keep it at trace level, like the libssh harness, instead of
                flooding error.log. */
-            _log(PUFFIN.trace, "wolfssh %s failed: rc=%d gerr=%d (%s)",
+            _log(PUFFIN.trace,
+                 "wolfssh %s failed: rc=%d gerr=%d (%s)",
                  agent->descriptor.role == SSH_SERVER ? "accept" : "connect",
-                 rc, gerr, wolfSSH_ErrorToName(gerr));
+                 rc,
+                 gerr,
+                 wolfSSH_ErrorToName(gerr));
             agent->state = PUT_STATE_ERROR;
-            snprintf(agent->state_desc, sizeof(agent->state_desc),
-                     "HANDSHAKE/ERROR rc=%d gerr=%d", rc, gerr);
+            snprintf(agent->state_desc,
+                     sizeof(agent->state_desc),
+                     "HANDSHAKE/ERROR rc=%d gerr=%d",
+                     rc,
+                     gerr);
             return error_result(wolfSSH_ErrorToName(gerr));
         }
     }
 
-    if (agent->state == PUT_STATE_DONE) {
+    if (agent->state == PUT_STATE_DONE)
+    {
         /* Drive the channel layer so post-auth traffic is processed. */
         word32 channelId = 0;
         int rc = wolfSSH_worker(agent->ssh, &channelId);
-        if (rc != WS_SUCCESS && !is_would_block(rc)) {
+        if (rc != WS_SUCCESS && !is_would_block(rc))
+        {
             /* Channel-layer errors are not fatal for the harness. */
             snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE/worker rc=%d", rc);
         }
@@ -368,8 +419,14 @@ static RESULT wolfssh_reset(AGENT agent, uint8_t new_name, uint8_t use_clear)
     return error_result("reset not supported for wolfssh harness");
 }
 
-static const char *wolfssh_describe_state(AGENT agent) { return agent->state_desc; }
-static bool wolfssh_is_successful(AGENT agent) { return agent->state == PUT_STATE_DONE; }
+static const char *wolfssh_describe_state(AGENT agent)
+{
+    return agent->state_desc;
+}
+static bool wolfssh_is_successful(AGENT agent)
+{
+    return agent->state == PUT_STATE_DONE;
+}
 
 static void wolfssh_register_claimer(AGENT agent, const CLAIMER_CB *claimer)
 {
@@ -381,9 +438,14 @@ static void wolfssh_register_claimer(AGENT agent, const CLAIMER_CB *claimer)
 
 static RESULT wolfssh_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *written)
 {
-    if (length == 0) { *written = 0; return ok_result(); }
+    if (length == 0)
+    {
+        *written = 0;
+        return ok_result();
+    }
     ssize_t n = send(agent->fuzz_fd, bytes, length, MSG_DONTWAIT);
-    if (n < 0) {
+    if (n < 0)
+    {
         *written = 0;
         if (errno == EAGAIN || errno == EWOULDBLOCK)
             return would_block_result("send: EAGAIN");
@@ -393,11 +455,17 @@ static RESULT wolfssh_add_inbound(AGENT agent, const uint8_t *bytes, size_t leng
     return ok_result();
 }
 
-static RESULT wolfssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes)
+static RESULT
+wolfssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes)
 {
-    if (max_length == 0) { *readbytes = 0; return ok_result(); }
+    if (max_length == 0)
+    {
+        *readbytes = 0;
+        return ok_result();
+    }
     ssize_t n = recv(agent->fuzz_fd, bytes, max_length, MSG_DONTWAIT);
-    if (n < 0) {
+    if (n < 0)
+    {
         *readbytes = 0;
         if (errno == EAGAIN || errno == EWOULDBLOCK)
             return would_block_result("recv: EAGAIN");

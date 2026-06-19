@@ -1,13 +1,12 @@
 //! sshpuffin/build.rs
 //!
 //! 1. Generates Rust FFI bindings from `sshpuffin/include/puffin/ssh.h`.
-//! 2. Finds every libssh instance in the vendor directory and compiles the C
-//!    harness (`sshpuffin/harness/libssh/`) against it via puffin-build.
-//! 3. Compiles `harness/libssh/crypto/crypto.c` as a separate static library
-//!    so that the puffin_* FFI functions are available to Rust without being
-//!    stripped by the PUT partial-relocation step.
-//! 4. Emits ASAN / coverage linker flags when the corresponding features are
-//!    active.
+//! 2. Finds every libssh instance in the vendor directory and compiles the C harness
+//!    (`sshpuffin/harness/libssh/`) against it via puffin-build.
+//! 3. Compiles `harness/libssh/crypto/crypto.c` as a separate static library so that the puffin_*
+//!    FFI functions are available to Rust without being stripped by the PUT partial-relocation
+//!    step.
+//! 4. Emits ASAN / coverage linker flags when the corresponding features are active.
 
 use std::path::PathBuf;
 
@@ -167,7 +166,11 @@ fn ensure_wolfssh_vendors() -> Vec<library::Library> {
         WOLFSSH_PRESET.to_string()
     };
 
-    if let Some(Ok(_)) = vendor.library_dir(&name).ok().map(|dir| dir.make(&config, false)) {
+    if let Some(Ok(_)) = vendor
+        .library_dir(&name)
+        .ok()
+        .map(|dir| dir.make(&config, false))
+    {
         // built successfully
     } else {
         // wolfSSH is an optional second PUT; if its build fails, continue with
@@ -213,7 +216,9 @@ fn ensure_libssh_vendors() -> Vec<library::Library> {
         .all()
         .into_iter()
         .filter(|lib| lib.name() == name)
-        .filter(|lib| lib.path().join("include/libssh/libssh.h").exists() && !lib.link_libraries().is_empty())
+        .filter(|lib| {
+            lib.path().join("include/libssh/libssh.h").exists() && !lib.link_libraries().is_empty()
+        })
         .collect()
 }
 
@@ -229,7 +234,3 @@ fn build_harness(lib: library::Library, out_bundle: &std::path::Path) -> Option<
     harness::Harness::harness_for("ssh", lib, harness::Kind::C)
         .map(|h| h.wrap(out_dir).expect("failed to compile libssh C harness"))
 }
-
-
-
-

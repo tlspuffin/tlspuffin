@@ -23,10 +23,8 @@ use crate::ssh::message::{
 // without any hidden RNG state.
 
 const CLIENT_ECDH_SEED: [u8; 32] = [
-    0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0xba, 0xbe,
-    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-    0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
-    0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
+    0xde, 0xad, 0xbe, 0xef, 0xca, 0xfe, 0xba, 0xbe, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+    0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18,
 ];
 
 // ── ECDH ─────────────────────────────────────────────────────────────────────
@@ -191,8 +189,8 @@ fn to_mpint(raw: &[u8]) -> Vec<u8> {
 /// * `v_s` — server banner WITHOUT `\r\n`
 /// * `i_c` — client kexinit payload (type byte + fields; use `fn_kexinit_payload`)
 /// * `i_s` — server kexinit payload
-/// * `k_s` — server host key as raw SSH outer-string bytes (use `fn_server_hostkey_raw`
-///            OR `fn_server_rsa_pubkey_bytes` for the server-attacker seed)
+/// * `k_s` — server host key as raw SSH outer-string bytes (use `fn_server_hostkey_raw` OR
+///   `fn_server_rsa_pubkey_bytes` for the server-attacker seed)
 /// * `q_c` — client ephemeral X25519 public key (32 bytes)
 /// * `q_s` — server ephemeral X25519 public key (32 bytes)
 /// * `shared_secret` — 32-byte output of `fn_ecdh_shared_secret`
@@ -201,20 +199,20 @@ pub fn fn_kex_exchange_hash(
     v_s: &SshBytes,
     i_c: &SshBytes,
     i_s: &SshBytes,
-    k_s: &SshBytes,       // raw outer SSH-string bytes (includes 4-byte length prefix)
+    k_s: &SshBytes, // raw outer SSH-string bytes (includes 4-byte length prefix)
     q_c: &SshBytes,
     q_s: &SshBytes,
     shared_secret: &SshBytes,
 ) -> Result<SshBytes, FnError> {
     let mut buf = Vec::new();
 
-    push_ssh_string(&mut buf, &v_c.0);     // V_C
-    push_ssh_string(&mut buf, &v_s.0);     // V_S
-    push_ssh_string(&mut buf, &i_c.0);     // I_C
-    push_ssh_string(&mut buf, &i_s.0);     // I_S
-    buf.extend_from_slice(&k_s.0);          // K_S (already outer-string encoded)
-    push_ssh_string(&mut buf, &q_c.0);     // Q_C
-    push_ssh_string(&mut buf, &q_s.0);     // Q_S
+    push_ssh_string(&mut buf, &v_c.0); // V_C
+    push_ssh_string(&mut buf, &v_s.0); // V_S
+    push_ssh_string(&mut buf, &i_c.0); // I_C
+    push_ssh_string(&mut buf, &i_s.0); // I_S
+    buf.extend_from_slice(&k_s.0); // K_S (already outer-string encoded)
+    push_ssh_string(&mut buf, &q_c.0); // Q_C
+    push_ssh_string(&mut buf, &q_s.0); // Q_S
     buf.extend_from_slice(&to_mpint(&shared_secret.0)); // K
 
     let hash = Sha256::digest(&buf);
@@ -223,9 +221,7 @@ pub fn fn_kex_exchange_hash(
 
 // ── Key derivation (RFC 4253 §7) ─────────────────────────────────────────────
 
-fn derive_key(shared: &SshBytes, h: &SshBytes, sid: &SshBytes, id: u8, needed: usize)
-    -> SshBytes
-{
+fn derive_key(shared: &SshBytes, h: &SshBytes, sid: &SshBytes, id: u8, needed: usize) -> SshBytes {
     let k_mpint = to_mpint(&shared.0);
 
     // K1 = SHA-256(K || H || id || session_id)
@@ -280,11 +276,19 @@ pub fn fn_derive_enc_key_s2c(
 // counter(8); the counter starts at the derived value and increments per packet.
 
 /// Client-to-server AES-256-GCM key (id `'C'`, 32 bytes).
-pub fn fn_derive_aes_key_c2s(s: &SshBytes, h: &SshBytes, sid: &SshBytes) -> Result<SshBytes, FnError> {
+pub fn fn_derive_aes_key_c2s(
+    s: &SshBytes,
+    h: &SshBytes,
+    sid: &SshBytes,
+) -> Result<SshBytes, FnError> {
     Ok(derive_key(s, h, sid, b'C', 32))
 }
 /// Server-to-client AES-256-GCM key (id `'D'`, 32 bytes).
-pub fn fn_derive_aes_key_s2c(s: &SshBytes, h: &SshBytes, sid: &SshBytes) -> Result<SshBytes, FnError> {
+pub fn fn_derive_aes_key_s2c(
+    s: &SshBytes,
+    h: &SshBytes,
+    sid: &SshBytes,
+) -> Result<SshBytes, FnError> {
     Ok(derive_key(s, h, sid, b'D', 32))
 }
 /// Client-to-server initial IV (id `'A'`, 12 bytes).
@@ -351,7 +355,13 @@ pub fn fn_encrypt_packet_aesgcm(
     let cipher = Aes256Gcm::new(AesKey::<Aes256Gcm>::from_slice(&key.0));
     let len_be = (enc_len as u32).to_be_bytes();
     let ct = cipher
-        .encrypt(AesNonce::from_slice(&nonce), Payload { msg: &pt, aad: &len_be })
+        .encrypt(
+            AesNonce::from_slice(&nonce),
+            Payload {
+                msg: &pt,
+                aad: &len_be,
+            },
+        )
         .map_err(|_| FnError::Unknown("AES-GCM encryption failed".into()))?;
     // ct = ciphertext || 16-byte tag (the aes-gcm crate appends the tag)
 
@@ -387,7 +397,13 @@ pub fn fn_decrypt_packet_aesgcm(
     let nonce = aesgcm_nonce(&iv.0, *counter as u64);
     let cipher = Aes256Gcm::new(AesKey::<Aes256Gcm>::from_slice(&key.0));
     let pt = cipher
-        .decrypt(AesNonce::from_slice(&nonce), Payload { msg: ct_and_tag, aad: &len_be })
+        .decrypt(
+            AesNonce::from_slice(&nonce),
+            Payload {
+                msg: ct_and_tag,
+                aad: &len_be,
+            },
+        )
         .map_err(|_| FnError::Unknown("AES-GCM tag mismatch".into()))?;
 
     if pt.is_empty() {
@@ -434,7 +450,9 @@ pub fn fn_encrypt_packet(
     let block = 8usize;
     let unpadded = 1 + plaintext.len();
     let mut pad = block - (unpadded % block);
-    if pad < 4 { pad += block; }
+    if pad < 4 {
+        pad += block;
+    }
     let packet_len = 1 + plaintext.len() + pad; // excludes the 4-byte length field
 
     // Build plaintext body: [pad_len: u8][payload][zero padding]
@@ -469,8 +487,8 @@ pub fn fn_encrypt_packet(
     cipher_k2.apply_keystream(&mut enc_body);
 
     // Step 4: Poly1305 MAC over [enc_len || enc_body]
-    use poly1305::{Key as Poly1305Key, Poly1305};
     use poly1305::universal_hash::{KeyInit, UniversalHash};
+    use poly1305::{Key as Poly1305Key, Poly1305};
     let poly = Poly1305::new(Poly1305Key::from_slice(&poly_key));
     let mut mac_input = Vec::with_capacity(4 + enc_body.len());
     mac_input.extend_from_slice(&enc_len);
@@ -622,7 +640,8 @@ pub fn fn_server_rsa_pubkey() -> Result<SshPublicKey, FnError> {
     let key = load_server_key()?;
     // Encode using ssh-key's wire format then parse into our SshPublicKey
     let pubkey = key.public_key();
-    let wire = pubkey.to_bytes()
+    let wire = pubkey
+        .to_bytes()
         .map_err(|e| FnError::Unknown(format!("pubkey encoding failed: {e}")))?;
 
     // ssh-key's to_bytes() returns the key blob WITHOUT an outer length prefix:
@@ -630,18 +649,22 @@ pub fn fn_server_rsa_pubkey() -> Result<SshPublicKey, FnError> {
     // Parse into SshPublicKey { algorithm, key_data = raw [e][n] }.
     use puffin::codec::Reader;
     let mut r = Reader::init(&wire);
-    let algorithm = SshBytes::read(&mut r)
-        .ok_or_else(|| FnError::Unknown("bad algo".into()))?;
+    let algorithm = SshBytes::read(&mut r).ok_or_else(|| FnError::Unknown("bad algo".into()))?;
     let key_data = SshBytes::new(r.rest().to_vec());
 
-    Ok(SshPublicKey { algorithm, key_data })
+    Ok(SshPublicKey {
+        algorithm,
+        key_data,
+    })
 }
 
 /// Return the server RSA public key as raw outer-SSH-string bytes for use in
 /// the K_S position of the exchange hash.
 pub fn fn_server_rsa_pubkey_bytes() -> Result<SshBytes, FnError> {
     let key = load_server_key()?;
-    let wire = key.public_key().to_bytes()
+    let wire = key
+        .public_key()
+        .to_bytes()
         .map_err(|e| FnError::Unknown(format!("pubkey encoding failed: {e}")))?;
     // K_S in the exchange hash is the full outer SSH string: [u32 len][blob].
     // ssh-key's to_bytes() omits the outer length, so we prepend it here to
@@ -657,10 +680,8 @@ pub fn fn_server_rsa_pubkey_bytes() -> Result<SshBytes, FnError> {
 pub fn fn_sign_exchange_hash(h: &SshBytes) -> Result<SshBytes, FnError> {
     use rsa::pkcs1v15::SigningKey;
     use rsa::signature::{SignatureEncoding, Signer};
-    use rsa::RsaPrivateKey;
+    use rsa::{BigUint, RsaPrivateKey};
     use sha2::Sha256;
-
-    use rsa::BigUint;
 
     let key = load_server_key()?;
     let rsa_keypair = match key.key_data() {
@@ -791,12 +812,16 @@ mod tests {
                 RawSshMessage::OnWire(d) => d,
                 _ => panic!("expected OnWire"),
             };
-            let dec = fn_decrypt_packet_aesgcm(&onwire, &key, &iv, &counter).expect("aesgcm decrypt");
+            let dec =
+                fn_decrypt_packet_aesgcm(&onwire, &key, &iv, &counter).expect("aesgcm decrypt");
             assert_eq!(dec, msg, "aes-gcm roundtrip mismatch at counter {counter}");
         }
         // Wrong counter (nonce) must fail the GCM tag.
         let enc = fn_encrypt_packet_aesgcm(&msg, &key, &iv, &0).unwrap();
-        let onwire = match enc { RawSshMessage::OnWire(d) => d, _ => unreachable!() };
+        let onwire = match enc {
+            RawSshMessage::OnWire(d) => d,
+            _ => unreachable!(),
+        };
         assert!(fn_decrypt_packet_aesgcm(&onwire, &key, &iv, &1).is_err());
     }
 

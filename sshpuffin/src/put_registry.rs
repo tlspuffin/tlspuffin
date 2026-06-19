@@ -68,7 +68,9 @@ pub mod registration {
     // Unsupported macro – SSH has no Rust PUT variant yet.
     #[allow(unused)]
     macro_rules! registration_rust {
-        ($id:ident, $name:expr, $harness_version:expr, $library_version:expr, $capabilities:expr) => {
+        (
+            $id:ident, $name:expr, $harness_version:expr, $library_version:expr, $capabilities:expr
+        ) => {
             compile_error!("Rust PUT not supported for SSH")
         };
     }

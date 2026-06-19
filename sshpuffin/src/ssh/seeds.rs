@@ -138,7 +138,10 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<SshProtocolTypes> {
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
-            InputAction::new_step(server, term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
             InputAction::new_step(server, term! { @auth_req }),
@@ -216,13 +219,19 @@ pub fn seed_client_attacker_pubkey(server: AgentName) -> Trace<SshProtocolTypes>
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor::from_config(
             server,
-            SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+            },
         )],
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
-            InputAction::new_step(server, term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
             InputAction::new_step(server, term! { @auth_req }),
@@ -259,7 +268,7 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
     };
     // c2s AES-256-GCM key + IV.
     let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let iv  = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
 
     // AES-GCM invocation counter = per-direction packet index since NewKeys (0,1,2,3).
     let svc_req = term! {
@@ -288,13 +297,19 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor::from_config(
             server,
-            SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+            },
         )],
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
-            InputAction::new_step(server, term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
             InputAction::new_step(server, term! { @auth_req }),
@@ -361,13 +376,19 @@ pub fn seed_client_attacker_auth_bypass(server: AgentName) -> Trace<SshProtocolT
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor::from_config(
             server,
-            SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+            },
         )],
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
-            InputAction::new_step(server, term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @bypass }),
             InputAction::new_step(server, term! { @chan_open }),
@@ -401,7 +422,7 @@ pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtoco
         )
     };
     let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let iv  = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
 
     let svc_req = term! {
         fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
@@ -438,13 +459,19 @@ pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtoco
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor::from_config(
             server,
-            SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+            },
         )],
         steps: vec![
             OutputAction::new_step(server),
             InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
             InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
-            InputAction::new_step(server, term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
             InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(server, term! { @svc_req }),
             InputAction::new_step(server, term! { @auth_req }),
@@ -545,16 +572,19 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<SshProtocolTypes> {
             InputAction::new_step(client, term! { fn_banner(fn_puffin_banner) }),
             InputAction::new_step(client, term! { fn_packet((@our_kexinit)) }),
             // After sending kexinit, client emits KexEcdhInit (captured as q_c above)
-            InputAction::new_step(client, term! {
-                fn_packet((fn_kex_ecdh_reply(
-                    (fn_server_rsa_pubkey),
-                    (fn_client_ecdh_pubkey),
-                    (fn_ssh_signature(
-                        (fn_algo_rsa_sha2_256),
-                        (@sig)
-                    ))
-                )))
-            }),
+            InputAction::new_step(
+                client,
+                term! {
+                    fn_packet((fn_kex_ecdh_reply(
+                        (fn_server_rsa_pubkey),
+                        (fn_client_ecdh_pubkey),
+                        (fn_ssh_signature(
+                            (fn_algo_rsa_sha2_256),
+                            (@sig)
+                        ))
+                    )))
+                },
+            ),
             InputAction::new_step(client, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(client, term! { @svc_accept }),
             InputAction::new_step(client, term! { @auth_success }),
@@ -589,7 +619,7 @@ pub fn seed_server_attacker_full_aesgcm(client: AgentName) -> Trace<SshProtocolT
     let sig = term! { fn_sign_exchange_hash((@exch_hash)) };
     // s2c AES-256-GCM key + IV (direction the server encrypts towards the client).
     let key = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@exch_hash)) };
-    let iv  = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@exch_hash)) };
+    let iv = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@exch_hash)) };
 
     let svc_accept = term! {
         fn_encrypt_packet_aesgcm((fn_service_accept((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
@@ -602,19 +632,25 @@ pub fn seed_server_attacker_full_aesgcm(client: AgentName) -> Trace<SshProtocolT
         prior_traces: vec![],
         descriptors: vec![AgentDescriptor::from_config(
             client,
-            SshDescriptorConfig { typ: AgentType::Client, try_reuse: false },
+            SshDescriptorConfig {
+                typ: AgentType::Client,
+                try_reuse: false,
+            },
         )],
         steps: vec![
             OutputAction::new_step(client),
             InputAction::new_step(client, term! { fn_banner(fn_puffin_banner) }),
             InputAction::new_step(client, term! { fn_packet((@our_kexinit)) }),
-            InputAction::new_step(client, term! {
-                fn_packet((fn_kex_ecdh_reply(
-                    (fn_server_rsa_pubkey),
-                    (fn_client_ecdh_pubkey),
-                    (fn_ssh_signature((fn_algo_rsa_sha2_256), (@sig)))
-                )))
-            }),
+            InputAction::new_step(
+                client,
+                term! {
+                    fn_packet((fn_kex_ecdh_reply(
+                        (fn_server_rsa_pubkey),
+                        (fn_client_ecdh_pubkey),
+                        (fn_ssh_signature((fn_algo_rsa_sha2_256), (@sig)))
+                    )))
+                },
+            ),
             InputAction::new_step(client, term! { fn_packet((fn_new_keys)) }),
             InputAction::new_step(client, term! { @svc_accept }),
             InputAction::new_step(client, term! { @auth_success }),
@@ -705,20 +741,23 @@ pub fn server_decryption_recipes(server: AgentName) -> Vec<Term<SshProtocolTypes
 /// security property that is only definable with two honest endpoints to
 /// compare. Mutations of this seed (drop / insert / reorder relayed messages)
 /// are what a transcript-integrity attack like Terrapin would exercise.
-pub fn seed_handshake_two_party(
-    client: AgentName,
-    server: AgentName,
-) -> Trace<SshProtocolTypes> {
+pub fn seed_handshake_two_party(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
             AgentDescriptor::from_config(
                 client,
-                SshDescriptorConfig { typ: AgentType::Client, try_reuse: false },
+                SshDescriptorConfig {
+                    typ: AgentType::Client,
+                    try_reuse: false,
+                },
             ),
             AgentDescriptor::from_config(
                 server,
-                SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+                SshDescriptorConfig {
+                    typ: AgentType::Server,
+                    try_reuse: false,
+                },
             ),
         ],
         steps: vec![
@@ -792,16 +831,34 @@ pub fn create_corpus(
     // pre-crypto stub seeds were pruned). The chacha20 *_full seeds complete on
     // libssh; the *_aesgcm seeds complete on BOTH libssh and wolfSSH.
     vec![
-        (seed_client_attacker_full(server), "seed_client_attacker_full"),
-        (seed_server_attacker_full(client), "seed_server_attacker_full"),
-        (seed_client_attacker_full_aesgcm(server), "seed_client_attacker_full_aesgcm"),
-        (seed_server_attacker_full_aesgcm(client), "seed_server_attacker_full_aesgcm"),
+        (
+            seed_client_attacker_full(server),
+            "seed_client_attacker_full",
+        ),
+        (
+            seed_server_attacker_full(client),
+            "seed_server_attacker_full",
+        ),
+        (
+            seed_client_attacker_full_aesgcm(server),
+            "seed_client_attacker_full_aesgcm",
+        ),
+        (
+            seed_server_attacker_full_aesgcm(client),
+            "seed_server_attacker_full_aesgcm",
+        ),
         // Publickey login as key A — the baseline for the entity-authentication
         // / impersonation oracle. Mutations that make the server authenticate a
         // different key are flagged as impersonation. The chacha20 variant is
         // libssh-only; the aesgcm variant completes on both libssh and wolfSSH.
-        (seed_client_attacker_pubkey(server), "seed_client_attacker_pubkey"),
-        (seed_client_attacker_pubkey_aesgcm(server), "seed_client_attacker_pubkey_aesgcm"),
+        (
+            seed_client_attacker_pubkey(server),
+            "seed_client_attacker_pubkey",
+        ),
+        (
+            seed_client_attacker_pubkey_aesgcm(server),
+            "seed_client_attacker_pubkey_aesgcm",
+        ),
     ]
 }
 
@@ -841,7 +898,9 @@ mod tests {
         let registry = ssh_registry();
         let runner = Runner::new(registry.clone(), Spawner::new(registry));
         let server = puffin::agent::AgentName::first();
-        let context = runner.execute(seed_client_attacker_pubkey(server), &mut 0).unwrap();
+        let context = runner
+            .execute(seed_client_attacker_pubkey(server), &mut 0)
+            .unwrap();
 
         assert!(
             context.find_agent(server).unwrap().is_state_successful(),
@@ -879,20 +938,29 @@ mod tests {
             if !put.starts_with("libssh") {
                 continue;
             }
-            let spawner = Spawner::new(registry.clone())
-                .with_mapping(&[(server, PutDescriptor::new(put.clone(), PutOptions::default()))]);
+            let spawner = Spawner::new(registry.clone()).with_mapping(&[(
+                server,
+                PutDescriptor::new(put.clone(), PutOptions::default()),
+            )]);
             let runner = Runner::new(registry.clone(), spawner);
             let result = runner.execute(seed_client_attacker_auth_bypass(server), &mut 0);
-            let fired = matches!(&result, Err(e) if format!("{e}").contains("authentication bypass"));
+            let fired =
+                matches!(&result, Err(e) if format!("{e}").contains("authentication bypass"));
 
             if put.contains("0803") {
-                assert!(fired, "{put} (vulnerable) should trip the auth-bypass oracle");
+                assert!(
+                    fired,
+                    "{put} (vulnerable) should trip the auth-bypass oracle"
+                );
                 saw_vulnerable = true;
             } else {
                 assert!(!fired, "{put} (patched) must NOT report an auth bypass");
             }
         }
-        assert!(saw_vulnerable, "vulnerable libssh0803 PUT not present — build it first");
+        assert!(
+            saw_vulnerable,
+            "vulnerable libssh0803 PUT not present — build it first"
+        );
     }
 
     /// Trace-analysis matching conversation: recover, by re-evaluating the
@@ -916,8 +984,14 @@ mod tests {
         let ctx = runner.execute(honest.clone(), &mut 0).unwrap();
         let server_rx_honest = delivered_to(&honest, &ctx, server);
         let client_rx_honest = delivered_to(&honest, &ctx, client);
-        assert!(!server_rx_honest.is_empty(), "no transcript delivered to server");
-        assert!(!client_rx_honest.is_empty(), "no transcript delivered to client");
+        assert!(
+            !server_rx_honest.is_empty(),
+            "no transcript delivered to server"
+        );
+        assert!(
+            !client_rx_honest.is_empty(),
+            "no transcript delivered to client"
+        );
 
         // Tampered relay: the attacker drops the last c2s forward. The delivered
         // transcript to the server must shrink — the manipulation is visible
@@ -963,8 +1037,10 @@ mod tests {
             if put.contains("0803") {
                 continue;
             }
-            let spawner = Spawner::new(registry.clone())
-                .with_mapping(&[(server, PutDescriptor::new(put.clone(), PutOptions::default()))]);
+            let spawner = Spawner::new(registry.clone()).with_mapping(&[(
+                server,
+                PutDescriptor::new(put.clone(), PutOptions::default()),
+            )]);
             let runner = Runner::new(registry.clone(), spawner);
             let context = runner
                 .execute(seed_client_attacker_pubkey_aesgcm(server), &mut 0)
@@ -978,7 +1054,10 @@ mod tests {
                 .find_claim(server, TypeShape::of::<SshClaimInner>())
                 .unwrap_or_else(|| panic!("{put}: no claim"));
             let inner = claim.as_any().downcast_ref::<Box<SshClaimInner>>().unwrap();
-            assert_eq!(inner.auth_method, "publickey", "{put}: expected publickey auth");
+            assert_eq!(
+                inner.auth_method, "publickey",
+                "{put}: expected publickey auth"
+            );
             assert_eq!(
                 inner.auth_key_fingerprint.as_slice(),
                 ATTACKER_PUBKEY_SHA256.as_slice(),
@@ -1115,7 +1194,9 @@ mod tests {
     fn test_aesgcm_decryption_recipes_decrypt() {
         use puffin::algebra::TermType;
 
-        use crate::ssh::seeds::{seed_client_attacker_full_aesgcm, server_decryption_recipes_aesgcm};
+        use crate::ssh::seeds::{
+            seed_client_attacker_full_aesgcm, server_decryption_recipes_aesgcm,
+        };
 
         let registry = ssh_registry();
         let runner = Runner::new(registry.clone(), Spawner::new(registry));
@@ -1156,8 +1237,10 @@ mod tests {
         };
 
         let server = puffin::agent::AgentName::first();
-        let spawner = Spawner::new(registry.clone())
-            .with_mapping(&[(server, PutDescriptor::new(wolfssh_put, PutOptions::default()))]);
+        let spawner = Spawner::new(registry.clone()).with_mapping(&[(
+            server,
+            PutDescriptor::new(wolfssh_put, PutOptions::default()),
+        )]);
         let runner = Runner::new(registry, spawner);
         let trace = seed_client_attacker_full_aesgcm(server);
         let context = runner.execute(trace, &mut 0).unwrap();

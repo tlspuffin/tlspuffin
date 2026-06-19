@@ -83,4 +83,3 @@ extern "C"
 #endif
 
 #endif // PUFFIN_SSH_H
-
