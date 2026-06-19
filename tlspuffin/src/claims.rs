@@ -7,8 +7,8 @@ use puffin::error::Error;
 use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source, StepNumber};
 use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
-use smallvec::SmallVec;
 use serde::Serialize;
+use smallvec::SmallVec;
 
 use crate::protocol::{AgentType, TLSProtocolTypes, TLSVersion};
 fn serialize_array_as_slice<S>(array: &[u8; 64], serializer: S) -> Result<S::Ok, S::Error>
@@ -19,9 +19,8 @@ where
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct TlsTranscript(
-    #[serde(serialize_with = "serialize_array_as_slice")]
-    pub [u8; 64],
-    pub i32
+    #[serde(serialize_with = "serialize_array_as_slice")] pub [u8; 64],
+    pub i32,
 );
 
 impl codec::Codec for TlsTranscript {
