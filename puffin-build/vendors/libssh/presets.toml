@@ -20,3 +20,9 @@ sources = { repo = "https://git.libssh.org/projects/libssh.git", branch = "libss
 builder = { type = "builtin", name = "libssh" }
 sancov = true
 
+
+[libssh0803-asan]
+sources = { repo = "https://git.libssh.org/projects/libssh.git", branch = "libssh-0.8.3", version = "0.8.3" }
+builder = { type = "builtin", name = "libssh" }
+asan = true
+sancov = true

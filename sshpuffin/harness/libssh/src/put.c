@@ -219,9 +219,16 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
         return NULL;
     }
 
-    /* Disable config-file loading */
-    int zero = 0;
-    ssh_options_set(session, SSH_OPTIONS_PROCESS_CONFIG, &zero);
+    /* Disable config-file loading (the option was added in libssh 0.9; older
+       versions like 0.8.x don't load a system config here anyway). */
+#if defined(LIBSSH_VERSION_INT) && defined(SSH_VERSION_INT)
+#if LIBSSH_VERSION_INT >= SSH_VERSION_INT(0, 9, 0)
+    {
+        int zero = 0;
+        ssh_options_set(session, SSH_OPTIONS_PROCESS_CONFIG, &zero);
+    }
+#endif
+#endif
     /* Non-blocking mode */
     ssh_set_blocking(session, 0);
 
@@ -543,6 +550,24 @@ static RESULT libssh_progress(AGENT agent)
                         ssh_message_free(msg);
                         break;
                     }
+                }
+                else if ((msg_type == SSH_REQUEST_CHANNEL_OPEN ||
+                          msg_type == SSH_REQUEST_CHANNEL) &&
+                         agent->auth_method[0] == '\0')
+                {
+                    /* A post-authentication request (channel open) accepted by
+                       the library while we, the application, authenticated no
+                       one: the peer reached an authenticated state without any
+                       authentication having occurred — an authentication bypass
+                       (e.g. CVE-2018-10933). The handshake "completes" with no
+                       auth method recorded, which the entity-authentication
+                       oracle flags. */
+                    snprintf(agent->state_desc, sizeof(agent->state_desc),
+                             "DONE/AUTH-BYPASS");
+                    agent->state = PUT_STATE_DONE;
+                    emit_handshake_claim(agent);
+                    ssh_message_free(msg);
+                    break;
                 }
                 else if (msg_type == SSH_REQUEST_SERVICE)
                 {
