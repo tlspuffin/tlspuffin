@@ -780,6 +780,76 @@ pub fn seed_handshake_two_party(client: AgentName, server: AgentName) -> Trace<S
     }
 }
 
+/// Packet-granular two-honest-party relay: forwards **one message per step**
+/// (cleartext as `RawSshMessage`, encrypted as byte-faithful `OnWireData`)
+/// instead of whole flights. This makes every packet — including each
+/// post-NEWKEYS encrypted packet — an individually droppable/reorderable step,
+/// the representation a prefix-truncation attack (Terrapin) needs (the
+/// flight-granular relay could only drop whole flights).
+///
+/// STATUS: WIP. The cleartext handshake and the first encrypted exchange
+/// (SERVICE_REQUEST / SERVICE_ACCEPT) relay correctly packet-by-packet, proving
+/// individual encrypted packets are forwardable. But the handshake does NOT
+/// complete: forcing one-message-per-step desynchronises libssh's reactive
+/// output *batching* (the real client stops emitting USERAUTH_REQUEST after
+/// SERVICE_ACCEPT, regardless of progress pumping), whereas the flight-granular
+/// relay completes precisely because it preserves that batching. Finding: even
+/// with packet-granularity, driving two real PUTs to completion one packet at a
+/// time fights the libraries' I/O batching — which further explains why the
+/// fuzzer is unlikely to *maintain* a completing handshake while mutating toward
+/// Terrapin. Not in the corpus until it completes.
+pub fn seed_handshake_two_party_packet(
+    client: AgentName,
+    server: AgentName,
+) -> Trace<SshProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::from_config(
+                client,
+                SshDescriptorConfig { typ: AgentType::Client, try_reuse: false },
+            ),
+            AgentDescriptor::from_config(
+                server,
+                SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+            ),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            OutputAction::new_step(server),
+            // Cleartext handshake, one packet per step.
+            InputAction::new_step(server, term! { (client, 0)/RawSshMessage }), // banner
+            InputAction::new_step(client, term! { (server, 0)/RawSshMessage }), // banner
+            InputAction::new_step(server, term! { (client, 1)/RawSshMessage }), // KEXINIT
+            InputAction::new_step(client, term! { (server, 1)/RawSshMessage }), // KEXINIT
+            InputAction::new_step(server, term! { (client, 2)/RawSshMessage }), // KEX_ECDH_INIT
+            InputAction::new_step(client, term! { (server, 2)/RawSshMessage }), // KEX_ECDH_REPLY
+            InputAction::new_step(client, term! { (server, 3)/RawSshMessage }), // server NEWKEYS
+            InputAction::new_step(server, term! { (client, 3)/RawSshMessage }), // client NEWKEYS
+            // Encrypted phase: forward each post-NEWKEYS packet as raw OnWireData
+            // (byte-faithful; RawSshMessage can't represent ciphertext). OnWireData
+            // is indexed per encrypted packet (0-based), and each is an
+            // individually droppable step — the representation Terrapin needs.
+            // Empty output reads don't add knowledge, so pump liberally.
+            OutputAction::new_step(client),
+            OutputAction::new_step(client), // SERVICE_REQUEST (client OnWire 0)
+            InputAction::new_step(server, term! { (client, 0)/OnWireData }),
+            OutputAction::new_step(server),
+            OutputAction::new_step(server), // SERVICE_ACCEPT (server OnWire 0)
+            InputAction::new_step(client, term! { (server, 0)/OnWireData }),
+            OutputAction::new_step(client),
+            OutputAction::new_step(client),
+            OutputAction::new_step(client), // USERAUTH_REQUEST (client OnWire 1)
+            InputAction::new_step(server, term! { (client, 1)/OnWireData }),
+            OutputAction::new_step(server),
+            OutputAction::new_step(server), // USERAUTH_SUCCESS (server OnWire 1)
+            InputAction::new_step(client, term! { (server, 1)/OnWireData }),
+            OutputAction::new_step(client),
+        ],
+        ..Default::default()
+    }
+}
+
 /// AES-256-GCM counterpart of [`server_decryption_recipes`], for the AES-GCM
 /// flow (mirrors `seed_client_attacker_full_aesgcm`). Decrypts the server's
 /// first three post-NewKeys s2c packets. The GCM invocation counter restarts at
@@ -1021,6 +1091,34 @@ mod tests {
             server_rx_honest.len(),
             server_rx_tampered.len()
         );
+    }
+
+    /// Packet-granular relay (WIP): the cleartext handshake + first encrypted
+    /// exchange relay one packet at a time (proving individual encrypted packets
+    /// are forwardable), but the handshake doesn't yet complete due to libssh I/O
+    /// batching — see the function doc. Asserted as "reaches the encrypted phase"
+    /// so this stays a regression guard for the packet-granular capability.
+    #[test_log::test]
+    fn test_packet_relay_reaches_encrypted_phase() {
+        use crate::ssh::seeds::seed_handshake_two_party_packet;
+
+        let registry = ssh_registry();
+        let client = puffin::agent::AgentName::first();
+        let server = client.next();
+        // It currently errors when it runs out of one-packet-at-a-time auth
+        // messages; that it gets that far means cleartext + first encrypted
+        // exchange relayed individually (the packet-granular capability works).
+        let res = Runner::new(registry.clone(), Spawner::new(registry.clone()))
+            .execute(seed_handshake_two_party_packet(client, server), &mut 0);
+        // Either it completes (future work) or fails reaching a later encrypted
+        // packet — never earlier than the first encrypted exchange.
+        if let Err(e) = res {
+            let msg = format!("{e}");
+            assert!(
+                msg.contains("OnWireData"),
+                "packet relay broke before the encrypted phase: {msg}"
+            );
+        }
     }
 
     /// The live matching-conversation oracle: a faithful relay agrees (no
