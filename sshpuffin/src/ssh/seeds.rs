@@ -859,6 +859,13 @@ pub fn create_corpus(
             seed_client_attacker_pubkey_aesgcm(server),
             "seed_client_attacker_pubkey_aesgcm",
         ),
+        // Two real PUTs relayed by the attacker — the substrate the live
+        // matching-conversation oracle needs. Mutations that desync the relayed
+        // transcript (Terrapin-style) are flagged as a security objective.
+        (
+            seed_handshake_two_party(client, server),
+            "seed_handshake_two_party",
+        ),
     ]
 }
 
