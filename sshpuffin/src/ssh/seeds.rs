@@ -780,6 +780,60 @@ pub fn seed_handshake_two_party(client: AgentName, server: AgentName) -> Trace<S
     }
 }
 
+/// Hybrid Terrapin attempt: relay the handshake at **flight** granularity
+/// (preserving each PUT's I/O batching, so it completes) but at the targeted
+/// c2s point (a) insert a cleartext `SSH_MSG_IGNORE` before the client's NEWKEYS
+/// — bumping the server's c2s sequence number by one — and (b) forward the
+/// client's post-NEWKEYS encrypted packets individually as `OnWireData`,
+/// **dropping the first one**. The inserted IGNORE and the dropped packet cancel
+/// in the sequence counter, so the server's AEAD tags still verify (Terrapin
+/// prefix truncation). If the dropped packet is ignorable (e.g. EXT_INFO) both
+/// peers still complete, but the server never saw it — and the trace-aware
+/// matching-conversation oracle flags the divergence. On strict-kex (0.11.4) the
+/// server must abort on the IGNORE during KEX, so it never completes.
+pub fn seed_terrapin_attempt(
+    client: AgentName,
+    server: AgentName,
+) -> Trace<SshProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::from_config(
+                client,
+                SshDescriptorConfig { typ: AgentType::Client, try_reuse: false },
+            ),
+            AgentDescriptor::from_config(
+                server,
+                SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+            ),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            OutputAction::new_step(server),
+            // Cleartext handshake, flight-forwarded (batching preserved).
+            InputAction::new_step(server, term! { (client, 0)/RawSshMessageFlight }), // banner
+            InputAction::new_step(client, term! { (server, 0)/RawSshMessageFlight }),
+            InputAction::new_step(server, term! { (client, 1)/RawSshMessageFlight }), // KEXINIT
+            InputAction::new_step(client, term! { (server, 1)/RawSshMessageFlight }),
+            InputAction::new_step(server, term! { (client, 2)/RawSshMessageFlight }), // ECDH_INIT
+            InputAction::new_step(client, term! { (server, 2)/RawSshMessageFlight }), // ECDH_REPLY+NEWKEYS
+            // (a) INSERT a cleartext IGNORE into c2s before the client's NEWKEYS:
+            // bumps the server's c2s receive sequence number by 1.
+            InputAction::new_step(server, term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) }),
+            InputAction::new_step(server, term! { (client, 3)/RawSshMessageFlight }), // client NEWKEYS
+            InputAction::new_step(client, term! { (server, 3)/RawSshMessageFlight }),
+            // (b) Forward the client's encrypted c2s packets individually, DROPPING
+            // the first (OnWire 0). With the +1 from the IGNORE, the server's
+            // counter realigns on OnWire 1, so tags still verify.
+            InputAction::new_step(server, term! { (client, 1)/OnWireData }),
+            InputAction::new_step(client, term! { (server, 4)/RawSshMessageFlight }),
+            InputAction::new_step(server, term! { (client, 2)/OnWireData }),
+            InputAction::new_step(client, term! { (server, 5)/RawSshMessageFlight }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// Packet-granular two-honest-party relay: forwards **one message per step**
 /// (cleartext as `RawSshMessage`, encrypted as byte-faithful `OnWireData`)
 /// instead of whole flights. This makes every packet — including each
@@ -1091,6 +1145,53 @@ mod tests {
             server_rx_honest.len(),
             server_rx_tampered.len()
         );
+    }
+
+    /// Terrapin precondition differential, by construction: the injected
+    /// cleartext `IGNORE` during KEX is **rejected by strict-kex (libssh 0.11.4)**
+    /// and **accepted by non-strict (libssh 0.10.4)**. This is exactly the
+    /// enabling condition for a Terrapin prefix truncation — present on the
+    /// vulnerable version, mitigated on the patched one. (A fully tag-preserving
+    /// truncation that completes and trips the matching-conversation oracle needs
+    /// exact sequence-number realignment — separate, deeper work.)
+    #[test_log::test]
+    fn test_terrapin_ignore_rejected_under_strict_kex() {
+        use puffin::put::{PutDescriptor, PutOptions};
+
+        use crate::ssh::seeds::seed_terrapin_attempt;
+
+        let registry = ssh_registry();
+        let client = puffin::agent::AgentName::first();
+        let server = client.next();
+
+        let run = |put: &str| -> String {
+            let spawner = Spawner::new(registry.clone()).with_mapping(&[
+                (client, PutDescriptor::new(put, PutOptions::default())),
+                (server, PutDescriptor::new(put, PutOptions::default())),
+            ]);
+            match Runner::new(registry.clone(), spawner)
+                .execute(seed_terrapin_attempt(client, server), &mut 0)
+            {
+                Ok(_) => String::new(),
+                Err(e) => format!("{e}"),
+            }
+        };
+
+        if registry.find_by_id("libssh0114-asan").is_some() {
+            let e = run("libssh0114-asan");
+            assert!(
+                e.to_lowercase().contains("strict kex"),
+                "0.11.4 should reject the injected IGNORE under strict kex; got: {e:?}"
+            );
+        }
+        if registry.find_by_id("libssh0104-asan").is_some() {
+            let e = run("libssh0104-asan");
+            assert!(
+                !e.to_lowercase().contains("strict kex"),
+                "0.10.4 (no strict kex) must NOT reject the IGNORE as a strict-kex \
+                 violation; got: {e:?}"
+            );
+        }
     }
 
     /// Packet-granular relay (WIP): the cleartext handshake + first encrypted
