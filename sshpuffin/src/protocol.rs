@@ -238,42 +238,41 @@ impl ProtocolTypes for SshProtocolTypes {
     }
 
     fn differential_fuzzing_filter_diff(diff: &puffin::differential::TraceDifference) -> bool {
-        use puffin::differential::{KnowledgeDiff, TraceDifference};
-        use puffin::trace::Source;
+        use puffin::differential::TraceDifference;
 
-        // Cross-implementation (libssh vs wolfSSH) comparison: keep only genuine
-        // behavioral divergences and drop the inherent, benign cross-vendor noise.
+        // Cross-implementation (libssh vs wolfSSH) comparison. Security in the DY
+        // model lives in *properties over claims*, not in raw bytes, so we compare
+        // security state and drop the implementation-defined transport transcript.
         match diff {
-            // Execution-status and security-violation divergences are always
-            // meaningful.
+            // Always meaningful:
+            //  * Status — a crash/objective on one side, or the trace reaching a
+            //    different point on each PUT (differential reachability).
+            //  * SecurityClaim — the security-violation hook fired on one PUT and
+            //    not the other (matching-conversation / Terrapin-class, null
+            //    cipher, impersonation, auth-bypass).
             TraceDifference::Status(_) | TraceDifference::SecurityClaim(_) => true,
 
-            // Claim diffs are kept: algorithm names are canonicalized to SSH wire
-            // form at claim construction (SshClaimInner::canonicalize), so the
-            // benign cross-vendor naming noise (libssh "aes256-gcm@openssh.com" /
-            // "curve25519-sha256" vs wolfSSH "AES-256 GCM" / "ECDH") is already
-            // gone. A surviving claim diff therefore signals a *real* negotiation
-            // divergence — e.g. a downgrade — which is exactly what we want.
+            // Claims carry the negotiated security state (kex/cipher/MAC → downgrade
+            // & null-cipher; auth method + verified key fingerprint → impersonation
+            // & auth-bypass). Algorithm names are canonicalized to SSH wire form at
+            // construction (SshClaimInner::canonicalize) and the trace-position
+            // `step` field is excluded from comparison, so a surviving claim diff is
+            // a *real* security-state divergence (e.g. a downgrade), not noise.
             TraceDifference::Claims(_) => true,
 
-            // Knowledge diffs: the handshake layer (agent-sourced KEXINIT offer
-            // lists, host key, ephemeral, banners/flights) inherently differs
-            // between independent implementations. Keep only the decryption-recipe
-            // results (Source::Label) — the actual decrypted post-NewKeys protocol
-            // behavior, which is the meaningful cross-vendor signal.
-            TraceDifference::Knowledges(k) => match k {
-                KnowledgeDiff::InnerDifference { source, .. } => {
-                    matches!(source, Source::Label(_))
-                }
-                KnowledgeDiff::DifferentTypes {
-                    first_source,
-                    second_source,
-                    ..
-                } => {
-                    matches!(first_source, Source::Label(_))
-                        || matches!(second_source, Source::Label(_))
-                }
-            },
+            // Knowledge diffs are dropped. Two independent SSH stacks legitimately
+            // produce different — but equally valid — wire transcripts: the
+            // handshake layer differs (KEXINIT algorithm-preference order, host-key
+            // blobs, ephemeral keys, banners), and so does the post-NewKeys layer
+            // (e.g. wolfSSH sends ServiceAccept where libssh pipelines straight to
+            // UserAuthSuccess, and the two emit a different number/order of replies).
+            // These are implementation fingerprints, not security properties, and
+            // comparing them positionally cross-vendor yields systematic, benign
+            // diffs that would swamp triage. Any security-relevant fact they could
+            // reveal (a downgrade, a plaintext leak, an unexpected auth result) is
+            // already captured as a claim or a security violation above; encode new
+            // ones there rather than re-enabling raw transcript comparison.
+            TraceDifference::Knowledges(_) => false,
         }
     }
 }

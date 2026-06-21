@@ -138,6 +138,13 @@ dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 pub struct SshClaim {
     agent_name: AgentName,
     inner: Box<SshClaimInner>,
+    /// The trace step at which the claim was emitted. Excluded from differential
+    /// comparison: it records *where in the trace* the handshake completed, not
+    /// security state. Two implementations reach the claim point after a
+    /// different number of intermediate messages (e.g. wolfSSH does an explicit
+    /// ServiceAccept round-trip where libssh pipelines), so the step index
+    /// differs benignly cross-vendor. The security content is in `inner`.
+    #[comparable_ignore]
     step: Option<StepNumber>,
 }
 

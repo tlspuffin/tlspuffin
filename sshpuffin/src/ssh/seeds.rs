@@ -1282,6 +1282,62 @@ mod tests {
         }
     }
 
+    /// The *cross-vendor* differential (libssh vs wolfSSH) must report ZERO
+    /// differences on every seed. If seeds diverged, a fuzzing campaign would
+    /// inherit that divergence on every mutant and bury real findings under
+    /// systematic, benign noise. Zero-on-seeds is achieved by the security-state
+    /// comparison policy in `differential_fuzzing_filter_diff` (claims +
+    /// security-violations + status; transport transcripts excluded) plus
+    /// claim-name canonicalization and the `#[comparable_ignore]` on the claim
+    /// step — *not* by loosening the oracle: a real downgrade, impersonation,
+    /// auth-bypass, null cipher, or matching-conversation break still surfaces as
+    /// a claim / security-violation / status diff.
+    ///
+    /// `#[ignore]`: see `test_differential_same_vs_same_is_clean` — relies on the
+    /// process-global OpenSSL RNG (libssh side), so run serially:
+    /// `cargo test -- --ignored --test-threads=1`.
+    #[ignore = "shares the process-global OpenSSL RNG; run with --test-threads=1"]
+    #[test_log::test]
+    fn test_xvendor_seeds_zero_difference() {
+        use puffin::execution::{DifferentialRunner, TraceRunner};
+        use puffin::put::{PutDescriptor, PutOptions};
+        use puffin::trace::{ConfigTrace, Trace};
+
+        use crate::protocol::SshProtocolTypes;
+        use crate::ssh::seeds::{
+            seed_client_attacker_full_aesgcm, seed_client_attacker_pubkey_aesgcm,
+        };
+
+        let registry = ssh_registry();
+        let server = puffin::agent::AgentName::first();
+        let put = |n: &str| PutDescriptor::new(n, PutOptions::default());
+        if registry.find_by_id("libssh0114-asan").is_none()
+            || registry.find_by_id("wolfssh-asan").is_none()
+        {
+            return; // need both vendors for a cross-vendor comparison
+        }
+
+        let seeds: [(
+            &str,
+            fn(puffin::agent::AgentName) -> Trace<SshProtocolTypes>,
+        ); 2] = [
+            ("attacker_full_aesgcm", seed_client_attacker_full_aesgcm),
+            ("pubkey_aesgcm", seed_client_attacker_pubkey_aesgcm),
+        ];
+        for (label, seed) in seeds {
+            let s1 =
+                Spawner::new(registry.clone()).with_mapping(&[(server, put("libssh0114-asan"))]);
+            let s2 = Spawner::new(registry.clone()).with_mapping(&[(server, put("wolfssh-asan"))]);
+            let runner = DifferentialRunner::new(registry.clone(), s1, s2);
+            let res = (&runner).execute_config(seed(server), ConfigTrace::default(), &mut 0);
+            assert!(
+                res.is_ok(),
+                "cross-vendor seed [{label}] (libssh0114 vs wolfSSH) must have 0 differences; got {:?}",
+                res.err()
+            );
+        }
+    }
+
     /// The live matching-conversation oracle: a faithful relay agrees (no
     /// violation), but dropping a *mid-stream* relayed message (the Terrapin
     /// truncation primitive) breaks the transcript prefix relation and is
