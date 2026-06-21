@@ -310,6 +310,52 @@ impl std::fmt::Display for SshProtocolTypes {
     }
 }
 
+#[cfg(test)]
+mod filter_diff_tests {
+    use puffin::differential::{StatusDiff, TraceDifference};
+    use puffin::protocol::ProtocolTypes;
+
+    use super::SshProtocolTypes;
+
+    fn status(first: &str, second: &str) -> TraceDifference {
+        TraceDifference::Status(StatusDiff {
+            first_executed_steps: 0,
+            first_status: first.to_string(),
+            second_executed_steps: 0,
+            second_status: second.to_string(),
+            total_step: 9,
+        })
+    }
+
+    fn keep(diff: &TraceDifference) -> bool {
+        SshProtocolTypes::differential_fuzzing_filter_diff(diff)
+    }
+
+    #[test]
+    fn status_diff_kept_only_on_acceptance_disagreement() {
+        // Exactly one PUT completed ("Success") -> they disagree on acceptance: keep.
+        assert!(keep(&status("Success", "too large banner")));
+        assert!(keep(&status(
+            "would overflow if continued failure",
+            "Success"
+        )));
+
+        // Both rejected (even with different errors / steps) -> agree it's bad: drop.
+        assert!(!keep(&status(
+            "too large banner",
+            "error evaluating a term: Unable to find variable"
+        )));
+        assert!(!keep(&status(
+            "peer version unsupported",
+            "Unknown error code"
+        )));
+
+        // Both completed -> agree on acceptance: drop (and the engine never emits
+        // a StatusDiff in this case anyway).
+        assert!(!keep(&status("Success", "Success")));
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct SshProtocolBehavior {}
 
