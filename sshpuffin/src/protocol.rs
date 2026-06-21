@@ -241,24 +241,39 @@ impl ProtocolTypes for SshProtocolTypes {
         use puffin::differential::TraceDifference;
 
         // Cross-implementation (libssh vs wolfSSH) comparison. Security in the DY
-        // model lives in *properties over claims*, not in raw bytes, so we compare
-        // security state and drop the implementation-defined transport transcript.
+        // model lives in *properties over claims*, not in raw bytes or control
+        // flow, so we compare security state and drop the implementation-defined
+        // transport transcript and execution path.
         match diff {
-            // Always meaningful:
-            //  * Status — a crash/objective on one side, or the trace reaching a
-            //    different point on each PUT (differential reachability).
-            //  * SecurityClaim — the security-violation hook fired on one PUT and
-            //    not the other (matching-conversation / Terrapin-class, null
-            //    cipher, impersonation, auth-bypass).
-            TraceDifference::Status(_) | TraceDifference::SecurityClaim(_) => true,
+            // The security-violation hook firing on one PUT and not the other
+            // (matching-conversation / Terrapin-class, null cipher, impersonation,
+            // auth-bypass) is always meaningful.
+            TraceDifference::SecurityClaim(_) => true,
 
             // Claims carry the negotiated security state (kex/cipher/MAC → downgrade
             // & null-cipher; auth method + verified key fingerprint → impersonation
             // & auth-bypass). Algorithm names are canonicalized to SSH wire form at
             // construction (SshClaimInner::canonicalize) and the trace-position
             // `step` field is excluded from comparison, so a surviving claim diff is
-            // a *real* security-state divergence (e.g. a downgrade), not noise.
+            // a *real* security-state divergence — including the presence/absence
+            // case (one PUT reaches handshake/auth completion and emits a claim
+            // where the other does not), which is how an asymmetric *security-state*
+            // acceptance still surfaces here even though Status is dropped below.
             TraceDifference::Claims(_) => true,
+
+            // Status diffs are dropped. Triaging a cross-vendor campaign showed
+            // ~96–98% of objectives were Status diffs and every one was benign:
+            // the two stacks reject the same malformed/mutated trace at different
+            // steps or with different errors (parser & banner strictness differs —
+            // e.g. libssh rejects a banner wolfSSH accepts), one continues while the
+            // other trips wolfSSH's consecutive-failure guard ("would overflow"),
+            // or one side raises a DY term-evaluation error because a recipe cannot
+            // bind once the flows diverge. None are security properties. Memory
+            // safety is unaffected: a crash aborts the PUT and is recorded as a
+            // crash objective by the fuzzer, not via this status comparison. And an
+            // asymmetric *security-state* outcome (one side actually completes the
+            // handshake/auth) still surfaces as a Claim presence/absence diff above.
+            TraceDifference::Status(_) => false,
 
             // Knowledge diffs are dropped. Two independent SSH stacks legitimately
             // produce different — but equally valid — wire transcripts: the

@@ -292,8 +292,22 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             _ => vec![],
         });
 
-        // If we have status diff or security violation we return the diffs without checking for
-        // others diffs
+        // Filter the status / security-violation diffs through the protocol's
+        // false-positive filter *first*. This lets a protocol declare a class of
+        // status difference benign (e.g. cross-vendor parser/robustness divergence)
+        // and is what decides the short-circuit below. For protocols whose filter
+        // keeps status diffs this is a no-op (the diffs survive and we short-circuit
+        // exactly as before).
+        diff.retain(
+            <<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::differential_fuzzing_filter_diff,
+        );
+
+        // If a (kept) status diff or security violation remains we return it without
+        // checking for other diffs. Otherwise — including when status diffs were
+        // filtered away — we still compare the trace contexts, so security-state
+        // signals such as a claim emitted by one PUT and not the other (asymmetric
+        // handshake/auth completion) are not missed just because execution status
+        // happened to differ.
         if diff.is_empty() {
             // Compare the trace context
             diff.extend(first_ctx.compare(&second_ctx, &trace.as_ref().descriptors));
