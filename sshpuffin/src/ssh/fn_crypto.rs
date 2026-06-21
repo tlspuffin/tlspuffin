@@ -419,6 +419,187 @@ pub fn fn_decrypt_packet_aesgcm(
         .ok_or_else(|| FnError::Unknown("failed to parse decrypted SshMessage".into()))
 }
 
+// ── AES-256-CTR + HMAC-SHA2-256 (RFC 4253 §6, Encrypt-and-MAC) ────────────────
+//
+// The classic non-AEAD SSH suite, supported by both libssh and wolfSSH. Unlike
+// the AEAD ciphers, this exercises the separate-cipher + separate-MAC code path:
+//   * AES-256-CTR over the WHOLE cleartext packet (the 4-byte length field is
+//     encrypted too), with a 128-bit big-endian counter that starts at the IV
+//     and increments per 16-byte block, continuously across packets.
+//   * HMAC-SHA-256 computed over (uint32 sequence_number || cleartext packet),
+//     appended after the ciphertext (Encrypt-and-MAC).
+//
+// Key material (RFC 4253 §7.2): IV id 'A'/'B' (16 B), enc key 'C'/'D' (32 B),
+// integrity/MAC key 'E'/'F' (32 B).
+
+use aes::Aes256;
+use hmac::{Hmac, Mac};
+// AES-CTR uses the same `cipher` crate traits (KeyIvInit / StreamCipher /
+// StreamCipherSeek) that the ChaCha20 section imports below from
+// `chacha20::cipher`; they are re-exports of the same crate, so we reuse them
+// rather than importing aliases (which would make the trait methods ambiguous).
+
+type Aes256Ctr = ctr::Ctr128BE<Aes256>;
+type HmacSha256 = Hmac<Sha256>;
+
+/// Client-to-server AES-CTR encryption key (id `'C'`, 32 bytes).
+pub fn fn_derive_ctr_key_c2s(
+    s: &SshBytes,
+    h: &SshBytes,
+    sid: &SshBytes,
+) -> Result<SshBytes, FnError> {
+    Ok(derive_key(s, h, sid, b'C', 32))
+}
+/// Server-to-client AES-CTR encryption key (id `'D'`, 32 bytes).
+pub fn fn_derive_ctr_key_s2c(
+    s: &SshBytes,
+    h: &SshBytes,
+    sid: &SshBytes,
+) -> Result<SshBytes, FnError> {
+    Ok(derive_key(s, h, sid, b'D', 32))
+}
+/// Client-to-server AES-CTR initial counter / IV (id `'A'`, 16 bytes).
+pub fn fn_derive_ctr_iv_c2s(
+    s: &SshBytes,
+    h: &SshBytes,
+    sid: &SshBytes,
+) -> Result<SshBytes, FnError> {
+    Ok(derive_key(s, h, sid, b'A', 16))
+}
+/// Server-to-client AES-CTR initial counter / IV (id `'B'`, 16 bytes).
+pub fn fn_derive_ctr_iv_s2c(
+    s: &SshBytes,
+    h: &SshBytes,
+    sid: &SshBytes,
+) -> Result<SshBytes, FnError> {
+    Ok(derive_key(s, h, sid, b'B', 16))
+}
+/// Client-to-server HMAC integrity key (id `'E'`, 32 bytes for hmac-sha2-256).
+pub fn fn_derive_mac_key_c2s(
+    s: &SshBytes,
+    h: &SshBytes,
+    sid: &SshBytes,
+) -> Result<SshBytes, FnError> {
+    Ok(derive_key(s, h, sid, b'E', 32))
+}
+/// Server-to-client HMAC integrity key (id `'F'`, 32 bytes for hmac-sha2-256).
+pub fn fn_derive_mac_key_s2c(
+    s: &SshBytes,
+    h: &SshBytes,
+    sid: &SshBytes,
+) -> Result<SshBytes, FnError> {
+    Ok(derive_key(s, h, sid, b'F', 32))
+}
+
+/// Encrypt one SSH message as an aes256-ctr + hmac-sha2-256 binary packet.
+/// `block_offset` = number of 16-byte cipher blocks already consumed on this
+/// direction since NewKeys (0 for the first encrypted packet); `seqno` = the
+/// packet's SSH sequence number (counts every packet since the start, so the
+/// first post-NewKeys packet is usually 3). Returns `RawSshMessage::OnWire`.
+pub fn fn_encrypt_packet_ctr(
+    msg: &SshMessage,
+    enc_key: &SshBytes,
+    iv: &SshBytes,
+    mac_key: &SshBytes,
+    block_offset: &u32,
+    seqno: &u32,
+) -> Result<RawSshMessage, FnError> {
+    if enc_key.0.len() != 32 {
+        return Err(FnError::Unknown("AES-CTR key must be 32 bytes".into()));
+    }
+    if iv.0.len() != 16 {
+        return Err(FnError::Unknown("AES-CTR IV must be 16 bytes".into()));
+    }
+
+    let plaintext = msg.get_encoding();
+    // (length_field(4) + padlen(1) + payload + pad) % 16 == 0, pad >= 4
+    let block = 16usize;
+    let unpadded = 4 + 1 + plaintext.len();
+    let mut pad = block - (unpadded % block);
+    if pad < 4 {
+        pad += block;
+    }
+    let packet_len = 1 + plaintext.len() + pad; // value of the length field
+
+    let mut clear = Vec::with_capacity(4 + packet_len);
+    clear.extend_from_slice(&(packet_len as u32).to_be_bytes());
+    clear.push(pad as u8);
+    clear.extend_from_slice(&plaintext);
+    clear.resize(4 + packet_len, 0u8);
+
+    // AES-256-CTR over the whole cleartext, starting at the right block.
+    let mut ct = clear.clone();
+    let mut cipher = Aes256Ctr::new_from_slices(&enc_key.0, &iv.0)
+        .map_err(|_| FnError::Unknown("AES-CTR init failed".into()))?;
+    cipher.seek((*block_offset as u64) * block as u64);
+    cipher.apply_keystream(&mut ct);
+
+    // HMAC-SHA-256(mac_key, seqno || cleartext) appended after the ciphertext.
+    let mut mac = <HmacSha256 as Mac>::new_from_slice(&mac_key.0)
+        .map_err(|_| FnError::Unknown("HMAC key error".into()))?;
+    mac.update(&seqno.to_be_bytes());
+    mac.update(&clear);
+    let tag = mac.finalize().into_bytes();
+
+    let mut out = ct;
+    out.extend_from_slice(&tag);
+    Ok(RawSshMessage::OnWire(OnWireData(out)))
+}
+
+/// Decrypt an aes256-ctr + hmac-sha2-256 packet back into an `SshMessage`,
+/// verifying the HMAC. Inverse of `fn_encrypt_packet_ctr`.
+pub fn fn_decrypt_packet_ctr(
+    data: &OnWireData,
+    enc_key: &SshBytes,
+    iv: &SshBytes,
+    mac_key: &SshBytes,
+    block_offset: &u32,
+    seqno: &u32,
+) -> Result<SshMessage, FnError> {
+    use puffin::codec::Reader;
+
+    if enc_key.0.len() != 32 || iv.0.len() != 16 {
+        return Err(FnError::Unknown("AES-CTR key/IV size".into()));
+    }
+    let wire = &data.0;
+    let mac_len = 32usize;
+    if wire.len() < 16 + mac_len {
+        return Err(FnError::Unknown("packet too short".into()));
+    }
+    let ct = &wire[..wire.len() - mac_len];
+    let tag = &wire[wire.len() - mac_len..];
+    if ct.len() % 16 != 0 {
+        return Err(FnError::Unknown("ciphertext not block-aligned".into()));
+    }
+
+    let mut clear = ct.to_vec();
+    let mut cipher = Aes256Ctr::new_from_slices(&enc_key.0, &iv.0)
+        .map_err(|_| FnError::Unknown("AES-CTR init failed".into()))?;
+    cipher.seek((*block_offset as u64) * 16u64);
+    cipher.apply_keystream(&mut clear);
+
+    // Verify HMAC over seqno || cleartext.
+    let mut mac = <HmacSha256 as Mac>::new_from_slice(&mac_key.0)
+        .map_err(|_| FnError::Unknown("HMAC key error".into()))?;
+    mac.update(&seqno.to_be_bytes());
+    mac.update(&clear);
+    mac.verify_slice(tag)
+        .map_err(|_| FnError::Unknown("HMAC verification failed".into()))?;
+
+    let packet_len = u32::from_be_bytes(clear[0..4].try_into().unwrap()) as usize;
+    if 4 + packet_len > clear.len() || packet_len < 2 {
+        return Err(FnError::Unknown("invalid packet length".into()));
+    }
+    let pad = clear[4] as usize;
+    if 1 + pad > packet_len {
+        return Err(FnError::Unknown("invalid padding".into()));
+    }
+    let payload = &clear[5..4 + packet_len - pad];
+    let mut reader = Reader::init(payload);
+    SshMessage::read(&mut reader)
+        .ok_or_else(|| FnError::Unknown("failed to parse decrypted SshMessage".into()))
+}
+
 // ── ChaCha20-Poly1305@openssh.com packet encryption ──────────────────────────
 //
 // Two 32-byte keys (per PROTOCOL.chacha20poly1305 from OpenSSH):

@@ -3032,12 +3032,15 @@ dependencies = [
 name = "sshpuffin"
 version = "0.1.0"
 dependencies = [
+ "aes",
  "aes-gcm",
  "bindgen 0.69.5",
  "chacha20",
  "comparable",
+ "ctr",
  "env_logger 0.10.2",
  "extractable-macro",
+ "hmac",
  "libc",
  "log",
  "once_cell",

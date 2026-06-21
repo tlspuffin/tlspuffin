@@ -412,6 +412,91 @@ pub fn seed_client_attacker_full_kexinit_synth(server: AgentName) -> Trace<SshPr
     }
 }
 
+/// Client-attacker handshake on the **non-AEAD** suite aes256-ctr +
+/// hmac-sha2-256 (both libssh and wolfSSH support it). This drives the separate
+/// stream-cipher + separate-HMAC code path — distinct from the AEAD ciphers the
+/// other seeds use — and then sends one correctly AES-CTR-encrypted /
+/// HMAC-authenticated service-request packet, exercising the server's CTR
+/// decrypt + HMAC-verify code. The KEXINIT is synthesized via `fn_kex_init`, so
+/// the offered algorithms are mutable sub-terms.
+pub fn seed_client_attacker_full_ctr(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id = term! { fn_banner_id(((server, 0)[None]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! {
+        fn_kex_init(
+            (fn_placeholder_16bytes),
+            (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
+            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_ctr))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_ctr))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none)))))
+        )
+    };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    // aes256-ctr enc key ('C'), 16-byte CTR IV ('A'), hmac-sha2-256 key ('E').
+    let enc_key = term! { fn_derive_ctr_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let iv = term! { fn_derive_ctr_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let mac_key = term! { fn_derive_mac_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+
+    // AES-CTR keeps a continuous 128-bit counter across packets, so each packet's
+    // block_offset is the cumulative number of 16-byte blocks already sent on this
+    // direction. ServiceRequest("ssh-userauth") encrypts to 32 bytes = 2 blocks,
+    // so the UserAuthRequest that follows starts at block offset 2.
+    //   svc_req:  block_offset 0, seqno 3
+    //   auth_req: block_offset 2, seqno 4  (libssh emits its claim only after auth)
+    let svc_req = term! {
+        fn_encrypt_packet_ctr(
+            (fn_service_request((fn_ssh_userauth))),
+            (@enc_key), (@iv), (@mac_key), (fn_u32_0), (fn_u32_3))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_ctr(
+            (fn_user_auth_request((fn_username), (fn_ssh_connection), (fn_method_password),
+                                  (fn_password_auth_data((fn_password))))),
+            (@enc_key), (@iv), (@mac_key), (fn_u32_2), (fn_u32_4))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+        ],
+        ..Default::default()
+    }
+}
+
 // ── Seed: CVE-2018-10933 authentication bypass (client attacker) ──────────────
 //
 // The fuzzer (client) completes the KEX, then — instead of authenticating —
@@ -1077,6 +1162,12 @@ pub fn create_corpus(
             seed_client_attacker_full_kexinit_synth(server),
             "seed_client_attacker_full_kexinit_synth",
         ),
+        // Non-AEAD suite (aes256-ctr + hmac-sha2-256): drives the separate
+        // cipher + separate-MAC code path, distinct from the AEAD seeds.
+        (
+            seed_client_attacker_full_ctr(server),
+            "seed_client_attacker_full_ctr",
+        ),
         (
             seed_server_attacker_full_aesgcm(client),
             "seed_server_attacker_full_aesgcm",
@@ -1537,6 +1628,59 @@ mod tests {
     /// same AES-256-GCM suite and complete the handshake on both vendors — proving
     /// the negotiation-builder path is valid end-to-end and gives the fuzzer a
     /// KEXINIT whose offered algorithms are mutable sub-terms.
+    /// The non-AEAD aes256-ctr + hmac-sha2-256 seed must complete the handshake on
+    /// **libssh** — proving the new AES-CTR + HMAC packet crypto is wire-correct
+    /// and that the alternative suite is reachable end-to-end (the coverage lever:
+    /// it exercises the separate-cipher + separate-MAC path, not the AEAD path).
+    /// wolfSSH (as built here) only negotiates AES-GCM, so aes256-ctr is
+    /// libssh-only, exactly like the existing chacha20 seeds.
+    #[test_log::test]
+    fn test_seed_ctr_suite_completes() {
+        use puffin::algebra::dynamic_function::TypeShape;
+        use puffin::put::{PutDescriptor, PutOptions};
+
+        use crate::claim::SshClaimInner;
+        use crate::ssh::seeds::seed_client_attacker_full_ctr;
+
+        let registry = ssh_registry();
+        let server = puffin::agent::AgentName::first();
+
+        // libssh: must complete on the CTR suite and emit the canonical claim.
+        if registry.find_by_id("libssh0114-asan").is_some() {
+            let spawner = Spawner::new(registry.clone()).with_mapping(&[(
+                server,
+                PutDescriptor::new("libssh0114-asan", PutOptions::default()),
+            )]);
+            let runner = Runner::new(registry.clone(), spawner);
+            let ctx = runner
+                .execute(seed_client_attacker_full_ctr(server), &mut 0)
+                .expect("ctr seed must complete on libssh");
+            let claim = ctx
+                .find_claim(server, TypeShape::of::<SshClaimInner>())
+                .expect("libssh: ctr seed emitted no claim");
+            let inner = claim.as_any().downcast_ref::<Box<SshClaimInner>>().unwrap();
+            assert_eq!(inner.cipher_in, "aes256-ctr", "got {:?}", inner.cipher_in);
+            assert_eq!(inner.hmac_in, "hmac-sha2-256", "got {:?}", inner.hmac_in);
+            assert_eq!(inner.auth_method, "password");
+        }
+
+        // wolfSSH: aes256-ctr is not in its negotiated set, so the handshake fails
+        // at algorithm matching. That's expected — just assert it does NOT complete
+        // with a CTR claim (it should error, not silently negotiate something else).
+        if registry.find_by_id("wolfssh-asan").is_some() {
+            let spawner = Spawner::new(registry.clone()).with_mapping(&[(
+                server,
+                PutDescriptor::new("wolfssh-asan", PutOptions::default()),
+            )]);
+            let runner = Runner::new(registry.clone(), spawner);
+            let res = runner.execute(seed_client_attacker_full_ctr(server), &mut 0);
+            assert!(
+                res.is_err(),
+                "wolfSSH unexpectedly accepted aes256-ctr (build gained CTR support?)"
+            );
+        }
+    }
+
     #[test_log::test]
     fn test_seed_kexinit_synth_completes() {
         use puffin::algebra::dynamic_function::TypeShape;
