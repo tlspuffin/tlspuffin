@@ -261,19 +261,31 @@ impl ProtocolTypes for SshProtocolTypes {
             // acceptance still surfaces here even though Status is dropped below.
             TraceDifference::Claims(_) => true,
 
-            // Status diffs are dropped. Triaging a cross-vendor campaign showed
-            // ~96–98% of objectives were Status diffs and every one was benign:
-            // the two stacks reject the same malformed/mutated trace at different
-            // steps or with different errors (parser & banner strictness differs —
-            // e.g. libssh rejects a banner wolfSSH accepts), one continues while the
-            // other trips wolfSSH's consecutive-failure guard ("would overflow"),
-            // or one side raises a DY term-evaluation error because a recipe cannot
-            // bind once the flows diverge. None are security properties. Memory
-            // safety is unaffected: a crash aborts the PUT and is recorded as a
-            // crash objective by the fuzzer, not via this status comparison. And an
-            // asymmetric *security-state* outcome (one side actually completes the
-            // handshake/auth) still surfaces as a Claim presence/absence diff above.
-            TraceDifference::Status(_) => false,
+            // Status diffs are kept only when the two implementations DISAGREE ON
+            // ACCEPTANCE: exactly one PUT ran the whole trace to completion
+            // ("Success") while the other rejected it. That asymmetry — one stack
+            // accepts an input the other refuses — is the meaningful differential
+            // signal (parser leniency, an over-permissive state machine, an
+            // auth/handshake one side completes and the other does not).
+            //
+            // When BOTH PUTs reject (even at different steps or with different
+            // errors) they agree the input is bad; the differing failure mode is
+            // benign parser/robustness noise — which triaging a cross-vendor
+            // campaign showed to be ~96% of status diffs (different reject errors,
+            // wolfSSH's consecutive-failure guard "would overflow" vs libssh
+            // continuing, or a DY term-evaluation error when a recipe can't bind
+            // once the flows diverge). A term/harness error is "not Success", so
+            // those artifact-vs-reject pairs are dropped too. Memory safety is
+            // unaffected (a crash is a separate crash objective), and a downgrade
+            // where both complete still surfaces as a Claim field diff above.
+            //
+            // "Success" is the fixed sentinel the engine records for an Ok run (see
+            // DifferentialRunner::execute_config); reject statuses are PUT error
+            // strings and never equal it.
+            TraceDifference::Status(s) => {
+                let completed = |status: &str| status == "Success";
+                completed(&s.first_status) != completed(&s.second_status)
+            }
 
             // Knowledge diffs are dropped. Two independent SSH stacks legitimately
             // produce different — but equally valid — wire transcripts: the
