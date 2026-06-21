@@ -237,8 +237,42 @@ impl ProtocolTypes for SshProtocolTypes {
         trace
     }
 
-    fn differential_fuzzing_filter_diff(_diff: &puffin::differential::TraceDifference) -> bool {
-        true
+    fn differential_fuzzing_filter_diff(diff: &puffin::differential::TraceDifference) -> bool {
+        use puffin::differential::{KnowledgeDiff, TraceDifference};
+        use puffin::trace::Source;
+
+        // Cross-implementation (libssh vs wolfSSH) comparison: keep only genuine
+        // behavioral divergences and drop the inherent, benign cross-vendor noise.
+        match diff {
+            // Execution-status and security-violation divergences are always
+            // meaningful.
+            TraceDifference::Status(_) | TraceDifference::SecurityClaim(_) => true,
+
+            // Claim values name the *same* negotiated algorithms differently per
+            // library (libssh "aes256-gcm@openssh.com" / "curve25519-sha256" vs
+            // wolfSSH "AES-256 GCM" / "ECDH"), so a claim diff is naming noise,
+            // not a behavioral difference.
+            TraceDifference::Claims(_) => false,
+
+            // Knowledge diffs: the handshake layer (agent-sourced KEXINIT offer
+            // lists, host key, ephemeral, banners/flights) inherently differs
+            // between independent implementations. Keep only the decryption-recipe
+            // results (Source::Label) — the actual decrypted post-NewKeys protocol
+            // behavior, which is the meaningful cross-vendor signal.
+            TraceDifference::Knowledges(k) => match k {
+                KnowledgeDiff::InnerDifference { source, .. } => {
+                    matches!(source, Source::Label(_))
+                }
+                KnowledgeDiff::DifferentTypes {
+                    first_source,
+                    second_source,
+                    ..
+                } => {
+                    matches!(first_source, Source::Label(_))
+                        || matches!(second_source, Source::Label(_))
+                }
+            },
+        }
     }
 }
 

@@ -196,6 +196,15 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             config_trace.check_security_violation,
         );
 
+        // Reseed again before the second PUT: the first execution consumed the
+        // deterministic RNG stream, so without this the two PUTs would draw
+        // different randomness (e.g. ephemeral KEX keys), producing different
+        // ciphertext and spurious encrypted-layer differences even for identical
+        // implementations (same-vs-same false positives).
+        if config_trace.with_reseed {
+            self.registry.determinism_reseed_all_factories();
+        }
+
         log::debug!("Executing second PUT");
         let mut second_ctx = TraceContext::new(self.second_spawner.clone());
         let second_trace_status = trace.as_ref().execute(

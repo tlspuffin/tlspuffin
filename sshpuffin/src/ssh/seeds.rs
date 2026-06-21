@@ -1222,6 +1222,54 @@ mod tests {
         }
     }
 
+    /// Regression guard for the differential determinism fix: a same-vs-same
+    /// differential (identical PUT on both sides) over the AES-GCM seed must
+    /// report NO differences — including the encrypted/decryption layer. Before
+    /// reseeding the RNG before *each* PUT, the second PUT drew different KEX
+    /// randomness and produced spurious decryption-layer diffs.
+    ///
+    /// `#[ignore]`: this asserts cross-run determinism, which is defeated by the
+    /// *process-global* OpenSSL RNG being consumed concurrently by other tests
+    /// under cargo's parallel runner. The production differential is
+    /// process-isolated (one PUT pair per worker), so it is unaffected. Run with
+    /// `cargo test -- --ignored --test-threads=1`.
+    #[ignore = "shares the process-global OpenSSL RNG; run with --test-threads=1"]
+    #[test_log::test]
+    fn test_differential_same_vs_same_is_clean() {
+        use puffin::execution::{DifferentialRunner, TraceRunner};
+        use puffin::put::{PutDescriptor, PutOptions};
+        use puffin::trace::ConfigTrace;
+
+        use crate::ssh::seeds::seed_client_attacker_full_aesgcm;
+
+        let registry = ssh_registry();
+        let server = puffin::agent::AgentName::first();
+        let put = |n: &str| PutDescriptor::new(n, PutOptions::default());
+        // libssh's KEX RNG is made deterministic by rng_reseed (it routes through
+        // ssh_get_random -> our RAND_METHOD). wolfSSH is excluded here: its
+        // wolfCrypt RNG is not yet seeded deterministically (rng_reseed is a
+        // no-op), so wolfSSH same-vs-same can still differ in the decryption
+        // layer until the vendor is rebuilt with CUSTOM_RAND_GENERATE_SEED.
+        for name in ["libssh0114-asan", "libssh0104-asan"] {
+            if registry.find_by_id(name).is_none() {
+                continue;
+            }
+            let s1 = Spawner::new(registry.clone()).with_mapping(&[(server, put(name))]);
+            let s2 = Spawner::new(registry.clone()).with_mapping(&[(server, put(name))]);
+            let runner = DifferentialRunner::new(registry.clone(), s1, s2);
+            let res = (&runner).execute_config(
+                seed_client_attacker_full_aesgcm(server),
+                ConfigTrace::default(),
+                &mut 0,
+            );
+            assert!(
+                res.is_ok(),
+                "{name} same-vs-same differential must be clean; got {:?}",
+                res.err()
+            );
+        }
+    }
+
     /// The live matching-conversation oracle: a faithful relay agrees (no
     /// violation), but dropping a *mid-stream* relayed message (the Terrapin
     /// truncation primitive) breaks the transcript prefix relation and is
