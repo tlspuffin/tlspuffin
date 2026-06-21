@@ -49,6 +49,89 @@ pub const ATTACKER_PUBKEY_SHA256: [u8; 32] = [
     147, 234, 100, 129, 209, 165, 90, 44, 126, 27, 39, 41,
 ];
 
+impl SshClaimInner {
+    /// Canonicalize vendor-specific algorithm names to their SSH wire form so
+    /// claims are comparable across implementations. libssh already reports wire
+    /// names (`curve25519-sha256`, `aes256-gcm@openssh.com`, `aead-gcm`); wolfSSH
+    /// reports human descriptions (`ECDH`, `AES-256 GCM`,
+    /// `AES256 GCM (in ETM mode)`). Both collapse to the same token here, so a
+    /// surviving cross-vendor claim diff signals a *real* negotiation divergence
+    /// (e.g. a downgrade), not naming noise. Auth fields are left untouched (they
+    /// are already canonical: "publickey"/"password", user name, key fingerprint).
+    pub(crate) fn canonicalize(mut self) -> Self {
+        self.kex = canon_kex(&self.kex);
+        self.cipher_in = canon_cipher(&self.cipher_in);
+        self.cipher_out = canon_cipher(&self.cipher_out);
+        self.hmac_in = canon_mac(&self.hmac_in);
+        self.hmac_out = canon_mac(&self.hmac_out);
+        self
+    }
+}
+
+/// Canonicalize a key-exchange name. Both libssh's `curve25519-sha256` and
+/// wolfSSH's `ECDH` (over Curve25519, the only curve our seeds negotiate) map to
+/// the wire name.
+fn canon_kex(s: &str) -> String {
+    let t = s.trim().to_ascii_lowercase();
+    if t.contains("curve25519") || t == "ecdh" {
+        return "curve25519-sha256".to_string();
+    }
+    t
+}
+
+/// Canonicalize a cipher name to its SSH wire form.
+fn canon_cipher(s: &str) -> String {
+    let t = s.trim().to_ascii_lowercase();
+    if t.contains("chacha20") || t.contains("poly1305") {
+        return "chacha20-poly1305@openssh.com".to_string();
+    }
+    let bits = if t.contains("128") {
+        "128"
+    } else if t.contains("192") {
+        "192"
+    } else {
+        "256"
+    };
+    if t.contains("gcm") {
+        return format!("aes{bits}-gcm@openssh.com");
+    }
+    if t.contains("aes") && (t.contains("ctr") || t.contains("sdctr")) {
+        return format!("aes{bits}-ctr");
+    }
+    if t.contains("aes") && t.contains("cbc") {
+        return format!("aes{bits}-cbc");
+    }
+    t
+}
+
+/// Canonicalize a MAC name. AEAD ciphers carry an *implicit* MAC that each
+/// library names differently (libssh `aead-gcm`/`aead-poly1305`; wolfSSH
+/// `AES256 GCM (in ETM mode)`); these collapse to a size-independent AEAD token
+/// so the cipher field (which does carry the key size) remains the place where a
+/// real downgrade shows up.
+fn canon_mac(s: &str) -> String {
+    let t = s.trim().to_ascii_lowercase();
+    if t.contains("poly1305") || t.contains("chacha20") {
+        return "aead-poly1305".to_string();
+    }
+    if t.contains("gcm") {
+        return "aead-gcm".to_string();
+    }
+    if t.contains("sha2-512") || t.contains("sha-512") || t.contains("sha512") {
+        return "hmac-sha2-512".to_string();
+    }
+    if t.contains("sha2-256") || t.contains("sha-256") || t.contains("sha256") {
+        return "hmac-sha2-256".to_string();
+    }
+    if t.contains("sha-1-96") || t.contains("sha1-96") {
+        return "hmac-sha1-96".to_string();
+    }
+    if t.contains("sha-1") || t.contains("sha1") {
+        return "hmac-sha1".to_string();
+    }
+    t
+}
+
 dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 
 #[derive(Debug, Clone, Comparable, PartialEq)]

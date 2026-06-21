@@ -791,20 +791,23 @@ pub fn seed_handshake_two_party(client: AgentName, server: AgentName) -> Trace<S
 /// peers still complete, but the server never saw it — and the trace-aware
 /// matching-conversation oracle flags the divergence. On strict-kex (0.11.4) the
 /// server must abort on the IGNORE during KEX, so it never completes.
-pub fn seed_terrapin_attempt(
-    client: AgentName,
-    server: AgentName,
-) -> Trace<SshProtocolTypes> {
+pub fn seed_terrapin_attempt(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
     Trace {
         prior_traces: vec![],
         descriptors: vec![
             AgentDescriptor::from_config(
                 client,
-                SshDescriptorConfig { typ: AgentType::Client, try_reuse: false },
+                SshDescriptorConfig {
+                    typ: AgentType::Client,
+                    try_reuse: false,
+                },
             ),
             AgentDescriptor::from_config(
                 server,
-                SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+                SshDescriptorConfig {
+                    typ: AgentType::Server,
+                    try_reuse: false,
+                },
             ),
         ],
         steps: vec![
@@ -819,7 +822,10 @@ pub fn seed_terrapin_attempt(
             InputAction::new_step(client, term! { (server, 2)/RawSshMessageFlight }), // ECDH_REPLY+NEWKEYS
             // (a) INSERT a cleartext IGNORE into c2s before the client's NEWKEYS:
             // bumps the server's c2s receive sequence number by 1.
-            InputAction::new_step(server, term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) },
+            ),
             InputAction::new_step(server, term! { (client, 3)/RawSshMessageFlight }), // client NEWKEYS
             InputAction::new_step(client, term! { (server, 3)/RawSshMessageFlight }),
             // (b) Forward the client's encrypted c2s packets individually, DROPPING
@@ -861,11 +867,17 @@ pub fn seed_handshake_two_party_packet(
         descriptors: vec![
             AgentDescriptor::from_config(
                 client,
-                SshDescriptorConfig { typ: AgentType::Client, try_reuse: false },
+                SshDescriptorConfig {
+                    typ: AgentType::Client,
+                    try_reuse: false,
+                },
             ),
             AgentDescriptor::from_config(
                 server,
-                SshDescriptorConfig { typ: AgentType::Server, try_reuse: false },
+                SshDescriptorConfig {
+                    typ: AgentType::Server,
+                    try_reuse: false,
+                },
             ),
         ],
         steps: vec![
@@ -1245,12 +1257,12 @@ mod tests {
         let registry = ssh_registry();
         let server = puffin::agent::AgentName::first();
         let put = |n: &str| PutDescriptor::new(n, PutOptions::default());
-        // libssh's KEX RNG is made deterministic by rng_reseed (it routes through
-        // ssh_get_random -> our RAND_METHOD). wolfSSH is excluded here: its
-        // wolfCrypt RNG is not yet seeded deterministically (rng_reseed is a
-        // no-op), so wolfSSH same-vs-same can still differ in the decryption
-        // layer until the vendor is rebuilt with CUSTOM_RAND_GENERATE_SEED.
-        for name in ["libssh0114-asan", "libssh0104-asan"] {
+        // Both vendors' KEX RNGs are made deterministic by rng_reseed: libssh
+        // routes ssh_get_random -> our RAND_METHOD; wolfSSH routes wolfCrypt's
+        // wc_GenerateSeed -> puffin_wolfssl_seed (the vendor is built with
+        // -DCUSTOM_RAND_GENERATE_SEED). So same-vs-same must be clean for both,
+        // including the decryption layer.
+        for name in ["libssh0114-asan", "libssh0104-asan", "wolfssh-asan"] {
             if registry.find_by_id(name).is_none() {
                 continue;
             }
@@ -1302,7 +1314,9 @@ mod tests {
             .map(|(i, _)| i)
             .collect();
         let mut tampered = honest.clone();
-        tampered.steps.remove(server_inputs[server_inputs.len() / 2]);
+        tampered
+            .steps
+            .remove(server_inputs[server_inputs.len() / 2]);
 
         assert!(
             matching_conversation_violation(&tampered, &ctx).is_some(),
@@ -1479,6 +1493,61 @@ mod tests {
             context.verify_security_violations().is_ok(),
             "matching-conversation oracle fired on a benign honest relay (false positive)"
         );
+    }
+
+    /// Claim-name alignment: under the same AES-GCM handshake, libssh and wolfSSH
+    /// report the negotiated algorithms with completely different spellings
+    /// (libssh wire names vs wolfSSH human descriptions). After
+    /// `SshClaimInner::canonicalize` they must collapse to identical SSH wire
+    /// tokens, so the differential's claim comparison sees benign naming as equal
+    /// and only flags a genuine negotiation divergence. Guards the normalization
+    /// that lets `differential_fuzzing_filter_diff` keep (not drop) claim diffs.
+    #[test_log::test]
+    fn test_claim_names_canonical_across_vendors() {
+        use puffin::algebra::dynamic_function::TypeShape;
+
+        use crate::claim::SshClaimInner;
+        use crate::ssh::seeds::seed_client_attacker_full_aesgcm;
+
+        let registry = ssh_registry();
+        let server = puffin::agent::AgentName::first();
+
+        let field_tuple = |name: &str| -> Option<(String, String, String, String, String)> {
+            registry.find_by_id(name)?;
+            let put = puffin::put::PutDescriptor::new(name, puffin::put::PutOptions::default());
+            let r = Runner::new(
+                registry.clone(),
+                Spawner::new(registry.clone()).with_mapping(&[(server, put)]),
+            );
+            let ctx = r
+                .execute(seed_client_attacker_full_aesgcm(server), &mut 0)
+                .ok()?;
+            let c = ctx.find_claim(server, TypeShape::of::<SshClaimInner>())?;
+            let i = c.as_any().downcast_ref::<Box<SshClaimInner>>().unwrap();
+            Some((
+                i.kex.clone(),
+                i.cipher_in.clone(),
+                i.cipher_out.clone(),
+                i.hmac_in.clone(),
+                i.hmac_out.clone(),
+            ))
+        };
+
+        let lib = field_tuple("libssh0114-asan");
+        let wolf = field_tuple("wolfssh-asan");
+
+        // Both vendors must be available for this cross-vendor assertion to mean
+        // anything; if either is missing, there is nothing to compare.
+        if let (Some(lib), Some(wolf)) = (lib, wolf) {
+            assert_eq!(
+                lib, wolf,
+                "canonicalized AES-GCM claims must match across libssh/wolfSSH\n libssh={lib:?}\n wolfssh={wolf:?}"
+            );
+            // And they must be the canonical wire names, not vendor spellings.
+            assert_eq!(lib.0, "curve25519-sha256");
+            assert_eq!(lib.1, "aes256-gcm@openssh.com");
+            assert_eq!(lib.3, "aead-gcm");
+        }
     }
 
     /// The AES-GCM s2c decryption recipes must actually decrypt the libssh

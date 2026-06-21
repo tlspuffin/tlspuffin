@@ -477,10 +477,37 @@ wolfssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *re
 
 /* ── rng_reseed ──────────────────────────────────────────────────────────── */
 
+/* Deterministic entropy source for wolfCrypt.
+ *
+ * wolfSSL is built with -DCUSTOM_RAND_GENERATE_SEED=puffin_wolfssl_seed (see
+ * puffin-build/vendors/wolfssh/build_wolfssl_dep.sh), so every wc_GenerateSeed()
+ * — which seeds wolfCrypt's Hash_DRBG, and therefore all of wolfSSH's KEX
+ * randomness — routes here. We emit a reproducible byte stream whose read
+ * position is reset by wolfssh_rng_reseed(). Because the differential reseeds
+ * both PUTs from the same buffer before each run, the two PUTs draw identical
+ * entropy and produce identical ephemerals, removing encrypted-layer false
+ * positives; campaigns also become deterministic. */
+static uint8_t  g_seed_base[64];
+static size_t   g_seed_len = 0;
+static uint32_t g_seed_pos = 0;
+
+int puffin_wolfssl_seed(unsigned char *output, unsigned int sz)
+{
+    for (unsigned int i = 0; i < sz; i++) {
+        uint8_t b = (g_seed_len > 0) ? g_seed_base[g_seed_pos % g_seed_len]
+                                     : (uint8_t)0xA5;
+        /* Mix in the position so a single short seed buffer still yields a
+           full-entropy-looking (but deterministic) stream for the DRBG. */
+        output[i] = (uint8_t)(b + (uint8_t)(g_seed_pos * 0x9Du));
+        g_seed_pos++;
+    }
+    return 0;
+}
+
 static void wolfssh_rng_reseed(const uint8_t *buffer, size_t length)
 {
-    /* wolfCrypt's RNG is not reset through a simple hook here; differential
-       determinism is handled by the DDYF field annotations instead. No-op. */
-    (void)buffer;
-    (void)length;
+    g_seed_len = (length < sizeof(g_seed_base)) ? length : sizeof(g_seed_base);
+    if (g_seed_len > 0)
+        memcpy(g_seed_base, buffer, g_seed_len);
+    g_seed_pos = 0;
 }

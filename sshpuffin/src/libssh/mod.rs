@@ -77,7 +77,10 @@ extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
         auth_method: claim_field(&c.auth_method),
         auth_user: claim_field(&c.auth_user),
         auth_key_fingerprint: c.auth_key_fp[..(c.auth_key_fp_len as usize).min(32)].to_vec(),
-    };
+    }
+    // Canonicalize vendor-specific algorithm names to SSH wire names so claims
+    // are comparable across libssh and wolfSSH.
+    .canonicalize();
 
     ctx.claims
         .deref_borrow_mut()

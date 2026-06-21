@@ -248,11 +248,13 @@ impl ProtocolTypes for SshProtocolTypes {
             // meaningful.
             TraceDifference::Status(_) | TraceDifference::SecurityClaim(_) => true,
 
-            // Claim values name the *same* negotiated algorithms differently per
-            // library (libssh "aes256-gcm@openssh.com" / "curve25519-sha256" vs
-            // wolfSSH "AES-256 GCM" / "ECDH"), so a claim diff is naming noise,
-            // not a behavioral difference.
-            TraceDifference::Claims(_) => false,
+            // Claim diffs are kept: algorithm names are canonicalized to SSH wire
+            // form at claim construction (SshClaimInner::canonicalize), so the
+            // benign cross-vendor naming noise (libssh "aes256-gcm@openssh.com" /
+            // "curve25519-sha256" vs wolfSSH "AES-256 GCM" / "ECDH") is already
+            // gone. A surviving claim diff therefore signals a *real* negotiation
+            // divergence — e.g. a downgrade — which is exactly what we want.
+            TraceDifference::Claims(_) => true,
 
             // Knowledge diffs: the handshake layer (agent-sourced KEXINIT offer
             // lists, host key, ephemeral, banners/flights) inherently differs
