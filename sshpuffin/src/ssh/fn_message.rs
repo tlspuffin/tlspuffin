@@ -30,6 +30,68 @@ pub fn fn_onwire_message(data: &OnWireData) -> Result<RawSshMessage, FnError> {
     Ok(RawSshMessage::OnWire(data.clone()))
 }
 
+/// Wrap arbitrary bytes as raw on-wire data. Revives `OnWireData` as a producible
+/// term type so the fuzzer can inject unframed byte sequences into the stream.
+pub fn fn_onwire_data(data: &Vec<u8>) -> Result<OnWireData, FnError> {
+    Ok(OnWireData(data.clone()))
+}
+
+// ── Algorithm-negotiation builders ───────────────────────────────────────────
+//
+// These unfreeze KEXINIT negotiation for the DY mutator. Previously the only
+// usable KEXINITs were the two fixed `fn_*_kexinit_aesgcm` (algorithm lists baked
+// in), and `fn_kex_init` was dead because its list-typed arguments
+// (KexAlgorithms / EncryptionAlgorithms / ...) had no producers. Now an algorithm
+// list is built bottom-up from algorithm-name `SshBytes` atoms (fn_algo_*) into a
+// `NameList`, then wrapped into the per-field list type. Because `NameList` is the
+// shared intermediate, a mutation can splice a single algorithm name, swap a
+// whole list across fields (algorithm confusion), reorder/duplicate entries, or
+// drop to empty — exercising downgrade and negotiation-handling paths in the PUT.
+
+fn name_of(b: &SshBytes) -> String {
+    String::from_utf8_lossy(&b.0).into_owned()
+}
+
+pub fn fn_namelist_empty() -> Result<NameList, FnError> {
+    Ok(NameList::empty())
+}
+pub fn fn_namelist_1(a: &SshBytes) -> Result<NameList, FnError> {
+    Ok(NameList::from_strs(&[&name_of(a)]))
+}
+pub fn fn_namelist_2(a: &SshBytes, b: &SshBytes) -> Result<NameList, FnError> {
+    Ok(NameList::from_strs(&[&name_of(a), &name_of(b)]))
+}
+pub fn fn_namelist_3(a: &SshBytes, b: &SshBytes, c: &SshBytes) -> Result<NameList, FnError> {
+    Ok(NameList::from_strs(&[
+        &name_of(a),
+        &name_of(b),
+        &name_of(c),
+    ]))
+}
+/// Coerce a single raw byte blob into a NameList by splitting on commas — lets a
+/// bit-mutated / observed SshBytes become a (possibly malformed) algorithm list.
+pub fn fn_namelist_from_bytes(raw: &SshBytes) -> Result<NameList, FnError> {
+    let joined = name_of(raw);
+    let parts: Vec<&str> = joined.split(',').collect();
+    Ok(NameList::from_strs(&parts))
+}
+
+pub fn fn_kex_algos(list: &NameList) -> Result<KexAlgorithms, FnError> {
+    Ok(KexAlgorithms(list.clone()))
+}
+pub fn fn_enc_algos(list: &NameList) -> Result<EncryptionAlgorithms, FnError> {
+    Ok(EncryptionAlgorithms(list.clone()))
+}
+pub fn fn_mac_algos(list: &NameList) -> Result<MacAlgorithms, FnError> {
+    Ok(MacAlgorithms(list.clone()))
+}
+pub fn fn_sig_schemes(list: &NameList) -> Result<SignatureSchemes, FnError> {
+    Ok(SignatureSchemes(list.clone()))
+}
+pub fn fn_comp_algos(list: &NameList) -> Result<CompressionAlgorithms, FnError> {
+    Ok(CompressionAlgorithms(list.clone()))
+}
+
 pub fn fn_banner(banner: &String) -> Result<RawSshMessage, FnError> {
     Ok(RawSshMessage::Banner(banner.clone()))
 }

@@ -320,6 +320,98 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
     }
 }
 
+/// Same AES-GCM client-attacker handshake as `seed_client_attacker_full_aesgcm`,
+/// but the client KEXINIT is *synthesized* from algorithm-name atoms via
+/// `fn_kex_init` + the new `fn_namelist_*` / `fn_*_algos` builders, instead of the
+/// fixed `fn_client_kexinit_aesgcm`. Functionally identical (offers
+/// curve25519-sha256 / aes256-gcm / hmac-sha2-256 / rsa-sha2 / none, so it still
+/// negotiates AES-256-GCM and completes), but every offered algorithm list is now
+/// a mutable sub-term: the DY mutator can drop/reorder/duplicate/replace entries
+/// (downgrade, unknown-algorithm injection, algorithm confusion) from this seed.
+pub fn seed_client_attacker_full_kexinit_synth(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id = term! { fn_banner_id(((server, 0)[None]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    // Client KexInit built bottom-up from algorithm-name atoms.
+    let our_kexinit = term! {
+        fn_kex_init(
+            (fn_placeholder_16bytes),
+            (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
+            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none)))))
+        )
+    };
+
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request((fn_username), (fn_ssh_connection), (fn_method_password),
+                                  (fn_password_auth_data((fn_password))))),
+            (@key), (@iv), (fn_u32_1))
+    };
+    let chan_open = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+                             (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_2))
+    };
+    let chan_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
+                                (fn_exec_payload((fn_ssh_userauth))))),
+            (@key), (@iv), (fn_u32_3))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @chan_open }),
+            InputAction::new_step(server, term! { @chan_req }),
+        ],
+        ..Default::default()
+    }
+}
+
 // ── Seed: CVE-2018-10933 authentication bypass (client attacker) ──────────────
 //
 // The fuzzer (client) completes the KEX, then — instead of authenticating —
@@ -979,6 +1071,12 @@ pub fn create_corpus(
             seed_client_attacker_full_aesgcm(server),
             "seed_client_attacker_full_aesgcm",
         ),
+        // Same handshake but with a synthesized KEXINIT whose algorithm lists are
+        // mutable sub-terms — the entry point for negotiation / downgrade fuzzing.
+        (
+            seed_client_attacker_full_kexinit_synth(server),
+            "seed_client_attacker_full_kexinit_synth",
+        ),
         (
             seed_server_attacker_full_aesgcm(client),
             "seed_server_attacker_full_aesgcm",
@@ -1320,9 +1418,13 @@ mod tests {
         let seeds: [(
             &str,
             fn(puffin::agent::AgentName) -> Trace<SshProtocolTypes>,
-        ); 2] = [
+        ); 3] = [
             ("attacker_full_aesgcm", seed_client_attacker_full_aesgcm),
             ("pubkey_aesgcm", seed_client_attacker_pubkey_aesgcm),
+            (
+                "kexinit_synth",
+                crate::ssh::seeds::seed_client_attacker_full_kexinit_synth,
+            ),
         ];
         for (label, seed) in seeds {
             let s1 =
@@ -1426,6 +1528,48 @@ mod tests {
                 inner.auth_key_fingerprint.as_slice(),
                 ATTACKER_PUBKEY_SHA256.as_slice(),
                 "{put}: server authenticated a key other than A"
+            );
+        }
+    }
+
+    /// The synthesized-KEXINIT seed (algorithm lists built from atoms via the new
+    /// `fn_kex_init` + `fn_*_algos` + `fn_namelist_*` builders) must negotiate the
+    /// same AES-256-GCM suite and complete the handshake on both vendors — proving
+    /// the negotiation-builder path is valid end-to-end and gives the fuzzer a
+    /// KEXINIT whose offered algorithms are mutable sub-terms.
+    #[test_log::test]
+    fn test_seed_kexinit_synth_completes() {
+        use puffin::algebra::dynamic_function::TypeShape;
+        use puffin::put::{PutDescriptor, PutOptions};
+
+        use crate::claim::SshClaimInner;
+        use crate::ssh::seeds::seed_client_attacker_full_kexinit_synth;
+
+        let registry = ssh_registry();
+        let server = puffin::agent::AgentName::first();
+        for put in ["libssh0114-asan", "wolfssh-asan"] {
+            if registry.find_by_id(put).is_none() {
+                continue;
+            }
+            let spawner = Spawner::new(registry.clone())
+                .with_mapping(&[(server, PutDescriptor::new(put, PutOptions::default()))]);
+            let runner = Runner::new(registry.clone(), spawner);
+            let ctx = runner
+                .execute(seed_client_attacker_full_kexinit_synth(server), &mut 0)
+                .unwrap_or_else(|e| panic!("synth-kexinit seed failed on {put}: {e}"));
+            let claim = ctx
+                .find_claim(server, TypeShape::of::<SshClaimInner>())
+                .unwrap_or_else(|| panic!("{put}: synth-kexinit seed emitted no claim"));
+            let inner = claim.as_any().downcast_ref::<Box<SshClaimInner>>().unwrap();
+            assert_eq!(
+                inner.kex, "curve25519-sha256",
+                "{put}: synth KEXINIT negotiated unexpected kex {:?}",
+                inner.kex
+            );
+            assert_eq!(
+                inner.cipher_in, "aes256-gcm@openssh.com",
+                "{put}: synth KEXINIT negotiated unexpected cipher {:?}",
+                inner.cipher_in
             );
         }
     }

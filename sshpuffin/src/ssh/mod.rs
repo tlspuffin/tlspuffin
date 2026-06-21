@@ -70,6 +70,30 @@ define_signature!(
     fn_algo_ecdsa_sha2_nistp256
     fn_algo_rsa_sha2_256
     fn_algo_curve25519_sha256
+    fn_algo_aes128_gcm
+    fn_algo_aes128_ctr
+    fn_algo_aes256_ctr
+    fn_algo_3des_cbc
+    fn_algo_chacha20_poly1305
+    fn_algo_hmac_sha2_256
+    fn_algo_hmac_sha2_512
+    fn_algo_hmac_sha1
+    fn_algo_none
+    fn_algo_dh_group14_sha256
+    fn_algo_ssh_rsa
+    fn_algo_rsa_sha2_512
+    fn_algo_kex_strict_c
+    fn_algo_kex_strict_s
+    fn_algo_unknown
+    fn_cookie_zeros
+    fn_cookie_ff
+    fn_username_empty
+    fn_username_root
+    fn_username_long
+    fn_password_empty
+    fn_password_long
+    fn_u32_max
+    fn_u32_0x10000
     fn_puffin_banner
     fn_puffin_id
     fn_placeholder_16bytes
@@ -89,6 +113,17 @@ define_signature!(
     fn_raw_message
     fn_packet
     fn_onwire_message
+    fn_onwire_data
+    fn_namelist_empty
+    fn_namelist_1
+    fn_namelist_2
+    fn_namelist_3
+    fn_namelist_from_bytes
+    fn_kex_algos
+    fn_enc_algos
+    fn_mac_algos
+    fn_sig_schemes
+    fn_comp_algos
     fn_banner
     fn_disconnect
     fn_ignore
