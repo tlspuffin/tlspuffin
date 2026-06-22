@@ -163,6 +163,24 @@ pub fn matching_conversation_violation(
     let client = agent_of(AgentType::Client)?;
     let server = agent_of(AgentType::Server)?;
 
+    // Precondition: BOTH parties must have completed the handshake. A transcript
+    // difference only constitutes a *matching-conversation* violation between two
+    // honest peers that both finished — otherwise it is merely a truncated or
+    // perturbed run (a party aborted, the trace was cut short), which floods the
+    // oracle with benign end-of-trace diffs. Crucially, because SSH binds the
+    // per-direction sequence number into every MAC, a transcript divergence that
+    // survives a *fully completed* handshake on both sides must be transport-valid
+    // (sequence-number-compensated) — i.e. genuinely Terrapin-class — so this
+    // precondition is exactly the filter that isolates real attacks.
+    let completed = |a: puffin::agent::AgentName| {
+        ctx.find_agent(a)
+            .map(|agent| agent.is_state_successful())
+            .unwrap_or(false)
+    };
+    if !completed(client) || !completed(server) {
+        return None;
+    }
+
     let flight_ty = TypeId::of::<RawSshMessageFlight>();
     let server_received = delivered_to(trace, ctx, server); // c2s the server got
     let client_received = delivered_to(trace, ctx, client); // s2c the client got
