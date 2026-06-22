@@ -1350,6 +1350,74 @@ pub fn seed_terrapin_packet(client: AgentName, server: AgentName) -> Trace<SshPr
     }
 }
 
+/// S2C Terrapin prefix truncation (the direction the c2s attempt showed is
+/// needed). Packet-granular relay; insert a cleartext IGNORE to the **client**
+/// just before the server's NEWKEYS (+1 the client's s2c receive seqno), then in
+/// the encrypted phase DROP the server's first post-NewKeys packet — its
+/// EXT_INFO, which is ignorable — and forward every later server packet shifted
+/// by one (its send-seqno now matches the client's +1 receive seqno, so AEAD
+/// tags realign). The client completes auth never having seen EXT_INFO, so the
+/// server's sent transcript and the client's received transcript diverge → the
+/// matching-conversation oracle fires. On strict-kex (0.11.4) the IGNORE is
+/// rejected during KEX, mitigating. (Relies on the real libssh peers negotiating
+/// ext-info, which recent libssh does by default.)
+pub fn seed_terrapin_s2c(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::from_config(
+                client,
+                SshDescriptorConfig {
+                    typ: AgentType::Client,
+                    try_reuse: false,
+                },
+            ),
+            AgentDescriptor::from_config(
+                server,
+                SshDescriptorConfig {
+                    typ: AgentType::Server,
+                    try_reuse: false,
+                },
+            ),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { (client, 0)/RawSshMessage }), // banner c->s
+            InputAction::new_step(client, term! { (server, 0)/RawSshMessage }), // banner s->c
+            InputAction::new_step(server, term! { (client, 1)/RawSshMessage }), // KEXINIT c->s
+            InputAction::new_step(client, term! { (server, 1)/RawSshMessage }), // KEXINIT s->c
+            InputAction::new_step(server, term! { (client, 2)/RawSshMessage }), // ECDH_INIT c->s
+            InputAction::new_step(client, term! { (server, 2)/RawSshMessage }), // ECDH_REPLY s->c
+            // (a) insert IGNORE to the CLIENT before the server's NEWKEYS (+1 client s2c seqno)
+            InputAction::new_step(
+                client,
+                term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) },
+            ),
+            InputAction::new_step(client, term! { (server, 3)/RawSshMessage }), // server NEWKEYS s->c
+            InputAction::new_step(server, term! { (client, 3)/RawSshMessage }), // client NEWKEYS c->s
+            // Encrypted phase. Forward client's c2s packets normally; on s2c DROP
+            // the server's OnWire 0 (EXT_INFO, seqno 3) and forward OnWire 1.. only.
+            OutputAction::new_step(server), // pump server to emit EXT_INFO (OnWire 0, dropped)
+            OutputAction::new_step(server),
+            OutputAction::new_step(client),
+            OutputAction::new_step(client), // client SERVICE_REQUEST (OnWire 0)
+            InputAction::new_step(server, term! { (client, 0)/OnWireData }), // -> server
+            OutputAction::new_step(server),
+            OutputAction::new_step(server), // server SERVICE_ACCEPT (OnWire 1, seqno 4)
+            InputAction::new_step(client, term! { (server, 1)/OnWireData }), // forward (drop OnWire 0)
+            OutputAction::new_step(client),
+            OutputAction::new_step(client), // client USERAUTH_REQUEST (OnWire 1)
+            InputAction::new_step(server, term! { (client, 1)/OnWireData }), // -> server
+            OutputAction::new_step(server),
+            OutputAction::new_step(server), // server USERAUTH_SUCCESS (OnWire 2)
+            InputAction::new_step(client, term! { (server, 2)/OnWireData }), // forward realigned
+            OutputAction::new_step(client),
+        ],
+        ..Default::default()
+    }
+}
+
 /// AES-256-GCM counterpart of [`server_decryption_recipes`], for the AES-GCM
 /// flow (mirrors `seed_client_attacker_full_aesgcm`). Decrypts the server's
 /// first three post-NewKeys s2c packets. The GCM invocation counter restarts at
@@ -1661,6 +1729,59 @@ mod tests {
                 "0.10.4 (no strict kex) must NOT reject the IGNORE as a strict-kex \
                  violation; got: {e:?}"
             );
+        }
+    }
+
+    /// FLAGSHIP: the DY fuzzer detects the Terrapin prefix-truncation attack
+    /// (CVE-2023-48795) via the *generic* matching-conversation property — not a
+    /// Terrapin-specific signature. On vulnerable libssh 0.10.4 the s2c truncation
+    /// (drop the server's ignorable EXT_INFO with a compensating IGNORE-injected
+    /// seqno shift) completes with valid AEAD tags, yet the server's sent
+    /// transcript and the client's received transcript disagree → the security
+    /// oracle raises Error::SecurityClaim (a fuzzer objective). On patched 0.11.4,
+    /// strict-kex rejects the injected IGNORE during KEX, so the attack never
+    /// completes — the mitigation is confirmed.
+    #[test_log::test]
+    fn test_terrapin_s2c_detected_and_mitigated() {
+        use puffin::error::Error;
+        use puffin::put::{PutDescriptor, PutOptions};
+
+        use crate::ssh::seeds::seed_terrapin_s2c;
+
+        let registry = ssh_registry();
+        let client = puffin::agent::AgentName::first();
+        let server = client.next();
+        let run = |put: &str| {
+            let spawner = Spawner::new(registry.clone()).with_mapping(&[
+                (client, PutDescriptor::new(put, PutOptions::default())),
+                (server, PutDescriptor::new(put, PutOptions::default())),
+            ]);
+            Runner::new(registry.clone(), spawner)
+                .execute(seed_terrapin_s2c(client, server), &mut 0)
+        };
+
+        // Vulnerable: matching-conversation violation is detected (security objective).
+        if registry.find_by_id("libssh0104-asan").is_some() {
+            match run("libssh0104-asan") {
+                Err(Error::SecurityClaim(msg)) => assert!(
+                    msg.to_lowercase().contains("matching-conversation")
+                        || msg.to_lowercase().contains("transcript"),
+                    "unexpected security-claim message: {msg}"
+                ),
+                other => panic!(
+                    "0.10.4: expected a matching-conversation SecurityClaim (Terrapin detected); got {other:?}"
+                ),
+            }
+        }
+        // Patched: strict-kex rejects the injected IGNORE; attack does not complete.
+        if registry.find_by_id("libssh0114-asan").is_some() {
+            match run("libssh0114-asan") {
+                Err(e) => assert!(
+                    format!("{e}").to_lowercase().contains("strict kex"),
+                    "0.11.4: expected strict-kex mitigation; got {e}"
+                ),
+                Ok(_) => panic!("0.11.4: Terrapin unexpectedly completed (mitigation failed!)"),
+            }
         }
     }
 
