@@ -1283,6 +1283,73 @@ pub fn seed_handshake_two_party_packet(
     }
 }
 
+/// Packet-granular Terrapin attempt (c2s prefix truncation). Relays the
+/// cleartext handshake one packet per step, inserts a cleartext IGNORE to the
+/// server just before the client's NEWKEYS (bumping the server's c2s receive
+/// sequence number by 1), then in the encrypted phase DROPS the client's first
+/// post-NewKeys packet (OnWire 0, send-seqno 3) and forwards the second (OnWire
+/// 1, send-seqno 4) to the server, which after the +1 IGNORE is now at receive
+/// seqno 4 — so AEAD tags would realign and the truncation be invisible.
+///
+/// EMPIRICAL FINDING (libssh 0.10.4): this c2s direction does NOT work — the
+/// client emits only a SINGLE post-NewKeys packet (SERVICE_REQUEST) and then
+/// waits for the server's reply, so there is no second packet (OnWire 1) to
+/// realign onto, and no *ignorable* first packet to drop (SERVICE_REQUEST is
+/// mandatory — dropping it stalls auth). A tag-preserving Terrapin truncation
+/// therefore needs the S2C direction, where the server sends an EXT_INFO
+/// (ignorable) as its first post-NewKeys packet: drop that, forward the next,
+/// realign on the client side. That requires ext-info to be negotiated and a
+/// s2c packet-granular relay — the remaining work to make the
+/// matching-conversation oracle fire on a completed Terrapin. On strict-kex
+/// (0.11.4) the injected IGNORE is rejected during KEX, mitigating regardless.
+pub fn seed_terrapin_packet(client: AgentName, server: AgentName) -> Trace<SshProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::from_config(
+                client,
+                SshDescriptorConfig {
+                    typ: AgentType::Client,
+                    try_reuse: false,
+                },
+            ),
+            AgentDescriptor::from_config(
+                server,
+                SshDescriptorConfig {
+                    typ: AgentType::Server,
+                    try_reuse: false,
+                },
+            ),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { (client, 0)/RawSshMessage }), // banner
+            InputAction::new_step(client, term! { (server, 0)/RawSshMessage }), // banner
+            InputAction::new_step(server, term! { (client, 1)/RawSshMessage }), // KEXINIT
+            InputAction::new_step(client, term! { (server, 1)/RawSshMessage }), // KEXINIT
+            InputAction::new_step(server, term! { (client, 2)/RawSshMessage }), // ECDH_INIT
+            InputAction::new_step(client, term! { (server, 2)/RawSshMessage }), // ECDH_REPLY
+            InputAction::new_step(client, term! { (server, 3)/RawSshMessage }), // server NEWKEYS
+            // (a) insert IGNORE to server before client NEWKEYS (+1 server c2s seqno)
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) },
+            ),
+            InputAction::new_step(server, term! { (client, 3)/RawSshMessage }), // client NEWKEYS
+            // pump the client to emit its post-NewKeys encrypted packets
+            OutputAction::new_step(client),
+            OutputAction::new_step(client),
+            OutputAction::new_step(client),
+            // (b) DROP client OnWire 0 (seqno 3); forward OnWire 1 (seqno 4)
+            InputAction::new_step(server, term! { (client, 1)/OnWireData }),
+            OutputAction::new_step(server),
+            OutputAction::new_step(server),
+        ],
+        ..Default::default()
+    }
+}
+
 /// AES-256-GCM counterpart of [`server_decryption_recipes`], for the AES-GCM
 /// flow (mirrors `seed_client_attacker_full_aesgcm`). Decrypts the server's
 /// first three post-NewKeys s2c packets. The GCM invocation counter restarts at
@@ -1593,6 +1660,52 @@ mod tests {
                 !e.to_lowercase().contains("strict kex"),
                 "0.10.4 (no strict kex) must NOT reject the IGNORE as a strict-kex \
                  violation; got: {e:?}"
+            );
+        }
+    }
+
+    /// Documents the empirical Terrapin blocker (see `seed_terrapin_packet`): in
+    /// the c2s direction the client emits a single post-NewKeys packet, so the
+    /// tag-preserving truncation can't realign and does not complete on 0.10.4;
+    /// strict-kex (0.11.4) rejects the injected IGNORE outright. Regression guard
+    /// for the WIP — a future s2c/EXT_INFO truncation should make 0.10.4 complete
+    /// with a matching-conversation violation, flipping this expectation.
+    #[test_log::test]
+    fn test_terrapin_packet_c2s_blocked() {
+        use puffin::put::{PutDescriptor, PutOptions};
+
+        use crate::ssh::seeds::seed_terrapin_packet;
+
+        let registry = ssh_registry();
+        let client = puffin::agent::AgentName::first();
+        let server = client.next();
+        let run = |put: &str| -> Option<String> {
+            registry.find_by_id(put)?;
+            let spawner = Spawner::new(registry.clone()).with_mapping(&[
+                (client, PutDescriptor::new(put, PutOptions::default())),
+                (server, PutDescriptor::new(put, PutOptions::default())),
+            ]);
+            Some(
+                match Runner::new(registry.clone(), spawner)
+                    .execute(seed_terrapin_packet(client, server), &mut 0)
+                {
+                    Ok(_) => String::new(),
+                    Err(e) => format!("{e}"),
+                },
+            )
+        };
+        if let Some(e) = run("libssh0114-asan") {
+            assert!(
+                e.to_lowercase().contains("strict kex"),
+                "0.11.4 should reject the injected IGNORE under strict kex; got {e:?}"
+            );
+        }
+        if let Some(e) = run("libssh0104-asan") {
+            // c2s truncation can't realign yet (single post-NewKeys client packet):
+            // the trace does not complete cleanly. It must NOT be a strict-kex abort.
+            assert!(
+                !e.is_empty() && !e.to_lowercase().contains("strict kex"),
+                "0.10.4 c2s terrapin packet: expected a non-strict-kex incompletion; got {e:?}"
             );
         }
     }
