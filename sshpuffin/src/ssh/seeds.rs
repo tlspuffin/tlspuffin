@@ -1505,6 +1505,72 @@ pub fn seed_terrapin_s2c(client: AgentName, server: AgentName) -> Trace<SshProto
     }
 }
 
+/// HONEST completing packet-granular two-party relay — the Terrapin discovery
+/// substrate. Identical in shape to `seed_terrapin_s2c` but faithful: NO injected
+/// IGNORE, and the server's EXT_INFO (s2c OnWire 0) is forwarded in order with
+/// the rest. Both peers complete and transcripts agree (no violation). From here
+/// the Terrapin attack is exactly TWO mutations away: (1) Skip the
+/// `(server,0)/OnWireData` forward step (drop EXT_INFO), and (2) insert a cleartext
+/// IGNORE to the client before the server's NEWKEYS. The +1 from the IGNORE
+/// cancels the −1 from the skip, so the already-present `(server,1)`/`(server,2)`
+/// forwards realign and tags stay valid — letting the matching-conversation oracle
+/// fire. This seed exists so the fuzzer has a packet-granular base whose mutation
+/// neighbourhood actually contains Terrapin.
+pub fn seed_handshake_two_party_packet_complete(
+    client: AgentName,
+    server: AgentName,
+) -> Trace<SshProtocolTypes> {
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            AgentDescriptor::from_config(
+                client,
+                SshDescriptorConfig {
+                    typ: AgentType::Client,
+                    try_reuse: false,
+                },
+            ),
+            AgentDescriptor::from_config(
+                server,
+                SshDescriptorConfig {
+                    typ: AgentType::Server,
+                    try_reuse: false,
+                },
+            ),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { (client, 0)/RawSshMessage }), // banner c->s
+            InputAction::new_step(client, term! { (server, 0)/RawSshMessage }), // banner s->c
+            InputAction::new_step(server, term! { (client, 1)/RawSshMessage }), // KEXINIT c->s
+            InputAction::new_step(client, term! { (server, 1)/RawSshMessage }), // KEXINIT s->c
+            InputAction::new_step(server, term! { (client, 2)/RawSshMessage }), // ECDH_INIT c->s
+            InputAction::new_step(client, term! { (server, 2)/RawSshMessage }), // ECDH_REPLY s->c
+            InputAction::new_step(client, term! { (server, 3)/RawSshMessage }), // server NEWKEYS s->c
+            InputAction::new_step(server, term! { (client, 3)/RawSshMessage }), // client NEWKEYS c->s
+            // Encrypted phase, faithful: forward server OnWire 0 (EXT_INFO), 1, 2.
+            OutputAction::new_step(server),
+            OutputAction::new_step(server), // server EXT_INFO (OnWire 0)
+            InputAction::new_step(client, term! { (server, 0)/OnWireData }), // forward EXT_INFO
+            OutputAction::new_step(client),
+            OutputAction::new_step(client), // client SERVICE_REQUEST (OnWire 0)
+            InputAction::new_step(server, term! { (client, 0)/OnWireData }),
+            OutputAction::new_step(server),
+            OutputAction::new_step(server), // server SERVICE_ACCEPT (OnWire 1)
+            InputAction::new_step(client, term! { (server, 1)/OnWireData }),
+            OutputAction::new_step(client),
+            OutputAction::new_step(client), // client USERAUTH_REQUEST (OnWire 1)
+            InputAction::new_step(server, term! { (client, 1)/OnWireData }),
+            OutputAction::new_step(server),
+            OutputAction::new_step(server), // server USERAUTH_SUCCESS (OnWire 2)
+            InputAction::new_step(client, term! { (server, 2)/OnWireData }),
+            OutputAction::new_step(client),
+        ],
+        ..Default::default()
+    }
+}
+
 /// AES-256-GCM counterpart of [`server_decryption_recipes`], for the AES-GCM
 /// flow (mirrors `seed_client_attacker_full_aesgcm`). Decrypts the server's
 /// first three post-NewKeys s2c packets. The GCM invocation counter restarts at
@@ -1620,6 +1686,12 @@ pub fn create_corpus(
         (
             seed_handshake_two_party(client, server),
             "seed_handshake_two_party",
+        ),
+        // Packet-granular honest relay: the substrate whose 2-mutation
+        // neighbourhood (skip EXT_INFO forward + insert IGNORE) contains Terrapin.
+        (
+            seed_handshake_two_party_packet_complete(client, server),
+            "seed_handshake_two_party_packet_complete",
         ),
     ]
 }
@@ -1823,6 +1895,44 @@ mod tests {
                  violation; got: {e:?}"
             );
         }
+    }
+
+    /// The honest packet-granular relay (Terrapin discovery substrate) must
+    /// COMPLETE with matching conversation intact (no violation) on 0.10.4 — only
+    /// then is it a valid base whose 2-mutation neighbourhood contains Terrapin.
+    #[test_log::test]
+    fn test_packet_relay_complete_honest() {
+        use puffin::put::{PutDescriptor, PutOptions};
+
+        use crate::ssh::seeds::seed_handshake_two_party_packet_complete;
+
+        let registry = ssh_registry();
+        let client = puffin::agent::AgentName::first();
+        let server = client.next();
+        if registry.find_by_id("libssh0104-asan").is_none() {
+            return;
+        }
+        let spawner = Spawner::new(registry.clone()).with_mapping(&[
+            (
+                client,
+                PutDescriptor::new("libssh0104-asan", PutOptions::default()),
+            ),
+            (
+                server,
+                PutDescriptor::new("libssh0104-asan", PutOptions::default()),
+            ),
+        ]);
+        let ctx = Runner::new(registry.clone(), spawner)
+            .execute(
+                seed_handshake_two_party_packet_complete(client, server),
+                &mut 0,
+            )
+            .expect("honest packet relay must complete cleanly (no security violation)");
+        assert!(
+            ctx.find_agent(client).unwrap().is_state_successful()
+                && ctx.find_agent(server).unwrap().is_state_successful(),
+            "both peers must complete the honest packet-granular relay"
+        );
     }
 
     /// FLAGSHIP: the DY fuzzer detects the Terrapin prefix-truncation attack
