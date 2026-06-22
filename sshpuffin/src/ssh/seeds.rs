@@ -758,6 +758,97 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
     }
 }
 
+/// Rekey seed: complete the first key exchange, then drive a **client-initiated
+/// rekey** (RFC 4253 §9) by sending — encrypted under the first set of keys — a
+/// second KEXINIT, a second ECDH_INIT (reusing our ephemeral), and a second
+/// NEWKEYS. This exercises the server's re-KEX state machine while a session is
+/// already established: KEXINIT dispatch mid-session, rekey entry, a second ECDH,
+/// and the second NEWKEYS key switch — a large code path no handshake-only seed
+/// reaches, and the area where strict-kex re-arming / Terrapin-class issues live.
+/// We don't send post-rekey traffic (that would need the re-derived keys), so the
+/// whole rekey handshake rides on the first keys, which is correct: KEXINIT2 /
+/// ECDH_INIT2 / NEWKEYS2 are all sent under the old cipher (NEWKEYS2 is the last
+/// packet before the switch). AES-256-GCM, c2s counter = packet index since the
+/// first NewKeys.
+pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id = term! { fn_banner_id(((server, 0)[None]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+
+    // libssh's packet filter only permits a rekey KEXINIT once the connection is
+    // established, so authenticate first (publickey, key A; counters 0,1).
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+    };
+    let sig = term! {
+        fn_sign_userauth((@exch_hash), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_1))
+    };
+
+    // Rekey handshake, encrypted under the first keys (c2s counters 2,3,4).
+    let rekey_kexinit = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_client_kexinit_aesgcm((fn_cookie_zeros))), (@key), (@iv), (fn_u32_2))
+    };
+    let rekey_ecdh_init = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_kex_ecdh_init((fn_client_ecdh_pubkey))), (@key), (@iv), (fn_u32_3))
+    };
+    let rekey_newkeys = term! {
+        fn_encrypt_packet_aesgcm((fn_new_keys), (@key), (@iv), (fn_u32_4))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @rekey_kexinit }),
+            InputAction::new_step(server, term! { @rekey_ecdh_init }),
+            InputAction::new_step(server, term! { @rekey_newkeys }),
+        ],
+        ..Default::default()
+    }
+}
+
 // ── Seed: server attacker with full handshake ─────────────────────────────────
 //
 // The fuzzer acts as the SSH server; the client is a real libssh instance.
@@ -1289,6 +1380,12 @@ pub fn create_corpus(
             seed_client_attacker_channel_data(server),
             "seed_client_attacker_channel_data",
         ),
+        // Session layer: authenticated client-initiated rekey (RFC 4253 §9) —
+        // drives the server's re-KEX state machine on an established connection.
+        (
+            seed_client_attacker_rekey(server),
+            "seed_client_attacker_rekey",
+        ),
         // Two real PUTs relayed by the attacker — the substrate the live
         // matching-conversation oracle needs. Mutations that desync the relayed
         // transcript (Terrapin-style) are flagged as a security objective.
@@ -1733,6 +1830,35 @@ mod tests {
     /// same AES-256-GCM suite and complete the handshake on both vendors — proving
     /// the negotiation-builder path is valid end-to-end and gives the fuzzer a
     /// KEXINIT whose offered algorithms are mutable sub-terms.
+    /// The rekey seed must execute without a PUT error on libssh — i.e. the server
+    /// accepts and processes the encrypted second KEXINIT / ECDH_INIT / NEWKEYS
+    /// (a successful AES-GCM decrypt + a completed re-KEX). A decrypt/tag failure
+    /// or a rejected rekey would surface as Err. Proves the rekey handshake is
+    /// wire-correct and reaches libssh's re-KEX state machine.
+    #[test_log::test]
+    fn test_seed_rekey_accepted() {
+        use puffin::put::{PutDescriptor, PutOptions};
+
+        use crate::ssh::seeds::seed_client_attacker_rekey;
+
+        let registry = ssh_registry();
+        let server = puffin::agent::AgentName::first();
+        if registry.find_by_id("libssh0114-asan").is_none() {
+            return;
+        }
+        let spawner = Spawner::new(registry.clone()).with_mapping(&[(
+            server,
+            PutDescriptor::new("libssh0114-asan", PutOptions::default()),
+        )]);
+        let res = Runner::new(registry.clone(), spawner)
+            .execute(seed_client_attacker_rekey(server), &mut 0);
+        assert!(
+            res.is_ok(),
+            "rekey seed must be accepted by libssh (re-KEX completes); got {:?}",
+            res.err()
+        );
+    }
+
     /// The session-layer seed must authenticate (publickey, key A), open a channel,
     /// and have the server process the full connection-protocol message set
     /// (window-adjust / data / extended-data / eof / close) without error on
