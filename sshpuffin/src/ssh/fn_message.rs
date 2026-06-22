@@ -6,11 +6,11 @@ use crate::ssh::message::{
     ChannelCloseMessage, ChannelDataMessage, ChannelEofMessage, ChannelExtendedDataMessage,
     ChannelFailureMessage, ChannelOpenConfirmationMessage, ChannelOpenFailureMessage,
     ChannelOpenMessage, ChannelRequestMessage, ChannelSuccessMessage, ChannelWindowAdjustMessage,
-    CompressionAlgorithms, DebugMessage, DisconnectMessage, EncryptionAlgorithms,
-    GlobalRequestMessage, IgnoreMessage, KexAlgorithms, KexEcdhInitMessage, KexEcdhReplyMessage,
-    KexInitMessage, MacAlgorithms, NameList, OnWireData, RawSshMessage, RequestSuccessMessage,
-    ServiceAcceptMessage, ServiceRequestMessage, SignatureSchemes, SshBytes, SshMessage,
-    SshPublicKey, SshSignature, UnimplementedMessage, UserAuthBannerMessage,
+    CompressionAlgorithms, DebugMessage, DisconnectMessage, EncryptionAlgorithms, ExtInfoExtension,
+    ExtInfoMessage, GlobalRequestMessage, IgnoreMessage, KexAlgorithms, KexEcdhInitMessage,
+    KexEcdhReplyMessage, KexInitMessage, MacAlgorithms, NameList, OnWireData, RawSshMessage,
+    RequestSuccessMessage, ServiceAcceptMessage, ServiceRequestMessage, SignatureSchemes, SshBytes,
+    SshMessage, SshPublicKey, SshSignature, UnimplementedMessage, UserAuthBannerMessage,
     UserAuthFailureMessage, UserAuthRequestMessage,
 };
 
@@ -144,6 +144,17 @@ pub fn fn_disconnect(
 
 pub fn fn_ignore(data: &SshBytes) -> Result<SshMessage, FnError> {
     Ok(SshMessage::Ignore(IgnoreMessage { data: data.clone() }))
+}
+
+/// SSH_MSG_EXT_INFO (RFC 8308) carrying a single extension (name, value), e.g.
+/// "server-sig-algs". Lets the fuzzer exercise the peer's EXT_INFO parser.
+pub fn fn_ext_info(name: &SshBytes, value: &SshBytes) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ExtInfo(ExtInfoMessage {
+        extensions: vec![ExtInfoExtension {
+            name: name.clone(),
+            value: value.clone(),
+        }],
+    }))
 }
 
 pub fn fn_unimplemented(packet_sequence_number: &u32) -> Result<SshMessage, FnError> {

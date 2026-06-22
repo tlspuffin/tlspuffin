@@ -198,6 +198,7 @@ macro_rules! declare_name_list (
 pub enum SshMessage {
     Disconnect(DisconnectMessage),
     Ignore(IgnoreMessage),
+    ExtInfo(ExtInfoMessage),
     Unimplemented(UnimplementedMessage),
     Debug(DebugMessage),
     ServiceRequest(ServiceRequestMessage),
@@ -265,6 +266,57 @@ impl Codec for IgnoreMessage {
         Some(Self {
             data: SshBytes::read(reader)?,
         })
+    }
+}
+
+// ── SSH_MSG_EXT_INFO (RFC 8308 §2.3): byte 7, uint32 nr-extensions, then
+//    repeat [string extension-name, string extension-value]. ─────────────────
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ExtInfoExtension {
+    pub name: SshBytes,
+    pub value: SshBytes,
+}
+
+impl puffin::codec::VecCodecWoSize for ExtInfoExtension {}
+
+impl Codec for ExtInfoExtension {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.name.encode(bytes);
+        self.value.encode(bytes);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        Some(Self {
+            name: SshBytes::read(reader)?,
+            value: SshBytes::read(reader)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct ExtInfoMessage {
+    pub extensions: Vec<ExtInfoExtension>,
+}
+
+impl Codec for ExtInfoMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        (self.extensions.len() as u32).encode(bytes);
+        for ext in &self.extensions {
+            ext.encode(bytes);
+        }
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let n = u32::read(reader)?;
+        let mut extensions = Vec::new();
+        // `?` bails on the first short read, so a bogus huge `n` can't over-allocate.
+        for _ in 0..n {
+            extensions.push(ExtInfoExtension::read(reader)?);
+        }
+        Some(Self { extensions })
     }
 }
 
@@ -932,6 +984,10 @@ impl Codec for SshMessage {
                 2u8.encode(bytes);
                 inner.encode(bytes);
             }
+            SshMessage::ExtInfo(inner) => {
+                7u8.encode(bytes);
+                inner.encode(bytes);
+            }
             SshMessage::Unimplemented(inner) => {
                 3u8.encode(bytes);
                 inner.encode(bytes);
@@ -1042,6 +1098,7 @@ impl Codec for SshMessage {
         match typ {
             1u8 => Some(SshMessage::Disconnect(DisconnectMessage::read(reader)?)),
             2u8 => Some(SshMessage::Ignore(IgnoreMessage::read(reader)?)),
+            7u8 => Some(SshMessage::ExtInfo(ExtInfoMessage::read(reader)?)),
             3u8 => Some(SshMessage::Unimplemented(UnimplementedMessage::read(
                 reader,
             )?)),
@@ -1490,6 +1547,8 @@ pub fn try_read_bytes(
         // Per-message payloads
         DisconnectMessage,
         IgnoreMessage,
+        ExtInfoExtension,
+        ExtInfoMessage,
         UnimplementedMessage,
         DebugMessage,
         ServiceRequestMessage,

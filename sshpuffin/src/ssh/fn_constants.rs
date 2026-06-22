@@ -216,6 +216,19 @@ pub fn fn_algo_kex_strict_s() -> Result<SshBytes, FnError> {
 pub fn fn_algo_unknown() -> Result<SshBytes, FnError> {
     Ok(SshBytes::new(b"x-unknown-algo@puffin".to_vec()))
 }
+/// RFC 8308 ext-info-c marker: included in the client KEXINIT to advertise
+/// EXT_INFO support, so the server will then accept a client SSH_MSG_EXT_INFO.
+pub fn fn_algo_ext_info_c() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"ext-info-c".to_vec()))
+}
+
+// ── EXT_INFO extension names / values (RFC 8308) ─────────────────────────────
+pub fn fn_ext_name_server_sig_algs() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"server-sig-algs".to_vec()))
+}
+pub fn fn_ext_val_rsa_sha2() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(b"rsa-sha2-256,rsa-sha2-512".to_vec()))
+}
 
 pub fn fn_puffin_banner() -> Result<String, FnError> {
     Ok("SSH-2.0-puffin\r\n".to_string())

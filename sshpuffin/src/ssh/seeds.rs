@@ -849,6 +849,93 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
     }
 }
 
+/// ext-info seed (RFC 8308): the client KEXINIT advertises `ext-info-c`, so the
+/// server accepts a client SSH_MSG_EXT_INFO. After NewKeys the client sends an
+/// encrypted EXT_INFO (server-sig-algs) as its first packet — exercising the
+/// server's EXT_INFO parser — then authenticates by publickey so the handshake
+/// completes (proving the EXT_INFO was accepted, not rejected). AES-256-GCM,
+/// c2s counters: EXT_INFO 0, SERVICE_REQUEST 1, USERAUTH_REQUEST 2.
+pub fn seed_client_attacker_ext_info(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id = term! { fn_banner_id(((server, 0)[None]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    // KEXINIT offering curve25519-sha256 + the ext-info-c marker.
+    let our_kexinit = term! {
+        fn_kex_init(
+            (fn_placeholder_16bytes),
+            (fn_kex_algos((fn_namelist_2((fn_algo_curve25519_sha256), (fn_algo_ext_info_c))))),
+            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none)))))
+        )
+    };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+
+    // First post-NewKeys packet: EXT_INFO (RFC 8308 §2.4), counter 0.
+    let ext_info = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_ext_info((fn_ext_name_server_sig_algs), (fn_ext_val_rsa_sha2))),
+            (@key), (@iv), (fn_u32_0))
+    };
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_1))
+    };
+    let sig = term! {
+        fn_sign_userauth((@exch_hash), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_2))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @ext_info }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+        ],
+        ..Default::default()
+    }
+}
+
 // ── Seed: server attacker with full handshake ─────────────────────────────────
 //
 // The fuzzer acts as the SSH server; the client is a real libssh instance.
@@ -1521,6 +1608,12 @@ pub fn create_corpus(
             seed_client_attacker_rekey(server),
             "seed_client_attacker_rekey",
         ),
+        // RFC 8308 ext-info: client advertises ext-info-c and sends EXT_INFO,
+        // exercising the server's EXT_INFO parser.
+        (
+            seed_client_attacker_ext_info(server),
+            "seed_client_attacker_ext_info",
+        ),
         // Two real PUTs relayed by the attacker — the substrate the live
         // matching-conversation oracle needs. Mutations that desync the relayed
         // transcript (Terrapin-style) are flagged as a security objective.
@@ -2064,6 +2157,36 @@ mod tests {
     /// same AES-256-GCM suite and complete the handshake on both vendors — proving
     /// the negotiation-builder path is valid end-to-end and gives the fuzzer a
     /// KEXINIT whose offered algorithms are mutable sub-terms.
+    /// The ext-info seed must complete on libssh: the server accepts the client's
+    /// EXT_INFO (advertised via ext-info-c), then publickey auth completes and the
+    /// claim is emitted. A rejected/misparsed EXT_INFO would error or block auth.
+    #[test_log::test]
+    fn test_seed_ext_info_accepted() {
+        use puffin::algebra::dynamic_function::TypeShape;
+        use puffin::put::{PutDescriptor, PutOptions};
+
+        use crate::claim::SshClaimInner;
+        use crate::ssh::seeds::seed_client_attacker_ext_info;
+
+        let registry = ssh_registry();
+        let server = puffin::agent::AgentName::first();
+        if registry.find_by_id("libssh0114-asan").is_none() {
+            return;
+        }
+        let spawner = Spawner::new(registry.clone()).with_mapping(&[(
+            server,
+            PutDescriptor::new("libssh0114-asan", PutOptions::default()),
+        )]);
+        let ctx = Runner::new(registry.clone(), spawner)
+            .execute(seed_client_attacker_ext_info(server), &mut 0)
+            .expect("ext-info seed must complete on libssh (EXT_INFO accepted)");
+        let claim = ctx
+            .find_claim(server, TypeShape::of::<SshClaimInner>())
+            .expect("ext-info seed emitted no claim (auth did not complete)");
+        let inner = claim.as_any().downcast_ref::<Box<SshClaimInner>>().unwrap();
+        assert_eq!(inner.auth_method, "publickey");
+    }
+
     /// The rekey seed must execute without a PUT error on libssh — i.e. the server
     /// accepts and processes the encrypted second KEXINIT / ECDH_INIT / NEWKEYS
     /// (a successful AES-GCM decrypt + a completed re-KEX). A decrypt/tag failure

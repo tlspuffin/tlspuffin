@@ -85,6 +85,9 @@ define_signature!(
     fn_algo_kex_strict_c
     fn_algo_kex_strict_s
     fn_algo_unknown
+    fn_algo_ext_info_c
+    fn_ext_name_server_sig_algs
+    fn_ext_val_rsa_sha2
     fn_cookie_zeros
     fn_cookie_ff
     fn_username_empty
@@ -128,6 +131,7 @@ define_signature!(
     fn_banner
     fn_disconnect
     fn_ignore
+    fn_ext_info
     fn_unimplemented
     fn_debug
     fn_service_request
