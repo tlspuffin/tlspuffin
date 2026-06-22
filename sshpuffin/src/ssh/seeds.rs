@@ -659,6 +659,105 @@ pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtoco
     }
 }
 
+/// Session-layer (RFC 4254 connection protocol) seed: authenticate by publickey
+/// (key A, accepted), open a session channel, then drive the full set of channel
+/// messages — WINDOW_ADJUST, DATA, EXTENDED_DATA, EOF, CLOSE. The other seeds stop
+/// at channel-open / channel-request; this one exercises libssh's channel data /
+/// flow-control / teardown handlers, a large code area no other seed reaches.
+/// AES-256-GCM, c2s counter = packet index since NewKeys.
+pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id = term! { fn_banner_id(((server, 0)[None]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+    };
+    let sig = term! {
+        fn_sign_userauth((@exch_hash), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_1))
+    };
+    let chan_open = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+                             (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_2))
+    };
+    // Connection-protocol traffic on the (assumed channel 0) session.
+    let win_adjust = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_window_adjust((fn_u32_0), (fn_u32_0x10000))), (@key), (@iv), (fn_u32_3))
+    };
+    let chan_data = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_data((fn_u32_0), (fn_placeholder_32bytes))), (@key), (@iv), (fn_u32_4))
+    };
+    let chan_ext_data = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_extended_data((fn_u32_0), (fn_u32_1), (fn_placeholder_32bytes))),
+            (@key), (@iv), (fn_u32_5))
+    };
+    let chan_eof = term! {
+        fn_encrypt_packet_aesgcm((fn_channel_eof((fn_u32_0))), (@key), (@iv), (fn_u32_6))
+    };
+    let chan_close = term! {
+        fn_encrypt_packet_aesgcm((fn_channel_close((fn_u32_0))), (@key), (@iv), (fn_u32_7))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @chan_open }),
+            InputAction::new_step(server, term! { @win_adjust }),
+            InputAction::new_step(server, term! { @chan_data }),
+            InputAction::new_step(server, term! { @chan_ext_data }),
+            InputAction::new_step(server, term! { @chan_eof }),
+            InputAction::new_step(server, term! { @chan_close }),
+        ],
+        ..Default::default()
+    }
+}
+
 // ── Seed: server attacker with full handshake ─────────────────────────────────
 //
 // The fuzzer acts as the SSH server; the client is a real libssh instance.
@@ -1184,6 +1283,12 @@ pub fn create_corpus(
             seed_client_attacker_pubkey_aesgcm(server),
             "seed_client_attacker_pubkey_aesgcm",
         ),
+        // Session layer: authenticated channel with full connection-protocol
+        // traffic (window-adjust / data / extended-data / eof / close).
+        (
+            seed_client_attacker_channel_data(server),
+            "seed_client_attacker_channel_data",
+        ),
         // Two real PUTs relayed by the attacker — the substrate the live
         // matching-conversation oracle needs. Mutations that desync the relayed
         // transcript (Terrapin-style) are flagged as a security objective.
@@ -1628,6 +1733,44 @@ mod tests {
     /// same AES-256-GCM suite and complete the handshake on both vendors — proving
     /// the negotiation-builder path is valid end-to-end and gives the fuzzer a
     /// KEXINIT whose offered algorithms are mutable sub-terms.
+    /// The session-layer seed must authenticate (publickey, key A), open a channel,
+    /// and have the server process the full connection-protocol message set
+    /// (window-adjust / data / extended-data / eof / close) without error on
+    /// libssh — proving the new channel traffic is wire-correct and reaches the
+    /// connection-protocol handlers (a code area no other seed exercises).
+    #[test_log::test]
+    fn test_seed_channel_data_completes() {
+        use puffin::algebra::dynamic_function::TypeShape;
+        use puffin::put::{PutDescriptor, PutOptions};
+
+        use crate::claim::{SshClaimInner, ATTACKER_PUBKEY_SHA256};
+        use crate::ssh::seeds::seed_client_attacker_channel_data;
+
+        let registry = ssh_registry();
+        let server = puffin::agent::AgentName::first();
+        if registry.find_by_id("libssh0114-asan").is_none() {
+            return;
+        }
+        let spawner = Spawner::new(registry.clone()).with_mapping(&[(
+            server,
+            PutDescriptor::new("libssh0114-asan", PutOptions::default()),
+        )]);
+        let runner = Runner::new(registry.clone(), spawner);
+        let ctx = runner
+            .execute(seed_client_attacker_channel_data(server), &mut 0)
+            .expect("channel-data seed must execute without PUT error on libssh");
+        let claim = ctx
+            .find_claim(server, TypeShape::of::<SshClaimInner>())
+            .expect("channel-data seed emitted no claim (auth did not complete)");
+        let inner = claim.as_any().downcast_ref::<Box<SshClaimInner>>().unwrap();
+        assert_eq!(inner.auth_method, "publickey");
+        assert_eq!(
+            inner.auth_key_fingerprint.as_slice(),
+            ATTACKER_PUBKEY_SHA256.as_slice(),
+            "server authenticated a key other than A"
+        );
+    }
+
     /// The non-AEAD aes256-ctr + hmac-sha2-256 seed must complete the handshake on
     /// **libssh** — proving the new AES-CTR + HMAC packet crypto is wire-correct
     /// and that the alternative suite is reachable end-to-end (the coverage lever:

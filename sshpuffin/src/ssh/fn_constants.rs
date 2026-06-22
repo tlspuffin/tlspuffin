@@ -302,6 +302,9 @@ pub fn fn_password_empty() -> Result<Vec<u8>, FnError> {
 pub fn fn_password_long() -> Result<Vec<u8>, FnError> {
     Ok(vec![b'p'; 512])
 }
+pub fn fn_u32_7() -> Result<u32, FnError> {
+    Ok(7)
+}
 pub fn fn_u32_max() -> Result<u32, FnError> {
     Ok(u32::MAX)
 }

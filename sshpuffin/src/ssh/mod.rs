@@ -92,6 +92,7 @@ define_signature!(
     fn_username_long
     fn_password_empty
     fn_password_long
+    fn_u32_7
     fn_u32_max
     fn_u32_0x10000
     fn_puffin_banner
