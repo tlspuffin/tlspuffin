@@ -238,25 +238,23 @@ impl ProtocolTypes for SshProtocolTypes {
     }
 
     fn differential_fuzzing_filter_diff(diff: &puffin::differential::TraceDifference) -> bool {
-        use puffin::differential::{SecurityClaimDiff, TraceDifference};
+        use puffin::differential::TraceDifference;
 
         // Cross-implementation (libssh vs wolfSSH) comparison. Security in the DY
         // model lives in *properties over claims*, not in raw bytes or control
         // flow, so we compare security state and drop the implementation-defined
         // transport transcript and execution path.
         match diff {
-            // Security-violation differences. A violation that fires on ONE PUT and
-            // not the other (`Different`) is the meaningful signal — e.g. the
-            // VERSION-DIFFERENTIAL Terrapin discriminator: a matching-conversation
-            // violation on vulnerable libssh 0.10.4 that 0.11.4's strict-kex aborts
-            // before completion (so 0.11.4 raises no violation). We DROP `BothError`
-            // (both PUTs raise the same violation): a version-independent firing is,
-            // by construction, not strict-kex-discriminated, so for the Terrapin
-            // class it is a false positive (the byte-exact transcript oracle tripping
-            // on bit-corrupted but mutually-tolerated fields, identically on both
-            // versions). Keeping only `Different` isolates genuine strict-kex-class
-            // attacks and removes the both-version transcript-comparison noise.
-            TraceDifference::SecurityClaim(s) => !matches!(s, SecurityClaimDiff::BothError { .. }),
+            // Any security-violation difference is meaningful, in BOTH forms:
+            //  * `Different` — one PUT violates, the other doesn't (e.g. a
+            //    vulnerable vs patched version differential).
+            //  * `BothError` — both PUTs raise the same violation. For two
+            //    *different* implementations (e.g. libssh vs wolfSSH) this is a
+            //    SHARED real vulnerability, not noise, so it must be kept. (An
+            //    earlier version dropped BothError to denoise the same-impl version
+            //    differential; that was unsound as a global filter — it would have
+            //    discarded genuine cross-vendor shared findings.)
+            TraceDifference::SecurityClaim(_) => true,
 
             // Claims carry the negotiated security state (kex/cipher/MAC → downgrade
             // & null-cipher; auth method + verified key fingerprint → impersonation
