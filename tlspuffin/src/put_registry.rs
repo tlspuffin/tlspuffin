@@ -10,7 +10,7 @@ pub mod bindings {
 
     include!(env!("RUST_BINDINGS_FILE"));
 }
-
+    
 pub mod registration {
     use std::sync::Mutex;
 

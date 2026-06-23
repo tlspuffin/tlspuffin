@@ -64,6 +64,21 @@ appenders:
         base: 1
         count: 20
 
+  feedback.log:
+    kind: rolling_file
+    path: "log/feedback.log"
+    encoder:
+      pattern: "{d}\t{l}\t{m}{n}"
+    policy:
+      trigger:
+        kind: size
+        limit: 10 mb
+      roller:
+        kind: fixed_window
+        pattern: "log/feedback.{}.gz"
+        base: 1
+        count: 20
+
   # An appender named "puffin_terms_log" that writes to a file for algebra::terms fuzzing
   puffin_terms_log:
     kind: rolling_file
@@ -198,6 +213,11 @@ loggers:
       - fuzzer.log
     additive: true
 
+  puffin::fuzzer::feedback:
+    level: info 
+    appenders:
+      - feedback.log
+    additive: false
 #  # Costly!
 #  # Raise the maximum log level for events sent to the "puffin::algebra::term" logger to "debug" and print to a dedicated file
 #  puffin::algebra::term:
