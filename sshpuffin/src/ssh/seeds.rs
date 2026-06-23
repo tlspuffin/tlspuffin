@@ -1964,16 +1964,35 @@ mod tests {
                 continue;
             }
             // Which direction diverges, and is it a length change?
-            let s_recv = delivered_to::<SshProtocolBehavior>(&trace, &ctx, server).len();
-            let c_sent = ctx.agent_output_messages(client, flight).concat().len();
-            let c_recv = delivered_to::<SshProtocolBehavior>(&trace, &ctx, client).len();
-            let s_sent = ctx.agent_output_messages(server, flight).concat().len();
-            if s_recv != c_sent || c_recv != s_sent {
+            let s_recv = delivered_to::<SshProtocolBehavior>(&trace, &ctx, server);
+            let c_sent = ctx.agent_output_messages(client, flight).concat();
+            let c_recv = delivered_to::<SshProtocolBehavior>(&trace, &ctx, client);
+            let s_sent = ctx.agent_output_messages(server, flight).concat();
+            if s_recv.len() != c_sent.len() || c_recv.len() != s_sent.len() {
                 structural += 1;
                 eprintln!(
-                    "STRUCTURAL {}: c2s deliv={s_recv} sent={c_sent} | s2c deliv={c_recv} sent={s_sent}",
-                    p.file_name().unwrap().to_string_lossy()
+                    "STRUCTURAL {}: c2s deliv={} sent={} | s2c deliv={} sent={}",
+                    p.file_name().unwrap().to_string_lossy(),
+                    s_recv.len(),
+                    c_sent.len(),
+                    c_recv.len(),
+                    s_sent.len()
                 );
+                let dump = |label: &str, deliv: &[u8], sent: &[u8]| {
+                    if deliv.len() == sent.len() {
+                        return;
+                    }
+                    let at = deliv.iter().zip(sent).take_while(|(x, y)| x == y).count();
+                    let end_d = (at + 20).min(deliv.len());
+                    let end_s = (at + 20).min(sent.len());
+                    eprintln!(
+                        "  {label} diverge@{at}: deliv={:02x?} sent={:02x?}",
+                        &deliv[at..end_d],
+                        &sent[at..end_s]
+                    );
+                };
+                dump("c2s", &s_recv, &c_sent);
+                dump("s2c", &c_recv, &s_sent);
             } else {
                 corruption += 1;
             }
