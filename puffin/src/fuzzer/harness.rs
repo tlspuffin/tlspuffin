@@ -44,12 +44,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
             let claims_borrow = ctx.claims.claims.borrow();
             let mut claim_keys: Vec<String> = Vec::new();
             for claim in claims_borrow.iter() {
-                let agent = claim.agent_name();
-                let step_num = claim.get_step();
-                let step = step_num.map(|s| s.step).unwrap_or(0);
-                let claim_type = format!("{:?}", claim.id());
-
-                let key = format!("{}-{}-{}", agent, step, claim_type);
+                let key = claim.format_content_normalized();
                 claim_keys.push(key);
             }
             *captured.borrow_mut() = Some(Box::new(claim_keys));

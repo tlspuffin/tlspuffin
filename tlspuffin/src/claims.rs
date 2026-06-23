@@ -330,6 +330,14 @@ impl Claim for TlsClaim {
     fn get_step(&self) -> Option<StepNumber> {
         self.step.clone()
     }
+    fn format_content_normalized(&self) -> String{
+        let agent = self.agent_name; 
+        let origin = self.origin; 
+        let pv = self.protocol_version; 
+        let step_num = self.get_step();
+        let step = step_num.map(|s| s.step).unwrap_or(0);// unwrap option type, put 0 if None
+        format!("{}-{:?}-{}-{:?}-data", agent, origin, step, pv)
+    }
 }
 
 impl Extractable<TLSProtocolTypes> for TlsClaim {
