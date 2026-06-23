@@ -1935,6 +1935,67 @@ mod tests {
         );
     }
 
+    /// Version-differential Terrapin discriminator: running the SAME trace on
+    /// vulnerable 0.10.4 vs patched 0.11.4 distinguishes a genuine strict-kex-class
+    /// attack from a version-independent transcript-comparison false positive.
+    /// Terrapin → 0.10.4 raises a matching-conversation violation while 0.11.4
+    /// strict-kex-aborts (no violation) → the differential reports
+    /// `SecurityClaim::Different` (kept). A both-version FP would raise the same
+    /// violation on both → `SecurityClaim::BothError` (dropped by filter_diff).
+    /// The honest relay completes on both → no difference at all.
+    #[ignore = "shares the process-global OpenSSL RNG; run with --test-threads=1"]
+    #[test_log::test]
+    fn test_terrapin_version_differential() {
+        use puffin::differential::{SecurityClaimDiff, TraceDifference};
+        use puffin::error::Error;
+        use puffin::execution::{DifferentialRunner, TraceRunner};
+        use puffin::put::{PutDescriptor, PutOptions};
+        use puffin::trace::{ConfigTrace, Trace};
+
+        use crate::protocol::SshProtocolTypes;
+        use crate::ssh::seeds::{seed_handshake_two_party_packet_complete, seed_terrapin_s2c};
+
+        let registry = ssh_registry();
+        let client = puffin::agent::AgentName::first();
+        let server = client.next();
+        if registry.find_by_id("libssh0104-asan").is_none()
+            || registry.find_by_id("libssh0114-asan").is_none()
+        {
+            return;
+        }
+        let put = |n: &str| PutDescriptor::new(n, PutOptions::default());
+        let run_diff = |trace: Trace<SshProtocolTypes>| {
+            let s1 = Spawner::new(registry.clone()).with_mapping(&[
+                (client, put("libssh0104-asan")),
+                (server, put("libssh0104-asan")),
+            ]);
+            let s2 = Spawner::new(registry.clone()).with_mapping(&[
+                (client, put("libssh0114-asan")),
+                (server, put("libssh0114-asan")),
+            ]);
+            let runner = DifferentialRunner::new(registry.clone(), s1, s2);
+            (&runner).execute_config(trace, ConfigTrace::default(), &mut 0)
+        };
+
+        // Terrapin: vulnerable-vs-patched yields a SecurityClaim::Different.
+        match run_diff(seed_terrapin_s2c(client, server)) {
+            Err(Error::Difference { differences, .. }) => assert!(
+                differences.iter().any(|d| matches!(
+                    d,
+                    TraceDifference::SecurityClaim(SecurityClaimDiff::Different { .. })
+                )),
+                "expected a version-differential SecurityClaim::Different for Terrapin; got {differences:?}"
+            ),
+            other => panic!("Terrapin should be discriminated by the version differential; got {other:?}"),
+        }
+
+        // Honest relay: both complete cleanly → no version difference.
+        assert!(
+            run_diff(seed_handshake_two_party_packet_complete(client, server)).is_ok(),
+            "honest relay must show no version-differential security claim"
+        );
+    }
+
     /// FLAGSHIP: the DY fuzzer detects the Terrapin prefix-truncation attack
     /// (CVE-2023-48795) via the *generic* matching-conversation property — not a
     /// Terrapin-specific signature. On vulnerable libssh 0.10.4 the s2c truncation
