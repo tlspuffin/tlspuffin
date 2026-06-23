@@ -1897,6 +1897,90 @@ mod tests {
         }
     }
 
+    /// Diagnostic: characterize matching-conversation objectives — for each trace
+    /// in $OBJ_DIR, run on libssh0104 (bit payloads on) and report, per direction,
+    /// whether the delivered transcript LENGTH differs from the sent one. Same
+    /// length + violation => byte corruption of a tolerated field (FP); different
+    /// length => a message was dropped/inserted (structurally meaningful).
+    #[ignore = "diagnostic: set OBJ_DIR"]
+    #[test_log::test]
+    fn diag_classify_objectives() {
+        use std::any::TypeId;
+
+        use puffin::put::{PutDescriptor, PutOptions};
+        use puffin::trace::Trace;
+
+        use crate::protocol::{RawSshMessageFlight, SshProtocolBehavior, SshProtocolTypes};
+        use crate::violation::{delivered_to, matching_conversation_violation};
+
+        let dir = match std::env::var("OBJ_DIR") {
+            Ok(d) => d,
+            Err(_) => return,
+        };
+        let registry = ssh_registry();
+        let client = puffin::agent::AgentName::first();
+        let server = client.next();
+        let flight = TypeId::of::<RawSshMessageFlight>();
+        let (mut corruption, mut structural, mut other) = (0, 0, 0);
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let p = entry.unwrap().path();
+            if p.extension().and_then(|e| e.to_str()) != Some("trace") {
+                continue;
+            }
+            let bytes = match std::fs::read(&p) {
+                Ok(b) => b,
+                Err(_) => continue,
+            };
+            let trace = match Trace::<SshProtocolTypes>::deserialize_postcard(&bytes) {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
+            let spawner = Spawner::new(registry.clone()).with_mapping(&[
+                (
+                    client,
+                    PutDescriptor::new("libssh0104-asan", PutOptions::default()),
+                ),
+                (
+                    server,
+                    PutDescriptor::new("libssh0104-asan", PutOptions::default()),
+                ),
+            ]);
+            let ctx = match Runner::new(registry.clone(), spawner).execute_config(
+                trace.clone(),
+                puffin::trace::ConfigTrace {
+                    check_security_violation: false,
+                    ..Default::default()
+                },
+                &mut 0,
+            ) {
+                Ok(c) => c,
+                Err(_) => {
+                    other += 1;
+                    continue;
+                }
+            };
+            if matching_conversation_violation(&trace, &ctx).is_none() {
+                other += 1;
+                continue;
+            }
+            // Which direction diverges, and is it a length change?
+            let s_recv = delivered_to::<SshProtocolBehavior>(&trace, &ctx, server).len();
+            let c_sent = ctx.agent_output_messages(client, flight).concat().len();
+            let c_recv = delivered_to::<SshProtocolBehavior>(&trace, &ctx, client).len();
+            let s_sent = ctx.agent_output_messages(server, flight).concat().len();
+            if s_recv != c_sent || c_recv != s_sent {
+                structural += 1;
+                eprintln!(
+                    "STRUCTURAL {}: c2s deliv={s_recv} sent={c_sent} | s2c deliv={c_recv} sent={s_sent}",
+                    p.file_name().unwrap().to_string_lossy()
+                );
+            } else {
+                corruption += 1;
+            }
+        }
+        eprintln!("OBJ classify: corruption(same-len)={corruption} structural(len-diff)={structural} other(no-repro)={other}");
+    }
+
     /// The honest packet-granular relay (Terrapin discovery substrate) must
     /// COMPLETE with matching conversation intact (no violation) on 0.10.4 — only
     /// then is it a valid base whose 2-mutation neighbourhood contains Terrapin.
