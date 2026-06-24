@@ -127,6 +127,7 @@ pub fn set_experiment_fuzzing_client(base_directory: &Path, level_filter: LevelF
 
     let fuzzer_log = build_rolling_appender("fuzzer.log", "fuzzer.{}.gz", None);
     let harness_log = build_rolling_appender("harness.log", "harness.{}.gz", None);
+    let feedback_log = build_rolling_appender("feedback.log", "feedback.{}.gz", None);
     let info_log = build_rolling_appender("info.log", "info.{}.gz", Some(LevelFilter::Info));
     let warn_log = build_rolling_appender("warn.log", "warn.{}.gz", Some(LevelFilter::Warn));
     let error_log = build_rolling_appender("error.log", "error.{}.gz", Some(LevelFilter::Error));
@@ -136,6 +137,7 @@ pub fn set_experiment_fuzzing_client(base_directory: &Path, level_filter: LevelF
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
         .appender(fuzzer_log)
         .appender(harness_log)
+        .appender(feedback_log)
         .appender(info_log)
         .appender(warn_log)
         .appender(error_log);
@@ -181,6 +183,10 @@ pub fn set_experiment_fuzzing_client(base_directory: &Path, level_filter: LevelF
             .appenders(vec!["fuzzer.log"])
             .additive(true)
             .build("puffin::fuzzer", level_filter))
+        .logger(Logger::builder()
+            .appenders(vec!["feedback.log"])
+            .additive(false)
+            .build("puffin::fuzzer::feedback", level_filter))
         // Root logger
         .build(
             Root::builder()

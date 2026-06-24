@@ -23,6 +23,7 @@ pub trait Claim: EvaluatedTerm<Self::PT> + Debug + Comparable + PartialEq {
     fn inner(&self) -> Box<dyn EvaluatedTerm<Self::PT>>;
     fn set_step(&mut self, step: Option<StepNumber>);
     fn get_step(&self) -> Option<StepNumber>;
+     fn format_content_normalized(&self) -> String;
 }
 
 pub trait SecurityViolationPolicy {
@@ -202,7 +203,7 @@ impl<C: Claim> ClaimList<C> {
 
 #[derive(Default, Clone, PartialEq, Debug)]
 pub struct GlobalClaimList<C: Claim> {
-    claims: Rc<RefCell<ClaimList<C>>>,
+    pub claims: Rc<RefCell<ClaimList<C>>>,
 }
 
 impl<C: Claim> GlobalClaimList<C> {

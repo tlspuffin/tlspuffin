@@ -2,11 +2,12 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 use libafl::executors::ExitKind;
 use rand::Rng;
-
+use crate::claims::Claim;
+use crate::fuzzer::feedback::claim_observer::CAPTURED_CLAIMS;
 use crate::algebra::TermType;
 use crate::error::Error;
 use crate::execution::{DifferentialRunner, Runner, TraceRunner};
-use crate::fuzzer::feedback::{FAIL_AT_STEP, OBJECTIVE_HASH, OBJECTIVE_TRIGGERED};
+use crate::fuzzer::objective_feedback::{FAIL_AT_STEP, OBJECTIVE_HASH, OBJECTIVE_TRIGGERED};
 use crate::fuzzer::stats_stage::{
     HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
     TERM_SIZE, TRACE_LENGTH,
@@ -56,6 +57,15 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     let mut fail_at_step = 0;
     match runner.execute(input, &mut fail_at_step) {
         Ok(ctx) => {
+            CAPTURED_CLAIMS.with(|captured| {
+                let claims_borrow = ctx.claims.claims.borrow();
+                let mut claim_keys: Vec<String> = Vec::new();
+                for claim in claims_borrow.iter() {
+                    let key = claim.format_content_normalized();
+                    claim_keys.push(key);
+                }
+                *captured.borrow_mut() = Some(Box::new(claim_keys));
+            });
             HARNESS_EXEC_SUCCESS.increment();
             if cfg!(feature = "introspection") && ctx.agents_successful() {
                 HARNESS_EXEC_AGENT_SUCCESS.increment();

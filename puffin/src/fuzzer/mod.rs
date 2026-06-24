@@ -10,6 +10,7 @@ use libafl_bolts::HasLen;
 use crate::protocol::ProtocolTypes;
 use crate::trace::Trace;
 
+pub mod feedback;
 pub mod harness;
 mod libafl_setup;
 pub mod sanitizer;
@@ -20,7 +21,7 @@ pub mod term_zoo;
 // Public for benchmarks
 pub mod bit_mutations;
 pub mod config;
-pub mod feedback;
+pub mod objective_feedback;
 pub mod mutations;
 pub mod utils;
 

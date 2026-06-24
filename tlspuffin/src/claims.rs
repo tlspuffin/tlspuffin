@@ -9,12 +9,34 @@ use puffin::protocol::{EvaluatedTerm, Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source, StepNumber};
 use puffin::{codec, dummy_codec, dummy_extract_knowledge, dummy_extract_knowledge_codec};
 use security_claims::ClaimTLSVersion;
+use serde::{Serialize, Serializer};
 use smallvec::SmallVec;
 
 use crate::protocol::{AgentType, TLSProtocolTypes, TLSVersion};
+fn serialize_array_as_slice<S>(array: &[u8; 64], serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    array.as_slice().serialize(serializer)
+}
 
-#[derive(Debug, Clone, PartialEq, Comparable)]
-pub struct TlsTranscript(pub [u8; 64], pub i32);
+fn serialize_tls_version<S>(value: &ClaimTLSVersion, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let value_str = match *value {
+            ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED => "UNDEFINED",
+            ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2 => "TLS_1_2",
+            ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3 => "TLS_1_3",
+        };
+        serializer.serialize_str(value_str)
+    }
+
+#[derive(Debug, Clone, Serialize, PartialEq, Comparable)]
+pub struct TlsTranscript(
+    #[serde(serialize_with = "serialize_array_as_slice")] pub [u8; 64],
+    pub i32,
+);
 
 impl codec::Codec for TlsTranscript {
     fn encode(&self, b: &mut Vec<u8>) {
@@ -41,7 +63,7 @@ impl codec::Codec for TlsTranscript {
 }
 dummy_extract_knowledge!(TLSProtocolTypes, TlsTranscript);
 
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize,  Comparable, PartialEq)]
 pub struct TranscriptClientHello(#[comparable_ignore] pub TlsTranscript);
 impl Transcript for TranscriptClientHello {
     fn as_slice(&self) -> &[u8] {
@@ -62,7 +84,7 @@ impl codec::Codec for TranscriptClientHello {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptClientHello);
 
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize, Comparable, PartialEq)]
 pub struct TranscriptPartialClientHello(#[comparable_ignore] pub TlsTranscript);
 
 impl Transcript for TranscriptPartialClientHello {
@@ -84,7 +106,7 @@ impl codec::Codec for TranscriptPartialClientHello {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptPartialClientHello);
 
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize, Comparable, PartialEq)]
 pub struct TranscriptServerHello(#[comparable_ignore] pub TlsTranscript);
 
 impl Transcript for TranscriptServerHello {
@@ -107,7 +129,7 @@ impl codec::Codec for TranscriptServerHello {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptServerHello);
 
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize, Comparable, PartialEq)]
 pub struct TranscriptServerFinished(#[comparable_ignore] pub TlsTranscript);
 
 impl Transcript for TranscriptServerFinished {
@@ -129,7 +151,7 @@ impl codec::Codec for TranscriptServerFinished {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptServerFinished);
 
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize,  Comparable, PartialEq)]
 pub struct TranscriptClientFinished(#[comparable_ignore] pub TlsTranscript);
 
 impl Transcript for TranscriptClientFinished {
@@ -151,7 +173,7 @@ impl codec::Codec for TranscriptClientFinished {
 
 dummy_extract_knowledge!(TLSProtocolTypes, TranscriptClientFinished);
 
-#[derive(Debug, Clone, PartialEq, Comparable)]
+#[derive(Debug, Clone, Serialize, PartialEq, Comparable)]
 pub struct TranscriptCertificate(#[comparable_ignore] pub TlsTranscript);
 impl Transcript for TranscriptCertificate {
     fn as_slice(&self) -> &[u8] {
@@ -175,20 +197,20 @@ pub trait Transcript {
     fn as_slice(&self) -> &[u8];
 }
 
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize,  Comparable, PartialEq)]
 pub struct ClientHello;
 // We do not expect to encode/read claims!
 dummy_extract_knowledge_codec!(TLSProtocolTypes, ClientHello);
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize,  Comparable, PartialEq)]
 pub struct ServerHello;
 dummy_extract_knowledge_codec!(TLSProtocolTypes, ServerHello);
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize,  Comparable, PartialEq)]
 pub struct Certificate;
 dummy_extract_knowledge_codec!(TLSProtocolTypes, Certificate);
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize,  Comparable, PartialEq)]
 pub struct CertificateVerify;
 dummy_extract_knowledge_codec!(TLSProtocolTypes, CertificateVerify);
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize,  Comparable, PartialEq)]
 pub struct Finished {
     #[comparable_ignore]
     pub outbound: bool,
@@ -217,7 +239,7 @@ pub struct Finished {
     pub handshake_secret: SmallVec<[u8; 32]>,
     #[comparable_ignore]
     pub master_secret: SmallVec<[u8; 32]>,
-
+    #[serde(serialize_with = "serialize_tls_version")]
     pub tls_version: ClaimTLSVersion,
 
     pub chosen_cipher: u16,
@@ -263,7 +285,7 @@ pub struct Finished {
 }
 dummy_extract_knowledge_codec!(TLSProtocolTypes, Finished);
 
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize,  Comparable, PartialEq)]
 pub enum ClaimDataTranscript {
     ClientHello(TranscriptClientHello),
     PartialClientHello(TranscriptPartialClientHello),
@@ -273,7 +295,7 @@ pub enum ClaimDataTranscript {
     ClientFinished(TranscriptClientFinished),
 }
 
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize, Comparable, PartialEq)]
 pub enum ClaimDataMessage {
     ClientHello(ClientHello),
     ServerHello(ServerHello),
@@ -282,13 +304,13 @@ pub enum ClaimDataMessage {
     Finished(Finished),
 }
 
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize, Comparable, PartialEq)]
 pub enum ClaimData {
     Transcript(ClaimDataTranscript),
     Message(ClaimDataMessage),
 }
 
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Serialize, Comparable, PartialEq)]
 pub struct TlsClaim {
     pub agent_name: AgentName,
     pub origin: AgentType,
@@ -358,6 +380,14 @@ impl Claim for TlsClaim {
 
     fn get_step(&self) -> Option<StepNumber> {
         self.step.clone()
+    }
+    fn format_content_normalized(&self) -> String{
+        let agent = self.agent_name; 
+        let origin = self.origin; 
+        let pv = self.config_version; 
+        let step_num = self.get_step();
+        let step = step_num.map(|s| s.step).unwrap_or(0);// unwrap option type, put 0 if None
+        format!("{}-{:?}-{}-{:?}-data", agent, origin, step, pv)
     }
 }
 
