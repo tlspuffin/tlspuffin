@@ -111,6 +111,16 @@ def main():
     else:
         w("\n> validation.json not found; run validate.py for the deployment number.\n")
 
+    # Probing parameters: the reproducibility filter the model was built and validated under. These
+    # MUST match to reproduce the numbers above -- a 30/21 model probed at 10/7 may not validate.
+    p = (vd.get("params") if vp.exists() else None) or meta.get("params")
+    if p:
+        w(f"**Probing parameters (reproducibility filter):** N_POOL={p.get('n_pool')}, "
+          f"DOM={p.get('dom')}, retry={p.get('retry')}, timeout={p.get('timeout')}s. "
+          f"Reproduce with: `run_fingerprint.py --put {put} --n-pool {p.get('n_pool')} "
+          f"--dom {p.get('dom')} --retry {p.get('retry')} --timeout {p.get('timeout')}` "
+          f"(or just `--stages validate,report`; validate adopts these from the model).\n")
+
     w(f"## Reliably-distinguishable clusters ({len(leaves)})\n")
     w("Two versions share a cluster iff no probe gives them stably-different live responses.\n")
     for i, g in enumerate(leaves):

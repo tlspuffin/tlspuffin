@@ -159,9 +159,16 @@ def main():
               f"(need probes_full/ or a pre-populated probes/): {missing[:3]}...", flush=True)
 
     # ---- write tree.json + meta.json ----
+    # Carry the probing params the matrix was built under (clusters.json), so the committed model
+    # self-describes its reproducibility filter and validate/fingerprint_probe can adopt it.
+    cl_path = out / "clusters.json"
+    params = cfg.probe_params()
+    if cl_path.exists():
+        params = (json.loads(cl_path.read_text()).get("params") or params)
     (out / "tree.json").write_text(json.dumps(tree, indent=2))
     (out / "meta.json").write_text(json.dumps(
-        {"canon": "tcp_mode", "vendor": put, "sig_len": sig_len, "clusters": leaves}, indent=2))
+        {"canon": "tcp_mode", "vendor": put, "sig_len": sig_len, "params": params,
+         "clusters": leaves}, indent=2))
 
     print(f"[build_tree] wrote {out}/tree.json + meta.json ; probes/ has {copied} decision traces",
           flush=True)

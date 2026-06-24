@@ -34,6 +34,12 @@ def main():
     tree = json.loads((model / "tree.json").read_text())
     meta = json.loads((model / "meta.json").read_text())
     sig_len = meta.get("sig_len", 0)
+    # Reproduce the model under the SAME probing filter it was built with (a model built at 30/21 is
+    # only reproducible when probed at 30/21). Any param the user passed explicitly still wins.
+    adopted = cfg.apply_model_params(meta)
+    if adopted:
+        print(f"[validate] adopted model probe params: "
+              f"{', '.join(f'{k}={v}' for k, v in adopted)}", flush=True)
     # Validate exactly the versions the MODEL covers (its leaves), intersected with what is
     # actually vendored as a live server -- a model may cover fewer versions than are installed.
     vendored = set(cfg.versions(put))
@@ -108,7 +114,8 @@ def main():
     print(f"recognised CONSISTENTLY (same leaf every walk): {consistent}/{len(versions)}")
     print(f"max traces played to classify a server:        {maxplay}   ({int(time.time()-t0)}s)")
     json.dump({"put": put, "correct": correct, "consistent": consistent, "total": len(versions),
-               "max_traces": maxplay, "walks": args.walks, "depth": tree_depth},
+               "max_traces": maxplay, "walks": args.walks, "depth": tree_depth,
+               "params": cfg.probe_params()},   # the filter these numbers were measured under
               open(model / "validation.json", "w"), indent=2)
     print(f"[validate] wrote {model}/validation.json", flush=True)
 

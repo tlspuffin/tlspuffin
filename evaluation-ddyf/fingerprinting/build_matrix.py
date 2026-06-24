@@ -31,8 +31,7 @@ from probe import MISSING, SRVFAIL, UNSTABLE
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     puts.add_put_arg(ap)
-    puts.add_common_args(ap)
-    ap.add_argument("--retry", type=int, default=3, help="re-probe an UNSTABLE cell this many times")
+    puts.add_common_args(ap)   # --retry/--n-pool/--dom/--timeout live here now (CLI > env > default)
     args = ap.parse_args()
     put = args.put
     cfg = puts.resolve(args)
@@ -83,7 +82,7 @@ def main():
             return v, [SRVFAIL] * len(reps), list(range(len(reps)))
         col, uns = [], []
         for pi, t in enumerate(reps):
-            s = probe.sigkey(probe.stable_sig(cfg, t, port, retry=args.retry), sig_len)
+            s = probe.sigkey(probe.stable_sig(cfg, t, port), sig_len)   # retry from cfg.retry
             col.append(s)
             if s == UNSTABLE:
                 uns.append(pi)
@@ -111,7 +110,7 @@ def main():
         srv = probe.launch(cfg, put, v, port)
         if probe.wait_listen(port):
             for pi in flagged[v]:
-                s = probe.sigkey(probe.stable_sig(cfg, reps[pi], port, retry=args.retry), sig_len)
+                s = probe.sigkey(probe.stable_sig(cfg, reps[pi], port), sig_len)   # retry from cfg.retry
                 if s not in MISSING:
                     matrix[v][pi] = s
         srv.terminate()
@@ -145,7 +144,8 @@ def main():
                 break
         else:
             clusters.append([v])
-    json.dump({"clusters": [{"id": i, "versions": sorted(c, key=lambda x: puts.vkey(put, x))}
+    json.dump({"params": cfg.probe_params(),   # the reproducibility filter this matrix was built under
+               "clusters": [{"id": i, "versions": sorted(c, key=lambda x: puts.vkey(put, x))}
                             for i, c in enumerate(clusters)]},
               open(out / "clusters.json", "w"), indent=2)
     print(f"[build_matrix] wrote {out}/signatures.csv + clusters.json ; "

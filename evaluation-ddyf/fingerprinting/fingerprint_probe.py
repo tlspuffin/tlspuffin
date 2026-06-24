@@ -155,7 +155,13 @@ def identify_one(put, model_dir, ctx_base):
     """Load reference/<put>/ model and walk it against the target. Returns the walk result + put."""
     tree = json.loads((model_dir / "tree.json").read_text())
     meta = json.loads((model_dir / "meta.json").read_text())
-    ctx = dict(ctx_base, model=model_dir, tcp_mode=(meta.get("canon") == "tcp_mode"))
+    # Adopt the model's recorded probing filter unless the user passed an explicit value (not None).
+    p = meta.get("params") or {}
+    repeat = ctx_base["repeat"] if ctx_base["repeat"] is not None else int(p.get("n_pool", 3))
+    timeout = ctx_base["timeout"] if ctx_base["timeout"] is not None else float(p.get("timeout", 15.0))
+    retries = ctx_base["retries"] if ctx_base["retries"] is not None else int(p.get("retry", 2))
+    ctx = dict(ctx_base, model=model_dir, tcp_mode=(meta.get("canon") == "tcp_mode"),
+               repeat=repeat, timeout=timeout, retries=retries)
     res = walk_tree(tree, ctx, meta.get("sig_len", 0))
     res["put"] = put
     return res
@@ -196,9 +202,11 @@ def main():
     p.add_argument("--port", type=int, default=443)
     p.add_argument("--sni", help="SNI to inject (defaults to the hostname)")
     p.add_argument("--binary", help="tlspuffin prober (default: --prober/PUFFIN_BIN/derived)")
-    p.add_argument("--timeout", type=float, default=15.0)
-    p.add_argument("--retries", type=int, default=2, help="retries per probe on timeout/parse fail")
-    p.add_argument("--repeat", type=int, default=3, help="re-probe each node N times (flaky targets)")
+    # Default None == "adopt the model's recorded filter (meta.json params), else the built-in
+    # fallback". A model built at 30/21 is only reproduced when probed at repeat>=n_pool.
+    p.add_argument("--timeout", type=float, default=None, help="per-probe timeout s [default: model's, else 15]")
+    p.add_argument("--retries", type=int, default=None, help="retries per probe on timeout/parse fail [default: model's retry, else 2]")
+    p.add_argument("--repeat", type=int, default=None, help="re-probe each node N times [default: model's n_pool, else 3]")
     p.add_argument("--delay", type=float, default=0.0, help="delay between probes (s)")
     p.add_argument("--json", action="store_true")
     # Only the path options (this script defines its own --timeout/--port/--binary etc.).

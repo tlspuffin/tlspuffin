@@ -133,6 +133,33 @@ class Config:
         self.jobs = int(_first(g("jobs"), os.environ.get("JOBS"), 15))
         self.base_port = int(_first(g("base_port"), os.environ.get("BASE_PORT"), 27000))
         self.timeout = float(_first(g("timeout"), os.environ.get("TIMEOUT"), 12.0))
+        # Probing/pooling parameters (CLI > env > default). These define the reproducibility filter
+        # and MUST be recorded with any model they produce (see build_tree meta.json / validate
+        # validation.json) -- a model built at 30/21 is only reproducible when probed at 30/21.
+        self.n_pool = int(_first(g("n_pool"), os.environ.get("FP_N_POOL"), 10))
+        self.dom = int(_first(g("dom"), os.environ.get("FP_DOM"), 7))
+        self.retry = int(_first(g("retry"), os.environ.get("FP_RETRY"), 3))
+        # Track which probing params the user set EXPLICITLY (CLI or env), so that loading a model
+        # that records its own params does not silently override an explicit user choice.
+        self._explicit = {name for name, env in
+                          (("n_pool", "FP_N_POOL"), ("dom", "FP_DOM"),
+                           ("retry", "FP_RETRY"), ("timeout", "TIMEOUT"))
+                          if g(name) is not None or os.environ.get(env) is not None}
+
+    def probe_params(self):
+        """The probing parameters that define a model's reproducibility filter."""
+        return {"n_pool": self.n_pool, "dom": self.dom, "retry": self.retry, "timeout": self.timeout}
+
+    def apply_model_params(self, meta):
+        """Adopt a committed model's recorded probe params as defaults, so the model reproduces
+        with the filter it was built under. A param the user set explicitly (CLI/env) still wins.
+        Returns the list of (name, value) actually adopted (for logging)."""
+        adopted = []
+        for name, val in (meta.get("params") or {}).items():
+            if name in ("n_pool", "dom", "retry", "timeout") and name not in self._explicit:
+                setattr(self, name, type(getattr(self, name))(val))
+                adopted.append((name, val))
+        return adopted
 
     # -- lazily-resolved prober (fail fast with an actionable message) --
     def prober(self, put=None):
@@ -229,6 +256,9 @@ def add_common_args(parser, only=None):
         ("jobs", "--jobs", {"type": int}, "parallel workers [env JOBS; default 15]"),
         ("base_port", "--base-port", {"type": int}, "first localhost port for per-version servers [env BASE_PORT; default 27000]"),
         ("timeout", "--timeout", {"type": float}, "per-probe timeout in seconds [env TIMEOUT; default 12]"),
+        ("n_pool", "--n-pool", {"type": int}, "connections per cell (pooling) [env FP_N_POOL; default 10]"),
+        ("dom", "--dom", {"type": int}, "modal sig must recur >= DOM of N_POOL to be stable [env FP_DOM; default 7]"),
+        ("retry", "--retry", {"type": int}, "re-pool an UNSTABLE cell this many times [env FP_RETRY; default 3]"),
     ]
     g = parser.add_argument_group("paths & runtime (CLI > env var > derived default)")
     for dest, flag, kw, helptext in specs:

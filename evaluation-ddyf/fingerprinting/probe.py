@@ -34,8 +34,9 @@ UNSTABLE = "UNSTABLE"                      # cell sentinel: no reproducible resp
 TIMEOUT = "TIMEOUT"                        # cell sentinel: server stably timed out
 SRVFAIL = "SRVFAIL"                        # cell sentinel: server never came up
 MISSING = {UNSTABLE, SRVFAIL, ""}          # treated as "no information" by clustering/tree
-N_POOL = 10                                # probes per cell
-DOM = 7                                    # modal sig must recur >= DOM / N_POOL times
+N_POOL = 10                                # default probes per cell (overridable via cfg.n_pool)
+DOM = 7                                    # default: modal sig must recur >= DOM / N_POOL times
+RETRY = 3                                  # default: re-pool an UNSTABLE cell this many times
 
 
 def _canon_quiet(data):
@@ -87,9 +88,12 @@ def batch(cfg, trace, port, k=7, resp_min=5):
     return Counter(s for d, s in caps if d == best).most_common(1)[0][0]
 
 
-def pooled_sig(cfg, trace, port, n_pool=N_POOL, dom=DOM):
+def pooled_sig(cfg, trace, port, n_pool=None, dom=None):
     """Run `trace` n_pool times against 127.0.0.1:port; return the FULL modal max-depth signature
-    iff it recurs >= dom times, else UNSTABLE (the 10x / >=7 reproducibility filter)."""
+    iff it recurs >= dom times, else UNSTABLE (the reproducibility filter). When n_pool/dom are not
+    given they default to the resolved cfg params (cfg.n_pool/cfg.dom; CLI > env > 10/7)."""
+    n_pool = n_pool if n_pool is not None else getattr(cfg, "n_pool", N_POOL)
+    dom = dom if dom is not None else getattr(cfg, "dom", DOM)
     binary = cfg.prober()
     caps = [c for c in (_run_once(cfg, binary, trace, port) for _ in range(n_pool)) if c is not None]
     if not caps:
@@ -99,8 +103,10 @@ def pooled_sig(cfg, trace, port, n_pool=N_POOL, dom=DOM):
     return sig if cnt >= dom else UNSTABLE
 
 
-def stable_sig(cfg, trace, port, retry=3):
-    """pooled_sig with up to `retry` attempts before declaring UNSTABLE (used under light load)."""
+def stable_sig(cfg, trace, port, retry=None):
+    """pooled_sig with up to `retry` attempts before declaring UNSTABLE (used under light load).
+    `retry` defaults to the resolved cfg param (cfg.retry; CLI > env > 3)."""
+    retry = retry if retry is not None else getattr(cfg, "retry", RETRY)
     for _ in range(retry):
         s = pooled_sig(cfg, trace, port)
         if s != UNSTABLE:
