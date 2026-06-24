@@ -1,20 +1,23 @@
 use std::borrow::Cow;
 use std::collections::HashSet;
-use libafl::feedbacks::{Feedback, StateInitializer};
+
 use libafl::executors::ExitKind;
-use libafl_bolts::{Error, Named};
+use libafl::feedbacks::{Feedback, StateInitializer};
 use libafl_bolts::prelude::MatchName;
 use libafl_bolts::tuples::*;
+use libafl_bolts::{Error, Named};
+
 use crate::fuzzer::feedback::claim_observer::ClaimObserver;
 pub struct ClaimFeedback {
     seen_claims: HashSet<String>,
-    observer_handle: Handle<ClaimObserver>,   
+    observer_handle: Handle<ClaimObserver>,
 }
 
 impl<S> StateInitializer<S> for ClaimFeedback {}
 
-impl ClaimFeedback{
-     /// Creates a new [`ClaimFeedback`], deciding if the given [`ClaimObserver`] value of a run is interesting.
+impl ClaimFeedback {
+    /// Creates a new [`ClaimFeedback`], deciding if the given [`ClaimObserver`] value of a run is
+    /// interesting.
     pub fn new(observer: &ClaimObserver) -> Self {
         Self {
             seen_claims: HashSet::new(),
@@ -23,8 +26,8 @@ impl ClaimFeedback{
     }
 }
 
-impl Named for ClaimFeedback{
-   fn name(&self) -> &Cow<'static, str> {
+impl Named for ClaimFeedback {
+    fn name(&self) -> &Cow<'static, str> {
         self.observer_handle.name()
     }
 }
@@ -40,8 +43,8 @@ where
         _input: &I,
         observers: &OT,
         _exit_kind: &ExitKind,
-    ) -> Result<bool, Error>
-    {   let Some(claim_observer) = observers.get(&self.observer_handle) else {
+    ) -> Result<bool, Error> {
+        let Some(claim_observer) = observers.get(&self.observer_handle) else {
             return Err(Error::illegal_state(
                 "Observer referenced by Claimeedback is not found in observers given to the fuzzer",
             ));

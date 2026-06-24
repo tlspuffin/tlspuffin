@@ -7,7 +7,6 @@ use libafl_bolts::prelude::*;
 use log4rs::Handle;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use crate::fuzzer::feedback;
 
 use super::harness;
 use crate::fuzzer::bit_mutations::{
@@ -15,8 +14,9 @@ use crate::fuzzer::bit_mutations::{
 };
 pub(crate) use crate::fuzzer::config::FuzzerConfig;
 use crate::fuzzer::config::{FuzzingTarget, MIN_BIT_CORPUS, MIN_BIT_EXECS};
-use crate::fuzzer::objective_feedback::{MinimizingFeedback, ObjectiveFeedback};
+use crate::fuzzer::feedback;
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
+use crate::fuzzer::objective_feedback::{MinimizingFeedback, ObjectiveFeedback};
 use crate::fuzzer::stages::FocusScheduledMutator;
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};

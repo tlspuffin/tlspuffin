@@ -2,11 +2,12 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 use libafl::executors::ExitKind;
 use rand::Rng;
-use crate::claims::Claim;
-use crate::fuzzer::feedback::claim_observer::CAPTURED_CLAIMS;
+
 use crate::algebra::TermType;
+use crate::claims::Claim;
 use crate::error::Error;
 use crate::execution::{DifferentialRunner, Runner, TraceRunner};
+use crate::fuzzer::feedback::claim_observer::CAPTURED_CLAIMS;
 use crate::fuzzer::objective_feedback::{FAIL_AT_STEP, OBJECTIVE_HASH, OBJECTIVE_TRIGGERED};
 use crate::fuzzer::stats_stage::{
     HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,

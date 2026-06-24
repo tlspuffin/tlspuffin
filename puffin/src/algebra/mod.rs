@@ -409,6 +409,7 @@ pub mod test_signature {
         fn get_step(&self) -> Option<StepNumber> {
             None
         }
+
         fn format_content_normalized(&self) -> String {
             "empty string".to_string()
         }

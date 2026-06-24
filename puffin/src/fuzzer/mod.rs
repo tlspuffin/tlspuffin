@@ -21,8 +21,8 @@ pub mod term_zoo;
 // Public for benchmarks
 pub mod bit_mutations;
 pub mod config;
-pub mod objective_feedback;
 pub mod mutations;
+pub mod objective_feedback;
 pub mod utils;
 
 pub use libafl_setup::start;

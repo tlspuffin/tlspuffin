@@ -1,6 +1,7 @@
 use std::any::Any;
-use std::cell::RefCell;
 use std::borrow::Cow;
+use std::cell::RefCell;
+
 use libafl::executors::ExitKind;
 use libafl::observers::Observer;
 use libafl_bolts::{Error, Named};
@@ -23,13 +24,8 @@ impl ClaimObserver {
         }
     }
 }
-impl<I, S> Observer<I, S> for ClaimObserver{
-    fn post_exec(
-        &mut self,
-        state: &mut S,
-        _input: &I,
-        _exit_kind: &ExitKind,
-    ) -> Result<(), Error> {
+impl<I, S> Observer<I, S> for ClaimObserver {
+    fn post_exec(&mut self, state: &mut S, _input: &I, _exit_kind: &ExitKind) -> Result<(), Error> {
         let _ = state;
         CAPTURED_CLAIMS.with(|captured_cell| {
             if let Some(captured) = captured_cell.borrow().as_ref() {
@@ -42,7 +38,7 @@ impl<I, S> Observer<I, S> for ClaimObserver{
     }
 }
 impl Named for ClaimObserver {
-    fn name(&self) ->  &Cow<'static, str> {
+    fn name(&self) -> &Cow<'static, str> {
         &self.name
     }
 }
