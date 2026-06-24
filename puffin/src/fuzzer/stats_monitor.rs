@@ -15,7 +15,7 @@ use libafl_bolts::prelude::{current_time, ClientId};
 use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
-use crate::fuzzer::libafl_setup::MAP_FEEDBACK_NAME;
+use crate::fuzzer::feedback::MAP_FEEDBACK_NAME;
 use crate::fuzzer::stats_stage::{RuntimeStats, DUPLICATES, STATS};
 
 trait ClonableMonitor: Monitor + DynClone {}
