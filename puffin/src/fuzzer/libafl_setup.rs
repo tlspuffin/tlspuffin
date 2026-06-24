@@ -416,9 +416,6 @@ where
     }
 }
 
-type EdgesObserver = HitcountsMapObserver<StdMapObserver<'static, u8, false>>;
-type EdgesTracking = ExplicitTracking<EdgesObserver, true, false>;
-
 /// Starts the fuzzing loop
 pub fn start<PB>(
     put_registry: &PutRegistry<PB>,

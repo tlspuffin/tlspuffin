@@ -388,7 +388,8 @@ impl Claim for TlsClaim {
         let pv = self.config_version;
         let step_num = self.get_step();
         let step = step_num.map(|s| s.step).unwrap_or(0); // unwrap option type, put 0 if None
-        format!("{}-{:?}-{}-{:?}-data", agent, origin, step, pv)
+        let data_desc = self.describe();
+        format!("{}-{:?}-{}-{:?}-{:?}", agent, origin, step, pv, data_desc)
     }
 }
 

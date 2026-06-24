@@ -23,7 +23,9 @@ pub trait Claim: EvaluatedTerm<Self::PT> + Debug + Comparable + PartialEq {
     fn inner(&self) -> Box<dyn EvaluatedTerm<Self::PT>>;
     fn set_step(&mut self, step: Option<StepNumber>);
     fn get_step(&self) -> Option<StepNumber>;
-    fn format_content_normalized(&self) -> String;
+    fn format_content_normalized(&self) -> String {
+        String::new()
+    }
 }
 
 pub trait SecurityViolationPolicy {
