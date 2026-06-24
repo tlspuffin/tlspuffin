@@ -417,9 +417,9 @@ fn make_descriptor(
         },
         client_authentication: config.descriptor.protocol_config.client_authentication,
         server_authentication: config.descriptor.protocol_config.server_authentication,
-        cipher_string_tls13: std::ffi::CString::new("TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_SHA256").unwrap().into_raw(),
-        cipher_string_tls12: std::ffi::CString::new("ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384").unwrap().into_raw(),
-        cipher_string_tlsboth: std::ffi::CString::new("TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256:TLS_AES_128_CCM_8_SHA256:TLS_AES_128_CCM_SHA256:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384").unwrap().into_raw(),
+        cipher_string_tls13: ciphers_tls13.as_ptr(),
+        cipher_string_tls12: ciphers_tls12.as_ptr(),
+        cipher_string_tlsboth: ciphers_tlsboth.as_ptr(),
         group_list: if let Some(group_list) = groups {
             group_list.as_ref().as_ptr()
         } else {

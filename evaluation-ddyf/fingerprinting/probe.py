@@ -57,13 +57,25 @@ def sigkey(full_sig, sig_len):
 
 
 def _run_once(cfg, binary, trace, port):
-    """One replay -> (depth, full_sig) or None if the probe produced no parseable JSON."""
+    """One replay -> (depth, full_sig) or None if the probe produced no parseable JSON.
+
+    When cfg.disposition is set, runs with FP_EMIT_DISPOSITION so the tcp PUT reports terminal TCP
+    behavior (FIN/RST/WAIT) on stderr; the last `__FP_DISP__` token is injected into the JSON so the
+    canon folds it into the signature. OFF by default (legacy signatures unchanged)."""
+    use_disp = getattr(cfg, "disposition", False)
+    env = dict(os.environ, FP_EMIT_DISPOSITION="1") if use_disp else None
     try:
         r = subprocess.run(cfg.task_prefix() + [binary, "tcp", str(trace), "--host", "127.0.0.1",
                                                 "--port", str(port), "--json"],
-                           capture_output=True, text=True, timeout=cfg.timeout)
+                           capture_output=True, text=True, timeout=cfg.timeout, env=env)
     except subprocess.TimeoutExpired:
         return (0, TIMEOUT)
+    disp = None
+    if use_disp:
+        for ln in r.stderr.splitlines():
+            if ln.startswith("__FP_DISP__"):
+                tok = ln.split(None, 1)
+                disp = tok[1].strip() if len(tok) > 1 else disp   # keep the LAST (terminal) read
     i = r.stdout.find("{")
     if i < 0:
         return (0, EMPTY)
@@ -71,6 +83,8 @@ def _run_once(cfg, binary, trace, port):
         d = json.loads(r.stdout[i:])
     except json.JSONDecodeError:
         return None
+    if disp:
+        d["fp_disposition"] = disp
     depth = (d.get("execution") or {}).get("executed_until", 0) or 0
     return (depth, _canon_quiet(d))
 

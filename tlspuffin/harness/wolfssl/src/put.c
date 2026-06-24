@@ -1187,7 +1187,9 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     }
 #endif
 
-    if (false && peer_authentication)
+    /* FP_NO_PEER_VERIFY (fingerprinting only) disables peer auth so puppet agents do not abort;
+       unset (default) restores the descriptor-driven verification used by the fuzzer. */
+    if (!getenv("FP_NO_PEER_VERIFY") && peer_authentication)
     {
         wolfSSL_CTX_set_verify(agent->ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 

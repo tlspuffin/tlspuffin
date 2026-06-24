@@ -139,16 +139,23 @@ class Config:
         self.n_pool = int(_first(g("n_pool"), os.environ.get("FP_N_POOL"), 10))
         self.dom = int(_first(g("dom"), os.environ.get("FP_DOM"), 7))
         self.retry = int(_first(g("retry"), os.environ.get("FP_RETRY"), 3))
+        # Terminal-TCP-behavior signal, OFF by default: enabling it changes every signature, so a
+        # disposition-built model must also be probed with it on (recorded + auto-adopted below).
+        _disp_env = os.environ.get("FP_DISPOSITION")
+        self.disposition = bool(_first(g("disposition"),
+                                       True if _disp_env in ("1", "true", "yes", "on") else None,
+                                       False))
         # Track which probing params the user set EXPLICITLY (CLI or env), so that loading a model
         # that records its own params does not silently override an explicit user choice.
         self._explicit = {name for name, env in
-                          (("n_pool", "FP_N_POOL"), ("dom", "FP_DOM"),
-                           ("retry", "FP_RETRY"), ("timeout", "TIMEOUT"))
+                          (("n_pool", "FP_N_POOL"), ("dom", "FP_DOM"), ("retry", "FP_RETRY"),
+                           ("timeout", "TIMEOUT"), ("disposition", "FP_DISPOSITION"))
                           if g(name) is not None or os.environ.get(env) is not None}
 
     def probe_params(self):
         """The probing parameters that define a model's reproducibility filter."""
-        return {"n_pool": self.n_pool, "dom": self.dom, "retry": self.retry, "timeout": self.timeout}
+        return {"n_pool": self.n_pool, "dom": self.dom, "retry": self.retry,
+                "timeout": self.timeout, "disposition": self.disposition}
 
     def apply_model_params(self, meta):
         """Adopt a committed model's recorded probe params as defaults, so the model reproduces
@@ -156,7 +163,7 @@ class Config:
         Returns the list of (name, value) actually adopted (for logging)."""
         adopted = []
         for name, val in (meta.get("params") or {}).items():
-            if name in ("n_pool", "dom", "retry", "timeout") and name not in self._explicit:
+            if name in ("n_pool", "dom", "retry", "timeout", "disposition") and name not in self._explicit:
                 setattr(self, name, type(getattr(self, name))(val))
                 adopted.append((name, val))
         return adopted
@@ -259,6 +266,10 @@ def add_common_args(parser, only=None):
         ("n_pool", "--n-pool", {"type": int}, "connections per cell (pooling) [env FP_N_POOL; default 10]"),
         ("dom", "--dom", {"type": int}, "modal sig must recur >= DOM of N_POOL to be stable [env FP_DOM; default 7]"),
         ("retry", "--retry", {"type": int}, "re-pool an UNSTABLE cell this many times [env FP_RETRY; default 3]"),
+        ("disposition", "--disposition", {"action": "store_true", "default": None},
+         "fold terminal TCP behavior (TCP_CLOSE/WAIT/RST) into the signature [env FP_DISPOSITION; "
+         "default off]. Changes signatures, so a model is only comparable to itself -- build AND "
+         "probe with the same setting (recorded in the model and auto-adopted)."),
     ]
     g = parser.add_argument_group("paths & runtime (CLI > env var > derived default)")
     for dest, flag, kw, helptext in specs:

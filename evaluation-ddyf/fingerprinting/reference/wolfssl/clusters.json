@@ -4,9 +4,7 @@
       "id": 0,
       "versions": [
         "wolfssl500",
-        "wolfssl521",
-        "wolfssl550",
-        "wolfssl551"
+        "wolfssl521"
       ]
     },
     {
@@ -20,53 +18,68 @@
     {
       "id": 2,
       "versions": [
-        "wolfssl530",
-        "wolfssl540"
+        "wolfssl530"
       ]
     },
     {
       "id": 3,
+      "versions": [
+        "wolfssl540"
+      ]
+    },
+    {
+      "id": 4,
       "versions": [
         "wolfssl552",
         "wolfssl553"
       ]
     },
     {
-      "id": 4,
+      "id": 5,
       "versions": [
         "wolfssl554"
       ]
     },
     {
-      "id": 5,
+      "id": 6,
       "versions": [
         "wolfssl560",
         "wolfssl562",
-        "wolfssl563",
-        "wolfssl564"
-      ]
-    },
-    {
-      "id": 6,
-      "versions": [
-        "wolfssl566"
+        "wolfssl563"
       ]
     },
     {
       "id": 7,
       "versions": [
-        "wolfssl570"
+        "wolfssl564"
       ]
     },
     {
       "id": 8,
       "versions": [
-        "wolfssl572",
-        "wolfssl574"
+        "wolfssl566"
       ]
     },
     {
       "id": 9,
+      "versions": [
+        "wolfssl570"
+      ]
+    },
+    {
+      "id": 10,
+      "versions": [
+        "wolfssl572"
+      ]
+    },
+    {
+      "id": 11,
+      "versions": [
+        "wolfssl574"
+      ]
+    },
+    {
+      "id": 12,
       "versions": [
         "wolfssl576",
         "wolfssl580",
@@ -74,13 +87,13 @@
       ]
     },
     {
-      "id": 10,
+      "id": 13,
       "versions": [
         "wolfssl584"
       ]
     },
     {
-      "id": 11,
+      "id": 14,
       "versions": [
         "wolfssl590",
         "wolfssl591"

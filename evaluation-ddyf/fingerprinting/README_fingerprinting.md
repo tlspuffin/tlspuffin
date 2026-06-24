@@ -14,7 +14,16 @@ The same pipeline runs on any supported PUT (Program-Under-Test). Today: **OpenS
 | PUT | versions | clusters | tree depth | probes used | live deployment validation | prober params |
 |---|---:|---:|---:|---:|---|---|
 | OpenSSL 3.x (3.0.0–3.6.2) | 61 | **11** | 4 | 4 | **60/61** recognised consistently, ≤4 traces | `PUFFIN_TCP_IO_SLEEP_MS=0` |
-| WolfSSL 5.x (5.0.0–5.9.1) | 26 | **12** | 3 | 8 | **26/26** recognised consistently, ≤3 traces | `PUFFIN_TCP_IO_SLEEP_MS=150 --timeout 15` |
+| WolfSSL 5.x (5.0.0–5.9.1) | 24 | **15** | 4 | 7 | **24/24** recognised consistently, ≤4 traces | `--n-pool 30 --dom 21 --timeout 8` |
+
+> **Audited update (supersedes the prior WolfSSL 12-cluster model).** A strict rebuild of the full
+> 806-probe set at `N_POOL=30, DOM=21, timeout=8` yields **15** robustly-distinguishable WolfSSL
+> clusters, live-validated **24/24** (the prior model was 12 @ 24/24). The params are now recorded in
+> the model (`meta.json`/`validation.json`) and auto-adopted by `validate.py`/`fingerprint_probe.py`.
+> The remaining 6 merged groups (e.g. 5.1.0/5.1.1/5.2.0) are indistinguishable over the current
+> probe set **even with the new terminal-TCP-behavior signal** (`TCP_CLOSE/WAIT/RST`), so the next
+> lever is targeted mining, not the observation layer. Full audit + method: `../../DDYF_REPORT.md`.
+> (WolfSSL 5.5.0/5.5.1 are excluded — their vendored example server does not build.)
 
 “Cluster” = a group of versions no probe can tell apart over the wire. The OpenSSL boundaries are
 dominated by upstream’s coordinated release waves; see `reference/openssl/report.md`. The committed

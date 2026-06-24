@@ -197,6 +197,15 @@ def canonicalize_execution(data: dict, tcp_mode: bool = True, live_mode: bool = 
             if n is not None:
                 parts.append(f'extra:{n}')
 
+    # Terminal TCP behavior (fingerprinting): how the server ended the connection -- clean close
+    # (TCP_CLOSE), reset (TCP_RST), or held-open/idle (TCP_WAIT). Injected by probe.py from the
+    # gated `__FP_DISP__` line the tcp PUT emits. This distinguishes servers that previously all
+    # collapsed to EMPTY ("nothing parsed") by *why* nothing was parsed. Absent (legacy probes / no
+    # disposition captured) -> signature is unchanged, so old models still match.
+    disp = data.get('fp_disposition')
+    if tcp_mode and disp:
+        parts.append(f'disp={disp}')
+
     raw = '\n'.join(parts)
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 

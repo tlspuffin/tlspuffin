@@ -115,6 +115,32 @@ fn io_pacing_sleep() {
     }
 }
 
+/// Classify how the peer terminated a `read_to_end` into a stable behavioral token. With a finite
+/// read timeout, `Ok(_)` means the peer sent EOF (clean FIN/close); `WouldBlock`/`TimedOut` means
+/// the connection is still open and the peer is idle (it "waits for more"); `ConnectionReset`/
+/// `BrokenPipe` is an RST. These distinctions are the version-fingerprinting signal that a plain
+/// "no bytes parsed" (EMPTY) throws away. `read_to_end` leaves already-read bytes in `buf` even on
+/// error, so a partial flight is still captured alongside the disposition.
+fn classify_disposition(res: &io::Result<usize>) -> &'static str {
+    match res {
+        Ok(_) => "TCP_CLOSE",
+        Err(e) => match e.kind() {
+            ErrorKind::WouldBlock | ErrorKind::TimedOut => "TCP_WAIT",
+            ErrorKind::ConnectionReset | ErrorKind::BrokenPipe => "TCP_RST",
+            _ => "TCP_ERR",
+        },
+    }
+}
+
+/// Emit the terminal TCP disposition for fingerprinting, gated by `FP_EMIT_DISPOSITION` so normal
+/// fuzzing is completely unaffected. Printed to STDERR (stdout carries the JSON the prober exports),
+/// one tagged line per read; the live prober keeps the last one as the terminal behavior.
+fn maybe_emit_disposition(res: &io::Result<usize>) {
+    if std::env::var_os("FP_EMIT_DISPOSITION").is_some() {
+        eprintln!("__FP_DISP__ {}", classify_disposition(res));
+    }
+}
+
 /// A PUT which is backed by a TCP stream to a server.
 /// In order to use this start an OpenSSL server like this:
 ///
@@ -138,7 +164,8 @@ impl TcpPut for TcpClientPut {
     fn read_to_flight(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
         io_pacing_sleep(); // let the server's full response buffer before reading
         let mut buf = vec![];
-        let _ = self.stream.read_to_end(&mut buf);
+        let res = self.stream.read_to_end(&mut buf);
+        maybe_emit_disposition(&res); // fingerprinting: capture FIN/RST/WAIT (gated)
         let flight = OpaqueMessageFlight::read_bytes(&buf);
         Ok(flight)
     }
@@ -263,7 +290,8 @@ impl TcpPut for TcpServerPut {
         self.receive_stream();
         io_pacing_sleep(); // let the full response buffer before reading
         let mut buf = vec![];
-        let _ = self.stream.as_mut().unwrap().0.read_to_end(&mut buf);
+        let res = self.stream.as_mut().unwrap().0.read_to_end(&mut buf);
+        maybe_emit_disposition(&res); // fingerprinting: capture FIN/RST/WAIT (gated)
         let flight = OpaqueMessageFlight::read_bytes(&buf);
         Ok(flight)
     }

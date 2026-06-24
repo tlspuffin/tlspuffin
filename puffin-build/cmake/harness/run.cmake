@@ -46,6 +46,12 @@ set(PARTIAL_RELOCATION_COMMANDS "")
 if(APPLE)
   list(APPEND PARTIAL_RELOCATION_COMMANDS COMMAND clang -o ${CMAKE_BINARY_DIR}/${PUT}.o "${CMAKE_C_FLAGS}" -flto -nostdlib -nodefaultlibs -nostartfiles -Wl,-no_pie -Wl,-exported_symbol,_${PUT_ID} -Wl,-r $<TARGET_OBJECTS:${PUT}> ${LINK_LIBRARIES})
 else()
+  # WARNING (audit): -Wl,--allow-multiple-definition lets the linker silently pick one of any
+  # clashing symbol definitions when several PUTs/libraries are partial-linked together. It
+  # unblocks the multi-PUT ("puppet") build, but it can mask ODR/symbol collisions and bind the
+  # wrong version's code -- a correctness risk for *version* fingerprinting specifically. The
+  # proper fix is to namespace/strip the colliding symbols so this flag is not needed; left in
+  # place only because removing it currently breaks the link. See DDYF_REPORT.md.
   list(APPEND PARTIAL_RELOCATION_COMMANDS COMMAND clang -o ${CMAKE_BINARY_DIR}/${PUT}.o "${CMAKE_C_FLAGS}" -flto -nostdlib -nodefaultlibs -nostartfiles -Wl,-no-pie -Wl,-whole-archive -Wl,--allow-multiple-definition -Wl,-r $<TARGET_OBJECTS:${PUT}> ${LINK_LIBRARIES})
   list(APPEND PARTIAL_RELOCATION_COMMANDS COMMAND objcopy -G "${PUT_ID}" "${CMAKE_BINARY_DIR}/${PUT}.o")
 endif()

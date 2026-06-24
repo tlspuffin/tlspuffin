@@ -85,56 +85,72 @@ is byte-identical to the prior session's; the recent work did not change it.
 4. **Internet-scan claim removed.** `scan_internet.py` runs but produced no captured, reproducible
    output; "matched lab signatures with high confidence" was unsubstantiated.
 
-### Open shared-code caveats (flagged, not yet resolved)
+### Shared-code caveats — addressed
 The recent infra work includes genuine fixes (TCP `bind` error handling; multi-agent "puppet"
-routing via `--agent`/`is_server()`; real `shutdown()`/`version()` instead of `todo!()`). It also
-contains fingerprinting-specific changes hardcoded into **shared** harness/PUT code that affect all
-users of the fuzzer and should be gated (behind an env var, like `FP_V13_ONLY`) or reverted:
-* `tlspuffin/harness/{openssl,wolfssl}/src/put.c`: certificate/peer verification disabled via
-  `if (false && ...)`.
-* `tlspuffin/src/put.rs`: cipher suites hardcoded (configured cipher strings ignored; `into_raw()`
-  leak).
-* `puffin-build/cmake/harness/run.cmake`: `-Wl,--allow-multiple-definition` silently resolves symbol
-  clashes — risky for a tool whose correctness depends on running the right version's code.
+routing via `--agent`/`is_server()`; real `shutdown()`/`version()` instead of `todo!()`). The
+fingerprinting-specific changes that had been hardcoded into **shared** harness/PUT code have now
+been gated or reverted so the fuzzer's default behavior is restored:
+* `tlspuffin/src/put.rs`: hardcoded cipher suites **reverted** to the config-driven strings
+  (removes the `into_raw()` leak and the dead-parameter warnings; rebuilt).
+* `tlspuffin/harness/{openssl,wolfssl}/src/put.c`: the `if (false && …)` peer-verification disable
+  is now **gated behind `FP_NO_PEER_VERIFY`** — unset (default) restores descriptor-driven
+  verification for the fuzzer; fingerprinting can opt out. *Takes effect after re-vendoring the
+  C-PUTs* (not done here — it does not affect live TCP probing, which never uses the C-PUT cert path).
+* `puffin-build/cmake/harness/run.cmake`: `-Wl,--allow-multiple-definition` is **left in place**
+  (removing it breaks the multi-PUT link) but now carries a prominent warning comment; the proper
+  fix is to namespace the colliding symbols so the flag is unnecessary. Still open.
 
 ---
 
-## Next step — behavioral signature taxonomy (the route past 15)
+## Behavioral signature taxonomy — implemented, and what it showed
 
-The remaining merged WolfSSL versions *do* differ (confirmed by dedicated campaigns that found
-distinguishing objectives). The signal is lost because the current canon flattens the **terminal TCP
-behavior** into a single `EMPTY` token. The fix is to capture and encode that behavior as distinct
-signature tokens, with a **long timeout** so "waits for more" is separable from "closed":
+The terminal-TCP-behavior signal is now captured instead of being flattened to `EMPTY`:
 
-Target token set (per connection, possibly combined with parsed messages):
-`MSG(<which>)` · `ALERT(<level,description>)` · `TCP_CLOSE` (clean FIN) · `TCP_RST` ·
-`WAIT` (peer holds the connection open past a grace period) · `EMPTY` (truly nothing).
+* `tlspuffin/src/tcp/mod.rs`: the previously-discarded `read_to_end` result is classified into
+  `TCP_CLOSE` (clean FIN) / `TCP_WAIT` (idle, connection still open) / `TCP_RST` / `TCP_ERR`, emitted
+  on stderr **gated by `FP_EMIT_DISPOSITION`** (the fuzzer is unaffected). Alert level/description is
+  already in the parsed flight, so the canon captures `ALERT(...)` when one is sent.
+* `_canon.py`: folds the disposition into the signature (`disp=<token>`), so servers that all
+  collapsed to EMPTY are now distinguished by *why* (close vs reset vs wait). Backward-compatible
+  (absent → signature unchanged, old models still match).
+* `probe.py`: enables the gate and injects the terminal disposition into the canon input.
+  Verified working live (e.g. probe 803 → `TCP_CLOSE`, signature changes accordingly).
 
-Where the signal is dropped today, and the scoped change:
+**Empirical result: on the current mined probe set, the taxonomy does not add granularity.** Strict
+re-clustering with disposition still yields **15** (identical groups), and a single-shot screen of
+**all 806 probes** finds **no** probe — even with `TCP_CLOSE/WAIT/RST` — that distinguishes any of
+the 6 merged groups. The previously-"EMPTY" splitter probes (804/805) are MitM/puppet traces that
+abort *before any read*, so no disposition is ever observed for them.
 
-1. **Prober — `tlspuffin/src/tcp/mod.rs` + the `tcp` PUT's `--json` execution record.**
-   The read loop uses a fixed idle timeout and does not surface TCP disposition. Add to the JSON
-   output: bytes-received count, whether a TLS Alert was received (level + description), and how the
-   connection ended — clean EOF (FIN), `ECONNRESET` (RST), or idle-timeout-with-connection-open
-   (WAIT). This is the core change (Rust, moderate).
-2. **Canon — `evaluation-ddyf/fingerprinting/_canon.py`.**
-   When no full message is parsed, stop collapsing to `EMPTY(sha256(""))`. Instead emit the
-   structured terminal token from the disposition above (and append it to any partial messages, e.g.
-   `ServerHello → TCP_RST`). Low effort once the prober exposes the fields.
-3. **Pooling already supports it.** `probe.py` already maps a hard timeout to a `TIMEOUT` token; the
-   above generalises that to the full taxonomy. Keep the long timeout (≥ a few seconds) so `WAIT`
-   vs `TCP_CLOSE` is reliably separable; then re-mine / `build_matrix → build_tree → validate`.
+**Re-mine test (the unbiased check).** Screening the already-selected probes is biased — they were
+chosen for signal under the *old* canon. So the raw objective traces were re-mined directly: for the
+one merged pair with raw traces still in the repo (5.0.0/5.2.1, 430 objective traces; the other
+pairs' `hunt-*` dirs are empty), all 430 were screened with disposition on. Result: **3 single-shot
+candidates, 0 strict-confirmed** — the candidates were transient noise, no robust distinguisher.
 
-This is the principled way to recover the granularity that the puppet-trace shortcut only faked, and
-it is exactly the "Signature Adapters (`ALERT / TIMEOUT / TCP_RST`)" idea sketched as future work.
+**Conclusion: the bottleneck is the *fuzzing objective*, not the probe set or the observation layer.**
+The differential fuzzer's objective is **internal in-process divergence** (that is what makes a
+trace an "objective"), but the canon only sees **wire** behavior. 5.0.0/5.2.1 genuinely diverge
+internally (hence the objectives exist) yet emit identical messages *and* identical TCP disposition
+on the wire for every input we have. So the state-machine difference is real but not externally
+observable over TCP for these inputs.
+
+**Real next step:** drive the campaigns with a **wire-observable (disposition-aware) differential
+objective** — reward inputs that make two versions differ in `MSG/ALERT/TCP_CLOSE/WAIT/RST`, not in
+internal state — and re-run the dedicated `hunt-*` campaigns for the merged pairs (their raw traces
+are not in this repo). The disposition machinery is now in place for that signal to count. A full
+strict rebuild over the existing 806 probes with disposition would just reconfirm 15, so it was not
+run.
 
 ---
 
 ## Artifacts
-* `evaluation-ddyf/fingerprinting/reproduced_strict/wolfssl/` — the audited 15-cluster model
-  (tree/meta/validation/report, params stamped). **Recommended WolfSSL model.**
-* `evaluation-ddyf/fingerprinting/reference/{wolfssl,openssl}/` — prior validated models
-  (WolfSSL 12-cluster; OpenSSL 11-cluster, still current).
+* `evaluation-ddyf/fingerprinting/reference/wolfssl/` — **the canonical WolfSSL model, now the
+  audited 15-cluster one** (promoted; params stamped). This is what `run_fingerprint.py` /
+  `fingerprint_probe.py` use by default. (Prior 12-cluster version is in git history.)
+* `evaluation-ddyf/fingerprinting/reference/openssl/` — OpenSSL 11-cluster, 60/61 (unchanged).
+* `evaluation-ddyf/fingerprinting/reproduced_strict/wolfssl/` — the strict-rebuild source of the
+  promoted model (kept for provenance).
 * `evaluation-ddyf/fingerprinting/reproduced/wolfssl/` — the unreproducible 22-cluster model;
   retained only for the audit record. **Do not deploy.**
 </content>
