@@ -8,6 +8,7 @@ use crate::claims::Claim;
 use crate::error::Error;
 use crate::execution::{DifferentialRunner, Runner, TraceRunner};
 use crate::fuzzer::feedback::claim_observer::CAPTURED_CLAIMS;
+use crate::fuzzer::feedback::term_observer::CAPTURED_TERMS;
 use crate::fuzzer::objective_feedback::{FAIL_AT_STEP, OBJECTIVE_HASH, OBJECTIVE_TRIGGERED};
 use crate::fuzzer::stats_stage::{
     HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
@@ -58,14 +59,31 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     let mut fail_at_step = 0;
     match runner.execute(input, &mut fail_at_step) {
         Ok(ctx) => {
+            // Capture security claims generated during the execution trace
             CAPTURED_CLAIMS.with(|captured| {
                 let claims_borrow = ctx.claims.claims.borrow();
                 let mut claim_keys: Vec<String> = Vec::new();
                 for claim in claims_borrow.iter() {
+                    // Normalize claims (get rid of volatile content)
                     let key = claim.format_content_normalized();
                     claim_keys.push(key);
                 }
                 *captured.borrow_mut() = Some(Box::new(claim_keys));
+            });
+            // Flatten and capture algebraic terms currently known by the attacker
+            CAPTURED_TERMS.with(|captured| {
+                let mut term_signatures: Vec<String> = Vec::new();
+
+                for raw_k in ctx.knowledge_store.knowledges() {
+                    if let Some(associated_term) = &raw_k.associated_term {
+                        // Extract the DY repressentation if available
+                        term_signatures.push(associated_term.to_string());
+                    } else {
+                        // Fallback to type name
+                        term_signatures.push(format!("Type:{}", raw_k.data.type_name()));
+                    }
+                }
+                *captured.borrow_mut() = Some(term_signatures);
             });
             HARNESS_EXEC_SUCCESS.increment();
             if cfg!(feature = "introspection") && ctx.agents_successful() {

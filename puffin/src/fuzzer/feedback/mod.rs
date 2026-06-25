@@ -1,12 +1,17 @@
 pub mod claim_feedback;
-pub use claim_feedback::{ClaimFeedback, ProfileFeedback};
 pub mod claim_observer;
+pub mod term_feedback;
+pub mod term_observer;
+
+pub use claim_feedback::{ClaimFeedback, ProfileFeedback};
 pub use claim_observer::ClaimObserver;
 use libafl::feedbacks::{Feedback, MaxMapFeedback, TimeFeedback};
 use libafl::observers::{HitcountsMapObserver, StdMapObserver, TimeObserver};
 use libafl::prelude::*;
 use libafl::state::{HasClientPerfMonitor, HasExecutions};
 use libafl_bolts::tuples::tuple_list;
+pub use term_feedback::TermFeedback;
+pub use term_observer::TermObserver;
 
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
@@ -18,13 +23,13 @@ pub fn build_feedback_and_observers<'a, EM, I, S>() -> (
             I,
             (
                 TrackedEdgesObserver<'a>,
-                (TimeObserver, (ClaimObserver, ())),
+                (TimeObserver, (ClaimObserver, (TermObserver, ()))),
             ),
             S,
         > + 'a,
     (
         TrackedEdgesObserver<'a>,
-        (TimeObserver, (ClaimObserver, ())),
+        (TimeObserver, (ClaimObserver, (TermObserver, ()))),
     ),
 )
 where
@@ -50,18 +55,21 @@ where
         HitcountsMapObserver::new(unsafe { StdMapObserver::new(EDGES_OBSERVER_NAME, map) });
     let edges_observer = edges_observer.track_indices();
     let claim_observer = ClaimObserver::new("claim_observer");
+    let term_observer = TermObserver::new("term_ovserver");
     let time_feedback = TimeFeedback::new(&time_observer);
 
     let map_feedback = MaxMapFeedback::with_name(MAP_FEEDBACK_NAME, &edges_observer);
     let claim_feedback: ClaimFeedback = ClaimFeedback::new(&claim_observer);
+    let term_feedback: TermFeedback = TermFeedback::new(&term_observer);
     let profile_feedback: ProfileFeedback = ProfileFeedback::new(&claim_observer);
     let feedback = feedback_or!(
         map_feedback,
         time_feedback,
         claim_feedback,
-        profile_feedback
+        profile_feedback,
+        term_feedback
     );
-    let observers = tuple_list!(edges_observer, time_observer, claim_observer);
+    let observers = tuple_list!(edges_observer, time_observer, claim_observer, term_observer);
 
     (feedback, observers)
 }
