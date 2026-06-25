@@ -164,6 +164,14 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
 
     match exec_res {
         Ok(ctx) => {
+            CAPTURED_CLAIMS.with(|captured| {
+                let claims_borrow = ctx.0.claims.claims.borrow(); 
+                let mut claim_keys: Vec<String> = Vec::new();
+                for claim in claims_borrow.iter() {
+                    claim_keys.push(claim.format_content_normalized());
+                }
+                *captured.borrow_mut() = Some(Box::new(claim_keys));
+            });
             HARNESS_EXEC_SUCCESS.increment();
             if cfg!(feature = "introspection") {
                 if ctx.0.agents_successful() && ctx.1.agents_successful() {

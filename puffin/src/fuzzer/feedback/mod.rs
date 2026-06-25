@@ -1,5 +1,5 @@
 pub mod claim_feedback;
-pub use claim_feedback::ClaimFeedback;
+pub use claim_feedback::{ClaimFeedback, ProfileFeedback};
 pub mod claim_observer;
 pub use claim_observer::ClaimObserver;
 use libafl::feedbacks::{Feedback, MaxMapFeedback, TimeFeedback};
@@ -54,7 +54,8 @@ where
 
     let map_feedback = MaxMapFeedback::with_name(MAP_FEEDBACK_NAME, &edges_observer);
     let claim_feedback: ClaimFeedback = ClaimFeedback::new(&claim_observer);
-    let feedback = feedback_or!(map_feedback, time_feedback, claim_feedback);
+    let profile_feedback: ProfileFeedback = ProfileFeedback::new(&claim_observer);
+    let feedback = feedback_or!(map_feedback, time_feedback, claim_feedback, profile_feedback);
     let observers = tuple_list!(edges_observer, time_observer, claim_observer);
 
     (feedback, observers)

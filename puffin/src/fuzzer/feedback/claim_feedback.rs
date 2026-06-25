@@ -46,7 +46,7 @@ where
     ) -> Result<bool, Error> {
         let Some(claim_observer) = observers.get(&self.observer_handle) else {
             return Err(Error::illegal_state(
-                "Observer referenced by Claimeedback is not found in observers given to the fuzzer",
+                "Observer referenced by Claimfeedback is not found in observers given to the fuzzer",
             ));
         };
         let mut discovered_new_claim = false;
@@ -63,6 +63,62 @@ where
             for unique_claim in new_keys_this_exec {
                 log::info!("New claim discovered : {}", unique_claim);
             }
+            return Ok(true);
+        }
+        Ok(false)
+    }
+}
+
+
+pub struct ProfileFeedback {
+    seen_profiles: HashSet<Vec<String>>,
+    observer_handle: Handle<ClaimObserver>,
+}
+
+impl<S> StateInitializer<S> for ProfileFeedback {}
+
+impl ProfileFeedback {
+    /// Creates a new [`ProfileFeedback`], deciding if the given [`ClaimObserver`] value of a run is
+    /// interesting.
+    pub fn new(observer: &ClaimObserver) -> Self {
+        Self {
+            seen_profiles: HashSet::new(),
+            observer_handle: observer.handle(),
+        }
+    }
+}
+
+impl Named for ProfileFeedback {
+    fn name(&self) -> &Cow<'static, str> {
+        self.observer_handle.name()
+    }
+}
+
+impl<EM, I, OT, S> Feedback<EM, I, OT, S> for ProfileFeedback
+where
+    OT: MatchName,
+{
+    fn is_interesting(
+        &mut self,
+        _state: &mut S,
+        _manager: &mut EM,
+        _input: &I,
+        observers: &OT,
+        _exit_kind: &ExitKind,
+    ) -> Result<bool, Error> {
+        let Some(observer) = observers.get(&self.observer_handle) else {
+            return Err(Error::illegal_state(
+                "Observer referenced by Profilefeedback is not found in observers given to the fuzzer",
+            ));
+        };
+        let current_profile = &observer.claims;
+
+        if current_profile.is_empty() {
+            return Ok(false);
+        }
+        if !self.seen_profiles.contains(current_profile) {
+            self.seen_profiles.insert(current_profile.clone());
+            log::info!("New profile discovered : {:?}", current_profile);
             return Ok(true);
         }
         Ok(false)
