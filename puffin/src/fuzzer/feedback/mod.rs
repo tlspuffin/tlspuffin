@@ -55,7 +55,12 @@ where
     let map_feedback = MaxMapFeedback::with_name(MAP_FEEDBACK_NAME, &edges_observer);
     let claim_feedback: ClaimFeedback = ClaimFeedback::new(&claim_observer);
     let profile_feedback: ProfileFeedback = ProfileFeedback::new(&claim_observer);
-    let feedback = feedback_or!(map_feedback, time_feedback, claim_feedback, profile_feedback);
+    let feedback = feedback_or!(
+        map_feedback,
+        time_feedback,
+        claim_feedback,
+        profile_feedback
+    );
     let observers = tuple_list!(edges_observer, time_observer, claim_observer);
 
     (feedback, observers)

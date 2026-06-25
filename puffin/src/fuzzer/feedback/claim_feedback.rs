@@ -69,7 +69,6 @@ where
     }
 }
 
-
 pub struct ProfileFeedback {
     seen_profiles: HashSet<Vec<String>>,
     observer_handle: Handle<ClaimObserver>,
