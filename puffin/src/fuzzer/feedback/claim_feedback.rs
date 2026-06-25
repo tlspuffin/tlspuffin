@@ -8,6 +8,7 @@ use libafl_bolts::tuples::*;
 use libafl_bolts::{Error, Named};
 
 use crate::fuzzer::feedback::claim_observer::ClaimObserver;
+
 pub struct ClaimFeedback {
     seen_claims: HashSet<String>,
     observer_handle: Handle<ClaimObserver>,

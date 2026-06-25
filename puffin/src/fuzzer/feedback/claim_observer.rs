@@ -6,9 +6,11 @@ use libafl::executors::ExitKind;
 use libafl::observers::Observer;
 use libafl_bolts::{Error, Named};
 use serde::{Deserialize, Serialize};
+
 thread_local! {
     pub static CAPTURED_CLAIMS: RefCell<Option<Box<dyn Any>>> = RefCell::new(None);
 }
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ClaimObserver {
     name: Cow<'static, str>,
