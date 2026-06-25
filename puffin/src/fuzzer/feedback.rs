@@ -197,8 +197,19 @@ where
         _observers: &OT,
         testcase: &mut Testcase<Trace<PT>>,
     ) -> Result<(), Error> {
+        let possibly_failed_at_step = FAIL_AT_STEP.get();
+        {
+            // [executability frontier] Record how far this trace executed on its last run, so
+            // MakeMessage can bias toward reachable steps (INV-A). Set unconditionally (independent
+            // of truncation) so the hint is available even when truncation is off.
+            let input_trace = testcase.input_mut().as_mut().expect(
+                "[MinimizingFeedback::append_metadata] Expected input to be a Trace<PT>",
+            );
+            if let Some(reached) = possibly_failed_at_step {
+                input_trace.set_executable_frontier(reached);
+            }
+        }
         if self.enabled {
-            let possibly_failed_at_step = FAIL_AT_STEP.get();
             let input_trace = testcase
                 .input_mut()
                 .as_mut()

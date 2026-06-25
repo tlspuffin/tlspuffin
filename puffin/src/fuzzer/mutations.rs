@@ -517,6 +517,9 @@ where
         let remove_index = state.rand_mut().between(0, length - 1);
         log::debug!("[Mutation] Mutate SkipMutator on step {remove_index}");
         steps.remove(remove_index);
+        // [executability frontier] keep the per-trace frontier valid after removing a step
+        // (optimistic: only clamp to the new length, never decrease for the removal itself).
+        trace.frontier_on_step_removed(remove_index);
         Ok(MutationResult::Mutated)
     }
 
@@ -581,6 +584,9 @@ where
         };
         log::debug!("[Mutation] Mutate RepeatMutator on step {insert_index}");
         trace.steps.insert(insert_index, step.clone());
+        // [executability frontier] keep the per-trace frontier valid after inserting a step
+        // (optimistic: assume the inserted, cloned step is also reachable when within the prefix).
+        trace.frontier_on_step_inserted(insert_index);
         Ok(MutationResult::Mutated)
     }
 

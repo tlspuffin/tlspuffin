@@ -50,6 +50,9 @@ pub enum RuntimeStats {
     TermSize(&'static MinMaxMean),
     NbPayload(&'static MinMaxMean),
     PayloadLength(&'static MinMaxMean),
+    /// [R1 datapoint #1] Deepest trace step reached during execution (ctx.executed_until), recorded
+    /// for every execution (success or early failure). mean << trace length => traces die early.
+    ReachedStep(&'static MinMaxMean),
     Duplicates(&'static Counter),
 }
 
@@ -93,6 +96,7 @@ impl RuntimeStats {
             Self::TermSize(inner) => inner.fire(consume),
             Self::NbPayload(inner) => inner.fire(consume),
             Self::PayloadLength(inner) => inner.fire(consume),
+            Self::ReachedStep(inner) => inner.fire(consume),
             Self::Duplicates(inner) => inner.fire(consume),
         }
     }
@@ -131,6 +135,8 @@ pub static TRACE_LENGTH: MinMaxMean = MinMaxMean::new("trace-length");
 pub static TERM_SIZE: MinMaxMean = MinMaxMean::new("term-size");
 pub static NB_PAYLOAD: MinMaxMean = MinMaxMean::new("nb-payload");
 pub static PAYLOAD_LENGTH: MinMaxMean = MinMaxMean::new("payload-length");
+/// [R1 #1] Deepest step index reached per execution.
+pub static REACHED_STEP: MinMaxMean = MinMaxMean::new("reached-step");
 
 /// Metrics for evaluations and executions
 pub static ALL_EXEC: Counter = Counter::new("all-exec");
@@ -149,7 +155,7 @@ pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
 pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
 pub static DUPLICATES: Counter = Counter::new("duplicates");
 
-pub static STATS: [RuntimeStats; 35] = [
+pub static STATS: [RuntimeStats; 36] = [
     RuntimeStats::EvalFnCryptoError(&EVAL_ERR_FN_CRYPTO),
     RuntimeStats::EvalFnMalformedError(&EVAL_ERR_FN_MALFORMED),
     RuntimeStats::EvalFnUnknownError(&EVAL_ERR_FN_UNKNOWN),
@@ -170,6 +176,7 @@ pub static STATS: [RuntimeStats; 35] = [
     RuntimeStats::TermSize(&TERM_SIZE),
     RuntimeStats::NbPayload(&NB_PAYLOAD),
     RuntimeStats::PayloadLength(&PAYLOAD_LENGTH),
+    RuntimeStats::ReachedStep(&REACHED_STEP),
     RuntimeStats::AllTermEval(&ALL_TERM_EVAL),
     RuntimeStats::AllTermEvalSuccess(&ALL_TERM_EVAL_SUCCESS),
     RuntimeStats::AllExec(&ALL_EXEC),

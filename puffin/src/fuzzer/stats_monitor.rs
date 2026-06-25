@@ -444,6 +444,11 @@ struct TraceStatistics {
     min_term_size: Option<u64>,
     max_term_size: Option<u64>,
     mean_term_size: Option<u64>,
+
+    // [R1 #1] deepest trace step reached during execution
+    min_reached_step: Option<u64>,
+    max_reached_step: Option<u64>,
+    mean_reached_step: Option<u64>,
 }
 
 #[cfg(feature = "introspection")]
@@ -632,6 +637,7 @@ impl ErrorStatistics {
                 RuntimeStats::NbPayload(_) => {}
                 RuntimeStats::PayloadLength(_) => {}
                 RuntimeStats::TermSize(_) => {}
+                RuntimeStats::ReachedStep(_) => {}
             }
         }
     }
@@ -662,6 +668,9 @@ impl TraceStatistics {
             min_term_size: None,
             max_term_size: None,
             mean_term_size: None,
+            min_reached_step: None,
+            max_reached_step: None,
+            mean_reached_step: None,
         };
 
         // Sum for all TraceLength and TermSize
@@ -695,6 +704,14 @@ impl TraceStatistics {
                     trace_stats.max_payload_size =
                         Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
                     trace_stats.mean_payload_size =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
+                }
+                RuntimeStats::ReachedStep(mmm) => {
+                    trace_stats.min_reached_step =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
+                    trace_stats.max_reached_step =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
+                    trace_stats.mean_reached_step =
                         Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
                 }
                 _ => {}

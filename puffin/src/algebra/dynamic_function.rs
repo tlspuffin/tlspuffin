@@ -74,6 +74,15 @@ pub struct FunctionAttributes {
     /// MAC, AEAD, Formally: all symbols whose concretization does not contain a single
     /// conretization of its arguments
     pub is_opaque: bool,
+    /// Whether the function symbol RE-FRAMES its arguments' encodings (e.g. coalescing a flight:
+    /// stripping per-message record headers and recomputing one outer length), so that a child's
+    /// standalone encoding is NOT a contiguous substring of this symbol's output. Like `is_opaque`,
+    /// it is a transform boundary for `find_unique_match_rec` (payloads beneath are consumed in the
+    /// child encoding space by `eval_until_opaque`). Kept DISTINCT from `is_opaque` (which denotes
+    /// CRYPTOGRAPHIC opacity: encryption/signature/MAC/derive) so the two can be measured separately
+    /// in the evaluation (e.g. "bit under crypto-opaque" vs "bit under structural re-framing").
+    #[serde(default)]
+    pub is_reframing: bool,
     /// Whether the function symbol computes a list such as `fn_append_certificate`.
     pub is_list: bool,
     /// Whether the function symbol computes a strict sub-term (accessed function symbols).

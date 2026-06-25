@@ -262,6 +262,24 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
+    /// When the term starts with a re-framing function symbol (like `fn_coalesced_flight`): a
+    /// structural transform boundary where children are not substrings of the output. Distinct
+    /// from `is_opaque` (cryptographic opacity) so the two can be measured separately in evaluation.
+    pub fn is_reframing(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(fd, _) => fd.is_reframing(),
+        }
+    }
+
+    /// A transform boundary for the payload locator/replacer: either cryptographic opacity
+    /// (`is_opaque`) or structural re-framing (`is_reframing`). Payloads strictly beneath such a
+    /// symbol are consumed in the child encoding space by `eval_until_opaque` and never reach
+    /// `find_unique_match_rec` at the parent level.
+    pub fn is_opaque_boundary(&self) -> bool {
+        self.is_opaque() || self.is_reframing()
+    }
+
     /// When the term starts with an opaque function symbol (like encryption)
     pub fn is_get(&self) -> bool {
         match &self.term {
@@ -423,7 +441,7 @@ impl<PT: ProtocolTypes> Term<PT> {
             match &term.term {
                 DYTerm::Variable(_) => {}
                 DYTerm::Application(_, args) => {
-                    if !term.is_opaque() && !term.is_readable() {
+                    if !term.is_opaque_boundary() && !term.is_readable() {
                         for t in args {
                             rec(t, acc);
                         }
@@ -458,7 +476,7 @@ pub fn has_payload_to_replace_rec<PT: ProtocolTypes>(term: &Term<PT>, include_ro
     match &term.term {
         DYTerm::Variable(_) => {}
         DYTerm::Application(_, args) => {
-            if !term.is_opaque() && !term.is_readable() {
+            if !term.is_opaque_boundary() && !term.is_readable() {
                 for t in args {
                     if has_payload_to_replace_rec(t, true) {
                         return true;
