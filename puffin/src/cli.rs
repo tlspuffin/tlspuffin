@@ -52,6 +52,8 @@ where
         .arg(arg!(--"wo-frontier" "Disables the executability-frontier bias for MakeMessage (A/B)"))
         .arg(arg!(--"frontier-decay" "Frontier bias proceeds with prob ~1/2^distance past the frontier (vs fixed ~1/8)"))
         .arg(arg!(--"keep-unfocused-bit" "Also run the unfocused bit stage alongside focus (restores pre-#1a double stage, for A/B)"))
+        .arg(arg!(--"max-stack-pow" [n] "Max HAVOC stack power in the focus stage (core stack size = 2..2^(n+1)); default 7")
+            .value_parser(value_parser!(u64)))
         .arg(arg!(-v --verbosity [l] "Verbosity level for (quick) experiments")
             .value_parser(value_parser!(LevelFilter)))
         .arg(arg!(--"stats-interval" [n] "Minimum milliseconds between writes per client (core) for stats.json and broker logs [default: 250]")
@@ -223,6 +225,9 @@ where
     }
     if keep_unfocused_bit {
         config.mutation_config.keep_unfocused_bit = true;
+    }
+    if let Some(n) = matches.get_one::<u64>("max-stack-pow") {
+        config.mutation_stage_config.max_mutations_pow_per_iteration = *n;
     }
     if with_truncation {
         config.mutation_stage_config.with_truncation = true;

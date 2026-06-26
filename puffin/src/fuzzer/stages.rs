@@ -165,7 +165,12 @@ where
     S: HasRand,
 {
     /// Create a new [`libafl::mutators::ScheduledMutator`] instance specifying mutations
-    pub fn new(mutations_pre: MtPre, mutations_core: MT, mutations_post: MtPost) -> Self {
+    pub fn new(
+        mutations_pre: MtPre,
+        mutations_core: MT,
+        mutations_post: MtPost,
+        max_stack_pow: usize,
+    ) -> Self {
         FocusScheduledMutator {
             name: Cow::from(format!(
                 "FocusScheduledMutator[{};{};{}]",
@@ -176,7 +181,8 @@ where
             mutations_core,
             mutations_pre,
             mutations_post,
-            max_stack_pow: 7,
+            // [#1b] tunable: was hardcoded 7, duplicating the (previously unused) config value.
+            max_stack_pow,
             phantom: PhantomData,
         }
     }

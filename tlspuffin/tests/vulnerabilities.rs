@@ -461,6 +461,7 @@ fn test_seed_only_mut_bitmut_cve_2022_38153(put: &str) {
                         TLSProtocolTypes,
                     >(config),
                     tuple_list!(ReadMessage::new(config, &registry)),
+                    7, // max_stack_pow (was the hardcoded default)
                 );
                 all_tries += 1;
                 match mutator_bit_focus.mutate(&mut state, &mut mutant) {
