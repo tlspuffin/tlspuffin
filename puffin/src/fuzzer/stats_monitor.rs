@@ -425,6 +425,11 @@ struct ErrorStatistics {
     mm_fail_reach: u64,
     mm_fail_make: u64,
     frontier_skip: u64,
+    mm_term_ok: u64,
+    mm_ok_opaque: u64,
+    mm_failreach_opaque: u64,
+    rm_ok: u64,
+    rm_skip_noterm: u64,
 
     corpus_exec: u64,
     corpus_exec_minimal: u64,
@@ -545,6 +550,11 @@ impl ErrorStatistics {
             mm_fail_reach: 0,
             mm_fail_make: 0,
             frontier_skip: 0,
+            mm_term_ok: 0,
+            mm_ok_opaque: 0,
+            mm_failreach_opaque: 0,
+            rm_ok: 0,
+            rm_skip_noterm: 0,
             codec_error: 0,
             put_error: 0,
             io_error: 0,
@@ -641,6 +651,17 @@ impl ErrorStatistics {
                 }
                 RuntimeStats::FrontierSkip(c) => {
                     self.frontier_skip += get_number(client_stats, c.name)
+                }
+                RuntimeStats::MmTermOk(c) => self.mm_term_ok += get_number(client_stats, c.name),
+                RuntimeStats::MmOkOpaque(c) => {
+                    self.mm_ok_opaque += get_number(client_stats, c.name)
+                }
+                RuntimeStats::MmFailreachOpaque(c) => {
+                    self.mm_failreach_opaque += get_number(client_stats, c.name)
+                }
+                RuntimeStats::RmOk(c) => self.rm_ok += get_number(client_stats, c.name),
+                RuntimeStats::RmSkipNoterm(c) => {
+                    self.rm_skip_noterm += get_number(client_stats, c.name)
                 }
                 RuntimeStats::CorpusExec(c) => self.corpus_exec += get_number(client_stats, c.name),
                 RuntimeStats::CorpusExecMinimal(c) => {

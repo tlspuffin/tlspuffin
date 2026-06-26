@@ -45,6 +45,11 @@ pub enum RuntimeStats {
     MMFailReach(&'static Counter),
     MMFailMake(&'static Counter),
     FrontierSkip(&'static Counter),
+    MmTermOk(&'static Counter),
+    MmOkOpaque(&'static Counter),
+    MmFailreachOpaque(&'static Counter),
+    RmOk(&'static Counter),
+    RmSkipNoterm(&'static Counter),
     // Full execs of corpus trace scheduled counter
     CorpusExec(&'static Counter),
     CorpusExecMinimal(&'static Counter),
@@ -90,6 +95,11 @@ impl RuntimeStats {
             Self::MMFailReach(inner) => inner.fire(consume),
             Self::MMFailMake(inner) => inner.fire(consume),
             Self::FrontierSkip(inner) => inner.fire(consume),
+            Self::MmTermOk(inner) => inner.fire(consume),
+            Self::MmOkOpaque(inner) => inner.fire(consume),
+            Self::MmFailreachOpaque(inner) => inner.fire(consume),
+            Self::RmOk(inner) => inner.fire(consume),
+            Self::RmSkipNoterm(inner) => inner.fire(consume),
             Self::CorpusExec(inner) => inner.fire(consume),
             Self::CorpusExecMinimal(inner) => inner.fire(consume),
             Self::AllCodecError(inner) => inner.fire(consume),
@@ -162,11 +172,19 @@ pub static MM_EXEC_SUCCESS: Counter = Counter::new("mmn-exec-success");
 pub static MM_FAIL_REACH: Counter = Counter::new("mm-fail-reach");
 pub static MM_FAIL_MAKE: Counter = Counter::new("mm-fail-make");
 pub static FRONTIER_SKIP: Counter = Counter::new("frontier-skip");
+/// [INV-B per-case] MakeMessage outcomes split by whether the target is strictly under an
+/// opaque/reframing boundary. "plain" is derived = total (mm_term_ok / mm_fail_reach) minus *_opaque.
+pub static MM_TERM_OK: Counter = Counter::new("mm-term-ok");
+pub static MM_OK_OPAQUE: Counter = Counter::new("mm-ok-opaque");
+pub static MM_FAILREACH_OPAQUE: Counter = Counter::new("mm-failreach-opaque");
+/// [INV-C] ReadMessage outcomes: applied (read_message_term ok) vs skipped (no payload term found).
+pub static RM_OK: Counter = Counter::new("rm-ok");
+pub static RM_SKIP_NOTERM: Counter = Counter::new("rm-skip-noterm");
 pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
 pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
 pub static DUPLICATES: Counter = Counter::new("duplicates");
 
-pub static STATS: [RuntimeStats; 39] = [
+pub static STATS: [RuntimeStats; 44] = [
     RuntimeStats::EvalFnCryptoError(&EVAL_ERR_FN_CRYPTO),
     RuntimeStats::EvalFnMalformedError(&EVAL_ERR_FN_MALFORMED),
     RuntimeStats::EvalFnUnknownError(&EVAL_ERR_FN_UNKNOWN),
@@ -203,6 +221,11 @@ pub static STATS: [RuntimeStats; 39] = [
     RuntimeStats::MMFailReach(&MM_FAIL_REACH),
     RuntimeStats::MMFailMake(&MM_FAIL_MAKE),
     RuntimeStats::FrontierSkip(&FRONTIER_SKIP),
+    RuntimeStats::MmTermOk(&MM_TERM_OK),
+    RuntimeStats::MmOkOpaque(&MM_OK_OPAQUE),
+    RuntimeStats::MmFailreachOpaque(&MM_FAILREACH_OPAQUE),
+    RuntimeStats::RmOk(&RM_OK),
+    RuntimeStats::RmSkipNoterm(&RM_SKIP_NOTERM),
     RuntimeStats::CorpusExec(&CORPUS_EXEC),
     RuntimeStats::CorpusExecMinimal(&CORPUS_EXEC_MINIMAL),
     RuntimeStats::Duplicates(&DUPLICATES),

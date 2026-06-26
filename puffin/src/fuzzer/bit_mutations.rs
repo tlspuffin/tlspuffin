@@ -286,6 +286,9 @@ fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
     let reached = ctx.executed_until;
     if let Err(e) = res {
         MM_FAIL_REACH.increment();
+        if mm_under {
+            MM_FAILREACH_OPAQUE.increment(); // [INV-B] fail_reach under opaque/reframing boundary
+        }
         log::debug!("[MM-measure] target_step={target_step} reached={reached} outcome=fail_reach {mm_tag}");
         // 20% to 50% MakeMessage mutations fail, so this is a bit costly :(
         // TODO: we could memoize the term evaluation in a Option<ConcreteMessage> and use that here
@@ -299,6 +302,10 @@ fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
     let t = find_term_mut(tr, path).expect("make_message_term - Should never happen.");
     match t.make_payload(ctx) {
         Ok(()) => {
+            MM_TERM_OK.increment();
+            if mm_under {
+                MM_OK_OPAQUE.increment(); // [INV-B] success under opaque/reframing boundary
+            }
             log::debug!("[MM-measure] target_step={target_step} reached={reached} outcome=ok {mm_tag}");
             Ok(())
         }
@@ -661,6 +668,7 @@ where
                     "[mutation::ReadMessage] Failed to choose term with payload in trace:\n {}",
                     &trace
                 );
+                RM_SKIP_NOTERM.increment(); // [INV-C] ReadMessage couldn't find a payload-bearing term
                 log::warn!(
                     "       Skipped {} as we failed to choose a term with payload in the trace.",
                     self.name()
@@ -693,6 +701,7 @@ where
         BIT_EXEC.increment();
         match read_message_term(trace, &chosen_path, &mut ctx) {
             Ok(_) => {
+                RM_OK.increment(); // [INV-C] ReadMessage applied (re-interpreted a payload)
                 if self.config.with_focus {
                     MM_EXEC_SUCCESS.increment();
                 }
@@ -736,7 +745,8 @@ use crate::fuzzer::mutations::{
     ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator, SwapMutator,
 };
 use crate::fuzzer::stats_stage::{
-    BIT_EXEC, BIT_EXEC_SUCCESS, FRONTIER_SKIP, MM_EXEC, MM_EXEC_SUCCESS, MM_FAIL_MAKE, MM_FAIL_REACH,
+    BIT_EXEC, BIT_EXEC_SUCCESS, FRONTIER_SKIP, MM_EXEC, MM_EXEC_SUCCESS, MM_FAILREACH_OPAQUE,
+    MM_FAIL_MAKE, MM_FAIL_REACH, MM_OK_OPAQUE, MM_TERM_OK, RM_OK, RM_SKIP_NOTERM,
 };
 use crate::put_registry::PutRegistry;
 
