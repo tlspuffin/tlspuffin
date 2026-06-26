@@ -37,6 +37,9 @@ pub struct MutationConfig {
     /// distance past the frontier (~1/2^distance): near-frontier steps get many chances (gentler,
     /// to keep pushing the frontier outward) while far/unreachable steps are skipped aggressively.
     pub frontier_decay: bool,
+    /// [#1a A/B] Force the (otherwise dropped when focus is on) unfocused bit stage to also run
+    /// alongside the focus stage — restores the pre-#1a "double bit-stage" behaviour for A/B.
+    pub keep_unfocused_bit: bool,
 }
 
 impl Default for MutationConfig {
@@ -52,6 +55,7 @@ impl Default for MutationConfig {
             with_focus: true,
             frontier_bias: true,
             frontier_decay: false,
+            keep_unfocused_bit: false,
         }
     }
 }

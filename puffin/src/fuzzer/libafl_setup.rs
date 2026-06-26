@@ -263,13 +263,26 @@ where
             log::debug!("[*] BIT FocusScheduledMutator");
             Ok(true)
         };
+        let cb_unfocused_bit = |_: &mut _,
+                                _: &mut _,
+                                _: &mut ConcreteState<C, R, SC, Trace<PT>>,
+                                _: &mut _|
+         -> Result<bool, Error> {
+            // [#1a] The unfocused bit stage duplicates the focus stage (both run 128 iters of bit
+            // mutations on each scheduled testcase). Run it ONLY when focus is off, to avoid ~2x
+            // redundant bit work. `keep_unfocused_bit` (A/B) restores the old always-on behaviour.
+            Ok(!mutation_config.with_focus || mutation_config.keep_unfocused_bit)
+        };
         let stage_bit = IfStage::new(
             cb_bit_level,
             tuple_list!(
-                StdMutationalStage::with_max_iterations(
-                    mutator_bit,
-                    self.config.mutation_stage_config.max_iterations_per_stage
-                ), // Old-style HAVOC stage
+                IfStage::new(
+                    cb_unfocused_bit,
+                    tuple_list!(StdMutationalStage::with_max_iterations(
+                        mutator_bit,
+                        self.config.mutation_stage_config.max_iterations_per_stage
+                    ),)
+                ), // unfocused HAVOC stage (only when !with_focus)
                 IfStage::new(
                     cb_focus_bit_level,
                     tuple_list!(StdMutationalStage::with_max_iterations(
