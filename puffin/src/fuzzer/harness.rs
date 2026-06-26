@@ -85,6 +85,32 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
                 }
                 *captured.borrow_mut() = Some(term_signatures);
             });
+            // Flatten and capture algebraic terms currently known by the attacker
+            CAPTURED_TERMS.with(|captured| {
+                let mut term_signatures: Vec<String> = Vec::new();
+
+                for raw_k in ctx.knowledge_store.knowledges() {
+                    if let Some(associated_term) = &raw_k.associated_term {
+                        // Extract the DY representation if available (probably never happened but
+                        // not sure)
+                        term_signatures.push(associated_term.to_string());
+                    } else {
+                        // Iterate over raw knnowledge to extract atomic knowledges
+                        for knowledge in raw_k {
+                            let type_name = knowledge.data.type_name();
+                            let signature = match &knowledge.matcher {
+                                Some(matcher) => {
+                                    format!("Type:{}|Matcher:{:?}", type_name, matcher)
+                                }
+                                None => format!("Type:{}", type_name),
+                            };
+
+                            term_signatures.push(signature);
+                        }
+                    }
+                }
+                *captured.borrow_mut() = Some(term_signatures);
+            });
             HARNESS_EXEC_SUCCESS.increment();
             if cfg!(feature = "introspection") && ctx.agents_successful() {
                 HARNESS_EXEC_AGENT_SUCCESS.increment();
