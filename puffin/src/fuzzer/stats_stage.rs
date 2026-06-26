@@ -42,6 +42,9 @@ pub enum RuntimeStats {
     // Trace execs by MakeMessage and ReadMessage counters
     MMExec(&'static Counter),
     MMNExecSuccess(&'static Counter),
+    MMFailReach(&'static Counter),
+    MMFailMake(&'static Counter),
+    FrontierSkip(&'static Counter),
     // Full execs of corpus trace scheduled counter
     CorpusExec(&'static Counter),
     CorpusExecMinimal(&'static Counter),
@@ -84,6 +87,9 @@ impl RuntimeStats {
             Self::BitExecSuccess(inner) => inner.fire(consume),
             Self::MMExec(inner) => inner.fire(consume),
             Self::MMNExecSuccess(inner) => inner.fire(consume),
+            Self::MMFailReach(inner) => inner.fire(consume),
+            Self::MMFailMake(inner) => inner.fire(consume),
+            Self::FrontierSkip(inner) => inner.fire(consume),
             Self::CorpusExec(inner) => inner.fire(consume),
             Self::CorpusExecMinimal(inner) => inner.fire(consume),
             Self::AllCodecError(inner) => inner.fire(consume),
@@ -151,11 +157,16 @@ pub static BIT_EXEC: Counter = Counter::new("bit-exec");
 pub static BIT_EXEC_SUCCESS: Counter = Counter::new("bit-exec-success");
 pub static MM_EXEC: Counter = Counter::new("mm-exec");
 pub static MM_EXEC_SUCCESS: Counter = Counter::new("mmn-exec-success");
+/// [INV-A counters] MakeMessage failures split: reachability (trace can't execute to the step) vs
+/// eval (payload computation failed at the step). And how often the frontier pre-check skips.
+pub static MM_FAIL_REACH: Counter = Counter::new("mm-fail-reach");
+pub static MM_FAIL_MAKE: Counter = Counter::new("mm-fail-make");
+pub static FRONTIER_SKIP: Counter = Counter::new("frontier-skip");
 pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
 pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
 pub static DUPLICATES: Counter = Counter::new("duplicates");
 
-pub static STATS: [RuntimeStats; 36] = [
+pub static STATS: [RuntimeStats; 39] = [
     RuntimeStats::EvalFnCryptoError(&EVAL_ERR_FN_CRYPTO),
     RuntimeStats::EvalFnMalformedError(&EVAL_ERR_FN_MALFORMED),
     RuntimeStats::EvalFnUnknownError(&EVAL_ERR_FN_UNKNOWN),
@@ -189,6 +200,9 @@ pub static STATS: [RuntimeStats; 36] = [
     RuntimeStats::BitExecSuccess(&BIT_EXEC_SUCCESS),
     RuntimeStats::MMExec(&MM_EXEC),
     RuntimeStats::MMNExecSuccess(&MM_EXEC_SUCCESS),
+    RuntimeStats::MMFailReach(&MM_FAIL_REACH),
+    RuntimeStats::MMFailMake(&MM_FAIL_MAKE),
+    RuntimeStats::FrontierSkip(&FRONTIER_SKIP),
     RuntimeStats::CorpusExec(&CORPUS_EXEC),
     RuntimeStats::CorpusExecMinimal(&CORPUS_EXEC_MINIMAL),
     RuntimeStats::Duplicates(&DUPLICATES),

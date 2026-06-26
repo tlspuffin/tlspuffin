@@ -422,6 +422,9 @@ struct ErrorStatistics {
     bit_exec_success: u64,
     mm_exec: u64,
     mm_exec_success: u64,
+    mm_fail_reach: u64,
+    mm_fail_make: u64,
+    frontier_skip: u64,
 
     corpus_exec: u64,
     corpus_exec_minimal: u64,
@@ -539,6 +542,9 @@ impl ErrorStatistics {
             bit_exec_success: 0,
             mm_exec: 0,
             mm_exec_success: 0,
+            mm_fail_reach: 0,
+            mm_fail_make: 0,
+            frontier_skip: 0,
             codec_error: 0,
             put_error: 0,
             io_error: 0,
@@ -626,6 +632,15 @@ impl ErrorStatistics {
                 RuntimeStats::MMExec(c) => self.mm_exec += get_number(client_stats, c.name),
                 RuntimeStats::MMNExecSuccess(c) => {
                     self.mm_exec_success += get_number(client_stats, c.name)
+                }
+                RuntimeStats::MMFailReach(c) => {
+                    self.mm_fail_reach += get_number(client_stats, c.name)
+                }
+                RuntimeStats::MMFailMake(c) => {
+                    self.mm_fail_make += get_number(client_stats, c.name)
+                }
+                RuntimeStats::FrontierSkip(c) => {
+                    self.frontier_skip += get_number(client_stats, c.name)
                 }
                 RuntimeStats::CorpusExec(c) => self.corpus_exec += get_number(client_stats, c.name),
                 RuntimeStats::CorpusExecMinimal(c) => {

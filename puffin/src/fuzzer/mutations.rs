@@ -29,6 +29,9 @@ pub struct MutationConfig {
     pub with_dy: bool,
     /// Focus on one payload at a time for a whole StdMutationalStage
     pub with_focus: bool,
+    /// Bias MakeMessage away from steps beyond the trace's executability frontier (soft pre-check),
+    /// to avoid the dominant fail_reach waste (INV-A). Toggle off via `--wo-frontier` for A/B.
+    pub frontier_bias: bool,
 }
 
 impl Default for MutationConfig {
@@ -42,6 +45,7 @@ impl Default for MutationConfig {
             with_bit_level: false,
             with_dy: true,
             with_focus: true,
+            frontier_bias: true,
         }
     }
 }

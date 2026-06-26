@@ -285,7 +285,8 @@ fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
     // because traces die early, or because eval breaks at the step? (grep `[MM-measure]`)
     let reached = ctx.executed_until;
     if let Err(e) = res {
-        log::info!("[MM-measure] target_step={target_step} reached={reached} outcome=fail_reach {mm_tag}");
+        MM_FAIL_REACH.increment();
+        log::debug!("[MM-measure] target_step={target_step} reached={reached} outcome=fail_reach {mm_tag}");
         // 20% to 50% MakeMessage mutations fail, so this is a bit costly :(
         // TODO: we could memoize the term evaluation in a Option<ConcreteMessage> and use that here
         log::debug!("mutation::MakeMessage trace is not executable until step {target_step},\
@@ -298,11 +299,12 @@ fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
     let t = find_term_mut(tr, path).expect("make_message_term - Should never happen.");
     match t.make_payload(ctx) {
         Ok(()) => {
-            log::info!("[MM-measure] target_step={target_step} reached={reached} outcome=ok {mm_tag}");
+            log::debug!("[MM-measure] target_step={target_step} reached={reached} outcome=ok {mm_tag}");
             Ok(())
         }
         Err(e) => {
-            log::info!("[MM-measure] target_step={target_step} reached={reached} outcome=fail_make {mm_tag}");
+            MM_FAIL_MAKE.increment();
+            log::debug!("[MM-measure] target_step={target_step} reached={reached} outcome=fail_make {mm_tag}");
             Err(e)
         }
     }
@@ -417,15 +419,18 @@ where
             // the wasted execution. SOFT (keep ~1/PROCEED_DENOM exploration) so that a structurally
             // repaired trace can still push the frontier outward. Frontier travels with the trace
             // metadata and is kept current by Repeat/Skip mutators.
-            if let Some(frontier) = trace.executable_frontier() {
-                if trace_path.0 > frontier {
-                    const PROCEED_DENOM: usize = 8; // proceed ~1/8 of the time beyond the frontier
-                    if state.rand_mut().below_or_zero(PROCEED_DENOM) != 0 {
-                        log::debug!(
-                            "[MakeMessage] frontier-skip: step {} > frontier {frontier} (avoids a likely fail_reach)",
-                            trace_path.0
-                        );
-                        return Ok(MutationResult::Skipped);
+            if self.config.frontier_bias {
+                if let Some(frontier) = trace.executable_frontier() {
+                    if trace_path.0 > frontier {
+                        const PROCEED_DENOM: usize = 8; // proceed ~1/8 of the time beyond frontier
+                        if state.rand_mut().below_or_zero(PROCEED_DENOM) != 0 {
+                            FRONTIER_SKIP.increment();
+                            log::debug!(
+                                "[MakeMessage] frontier-skip: step {} > frontier {frontier} (avoids a likely fail_reach)",
+                                trace_path.0
+                            );
+                            return Ok(MutationResult::Skipped);
+                        }
                     }
                 }
             }
@@ -730,7 +735,9 @@ use crate::fuzzer::mutations::{
     dy_mutations, GenerateMutator, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
     ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator, SwapMutator,
 };
-use crate::fuzzer::stats_stage::{BIT_EXEC, BIT_EXEC_SUCCESS, MM_EXEC, MM_EXEC_SUCCESS};
+use crate::fuzzer::stats_stage::{
+    BIT_EXEC, BIT_EXEC_SUCCESS, FRONTIER_SKIP, MM_EXEC, MM_EXEC_SUCCESS, MM_FAIL_MAKE, MM_FAIL_REACH,
+};
 use crate::put_registry::PutRegistry;
 
 macro_rules! expand_mutation {
