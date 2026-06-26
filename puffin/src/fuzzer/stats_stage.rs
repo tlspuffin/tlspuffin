@@ -277,8 +277,9 @@ pub struct MinMaxMean {
     min: AtomicUsize,
     max_set: AtomicBool,
     max: AtomicUsize,
-    mean_set: AtomicBool,
-    mean: AtomicUsize,
+    // [#6] true running mean: sum + count (replaces the old recency-biased EMA `mean`)
+    sum: AtomicUsize,
+    count: AtomicUsize,
 }
 
 impl MinMaxMean {
@@ -289,27 +290,18 @@ impl MinMaxMean {
             min: AtomicUsize::new(usize::MAX),
             max_set: AtomicBool::new(false),
             max: AtomicUsize::new(0),
-            mean_set: AtomicBool::new(false),
-            mean: AtomicUsize::new(0),
+            sum: AtomicUsize::new(0),
+            count: AtomicUsize::new(0),
         }
     }
 
     pub fn update(&self, value: usize) {
-        self.mean(value);
+        // [#6] true running mean: accumulate sum + count (was an EMA `(mean+value)/2`, which is
+        // recency-biased + integer-truncated). sum stays well within usize on 64-bit.
+        self.sum.fetch_add(value, Ordering::SeqCst);
+        self.count.fetch_add(1, Ordering::SeqCst);
         self.max(value);
         self.min(value);
-    }
-
-    fn mean(&self, value: usize) {
-        self.mean
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |mean| {
-                if !self.mean_set.fetch_or(true, Ordering::SeqCst) {
-                    Some(value)
-                } else {
-                    Some((mean + value) / 2)
-                }
-            })
-            .unwrap();
     }
 
     fn max(&self, value: usize) {
@@ -346,11 +338,12 @@ impl Fire for MinMaxMean {
                 ),
             )?;
         }
-        if self.mean_set.load(Ordering::SeqCst) {
+        let count = self.count.load(Ordering::SeqCst);
+        if count > 0 {
             consume(
                 self.name.to_string() + "-mean",
                 UserStats::new(
-                    UserStatsValue::Number(self.mean.load(Ordering::SeqCst) as u64),
+                    UserStatsValue::Number(self.sum.load(Ordering::SeqCst) as u64 / count as u64),
                     AggregatorOps::Avg,
                 ),
             )?;
