@@ -269,10 +269,10 @@ where
                                 _: &mut ConcreteState<C, R, SC, Trace<PT>>,
                                 _: &mut _|
          -> Result<bool, Error> {
-            // [#1a] The unfocused bit stage duplicates the focus stage (both run 128 iters of bit
-            // mutations on each scheduled testcase). Run it ONLY when focus is off, to avoid ~2x
-            // redundant bit work. `keep_unfocused_bit` (A/B) restores the old always-on behaviour.
-            Ok(!mutation_config.with_focus || mutation_config.keep_unfocused_bit)
+            // [#1a] The unfocused bit stage (random-payload HAVOC) is NOT redundant with the focus
+            // stage — the A/B showed it contributes ~4% coverage. So it runs by DEFAULT; only drop
+            // it (focus-only, faster but lower coverage) when explicitly requested.
+            Ok(!(mutation_config.with_focus && mutation_config.drop_unfocused_bit))
         };
         let stage_bit = IfStage::new(
             cb_bit_level,

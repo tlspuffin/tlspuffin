@@ -51,7 +51,7 @@ where
         .arg(arg!(--"wo-focus" "Disables focus bit-level mutational stage"))
         .arg(arg!(--"wo-frontier" "Disables the executability-frontier bias for MakeMessage (A/B)"))
         .arg(arg!(--"frontier-decay" "Frontier bias proceeds with prob ~1/2^distance past the frontier (vs fixed ~1/8)"))
-        .arg(arg!(--"keep-unfocused-bit" "Also run the unfocused bit stage alongside focus (restores pre-#1a double stage, for A/B)"))
+        .arg(arg!(--"drop-unfocused-bit" "In focus mode, drop the unfocused bit stage (focus-only): ~+21% exec/s, ~-4% coverage"))
         .arg(arg!(--"max-stack-pow" [n] "Max HAVOC stack power in the focus stage (core stack size = 2..2^(n+1)); default 7")
             .value_parser(value_parser!(u64)))
         .arg(arg!(-v --verbosity [l] "Verbosity level for (quick) experiments")
@@ -148,7 +148,7 @@ where
     let without_focus = matches.get_flag("wo-focus");
     let without_frontier = matches.get_flag("wo-frontier");
     let frontier_decay = matches.get_flag("frontier-decay");
-    let keep_unfocused_bit = matches.get_flag("keep-unfocused-bit");
+    let drop_unfocused_bit = matches.get_flag("drop-unfocused-bit");
     let target_put: Option<&String> = matches.get_one("put");
     let verbosity: LevelFilter = *matches
         .get_one::<LevelFilter>("verbosity")
@@ -223,8 +223,8 @@ where
     if frontier_decay {
         config.mutation_config.frontier_decay = true;
     }
-    if keep_unfocused_bit {
-        config.mutation_config.keep_unfocused_bit = true;
+    if drop_unfocused_bit {
+        config.mutation_config.drop_unfocused_bit = true;
     }
     if let Some(n) = matches.get_one::<u64>("max-stack-pow") {
         config.mutation_stage_config.max_mutations_pow_per_iteration = *n;
