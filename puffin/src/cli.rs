@@ -50,6 +50,7 @@ where
         .arg(arg!(--"wo-dy" "Disable DY mutations"))
         .arg(arg!(--"wo-focus" "Disables focus bit-level mutational stage"))
         .arg(arg!(--"wo-frontier" "Disables the executability-frontier bias for MakeMessage (A/B)"))
+        .arg(arg!(--"frontier-decay" "Frontier bias proceeds with prob ~1/2^distance past the frontier (vs fixed ~1/8)"))
         .arg(arg!(-v --verbosity [l] "Verbosity level for (quick) experiments")
             .value_parser(value_parser!(LevelFilter)))
         .arg(arg!(--"stats-interval" [n] "Minimum milliseconds between writes per client (core) for stats.json and broker logs [default: 250]")
@@ -143,6 +144,7 @@ where
     let with_truncation = matches.get_flag("with-trunc");
     let without_focus = matches.get_flag("wo-focus");
     let without_frontier = matches.get_flag("wo-frontier");
+    let frontier_decay = matches.get_flag("frontier-decay");
     let target_put: Option<&String> = matches.get_one("put");
     let verbosity: LevelFilter = *matches
         .get_one::<LevelFilter>("verbosity")
@@ -213,6 +215,9 @@ where
     }
     if without_frontier {
         config.mutation_config.frontier_bias = false;
+    }
+    if frontier_decay {
+        config.mutation_config.frontier_decay = true;
     }
     if with_truncation {
         config.mutation_stage_config.with_truncation = true;

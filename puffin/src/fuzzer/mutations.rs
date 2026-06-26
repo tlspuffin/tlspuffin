@@ -32,6 +32,11 @@ pub struct MutationConfig {
     /// Bias MakeMessage away from steps beyond the trace's executability frontier (soft pre-check),
     /// to avoid the dominant fail_reach waste (INV-A). Toggle off via `--wo-frontier` for A/B.
     pub frontier_bias: bool,
+    /// Frontier-bias MODE: when false (default) the bias is FIXED (proceed ~1/8 beyond the frontier
+    /// regardless of distance). When true (`--frontier-decay`) the proceed-probability DECAYS with
+    /// distance past the frontier (~1/2^distance): near-frontier steps get many chances (gentler,
+    /// to keep pushing the frontier outward) while far/unreachable steps are skipped aggressively.
+    pub frontier_decay: bool,
 }
 
 impl Default for MutationConfig {
@@ -46,6 +51,7 @@ impl Default for MutationConfig {
             with_dy: true,
             with_focus: true,
             frontier_bias: true,
+            frontier_decay: false,
         }
     }
 }

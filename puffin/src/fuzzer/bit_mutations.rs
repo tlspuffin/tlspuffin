@@ -429,11 +429,21 @@ where
             if self.config.frontier_bias {
                 if let Some(frontier) = trace.executable_frontier() {
                     if trace_path.0 > frontier {
-                        const PROCEED_DENOM: usize = 8; // proceed ~1/8 of the time beyond frontier
-                        if state.rand_mut().below_or_zero(PROCEED_DENOM) != 0 {
+                        // proceed-probability beyond the frontier:
+                        //  - FIXED (default): ~1/8 regardless of distance;
+                        //  - DECAY (--frontier-decay): ~1/2^distance (capped) -> near-frontier steps
+                        //    proceed often (1/2, 1/4, ...) to keep pushing the frontier outward,
+                        //    far/unreachable steps are skipped aggressively.
+                        let proceed_denom: usize = if self.config.frontier_decay {
+                            let dist = (trace_path.0 - frontier).min(7) as u32;
+                            1usize << dist
+                        } else {
+                            8
+                        };
+                        if state.rand_mut().below_or_zero(proceed_denom) != 0 {
                             FRONTIER_SKIP.increment();
                             log::debug!(
-                                "[MakeMessage] frontier-skip: step {} > frontier {frontier} (avoids a likely fail_reach)",
+                                "[MakeMessage] frontier-skip: step {} > frontier {frontier} (proceed_denom={proceed_denom})",
                                 trace_path.0
                             );
                             return Ok(MutationResult::Skipped);
