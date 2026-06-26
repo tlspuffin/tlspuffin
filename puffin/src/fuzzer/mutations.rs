@@ -41,6 +41,10 @@ pub struct MutationConfig {
     /// redundant (random-payload HAVOC adds ~4% coverage the focus stage misses). Set
     /// `--drop-unfocused-bit` to drop it for ~+21% exec/s at ~-4% coverage (speed-over-coverage).
     pub drop_unfocused_bit: bool,
+    /// [#7] Probability that ReadMessage actually re-interprets the focused payload in focus mode
+    /// (the rest of the time the raw bit-mutations are kept, e.g. a "lying" length prefix). Was a
+    /// hardcoded 1/4; tunable via `--read-message-prob` for an evidence-based sweep. Default 0.25.
+    pub read_message_prob: f64,
 }
 
 impl Default for MutationConfig {
@@ -57,6 +61,7 @@ impl Default for MutationConfig {
             frontier_bias: true,
             frontier_decay: false,
             drop_unfocused_bit: false,
+            read_message_prob: 0.25,
         }
     }
 }

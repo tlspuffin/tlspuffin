@@ -623,7 +623,7 @@ where
                 // NOTE (audit A1): the `!` previously bound to `rand.between(..)` (bitwise NOT of a
                 // ~1e9 usize), making the comparison always false -> this throttle was DEAD and
                 // ReadMessage always ran in focus mode. Parenthesized to negate the comparison.
-                let proba_run = 1.0 / 4.0;
+                let proba_run = self.config.read_message_prob; // [#7] tunable (was hardcoded 1/4)
                 let max_range = (1_000_000_000.0 * proba_run) as usize;
                 if !(rand.between(0, 1_000_000_000 - 1) < max_range) {
                     log::debug!("read_message_term: skipping as we do in 3/4 of times");

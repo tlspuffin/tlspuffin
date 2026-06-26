@@ -54,6 +54,8 @@ where
         .arg(arg!(--"drop-unfocused-bit" "In focus mode, drop the unfocused bit stage (focus-only): ~+21% exec/s, ~-4% coverage"))
         .arg(arg!(--"max-stack-pow" [n] "Max HAVOC stack power in the focus stage (core stack size = 2..2^(n+1)); default 7")
             .value_parser(value_parser!(u64)))
+        .arg(arg!(--"read-message-prob" [p] "Probability ReadMessage re-interprets the focused payload (focus mode); default 0.25")
+            .value_parser(value_parser!(f64)))
         .arg(arg!(-v --verbosity [l] "Verbosity level for (quick) experiments")
             .value_parser(value_parser!(LevelFilter)))
         .arg(arg!(--"stats-interval" [n] "Minimum milliseconds between writes per client (core) for stats.json and broker logs [default: 250]")
@@ -228,6 +230,9 @@ where
     }
     if let Some(n) = matches.get_one::<u64>("max-stack-pow") {
         config.mutation_stage_config.max_mutations_pow_per_iteration = *n;
+    }
+    if let Some(p) = matches.get_one::<f64>("read-message-prob") {
+        config.mutation_config.read_message_prob = *p;
     }
     if with_truncation {
         config.mutation_stage_config.with_truncation = true;
