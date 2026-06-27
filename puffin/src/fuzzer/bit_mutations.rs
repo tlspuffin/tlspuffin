@@ -609,7 +609,6 @@ where
             weighted_depth: false, /* true means we select a sub-term by giving higher-priority
                                     * to deeper sub-terms */
             not_readable: true,
-            must_be_det: true, // do not make read on a non det term !
             ..self.config.term_constraints
         };
         if !self.config.with_dy {
@@ -688,7 +687,7 @@ where
         };
         let term =
             find_term_mut(trace, &chosen_path).expect("read_message_term - Should never happen.");
-        if term.is_list() || term.is_readable() || term.has_no_det() {
+        if term.is_list() || term.is_readable() {
             log::debug!(
                 "[ReadMessage] Skipping ReadMessage on term\n{term:?}, because it is a list or already readable or has no det"
             );

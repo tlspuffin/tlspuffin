@@ -135,10 +135,6 @@ impl<PT: ProtocolTypes> Function<PT> {
         self.fn_container.attrs.no_bit
     }
 
-    pub fn no_det(&self) -> bool {
-        self.fn_container.attrs.no_det
-    }
-
     #[must_use]
     pub fn new(shape: DynamicFunctionShape<PT>, dynamic_fn: Box<dyn DynamicFunction<PT>>) -> Self {
         let attrs = PT::signature()

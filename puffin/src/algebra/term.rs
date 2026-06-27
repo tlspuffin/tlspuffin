@@ -297,33 +297,12 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
-    /// When the term starts with a `no_det` function symbol.
-    pub fn is_no_det(&self) -> bool {
-        match &self.term {
-            DYTerm::Variable(_) => false,
-            DYTerm::Application(fd, _) => fd.no_det(),
-        }
-    }
-
     /// When the term has a variable as sub-term (excluding strict-sub-terms of readable)
     pub fn has_variable(&self) -> bool {
         match &self.term {
             DYTerm::Variable(_) => true,
             DYTerm::Application(_, args) => {
                 !self.is_readable() && args.iter().any(|arg| arg.has_variable())
-            }
-        }
-    }
-
-    /// When the term has a non-det sub-term (excluding strict-sub-terms of readable)
-    pub fn has_no_det(&self) -> bool {
-        match &self.term {
-            DYTerm::Variable(_) => false,
-            DYTerm::Application(_, args) => {
-                if self.is_no_det() {
-                    return true;
-                }
-                !self.is_readable() && args.iter().any(|arg| arg.has_no_det())
             }
         }
     }

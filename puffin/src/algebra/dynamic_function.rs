@@ -95,8 +95,6 @@ pub struct FunctionAttributes {
     /// Symbols we will never MakeMessage on, thus disabling applying any of the bit-level
     /// mutations.
     pub no_bit: bool,
-    /// Symbols for which computations are not deterministic
-    pub no_det: bool,
 }
 // TODO: add a uni test for making sure the given attributes are correct
 
