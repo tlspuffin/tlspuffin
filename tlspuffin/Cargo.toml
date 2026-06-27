@@ -368,6 +368,8 @@ comparable = { workspace = true, features = ["derive"] }
 ring = { version = "0.16.20", features = ["std"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
 sct = "0.7.0"
+# Deterministic ECDSA (RFC 6979) so term evaluation is reproducible (ring's ECDSA is randomized).
+p256 = { version = "0.13", features = ["ecdsa", "pkcs8"] }
 
 # OpenSSL
 
