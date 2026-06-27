@@ -309,7 +309,7 @@ define_signature!(
     fn_rsa_sign_server [opaque]
     fn_ecdsa_sign_client [opaque] [no_det] // fn_ecdsa_sign_client has built-in randomness
     // TODO: replace this with explicit term
-    fn_ecdsa_sign_server [opaque]
+    fn_ecdsa_sign_server [opaque] [no_det] // ECDSA signing is randomized (variable-length DER) -> non-det, like fn_ecdsa_sign_client
     fn_rsa_pss_signature_algorithm
     fn_rsa_pkcs1_signature_algorithm
     fn_invalid_signature_algorithm
