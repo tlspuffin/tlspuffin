@@ -370,7 +370,7 @@ where
             not_readable: true,
             ..self.config.term_constraints
         };
-        if !self.config.with_dy {
+        if !self.config.with_dy && !self.config.bit_allow_subterm_no_dy {
             constraints_make_message.must_be_root = true;
         }
 
@@ -611,7 +611,7 @@ where
             not_readable: true,
             ..self.config.term_constraints
         };
-        if !self.config.with_dy {
+        if !self.config.with_dy && !self.config.bit_allow_subterm_no_dy {
             constraints_read_message.must_be_root = true;
         }
         let chosen_path = if self.config.with_focus {

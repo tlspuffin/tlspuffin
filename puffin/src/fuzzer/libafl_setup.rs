@@ -238,6 +238,7 @@ where
             // Return false if the campaign is not advanced enough (per client/core), except if no
             // DY
             if !mutation_config.with_dy
+                || mutation_config.bit_from_start
                 || (*state.executions() > MIN_BIT_EXECS && state.corpus().count() > MIN_BIT_CORPUS)
             {
                 log::debug!("[*] BIT StdMutationalStage");

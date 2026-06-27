@@ -45,6 +45,12 @@ pub struct MutationConfig {
     /// (the rest of the time the raw bit-mutations are kept, e.g. a "lying" length prefix). Was a
     /// hardcoded 1/4; tunable via `--read-message-prob` for an evidence-based sweep. Default 0.25.
     pub read_message_prob: f64,
+    /// [scheduling A/B] Run bit-level from the start, skipping the DY warmup gate
+    /// (MIN_BIT_EXECS/MIN_BIT_CORPUS). Tests whether delaying bit until DY warms up wastes early time.
+    pub bit_from_start: bool,
+    /// [structure A/B] Under --wo-dy, still allow MakeMessage on sub-terms (keep term-level
+    /// structure) instead of forcing root-only. Root-only (default under --wo-dy) mimics flat HAVOC.
+    pub bit_allow_subterm_no_dy: bool,
 }
 
 impl Default for MutationConfig {
@@ -62,6 +68,8 @@ impl Default for MutationConfig {
             frontier_decay: false,
             drop_unfocused_bit: false,
             read_message_prob: 0.25,
+            bit_from_start: false,
+            bit_allow_subterm_no_dy: false,
         }
     }
 }
