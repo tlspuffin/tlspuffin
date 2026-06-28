@@ -128,6 +128,29 @@ def stable_sig(cfg, trace, port, retry=None):
     return UNSTABLE
 
 
+def self_consistent(cfg, trace, port, k=3):
+    """Reproducibility guard: replay `trace` k INDEPENDENT times (each a full pooled_sig) against one
+    live server and return the signature iff all k measurements AGREE and are non-MISSING; else None.
+
+    This rejects probes whose result flips run-to-run even though pooled_sig's dominance filter
+    passed on a single run -- chiefly ATTACKER-SIDE term-evaluation nondeterminism: ring's P-curve
+    crypto (used to compute DY terms like fn_ecdsa_sign_server / fn_decode_server_ecdh_pubkey) blinds
+    with system entropy regardless of tlspuffin's FixedByteRandom, so the same probe sometimes builds
+    a ClientHello and sometimes errors out (-> EMPTY). That flip is version-INDEPENDENT, so one
+    server suffices to detect it. A probe that stably yields the SAME sig (including EMPTY) every
+    time is self-consistent; a flipper is not."""
+    first = None
+    for _ in range(k):
+        s = pooled_sig(cfg, trace, port)
+        if s in (UNSTABLE, SRVFAIL):
+            return None
+        if first is None:
+            first = s
+        elif s != first:
+            return None
+    return first
+
+
 def launch(cfg, put, ver, port):
     """Start the vendored stock server for (put, ver) on `port`, pinned to cfg.cores.
 

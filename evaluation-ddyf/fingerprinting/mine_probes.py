@@ -46,6 +46,10 @@ def main():
     puts.add_common_args(ap)
     ap.add_argument("--a1-cap", type=int, default=100000, help="per-pair A1 input cap (speed)")
     ap.add_argument("--rep-cap", type=int, default=4, help="representatives kept per (sigA,sigB) mechanism")
+    ap.add_argument("--consistency-k", type=int, default=3,
+                    help="A2 self-consistency: each confirmed probe must give the SAME stable sig "
+                         "across this many independent pooled measurements per origin server (rejects "
+                         "attacker-side term-eval flippers). 1 disables. Default 3.")
     ap.add_argument("--pair-jobs", type=int, default=1,
                     help="adjacent pairs to screen IN PARALLEL, each on its own port pair. Raises core "
                          "use: per-pair throughput is capped by the single-connection example server, "
@@ -101,10 +105,12 @@ def main():
         for t, a, b in surv:
             buckets[(a, b)].append(t)
         reps_pair = [t for v in buckets.values() for t in v[:args.rep_cap]]
-        # A2: strict confirm with the 10x/>=7 pooled filter.
+        # A2: strict confirm with the pooled filter, PLUS K-replay self-consistency so the probe's
+        # sig is REPRODUCIBLE (not an attacker-side term-eval flipper) on both origin servers.
         def confirm(t):
-            a, b = probe.pooled_sig(cfg, t, pA), probe.pooled_sig(cfg, t, pB)
-            return t if (a != probe.UNSTABLE and b != probe.UNSTABLE and a != b) else None
+            a = probe.self_consistent(cfg, t, pA, k=args.consistency_k)
+            b = probe.self_consistent(cfg, t, pB, k=args.consistency_k)
+            return t if (a is not None and b is not None and a != b) else None
         kept = []
         with ThreadPoolExecutor(max_workers=cfg.jobs) as ex:
             for r in ex.map(confirm, reps_pair):

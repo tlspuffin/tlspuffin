@@ -142,6 +142,41 @@ are not in this repo). The disposition machinery is now in place for that signal
 strict rebuild over the existing 806 probes with disposition would just reconfirm 15, so it was not
 run.
 
+## Root cause of probe non-reproducibility: attacker-side RNG (ring), not the PUT
+
+Investigating why 5.0.0/5.2.1's objectives are nondeterministic produced the session's deepest
+finding — and it is **not** PUT-side. Traced via `display-execute`:
+
+* The input ClientHello term *should* be deterministic — every randomized DY function is pinned
+  (`fn_new_random=[1;32]`, `fn_random_ec_key`=const, crypto uses `FixedByteRandom{42/43}`).
+* Yet term evaluation fails ~50% of the time with
+  `[Crypto] error in fn from rustls: Failed to shared secrets for TLS 1.2` → no ClientHello is sent
+  → the canon records EMPTY. The failure rate is **PUT- and version-independent** (5.0.0: 9/20,
+  5.2.1: 12/20), and it is **not ASLR** (`setarch -R` stays flaky) — but the binary draws from
+  `/dev/urandom`.
+* Mechanism: the trace's term reinterprets an ECDSA signature as an ECDH key share
+  (`fn_decode_server_ecdh_pubkey(fn_ecdsa_sign_server(...))`). `ring 0.16.20` blinds its P-curve
+  scalar ops with **system entropy regardless of the `FixedByteRandom` passed in**, so the signature
+  bytes — and the key decoded from them — vary every run; the shared-secret computation then
+  succeeds or fails ~50/50. The "no-rand" deterministic build neutralizes the **PUT's** RNG
+  (wolfSSL/OpenSSL), but **not ring**, the fuzzer's own crypto for computing attacker terms.
+* So this whole class of objectives is intrinsically a coin flip on the **attacker** side, identical
+  for all versions — it can never fingerprint, and it injects EMPTY-vs-response noise into the
+  matrix. (Stable decision probes like 803 carry no such construct: 0/10 term-eval failures.)
+
+### Fix shipped: K-replay self-consistency screen (mining)
+`probe.self_consistent(cfg, trace, port, k)` replays a probe K independent times against one server
+and keeps it only if all K pooled measurements agree (incl. EMPTY); a flipper is rejected. Wired
+into `mine_probes.py` stage A2 (`--consistency-k`, default 3) so non-reproducible probes never enter
+the matrix, and exposed as a standalone auditor `check_consistency.py`.
+
+**Quantified on the committed set:** **691 / 806 (86%) of the existing WolfSSL probes are
+non-self-consistent** on a single reference server (5.4.0, K=3, 30/21) — i.e. attacker-side noise.
+Calibration check: all **7** decision probes of the deployed 15-cluster model pass cleanly (3/3
+identical), so the model already routes only on the reproducible ~14%; the screen would have pruned
+the 86% up front, yielding a far cleaner matrix and removing the source of the earlier "mirage"
+splits.
+
 ---
 
 ## Artifacts
