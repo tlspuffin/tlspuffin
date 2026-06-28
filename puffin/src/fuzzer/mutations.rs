@@ -54,6 +54,9 @@ pub struct MutationConfig {
     /// [scheduling A/B] Delay DY mutations until this many execs have run (0 = DY from the start).
     /// With --bit-from-start this gives "bit-first, then DY": bit explores first, DY recombines later.
     pub dy_after_execs: u64,
+    /// [scheduling A/B] Bit-level warmup: bit starts after this many execs (per core) when DY is on.
+    /// Was the const MIN_BIT_EXECS (5000); tunable to test a later kick-in. Default 5000.
+    pub bit_after_execs: u64,
 }
 
 impl Default for MutationConfig {
@@ -74,6 +77,7 @@ impl Default for MutationConfig {
             bit_from_start: false,
             bit_allow_subterm_no_dy: false,
             dy_after_execs: 0,
+            bit_after_execs: 5000, // = MIN_BIT_EXECS (current default)
         }
     }
 }

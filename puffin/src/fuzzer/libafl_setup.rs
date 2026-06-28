@@ -247,7 +247,8 @@ where
             // DY
             if !mutation_config.with_dy
                 || mutation_config.bit_from_start
-                || (*state.executions() > MIN_BIT_EXECS && state.corpus().count() > MIN_BIT_CORPUS)
+                || (*state.executions() > mutation_config.bit_after_execs
+                    && state.corpus().count() > MIN_BIT_CORPUS)
             {
                 log::debug!("[*] BIT StdMutationalStage");
                 Ok(true)
