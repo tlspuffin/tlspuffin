@@ -79,6 +79,16 @@ pub const PHASE_KEX: u8 = 1;
 pub const PHASE_AUTH: u8 = 2;
 pub const PHASE_DONE: u8 = 3;
 
+/// Distinct claim *type identity* for intermediate (`phase < PHASE_DONE`) claims.
+/// These are emitted only to feed the claim-coverage liveness signal; giving them
+/// their own `TypeShape` (via [`SshClaim::id`]) means the security oracle's
+/// `find_claim` and the differential `claims_blacklist` both ignore them by type,
+/// without affecting the claim-coverage observer (which keys off `coverage_key`,
+/// not `id`). Completed-handshake claims keep the `SshClaimInner` identity. Marker
+/// only — never constructed; used purely for its `TypeId`/`TypeShape`.
+#[derive(Debug)]
+pub struct SshProgressClaim;
+
 /// SHA-256 fingerprint of the *attacker-controlled* client identity key (key A):
 /// the one whose private key / signing function IS present in the term-algebra
 /// signature. It is the only publickey identity a Dolev-Yao attacker can produce
@@ -230,7 +240,14 @@ impl Claim for SshClaim {
     }
 
     fn id(&self) -> TypeShape<SshProtocolTypes> {
-        TypeShape::of::<SshClaimInner>()
+        // Intermediate phase claims get a distinct type identity so the oracle
+        // (find_claim) and the differential comparison (claims_blacklist) ignore
+        // them by type; only completed-handshake claims keep SshClaimInner.
+        if self.inner.phase < PHASE_DONE {
+            TypeShape::of::<SshProgressClaim>()
+        } else {
+            TypeShape::of::<SshClaimInner>()
+        }
     }
 
     fn inner(&self) -> Box<dyn EvaluatedTerm<SshProtocolTypes>> {

@@ -230,7 +230,12 @@ impl ProtocolTypes for SshProtocolTypes {
     }
 
     fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
-        None
+        // Intermediate phase claims (liveness-depth signal for claim coverage)
+        // are emitted only by the libssh harness, not wolfSSH, so comparing them
+        // cross-vendor is a spurious diff on every run. They carry a distinct
+        // TypeShape (see SshClaim::id) so we drop them from differential
+        // comparison by type; only completed-handshake claims are compared.
+        Some(vec![TypeId::of::<crate::claim::SshProgressClaim>()])
     }
 
     fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self> {
