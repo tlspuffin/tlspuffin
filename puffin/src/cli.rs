@@ -59,6 +59,8 @@ where
         .arg(arg!(--"bit-after-execs" [n] "Bit-level warmup threshold (execs/core) before bit kicks in; default 5000")
             .value_parser(value_parser!(u64)))
         .arg(arg!(--"no-r3-relax" "Disable R3 reframing round-trip relaxation (strict drop, for Ch4 A/B)"))
+        .arg(arg!(--"max-payloads-per-term" [n] "Cap on simultaneous payloads per term (Ch5 A/B); default 10")
+            .value_parser(value_parser!(usize)))
         .arg(arg!(--"max-stack-pow" [n] "Max HAVOC stack power in the focus stage (core stack size = 2..2^(n+1)); default 7")
             .value_parser(value_parser!(u64)))
         .arg(arg!(--"read-message-prob" [p] "Probability ReadMessage re-interprets the focused payload (focus mode); default 0.25")
@@ -251,6 +253,9 @@ where
     if matches.get_flag("no-r3-relax") {
         crate::algebra::bitstrings::R3_RELAX_REFRAMING
             .store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+    if let Some(n) = matches.get_one::<usize>("max-payloads-per-term") {
+        config.mutation_config.term_constraints.threshold_max_payloads_per_term = *n;
     }
     if let Some(n) = matches.get_one::<u64>("max-stack-pow") {
         config.mutation_stage_config.max_mutations_pow_per_iteration = *n;
