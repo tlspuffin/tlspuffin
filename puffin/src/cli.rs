@@ -393,10 +393,7 @@ where
     } else if let Some(matches) = matches.subcommand_matches("claim-occupancy") {
         let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
         let sort: bool = matches.get_flag("sort");
-        let mut paths: Vec<PathBuf> = inputs
-            .map(PathBuf::from)
-            .filter(|p| p.is_file())
-            .collect();
+        let mut paths: Vec<PathBuf> = inputs.map(PathBuf::from).filter(|p| p.is_file()).collect();
         if sort {
             paths.sort_by_key(|p| fs::metadata(p).and_then(|m| m.modified()).ok());
         }
@@ -423,8 +420,10 @@ where
                     )
                 })
                 .collect();
-            let runner =
-                Runner::new(put_registry.clone(), Spawner::new(put_registry.clone()).with_mapping(&mappings));
+            let runner = Runner::new(
+                put_registry.clone(),
+                Spawner::new(put_registry.clone()).with_mapping(&mappings),
+            );
             let _ = (&runner).execute_config(
                 trace,
                 ConfigTrace {
