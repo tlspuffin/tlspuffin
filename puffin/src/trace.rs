@@ -493,6 +493,13 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
         }
     }
 
+    /// Borrow the ordered list of claims emitted so far this execution (the
+    /// claim trajectory). Used by the protocol-agnostic claim-coverage feedback.
+    #[must_use]
+    pub fn claims(&self) -> std::cell::Ref<'_, crate::claims::ClaimList<PB::Claim>> {
+        self.claims.deref_borrow()
+    }
+
     pub fn verify_security_violations(&self) -> Result<(), Error> {
         let claims = self.claims.deref_borrow();
         claims.log();

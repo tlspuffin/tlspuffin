@@ -71,13 +71,21 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
         }
 
         let mut ctx = TraceContext::new_config(self.spawner.clone(), config_trace);
-        trace
-            .as_ref()
-            .execute(&mut ctx, &mut 0, config_trace.check_security_violation)
-            .map_err(|e| {
-                *executed_until = ctx.executed_until;
-                e
-            })?;
+        let result =
+            trace
+                .as_ref()
+                .execute(&mut ctx, &mut 0, config_trace.check_security_violation);
+
+        // Protocol-agnostic claim-trajectory coverage: record the conversation
+        // state the agents reached this run (including partial trajectories from
+        // aborted runs — the liveness-depth signal). Inert unless the protocol's
+        // claims implement `Claim::coverage_key`.
+        crate::claims::record_claim_coverage(ctx.claims().slice());
+
+        result.map_err(|e| {
+            *executed_until = ctx.executed_until;
+            e
+        })?;
         *executed_until = ctx.executed_until;
         Ok(ctx)
     }
