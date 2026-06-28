@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use libafl::inputs::{BytesInput, HasMutatorBytes};
 use serde::{Deserialize, Serialize};
@@ -10,6 +11,11 @@ use crate::error::Error::TermBug;
 use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
+
+/// [R3 / Ch4 A/B] When true (default), a `[reframing]` arg that fails the read∘encode round-trip is
+/// kept best-effort instead of dropped. Toggle off via `--no-r3-relax` to measure R3's coverage
+/// value (set once at startup; process-global like the stats counters).
+pub static R3_RELAX_REFRAMING: AtomicBool = AtomicBool::new(true);
 
 /// Constants governing heuristic for finding payloads in term evaluations
 const THRESHOLD_SIZE: usize = 3; // minimum size of a payload to be directly searched in root_eval
@@ -814,7 +820,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                             // under-coalescing bit-mutations survive ("better evaluation"). Crypto
                             // [opaque] keeps the strict check (it must transform the EXACT mutated
                             // bytes). Frequency is greppable via the [R3 reframing-relax] log line.
-                            if self.is_reframing() {
+                            if self.is_reframing() && R3_RELAX_REFRAMING.load(Ordering::Relaxed) {
                                 log::info!(
                                     "[eval_until_opaque] [R3 reframing-relax] arg did not round-trip under {}; proceeding best-effort with di (encoding len {} vs bi {})",
                                     self, di.get_encoding().len(), bi.len()
