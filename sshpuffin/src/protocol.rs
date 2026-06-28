@@ -246,14 +246,13 @@ impl ProtocolTypes for SshProtocolTypes {
         // transport transcript and execution path.
         match diff {
             // Any security-violation difference is meaningful, in BOTH forms:
-            //  * `Different` — one PUT violates, the other doesn't (e.g. a
-            //    vulnerable vs patched version differential).
-            //  * `BothError` — both PUTs raise the same violation. For two
-            //    *different* implementations (e.g. libssh vs wolfSSH) this is a
-            //    SHARED real vulnerability, not noise, so it must be kept. (An
-            //    earlier version dropped BothError to denoise the same-impl version
-            //    differential; that was unsound as a global filter — it would have
-            //    discarded genuine cross-vendor shared findings.)
+            //  * `Different` — one PUT violates, the other doesn't (e.g. a vulnerable vs patched
+            //    version differential).
+            //  * `BothError` — both PUTs raise the same violation. For two *different*
+            //    implementations (e.g. libssh vs wolfSSH) this is a SHARED real vulnerability, not
+            //    noise, so it must be kept. (An earlier version dropped BothError to denoise the
+            //    same-impl version differential; that was unsound as a global filter — it would
+            //    have discarded genuine cross-vendor shared findings.)
             TraceDifference::SecurityClaim(_) => true,
 
             // Claims carry the negotiated security state (kex/cipher/MAC → downgrade
@@ -390,9 +389,23 @@ impl ProtocolBehavior for SshProtocolBehavior {
     }
 
     fn check_trace_security_violation(
-        trace: &Trace<Self::ProtocolTypes>,
-        ctx: &puffin::trace::TraceContext<Self>,
+        _trace: &Trace<Self::ProtocolTypes>,
+        _ctx: &puffin::trace::TraceContext<Self>,
     ) -> Option<&'static str> {
-        crate::violation::matching_conversation_violation(trace, ctx)
+        // The matching-conversation property is now judged by the claims-based
+        // DY oracle (`SshSecurityViolationPolicy::check_violation`): it compares
+        // the KEX transcript (session id / exchange hash H) and the post-NEWKEYS
+        // secure-channel message-type digests, which are derived from the
+        // *parsed, MAC-authenticated* message stream.
+        //
+        // The earlier trace-level byte-stream comparison
+        // (`matching_conversation_violation`) is retired as the live oracle: it
+        // over-approximated the property by diffing raw delivered bytes, so it
+        // flagged corruption of fields SSH explicitly does not protect — padding
+        // and SSH_MSG_IGNORE (RFC 4251 §9.3.6) — producing the bulk of the
+        // bit-level campaign false positives. The function is kept for its
+        // direct unit tests. Returning `None` here leaves the (FP-free) claims
+        // oracle as the sole matching-conversation judge.
+        None
     }
 }
