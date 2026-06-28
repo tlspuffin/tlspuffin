@@ -236,40 +236,42 @@ divergence is EXPECTED and handled by annotations + blacklist, not by RNG.
       demonstrated against a vulnerable PUT (libssh 0.8.x build still blocked on
       OpenSSL detection in the nix toolchain).
 
-## Findings from the 2026-06-28 differential re-run
+## Findings from the 2026-06-28 differential re-run (+ per-seed verification)
 
-Re-ran `differential-experiment` with the current (claims-oracle) binary:
+Re-ran `differential-experiment` and then verified each seed directly with
+`differential-execute -j`:
 
-- **Version differential `libssh0104-asan` vs `libssh0114-asan` — WORKS.**
-  Non-empty corpus, fuzzes normally; both libssh PUTs emit claims (incl. the new
-  intermediate phase claims) symmetrically, so the `Claims` comparison is clean.
-- **Cross-vendor `libssh0114-asan` vs `wolfssh-asan` — BROKEN (regression).**
-  Every seed becomes an objective on the first run, so the corpus is empty and
-  the fuzzer panics (`No entries in corpus`). Two causes:
-  1. **Asymmetric claims (new regression).** The intermediate phase claims are
-     emitted only by the *libssh* harness, not wolfSSH, so the per-agent claim
-     lists differ in length → a spurious `Claims` diff on *every* run. The
-     differential `compare` cannot distinguish them (they share the
-     `SshClaimInner` `TypeShape`, so `differential_fuzzing_claims_blacklist`
-     can't drop them).
-  2. **Permissive `filter_diff` + benign cross-vendor divergences (pre-existing).**
-     `differential_fuzzing_filter_diff` is `true` (keep all diffs), and the
-     two vendors legitimately differ (e.g. UserAuthSuccess-first vs
-     ServiceAccept-first ordering), so even without (1) most seeds would diff and
-     starve the corpus.
+- **Version `libssh0104` vs `libssh0114` — WORKS, seeds clean.** All 13 seeds
+  give empty diff (verified per-seed, not inferred). Fuzzing objectives are all
+  `Execution status difference` (strict-kex/version acceptance divergences), 0
+  Claims / 0 SecurityClaim — consistent with the 6 h Terrapin-discovery negative.
+- **Cross-vendor `libssh0114` vs `wolfssh` — WAS broken, now FIXED.** Per-seed
+  diff showed two distinct causes (not the ordering one originally guessed):
+  1. **Asymmetric phase claims (regression, FIXED).** Intermediate phase claims
+     were emitted only by libssh, giving a `Claims` diff on every AES-GCM seed
+     (the whole diff for those seeds — no Status/Knowledge diff). Fixed by giving
+     them a distinct `TypeShape` (`SshProgressClaim`) and dropping them via
+     `differential_fuzzing_claims_blacklist`. AES-GCM client seeds now diff-clean.
+  2. **Genuine acceptance divergences (not a bug).** chacha20/ctr seeds → `Status`
+     diff (wolfSSH lacks those ciphers); server-attacker / ext-info / rekey seeds
+     → `Claims` `SshClaimInner vs ()` (wolfSSH does not reach the completion
+     claim for those flows). These are real cross-vendor behaviour, so they are
+     excluded from the cross-vendor seed baseline rather than compared.
+  Result: the cross-vendor differential is re-baselined on a curated subset of
+  the 3 verified-clean AES-GCM client seeds (`launch_diff.sh` → `diff_xvendor/`),
+  runs with a non-empty corpus, and surfaces only mutation-driven `Status` diffs.
 
 ## Toward freezing DDYF v1 (next steps, prioritised)
 
 The single-PUT DY oracle is in good shape (precise, Terrapin-demonstrated). To
 freeze a coherent *differential* v1, in order:
 
-1. **Decouple coverage claims from oracle/differential claims (BLOCKER for
-   cross-vendor).** Give the intermediate phase claims their own type
-   (`SshProgressClaim`, distinct `TypeShape`) instead of overloading
-   `SshClaimInner`. Then: the oracle's `find_claim`/`PHASE_DONE` filter and the
-   differential `claims_blacklist` both ignore them by type, and the
-   claim-coverage observer still consumes them. This removes the cross-vendor
-   regression *and* simplifies the `phase==DONE` filtering in `violation.rs`.
+1. **[DONE 2026-06-28] Decouple coverage claims from oracle/differential
+   claims.** Intermediate phase claims now carry a distinct `TypeShape`
+   (`SshProgressClaim`, via `SshClaim::id`) and are dropped via
+   `differential_fuzzing_claims_blacklist`; the claim-coverage observer is
+   unaffected (keys off `coverage_key`). Cross-vendor AES-GCM seeds verified
+   diff-clean; the cross-vendor differential no longer starves.
 2. **Make `filter_diff` separate "clean baseline" from "finding."** Implement
    `differential_fuzzing_filter_diff` to suppress the known-benign cross-vendor
    divergences (auth/service ordering, ext-info presence, banner text) so a
