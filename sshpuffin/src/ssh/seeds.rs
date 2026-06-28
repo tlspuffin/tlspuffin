@@ -1273,14 +1273,14 @@ pub fn seed_terrapin_attempt(client: AgentName, server: AgentName) -> Trace<SshP
             InputAction::new_step(server, term! { (client, 1)/RawSshMessageFlight }), // KEXINIT
             InputAction::new_step(client, term! { (server, 1)/RawSshMessageFlight }),
             InputAction::new_step(server, term! { (client, 2)/RawSshMessageFlight }), // ECDH_INIT
-            InputAction::new_step(client, term! { (server, 2)/RawSshMessageFlight }), // ECDH_REPLY+NEWKEYS
+            InputAction::new_step(client, term! { (server, 2)/RawSshMessageFlight }), /* ECDH_REPLY+NEWKEYS */
             // (a) INSERT a cleartext IGNORE into c2s before the client's NEWKEYS:
             // bumps the server's c2s receive sequence number by 1.
             InputAction::new_step(
                 server,
                 term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) },
             ),
-            InputAction::new_step(server, term! { (client, 3)/RawSshMessageFlight }), // client NEWKEYS
+            InputAction::new_step(server, term! { (client, 3)/RawSshMessageFlight }), /* client NEWKEYS */
             InputAction::new_step(client, term! { (server, 3)/RawSshMessageFlight }),
             // (b) Forward the client's encrypted c2s packets individually, DROPPING
             // the first (OnWire 0). With the +1 from the IGNORE, the server's
@@ -1481,8 +1481,8 @@ pub fn seed_terrapin_s2c(client: AgentName, server: AgentName) -> Trace<SshProto
                 client,
                 term! { fn_packet((fn_ignore((fn_ssh_bytes_empty)))) },
             ),
-            InputAction::new_step(client, term! { (server, 3)/RawSshMessage }), // server NEWKEYS s->c
-            InputAction::new_step(server, term! { (client, 3)/RawSshMessage }), // client NEWKEYS c->s
+            InputAction::new_step(client, term! { (server, 3)/RawSshMessage }), /* server NEWKEYS s->c */
+            InputAction::new_step(server, term! { (client, 3)/RawSshMessage }), /* client NEWKEYS c->s */
             // Encrypted phase. Forward client's c2s packets normally; on s2c DROP
             // the server's OnWire 0 (EXT_INFO, seqno 3) and forward OnWire 1.. only.
             OutputAction::new_step(server), // pump server to emit EXT_INFO (OnWire 0, dropped)
@@ -1492,7 +1492,8 @@ pub fn seed_terrapin_s2c(client: AgentName, server: AgentName) -> Trace<SshProto
             InputAction::new_step(server, term! { (client, 0)/OnWireData }), // -> server
             OutputAction::new_step(server),
             OutputAction::new_step(server), // server SERVICE_ACCEPT (OnWire 1, seqno 4)
-            InputAction::new_step(client, term! { (server, 1)/OnWireData }), // forward (drop OnWire 0)
+            InputAction::new_step(client, term! { (server, 1)/OnWireData }), /* forward (drop
+                                             * OnWire 0) */
             OutputAction::new_step(client),
             OutputAction::new_step(client), // client USERAUTH_REQUEST (OnWire 1)
             InputAction::new_step(server, term! { (client, 1)/OnWireData }), // -> server
@@ -1547,8 +1548,8 @@ pub fn seed_handshake_two_party_packet_complete(
             InputAction::new_step(client, term! { (server, 1)/RawSshMessage }), // KEXINIT s->c
             InputAction::new_step(server, term! { (client, 2)/RawSshMessage }), // ECDH_INIT c->s
             InputAction::new_step(client, term! { (server, 2)/RawSshMessage }), // ECDH_REPLY s->c
-            InputAction::new_step(client, term! { (server, 3)/RawSshMessage }), // server NEWKEYS s->c
-            InputAction::new_step(server, term! { (client, 3)/RawSshMessage }), // client NEWKEYS c->s
+            InputAction::new_step(client, term! { (server, 3)/RawSshMessage }), /* server NEWKEYS s->c */
+            InputAction::new_step(server, term! { (client, 3)/RawSshMessage }), /* client NEWKEYS c->s */
             // Encrypted phase, faithful: forward server OnWire 0 (EXT_INFO), 1, 2.
             OutputAction::new_step(server),
             OutputAction::new_step(server), // server EXT_INFO (OnWire 0)
@@ -2688,6 +2689,131 @@ mod tests {
         );
     }
 
+    /// Saturation / canonicalization test for the claim-coverage projection:
+    /// two executions of the *same* honest conversation must yield the *same*
+    /// multiset of `coverage_key`s. If they differ, `coverage_key` is leaking a
+    /// per-execution-random field (e.g. the session id / exchange hash H) and
+    /// the feedback would degenerate to always-true. Guards `SshClaim::coverage_key`.
+    #[test_log::test]
+    fn claim_coverage_key_is_run_invariant() {
+        use puffin::claims::Claim;
+        use puffin::put::{PutDescriptor, PutOptions};
+        use puffin::trace::ConfigTrace;
+
+        use crate::claim::SshClaim;
+        use crate::ssh::seeds::seed_handshake_two_party_packet_complete;
+
+        let registry = ssh_registry();
+        if registry.find_by_id("libssh0104-asan").is_none() {
+            return;
+        }
+        let client = puffin::agent::AgentName::first();
+        let server = client.next();
+
+        let keys = || -> Vec<u64> {
+            let spawner = Spawner::new(registry.clone()).with_mapping(&[
+                (
+                    client,
+                    PutDescriptor::new("libssh0104-asan", PutOptions::default()),
+                ),
+                (
+                    server,
+                    PutDescriptor::new("libssh0104-asan", PutOptions::default()),
+                ),
+            ]);
+            let ctx = (&Runner::new(registry.clone(), spawner))
+                .execute_config(
+                    seed_handshake_two_party_packet_complete(client, server),
+                    ConfigTrace {
+                        check_security_violation: false,
+                        ..ConfigTrace::default()
+                    },
+                    &mut 0,
+                )
+                .expect("honest relay should complete");
+            let mut ks: Vec<u64> = ctx
+                .claims()
+                .slice()
+                .iter()
+                .filter_map(<SshClaim as Claim>::coverage_key)
+                .collect();
+            ks.sort_unstable();
+            ks
+        };
+
+        let first = keys();
+        let second = keys();
+        assert!(
+            !first.is_empty(),
+            "expected at least one claim with a coverage_key"
+        );
+        assert_eq!(
+            first, second,
+            "coverage_key must be invariant across runs of the same conversation \
+             (a difference means a randomized field, e.g. session_id, leaked in)"
+        );
+
+        // Liveness-depth signal (P2): intermediate phase claims (phase < DONE)
+        // must actually be emitted, otherwise the coverage gives no depth
+        // gradient. A completing honest run should emit at least one.
+        let spawner = Spawner::new(registry.clone()).with_mapping(&[
+            (
+                client,
+                PutDescriptor::new("libssh0104-asan", PutOptions::default()),
+            ),
+            (
+                server,
+                PutDescriptor::new("libssh0104-asan", PutOptions::default()),
+            ),
+        ]);
+        let ctx = (&Runner::new(registry.clone(), spawner))
+            .execute_config(
+                seed_handshake_two_party_packet_complete(client, server),
+                ConfigTrace {
+                    check_security_violation: false,
+                    ..ConfigTrace::default()
+                },
+                &mut 0,
+            )
+            .expect("honest relay should complete");
+        let phases: Vec<u8> = ctx
+            .claims()
+            .slice()
+            .iter()
+            .map(|c| c.data().phase)
+            .collect();
+        assert!(
+            phases.iter().any(|&p| p == crate::claim::PHASE_DONE),
+            "expected a completed-handshake claim (phase == DONE)"
+        );
+        assert!(
+            phases.iter().any(|&p| p < crate::claim::PHASE_DONE),
+            "expected at least one intermediate phase claim (liveness-depth signal); got {phases:?}"
+        );
+    }
+
+    /// Regression: every seed must round-trip through postcard, otherwise the
+    /// fuzzer silently skips it at load (`Serialize("SerdeDeCustom")`).
+    /// `seed_handshake_two_party` queries the whole-flight type
+    /// `(agent, n)/RawSshMessageFlight`; its `TypeShape` only deserializes if
+    /// `RawSshMessageFlight` is in the signature's type table (registered via
+    /// `fn_raw_message_flight`). Guards that registration.
+    #[test]
+    fn two_party_seed_round_trips_through_postcard() {
+        use crate::protocol::SshProtocolTypes;
+        use crate::ssh::seeds::seed_handshake_two_party;
+
+        let client = puffin::agent::AgentName::first();
+        let server = client.next();
+        let trace = seed_handshake_two_party(client, server);
+        let bytes = trace.serialize_postcard().expect("serialize");
+        let back = puffin::trace::Trace::<SshProtocolTypes>::deserialize_postcard(&bytes).expect(
+            "seed_handshake_two_party must round-trip (RawSshMessageFlight query type \
+                 registered in the signature)",
+        );
+        assert_eq!(back.steps.len(), trace.steps.len());
+    }
+
     /// Diagnostic: drive two real libssh PUTs through a handshake purely by DY
     /// relay, and report how far each gets. This validates the two-honest-party
     /// trace shape needed for the matching-conversation property.
@@ -2736,6 +2862,102 @@ mod tests {
         assert!(
             context.verify_security_violations().is_ok(),
             "matching-conversation oracle fired on a benign honest relay (false positive)"
+        );
+    }
+
+    /// Data-level validation of the two new matching-conversation claim signals
+    /// (KEX-transcript session id + per-direction secure-channel message-type
+    /// digest) on the instrumented libssh0104: an honest packet-granular relay
+    /// produces *agreeing* values (shared session id; crosswise-equal, non-zero
+    /// digests), while a Terrapin s2c truncation (dropping the server's
+    /// EXT_INFO) makes the s2c stream the client received diverge from what the
+    /// server sent. Confirms the claims-based oracle fires on the real channel
+    /// data, not merely incidentally. Runs with the per-trace security check
+    /// disabled so the raw claims can be inspected.
+    #[test_log::test]
+    fn test_claim_channel_digests_detect_terrapin() {
+        use puffin::algebra::dynamic_function::TypeShape;
+        use puffin::put::{PutDescriptor, PutOptions};
+        use puffin::trace::{ConfigTrace, Trace};
+
+        use crate::claim::SshClaimInner;
+        use crate::protocol::{SshProtocolBehavior, SshProtocolTypes};
+        use crate::ssh::seeds::{seed_handshake_two_party_packet_complete, seed_terrapin_s2c};
+
+        let registry = ssh_registry();
+        if registry.find_by_id("libssh0104-asan").is_none() {
+            return; // instrumented PUT not built in this configuration
+        }
+        let client = puffin::agent::AgentName::first();
+        let server = client.next();
+
+        let run = |trace: Trace<SshProtocolTypes>| {
+            let spawner = Spawner::new(registry.clone()).with_mapping(&[
+                (
+                    client,
+                    PutDescriptor::new("libssh0104-asan", PutOptions::default()),
+                ),
+                (
+                    server,
+                    PutDescriptor::new("libssh0104-asan", PutOptions::default()),
+                ),
+            ]);
+            let runner = Runner::new(registry.clone(), spawner);
+            (&runner)
+                .execute_config(
+                    trace,
+                    ConfigTrace {
+                        check_security_violation: false,
+                        ..ConfigTrace::default()
+                    },
+                    &mut 0,
+                )
+                .expect("execution (with the oracle disabled) should not error")
+        };
+        let inner = |ctx: &puffin::trace::TraceContext<SshProtocolBehavior>,
+                     a: puffin::agent::AgentName|
+         -> Option<SshClaimInner> {
+            let c = ctx.find_claim(a, TypeShape::of::<SshClaimInner>())?;
+            c.as_any()
+                .downcast_ref::<Box<SshClaimInner>>()
+                .map(|b| (**b).clone())
+        };
+
+        // Honest relay: both views agree.
+        let ctx = run(seed_handshake_two_party_packet_complete(client, server));
+        let c = inner(&ctx, client).expect("client claim");
+        let s = inner(&ctx, server).expect("server claim");
+
+        assert!(
+            !s.session_id.is_empty() && !c.session_id.is_empty(),
+            "session id (exchange hash H) should be populated by instrumented libssh"
+        );
+        assert_eq!(
+            s.session_id, c.session_id,
+            "honest peers must share the exchange hash H"
+        );
+        assert!(
+            s.secure_tx_digest != 0 && c.secure_rx_digest != 0,
+            "secure-channel digests should be populated post-NEWKEYS"
+        );
+        assert_eq!(
+            s.secure_tx_digest, c.secure_rx_digest,
+            "honest s2c: server-sent stream must equal client-received stream"
+        );
+        assert_eq!(
+            c.secure_tx_digest, s.secure_rx_digest,
+            "honest c2s: client-sent stream must equal server-received stream"
+        );
+
+        // Terrapin s2c truncation: the dropped EXT_INFO makes the client's
+        // received s2c stream diverge from what the server actually sent.
+        let ctx = run(seed_terrapin_s2c(client, server));
+        let c = inner(&ctx, client).expect("client claim (terrapin)");
+        let s = inner(&ctx, server).expect("server claim (terrapin)");
+        assert_ne!(
+            s.secure_tx_digest, c.secure_rx_digest,
+            "Terrapin s2c: server-sent and client-received streams must diverge \
+             (the dropped EXT_INFO), which is exactly what the oracle flags"
         );
     }
 

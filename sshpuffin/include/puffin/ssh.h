@@ -49,6 +49,43 @@ extern "C"
         char auth_user[SSH_CLAIM_STR_LEN];
         uint8_t auth_key_fp[32];
         uint8_t auth_key_fp_len;
+        /*
+         * KEX-transcript binding (RFC 4253 §7.2): the SSH session identifier,
+         * i.e. the exchange hash H of the first key exchange. H binds
+         * V_C,V_S,I_C,I_S,K_S,e,f,K (RFC 4253 §8), so two honest peers share it
+         * iff they had a matching key-exchange conversation. Compared
+         * cross-endpoint by the matching-conversation oracle. <session_id_len>
+         * == 0 means "not available" (no completed KEX, or PUT not instrumented).
+         */
+        uint8_t session_id[64];
+        uint8_t session_id_len;
+        /*
+         * Channel-data integrity (RFC 4253 §6.4 / RFC 4251 §9.3.2): an
+         * order-sensitive FNV-1a digest over the *message type byte* of every
+         * packet processed on the secure channel (after the first NEWKEYS), per
+         * direction. The post-NEWKEYS stream is MAC-authenticated, so in a
+         * faithful relay each peer's outbound digest equals its partner's
+         * inbound digest; a dropped / injected / reordered secure-channel
+         * message (e.g. the Terrapin prefix-truncation that strips EXT_INFO)
+         * breaks that crosswise equality. 0 means "not available".
+         */
+        uint64_t secure_tx_digest;
+        uint64_t secure_rx_digest;
+        /*
+         * Coarse protocol phase reached when this claim was emitted (liveness
+         * depth): 0=init, 1=kex, 2=auth, 3=done. Intermediate (<3) claims are
+         * emitted by runs that abort mid-handshake and feed only the
+         * claim-coverage feedback; the security oracle considers only phase==3.
+         */
+        uint8_t phase;
+        /*
+         * Per-direction total packet counts (handshake depth). Refines the
+         * liveness-depth coverage signal for runs that abort before the secure
+         * channel (where the digests are still 0) and the coarse phase tag does
+         * not distinguish how far they got. Bucketed in `coverage_key`.
+         */
+        uint32_t rx_count;
+        uint32_t tx_count;
     };
 
     typedef struct

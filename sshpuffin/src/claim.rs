@@ -34,7 +34,50 @@ pub struct SshClaimInner {
     pub auth_method: String,
     pub auth_user: String,
     pub auth_key_fingerprint: Vec<u8>,
+    /// KEX-transcript binding: the SSH session identifier, i.e. the exchange
+    /// hash `H` of the first key exchange (RFC 4253 §7.2). `H` binds
+    /// `V_C,V_S,I_C,I_S,K_S,e,f,K` (§8), so two honest peers share it iff they
+    /// had a matching key-exchange conversation. Empty when unavailable (no
+    /// completed KEX, or a PUT that does not expose it). Per-execution value
+    /// (depends on the ephemeral DH keys), so it is excluded from differential
+    /// comparison; the oracle only checks client/server *agreement* within one
+    /// run.
+    #[comparable_ignore]
+    pub session_id: Vec<u8>,
+    /// Channel-data integrity: order-sensitive digests over the message-type
+    /// byte of every packet on the secure channel (post-NEWKEYS), per
+    /// direction (`tx` = sent by this peer, `rx` = received). In a faithful
+    /// relay one peer's `tx` equals its partner's `rx`; a dropped / injected /
+    /// reordered secure-channel message (Terrapin) breaks that crosswise
+    /// equality. 0 = unavailable. Per-execution; excluded from differential
+    /// comparison (used only for cross-endpoint agreement).
+    #[comparable_ignore]
+    pub secure_tx_digest: u64,
+    #[comparable_ignore]
+    pub secure_rx_digest: u64,
+    /// Coarse protocol phase this claim was emitted at (liveness depth): one of
+    /// [`PHASE_INIT`]/[`PHASE_KEX`]/[`PHASE_AUTH`]/[`PHASE_DONE`]. Intermediate
+    /// (`< PHASE_DONE`) claims are emitted even by runs that abort mid-handshake
+    /// and exist only to feed the claim-coverage feedback (liveness-depth
+    /// gradient); the security oracle considers only `PHASE_DONE` claims. The
+    /// completion claim is `PHASE_DONE`. Excluded from differential comparison.
+    #[comparable_ignore]
+    pub phase: u8,
+    /// Per-direction total packet counts (handshake depth). Refine the
+    /// liveness-depth coverage for runs that abort before the secure channel
+    /// (digests still 0) and that the coarse `phase` does not separate. Bucketed
+    /// in `coverage_key`. Excluded from differential comparison.
+    #[comparable_ignore]
+    pub rx_count: u32,
+    #[comparable_ignore]
+    pub tx_count: u32,
 }
+
+/// Protocol phases for [`SshClaimInner::phase`] (liveness depth).
+pub const PHASE_INIT: u8 = 0;
+pub const PHASE_KEX: u8 = 1;
+pub const PHASE_AUTH: u8 = 2;
+pub const PHASE_DONE: u8 = 3;
 
 /// SHA-256 fingerprint of the *attacker-controlled* client identity key (key A):
 /// the one whose private key / signing function IS present in the term-algebra
@@ -132,6 +175,20 @@ fn canon_mac(s: &str) -> String {
     t
 }
 
+/// Coarse bucket for per-direction packet counts in the claim coverage key:
+/// fine in the handshake range (`0..=15`), then a few log-ish buckets, so
+/// channel-data count variation collapses instead of exploding the DY-state
+/// cell space (which blew the corpus up 5x with a flat cap of 63).
+fn ssh_count_bucket(n: u32) -> u8 {
+    match n {
+        0..=15 => n as u8,
+        16..=31 => 16,
+        32..=63 => 17,
+        64..=255 => 18,
+        _ => 19,
+    }
+}
+
 dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 
 #[derive(Debug, Clone, Comparable, PartialEq)]
@@ -186,5 +243,58 @@ impl Claim for SshClaim {
 
     fn get_step(&self) -> Option<StepNumber> {
         self.step.clone()
+    }
+
+    /// Projection for protocol-agnostic claim-trajectory coverage: a hash of the
+    /// *semantic* conversation state this claim records, with the per-execution
+    /// random `session_id` (the exchange hash H) deliberately omitted so two
+    /// runs of the same conversation collapse to one key (no always-true
+    /// feedback). The per-direction post-NEWKEYS message-type digests are
+    /// deterministic — a dropped / injected / reordered secure-channel message
+    /// (the matching-conversation signal) changes them and so yields a new
+    /// coverage cell. `DefaultHasher` is keyed with fixed (0,0) seeds, hence
+    /// stable across the forked fuzzer processes.
+    fn coverage_key(&self) -> Option<u64> {
+        use std::hash::{Hash, Hasher};
+
+        // A/B toggle: with `PUFFIN_NO_CLAIM_COV` set, opt every claim out of
+        // coverage (claim map stays empty, the claim feedback never fires) =>
+        // edge-coverage-only baseline (arm A). Unset => edge + claim coverage
+        // (arm B). Read once per process.
+        static DISABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        if *DISABLED.get_or_init(|| std::env::var_os("PUFFIN_NO_CLAIM_COV").is_some()) {
+            return None;
+        }
+
+        let d = &self.inner;
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        d.phase.hash(&mut h);
+        // Handshake-depth resolution, COARSELY bucketed. The first A/B re-run
+        // showed that fine count buckets (cap 63) explode the cell space —
+        // channel-data traces have widely varying counts, so the corpus blew up
+        // 5x. Buckets give fine resolution only in the handshake range (~0-15
+        // packets/direction) and collapse everything above, which is the only
+        // range that distinguishes liveness depth.
+        ssh_count_bucket(d.rx_count).hash(&mut h);
+        ssh_count_bucket(d.tx_count).hash(&mut h);
+        d.is_server.hash(&mut h);
+        d.kex.hash(&mut h);
+        d.cipher_in.hash(&mut h);
+        d.cipher_out.hash(&mut h);
+        d.hmac_in.hash(&mut h);
+        d.hmac_out.hash(&mut h);
+        d.auth_method.hash(&mut h);
+        d.auth_user.hash(&mut h);
+        d.auth_key_fingerprint.hash(&mut h);
+        // Deliberately OMITTED from coverage: the per-direction post-NEWKEYS
+        // message-type-sequence digests. They are *high-cardinality* (one value
+        // per distinct channel-data sequence) and behave like a counter — the
+        // A/B re-runs showed they explode the cell space and inflate the corpus
+        // (B 4-5x A). They belong in the ORACLE (exact matching-conversation
+        // check), not the coverage signal. The Terrapin-class divergence is
+        // still captured here coarsely via the bucketed packet counts (a dropped
+        // EXT_INFO makes the victim's rx_count one lower => a different cell).
+        // Also omitted (per-execution random): session_id.
+        Some(h.finish())
     }
 }

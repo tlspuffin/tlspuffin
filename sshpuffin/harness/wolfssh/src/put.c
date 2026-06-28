@@ -338,6 +338,7 @@ static void emit_handshake_claim(AGENT agent)
         memcpy(claim.auth_key_fp, agent->auth_key_fp, agent->auth_key_fp_len);
         claim.auth_key_fp_len = agent->auth_key_fp_len;
     }
+    claim.phase = 3; /* PHASE_DONE: this is the completed-handshake claim */
 
     agent->claimer->notify(agent->claimer->context, &claim);
     agent->claim_emitted = true;
@@ -487,15 +488,15 @@ wolfssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *re
  * both PUTs from the same buffer before each run, the two PUTs draw identical
  * entropy and produce identical ephemerals, removing encrypted-layer false
  * positives; campaigns also become deterministic. */
-static uint8_t  g_seed_base[64];
-static size_t   g_seed_len = 0;
+static uint8_t g_seed_base[64];
+static size_t g_seed_len = 0;
 static uint32_t g_seed_pos = 0;
 
 int puffin_wolfssl_seed(unsigned char *output, unsigned int sz)
 {
-    for (unsigned int i = 0; i < sz; i++) {
-        uint8_t b = (g_seed_len > 0) ? g_seed_base[g_seed_pos % g_seed_len]
-                                     : (uint8_t)0xA5;
+    for (unsigned int i = 0; i < sz; i++)
+    {
+        uint8_t b = (g_seed_len > 0) ? g_seed_base[g_seed_pos % g_seed_len] : (uint8_t)0xA5;
         /* Mix in the position so a single short seed buffer still yields a
            full-entropy-looking (but deterministic) stream for the DRBG. */
         output[i] = (uint8_t)(b + (uint8_t)(g_seed_pos * 0x9Du));

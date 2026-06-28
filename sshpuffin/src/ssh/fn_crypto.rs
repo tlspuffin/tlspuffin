@@ -423,11 +423,11 @@ pub fn fn_decrypt_packet_aesgcm(
 //
 // The classic non-AEAD SSH suite, supported by both libssh and wolfSSH. Unlike
 // the AEAD ciphers, this exercises the separate-cipher + separate-MAC code path:
-//   * AES-256-CTR over the WHOLE cleartext packet (the 4-byte length field is
-//     encrypted too), with a 128-bit big-endian counter that starts at the IV
-//     and increments per 16-byte block, continuously across packets.
-//   * HMAC-SHA-256 computed over (uint32 sequence_number || cleartext packet),
-//     appended after the ciphertext (Encrypt-and-MAC).
+//   * AES-256-CTR over the WHOLE cleartext packet (the 4-byte length field is encrypted too), with
+//     a 128-bit big-endian counter that starts at the IV and increments per 16-byte block,
+//     continuously across packets.
+//   * HMAC-SHA-256 computed over (uint32 sequence_number || cleartext packet), appended after the
+//     ciphertext (Encrypt-and-MAC).
 //
 // Key material (RFC 4253 §7.2): IV id 'A'/'B' (16 B), enc key 'C'/'D' (32 B),
 // integrity/MAC key 'E'/'F' (32 B).

@@ -1,6 +1,6 @@
 use puffin::claims::SecurityViolationPolicy;
 
-use crate::claim::{SshClaim, ATTACKER_PUBKEY_SHA256};
+use crate::claim::{SshClaim, ATTACKER_PUBKEY_SHA256, PHASE_DONE};
 
 pub struct SshSecurityViolationPolicy;
 
@@ -21,8 +21,16 @@ impl SecurityViolationPolicy for SshSecurityViolationPolicy {
     ///    signature of a downgrade / Terrapin-style attack where the two endpoints end up with
     ///    different views of the session.
     fn check_violation(claims: &[SshClaim]) -> Option<&'static str> {
+        // Only completed-handshake claims (`PHASE_DONE`) carry final
+        // security-relevant state. Intermediate phase claims are emitted by
+        // partial/aborted runs purely to feed the claim-coverage feedback
+        // (liveness depth) and must not be judged by the oracle (their
+        // algorithm fields are empty/partial pre-negotiation).
         for claim in claims {
             let d = claim.data();
+            if d.phase != PHASE_DONE {
+                continue;
+            }
             if d.kex.is_empty() || d.kex == "none" {
                 return Some("transport handshake completed without a key exchange");
             }
@@ -61,8 +69,16 @@ impl SecurityViolationPolicy for SshSecurityViolationPolicy {
             }
         }
 
-        let server = claims.iter().map(SshClaim::data).find(|d| d.is_server);
-        let client = claims.iter().map(SshClaim::data).find(|d| !d.is_server);
+        let server = claims
+            .iter()
+            .map(SshClaim::data)
+            .filter(|d| d.phase == PHASE_DONE)
+            .find(|d| d.is_server);
+        let client = claims
+            .iter()
+            .map(SshClaim::data)
+            .filter(|d| d.phase == PHASE_DONE)
+            .find(|d| !d.is_server);
         if let (Some(s), Some(c)) = (server, client) {
             if s.kex != c.kex {
                 return Some(
@@ -79,6 +95,53 @@ impl SecurityViolationPolicy for SshSecurityViolationPolicy {
             if s.hmac_in != c.hmac_out || s.hmac_out != c.hmac_in {
                 return Some(
                     "client and server disagree on the negotiated MAC (possible downgrade)",
+                );
+            }
+
+            // KEX-transcript agreement (RFC 4253 §7.2 / §8). The session
+            // identifier is the exchange hash H, which binds the entire
+            // key-exchange transcript (V_C,V_S,I_C,I_S,K_S,e,f,K). Two honest
+            // peers that ran a matching conversation must share it; a mismatch
+            // is a downgrade / transcript attack. Compared only when both
+            // endpoints expose it — a cross-vendor peer that does not populate
+            // it leaves the field empty and falls back to the algorithm-level
+            // agreement checks above (no false positive).
+            if !s.session_id.is_empty() && !c.session_id.is_empty() && s.session_id != c.session_id
+            {
+                return Some(
+                    "client and server disagree on the SSH session id / exchange hash \
+                     (KEX-transcript divergence)",
+                );
+            }
+
+            // Channel-data integrity (RFC 4253 §6.4 / RFC 4251 §9.3.2). The
+            // post-NEWKEYS secure-channel message stream is MAC-authenticated,
+            // so each peer's outbound message-type digest must equal its
+            // partner's inbound digest. A mismatch means a secure-channel
+            // message was dropped / injected / reordered between the two honest
+            // peers — the matching-conversation violation a Terrapin prefix
+            // truncation produces by stripping the server's EXT_INFO. Compared
+            // crosswise (s2c: server sent == client received; c2s: client sent
+            // == server received), only when both digests are available
+            // (non-zero). Unlike the byte-stream transcript oracle, this never
+            // fires on padding / SSH_MSG_IGNORE corruption: those are explicitly
+            // unprotected (RFC 4251 §9.3.6) and never enter the digest.
+            if s.secure_tx_digest != 0
+                && c.secure_rx_digest != 0
+                && s.secure_tx_digest != c.secure_rx_digest
+            {
+                return Some(
+                    "client and server disagree on the server->client secure-channel \
+                     message stream (matching-conversation / channel-integrity violation)",
+                );
+            }
+            if c.secure_tx_digest != 0
+                && s.secure_rx_digest != 0
+                && c.secure_tx_digest != s.secure_rx_digest
+            {
+                return Some(
+                    "client and server disagree on the client->server secure-channel \
+                     message stream (matching-conversation / channel-integrity violation)",
                 );
             }
         }
@@ -207,7 +270,7 @@ mod tests {
     use puffin::agent::AgentName;
 
     use super::*;
-    use crate::claim::SshClaimInner;
+    use crate::claim::{SshClaimInner, PHASE_DONE};
 
     fn claim(is_server: bool, kex: &str, cipher_in: &str, cipher_out: &str) -> SshClaim {
         SshClaim::new(
@@ -229,6 +292,12 @@ mod tests {
                 },
                 auth_user: String::new(),
                 auth_key_fingerprint: Vec::new(),
+                session_id: Vec::new(),
+                secure_tx_digest: 0,
+                secure_rx_digest: 0,
+                phase: PHASE_DONE,
+                rx_count: 0,
+                tx_count: 0,
             },
         )
     }
@@ -246,8 +315,93 @@ mod tests {
                 auth_method: "publickey".to_string(),
                 auth_user: user.to_string(),
                 auth_key_fingerprint: key_fp,
+                session_id: Vec::new(),
+                secure_tx_digest: 0,
+                secure_rx_digest: 0,
+                phase: PHASE_DONE,
+                rx_count: 0,
+                tx_count: 0,
             },
         )
+    }
+
+    /// A completing endpoint carrying a session id and per-direction
+    /// secure-channel digests, with crosswise-consistent ciphers so the
+    /// cross-endpoint checks are reached.
+    fn claim_ext(
+        is_server: bool,
+        session_id: Vec<u8>,
+        secure_tx_digest: u64,
+        secure_rx_digest: u64,
+    ) -> SshClaim {
+        SshClaim::new(
+            AgentName::first(),
+            SshClaimInner {
+                is_server,
+                kex: "curve25519-sha256".to_string(),
+                cipher_in: "c".to_string(),
+                cipher_out: "c".to_string(),
+                hmac_in: String::new(),
+                hmac_out: String::new(),
+                auth_method: if is_server {
+                    "password".to_string()
+                } else {
+                    String::new()
+                },
+                auth_user: String::new(),
+                auth_key_fingerprint: Vec::new(),
+                session_id,
+                secure_tx_digest,
+                secure_rx_digest,
+                phase: PHASE_DONE,
+                rx_count: 0,
+                tx_count: 0,
+            },
+        )
+    }
+
+    #[test]
+    fn session_id_disagreement_is_flagged() {
+        // Different exchange hashes => the two peers did not share a KEX
+        // transcript (downgrade / transcript attack).
+        let claims = vec![
+            claim_ext(true, vec![1, 2, 3], 0, 0),
+            claim_ext(false, vec![9, 9, 9], 0, 0),
+        ];
+        assert!(SshSecurityViolationPolicy::check_violation(&claims).is_some());
+    }
+
+    #[test]
+    fn matching_session_and_channel_are_accepted() {
+        // Same session id; crosswise-consistent channel digests
+        // (server tx == client rx, client tx == server rx).
+        let claims = vec![
+            claim_ext(true, vec![7; 32], 0xAAAA, 0xBBBB),
+            claim_ext(false, vec![7; 32], 0xBBBB, 0xAAAA),
+        ];
+        assert_eq!(SshSecurityViolationPolicy::check_violation(&claims), None);
+    }
+
+    #[test]
+    fn channel_data_s2c_divergence_is_flagged() {
+        // Terrapin shape: the s2c stream the server sent (tx) is not the one
+        // the client received (rx) — a dropped secure-channel message.
+        let claims = vec![
+            claim_ext(true, vec![7; 32], 0xAAAA, 0xBBBB),
+            claim_ext(false, vec![7; 32], 0xBBBB, 0x1234),
+        ];
+        assert!(SshSecurityViolationPolicy::check_violation(&claims).is_some());
+    }
+
+    #[test]
+    fn unavailable_session_and_channel_are_not_flagged() {
+        // Cross-vendor peer that does not expose the session id / digests
+        // (empty / zero): fall back to algorithm agreement, no false positive.
+        let claims = vec![
+            claim_ext(true, Vec::new(), 0, 0),
+            claim_ext(false, Vec::new(), 0, 0),
+        ];
+        assert_eq!(SshSecurityViolationPolicy::check_violation(&claims), None);
     }
 
     #[test]

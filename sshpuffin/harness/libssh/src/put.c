@@ -39,6 +39,23 @@
 #include "bindings.h"
 #include "rng.h"
 
+/*
+ * PUFFIN claim-instrumentation hooks exposed by the patched libssh
+ * (puffin-build/vendors/libssh/instrument_claims.cmake). They expose the
+ * session id (exchange hash H) and a per-direction secure-channel message-type
+ * digest, for the matching-conversation oracle. Declared here because they are
+ * not part of any libssh public header. Declared `weak` so the harness still
+ * links against a libssh build that lacks the instrumentation patch (e.g. an
+ * older vendored version): the symbols then resolve to NULL and the claim
+ * fields stay "unavailable" (0 / empty), which the oracle treats as a no-op.
+ */
+extern uint64_t puffin_ssh_get_secure_tx_digest(ssh_session session) __attribute__((weak));
+extern uint64_t puffin_ssh_get_secure_rx_digest(ssh_session session) __attribute__((weak));
+extern int puffin_ssh_get_session_id(ssh_session session, const unsigned char **out, size_t *len)
+    __attribute__((weak));
+extern uint32_t puffin_ssh_get_rx_count(ssh_session session) __attribute__((weak));
+extern uint32_t puffin_ssh_get_tx_count(ssh_session session) __attribute__((weak));
+
 /* ── Embedded RSA host key (server only) ─────────────────────────────────── */
 
 static const char *SERVER_HOST_KEY =
@@ -108,6 +125,7 @@ struct AGENT_TYPE
 
     const CLAIMER_CB *claimer; /* registered claim callback, or NULL */
     bool claim_emitted;        /* guard so the handshake claim fires once */
+    int last_emitted_phase;    /* highest intermediate phase claim emitted (-1=none) */
 
     /* Authentication belief recorded by the server auth handler. */
     char auth_method[SSH_CLAIM_STR_LEN];
@@ -322,6 +340,7 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
     agent->session = session;
     agent->bind = bind;
     agent->state = PUT_STATE_KEX;
+    agent->last_emitted_phase = -1;
     snprintf(agent->state_desc, sizeof(agent->state_desc), "KEX");
 
     return agent;
@@ -430,12 +449,86 @@ static void emit_handshake_claim(AGENT agent)
         claim.auth_key_fp_len = agent->auth_key_fp_len;
     }
 
+    /* KEX-transcript binding: the SSH session id (exchange hash H). */
+    const unsigned char *sid = NULL;
+    size_t sid_len = 0;
+    if (puffin_ssh_get_session_id != NULL &&
+        puffin_ssh_get_session_id(agent->session, &sid, &sid_len) == 0 && sid != NULL)
+    {
+        if (sid_len > sizeof(claim.session_id))
+            sid_len = sizeof(claim.session_id);
+        memcpy(claim.session_id, sid, sid_len);
+        claim.session_id_len = (uint8_t)sid_len;
+    }
+    /* Channel-data integrity: per-direction secure-channel message-type digest. */
+    if (puffin_ssh_get_secure_tx_digest != NULL)
+        claim.secure_tx_digest = puffin_ssh_get_secure_tx_digest(agent->session);
+    if (puffin_ssh_get_secure_rx_digest != NULL)
+        claim.secure_rx_digest = puffin_ssh_get_secure_rx_digest(agent->session);
+    if (puffin_ssh_get_rx_count != NULL)
+        claim.rx_count = puffin_ssh_get_rx_count(agent->session);
+    if (puffin_ssh_get_tx_count != NULL)
+        claim.tx_count = puffin_ssh_get_tx_count(agent->session);
+    claim.phase = 3; /* PHASE_DONE: completed handshake (the security oracle only reads these) */
+
     agent->claimer->notify(agent->claimer->context, &claim);
     agent->claim_emitted = true;
 }
 
+/*
+ * Emit a lightweight *intermediate* phase claim (phase 1=KEX, 2=AUTH) for the
+ * claim-coverage liveness-depth signal — including from runs that abort before
+ * completing. Deduplicated per agent (only on phase advance), and never emits
+ * the completion phase (3), which is owned by emit_handshake_claim. Carries the
+ * coverage-relevant state known so far (negotiated algorithms once available,
+ * the secure-channel digests); the security oracle ignores phase<3 claims.
+ */
+static void emit_phase_claim(AGENT agent)
+{
+    if (agent->claimer == NULL)
+        return;
+
+    int phase;
+    switch (agent->state)
+    {
+    case PUT_STATE_KEX:
+        phase = 1;
+        break;
+    case PUT_STATE_AUTH:
+        phase = 2;
+        break;
+    default:
+        return; /* DONE/ERROR: depth already captured by KEX/AUTH claims or completion */
+    }
+    if (phase <= agent->last_emitted_phase)
+        return;
+
+    Claim claim;
+    memset(&claim, 0, sizeof(claim));
+    claim_set(claim.kex, ssh_get_kex_algo(agent->session));
+    claim_set(claim.cipher_in, ssh_get_cipher_in(agent->session));
+    claim_set(claim.cipher_out, ssh_get_cipher_out(agent->session));
+    claim_set(claim.hmac_in, ssh_get_hmac_in(agent->session));
+    claim_set(claim.hmac_out, ssh_get_hmac_out(agent->session));
+    if (puffin_ssh_get_secure_tx_digest != NULL)
+        claim.secure_tx_digest = puffin_ssh_get_secure_tx_digest(agent->session);
+    if (puffin_ssh_get_secure_rx_digest != NULL)
+        claim.secure_rx_digest = puffin_ssh_get_secure_rx_digest(agent->session);
+    if (puffin_ssh_get_rx_count != NULL)
+        claim.rx_count = puffin_ssh_get_rx_count(agent->session);
+    if (puffin_ssh_get_tx_count != NULL)
+        claim.tx_count = puffin_ssh_get_tx_count(agent->session);
+    claim.phase = (uint8_t)phase;
+
+    agent->claimer->notify(agent->claimer->context, &claim);
+    agent->last_emitted_phase = phase;
+}
+
 static RESULT libssh_progress(AGENT agent)
 {
+    /* Record liveness depth for claim-coverage (incl. runs that later abort). */
+    emit_phase_claim(agent);
+
     if (agent->state == PUT_STATE_ERROR)
         return error_result("agent is in error state");
 

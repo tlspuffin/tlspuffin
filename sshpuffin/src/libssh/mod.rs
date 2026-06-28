@@ -40,6 +40,13 @@ struct CSshClaim {
     auth_user: [c_char; SSH_CLAIM_STR_LEN],
     auth_key_fp: [u8; 32],
     auth_key_fp_len: u8,
+    session_id: [u8; 64],
+    session_id_len: u8,
+    secure_tx_digest: u64,
+    secure_rx_digest: u64,
+    phase: u8,
+    rx_count: u32,
+    tx_count: u32,
 }
 
 /// Decode a NUL-terminated, fixed-size C claim field into an owned `String`.
@@ -77,6 +84,12 @@ extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
         auth_method: claim_field(&c.auth_method),
         auth_user: claim_field(&c.auth_user),
         auth_key_fingerprint: c.auth_key_fp[..(c.auth_key_fp_len as usize).min(32)].to_vec(),
+        session_id: c.session_id[..(c.session_id_len as usize).min(64)].to_vec(),
+        secure_tx_digest: c.secure_tx_digest,
+        secure_rx_digest: c.secure_rx_digest,
+        phase: c.phase,
+        rx_count: c.rx_count,
+        tx_count: c.tx_count,
     }
     // Canonicalize vendor-specific algorithm names to SSH wire names so claims
     // are comparable across libssh and wolfSSH.
@@ -295,7 +308,12 @@ impl Stream<SshProtocolBehavior> for CAgent {
             &mut written as *mut usize
         );
         if let Err(cerror) = result {
-            log::error!("SSH C PUT add_to_inbound() failed: {}", cerror.reason);
+            // Benign and expected during fuzzing: when a mutated trace drives the
+            // PUT to reject input and close the connection, the next inbound write
+            // returns EPIPE ("Broken pipe"). This is the PUT correctly tearing
+            // down on malformed input, not a harness error — log at DEBUG so it
+            // doesn't flood error.log and mask real failures.
+            log::debug!("SSH C PUT add_to_inbound() failed: {}", cerror.reason);
         }
     }
 
