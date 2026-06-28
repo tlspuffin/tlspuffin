@@ -54,6 +54,8 @@ where
         .arg(arg!(--"drop-unfocused-bit" "In focus mode, drop the unfocused bit stage (focus-only): ~+21% exec/s, ~-4% coverage"))
         .arg(arg!(--"bit-from-start" "Run bit-level from the start (skip the DY warmup gate)"))
         .arg(arg!(--"bit-subterm" "Under --wo-dy, keep sub-term MakeMessage (term structure) instead of forcing root/flat-HAVOC"))
+        .arg(arg!(--"dy-after-execs" [n] "Delay DY mutations until N execs (with --bit-from-start = bit-first then DY); default 0")
+            .value_parser(value_parser!(u64)))
         .arg(arg!(--"max-stack-pow" [n] "Max HAVOC stack power in the focus stage (core stack size = 2..2^(n+1)); default 7")
             .value_parser(value_parser!(u64)))
         .arg(arg!(--"read-message-prob" [p] "Probability ReadMessage re-interprets the focused payload (focus mode); default 0.25")
@@ -236,6 +238,9 @@ where
     if matches.get_flag("bit-subterm") {
         config.mutation_config.bit_allow_subterm_no_dy = true;
         config.mutation_config.term_constraints.must_be_root = false; // override --wo-dy's root-forcing
+    }
+    if let Some(n) = matches.get_one::<u64>("dy-after-execs") {
+        config.mutation_config.dy_after_execs = *n;
     }
     if let Some(n) = matches.get_one::<u64>("max-stack-pow") {
         config.mutation_stage_config.max_mutations_pow_per_iteration = *n;

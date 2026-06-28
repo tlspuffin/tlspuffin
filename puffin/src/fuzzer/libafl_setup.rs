@@ -198,14 +198,22 @@ where
             <PT>::signature(),
             put_registry,
         ));
-        // Always run DY mutations (if enabled)
-        let cb_dy = |_: &mut _, _: &mut _, _: &mut _, _: &mut _| -> Result<bool, Error> {
-            if mutation_config.with_dy {
-                log::debug!("[*] DY StdMutationalStage");
-                Ok(true)
-            } else {
-                Ok(false)
+        // Run DY mutations (if enabled), optionally delayed until `dy_after_execs` (bit-first).
+        let cb_dy = |_: &mut _,
+                     _: &mut _,
+                     state: &mut ConcreteState<C, R, SC, Trace<PT>>,
+                     _: &mut _|
+         -> Result<bool, Error> {
+            if !mutation_config.with_dy {
+                return Ok(false);
             }
+            if mutation_config.dy_after_execs > 0
+                && *state.executions() <= mutation_config.dy_after_execs
+            {
+                return Ok(false); // bit-first: let bit-level explore before enabling DY
+            }
+            log::debug!("[*] DY StdMutationalStage");
+            Ok(true)
         };
         let stage_dy = IfStage::new(
             cb_dy,

@@ -51,6 +51,9 @@ pub struct MutationConfig {
     /// [structure A/B] Under --wo-dy, still allow MakeMessage on sub-terms (keep term-level
     /// structure) instead of forcing root-only. Root-only (default under --wo-dy) mimics flat HAVOC.
     pub bit_allow_subterm_no_dy: bool,
+    /// [scheduling A/B] Delay DY mutations until this many execs have run (0 = DY from the start).
+    /// With --bit-from-start this gives "bit-first, then DY": bit explores first, DY recombines later.
+    pub dy_after_execs: u64,
 }
 
 impl Default for MutationConfig {
@@ -70,6 +73,7 @@ impl Default for MutationConfig {
             read_message_prob: 0.25,
             bit_from_start: false,
             bit_allow_subterm_no_dy: false,
+            dy_after_execs: 0,
         }
     }
 }
