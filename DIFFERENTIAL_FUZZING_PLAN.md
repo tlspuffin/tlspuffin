@@ -272,12 +272,22 @@ freeze a coherent *differential* v1, in order:
    `differential_fuzzing_claims_blacklist`; the claim-coverage observer is
    unaffected (keys off `coverage_key`). Cross-vendor AES-GCM seeds verified
    diff-clean; the cross-vendor differential no longer starves.
-2. **Make `filter_diff` separate "clean baseline" from "finding."** Implement
-   `differential_fuzzing_filter_diff` to suppress the known-benign cross-vendor
-   divergences (auth/service ordering, ext-info presence, banner text) so a
-   non-empty clean corpus exists to mutate from — keeping only *unexpected*
-   diffs as objectives. (Today it is permissive; fine for same-vendor version
-   diff, fatal for cross-vendor.)
+2. **[DONE 2026-06-28] `filter_diff` separates "clean baseline" from "finding"
+   — and it is already conservative (the earlier "permissive" note was stale).**
+   `differential_fuzzing_filter_diff` keeps all `SecurityClaim` and `Claims`
+   diffs, keeps `Status` only on acceptance *disagreement* (one PUT `Success`,
+   the other a PUT rejection), and drops `Knowledges` (transcript fingerprints).
+   The engine only emits a `Status` diff when a side is `Error::Put`, so
+   term/IO/Stream harness errors never reach the filter. Triage of a
+   libssh-vs-wolfSSH campaign (2026-06-28) showed the kept objectives are FIVE
+   classes, ALL genuine: wolfSSH accepting an oversized banner / unusable
+   version that libssh rejects; libssh accepting what wolfSSH rejects; completion
+   claim present-vs-absent; and libssh's own socket-level error on an input
+   wolfSSH completes. **None are noise to filter** — loosening would risk missing
+   a real bug, so the decision is to NOT add conditions. Locked in by
+   `cross_vendor_acceptance_divergences_are_all_kept` +
+   `claim_presence_difference_is_kept` (regression guard against future
+   loosening).
 3. **Pin a clean cross-vendor seed.** Ensure at least one `--differential` seed
    (AES-GCM, the cipher both vendors share) runs diff-free end-to-end on
    libssh↔wolfSSH after (1)+(2), as the corpus root.

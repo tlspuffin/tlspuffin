@@ -364,6 +364,51 @@ mod filter_diff_tests {
         // a StatusDiff in this case anyway).
         assert!(!keep(&status("Success", "Success")));
     }
+
+    /// Regression guard locking in the conservative keep-behavior against the
+    /// ACTUAL diff classes triaged from a libssh-vs-wolfSSH cross-vendor campaign
+    /// (2026-06-28). The filter must NEVER be loosened to drop any of these:
+    /// each is a genuine cross-vendor acceptance divergence (a stack accepts an
+    /// input the other refuses) — the precise differential signal that finds
+    /// bugs (e.g. wolfSSH accepting an oversized banner / unusable version that
+    /// libssh rejects, or libssh accepting what wolfSSH refuses). A false
+    /// negative here means a missed bug, so when in doubt we KEEP.
+    #[test]
+    fn cross_vendor_acceptance_divergences_are_all_kept() {
+        // libssh rejects, wolfSSH accepts — wolfSSH over-permissiveness.
+        assert!(keep(&status("Receiving banner: too large banner", "Success")));
+        assert!(keep(&status(
+            "No version of SSH protocol usable (...)",
+            "Success"
+        )));
+        // libssh's own socket-level error on the input vs wolfSSH success. This
+        // is libssh's behaviour on that trace (its own error string), NOT a
+        // harness/term/IO artifact (those never reach the filter — the engine
+        // emits a StatusDiff only when a side is Error::Put, and both-non-Success
+        // pairs are dropped above). We deliberately do NOT string-match and drop
+        // it: that would be the "too loose" condition that risks hiding a real
+        // libssh robustness bug.
+        assert!(keep(&status("Socket error: File exists", "Success")));
+        // libssh accepts, wolfSSH rejects — libssh leniency.
+        assert!(keep(&status("Success", "Unknown error code")));
+    }
+
+    /// Completion-claim presence/absence (one PUT reaches the handshake/auth
+    /// completion claim, the other does not) is an acceptance divergence and
+    /// MUST be kept — it is how an asymmetric *security-state* acceptance
+    /// surfaces even though raw Status is filtered for both-reject.
+    #[test]
+    fn claim_presence_difference_is_kept() {
+        use puffin::differential::ClaimDiff;
+
+        let presence = TraceDifference::Claims(ClaimDiff::DifferentTypes {
+            agent: 1,
+            index: 0,
+            first_type: "alloc::boxed::Box<sshpuffin::claim::SshClaimInner>".into(),
+            second_type: "()".into(),
+        });
+        assert!(keep(&presence));
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
