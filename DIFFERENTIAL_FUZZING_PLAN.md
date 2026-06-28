@@ -1,6 +1,7 @@
 # sshpuffin — Differential DY Fuzzing (DDYF) + Second PUT — Plan
 
-_Created 2026-06-17. Branch `pr/openssh-rework`. Companion to `SSHPUFFIN_PROGRESS_REPORT.md`._
+_Created 2026-06-17. Updated 2026-06-28. Branch `pr/ssh/ssh-rework`. Companions:
+`SSHPUFFIN_PROGRESS_REPORT.md`, `GRADIENT_ANALYSIS_DDYF.md`, `DY_CLAIM_COVERAGE_FEEDBACK.md`._
 
 ## Goal
 
@@ -185,17 +186,108 @@ divergence is EXPECTED and handled by annotations + blacklist, not by RNG.
     clean (true negative).
   - Two-honest-party relay seed (`seed_handshake_two_party`): both client and
     server are real PUTs; the required shape for matching conversation.
-- [~] Matching conversation / Terrapin (transcript integrity):
-  - The wire-byte-digest approach was tried and REVERTED — wrong layer (libssh
-    flips its cipher at packet-processing time, not byte-I/O time, so a byte gate
-    is asymmetric across peers). Lesson recorded.
-  - Trace-analysis primitive `delivered_to(trace, ctx, agent)` added instead:
-    re-evaluates the trace's input recipes to recover what each honest party
-    received on the wire, with no PUT introspection. Detects a dropped/injected
-    relay message (the Terrapin truncation primitive). Remaining: the full
-    within-trace two-view oracle + fuzzer-objective wiring.
-- [ ] CVE positive demonstration (e.g. CVE-2018-10933 auth bypass): BLOCKED on
-      building a vulnerable PUT. libssh 0.8.3's CMake OpenSSL detection is
-      fixable via OPENSSL_ROOT_DIR, but the build then needs a clean nix-shell
-      (outside it, clang mixes nix-glibc and /usr/include). Better long-term: the
-      trace-analysis path above, which needs no patched/old vendor.
+- [x] Matching conversation / Terrapin — DONE via a CLAIMS-based oracle (the
+      byte-stream path was completed then RETIRED):
+  - The wire-byte digest and the trace-analysis `delivered_to`/`matching_conversation_violation`
+    byte-stream oracle were both built, but the byte-stream comparison
+    OVER-APPROXIMATES: it flags corruption of fields SSH explicitly does not
+    protect — padding and SSH_MSG_IGNORE (RFC 4251 §9.3.6) — which were the bulk
+    of the bit-level campaign false positives. So `check_trace_security_violation`
+    now returns `None`; the property is judged by the claims oracle.
+  - The claims-based oracle (`violation.rs::check_violation`) checks, between the
+    two honest endpoints that both reached `PHASE_DONE`:
+      * **KEX-transcript agreement** — same SSH session id (exchange hash H, RFC
+        4253 §7.2/§8); cross-vendor peers that don't expose it fall back to the
+        algorithm-agreement checks.
+      * **Channel-data integrity** — per-direction post-NEWKEYS message-type
+        digest, compared crosswise (server-sent == client-received, and vice
+        versa). A dropped/injected/reordered secure-channel message (Terrapin's
+        stripped EXT_INFO) breaks the equality. Padding/IGNORE never enter the
+        digest, so this is FP-free by construction.
+    Backed by a libssh patch (`puffin-build/vendors/libssh/instrument_claims.cmake`)
+    exposing the session id + parse-layer digests + per-direction packet counts.
+  - **Terrapin (CVE-2023-48795) is DEMONSTRATED**: `seed_terrapin_s2c` +
+    `test_terrapin_s2c_detected_and_mitigated` — fires on libssh 0.10.4
+    (matching-conversation violation = fuzzer objective) and is strict-kex-
+    mitigated on 0.11.4. The c2s direction is structurally impossible (the client
+    sends a single mandatory post-NEWKEYS packet).
+  - Intermediate **phase claims + packet counts** were added (for the
+    claim-coverage feedback's liveness-depth signal); the oracle considers only
+    `phase==DONE` claims, so intermediate ones are coverage-only.
+- [x] Autonomous Terrapin DISCOVERY (mutation, not detection) — empirically
+      CHARACTERISED as not reachable by undirected DY mutators:
+  - A focused 6 h × 10 solo-core hunt on libssh0104 from the single honest
+    packet-granular substrate seed (`seed_handshake_two_party_packet_complete`),
+    ~5 M execs/core, produced **0 objectives**. The FP-free oracle never
+    misfired, and undirected mutation never landed the coordinated drop-EXT_INFO
+    + inject-cleartext-IGNORE pair (the all-or-nothing seqno barrier — see
+    `GRADIENT_ANALYSIS_DDYF.md`). This is the clean negative motivating the
+    `TruncateWithCompensation` invariant-preserving mutator.
+- [x] Protocol-agnostic **claim-trajectory coverage feedback** (see
+      `DY_CLAIM_COVERAGE_FEEDBACK.md`): coverage over the per-execution claim
+      sequence (states + transitions), via `Claim::coverage_key`. A/B vs
+      edge-only showed it never hurts edge coverage and modestly increases
+      DY-state exploration, but the reachable DY-state space here is small
+      (~140 cells), so its leverage is limited without richer protocol state or
+      the compensation mutator.
+- [ ] CVE-2018-10933 (libssh server auth bypass) positive demonstration: still
+      only covered CONCEPTUALLY by the entity-authentication oracle (a server
+      completing publickey auth for a non-attacker key is impersonation). Not
+      demonstrated against a vulnerable PUT (libssh 0.8.x build still blocked on
+      OpenSSL detection in the nix toolchain).
+
+## Findings from the 2026-06-28 differential re-run
+
+Re-ran `differential-experiment` with the current (claims-oracle) binary:
+
+- **Version differential `libssh0104-asan` vs `libssh0114-asan` — WORKS.**
+  Non-empty corpus, fuzzes normally; both libssh PUTs emit claims (incl. the new
+  intermediate phase claims) symmetrically, so the `Claims` comparison is clean.
+- **Cross-vendor `libssh0114-asan` vs `wolfssh-asan` — BROKEN (regression).**
+  Every seed becomes an objective on the first run, so the corpus is empty and
+  the fuzzer panics (`No entries in corpus`). Two causes:
+  1. **Asymmetric claims (new regression).** The intermediate phase claims are
+     emitted only by the *libssh* harness, not wolfSSH, so the per-agent claim
+     lists differ in length → a spurious `Claims` diff on *every* run. The
+     differential `compare` cannot distinguish them (they share the
+     `SshClaimInner` `TypeShape`, so `differential_fuzzing_claims_blacklist`
+     can't drop them).
+  2. **Permissive `filter_diff` + benign cross-vendor divergences (pre-existing).**
+     `differential_fuzzing_filter_diff` is `true` (keep all diffs), and the
+     two vendors legitimately differ (e.g. UserAuthSuccess-first vs
+     ServiceAccept-first ordering), so even without (1) most seeds would diff and
+     starve the corpus.
+
+## Toward freezing DDYF v1 (next steps, prioritised)
+
+The single-PUT DY oracle is in good shape (precise, Terrapin-demonstrated). To
+freeze a coherent *differential* v1, in order:
+
+1. **Decouple coverage claims from oracle/differential claims (BLOCKER for
+   cross-vendor).** Give the intermediate phase claims their own type
+   (`SshProgressClaim`, distinct `TypeShape`) instead of overloading
+   `SshClaimInner`. Then: the oracle's `find_claim`/`PHASE_DONE` filter and the
+   differential `claims_blacklist` both ignore them by type, and the
+   claim-coverage observer still consumes them. This removes the cross-vendor
+   regression *and* simplifies the `phase==DONE` filtering in `violation.rs`.
+2. **Make `filter_diff` separate "clean baseline" from "finding."** Implement
+   `differential_fuzzing_filter_diff` to suppress the known-benign cross-vendor
+   divergences (auth/service ordering, ext-info presence, banner text) so a
+   non-empty clean corpus exists to mutate from — keeping only *unexpected*
+   diffs as objectives. (Today it is permissive; fine for same-vendor version
+   diff, fatal for cross-vendor.)
+3. **Pin a clean cross-vendor seed.** Ensure at least one `--differential` seed
+   (AES-GCM, the cipher both vendors share) runs diff-free end-to-end on
+   libssh↔wolfSSH after (1)+(2), as the corpus root.
+4. **Re-baseline both differential pairs** (version + cross-vendor) to an
+   empty-diff corpus, then run a timed campaign and triage objectives into
+   benign (→ extend `filter_diff`/annotations) vs real.
+5. **(Optional, raises power) `TruncateWithCompensation` mutator** so the
+   version differential can actually *discover* Terrapin (fires on 0.10.4,
+   strict-kex-mitigated on 0.11.4 = a clean `SecurityClaim::Different`), rather
+   than only detect the hand-built seed.
+
+Definition of "DDYF v1 frozen": both differential pairs start from an empty-diff
+corpus, run without starving, and every surfaced diff is either filtered as
+known-benign or recorded as a triaged finding — with the claim-type split (1)
+and `filter_diff` (2) landed and committed.
