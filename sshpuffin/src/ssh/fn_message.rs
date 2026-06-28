@@ -2,6 +2,7 @@
 
 use puffin::algebra::error::FnError;
 
+use crate::protocol::RawSshMessageFlight;
 use crate::ssh::message::{
     ChannelCloseMessage, ChannelDataMessage, ChannelEofMessage, ChannelExtendedDataMessage,
     ChannelFailureMessage, ChannelOpenConfirmationMessage, ChannelOpenFailureMessage,
@@ -28,6 +29,21 @@ pub fn fn_packet(msg: &SshMessage) -> Result<RawSshMessage, FnError> {
 
 pub fn fn_onwire_message(data: &OnWireData) -> Result<RawSshMessage, FnError> {
     Ok(RawSshMessage::OnWire(data.clone()))
+}
+
+/// Wraps a single raw SSH message into a one-message flight.
+///
+/// Primarily present so that `RawSshMessageFlight` — the whole-flight
+/// agent-output knowledge type queried by the two-party relay seeds
+/// (`(agent, n)/RawSshMessageFlight`) — is registered in the signature's type
+/// table (`types_by_name`, which is derived solely from function arg/return
+/// types). Without it, those query terms execute fine but cannot be
+/// *deserialized*: `TypeShape`'s deserializer resolves a type by name against
+/// that table and fails, so e.g. `seed_handshake_two_party` round-trips on
+/// write but is skipped on load. Registered `[no_gen]` in the signature so it
+/// does not enlarge the generation search space.
+pub fn fn_raw_message_flight(message: &RawSshMessage) -> Result<RawSshMessageFlight, FnError> {
+    Ok(RawSshMessageFlight::from(message.clone()))
 }
 
 /// Wrap arbitrary bytes as raw on-wire data. Revives `OnWireData` as a producible

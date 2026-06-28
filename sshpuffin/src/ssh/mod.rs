@@ -117,6 +117,10 @@ define_signature!(
     fn_raw_message
     fn_packet
     fn_onwire_message
+    // Registers the whole-flight knowledge type `RawSshMessageFlight` in the
+    // signature's type table so `(agent, n)/RawSshMessageFlight` query terms
+    // round-trip through (de)serialization. `no_gen`: not for term generation.
+    fn_raw_message_flight [no_gen]
     fn_onwire_data
     fn_namelist_empty
     fn_namelist_1
