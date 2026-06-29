@@ -37,7 +37,7 @@ pub fn loc_bump(c: &AtomicUsize) {
         + LOC_S2_LIST.load(Ordering::Relaxed)
         + LOC_S2_UNIQUE.load(Ordering::Relaxed)
         + LOC_S2_MULTI.load(Ordering::Relaxed);
-    if total % 200_000 == 0 && total > 0 {
+    if total % 2_000 == 0 && total > 0 {
         log::info!(
             "[#3 locator-histogram] total={total} S1_unique={} S2_empty={} S2_list={} S2_unique={} S2_MULTI_fallback={} | [#4] rt_relax={} rt_drop={}",
             LOC_S1_UNIQUE.load(Ordering::Relaxed),
