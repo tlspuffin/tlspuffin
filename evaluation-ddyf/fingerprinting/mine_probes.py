@@ -107,15 +107,15 @@ def main():
         reps_pair = [t for v in buckets.values() for t in v[:args.rep_cap]]
         # A2: strict confirm with the pooled filter, PLUS K-replay self-consistency so the probe's
         # sig is REPRODUCIBLE (not an attacker-side term-eval flipper) on both origin servers.
+        # CONTROLLED LOAD: run SEQUENTIALLY (no thread pool). The example server is single-connection;
+        # the self-consistency check is load-sensitive -- hammering one server with parallel threads
+        # truncates flights and makes stable probes look flaky (the corruption bug that build_matrix
+        # avoids). The representative set is small, so sequential confirm is cheap and faithful.
         def confirm(t):
             a = probe.self_consistent(cfg, t, pA, k=args.consistency_k)
             b = probe.self_consistent(cfg, t, pB, k=args.consistency_k)
             return t if (a is not None and b is not None and a != b) else None
-        kept = []
-        with ThreadPoolExecutor(max_workers=cfg.jobs) as ex:
-            for r in ex.map(confirm, reps_pair):
-                if r:
-                    kept.append(r)
+        kept = [t for t in (confirm(t) for t in reps_pair) if t]
         probe.kill(sA, sB)
         print(f"  {tag:16s} A1={len(surv):5d}/{len(ts):<5d}  mechanisms={len(buckets):3d}  confirmed={len(kept)}",
               flush=True)

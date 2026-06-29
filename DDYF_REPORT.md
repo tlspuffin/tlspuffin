@@ -170,12 +170,24 @@ and keeps it only if all K pooled measurements agree (incl. EMPTY); a flipper is
 into `mine_probes.py` stage A2 (`--consistency-k`, default 3) so non-reproducible probes never enter
 the matrix, and exposed as a standalone auditor `check_consistency.py`.
 
-**Quantified on the committed set:** **691 / 806 (86%) of the existing WolfSSL probes are
-non-self-consistent** on a single reference server (5.4.0, K=3, 30/21) — i.e. attacker-side noise.
-Calibration check: all **7** decision probes of the deployed 15-cluster model pass cleanly (3/3
-identical), so the model already routes only on the reproducible ~14%; the screen would have pruned
-the 86% up front, yielding a far cleaner matrix and removing the source of the earlier "mirage"
-splits.
+**Where the noise actually is — and a corrected measurement.** The attacker-side ring flip is real
+and was traced above, but it lives in the *raw objective traces*, not in the committed probe set:
+the original mining (A1/A2) already rejected the flippers, keeping only survivors. Screening the
+committed set under **controlled load** confirms this — **0 / 806 WolfSSL probes are
+non-self-consistent** across two healthy servers (5.4.0, 5.7.2; K=3, 30/21), and **1 / 639** for
+OpenSSL (3.0.13, 3.4.0) — i.e. ≈0% in both. Removing the lone OpenSSL probe leaves its 11-cluster /
+60-61 model unchanged, so no cleaned rebuild was warranted for either PUT.
+
+> **Correction (process note).** An earlier pass of this report claimed "691/806 (86%) non-self-
+> consistent." That number was an **artifact of a load bug in the auditor**: it probed one
+> single-connection example server with many parallel threads, inducing the very flight-truncation
+> the methodology warns against — it measured the instability it created. The 15-cluster model's 7
+> decision probes are perfectly stable single-threaded (3/3 on both servers), which exposed the bug.
+> `check_consistency.py` now uses the `build_matrix` controlled-load pattern (one server INSTANCE
+> per worker, each probed SEQUENTIALLY); under that, the true figure is 0%. The screen's value is
+> therefore at **mining time on raw objectives** (where the ring flippers live), not on the
+> already-filtered committed set — so cleaning the committed set removes nothing and the WolfSSL
+> model stays at 15 clusters.
 
 ---
 
