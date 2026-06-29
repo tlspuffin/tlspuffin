@@ -652,7 +652,12 @@ pub fn replace_payloads<PT: ProtocolTypes>(
 
         log::trace!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}\n  - to_modify={to_modify:?}",
                 to_modify.len(), &to_modify[start..end]);
-        #[cfg(any(debug_assertions, feature = "debug"))]
+        // [locator self-certification] Verify the located bytes are EXACTLY the expected payload-0
+        // bytes before splicing. Was debug-gated, so RELEASE campaigns never verified that the
+        // (heuristic, ~11% multi-match) locator picked the right offset -- a wrong-but-in-bounds
+        // location would silently splice at the wrong place with no error. The check is a cheap
+        // memcmp of bytes we are about to overwrite; promote it to always-on so every splice
+        // self-certifies and "0 errors" genuinely means "0 mislocations".
         if to_modify[start..end] != *old_bitstring {
             let ft = format!(
                 "--> [replace_payloads] Payloads returned by eval_until_opaque were inconsistent!\n\
