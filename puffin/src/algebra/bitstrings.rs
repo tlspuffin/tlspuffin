@@ -1,5 +1,5 @@
 use std::fmt::Display;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use libafl::inputs::{BytesInput, HasMutatorBytes};
 use serde::{Deserialize, Serialize};
@@ -16,6 +16,40 @@ use crate::trace::{Source, TraceContext};
 /// kept best-effort instead of dropped. Toggle off via `--no-r3-relax` to measure R3's coverage
 /// value (set once at startup; process-global like the stats counters).
 pub static R3_RELAX_REFRAMING: AtomicBool = AtomicBool::new(true);
+
+// [#4] round-trip drop counters (boundary consume path in eval_until_opaque).
+pub static RT_RELAX: AtomicUsize = AtomicUsize::new(0); // reframing arg kept best-effort (R3)
+pub static RT_DROP: AtomicUsize = AtomicUsize::new(0); // arg dropped by strict read∘encode check
+// [#3] locator path histogram (per descend-iteration outcome in find_unique_match_rec).
+pub static LOC_S1_UNIQUE: AtomicUsize = AtomicUsize::new(0); // fast direct-unique match (happy path)
+pub static LOC_S2_EMPTY: AtomicUsize = AtomicUsize::new(0); // empty child -> sibling positioning
+pub static LOC_S2_LIST: AtomicUsize = AtomicUsize::new(0); // special-list heuristic
+pub static LOC_S2_UNIQUE: AtomicUsize = AtomicUsize::new(0); // non-empty child, single match
+pub static LOC_S2_MULTI: AtomicUsize = AtomicUsize::new(0); // multi-match sibling-disambig FALLBACK (the fragile complexity)
+
+/// Increment a counter; periodically dump the #3 locator histogram + #4 drop counts to the log so
+/// we can answer "is the heuristic complexity warranted?" without permanent stats-serialization
+/// churn (kept lightweight, like the R3 log line). Dump every 200k locator decisions.
+pub fn loc_bump(c: &AtomicUsize) {
+    c.fetch_add(1, Ordering::Relaxed);
+    let total = LOC_S1_UNIQUE.load(Ordering::Relaxed)
+        + LOC_S2_EMPTY.load(Ordering::Relaxed)
+        + LOC_S2_LIST.load(Ordering::Relaxed)
+        + LOC_S2_UNIQUE.load(Ordering::Relaxed)
+        + LOC_S2_MULTI.load(Ordering::Relaxed);
+    if total % 200_000 == 0 && total > 0 {
+        log::info!(
+            "[#3 locator-histogram] total={total} S1_unique={} S2_empty={} S2_list={} S2_unique={} S2_MULTI_fallback={} | [#4] rt_relax={} rt_drop={}",
+            LOC_S1_UNIQUE.load(Ordering::Relaxed),
+            LOC_S2_EMPTY.load(Ordering::Relaxed),
+            LOC_S2_LIST.load(Ordering::Relaxed),
+            LOC_S2_UNIQUE.load(Ordering::Relaxed),
+            LOC_S2_MULTI.load(Ordering::Relaxed),
+            RT_RELAX.load(Ordering::Relaxed),
+            RT_DROP.load(Ordering::Relaxed),
+        );
+    }
+}
 
 /// Constants governing heuristic for finding payloads in term evaluations
 const THRESHOLD_SIZE: usize = 3; // minimum size of a payload to be directly searched in root_eval
@@ -260,6 +294,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 log::debug!(
                     "[find_unique_match_rec] [S1] Directly found unique match in root: {unique_pos}"
                 );
+                loc_bump(&LOC_S1_UNIQUE); // [#3]
                 start_pos += unique_pos;
                 break;
             } else {
@@ -283,6 +318,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
             let pos_child = eval_parent.len() - eval_right_siblings.len();
             log::debug!("[S2:1] eval_child has an empty encoding, we use right siblings to position the child: pos = {pos_child}");
 
+            loc_bump(&LOC_S2_EMPTY); // [#3]
             start_pos += pos_child;
             continue;
         }
@@ -296,6 +332,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
             // do not proceed with the heuristics if there is a get symbol above the target
             if child_arg_number == 0 && path_to_search.iter().all(|x| *x == 0) {
                 log::debug!("[find_unique_match_rec] [S2:special-list] [Nil*] Child is the NIL starting the list, pos is 0!");
+                loc_bump(&LOC_S2_LIST); // [#3]
                 break;
             }
             log::debug!("[S2:special-list] Child is a list, we use a special heuristic to find the position of the target in the parent");
@@ -310,6 +347,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 log::debug!(
                     "[find_unique_match_rec] [S2:special-list] [pos=1] Found position: {pos}"
                 );
+                loc_bump(&LOC_S2_LIST); // [#3]
                 start_pos += pos;
                 break;
             }
@@ -345,6 +383,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 log::debug!(
                     "[find_unique_match_rec] [S2:special-list] [skip] Found position: {pos}"
                 );
+                loc_bump(&LOC_S2_LIST); // [#3]
                 start_pos += pos;
                 break;
             }
@@ -361,6 +400,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 "[S2:2] Found position is unique: {}. Continue...",
                 all_matches[0]
             );
+            loc_bump(&LOC_S2_UNIQUE); // [#3]
             start_pos += all_matches[0];
             continue;
         }
@@ -389,6 +429,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         // [STEP 2:2: POSITION CHILD RELATIVELY TO SIBLINGS] If no unique match, we must find which
         // matching position of child relatively to the position of the evaluation of all
         // right siblings.
+        loc_bump(&LOC_S2_MULTI); // [#3] the multi-match sibling-disambiguation fallback (fragile complexity)
         if parent_is_get {
             // do not proceed with the heuristics if parent is a get symbol
             let ft = format!("[[find_unique_match_rec] [S2:2] Skips last resorting heuristics since the parant is a get symbol. Failed to find the target.");
@@ -821,11 +862,13 @@ impl<PT: ProtocolTypes> Term<PT> {
                             // [opaque] keeps the strict check (it must transform the EXACT mutated
                             // bytes). Frequency is greppable via the [R3 reframing-relax] log line.
                             if self.is_reframing() && R3_RELAX_REFRAMING.load(Ordering::Relaxed) {
+                                RT_RELAX.fetch_add(1, Ordering::Relaxed); // [#4]
                                 log::info!(
                                     "[eval_until_opaque] [R3 reframing-relax] arg did not round-trip under {}; proceeding best-effort with di (encoding len {} vs bi {})",
                                     self, di.get_encoding().len(), bi.len()
                                 );
                             } else {
+                                RT_DROP.fetch_add(1, Ordering::Relaxed); // [#4] dropped by strict read∘encode check
                                 return Err(Error::Term(format!(
                                     "--> [eval_until_opaque] [argument is symbolic: {}] [1] Failed consistency check for read.encode a type {}:\n\
                                     - bi (first eval)  : {bi:?}\n\
