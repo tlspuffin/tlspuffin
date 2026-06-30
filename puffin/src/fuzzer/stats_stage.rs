@@ -161,6 +161,41 @@ pub static PAYLOAD_LENGTH: MinMaxMean = MinMaxMean::new("payload-length");
 /// [R1 #1] Deepest step index reached per execution.
 pub static REACHED_STEP: MinMaxMean = MinMaxMean::new("reached-step");
 
+/// [reached-step histogram] Per-execution bucket counts of how many trace steps executed WITHOUT
+/// error (= ctx.executed_until). Answers "what fraction of executions die at step 0/1/2/3/>=4" as a
+/// DISTRIBUTION (the mean alone is misleading + integer-truncated). Compare --with-bit vs DY-only.
+pub static REACHED_B0: AtomicUsize = AtomicUsize::new(0);
+pub static REACHED_B1: AtomicUsize = AtomicUsize::new(0);
+pub static REACHED_B2: AtomicUsize = AtomicUsize::new(0);
+pub static REACHED_B3: AtomicUsize = AtomicUsize::new(0);
+pub static REACHED_B4PLUS: AtomicUsize = AtomicUsize::new(0);
+
+/// Bucket one execution by its reached-step count, and periodically dump the histogram + ratios to
+/// the log (every 100k executions). Lightweight (atomic + log), like the locator histogram.
+pub fn reached_step_bucket(n: usize) {
+    let c = match n {
+        0 => &REACHED_B0,
+        1 => &REACHED_B1,
+        2 => &REACHED_B2,
+        3 => &REACHED_B3,
+        _ => &REACHED_B4PLUS,
+    };
+    c.fetch_add(1, Ordering::Relaxed);
+    let b0 = REACHED_B0.load(Ordering::Relaxed);
+    let b1 = REACHED_B1.load(Ordering::Relaxed);
+    let b2 = REACHED_B2.load(Ordering::Relaxed);
+    let b3 = REACHED_B3.load(Ordering::Relaxed);
+    let b4 = REACHED_B4PLUS.load(Ordering::Relaxed);
+    let total = b0 + b1 + b2 + b3 + b4;
+    if total % 100_000 == 0 && total > 0 {
+        let p = |x: usize| 100.0 * x as f64 / total as f64;
+        log::info!(
+            "[reached-step-hist] total={total} n0={b0}({:.1}%) n1={b1}({:.1}%) n2={b2}({:.1}%) n3={b3}({:.1}%) n>=4={b4}({:.1}%)",
+            p(b0), p(b1), p(b2), p(b3), p(b4)
+        );
+    }
+}
+
 /// Metrics for evaluations and executions
 pub static ALL_EXEC: Counter = Counter::new("all-exec");
 pub static ALL_EXEC_SUCCESS: Counter = Counter::new("all-exec-success");

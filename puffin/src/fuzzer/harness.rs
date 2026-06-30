@@ -72,6 +72,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     // confound). fail_at_step == ctx.executed_until (set on both success and failure). Comparing
     // mean_reached_step with mean_trace_length shows how early traces die.
     REACHED_STEP.update(fail_at_step);
+    crate::fuzzer::stats_stage::reached_step_bucket(fail_at_step);
 
     // Update FAIL_AT_STEP
     log::trace!(
