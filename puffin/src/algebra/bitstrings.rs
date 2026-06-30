@@ -69,6 +69,11 @@ pub struct Payloads {
     pub payload_0: BytesInput, // initially both are equal and correspond to the term evaluation
     pub payload: BytesInput,   // this one will later be subject to bit-level mutation
     pub(crate) metadata: PayloadMetadata, // stores metadata
+    /// [shared-payload] If Some(id), this payload is LINKED to every other payload in the same
+    /// trace with the same id: a bit-level mutation of one is propagated to all (consistent
+    /// malformation). None = independent (current behaviour). Trace-local id.
+    #[serde(default)]
+    pub shared_id: Option<u64>,
 }
 
 impl Payloads {

@@ -668,6 +668,10 @@ pub struct MetadataTrace {
     /// not over-restrict exploration.
     #[serde(default)]
     last_executable_step: Option<usize>,
+    /// [shared-payload] Monotonic source of fresh shared_ids for this trace.
+    /// Incremented by `fresh_shared_id()`; always starts at 0 for new traces.
+    #[serde(default)]
+    pub next_shared_id: u64,
 }
 
 #[derive(Clone, Deserialize, Serialize, Hash)]
@@ -1251,6 +1255,63 @@ impl<PT: ProtocolTypes> Trace<PT> {
     /// The current executability frontier, if known.
     pub fn executable_frontier(&self) -> Option<usize> {
         self.metadata_trace.last_executable_step
+    }
+
+    // ---- shared-payload helpers (Phase 1/2/3) ----
+
+    /// [shared-payload] Allocate a fresh trace-local shared group id (monotonically increasing).
+    pub fn fresh_shared_id(&mut self) -> u64 {
+        let id = self.metadata_trace.next_shared_id;
+        self.metadata_trace.next_shared_id += 1;
+        id
+    }
+
+    /// [shared-payload] After bit-mutation of any payload, propagate its bytes to all other
+    /// members of the same shared group within this trace (Phase 3 sync).
+    ///
+    /// For each shared_id `k` that has at least one mutated member (payload != payload_0), we pick
+    /// the first mutated member (deterministic traversal order) as the authority and copy its
+    /// `payload` bytes into every other member with the same id.  Idempotent: calling multiple
+    /// times has no additional effect once the group is in sync.
+    pub fn sync_shared_payloads(&mut self) {
+        use std::collections::HashMap;
+        use libafl::inputs::HasMutatorBytes;
+
+        // First pass: collect the authoritative bytes for each group id.
+        // Authority = first member (in traversal order) whose payload differs from payload_0.
+        let mut authority: HashMap<u64, Vec<u8>> = HashMap::new();
+        for p in self.all_payloads() {
+            if let Some(id) = p.shared_id {
+                if !authority.contains_key(&id)
+                    && p.payload.mutator_bytes() != p.payload_0.mutator_bytes()
+                {
+                    authority.insert(id, p.payload.mutator_bytes().to_vec());
+                }
+            }
+        }
+        if authority.is_empty() {
+            return;
+        }
+        // Second pass: write the authority bytes into every member of each group.
+        let mut propagated: usize = 0;
+        for p in self.all_payloads_mut() {
+            if let Some(id) = p.shared_id {
+                if let Some(bytes) = authority.get(&id) {
+                    if p.payload.mutator_bytes() != bytes.as_slice() {
+                        p.payload.mutator_bytes_mut().copy_from_slice(bytes);
+                        p.metadata.has_changed = true;
+                        propagated += 1;
+                    }
+                }
+            }
+        }
+        if propagated > 0 {
+            use crate::fuzzer::stats_stage::SHARED_SYNC_PROPAGATED;
+            for _ in 0..propagated {
+                SHARED_SYNC_PROPAGATED.increment();
+            }
+            log::debug!("[shared-payload] sync_shared_payloads propagated {propagated} members");
+        }
     }
 
     /// [staleness, OPTIMISTIC] Update the frontier after a step was INSERTED at `insert_index`

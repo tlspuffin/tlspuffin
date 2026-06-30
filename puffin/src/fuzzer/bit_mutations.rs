@@ -519,6 +519,237 @@ where
 }
 
 // --------------------------------------------------------------------------------------------------
+// MakeMessageShared mutation
+// --------------------------------------------------------------------------------------------------
+
+/// [shared-payload] MAKE MESSAGE SHARED: like MakeMessage but finds ALL structurally-identical,
+/// variable-free occurrences of the target sub-term in the trace and assigns them the same
+/// `shared_id`, so that subsequent bit-level mutations on one propagate to all (consistent
+/// malformation). Falls back to plain MakeMessage behaviour when fewer than 2 occurrences exist.
+///
+/// Phase 4 (trace-level pool normalization) is intentionally skipped — bytes stay OWNED in each
+/// payload node, in line with the plan's design decision.
+pub struct MakeMessageShared<'a, PB> {
+    put_registry: &'a PutRegistry<PB>,
+    config: MutationConfig,
+}
+
+impl<'a, PB> MakeMessageShared<'a, PB> {
+    #[must_use]
+    pub const fn new(config: MutationConfig, put_registry: &'a PutRegistry<PB>) -> Self {
+        Self {
+            config,
+            put_registry,
+        }
+    }
+}
+
+impl<'a, S, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>> Mutator<Trace<PT>, S>
+    for MakeMessageShared<'a, PB>
+where
+    S: HasRand,
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
+{
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
+        use crate::fuzzer::stats_stage::{MM_SHARED_OK, MM_SHARED_SINGLETON};
+        use crate::fuzzer::utils::find_all_term_filtered;
+
+        log::debug!("[Bit] Start mutate with {}", self.name());
+        if !self.config.with_bit_level || !self.config.shared_payloads {
+            log::debug!("[MakeMessageShared] skipped (bit-level disabled or shared_payloads=false)");
+            return Ok(MutationResult::Skipped);
+        }
+
+        // --- Step a: pick a target sub-term path, using the same constraints as MakeMessage ---
+        let nb_payloads = trace.all_payloads().len();
+        let nb_terms = trace.steps.len();
+        let payloads_term_ratio = nb_payloads / std::cmp::max(1, nb_terms);
+        let no_more_new_payloads =
+            payloads_term_ratio > self.config.term_constraints.threshold_max_payloads_per_term;
+
+        let mut constraints = TermConstraints {
+            must_be_symbolic: true,
+            no_payload_in_subterm: false,
+            must_payload_in_subterm: no_more_new_payloads,
+            not_inside_list: true,
+            weighted_depth: false,
+            not_readable: true,
+            ..self.config.term_constraints
+        };
+        if !self.config.with_dy && !self.config.bit_allow_subterm_no_dy {
+            constraints.must_be_root = true;
+        }
+
+        let rand = state.rand_mut();
+        let trace_path = match choose_filtered(
+            trace,
+            &constraints,
+            |t| !t.is_no_bit() && !t.has_variable() && t.size() >= 2,
+            rand,
+        ) {
+            Some((_, p)) => p,
+            None => {
+                log::debug!("[MakeMessageShared] No eligible target found. Skipped.");
+                return Ok(MutationResult::Skipped);
+            }
+        };
+
+        // [executability frontier soft bias — mirror MakeMessage]
+        if self.config.frontier_bias {
+            if let Some(frontier) = trace.executable_frontier() {
+                if trace_path.0 > frontier {
+                    let proceed_denom: usize = if self.config.frontier_decay {
+                        let dist = (trace_path.0 - frontier).min(7) as u32;
+                        1usize << dist
+                    } else {
+                        8
+                    };
+                    if state.rand_mut().below_or_zero(proceed_denom) != 0 {
+                        FRONTIER_SKIP.increment();
+                        return Ok(MutationResult::Skipped);
+                    }
+                }
+            }
+        }
+
+        let target = match find_term(trace, &trace_path) {
+            Some(t) => t,
+            None => return Ok(MutationResult::Skipped),
+        };
+
+        // --- Step b: precondition: target must be variable-free and non-trivial ---
+        if target.has_variable() || target.size() < 2 {
+            log::debug!("[MakeMessageShared] Target has variable or size < 2. Skipped.");
+            return Ok(MutationResult::Skipped);
+        }
+
+        // --- Step c: find all occurrences (structural equality, no variables) ---
+        // We walk every Input recipe and collect all trace-paths where the node == target.
+        // Use find_all_term_filtered with an unconstrained TermConstraints to visit every node.
+        let unconstrained = TermConstraints {
+            must_be_symbolic: false,
+            no_payload_in_subterm: false,
+            must_payload_in_subterm: false,
+            not_inside_list: false,
+            weighted_depth: false,
+            not_readable: false,
+            must_be_root: false,
+            ..TermConstraints::default()
+        };
+        // Capture the target term for the filter closure. Clone needed because find_all_term_filtered
+        // borrows `trace` immutably while we need to borrow `target` as well.
+        let target_clone = target.clone();
+        let occurrences: Vec<TracePath> = find_all_term_filtered(
+            trace,
+            |n| *n == target_clone && !n.has_variable(),
+            &unconstrained,
+        );
+
+        // --- Step d: if fewer than 2 occurrences → no sharing opportunity ---
+        if occurrences.len() < 2 {
+            MM_SHARED_SINGLETON.increment();
+            log::debug!(
+                "[MakeMessageShared] Only {} occurrence(s) found, falling back to plain MakeMessage.",
+                occurrences.len()
+            );
+            // Fall back: do a plain MakeMessage on the chosen path.
+            let spawner = Spawner::new(self.put_registry.clone());
+            let mut ctx = TraceContext::new_config(
+                spawner,
+                ConfigTrace {
+                    with_bit_level: self.config.with_bit_level,
+                    ..Default::default()
+                },
+            );
+            BIT_EXEC.increment();
+            return match make_message_term(trace, &trace_path, &mut ctx) {
+                Ok(()) => {
+                    BIT_EXEC_SUCCESS.increment();
+                    Ok(MutationResult::Mutated)
+                }
+                Err(_) => Ok(MutationResult::Skipped),
+            };
+        }
+
+        // --- Steps e–f: assign fresh shared_id and lift all occurrences ---
+        // We need a TraceContext to evaluate the target term.
+        let spawner = Spawner::new(self.put_registry.clone());
+        let mut ctx = TraceContext::new_config(
+            spawner,
+            ConfigTrace {
+                with_bit_level: self.config.with_bit_level,
+                ..Default::default()
+            },
+        );
+        BIT_EXEC.increment();
+
+        // Execute the trace up to the earliest step among the occurrences so we can evaluate.
+        let min_step = occurrences.iter().map(|p| p.0).min().unwrap_or(0);
+        if let Err(e) = trace.execute_until_step(&mut ctx, min_step, &mut 0, true) {
+            log::debug!("[MakeMessageShared] execute_until_step failed: {e}");
+            MM_FAIL_REACH.increment();
+            return Ok(MutationResult::Skipped);
+        }
+
+        // Evaluate the target term to get payload bytes (all occurrences are structurally equal
+        // and variable-free → same evaluation bytes).
+        let payload_bytes = match find_term(trace, &trace_path)
+            .and_then(|t| t.evaluate_symbolic(&ctx).ok())
+        {
+            Some(b) => b,
+            None => {
+                log::debug!("[MakeMessageShared] Failed to evaluate target term.");
+                MM_FAIL_MAKE.increment();
+                return Ok(MutationResult::Skipped);
+            }
+        };
+
+        // Allocate a fresh shared_id for this group.
+        let shared_id = trace.fresh_shared_id();
+
+        // Lift each occurrence: set payload and assign shared_id.
+        for occ_path in &occurrences {
+            if let Some(t) = find_term_mut(trace, occ_path) {
+                t.add_payload(payload_bytes.clone());
+                if let Some(ref mut p) = t.payloads {
+                    p.shared_id = Some(shared_id);
+                }
+                // Erase payloads in sub-terms (add_payload already does this via
+                // add_payload_with_new → erase_payloads_subterms).
+            }
+        }
+
+        // --- Step g: record success ---
+        MM_SHARED_OK.increment();
+        BIT_EXEC_SUCCESS.increment();
+        log::debug!(
+            "[MakeMessageShared] Formed shared group id={shared_id} with {} members.",
+            occurrences.len()
+        );
+
+        // Phase 3: sync immediately (all members start byte-identical, so this is a no-op here,
+        // but calling it establishes the invariant for subsequent HAVOC rounds).
+        trace.sync_shared_payloads();
+
+        Ok(MutationResult::Mutated)
+    }
+
+    #[inline]
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl<'a, PB> Named for MakeMessageShared<'a, PB>
+where
+    PB: ProtocolBehavior,
+{
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("MakeMessageShared")
+    }
+}
+
+// --------------------------------------------------------------------------------------------------
 // ReadMessage mutation
 // --------------------------------------------------------------------------------------------------
 
@@ -745,9 +976,13 @@ where
 // Term-level bit-level mutations
 // --------------------------------------------------------------------------------------------------
 
+use libafl::mutators::{MutationResult, Mutator};
+use libafl::state::{HasCorpus, HasMaxSize, HasRand};
+use libafl::Error;
+
+use crate::algebra::bitstrings::Payloads;
 use paste::paste;
 
-use crate::algebra::bitstrings::PayloadMetadata;
 use crate::algebra::signature::Signature;
 use crate::fuzzer::mutations::{
     dy_mutations, GenerateMutator, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
@@ -817,11 +1052,17 @@ impl<S, PT> Mutator<Trace<PT>, S> for [<$mutation  DY>]<S, PT>
             Some(to_mutate) => {
                 log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
                 if let Some(payloads) = &mut to_mutate.payloads {
-                    $mutation.mutate(state, &mut payloads.payload)
+                    let result = $mutation.mutate(state, &mut payloads.payload)
                               .and_then(|r| {
                                payloads.set_changed();
                                Ok(r)
-                          })
+                          });
+                    // [shared-payload Phase 3] After a bit mutation, sync bytes to all members of
+                    // the same shared group. This is a no-op when no shared payloads exist.
+                    if matches!(result, Ok(MutationResult::Mutated)) {
+                        trace.sync_shared_payloads();
+                    }
+                    result
                 } else {
                     panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
                 }
@@ -953,12 +1194,16 @@ where
             Some(to_mutate) => {
                 log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
                 if let Some(payloads) = &mut to_mutate.payloads {
-                    BytesSwapMutator::mutate(&mut self.tmp_buf, state, &mut payloads.payload).map(
+                    let result = BytesSwapMutator::mutate(&mut self.tmp_buf, state, &mut payloads.payload).map(
                         |r| {
                             payloads.set_changed();
                             r
                         },
-                    )
+                    );
+                    if matches!(result, Ok(MutationResult::Mutated)) {
+                        trace.sync_shared_payloads();
+                    }
+                    result
                 } else {
                     panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
                 }
@@ -1035,11 +1280,15 @@ where
             Some(to_mutate) => {
                 log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
                 if let Some(payloads) = &mut to_mutate.payloads {
-                    BytesInsertCopyMutator::mutate(&mut self.tmp_buf, state, &mut payloads.payload)
+                    let result = BytesInsertCopyMutator::mutate(&mut self.tmp_buf, state, &mut payloads.payload)
                         .map(|r| {
                             payloads.set_changed();
                             r
-                        })
+                        });
+                    if matches!(result, Ok(MutationResult::Mutated)) {
+                        trace.sync_shared_payloads();
+                    }
+                    result
                 } else {
                     panic!("mutation::{}::this shouldn't happen since we filtered out terms that are symbolic!", self.name());
                 }
@@ -1108,7 +1357,7 @@ pub fn choose_payload_mut<'a, PT, S>(
     trace: &'a mut Trace<PT>,
     state: &mut S,
     config: &MutationConfig,
-) -> Option<(&'a mut Vec<u8>, &'a mut PayloadMetadata)>
+) -> Option<&'a mut Payloads>
 where
     S: HasRand + HasMaxSize,
     PT: ProtocolTypes,
@@ -1119,15 +1368,14 @@ where
                 .payloads
                 .as_mut()
                 .expect("[choose_payload_mut] should never happen");
-            let input = payloads.payload.as_mut();
-            if input.len() < 2 {
+            if payloads.payload.as_mut().len() < 2 {
                 log::debug!(
                     "[choose_payload_mut] Skipped because payload is too small: {} bytes",
-                    input.len()
+                    payloads.payload.as_mut().len()
                 );
                 None
             } else {
-                Some((input, &mut payloads.metadata))
+                Some(payloads)
             }
         }
         None => None,
@@ -1225,10 +1473,14 @@ where
             return Ok(MutationResult::Skipped);
         }
 
-        let Some((input, metadata)) = choose_payload_mut(trace, state, &self.config) else {
+        let Some(payloads) = choose_payload_mut(trace, state, &self.config) else {
             log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         };
+        // [shared-payload Phase 3] cross-trace copies materialise into independent payloads
+        payloads.shared_id = None;
+        let input = payloads.payload.as_mut();
+        let metadata = &mut payloads.metadata;
 
         // Inlined from libafl::mutators::mutations pub struct CrossoverInsertMutator
         let size = input.len();
@@ -1310,6 +1562,7 @@ where
 
         log::debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", self.name());
         log::trace!("Trace: {trace}");
+        trace.sync_shared_payloads();
         Ok(MutationResult::Mutated)
     }
 
@@ -1380,10 +1633,14 @@ where
             return Ok(MutationResult::Skipped);
         }
 
-        let Some((input, metadata)) = choose_payload_mut(trace, state, &self.config) else {
+        let Some(payloads) = choose_payload_mut(trace, state, &self.config) else {
             log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         };
+        // [shared-payload Phase 3] cross-trace copies materialise into independent payloads
+        payloads.shared_id = None;
+        let input = payloads.payload.as_mut();
+        let metadata = &mut payloads.metadata;
 
         // Inlined from libafl::mutators::mutations pub struct CrossoverReplaceMutator
         let size = input.len();
@@ -1457,6 +1714,7 @@ where
 
         log::debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", self.name());
         log::trace!("Trace: {trace}");
+        trace.sync_shared_payloads();
         Ok(MutationResult::Mutated)
     }
 
@@ -1517,11 +1775,15 @@ where
             return Ok(MutationResult::Skipped);
         }
 
-        let Some((input, metadata)) = choose_payload_mut(trace, state, &self.config) else {
+        let Some(payloads) = choose_payload_mut(trace, state, &self.config) else {
             log::trace!("choose_payload_mut failed");
             log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         };
+        // [shared-payload Phase 3] cross-trace copies materialise into independent payloads
+        payloads.shared_id = None;
+        let input = payloads.payload.as_mut();
+        let metadata = &mut payloads.metadata;
 
         // Inlined from libafl::mutators::mutations pub struct SpliceMutator
         // We don't want to use the testcase we're already using for splicing
@@ -1591,6 +1853,7 @@ where
 
         log::debug!("[Mutation-bit] Mutate {} on trace {trace:?} crossing over with corpus id {idx} and payload id {payload_idx}", self.name());
         log::trace!("Trace: {trace}");
+        trace.sync_shared_payloads();
         Ok(MutationResult::Mutated)
     }
 

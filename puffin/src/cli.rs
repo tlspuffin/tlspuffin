@@ -61,6 +61,7 @@ where
         .arg(arg!(--"no-r3-relax" "Disable R3 reframing round-trip relaxation (strict drop, for Ch4 A/B)"))
         .arg(arg!(--"max-payloads-per-term" [n] "Cap on simultaneous payloads per term (Ch5 A/B); default 10")
             .value_parser(value_parser!(usize)))
+        .arg(arg!(--"shared-payloads" "[shared-payload] Enable MakeMessageShared: consistent bit-level malformations across identical sub-terms"))
         .arg(arg!(--"max-stack-pow" [n] "Max HAVOC stack power in the focus stage (core stack size = 2..2^(n+1)); default 7")
             .value_parser(value_parser!(u64)))
         .arg(arg!(--"read-message-prob" [p] "Probability ReadMessage re-interprets the focused payload (focus mode); default 0.25")
@@ -265,6 +266,9 @@ where
     }
     if with_truncation {
         config.mutation_stage_config.with_truncation = true;
+    }
+    if matches.get_flag("shared-payloads") {
+        config.mutation_config.shared_payloads = true;
     }
 
     // Set put_options as default for every PutDescriptor created by the put_registry

@@ -62,6 +62,10 @@ pub enum RuntimeStats {
     /// for every execution (success or early failure). mean << trace length => traces die early.
     ReachedStep(&'static MinMaxMean),
     Duplicates(&'static Counter),
+    // [shared-payload] Phase 5 observability counters
+    MmSharedOk(&'static Counter),
+    MmSharedSingleton(&'static Counter),
+    SharedSyncPropagated(&'static Counter),
 }
 
 impl RuntimeStats {
@@ -114,6 +118,9 @@ impl RuntimeStats {
             Self::PayloadLength(inner) => inner.fire(consume),
             Self::ReachedStep(inner) => inner.fire(consume),
             Self::Duplicates(inner) => inner.fire(consume),
+            Self::MmSharedOk(inner) => inner.fire(consume),
+            Self::MmSharedSingleton(inner) => inner.fire(consume),
+            Self::SharedSyncPropagated(inner) => inner.fire(consume),
         }
     }
 }
@@ -183,8 +190,15 @@ pub static RM_SKIP_NOTERM: Counter = Counter::new("rm-skip-noterm");
 pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
 pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
 pub static DUPLICATES: Counter = Counter::new("duplicates");
+/// [shared-payload] Phase 5 observability counters.
+/// MM_SHARED_OK: MakeMessageShared successfully formed a linked group (≥2 members).
+/// MM_SHARED_SINGLETON: MakeMessageShared found no duplicate occurrences (group size 1).
+/// SHARED_SYNC_PROPAGATED: payloads propagated to non-authority members by sync_shared_payloads.
+pub static MM_SHARED_OK: Counter = Counter::new("mm-shared-ok");
+pub static MM_SHARED_SINGLETON: Counter = Counter::new("mm-shared-singleton");
+pub static SHARED_SYNC_PROPAGATED: Counter = Counter::new("shared-sync-propagated");
 
-pub static STATS: [RuntimeStats; 44] = [
+pub static STATS: [RuntimeStats; 47] = [
     RuntimeStats::EvalFnCryptoError(&EVAL_ERR_FN_CRYPTO),
     RuntimeStats::EvalFnMalformedError(&EVAL_ERR_FN_MALFORMED),
     RuntimeStats::EvalFnUnknownError(&EVAL_ERR_FN_UNKNOWN),
@@ -229,6 +243,10 @@ pub static STATS: [RuntimeStats; 44] = [
     RuntimeStats::CorpusExec(&CORPUS_EXEC),
     RuntimeStats::CorpusExecMinimal(&CORPUS_EXEC_MINIMAL),
     RuntimeStats::Duplicates(&DUPLICATES),
+    // [shared-payload] Phase 5
+    RuntimeStats::MmSharedOk(&MM_SHARED_OK),
+    RuntimeStats::MmSharedSingleton(&MM_SHARED_SINGLETON),
+    RuntimeStats::SharedSyncPropagated(&SHARED_SYNC_PROPAGATED),
 ];
 
 pub trait Fire: Sync {

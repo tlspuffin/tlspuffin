@@ -346,6 +346,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                 payload_0: payload_0.into(),
                 payload: payload_new.into(),
                 metadata: with_metadata.unwrap_or_else(PayloadMetadata::default),
+                shared_id: None,
             }
         });
         self.erase_payloads_subterms(false);

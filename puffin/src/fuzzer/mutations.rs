@@ -57,6 +57,10 @@ pub struct MutationConfig {
     /// [scheduling A/B] Bit-level warmup: bit starts after this many execs (per core) when DY is on.
     /// Was the const MIN_BIT_EXECS (5000); tunable to test a later kick-in. Default 5000.
     pub bit_after_execs: u64,
+    /// [shared-payload] When true, MakeMessageShared is included in the focus mutator set and may
+    /// be triggered. Default false (OFF) — feature is not active until explicitly enabled via
+    /// `--shared-payloads`. Keeps the default fuzzer behaviour unchanged.
+    pub shared_payloads: bool,
 }
 
 impl Default for MutationConfig {
@@ -78,6 +82,7 @@ impl Default for MutationConfig {
             bit_allow_subterm_no_dy: false,
             dy_after_execs: 0,
             bit_after_execs: 5000, // = MIN_BIT_EXECS (current default)
+            shared_payloads: false, // [shared-payload] OFF by default until evaluated
         }
     }
 }

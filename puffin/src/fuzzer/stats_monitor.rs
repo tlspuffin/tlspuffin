@@ -434,6 +434,9 @@ struct ErrorStatistics {
     corpus_exec: u64,
     corpus_exec_minimal: u64,
     duplicates: u64,
+    mm_shared_ok: u64,
+    mm_shared_singleton: u64,
+    shared_sync_propagated: u64,
 }
 
 #[derive(Serialize)]
@@ -565,6 +568,9 @@ impl ErrorStatistics {
             corpus_exec_minimal: 0,
             duplicates: 0,
             eval_codec_error: 0,
+            mm_shared_ok: 0,
+            mm_shared_singleton: 0,
+            shared_sync_propagated: 0,
         }
     }
 
@@ -674,6 +680,13 @@ impl ErrorStatistics {
                 RuntimeStats::PayloadLength(_) => {}
                 RuntimeStats::TermSize(_) => {}
                 RuntimeStats::ReachedStep(_) => {}
+                RuntimeStats::MmSharedOk(c) => self.mm_shared_ok += get_number(client_stats, c.name),
+                RuntimeStats::MmSharedSingleton(c) => {
+                    self.mm_shared_singleton += get_number(client_stats, c.name)
+                }
+                RuntimeStats::SharedSyncPropagated(c) => {
+                    self.shared_sync_propagated += get_number(client_stats, c.name)
+                }
             }
         }
     }
