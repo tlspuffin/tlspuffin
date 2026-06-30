@@ -187,7 +187,7 @@ pub fn reached_step_bucket(n: usize) {
     let b3 = REACHED_B3.load(Ordering::Relaxed);
     let b4 = REACHED_B4PLUS.load(Ordering::Relaxed);
     let total = b0 + b1 + b2 + b3 + b4;
-    if total % 100_000 == 0 && total > 0 {
+    if total % 10_000 == 0 && total > 0 {
         let p = |x: usize| 100.0 * x as f64 / total as f64;
         log::info!(
             "[reached-step-hist] total={total} n0={b0}({:.1}%) n1={b1}({:.1}%) n2={b2}({:.1}%) n3={b3}({:.1}%) n>=4={b4}({:.1}%)",
