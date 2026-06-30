@@ -75,13 +75,13 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
         let full_trace = trace.as_ref();
 
         //Execute trace step by step to capture term associated with each step
-        for step in &full_trace.steps {
+        for (i, step) in full_trace.steps.iter().enumerate() {
             let edges_before =
                 unsafe { libafl_targets::EDGES_MAP[0..libafl_targets::MAX_EDGES_FOUND].to_vec() };
-            let mut single_step_trace = full_trace.clone();
-            single_step_trace.steps = vec![step.clone()];
+            let mut prefix_trace = full_trace.clone();
+            prefix_trace.steps = full_trace.steps[0..=i].to_vec();
 
-            single_step_trace
+            prefix_trace
                 .execute(&mut ctx, &mut 0, config_trace.check_security_violation)
                 .map_err(|e| {
                     *executed_until = ctx.executed_until;

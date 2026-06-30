@@ -81,9 +81,9 @@ where
     let feedback = feedback_or!(
         map_feedback,
         time_feedback,
-        //tracked_claim_feedback,
-        //tracked_profile_feedback,
-        //tracked_semantic_edge_feedback,
+        tracked_claim_feedback,
+        tracked_profile_feedback,
+        tracked_semantic_edge_feedback,
         tracked_term_feedback
     );
     let observers = tuple_list!(

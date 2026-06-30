@@ -79,7 +79,6 @@ where
         let mut is_interesting = false;
 
         for (edge, term) in &observer.semantic_edges {
-            let root_constructor = term.split('(').next().unwrap_or(term);
             let entry = metadata
                 .global_edges_terms
                 .entry(*edge)
