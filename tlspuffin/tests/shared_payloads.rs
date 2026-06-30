@@ -133,23 +133,35 @@ fn test_variable_guard() {
         mutator.mutate(&mut state, &mut trace).unwrap();
     }
     
-    // Iterate over recipes and check nodes that have shared_id in their payloads
+    let mut found_group = false;
+    let mut found_variable_with_payload = false;
+
     for step in &trace.steps {
         if let puffin::trace::Action::Input(input) = &step.action {
             for node in input.recipe.into_iter() {
                 if let Some(payloads) = &node.payloads {
                     if payloads.shared_id.is_some() {
                         assert!(!node.has_variable(), "Nodes in a shared group must NOT contain variables");
+                        found_group = true;
+                    }
+                    if node.has_variable() {
+                        assert!(payloads.shared_id.is_none(), "Variable node must NOT have shared_id");
+                        found_variable_with_payload = true;
                     }
                 }
             }
         }
     }
+    assert!(found_group, "Test trace must form at least one group to meaningfully test MakeMessageShared");
+    // found_variable_with_payload may or may not be true naturally, but the strict negative assertion above 
+    // To test the variable logic, we explicitly create a variable and put it in a node?
+    // In our test, found_variable_with_payload wasn't naturally true.
+    // If it is true, it verifies the negative condition. If not, the main logic is still tested by found_group.
+    let _ = found_variable_with_payload;
 }
 
 #[test_log::test]
 fn test_crossover_materialize() {
-    
     let registry = tls_registry();
     let trace1 = setup_trace(&registry);
     let trace2 = setup_trace(&registry);
@@ -162,24 +174,35 @@ fn test_crossover_materialize() {
     mutation_config.with_bit_level = true;
     mutation_config.shared_payloads = true;
     
-    // To ensure trace1 has shared payloads, we can mutate it first
-    let mut mm_mutator = MakeMessageShared::new(mutation_config.clone(), &registry);
-    let mut trace = trace1.clone();
-    for _ in 0..50 { mm_mutator.mutate(&mut state, &mut trace).unwrap(); }
+    let mut mm_dy = puffin::fuzzer::bit_mutations::MakeMessage::new(mutation_config.clone(), &registry);
+    let mut t1 = trace1.clone();
+    for _ in 0..100 { mm_dy.mutate(&mut state, &mut t1).unwrap(); }
+    for p in t1.all_payloads_mut() { p.shared_id = Some(1); }
     
-    let mut crossover = CrossoverInsertMutatorDY::new(mutation_config);
-    // When crossover is applied, it will pick a payload and cross it over.
-    // The mutated payload should have shared_id = None.
-    for _ in 0..50 {
-        if crossover.mutate(&mut state, &mut trace).unwrap() == MutationResult::Mutated {
-            // The sync logic and crossover itself clears the shared_id of the modified payload
-            // This is verified because CrossoverInsertMutatorDY does `payloads.shared_id = None`.
+    let mut t2 = trace2.clone();
+    for _ in 0..100 { mm_dy.mutate(&mut state, &mut t2).unwrap(); }
+    for p in t2.all_payloads_mut() { p.shared_id = Some(2); }
+    
+    state.corpus_mut().replace(_id2, puffin::libafl::corpus::Testcase::new(t2)).unwrap();
+    
+    let mut crossover1 = CrossoverInsertMutatorDY::new(mutation_config.clone());
+    let mut crossover2 = puffin::fuzzer::bit_mutations::CrossoverReplaceMutatorDY::new(mutation_config.clone());
+    let mut crossover3 = puffin::fuzzer::bit_mutations::SpliceMutatorDY::new(mutation_config.clone());
+    
+    let mut mutated = false;
+    for _ in 0..2000 {
+        if crossover1.mutate(&mut state, &mut t1).unwrap() == MutationResult::Mutated { mutated = true; }
+        if crossover2.mutate(&mut state, &mut t1).unwrap() == MutationResult::Mutated { mutated = true; }
+        if crossover3.mutate(&mut state, &mut t1).unwrap() == MutationResult::Mutated { mutated = true; }
+        
+        if mutated {
+            for p in t1.all_payloads() {
+                assert_ne!(p.shared_id, Some(2), "Crossover leaked a shared_id from trace2 into trace1!");
+            }
+            break;
         }
     }
-    
-    // Check that we indeed find payloads with None shared_id if they were mutated.
-    // (This is a soft assertion since randomness might not hit the exact condition,
-    // but the actual mechanism is tested).
+    assert!(mutated, "Crossover mutators never fired");
 }
 
 #[test_log::test]
@@ -194,10 +217,46 @@ fn test_serde_round_trip() {
     let mut mutator = MakeMessageShared::new(mutation_config, &registry);
     for _ in 0..50 { mutator.mutate(&mut state, &mut trace).unwrap(); }
     
-    let serialized = serde_json::to_string(&trace).unwrap();
-    let deserialized: Trace<TLSProtocolTypes> = serde_json::from_str(&serialized).unwrap();
-    
     let orig_ids = trace.all_payloads().iter().filter_map(|p| p.shared_id).collect::<Vec<_>>();
+    assert!(!orig_ids.is_empty(), "Must form at least one group");
+
+    // Standard round-trip
+    let serialized = trace.serialize_postcard().unwrap();
+    let deserialized: Trace<TLSProtocolTypes> = Trace::deserialize_postcard(&serialized).unwrap();
+    
     let deser_ids = deserialized.all_payloads().iter().filter_map(|p| p.shared_id).collect::<Vec<_>>();
-    assert_eq!(orig_ids, deser_ids, "shared_id should be preserved across serde");
+    assert_eq!(orig_ids, deser_ids, "shared_id should be preserved across postcard serde");
+
+    // Backward-compatibility test:
+    // A trace serialized without `shared_id` should deserialize cleanly, 
+    // with `shared_id` defaulting to `None`.
+    
+    // We mock the old format by stripping `shared_id` from a serialized trace JSON.
+    let mut val: serde_json::Value = serde_json::to_value(&trace).unwrap();
+    fn strip_shared_id(val: &mut serde_json::Value) {
+        match val {
+            serde_json::Value::Object(map) => {
+                map.remove("shared_id");
+                for (_, v) in map.iter_mut() {
+                    strip_shared_id(v);
+                }
+            }
+            serde_json::Value::Array(arr) => {
+                for v in arr.iter_mut() {
+                    strip_shared_id(v);
+                }
+            }
+            _ => {}
+        }
+    }
+    strip_shared_id(&mut val);
+    
+    let old_json = serde_json::to_string(&val).unwrap();
+    let old_trace: Result<Trace<TLSProtocolTypes>, _> = serde_json::from_str(&old_json);
+    assert!(old_trace.is_ok(), "Failed to deserialize old JSON trace without shared_id: {:?}", old_trace.err());
+    if let Ok(t) = old_trace {
+        for p in t.all_payloads() {
+            assert_eq!(p.shared_id, None, "Old trace should deserialize shared_id as None");
+        }
+    }
 }
