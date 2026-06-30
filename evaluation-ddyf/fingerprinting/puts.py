@@ -145,17 +145,23 @@ class Config:
         self.disposition = bool(_first(g("disposition"),
                                        True if _disp_env in ("1", "true", "yes", "on") else None,
                                        False))
+        _seg_env = os.environ.get("FP_SEG_ROBUST")
+        self.seg_robust = bool(_first(g("seg_robust"),
+                                      True if _seg_env in ("1", "true", "yes", "on") else None,
+                                      False))
         # Track which probing params the user set EXPLICITLY (CLI or env), so that loading a model
         # that records its own params does not silently override an explicit user choice.
         self._explicit = {name for name, env in
                           (("n_pool", "FP_N_POOL"), ("dom", "FP_DOM"), ("retry", "FP_RETRY"),
-                           ("timeout", "TIMEOUT"), ("disposition", "FP_DISPOSITION"))
+                           ("timeout", "TIMEOUT"), ("disposition", "FP_DISPOSITION"),
+                           ("seg_robust", "FP_SEG_ROBUST"))
                           if g(name) is not None or os.environ.get(env) is not None}
 
     def probe_params(self):
         """The probing parameters that define a model's reproducibility filter."""
         return {"n_pool": self.n_pool, "dom": self.dom, "retry": self.retry,
-                "timeout": self.timeout, "disposition": self.disposition}
+                "timeout": self.timeout, "disposition": self.disposition,
+                "seg_robust": self.seg_robust}
 
     def apply_model_params(self, meta):
         """Adopt a committed model's recorded probe params as defaults, so the model reproduces
@@ -163,7 +169,7 @@ class Config:
         Returns the list of (name, value) actually adopted (for logging)."""
         adopted = []
         for name, val in (meta.get("params") or {}).items():
-            if name in ("n_pool", "dom", "retry", "timeout", "disposition") and name not in self._explicit:
+            if name in ("n_pool", "dom", "retry", "timeout", "disposition", "seg_robust") and name not in self._explicit:
                 setattr(self, name, type(getattr(self, name))(val))
                 adopted.append((name, val))
         return adopted
@@ -270,6 +276,10 @@ def add_common_args(parser, only=None):
          "fold terminal TCP behavior (TCP_CLOSE/WAIT/RST) into the signature [env FP_DISPOSITION; "
          "default off]. Changes signatures, so a model is only comparable to itself -- build AND "
          "probe with the same setting (recorded in the model and auto-adopted)."),
+        ("seg_robust", "--seg-robust", {"action": "store_true", "default": None},
+         "segmentation-robust canon: key on the ordered message sequence, ignoring TCP read-boundary "
+         "positions (empty reads) [env FP_SEG_ROBUST; default off]. Removes read-chunking noise; "
+         "changes signatures, so build AND probe with the same setting (recorded + auto-adopted)."),
     ]
     g = parser.add_argument_group("paths & runtime (CLI > env var > derived default)")
     for dest, flag, kw, helptext in specs:

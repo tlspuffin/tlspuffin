@@ -39,10 +39,10 @@ DOM = 7                                    # default: modal sig must recur >= DO
 RETRY = 3                                  # default: re-pool an UNSTABLE cell this many times
 
 
-def _canon_quiet(data):
+def _canon_quiet(data, seg_robust=False):
     """canonicalize_execution can emit stray debug prints; silence them to keep stdout clean."""
     with contextlib.redirect_stdout(io.StringIO()):
-        return canonicalize_execution(data, tcp_mode=True, live_mode=True)
+        return canonicalize_execution(data, tcp_mode=True, live_mode=True, seg_robust=seg_robust)
 
 
 def sigkey(full_sig, sig_len):
@@ -86,7 +86,7 @@ def _run_once(cfg, binary, trace, port):
     if disp:
         d["fp_disposition"] = disp
     depth = (d.get("execution") or {}).get("executed_until", 0) or 0
-    return (depth, _canon_quiet(d))
+    return (depth, _canon_quiet(d, seg_robust=getattr(cfg, "seg_robust", False)))
 
 
 def batch(cfg, trace, port, k=7, resp_min=5):

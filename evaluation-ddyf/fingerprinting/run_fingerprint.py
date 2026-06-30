@@ -39,7 +39,8 @@ _FORWARD = [("repo_root", "--repo-root"), ("vendor_dir", "--vendor-dir"),
             ("experiments_dir", "--experiments-dir"), ("experiments_glob", "--experiments-glob"),
             ("cores", "--cores"), ("jobs", "--jobs"), ("base_port", "--base-port"),
             ("timeout", "--timeout"), ("n_pool", "--n-pool"), ("dom", "--dom"),
-            ("retry", "--retry"), ("disposition", "--disposition"), ("stable_only", "--stable-only")]
+            ("retry", "--retry"), ("disposition", "--disposition"),
+            ("seg_robust", "--seg-robust"), ("stable_only", "--stable-only")]
 
 
 def _forwarded(args):

@@ -100,8 +100,11 @@ _VOLATILE_AGGRESSIVE: list[tuple[re.Pattern, str]] = [
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+_EMPTY_MSGFLIGHT = re.compile(r'^MessageFlight\s*\{\s*messages:\s*\[\s*\]\s*\}\s*$')
+
+
 def normalize_knowledge(k: str, tcp_mode: bool = True, live_mode: bool = False,
-                        aggressive_mode: bool = False) -> str | None:
+                        aggressive_mode: bool = False, seg_robust: bool = False) -> str | None:
     """
     Canonicalize one knowledge string by stripping volatile fields.
 
@@ -114,9 +117,16 @@ def normalize_knowledge(k: str, tcp_mode: bool = True, live_mode: bool = False,
 
     live_mode=True applies _VOLATILE_LIVE on top of _VOLATILE.  Currently empty;
     reserved for any future live-only normalization.
+
+    seg_robust=True additionally drops EMPTY MessageFlights (`MessageFlight { messages: [] }`):
+    an empty read is a TCP read-boundary artifact, not server behavior, and keeping it perturbs
+    the per-step indexing (see canonicalize_execution).
     """
     if k.startswith('OpaqueMessageFlight'):
         return None  # cert size differs between lab and live — use MessageFlight only
+
+    if seg_robust and _EMPTY_MSGFLIGHT.match(k):
+        return None  # empty read = TCP segmentation artifact, not a distinguishing response
 
     for pat, repl in _VOLATILE:
         k = pat.sub(repl, k)
@@ -137,12 +147,19 @@ def normalize_error(error: str | None) -> str:
 
 
 def canonicalize_execution(data: dict, tcp_mode: bool = True, live_mode: bool = False,
-                           aggressive_mode: bool = False) -> str:
+                           aggressive_mode: bool = False, seg_robust: bool = False) -> str:
     """
     Build a stable SHA-256 hash representing the SERVER-OBSERVABLE behavior of
     an execution.
     If tcp_mode is True, omits internal execution state (`err`, `until`) and
     strips configuration-dependent details (like cipher suites) via normalize_knowledge.
+
+    seg_robust=True keys on the ORDERED SEQUENCE of message-bearing steps rather than on absolute
+    step indices (`s{i}:`). The live TCP read uses a fixed idle timeout, so the same server response
+    (e.g. ServerHello then Alert) can be split across a different number of reads run-to-run, inserting
+    empty-read steps that shift every later step's index and change the hash even though the messages
+    are identical. Dropping the index (and empty MessageFlights, via normalize_knowledge) makes the
+    signature invariant to where the read boundaries fell. Opt-in: legacy models key on `s{i}:`.
     """
     execution = data.get('execution', {})
     executed_until = execution.get('executed_until', -1)
@@ -186,10 +203,13 @@ def canonicalize_execution(data: dict, tcp_mode: bool = True, live_mode: bool = 
 
         if not include_all and step.get('agent') not in server_agents:
             continue
-        normed = [normalize_knowledge(k, tcp_mode, live_mode, aggressive_mode) for k in step.get('knowledges', [])]
+        normed = [normalize_knowledge(k, tcp_mode, live_mode, aggressive_mode, seg_robust)
+                  for k in step.get('knowledges', [])]
         normed = [n for n in normed if n is not None]
         if normed:
-            parts.append(f's{i}:' + '|||'.join(normed))
+            # seg_robust: omit the absolute step index `s{i}:` so empty-read insertions (which shift
+            # indices) don't change the hash; the ordered list still preserves message sequence.
+            parts.append('|||'.join(normed) if seg_robust else f's{i}:' + '|||'.join(normed))
 
     for pair in execution.get('extra_knowledges', []):
         if len(pair) >= 2:
