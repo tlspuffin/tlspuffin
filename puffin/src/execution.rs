@@ -9,9 +9,10 @@ use nix::sys::wait::{waitpid, WaitPidFlag};
 use nix::unistd::{fork, ForkResult, Pid};
 
 use crate::error::Error;
+use crate::fuzzer::feedback::semantic_edge_observer::CAPTURED_SEMANTIC_EDGES;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
-use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
+use crate::trace::{Action, ConfigTrace, Spawner, Trace, TraceContext};
 
 pub trait TraceRunner: Sized {
     type PB: ProtocolBehavior;
@@ -71,13 +72,38 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
         }
 
         let mut ctx = TraceContext::new_config(self.spawner.clone(), config_trace);
-        trace
-            .as_ref()
-            .execute(&mut ctx, &mut 0, config_trace.check_security_violation)
-            .map_err(|e| {
-                *executed_until = ctx.executed_until;
-                e
-            })?;
+        let full_trace = trace.as_ref();
+
+        //Execute trace step by step to capture term associated with each step
+        for step in &full_trace.steps {
+            let edges_before =
+                unsafe { libafl_targets::EDGES_MAP[0..libafl_targets::MAX_EDGES_FOUND].to_vec() };
+            let mut single_step_trace = full_trace.clone();
+            single_step_trace.steps = vec![step.clone()];
+
+            single_step_trace
+                .execute(&mut ctx, &mut 0, config_trace.check_security_violation)
+                .map_err(|e| {
+                    *executed_until = ctx.executed_until;
+                    e
+                })?;
+
+            let edges_after =
+                unsafe { &libafl_targets::EDGES_MAP[0..libafl_targets::MAX_EDGES_FOUND] };
+            if let Action::Input(input_action) = &step.action {
+                let term_str = input_action.recipe.to_string();
+                let term_str_cut = term_str.split('(').next().unwrap_or(&term_str).to_string();
+
+                CAPTURED_SEMANTIC_EDGES.with(|semantic_edges| {
+                    let mut semantic_edges = semantic_edges.borrow_mut();
+                    for (idx, &val) in edges_after.iter().enumerate() {
+                        if val > 0 && edges_before[idx] != val {
+                            semantic_edges.push((idx as u32, term_str_cut.clone()));
+                        }
+                    }
+                });
+            }
+        }
         *executed_until = ctx.executed_until;
         Ok(ctx)
     }

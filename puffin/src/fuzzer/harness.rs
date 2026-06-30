@@ -24,8 +24,8 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
     put_descriptor: &PutDescriptor,
     input: &Trace<PB::ProtocolTypes>,
 ) -> ExitKind {
+    let mut term_signatures: Vec<String> = Vec::new();
     OBJECTIVE_TRIGGERED.set(false);
-
     // Stats
     HARNESS_EXEC.increment();
     TRACE_LENGTH.update(input.steps.len());
@@ -72,23 +72,6 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
             });
             // Flatten and capture algebraic terms currently known by the attacker
             CAPTURED_TERMS.with(|captured| {
-                let mut term_signatures: Vec<String> = Vec::new();
-
-                for raw_k in ctx.knowledge_store.knowledges() {
-                    if let Some(associated_term) = &raw_k.associated_term {
-                        // Extract the DY repressentation if available
-                        term_signatures.push(associated_term.to_string());
-                    } else {
-                        // Fallback to type name
-                        term_signatures.push(format!("Type:{}", raw_k.data.type_name()));
-                    }
-                }
-                *captured.borrow_mut() = Some(term_signatures);
-            });
-            // Flatten and capture algebraic terms currently known by the attacker
-            CAPTURED_TERMS.with(|captured| {
-                let mut term_signatures: Vec<String> = Vec::new();
-
                 for raw_k in ctx.knowledge_store.knowledges() {
                     if let Some(associated_term) = &raw_k.associated_term {
                         // Extract the DY representation if available (probably never happened but
@@ -109,7 +92,7 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
                         }
                     }
                 }
-                *captured.borrow_mut() = Some(term_signatures);
+                *captured.borrow_mut() = Some(term_signatures.clone());
             });
             HARNESS_EXEC_SUCCESS.increment();
             if cfg!(feature = "introspection") && ctx.agents_successful() {
