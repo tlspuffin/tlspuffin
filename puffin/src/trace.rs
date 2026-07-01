@@ -1273,36 +1273,18 @@ impl<PT: ProtocolTypes> Trace<PT> {
     /// the first mutated member (deterministic traversal order) as the authority and copy its
     /// `payload` bytes into every other member with the same id.  Idempotent: calling multiple
     /// times has no additional effect once the group is in sync.
-    pub fn sync_shared_payloads(&mut self) {
-        use std::collections::HashMap;
+    /// [shared-payload Phase 3 FIX] Propagate the bytes of a JUST-MUTATED payload to every member
+    /// of its shared group. Called by the mutators right after they mutate a specific payload, so
+    /// there is no authority ambiguity (unlike the old `sync_shared_payloads` global scan, which
+    /// reverted iterated mutations on non-first members). `bytes` = the mutated payload's new bytes.
+    pub fn sync_shared_payloads_from(&mut self, id: u64, bytes: &[u8]) {
         use libafl::inputs::HasMutatorBytes;
-
-        // First pass: collect the authoritative bytes for each group id.
-        // Authority = first member (in traversal order) whose payload differs from payload_0.
-        let mut authority: HashMap<u64, Vec<u8>> = HashMap::new();
-        for p in self.all_payloads() {
-            if let Some(id) = p.shared_id {
-                if !authority.contains_key(&id)
-                    && p.payload.mutator_bytes() != p.payload_0.mutator_bytes()
-                {
-                    authority.insert(id, p.payload.mutator_bytes().to_vec());
-                }
-            }
-        }
-        if authority.is_empty() {
-            return;
-        }
-        // Second pass: write the authority bytes into every member of each group.
-        let mut propagated: usize = 0;
+        let mut propagated = 0usize;
         for p in self.all_payloads_mut() {
-            if let Some(id) = p.shared_id {
-                if let Some(bytes) = authority.get(&id) {
-                    if p.payload.mutator_bytes() != bytes.as_slice() {
-                        p.payload.mutator_bytes_mut().copy_from_slice(bytes);
-                        p.metadata.has_changed = true;
-                        propagated += 1;
-                    }
-                }
+            if p.shared_id == Some(id) && p.payload.mutator_bytes() != bytes {
+                p.payload = crate::libafl::inputs::BytesInput::new(bytes.to_vec());
+                p.metadata.has_changed = true;
+                propagated += 1;
             }
         }
         if propagated > 0 {
@@ -1310,9 +1292,16 @@ impl<PT: ProtocolTypes> Trace<PT> {
             for _ in 0..propagated {
                 SHARED_SYNC_PROPAGATED.increment();
             }
-            log::debug!("[shared-payload] sync_shared_payloads propagated {propagated} members");
+            log::debug!("[shared-payload] sync_from(id={id}) propagated {propagated} members");
         }
     }
+
+    // [Phase 3 FIX] The old global `sync_shared_payloads()` was REMOVED: its authority heuristic
+    // ("first member differing from payload_0") is stale after the first sync (then ALL members
+    // differ from payload_0), so it reverted iterated mutations on non-first group members
+    // (proven by tests/shared_payloads.rs::test_sync_iterated_non_first_member_not_reverted).
+    // Replaced by the unambiguous `sync_shared_payloads_from(id, bytes)` above, called by each
+    // mutator with the bytes of the payload it JUST mutated.
 
     /// [staleness, OPTIMISTIC] Update the frontier after a step was INSERTED at `insert_index`
     /// (call AFTER `steps.insert`). If the insertion lands within/at the reachable prefix, assume
