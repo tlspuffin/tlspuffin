@@ -510,32 +510,33 @@ where
                     MM_SHARED_SINGLETON.increment();
                     make_message_term(trace, &trace_path, &mut ctx)
                 } else {
-                    let min_step = occurrences.iter().map(|p| p.0).min().unwrap_or(0);
-                    if let Err(e) = trace.execute_until_step(&mut ctx, min_step, &mut 0, true) {
-                        MM_FAIL_REACH.increment();
-                        Err(e)
-                    } else {
-                        let payload_bytes_opt = find_term(trace, &trace_path)
-                            .and_then(|t| t.evaluate_symbolic(&ctx).ok());
-                            
-                        if let Some(payload_bytes) = payload_bytes_opt {
-                            let shared_id = trace.fresh_shared_id();
-                            for occ_path in &occurrences {
-                                if let Some(t) = find_term_mut(trace, occ_path) {
-                                    t.add_payload(payload_bytes.clone());
-                                    if let Some(ref mut p) = t.payloads {
-                                        p.shared_id = Some(shared_id);
-                                    }
+                    // [Phase 3 FIX #2] The shared target is variable-free (`do_shared` requires
+                    // `!has_variable()`), so `evaluate_symbolic` is CONTEXT-INDEPENDENT: it computes
+                    // the same bytes regardless of protocol state. So we do NOT execute_until_step
+                    // here -- the old code did, and abandoned the whole shared mutation on fail_reach
+                    // (the ~50% INV-A wall) even though no execution was needed. That spuriously
+                    // suppressed shared-group formation. We compute the bytes directly from a fresh
+                    // ctx (unused for variable-free terms).
+                    let payload_bytes_opt = find_term(trace, &trace_path)
+                        .and_then(|t| t.evaluate_symbolic(&ctx).ok());
+
+                    if let Some(payload_bytes) = payload_bytes_opt {
+                        let shared_id = trace.fresh_shared_id();
+                        for occ_path in &occurrences {
+                            if let Some(t) = find_term_mut(trace, occ_path) {
+                                t.add_payload(payload_bytes.clone());
+                                if let Some(ref mut p) = t.payloads {
+                                    p.shared_id = Some(shared_id);
                                 }
                             }
-                            MM_SHARED_OK.increment();
-                            // [Phase 3 FIX] No sync needed at formation: all members were just set
-                            // to identical bytes (add_payload of the same payload_bytes clone).
-                            Ok(())
-                        } else {
-                            MM_FAIL_MAKE.increment();
-                            Err(crate::error::Error::Term("Failed to evaluate for shared".to_string()))
                         }
+                        MM_SHARED_OK.increment();
+                        // [Phase 3 FIX] No sync needed at formation: all members were just set
+                        // to identical bytes (add_payload of the same payload_bytes clone).
+                        Ok(())
+                    } else {
+                        MM_FAIL_MAKE.increment();
+                        Err(crate::error::Error::Term("Failed to evaluate for shared".to_string()))
                     }
                 }
             } else {
