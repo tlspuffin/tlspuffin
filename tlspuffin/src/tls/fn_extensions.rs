@@ -362,8 +362,12 @@ nyi_fn! {
 nyi_fn! {
     /// Padding => 0x0015,
 }
-nyi_fn! {
-    /// encrypt_then_mac => 0x0016,
+/// encrypt_then_mac => 0x0016,
+pub fn fn_encrypt_then_mac_extension() -> Result<ClientExtension, FnError> {
+    Ok(ClientExtension::EncryptThenMacRequest)
+}
+pub fn fn_encrypt_then_mac_server_extension() -> Result<ServerExtension, FnError> {
+    Ok(ServerExtension::EncryptThenMacAck)
 }
 /// ExtendedMasterSecret => 0x0017,
 pub fn fn_extended_master_secret_extension() -> Result<ClientExtension, FnError> {
