@@ -20,7 +20,7 @@ impl ProtocolDescriptorConfig for TestProtocolDescriptorConfig {
     }
 }
 
-#[derive(Clone, Debug, Hash, Serialize, Deserialize,PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq)]
 struct TestProtocolTypes {}
 
 impl std::fmt::Display for TestProtocolTypes {
