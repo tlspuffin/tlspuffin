@@ -53,7 +53,7 @@ where
 
         for term_signature in &observer.discovered_terms {
             if !self.global_knowledge_memory.contains(term_signature) {
-                log::info!("New term found: {}", term_signature);
+                //log::info!("New term found: {}", term_signature);
                 // Add discovered term to the global knowledge
                 self.global_knowledge_memory.insert(term_signature.clone());
                 found_new_term = true;

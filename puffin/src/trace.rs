@@ -35,6 +35,7 @@ use crate::algebra::{remove_prefix, Matcher, Term, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
 use crate::differential::TraceDifference;
 use crate::error::Error;
+use crate::fuzzer::feedback::semantic_edge_observer::CAPTURED_SEMANTIC_EDGES;
 use crate::fuzzer::stats_stage::{
     ALL_EXEC, ALL_EXEC_AGENT_SUCCESS, ALL_EXEC_SUCCESS, ERROR_AGENT, ERROR_CODEC, ERROR_EXTRACTION,
     ERROR_FN, ERROR_IO, ERROR_PUT, ERROR_STREAM, ERROR_TERM, ERROR_TERMBUG,
@@ -1087,16 +1088,53 @@ impl<PT: ProtocolTypes> Trace<PT> {
         self.spawn_agents(ctx)?;
         let steps = &self.steps[0..stop_at_step];
         ctx.executed_until = 0;
+        // for (i, step) in steps.iter().enumerate() {
+        //     log::debug!("Executing step #{}", i);
+        //     step.execute(StepNumber::new(*trace_number, i), ctx)?;
+
+        //     if check_security_violation {
+        //         ctx.verify_security_violations()?;
+        //     }
+        //     ctx.executed_until = i + 1;
+        // }
+        let max_edges = unsafe { libafl_targets::MAX_EDGES_FOUND };
+        let mut edges_before = vec![0u8; max_edges];
+
         for (i, step) in steps.iter().enumerate() {
             log::debug!("Executing step #{}", i);
+
+            // [CAPTURE BEFORE] Snapshot the edges just before this step runs
+            unsafe {
+                let src = &libafl_targets::EDGES_MAP[0..max_edges];
+                edges_before[..src.len()].copy_from_slice(src);
+            }
+
+            // Core execution of the step
             step.execute(StepNumber::new(*trace_number, i), ctx)?;
 
             if check_security_violation {
                 ctx.verify_security_violations()?;
             }
+
+            // [CAPTURE AFTER] Compute differential semantic coverage if it's an Input
+            if let Action::Input(input_action) = &step.action {
+                let term_str = input_action.recipe.to_string();
+                let term_str_cut = term_str.split('(').next().unwrap_or(&term_str).to_string();
+
+                let edges_after = unsafe { &libafl_targets::EDGES_MAP[0..max_edges] };
+
+                CAPTURED_SEMANTIC_EDGES.with(|semantic_edges| {
+                    let mut semantic_edges = semantic_edges.borrow_mut();
+                    for (edge_idx, &val) in edges_after.iter().enumerate() {
+                        if val > 0 && edges_before[edge_idx] != val {
+                            semantic_edges.push((edge_idx as u32, term_str_cut.clone()));
+                        }
+                    }
+                });
+            }
+
             ctx.executed_until = i + 1;
         }
-
         *trace_number += 1;
 
         Ok(())

@@ -12,6 +12,7 @@ use crate::fuzzer::feedback::claim_observer::ClaimObserver;
 pub struct ClaimFeedback {
     seen_claims: HashSet<String>,
     observer_handle: Handle<ClaimObserver>,
+    name: Cow<'static, str>,
 }
 
 impl<S> StateInitializer<S> for ClaimFeedback {}
@@ -23,13 +24,14 @@ impl ClaimFeedback {
         Self {
             seen_claims: HashSet::new(),
             observer_handle: observer.handle(),
+            name: Cow::Borrowed("claim_feedback"),
         }
     }
 }
 
 impl Named for ClaimFeedback {
     fn name(&self) -> &Cow<'static, str> {
-        self.observer_handle.name()
+        &self.name
     }
 }
 
@@ -62,7 +64,7 @@ where
         }
         if discovered_new_claim {
             for unique_claim in new_keys_this_exec {
-                log::info!("New claim discovered : {}", unique_claim);
+                //log::info!("New claim discovered : {}", unique_claim);
             }
             return Ok(true);
         }
@@ -73,6 +75,7 @@ where
 pub struct ProfileFeedback {
     seen_profiles: HashSet<Vec<String>>,
     observer_handle: Handle<ClaimObserver>,
+    name: Cow<'static, str>,
 }
 
 impl<S> StateInitializer<S> for ProfileFeedback {}
@@ -84,13 +87,14 @@ impl ProfileFeedback {
         Self {
             seen_profiles: HashSet::new(),
             observer_handle: observer.handle(),
+            name: Cow::Borrowed("profile_feedback"),
         }
     }
 }
 
 impl Named for ProfileFeedback {
     fn name(&self) -> &Cow<'static, str> {
-        self.observer_handle.name()
+        &self.name
     }
 }
 
@@ -118,7 +122,7 @@ where
         }
         if !self.seen_profiles.contains(current_profile) {
             self.seen_profiles.insert(current_profile.clone());
-            log::info!("New profile discovered : {:?}", current_profile);
+            //log::info!("New profile discovered : {:?}", current_profile);
             return Ok(true);
         }
         Ok(false)

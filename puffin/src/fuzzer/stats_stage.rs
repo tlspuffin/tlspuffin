@@ -6,6 +6,8 @@ use libafl::monitors::stats::*;
 use libafl::prelude::*;
 use libafl_bolts::Named;
 
+use crate::fuzzer::objective_feedback::FAIL_AT_STEP;
+
 pub enum RuntimeStats {
     // Term Eval error counters
     EvalFnCryptoError(&'static Counter),
@@ -51,6 +53,13 @@ pub enum RuntimeStats {
     NbPayload(&'static MinMaxMean),
     PayloadLength(&'static MinMaxMean),
     Duplicates(&'static Counter),
+    //Feedback stats
+    AlgebraicDiversity(&'static MinMaxMean),
+    FailStep(&'static MinMaxMean),
+    HitFdbClaim(&'static Counter),
+    HitFdbClaimProfile(&'static Counter),
+    HitFdbTerm(&'static Counter),
+    HitFdbSemEdge(&'static Counter),
 }
 
 impl RuntimeStats {
@@ -94,6 +103,12 @@ impl RuntimeStats {
             Self::NbPayload(inner) => inner.fire(consume),
             Self::PayloadLength(inner) => inner.fire(consume),
             Self::Duplicates(inner) => inner.fire(consume),
+            Self::AlgebraicDiversity(inner) => inner.fire(consume),
+            Self::FailStep(inner) => inner.fire(consume),
+            Self::HitFdbClaim(inner) => inner.fire(consume),
+            Self::HitFdbClaimProfile(inner) => inner.fire(consume),
+            Self::HitFdbTerm(inner) => inner.fire(consume),
+            Self::HitFdbSemEdge(inner) => inner.fire(consume),
         }
     }
 }
@@ -131,6 +146,14 @@ pub static TRACE_LENGTH: MinMaxMean = MinMaxMean::new("trace-length");
 pub static TERM_SIZE: MinMaxMean = MinMaxMean::new("term-size");
 pub static NB_PAYLOAD: MinMaxMean = MinMaxMean::new("nb-payload");
 pub static PAYLOAD_LENGTH: MinMaxMean = MinMaxMean::new("payload-length");
+pub static ALGEBRAIC_DIVERSITY: MinMaxMean = MinMaxMean::new("algebraic-diversity");
+pub static FAIL_STEP: MinMaxMean = MinMaxMean::new("fail-step");
+
+/// Feedback hit counters
+pub static HIT_FDB_CLAIM: Counter = Counter::new("hit-rate-claim-relative");
+pub static HIT_FDB_CLAIM_PROFILE: Counter = Counter::new("hit-rate-claim-profile-relative");
+pub static HIT_FDB_TERM: Counter = Counter::new("hit-rate-term-relative");
+pub static HIT_FDB_SEM_EDGE: Counter = Counter::new("hit-rate-sem-edge-relative");
 
 /// Metrics for evaluations and executions
 pub static ALL_EXEC: Counter = Counter::new("all-exec");
@@ -149,7 +172,7 @@ pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
 pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
 pub static DUPLICATES: Counter = Counter::new("duplicates");
 
-pub static STATS: [RuntimeStats; 35] = [
+pub static STATS: [RuntimeStats; 41] = [
     RuntimeStats::EvalFnCryptoError(&EVAL_ERR_FN_CRYPTO),
     RuntimeStats::EvalFnMalformedError(&EVAL_ERR_FN_MALFORMED),
     RuntimeStats::EvalFnUnknownError(&EVAL_ERR_FN_UNKNOWN),
@@ -185,6 +208,12 @@ pub static STATS: [RuntimeStats; 35] = [
     RuntimeStats::CorpusExec(&CORPUS_EXEC),
     RuntimeStats::CorpusExecMinimal(&CORPUS_EXEC_MINIMAL),
     RuntimeStats::Duplicates(&DUPLICATES),
+    RuntimeStats::AlgebraicDiversity(&ALGEBRAIC_DIVERSITY),
+    RuntimeStats::FailStep(&FAIL_STEP),
+    RuntimeStats::HitFdbClaim(&HIT_FDB_CLAIM),
+    RuntimeStats::HitFdbClaimProfile(&HIT_FDB_CLAIM_PROFILE),
+    RuntimeStats::HitFdbTerm(&HIT_FDB_TERM),
+    RuntimeStats::HitFdbSemEdge(&HIT_FDB_SEM_EDGE),
 ];
 
 pub trait Fire: Sync {
@@ -350,6 +379,10 @@ where
         manager: &mut EM,
     ) -> Result<(), Error> {
         if cfg!(feature = "introspection") {
+            if let Some(failed_at_step) = FAIL_AT_STEP.get() {
+                FAIL_STEP.update(failed_at_step);
+            }
+
             for stat in &STATS {
                 stat.fire(&mut |name, stats| {
                     manager.fire(

@@ -9,10 +9,10 @@ use nix::sys::wait::{waitpid, WaitPidFlag};
 use nix::unistd::{fork, ForkResult, Pid};
 
 use crate::error::Error;
+use crate::fuzzer::feedback::semantic_edge_observer::CAPTURED_SEMANTIC_EDGES;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
-use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
-
+use crate::trace::{Action, ConfigTrace, Spawner, Trace, TraceContext};
 pub trait TraceRunner: Sized {
     type PB: ProtocolBehavior;
     type R;
