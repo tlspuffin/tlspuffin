@@ -26,6 +26,13 @@ pub static LOC_S2_EMPTY: AtomicUsize = AtomicUsize::new(0); // empty child -> si
 pub static LOC_S2_LIST: AtomicUsize = AtomicUsize::new(0); // special-list heuristic
 pub static LOC_S2_UNIQUE: AtomicUsize = AtomicUsize::new(0); // non-empty child, single match
 pub static LOC_S2_MULTI: AtomicUsize = AtomicUsize::new(0); // multi-match sibling-disambig FALLBACK (the fragile complexity)
+// [locator ambiguity oracle, DEBUG-only increments] The always-on self-cert proves the located
+// bytes EQUAL the expected payload, but NOT that the location is UNIQUE. If the payload byte-seq
+// occurs at >1 position, a heuristic mislocation is byte-identical -> invisible to self-cert
+// (benign for fuzzing, but a soundness-of-representation caveat). Measure how often self-cert is
+// blind. Always-defined (0 in release); incremented only under debug.
+pub static LOC_SELFCERT_CHECKED: AtomicUsize = AtomicUsize::new(0);
+pub static LOC_SELFCERT_AMBIGUOUS: AtomicUsize = AtomicUsize::new(0);
 
 /// Increment a counter; periodically dump the #3 locator histogram + #4 drop counts to the log so
 /// we can answer "is the heuristic complexity warranted?" without permanent stats-serialization
@@ -39,7 +46,7 @@ pub fn loc_bump(c: &AtomicUsize) {
         + LOC_S2_MULTI.load(Ordering::Relaxed);
     if total % 2_000 == 0 && total > 0 {
         log::info!(
-            "[#3 locator-histogram] total={total} S1_unique={} S2_empty={} S2_list={} S2_unique={} S2_MULTI_fallback={} | [#4] rt_relax={} rt_drop={}",
+            "[#3 locator-histogram] total={total} S1_unique={} S2_empty={} S2_list={} S2_unique={} S2_MULTI_fallback={} | [#4] rt_relax={} rt_drop={} | [selfcert] ambiguous={}/{}",
             LOC_S1_UNIQUE.load(Ordering::Relaxed),
             LOC_S2_EMPTY.load(Ordering::Relaxed),
             LOC_S2_LIST.load(Ordering::Relaxed),
@@ -47,6 +54,8 @@ pub fn loc_bump(c: &AtomicUsize) {
             LOC_S2_MULTI.load(Ordering::Relaxed),
             RT_RELAX.load(Ordering::Relaxed),
             RT_DROP.load(Ordering::Relaxed),
+            LOC_SELFCERT_AMBIGUOUS.load(Ordering::Relaxed),
+            LOC_SELFCERT_CHECKED.load(Ordering::Relaxed),
         );
     }
 }
@@ -684,6 +693,27 @@ pub fn replace_payloads<PT: ProtocolTypes>(
             } else {
                 log::debug!("(encountered_get_symbol) {ft}");
                 return Err(Error::Term(ft));
+            }
+        }
+        // [locator ambiguity oracle, DEBUG-only] Self-cert (above) proved bytes-at-`start` ==
+        // old_bitstring, but NOT that `start` is the UNIQUE such position. If old_bitstring occurs
+        // at >1 position, a multi-match heuristic mislocation would be byte-identical -> INVISIBLE
+        // to self-cert. Benign for fuzzing (still a valid byte mutation, just possibly a different
+        // identical-valued occurrence), but we MEASURE how often self-cert is blind. Debug-only
+        // (O(n) scan); always 0 in release. Greppable via `[locator-ambiguity]`.
+        #[cfg(any(debug_assertions, feature = "debug"))]
+        {
+            LOC_SELFCERT_CHECKED.fetch_add(1, Ordering::Relaxed);
+            let needle = to_modify[start..end].to_vec();
+            if !needle.is_empty() && !encountered_get_symbol {
+                let occ = to_modify
+                    .windows(needle.len())
+                    .filter(|w| *w == &needle[..])
+                    .count();
+                if occ > 1 {
+                    LOC_SELFCERT_AMBIGUOUS.fetch_add(1, Ordering::Relaxed);
+                    log::debug!("[locator-ambiguity] located payload bytes ({} B) occur {occ}x in the encoding; self-cert cannot disambiguate the term's target occurrence (benign: still a valid byte mutation)", needle.len());
+                }
             }
         }
         // Performing the bytes replaceents through splicing

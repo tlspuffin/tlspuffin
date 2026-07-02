@@ -73,3 +73,18 @@ mod determinism_probe {
         }
     }
 }
+
+#[cfg(test)]
+mod rsa_det_probe {
+    use super::rsa_sign;
+    use crate::static_certs::ALICE_PRIVATE_KEY;
+    use crate::tls::rustls::msgs::enums::SignatureScheme;
+    #[test]
+    fn rsa_pss_sign_same_input_twice() {
+        let key: Vec<u8> = ALICE_PRIVATE_KEY.1.into();
+        let msg = b"determinism probe message for rsa pss";
+        let s1 = rsa_sign(msg, &key, &SignatureScheme::RSA_PSS_SHA256).expect("s1");
+        let s2 = rsa_sign(msg, &key, &SignatureScheme::RSA_PSS_SHA256).expect("s2");
+        assert_eq!(s1, s2, "RSA-PSS non-deterministic: len {} vs {}", s1.len(), s2.len());
+    }
+}

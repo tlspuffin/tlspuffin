@@ -11,7 +11,7 @@ use serde::Serialize;
 
 use super::harness;
 use crate::fuzzer::bit_mutations::{
-    bit_mutations_dy, havoc_mutations_dy, MakeMessage, MakeMessageShared, ReadMessage,
+    bit_mutations_dy, havoc_mutations_dy, MakeMessage, ReadMessage,
 };
 pub(crate) use crate::fuzzer::config::FuzzerConfig;
 use crate::fuzzer::config::{FuzzingTarget, MIN_BIT_CORPUS};
@@ -260,7 +260,6 @@ where
         let mutator_bit_focus = FocusScheduledMutator::new(
             tuple_list!(
                 MakeMessage::new(mutation_config_focus, put_registry),
-                MakeMessageShared::new(mutation_config_focus, put_registry),
             ),
             havoc_mutations_dy::<StdState<C, Trace<PT>, R, SC>, PT>(mutation_config_focus),
             tuple_list!(ReadMessage::new(mutation_config_focus, put_registry)),

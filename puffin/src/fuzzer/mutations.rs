@@ -58,9 +58,11 @@ pub struct MutationConfig {
     /// Was the const MIN_BIT_EXECS (5000); tunable to test a later kick-in. Default 5000.
     pub bit_after_execs: u64,
     /// [shared-payload] When true, MakeMessageShared is included in the focus mutator set and may
-    /// be triggered. Default false (OFF) — feature is not active until explicitly enabled via
-    /// `--shared-payloads`. Keeps the default fuzzer behaviour unchanged.
+    /// mutate structurally identical sub-terms consistently.
     pub shared_payloads: bool,
+    /// [shared-payload] When true, the MakeMessage mutator WILL ALWAYS use the shared-payload
+    /// behavior (probability 1.0) and never use the old behavior.
+    pub only_shared_payloads: bool,
 }
 
 impl Default for MutationConfig {
@@ -83,6 +85,7 @@ impl Default for MutationConfig {
             dy_after_execs: 0,
             bit_after_execs: 5000, // = MIN_BIT_EXECS (current default)
             shared_payloads: false, // [shared-payload] OFF by default until evaluated
+            only_shared_payloads: false,
         }
     }
 }
