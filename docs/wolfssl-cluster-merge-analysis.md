@@ -2,8 +2,31 @@
 
 **Scope:** the committed live-TCP model `evaluation-ddyf/fingerprinting/reference/wolfssl`
 (16 clusters, depth 4, 8 probes, validated 24/24). This report explains, cluster by cluster,
-*why* the versions merged into one cluster are not distinguishable — backed by the official
-wolfSSL `ChangeLog.md` and the vendored source diffs — and gives a unifying taxonomy.
+*why* the versions merged into one cluster are not distinguished — backed by the official
+wolfSSL `ChangeLog.md`, vendored source diffs, and (authoritatively) empirical
+differential-execute.
+
+> **Vocabulary (use these three levels; do not conflate them).**
+> - **TCP-DIST** — distinguishable *in theory* on the wire: some client behaviour over TCP
+>   yields a differing server response. A ground-truth property of the binaries.
+> - **PUFFIN-DIST (FFI)** — tlspuffin's `differential-execute` on the in-process PUTs finds a
+>   *stable, self-consistent* difference. Implies TCP-DIST.
+> - **PUFFIN-DIST (live)** — the deployed live-TCP model (probing the stock example server)
+>   distinguishes them. This is what the 16 clusters measure.
+>
+> Implications: `PUFFIN-DIST(live) ⟹ PUFFIN-DIST(FFI) ⟹ TCP-DIST`. The converses fail.
+> **¬PUFFIN-DIST does *not* prove ¬TCP-DIST** — a better Mapper / smarter fuzzing could reach a
+> wire difference we currently miss. Empirical screens below establish PUFFIN-DIST facts, not
+> TCP-DIST impossibility.
+
+> **Headline empirical result (K=6 replay over the full mined corpus, self-consistency
+> filtered).** Cluster **C1 {5.7.6, 5.8.0, 5.8.2} is TCP-DIST and the live model
+> under-clusters it**: 5.7.6|5.8.0 = **79/767** stable distinguishing probes, 5.8.0|5.8.2 =
+> **8/767**, all a clean `Different(IllegalParameter, MissingExtension)` server alert-code
+> difference — so PUFFIN-DIST(FFI)=YES, TCP-DIST=YES. But those probes replay to **EMPTY** over
+> live-TCP against the stock example server, so PUFFIN-DIST(live)=NO → merged. This is a real
+> FFI→live channel gap. **Every other merged pair is ¬PUFFIN-DIST at the FFI level too**
+> (0 stable across 767 probes) — strong (not conclusive) evidence of ¬TCP-DIST.
 
 **Method.** For each merged cluster: (1) verify the vendored version label
 (`version.h`), (2) read the official ChangeLog entries for the version bump, (3) scan the
@@ -12,6 +35,17 @@ passively-wire-observable** changes (extension echo `TLSX_SetResponse`, `ServerH
 shaping, `SendAlert` description, TLS 1.3 receive-path state machine). The fingerprinter is a
 Dolev-Yao **client-attacker probing a server** over TCP; it only ever sees the server's
 *unencrypted* handshake bytes, alerts, and connection disposition.
+
+> **Method caveat (added after the OpenSSL survey).** Changelog + diff reading is
+> **hypothesis generation, not proof**, of wire-observability. Two failure modes bit the
+> companion OpenSSL analysis and could bite here:
+> (1) **Changelogs are structurally blind** to wire side-effects — a security fix can silently
+> change *which alert code* a server returns without any changelog mention.
+> (2) **Diff scans must be idiom-complete** — wolfSSL emits alerts via
+> `SendAlert(ssl, alert_fatal, <description>)`; a scan that greps the wrong forms can conclude
+> "nothing observable" from an incomplete search. The authoritative source is **empirical
+> differential-execute with K-replay**. Where this report says "not observable," treat the
+> claim as verified *only* where an empirical line below says so.
 
 ---
 
@@ -37,7 +71,12 @@ Dolev-Yao **client-attacker probing a server** over TCP; it only ever sees the s
 - **Why merged:** the fix randomizes the CBC record IV — an *encrypted record-layer* value.
   A passive observer cannot tell a random from a non-random IV without breaking the cipher,
   and our probes negotiate AEAD anyway. Nothing in the observable handshake changed.
-  **Genuinely indistinguishable — correct merge.**
+- **Empirical (K=6 replay over the full mined corpus).** `differential-execute wolfssl510
+  wolfssl511` over all **767** mined probes → **0 differing probes even at 1-shot**.
+  So **¬PUFFIN-DIST (FFI)** — 5.1.0/5.1.1 are identical on every probe our system has. This is
+  strong evidence of **¬TCP-DIST**, but not proof: a probe outside the corpus, or a Mapper
+  extension, could in principle still find a difference. Consistent with the changelog (IV
+  randomisation is an encrypted-record change, not handshake-structural).
 
 ### {5.5.2, 5.5.3} — internal memory-safety fix only
 - **ChangeLog 5.5.3:** a single bug fix — a buffer-zeroization overrun that only triggers on
@@ -66,22 +105,22 @@ Dolev-Yao **client-attacker probing a server** over TCP; it only ever sees the s
 - **Why merged:** the changes are internal crypto, client-side, DTLS, opt-in, or
   build/refactor. None alter the default server's observable handshake. **Correct merge.**
 
-### {5.7.6, 5.8.0, 5.8.2} — real features, but masked by the stock build/config
-(Analyzed separately in depth.)
-- **5.7.6→5.8.0** adds two *wire-observable-in-principle* server behaviors: post-quantum
-  **ML-KEM key shares** and an **OCSP `status_request` echo**. Both are **masked**:
-  - PQC/ML-KEM is **not compiled** into any vendored build (0 `HAVE_PQC`/`MLKEM` defines) —
-    the server ignores PQC groups.
-  - `status_request` echo is gated on `ssl->ocspRespSz > 0` — it only fires with an OCSP
-    responder callback the stock example server never configures.
-- **5.8.0→5.8.2:** internal refactor only (downgrade-config plumbing, `TLSX_IsGroupSupported`
-  helper, key-share handling); the "new `unexpected_message` alerts" were a diff-alignment
-  artifact (both versions have 6). No wire-observable difference; FFI shows none on standard
-  handshakes.
-- **Why merged:** the library differs, but the *stock example server* does not exercise the
-  differing paths. Splitting 5.7.6 from {5.8.0, 5.8.2} would require a **PQC-enabled server
-  build + a Mapper extension for PQC groups**; 5.8.0 vs 5.8.2 has no reachable wire
-  difference at all. This is the only cluster with a (conditional) path to a split.
+### {5.7.6, 5.8.0, 5.8.2} — **TCP-DIST; the live model under-clusters this** ⚠️
+This is the one cluster that is genuinely distinguishable and wrongly merged by the live model.
+- **Empirical (K=6, full corpus).** `differential-execute` finds **stable, self-consistent**
+  splits on the mined probes: **5.7.6|5.8.0 = 79/767**, **5.8.0|5.8.2 = 8/767**, all a clean
+  server alert-code difference `Different(IllegalParameter, MissingExtension)`. So all three are
+  **pairwise PUFFIN-DIST(FFI) ⟹ TCP-DIST**. (An earlier draft's PQC/OCSP "masking" story was a
+  side-issue; the real, empirically-confirmed distinguisher is the alert code.)
+- **But PUFFIN-DIST(live) = NO.** Replaying those same probes over live-TCP against the stock
+  example server yields **EMPTY from every version** (6/6), so they don't distinguish live and
+  the model merges them. The split exists at the library/FFI level but the live-TCP replay of
+  these FFI-mined traces doesn't elicit the alert.
+- **Why the gap:** the mined probes were generated/scored in the FFI differential-fuzzing
+  context; over raw TCP against the example-server config they don't reach the alert-emitting
+  path (they replay to EMPTY). Whether a *different* live probe could elicit it — i.e. whether
+  C1 is PUFFIN-DIST(live)-achievable — is **open** and is the single best lead for adding
+  clusters. This is the concrete "TCP-DIST but not yet PUFFIN-DIST(live)" case.
 
 ### {5.9.0, 5.9.1} — CVE fixes, all client-side or non-TLS-over-TCP
 - **ChangeLog 5.9.1:** a large release, but the substantive items are out of the observable
@@ -146,9 +185,26 @@ extension-echo decision on the default path.
 - **Data fix:** relabel/re-vendor `wolfssl521` (really 5.0.1) so the model is honest about the
   versions it covers.
 
-## Bottom line
-The 6 merges are, with one exception, **correct and expected**: the inter-version differences
-live in dimensions a passive remote observer cannot see (internal crypto/memory, client-side
-validation, dormant features, non-TCP transports, refactors). 16 clusters is the honest
-live-TCP ceiling for this version set and probe channel. The single actionable defect is the
-`wolfssl521`→5.0.1 mislabel.
+## Bottom line (empirically re-assessed)
+- **C1 {5.7.6, 5.8.0, 5.8.2} is TCP-DIST and under-clustered by the live model** (79 & 8 stable
+  FFI splits on a `IllegalParameter`↔`MissingExtension` alert). PUFFIN-DIST(FFI)=YES,
+  PUFFIN-DIST(live)=NO (probes replay EMPTY). Splitting it in the deployed model is the top
+  lead — requires a live-TCP probe that elicits the alert (open question).
+- **All 5 other merges are ¬PUFFIN-DIST at the FFI level** (0 stable across 639–767 mined
+  probes): 5.1.0|5.1.1, 5.5.2|5.5.3, 5.6.0|5.6.2, 5.6.2|5.6.3, 5.9.0|5.9.1, 5.0.0|5.0.1.
+  Strong evidence of ¬TCP-DIST, consistent with their changelogs (internal crypto/memory,
+  client-side, non-TCP, refactor) — but **not proof**: a better Mapper/fuzzer could still find
+  a difference. These are honest ¬PUFFIN-DIST verdicts, not proven TCP-indistinguishability.
+- Data defect: the `wolfssl521`→5.0.1 mislabel.
+
+So the live model is **not** the ceiling: it is a lower bound that already under-clusters C1
+relative to the library's true (FFI-provable) distinguishability. 16 is the live-example-server
+count; the FFI-provable count is at least 18 (C1 → 3).
+
+**Cross-reference:** the companion `openssl-cluster-shatter-survey.md` shows the *positive*
+side of the same coin — OpenSSL versions **do** change observably, via server **alert-code
+hardening** on error paths (e.g. `INTERNAL_ERROR`→`ILLEGAL_PARAMETER`), which is
+changelog-invisible but diff-visible (`SSLfatal(SSL_AD_*)`) and empirically stable. wolfSSL's
+analog would be `SendAlert` description changes; the empirical screen above found none between
+5.1.0/5.1.1, but that idiom should be the first thing checked for any wolfSSL pair before
+declaring it merged.
