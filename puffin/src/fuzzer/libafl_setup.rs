@@ -258,12 +258,12 @@ where
         };
         let mutation_config_focus = mutation_config; // focus is already sets to the wanted value
         let mutator_bit_focus = FocusScheduledMutator::new(
-            tuple_list!(
-                MakeMessage::new(mutation_config_focus, put_registry),
-            ),
+            tuple_list!(MakeMessage::new(mutation_config_focus, put_registry),),
             havoc_mutations_dy::<StdState<C, Trace<PT>, R, SC>, PT>(mutation_config_focus),
             tuple_list!(ReadMessage::new(mutation_config_focus, put_registry)),
-            self.config.mutation_stage_config.max_mutations_pow_per_iteration as usize,
+            self.config
+                .mutation_stage_config
+                .max_mutations_pow_per_iteration as usize,
         );
         let cb_focus_bit_level = |_: &mut _,
                                   _: &mut _,

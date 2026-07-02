@@ -66,10 +66,20 @@ mod determinism_probe {
     #[test]
     fn ecdsa_sign_is_deterministic_over_arbitrary_data() {
         let key: Vec<u8> = RANDOM_EC_PRIVATE_KEY_PKCS8.1.into();
-        for msg in [b"abc".as_slice(), b"a much longer arbitrary message ...", &[0u8; 200]] {
+        for msg in [
+            b"abc".as_slice(),
+            b"a much longer arbitrary message ...",
+            &[0u8; 200],
+        ] {
             let s1 = ecdsa_sign(msg, &key).expect("sign1");
             let s2 = ecdsa_sign(msg, &key).expect("sign2");
-            assert_eq!(s1, s2, "ecdsa_sign non-deterministic (len {} vs {})", s1.len(), s2.len());
+            assert_eq!(
+                s1,
+                s2,
+                "ecdsa_sign non-deterministic (len {} vs {})",
+                s1.len(),
+                s2.len()
+            );
         }
     }
 }
@@ -85,6 +95,12 @@ mod rsa_det_probe {
         let msg = b"determinism probe message for rsa pss";
         let s1 = rsa_sign(msg, &key, &SignatureScheme::RSA_PSS_SHA256).expect("s1");
         let s2 = rsa_sign(msg, &key, &SignatureScheme::RSA_PSS_SHA256).expect("s2");
-        assert_eq!(s1, s2, "RSA-PSS non-deterministic: len {} vs {}", s1.len(), s2.len());
+        assert_eq!(
+            s1,
+            s2,
+            "RSA-PSS non-deterministic: len {} vs {}",
+            s1.len(),
+            s2.len()
+        );
     }
 }

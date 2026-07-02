@@ -258,7 +258,10 @@ where
             .store(false, std::sync::atomic::Ordering::Relaxed);
     }
     if let Some(n) = matches.get_one::<usize>("max-payloads-per-term") {
-        config.mutation_config.term_constraints.threshold_max_payloads_per_term = *n;
+        config
+            .mutation_config
+            .term_constraints
+            .threshold_max_payloads_per_term = *n;
     }
     if let Some(n) = matches.get_one::<u64>("max-stack-pow") {
         config.mutation_stage_config.max_mutations_pow_per_iteration = *n;

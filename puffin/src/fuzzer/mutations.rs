@@ -83,7 +83,7 @@ impl Default for MutationConfig {
             bit_from_start: false,
             bit_allow_subterm_no_dy: false,
             dy_after_execs: 0,
-            bit_after_execs: 5000, // = MIN_BIT_EXECS (current default)
+            bit_after_execs: 5000,  // = MIN_BIT_EXECS (current default)
             shared_payloads: false, // [shared-payload] OFF by default until evaluated
             only_shared_payloads: false,
         }

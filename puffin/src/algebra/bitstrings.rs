@@ -20,17 +20,17 @@ pub static R3_RELAX_REFRAMING: AtomicBool = AtomicBool::new(true);
 // [#4] round-trip drop counters (boundary consume path in eval_until_opaque).
 pub static RT_RELAX: AtomicUsize = AtomicUsize::new(0); // reframing arg kept best-effort (R3)
 pub static RT_DROP: AtomicUsize = AtomicUsize::new(0); // arg dropped by strict read∘encode check
-// [#3] locator path histogram (per descend-iteration outcome in find_unique_match_rec).
+                                                       // [#3] locator path histogram (per descend-iteration outcome in find_unique_match_rec).
 pub static LOC_S1_UNIQUE: AtomicUsize = AtomicUsize::new(0); // fast direct-unique match (happy path)
 pub static LOC_S2_EMPTY: AtomicUsize = AtomicUsize::new(0); // empty child -> sibling positioning
 pub static LOC_S2_LIST: AtomicUsize = AtomicUsize::new(0); // special-list heuristic
 pub static LOC_S2_UNIQUE: AtomicUsize = AtomicUsize::new(0); // non-empty child, single match
 pub static LOC_S2_MULTI: AtomicUsize = AtomicUsize::new(0); // multi-match sibling-disambig FALLBACK (the fragile complexity)
-// [locator ambiguity oracle, DEBUG-only increments] The always-on self-cert proves the located
-// bytes EQUAL the expected payload, but NOT that the location is UNIQUE. If the payload byte-seq
-// occurs at >1 position, a heuristic mislocation is byte-identical -> invisible to self-cert
-// (benign for fuzzing, but a soundness-of-representation caveat). Measure how often self-cert is
-// blind. Always-defined (0 in release); incremented only under debug.
+                                                            // [locator ambiguity oracle, DEBUG-only increments] The always-on self-cert proves the located
+                                                            // bytes EQUAL the expected payload, but NOT that the location is UNIQUE. If the payload byte-seq
+                                                            // occurs at >1 position, a heuristic mislocation is byte-identical -> invisible to self-cert
+                                                            // (benign for fuzzing, but a soundness-of-representation caveat). Measure how often self-cert is
+                                                            // blind. Always-defined (0 in release); incremented only under debug.
 pub static LOC_SELFCERT_CHECKED: AtomicUsize = AtomicUsize::new(0);
 pub static LOC_SELFCERT_AMBIGUOUS: AtomicUsize = AtomicUsize::new(0);
 
@@ -716,7 +716,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                 }
             }
         }
-        // Performing the bytes replaceents through splicing
+        // Performing the byte replacements through splicing
         let to_remove: Vec<u8> = to_modify
             .splice(start..end, new_bitstring.to_vec())
             .collect();

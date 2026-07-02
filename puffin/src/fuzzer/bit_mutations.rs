@@ -289,7 +289,9 @@ fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
         if mm_under {
             MM_FAILREACH_OPAQUE.increment(); // [INV-B] fail_reach under opaque/reframing boundary
         }
-        log::debug!("[MM-measure] target_step={target_step} reached={reached} outcome=fail_reach {mm_tag}");
+        log::debug!(
+            "[MM-measure] target_step={target_step} reached={reached} outcome=fail_reach {mm_tag}"
+        );
         // 20% to 50% MakeMessage mutations fail, so this is a bit costly :(
         // TODO: we could memoize the term evaluation in a Option<ConcreteMessage> and use that here
         log::debug!("mutation::MakeMessage trace is not executable until step {target_step},\
@@ -306,7 +308,9 @@ fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
             if mm_under {
                 MM_OK_OPAQUE.increment(); // [INV-B] success under opaque/reframing boundary
             }
-            log::debug!("[MM-measure] target_step={target_step} reached={reached} outcome=ok {mm_tag}");
+            log::debug!(
+                "[MM-measure] target_step={target_step} reached={reached} outcome=ok {mm_tag}"
+            );
             Ok(())
         }
         Err(e) => {
@@ -451,9 +455,10 @@ where
                     }
                 }
             }
-            let target_term = find_term(trace, &trace_path).expect("make_message_term - Should never happen.");
+            let target_term =
+                find_term(trace, &trace_path).expect("make_message_term - Should never happen.");
             log::debug!("[Mutation-bit] Mutate MakeMessage on term\n{}", target_term);
-            
+
             let do_shared_intent = if self.config.only_shared_payloads {
                 true
             } else if self.config.shared_payloads {
@@ -462,12 +467,15 @@ where
                 false
             };
 
-            if self.config.only_shared_payloads && (target_term.has_variable() || target_term.size() < 2) {
+            if self.config.only_shared_payloads
+                && (target_term.has_variable() || target_term.size() < 2)
+            {
                 return Ok(MutationResult::Skipped);
             }
 
             // shared behavior only applies if target is variable-free and has size >= 2
-            let do_shared = do_shared_intent && !target_term.has_variable() && target_term.size() >= 2;
+            let do_shared =
+                do_shared_intent && !target_term.has_variable() && target_term.size() >= 2;
 
             let spawner = Spawner::new(self.put_registry.clone());
             // log::trace!("Using self.put_registry {:?} to compute ctx",
@@ -485,9 +493,9 @@ where
             BIT_EXEC.increment();
 
             let mutation_result = if do_shared {
-                use crate::fuzzer::utils::find_all_term_filtered;
                 use crate::fuzzer::stats_stage::{MM_SHARED_OK, MM_SHARED_SINGLETON};
-                
+                use crate::fuzzer::utils::find_all_term_filtered;
+
                 let unconstrained = TermConstraints {
                     must_be_symbolic: false,
                     no_payload_in_subterm: false,
@@ -498,7 +506,7 @@ where
                     must_be_root: false,
                     ..TermConstraints::default()
                 };
-                
+
                 let target_clone = target_term.clone();
                 let occurrences: Vec<TracePath> = find_all_term_filtered(
                     trace,
@@ -517,8 +525,8 @@ where
                     // (the ~50% INV-A wall) even though no execution was needed. That spuriously
                     // suppressed shared-group formation. We compute the bytes directly from a fresh
                     // ctx (unused for variable-free terms).
-                    let payload_bytes_opt = find_term(trace, &trace_path)
-                        .and_then(|t| t.evaluate_symbolic(&ctx).ok());
+                    let payload_bytes_opt =
+                        find_term(trace, &trace_path).and_then(|t| t.evaluate_symbolic(&ctx).ok());
 
                     if let Some(payload_bytes) = payload_bytes_opt {
                         let shared_id = trace.fresh_shared_id();
@@ -536,7 +544,9 @@ where
                         Ok(())
                     } else {
                         MM_FAIL_MAKE.increment();
-                        Err(crate::error::Error::Term("Failed to evaluate for shared".to_string()))
+                        Err(crate::error::Error::Term(
+                            "Failed to evaluate for shared".to_string(),
+                        ))
                     }
                 }
             } else {
@@ -591,7 +601,6 @@ where
         &Cow::Borrowed("MakeMessage")
     }
 }
-
 
 // --------------------------------------------------------------------------------------------------
 // ReadMessage mutation
@@ -1045,12 +1054,12 @@ where
             Some(to_mutate) => {
                 log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
                 if let Some(payloads) = &mut to_mutate.payloads {
-                    let result = BytesSwapMutator::mutate(&mut self.tmp_buf, state, &mut payloads.payload).map(
-                        |r| {
-                            payloads.set_changed();
-                            r
-                        },
-                    );
+                    let result =
+                        BytesSwapMutator::mutate(&mut self.tmp_buf, state, &mut payloads.payload)
+                            .map(|r| {
+                                payloads.set_changed();
+                                r
+                            });
                     let shared = payloads.shared_id;
                     let new_bytes: Vec<u8> = payloads.payload.mutator_bytes().to_vec();
                     if matches!(result, Ok(MutationResult::Mutated)) {
@@ -1135,11 +1144,15 @@ where
             Some(to_mutate) => {
                 log::debug!("[Mutation-bit] Mutate {} on term\n{to_mutate}", self.name(),);
                 if let Some(payloads) = &mut to_mutate.payloads {
-                    let result = BytesInsertCopyMutator::mutate(&mut self.tmp_buf, state, &mut payloads.payload)
-                        .map(|r| {
-                            payloads.set_changed();
-                            r
-                        });
+                    let result = BytesInsertCopyMutator::mutate(
+                        &mut self.tmp_buf,
+                        state,
+                        &mut payloads.payload,
+                    )
+                    .map(|r| {
+                        payloads.set_changed();
+                        r
+                    });
                     let shared = payloads.shared_id;
                     let new_bytes: Vec<u8> = payloads.payload.mutator_bytes().to_vec();
                     if matches!(result, Ok(MutationResult::Mutated)) {

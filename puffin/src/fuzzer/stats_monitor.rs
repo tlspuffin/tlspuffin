@@ -680,7 +680,9 @@ impl ErrorStatistics {
                 RuntimeStats::PayloadLength(_) => {}
                 RuntimeStats::TermSize(_) => {}
                 RuntimeStats::ReachedStep(_) => {}
-                RuntimeStats::MmSharedOk(c) => self.mm_shared_ok += get_number(client_stats, c.name),
+                RuntimeStats::MmSharedOk(c) => {
+                    self.mm_shared_ok += get_number(client_stats, c.name)
+                }
                 RuntimeStats::MmSharedSingleton(c) => {
                     self.mm_shared_singleton += get_number(client_stats, c.name)
                 }
