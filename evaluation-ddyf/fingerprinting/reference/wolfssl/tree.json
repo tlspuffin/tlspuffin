@@ -21,27 +21,42 @@
       "children": {
         "06d9ed64a079bc89921c9d72525ac3a9004306bd797084b5e3e3e63a619a8952": {
           "type": "node",
-          "trace": "probes/20260609-222826816-e4c49967a70ff749.trace",
-          "probe": 1,
-          "default": "5a96bdd74849c81ba93619b9b746a229c456fbd97a6cd386817e868c6aa35e76",
+          "trace": "probes/seed_client_attacker12_etm.trace",
+          "probe": 806,
+          "default": "b01ee737f19e809f307435864eb71aafa53cac5a433a12ae7af225ccceae0ebf",
           "children": {
-            "5a96bdd74849c81ba93619b9b746a229c456fbd97a6cd386817e868c6aa35e76": {
+            "b01ee737f19e809f307435864eb71aafa53cac5a433a12ae7af225ccceae0ebf": {
               "type": "leaf",
               "clusters": [
                 [
                   "wolfssl510",
-                  "wolfssl511",
-                  "wolfssl520"
+                  "wolfssl511"
                 ]
               ]
             },
-            "9875e264abb04791c4eb19905ed6b8d2c5eacc9f4c6c374f959223998b55e25d": {
-              "type": "leaf",
-              "clusters": [
-                [
-                  "wolfssl530"
-                ]
-              ]
+            "2157ce321c8c7d5e504afc1d6ac684ef292d6bc809c7e6f8ac0600fd60447089": {
+              "type": "node",
+              "trace": "probes/20260609-222826816-e4c49967a70ff749.trace",
+              "probe": 1,
+              "default": "5a96bdd74849c81ba93619b9b746a229c456fbd97a6cd386817e868c6aa35e76",
+              "children": {
+                "5a96bdd74849c81ba93619b9b746a229c456fbd97a6cd386817e868c6aa35e76": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "wolfssl520"
+                    ]
+                  ]
+                },
+                "9875e264abb04791c4eb19905ed6b8d2c5eacc9f4c6c374f959223998b55e25d": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "wolfssl530"
+                    ]
+                  ]
+                }
+              }
             }
           }
         },

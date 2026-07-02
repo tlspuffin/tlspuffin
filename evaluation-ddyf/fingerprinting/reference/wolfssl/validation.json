@@ -11,6 +11,7 @@
     "dom": 21,
     "retry": 3,
     "timeout": 8.0,
-    "disposition": false
+    "disposition": false,
+    "seg_robust": false
   }
 }
