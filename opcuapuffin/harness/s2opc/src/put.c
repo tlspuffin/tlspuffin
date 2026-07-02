@@ -30,7 +30,11 @@ static const OPCUA_PUT_INTERFACE s2opc_vtable = {
     }
 };
 
-const OPCUA_PUT_INTERFACE s2opc() {
+#ifndef REGISTER
+#define REGISTER s2opc
+#endif
+
+const OPCUA_PUT_INTERFACE REGISTER() {
     return s2opc_vtable;
 };
 
