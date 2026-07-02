@@ -116,11 +116,20 @@ This is the one cluster that is genuinely distinguishable and wrongly merged by 
   example server yields **EMPTY from every version** (6/6), so they don't distinguish live and
   the model merges them. The split exists at the library/FFI level but the live-TCP replay of
   these FFI-mined traces doesn't elicit the alert.
-- **Why the gap:** the mined probes were generated/scored in the FFI differential-fuzzing
-  context; over raw TCP against the example-server config they don't reach the alert-emitting
-  path (they replay to EMPTY). Whether a *different* live probe could elicit it — i.e. whether
-  C1 is PUFFIN-DIST(live)-achievable — is **open** and is the single best lead for adding
-  clusters. This is the concrete "TCP-DIST but not yet PUFFIN-DIST(live)" case.
+- **Resolved (see `wolfssl-c1-split-analysis.md` for the full, exhaustive analysis).** A
+  purpose-built probe (`seed_client_attacker13_no_sigalgs`) isolates the real mechanism:
+  5.8.0 hardened the TLS 1.3 missing-`signature_algorithms` check (5.7.6 accepts, 5.8.0/5.8.2
+  reject `missing_extension`). It splits **{5.7.6} | {5.8.0, 5.8.2}** live, but **only against a
+  TLS-1.3-only server** (`-v 4` / a 1.3-only deployment); on the **default v23 dual-stack** stock
+  server it is masked (the server negotiates TLS 1.2 or fails earlier with a version-independent
+  `handshake_failure`).
+- **5.8.0 vs 5.8.2: no server-observable difference on any config.** An exhaustive
+  function-by-function source diff (server-built messages, `DoTls13ClientHello`, 1.2 path,
+  key-share/group selection, PSK, record layer) shows every inter-version change is DTLS,
+  client-side, internal crypto, a disabled-by-default feature (ECH/PQC), a pure rename, or a
+  config-gated path. So on a **default build** C1 is a **genuine merge**; the only achievable
+  split is the 2-way {5.7.6}|{5.8.0,5.8.2} on a TLS-1.3-only server. This corrects the earlier
+  "single best lead / FFI-provable count ≥ 18 / C1→3" framing below.
 
 ### {5.9.0, 5.9.1} — CVE fixes, all client-side or non-TLS-over-TCP
 - **ChangeLog 5.9.1:** a large release, but the substantive items are out of the observable
@@ -186,10 +195,14 @@ extension-echo decision on the default path.
   versions it covers.
 
 ## Bottom line (empirically re-assessed)
-- **C1 {5.7.6, 5.8.0, 5.8.2} is TCP-DIST and under-clustered by the live model** (79 & 8 stable
-  FFI splits on a `IllegalParameter`↔`MissingExtension` alert). PUFFIN-DIST(FFI)=YES,
-  PUFFIN-DIST(live)=NO (probes replay EMPTY). Splitting it in the deployed model is the top
-  lead — requires a live-TCP probe that elicits the alert (open question).
+- **C1 {5.7.6, 5.8.0, 5.8.2} is TCP-DIST at the FFI level but a genuine merge on default build.**
+  An exhaustive source diff (`wolfssl-c1-split-analysis.md`) shows all three are wire-identical
+  on every observable default-config handshake path. The only real server-observable difference
+  (5.8.0's missing-`signature_algorithms` hardening) splits **{5.7.6} | {5.8.0, 5.8.2}** only
+  against a **TLS-1.3-only server** (`-v 4`); it is masked on the default v23 dual-stack stock
+  server. **5.8.0 vs 5.8.2 has no server-observable difference on any config.** So a live split
+  of C1 is achievable only as a **2-way** split, and only under a 1.3-only server config — not
+  on the stock default.
 - **All 5 other merges are ¬PUFFIN-DIST at the FFI level** (0 stable across 639–767 mined
   probes): 5.1.0|5.1.1, 5.5.2|5.5.3, 5.6.0|5.6.2, 5.6.2|5.6.3, 5.9.0|5.9.1, 5.0.0|5.0.1.
   Strong evidence of ¬TCP-DIST, consistent with their changelogs (internal crypto/memory,
@@ -197,9 +210,9 @@ extension-echo decision on the default path.
   a difference. These are honest ¬PUFFIN-DIST verdicts, not proven TCP-indistinguishability.
 - Data defect: the `wolfssl521`→5.0.1 mislabel.
 
-So the live model is **not** the ceiling: it is a lower bound that already under-clusters C1
-relative to the library's true (FFI-provable) distinguishability. 16 is the live-example-server
-count; the FFI-provable count is at least 18 (C1 → 3).
+So **16 clusters is the honest ceiling for the stock default-config live model.** C1's FFI-level
+distinguishability does not translate to a default-server split; only a TLS-1.3-only reference
+server config would yield a 2-way C1 split (→ 17), never the full C1→3.
 
 **Cross-reference:** the companion `openssl-cluster-shatter-survey.md` shows the *positive*
 side of the same coin — OpenSSL versions **do** change observably, via server **alert-code
