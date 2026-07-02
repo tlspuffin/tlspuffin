@@ -250,8 +250,17 @@ pub trait ProtocolTypes:
     ) -> Vec<crate::algebra::Term<Self>>;
 
     /// Replace trace's agent protocol config with a set of parameters
-    /// that should be supported by all PUTs
-    fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self>;
+    /// that should be supported by all PUTs.
+    ///
+    /// When `fingerprinting` is true this is a no-op (the trace is returned unchanged): a
+    /// fingerprinting campaign probes each PUT under its real default config rather than an
+    /// artificial uniformised regime. The flag is threaded explicitly (via FuzzerConfig for the
+    /// fuzzing harness, and the `seed` subcommand flag for seed generation) so it reaches fuzzer
+    /// worker processes -- a process global set in `main` would not.
+    fn differential_fuzzing_uniformise_put_config(
+        trace: Trace<Self>,
+        fingerprinting: bool,
+    ) -> Trace<Self>;
 
     /// Check whether a difference should be kept
     /// Use this to remove specific false positive without altering the capabilities of the

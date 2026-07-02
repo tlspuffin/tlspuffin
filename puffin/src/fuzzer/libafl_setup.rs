@@ -573,9 +573,18 @@ where
                     };
                     Box::new(|input: &_| harness::harness::<PB>(put_registry, put_desc, input))
                 }
-                FuzzingTarget::Differential(first, second) => Box::new(|input: &_| {
-                    harness::differential_harness::<PB>(put_registry, first, second, input)
-                }),
+                FuzzingTarget::Differential(first, second) => {
+                    let fingerprinting = config.fingerprinting;
+                    Box::new(move |input: &_| {
+                        harness::differential_harness::<PB>(
+                            put_registry,
+                            first,
+                            second,
+                            input,
+                            fingerprinting,
+                        )
+                    })
+                }
             };
 
         let harness_fn = &mut (|input: &_| boxed_harness_fn(input));

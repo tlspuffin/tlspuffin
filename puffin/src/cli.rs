@@ -42,6 +42,7 @@ where
         .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do")
             .value_parser(value_parser!(u64).range(0..)))
         .arg(arg!(--minimizer "Use a minimizer"))
+        .arg(arg!(--fingerprinting "Enable fingerprinting mode for the whole process: probe each PUT under its real (default) config instead of the uniformised cross-implementation regime. Applies to all execute commands and fuzzing campaigns (experiment and non-experiment). Guards every fingerprinting-specific behaviour edit to puffin."))
         .arg(arg!(--tui "Display fuzzing logs using the interactive terminal UI"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
@@ -138,6 +139,9 @@ where
     let port: u16 = *matches.get_one::<u16>("port").unwrap_or(&1337u16);
     let static_seed: Option<u64> = matches.get_one("seed").copied();
     let max_iters: Option<u64> = matches.get_one("max-iters").copied();
+    // Fingerprinting mode: threaded into FuzzerConfig (below) so fuzzer worker processes honour
+    // it, and read directly for the single-process seed/execute paths.
+    let fingerprinting = matches.get_flag("fingerprinting");
     let minimizer = matches.get_flag("minimizer");
     let tui = matches.get_flag("tui");
     let no_launcher = matches.get_flag("no-launcher");
@@ -192,6 +196,7 @@ where
         no_launcher,
         verbosity,
         stats_interval,
+        fingerprinting,
         ..Default::default()
     };
 
@@ -780,9 +785,12 @@ fn seed<PB: ProtocolBehavior>(
         }
 
         if differential_fuzzing {
+            // In fingerprinting mode this is a no-op: probe each PUT under its real default config
+            // so results reproduce against a live stock server (see the trait doc).
             trace =
                 <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
                     trace,
+                    fingerprinting,
                 );
         }
 

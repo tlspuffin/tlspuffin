@@ -1473,12 +1473,18 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
 /// distinguishes 5.7.6 from 5.8.0 at the FFI/library level** (`differential-execute`, 8/8),
 /// confirming cluster C1 {5.7.6, 5.8.0, 5.8.2} is TCP-DIST.
 ///
-/// It does **not** split C1 on the *stock example server* over live TCP: that server rejects a
-/// no-`signature_algorithms` ClientHello at suite/auth matching (`MATCH_SUITE_ERROR ->
-/// handshake_failure(40)`) *before* the divergent validation, identically across versions, so
-/// the difference is config-masked. Reaching it live needs a server configured to run the
-/// required-extension check first (e.g. the FFI harness config). Kept as an FFI differential
-/// probe and documentation of the TCP-DIST-but-not-PUFFIN-DIST(live) gap.
+/// The ClientHello is **TLS-1.3-only** (single TLS 1.3 cipher, `supported_versions=1.3`).
+/// Reachability of the divergence depends on the *server's* negotiated version, which is the
+/// crux of the FFI-vs-live gap:
+///   - Against a **TLS-1.3-only server** (FFI harness `wolfTLSv1_3_server_method`, or the stock
+///     example server run with `-v 4`): the split reproduces live -- 5.7.6 accepts the
+///     ClientHello (ServerHello) while 5.8.0/5.8.2 reject with `missing_extension(109)`.
+///   - Against a **flexible (v23) dual-stack server** (the stock example server's default): the
+///     divergence is masked. A pure-1.3 no-sigalgs CH yields a uniform `handshake_failure(40)`;
+///     and making the CH dual-stack does NOT help -- the server then negotiates TLS 1.2 (where
+///     absent `signature_algorithms` is legal) and all versions accept, so the TLS-1.3-specific
+///     required-extension check is never reached. The distinguisher is therefore only
+///     observable against a TLS-1.3-only server deployment.
 pub fn seed_client_attacker13_no_sigalgs(server: AgentName) -> Trace<TLSProtocolTypes> {
     let client_hello = term! {
           fn_client_hello(
@@ -1489,6 +1495,67 @@ pub fn seed_client_attacker13_no_sigalgs(server: AgentName) -> Trace<TLSProtocol
                  (fn_append_cipher_suite(
                   (fn_new_cipher_suites()),
                    fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
+            fn_compressions,
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
+                        )),
+                        (fn_key_share_extension_make(
+                            (fn_key_share_extension_append(
+                                fn_key_share_extension_new,
+                                (fn_key_share_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
+                    )),
+                    fn_supported_versions13_extension
+                ))
+        )))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_3)],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        @client_hello
+                    }
+                }),
+            },
+            OutputAction::new_step(server),
+        ],
+        ..Default::default()
+    }
+}
+
+/// Variant of [`seed_client_attacker13_no_sigalgs`] whose ClientHello is **dual-stack**: it
+/// additionally offers a TLS 1.2 cipher suite (`fn_cipher_suite12`) alongside the TLS 1.3 one,
+/// while keeping `supported_versions=1.3`. Used to test whether a flexible (v23) stock server can
+/// be forced onto the TLS 1.3 required-extension path (so the C1 5.7.6/5.8.0 divergence becomes
+/// observable) or whether it escapes to TLS 1.2 (where absent `signature_algorithms` is legal).
+pub fn seed_client_attacker13_no_sigalgs_dualstack(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                  (fn_append_cipher_suite(
+                   (fn_new_cipher_suites()),
+                    fn_cipher_suite13_aes_128_gcm_sha256
+                  )),
+                   fn_cipher_suite12
             )))),
             fn_compressions,
             (fn_client_extensions_make(
@@ -2872,6 +2939,7 @@ pub fn create_corpus(
         // Client Attackers (PUT = server) -- kept for fingerprinting
         seed_client_attacker: put.supports("tls13"),
         seed_client_attacker13_no_sigalgs: put.supports("tls13"),
+        seed_client_attacker13_no_sigalgs_dualstack: put.supports("tls13"),
         seed_client_attacker_full: put.supports("tls13"),
         seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
         seed_client_attacker12: !v13_only && put.supports("tls12"),
@@ -3569,7 +3637,7 @@ pub mod tests {
         for (trace, name) in corpus {
             let trace =
                 <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
-                    trace,
+                    trace, false,
                 );
             let first_mapping: Vec<_> = trace
                 .descriptors
