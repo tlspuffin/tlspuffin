@@ -1465,6 +1465,73 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+/// TLS 1.3 client-attacker probe that sends a ClientHello **omitting the
+/// `signature_algorithms` extension** and captures the server's response flight.
+///
+/// Purpose: probe the wolfSSL 5.7.6 -> 5.8.0 ClientHello required-extension validation change
+/// (5.8.0 hardened the missing-`signature_algorithms` path). Empirically this probe **stably
+/// distinguishes 5.7.6 from 5.8.0 at the FFI/library level** (`differential-execute`, 8/8),
+/// confirming cluster C1 {5.7.6, 5.8.0, 5.8.2} is TCP-DIST.
+///
+/// It does **not** split C1 on the *stock example server* over live TCP: that server rejects a
+/// no-`signature_algorithms` ClientHello at suite/auth matching (`MATCH_SUITE_ERROR ->
+/// handshake_failure(40)`) *before* the divergent validation, identically across versions, so
+/// the difference is config-masked. Reaching it live needs a server configured to run the
+/// required-extension check first (e.g. the FFI harness config). Kept as an FFI differential
+/// probe and documentation of the TCP-DIST-but-not-PUFFIN-DIST(live) gap.
+pub fn seed_client_attacker13_no_sigalgs(server: AgentName) -> Trace<TLSProtocolTypes> {
+    let client_hello = term! {
+          fn_client_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            fn_new_session_id,
+            (fn_cipher_suites_make(
+                 (fn_append_cipher_suite(
+                  (fn_new_cipher_suites()),
+                   fn_cipher_suite13_aes_128_gcm_sha256
+            )))),
+            fn_compressions,
+            (fn_client_extensions_make(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        (fn_client_extensions_append(
+                            fn_client_extensions_new,
+                            (fn_support_group_extension_make(
+                                (fn_support_group_extension_append(
+                                    fn_support_group_extension_new,
+                                    fn_named_group_secp384r1
+                                ))
+                            ))
+                        )),
+                        (fn_key_share_extension_make(
+                            (fn_key_share_extension_append(
+                                fn_key_share_extension_new,
+                                (fn_key_share_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
+                    )),
+                    fn_supported_versions13_extension
+                ))
+        )))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![TLSDescriptorConfig::new_server(server, TLSVersion::V1_3)],
+        steps: vec![
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        @client_hello
+                    }
+                }),
+            },
+            OutputAction::new_step(server),
+        ],
+        ..Default::default()
+    }
+}
+
 pub fn seed_client_attacker12(server: AgentName) -> Trace<TLSProtocolTypes> {
     _seed_client_attacker12(server).0
 }
@@ -2804,6 +2871,7 @@ pub fn create_corpus(
         seed_successful12_with_tickets: !v13_only && all && put.supports("tls12") && put.supports("tls12_session_resumption"),
         // Client Attackers (PUT = server) -- kept for fingerprinting
         seed_client_attacker: put.supports("tls13"),
+        seed_client_attacker13_no_sigalgs: put.supports("tls13"),
         seed_client_attacker_full: put.supports("tls13"),
         seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
         seed_client_attacker12: !v13_only && put.supports("tls12"),
