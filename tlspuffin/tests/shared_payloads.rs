@@ -1,14 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
+use puffin::algebra::{Term, TermType};
+use puffin::fuzzer::bit_mutations::{CrossoverInsertMutatorDY, MakeMessage};
+use puffin::fuzzer::mutations::MutationConfig;
 use puffin::libafl::corpus::{Corpus, InMemoryCorpus};
 use puffin::libafl::inputs::HasMutatorBytes;
 use puffin::libafl::mutators::{MutationResult, Mutator};
 use puffin::libafl::state::{HasCorpus, StdState};
 use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
-
-use puffin::algebra::{Term, TermType};
-use puffin::fuzzer::bit_mutations::{CrossoverInsertMutatorDY, MakeMessage};
-use puffin::fuzzer::mutations::MutationConfig;
 use puffin::put_registry::PutRegistry;
 use puffin::trace::{Action, Trace};
 use puffin::trace_helper::TraceHelper;
@@ -285,10 +284,11 @@ fn test_variable_guard() {
         }
     }
     assert!(found_group, "Test trace must form at least one group to meaningfully test MakeMessage with shared_payloads");
-    // found_variable_with_payload may or may not be true naturally, but the strict negative assertion above
-    // To test the variable logic, we explicitly create a variable and put it in a node?
-    // In our test, found_variable_with_payload wasn't naturally true.
-    // If it is true, it verifies the negative condition. If not, the main logic is still tested by found_group.
+    // found_variable_with_payload may or may not be true naturally, but the strict negative
+    // assertion above To test the variable logic, we explicitly create a variable and put it in
+    // a node? In our test, found_variable_with_payload wasn't naturally true.
+    // If it is true, it verifies the negative condition. If not, the main logic is still tested by
+    // found_group.
     let _ = found_variable_with_payload;
 }
 

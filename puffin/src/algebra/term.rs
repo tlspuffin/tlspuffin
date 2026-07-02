@@ -264,7 +264,8 @@ impl<PT: ProtocolTypes> Term<PT> {
 
     /// When the term starts with a re-framing function symbol (like `fn_coalesced_flight`): a
     /// structural transform boundary where children are not substrings of the output. Distinct
-    /// from `is_opaque` (cryptographic opacity) so the two can be measured separately in evaluation.
+    /// from `is_opaque` (cryptographic opacity) so the two can be measured separately in
+    /// evaluation.
     pub fn is_reframing(&self) -> bool {
         match &self.term {
             DYTerm::Variable(_) => false,

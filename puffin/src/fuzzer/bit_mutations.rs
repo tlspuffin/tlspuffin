@@ -248,7 +248,7 @@ impl<'a, PB> MakeMessage<'a, PB> {
     }
 }
 
-/// [INV-B] Classify a MakeMessage target for per-case success measurement:
+/// \[INV-B] Classify a MakeMessage target for per-case success measurement:
 /// (sub-term depth, whether under an opaque/reframing boundary, head message-symbol at the step).
 fn mm_case<PT: ProtocolTypes>(tr: &Trace<PT>, path: &TracePath) -> (usize, bool, &'static str) {
     let depth = path.1.len();
@@ -424,20 +424,21 @@ where
                 .map(|(_, p)| p)
         } {
             // [executability frontier — soft bias] Most deep-step MakeMessage failures are
-            // reachability failures, not eval failures (INV-A): the (already-mutated) trace can't be
-            // executed up to the chosen step. If the chosen step is beyond where this trace last
-            // executed, skip with high probability BEFORE the expensive execute_until_step — saving
-            // the wasted execution. SOFT (keep ~1/PROCEED_DENOM exploration) so that a structurally
-            // repaired trace can still push the frontier outward. Frontier travels with the trace
-            // metadata and is kept current by Repeat/Skip mutators.
+            // reachability failures, not eval failures (INV-A): the (already-mutated) trace can't
+            // be executed up to the chosen step. If the chosen step is beyond where
+            // this trace last executed, skip with high probability BEFORE the expensive
+            // execute_until_step — saving the wasted execution. SOFT (keep
+            // ~1/PROCEED_DENOM exploration) so that a structurally repaired trace can
+            // still push the frontier outward. Frontier travels with the trace metadata
+            // and is kept current by Repeat/Skip mutators.
             if self.config.frontier_bias {
                 if let Some(frontier) = trace.executable_frontier() {
                     if trace_path.0 > frontier {
                         // proceed-probability beyond the frontier:
                         //  - FIXED (default): ~1/8 regardless of distance;
-                        //  - DECAY (--frontier-decay): ~1/2^distance (capped) -> near-frontier steps
-                        //    proceed often (1/2, 1/4, ...) to keep pushing the frontier outward,
-                        //    far/unreachable steps are skipped aggressively.
+                        //  - DECAY (--frontier-decay): ~1/2^distance (capped) -> near-frontier
+                        //    steps proceed often (1/2, 1/4, ...) to keep pushing the frontier
+                        //    outward, far/unreachable steps are skipped aggressively.
                         let proceed_denom: usize = if self.config.frontier_decay {
                             let dist = (trace_path.0 - frontier).min(7) as u32;
                             1usize << dist
@@ -519,9 +520,10 @@ where
                     make_message_term(trace, &trace_path, &mut ctx)
                 } else {
                     // [Phase 3 FIX #2] The shared target is variable-free (`do_shared` requires
-                    // `!has_variable()`), so `evaluate_symbolic` is CONTEXT-INDEPENDENT: it computes
-                    // the same bytes regardless of protocol state. So we do NOT execute_until_step
-                    // here -- the old code did, and abandoned the whole shared mutation on fail_reach
+                    // `!has_variable()`), so `evaluate_symbolic` is CONTEXT-INDEPENDENT: it
+                    // computes the same bytes regardless of protocol state. So
+                    // we do NOT execute_until_step here -- the old code did,
+                    // and abandoned the whole shared mutation on fail_reach
                     // (the ~50% INV-A wall) even though no execution was needed. That spuriously
                     // suppressed shared-group formation. We compute the bytes directly from a fresh
                     // ctx (unused for variable-free terms).
@@ -701,11 +703,12 @@ where
         let chosen_path = if self.config.with_focus {
             if let Some(trace_path) = focus {
                 // We run ReadMessage with proba 1/4 in focus mode (i.e. SKIP it 3/4 of the time),
-                // so that most focused HAVOC rounds keep their raw bit-mutations (e.g. "lying" about
-                // length prefixes) instead of having them re-normalized by a re-interpretation.
-                // NOTE (audit A1): the `!` previously bound to `rand.between(..)` (bitwise NOT of a
-                // ~1e9 usize), making the comparison always false -> this throttle was DEAD and
-                // ReadMessage always ran in focus mode. Parenthesized to negate the comparison.
+                // so that most focused HAVOC rounds keep their raw bit-mutations (e.g. "lying"
+                // about length prefixes) instead of having them re-normalized by a
+                // re-interpretation. NOTE (audit A1): the `!` previously bound to
+                // `rand.between(..)` (bitwise NOT of a ~1e9 usize), making the
+                // comparison always false -> this throttle was DEAD and ReadMessage
+                // always ran in focus mode. Parenthesized to negate the comparison.
                 let proba_run = self.config.read_message_prob; // [#7] tunable (was hardcoded 1/4)
                 let max_range = (1_000_000_000.0 * proba_run) as usize;
                 if !(rand.between(0, 1_000_000_000 - 1) < max_range) {
@@ -832,10 +835,9 @@ where
 use libafl::mutators::{MutationResult, Mutator};
 use libafl::state::{HasCorpus, HasMaxSize, HasRand};
 use libafl::Error;
-
-use crate::algebra::bitstrings::Payloads;
 use paste::paste;
 
+use crate::algebra::bitstrings::Payloads;
 use crate::algebra::signature::Signature;
 use crate::fuzzer::mutations::{
     dy_mutations, GenerateMutator, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
@@ -1064,7 +1066,8 @@ where
                     let new_bytes: Vec<u8> = payloads.payload.mutator_bytes().to_vec();
                     if matches!(result, Ok(MutationResult::Mutated)) {
                         if let Some(id) = shared {
-                            trace.sync_shared_payloads_from(id, &new_bytes); // [Phase 3 FIX] targeted
+                            trace.sync_shared_payloads_from(id, &new_bytes); // [Phase 3 FIX]
+                                                                             // targeted
                         }
                     }
                     result
@@ -1157,7 +1160,8 @@ where
                     let new_bytes: Vec<u8> = payloads.payload.mutator_bytes().to_vec();
                     if matches!(result, Ok(MutationResult::Mutated)) {
                         if let Some(id) = shared {
-                            trace.sync_shared_payloads_from(id, &new_bytes); // [Phase 3 FIX] targeted
+                            trace.sync_shared_payloads_from(id, &new_bytes); // [Phase 3 FIX]
+                                                                             // targeted
                         }
                     }
                     result

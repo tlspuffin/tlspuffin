@@ -29,38 +29,43 @@ pub struct MutationConfig {
     pub with_dy: bool,
     /// Focus on one payload at a time for a whole StdMutationalStage
     pub with_focus: bool,
-    /// Bias MakeMessage away from steps beyond the trace's executability frontier (soft pre-check),
-    /// to avoid the dominant fail_reach waste (INV-A). Toggle off via `--wo-frontier` for A/B.
+    /// Bias MakeMessage away from steps beyond the trace's executability frontier (soft
+    /// pre-check), to avoid the dominant fail_reach waste (INV-A). Toggle off via
+    /// `--wo-frontier` for A/B.
     pub frontier_bias: bool,
-    /// Frontier-bias MODE: when false (default) the bias is FIXED (proceed ~1/8 beyond the frontier
-    /// regardless of distance). When true (`--frontier-decay`) the proceed-probability DECAYS with
-    /// distance past the frontier (~1/2^distance): near-frontier steps get many chances (gentler,
-    /// to keep pushing the frontier outward) while far/unreachable steps are skipped aggressively.
+    /// Frontier-bias MODE: when false (default) the bias is FIXED (proceed ~1/8 beyond the
+    /// frontier regardless of distance). When true (`--frontier-decay`) the
+    /// proceed-probability DECAYS with distance past the frontier (~1/2^distance):
+    /// near-frontier steps get many chances (gentler, to keep pushing the frontier outward)
+    /// while far/unreachable steps are skipped aggressively.
     pub frontier_decay: bool,
-    /// [#1a] In focus mode the unfocused bit stage runs by DEFAULT: the A/B showed it is NOT
+    /// \[#1a] In focus mode the unfocused bit stage runs by DEFAULT: the A/B showed it is NOT
     /// redundant (random-payload HAVOC adds ~4% coverage the focus stage misses). Set
     /// `--drop-unfocused-bit` to drop it for ~+21% exec/s at ~-4% coverage (speed-over-coverage).
     pub drop_unfocused_bit: bool,
-    /// [#7] Probability that ReadMessage actually re-interprets the focused payload in focus mode
+    /// \[#7] Probability that ReadMessage actually re-interprets the focused payload in focus mode
     /// (the rest of the time the raw bit-mutations are kept, e.g. a "lying" length prefix). Was a
     /// hardcoded 1/4; tunable via `--read-message-prob` for an evidence-based sweep. Default 0.25.
     pub read_message_prob: f64,
     /// [scheduling A/B] Run bit-level from the start, skipping the DY warmup gate
-    /// (MIN_BIT_EXECS/MIN_BIT_CORPUS). Tests whether delaying bit until DY warms up wastes early time.
+    /// (MIN_BIT_EXECS/MIN_BIT_CORPUS). Tests whether delaying bit until DY warms up wastes early
+    /// time.
     pub bit_from_start: bool,
     /// [structure A/B] Under --wo-dy, still allow MakeMessage on sub-terms (keep term-level
-    /// structure) instead of forcing root-only. Root-only (default under --wo-dy) mimics flat HAVOC.
+    /// structure) instead of forcing root-only. Root-only (default under --wo-dy) mimics flat
+    /// HAVOC.
     pub bit_allow_subterm_no_dy: bool,
     /// [scheduling A/B] Delay DY mutations until this many execs have run (0 = DY from the start).
-    /// With --bit-from-start this gives "bit-first, then DY": bit explores first, DY recombines later.
+    /// With --bit-from-start this gives "bit-first, then DY": bit explores first, DY recombines
+    /// later.
     pub dy_after_execs: u64,
-    /// [scheduling A/B] Bit-level warmup: bit starts after this many execs (per core) when DY is on.
-    /// Was the const MIN_BIT_EXECS (5000); tunable to test a later kick-in. Default 5000.
+    /// [scheduling A/B] Bit-level warmup: bit starts after this many execs (per core) when DY is
+    /// on. Was the const MIN_BIT_EXECS (5000); tunable to test a later kick-in. Default 5000.
     pub bit_after_execs: u64,
-    /// [shared-payload] When true, MakeMessageShared is included in the focus mutator set and may
+    /// \[shared-payload] When true, MakeMessageShared is included in the focus mutator set and may
     /// mutate structurally identical sub-terms consistently.
     pub shared_payloads: bool,
-    /// [shared-payload] When true, the MakeMessage mutator WILL ALWAYS use the shared-payload
+    /// \[shared-payload] When true, the MakeMessage mutator WILL ALWAYS use the shared-payload
     /// behavior (probability 1.0) and never use the old behavior.
     pub only_shared_payloads: bool,
 }

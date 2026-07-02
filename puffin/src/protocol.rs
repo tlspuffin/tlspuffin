@@ -263,7 +263,7 @@ pub trait ProtocolTypes:
 /// Defines the protocol which is being tested.
 ///
 /// The fuzzer is generally abstract over the used protocol. We assume that protocols have
-/// [opaque messages](ProtocolBehavior::OpaqueProtocolMessage), [structured
+/// \[opaque messages](ProtocolBehavior::OpaqueProtocolMessage), [structured
 /// messages](ProtocolBehavior::ProtocolMessage), and a way to [deframe](ProtocolMessageDeframer) an
 /// arbitrary stream of bytes into messages.
 ///

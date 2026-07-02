@@ -245,7 +245,8 @@ where
     }
     if matches.get_flag("bit-subterm") {
         config.mutation_config.bit_allow_subterm_no_dy = true;
-        config.mutation_config.term_constraints.must_be_root = false; // override --wo-dy's root-forcing
+        config.mutation_config.term_constraints.must_be_root = false; // override --wo-dy's
+                                                                      // root-forcing
     }
     if let Some(n) = matches.get_one::<u64>("dy-after-execs") {
         config.mutation_config.dy_after_execs = *n;

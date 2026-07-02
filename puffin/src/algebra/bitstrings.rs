@@ -12,8 +12,8 @@ use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
 
-/// [R3 / Ch4 A/B] When true (default), a `[reframing]` arg that fails the read∘encode round-trip is
-/// kept best-effort instead of dropped. Toggle off via `--no-r3-relax` to measure R3's coverage
+/// \[R3 / Ch4 A/B] When true (default), a `\[reframing]` arg that fails the read∘encode round-trip
+/// is kept best-effort instead of dropped. Toggle off via `--no-r3-relax` to measure R3's coverage
 /// value (set once at startup; process-global like the stats counters).
 pub static R3_RELAX_REFRAMING: AtomicBool = AtomicBool::new(true);
 
@@ -78,7 +78,7 @@ pub struct Payloads {
     pub payload_0: BytesInput, // initially both are equal and correspond to the term evaluation
     pub payload: BytesInput,   // this one will later be subject to bit-level mutation
     pub(crate) metadata: PayloadMetadata, // stores metadata
-    /// [shared-payload] If Some(id), this payload is LINKED to every other payload in the same
+    /// \[shared-payload] If Some(id), this payload is LINKED to every other payload in the same
     /// trace with the same id: a bit-level mutation of one is propagated to all (consistent
     /// malformation). None = independent (current behaviour). Trace-local id.
     #[serde(default)]
@@ -196,7 +196,7 @@ pub fn is_get_in_path<PT: ProtocolTypes>(term: &Term<PT>, path_to_search: &[usiz
 /// `find_unique_match_rec`/`replace_payloads`. `eval_until_opaque` consumes any payload strictly
 /// beneath an opaque/re-framing symbol within the child encoding space (it never propagates those
 /// payload contexts to the root-level locator). If this returns `true` for a payload being
-/// replaced, it means a transform/re-framing symbol is MISSING its `[opaque]`/`[reframing]`
+/// replaced, it means a transform/re-framing symbol is MISSING its `\[opaque]`/`\[reframing]`
 /// attribute -- the exact bug class behind the 821 `find_unique_match_rec` "child encoding not
 /// found" TermBugs. Used as a debug-mode sanity check in `replace_payloads`.
 pub fn is_opaque_boundary_in_path<PT: ProtocolTypes>(
@@ -523,7 +523,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
     Ok((start_pos, encountered_get_symbol))
 }
 
-/// [R2 PROTOTYPE — offset memoization, debug cross-check only]
+/// \[R2 PROTOTYPE — offset memoization, debug cross-check only]
 /// Compute the byte offset of the node at `path` within the root encoding using ONLY node lengths
 /// (no byte-search). Assumes each concatenative parent encodes as `header · child0 · child1 · …
 /// · childN` with NO trailer and NO inter-child bytes (the same invariant `find_unique_match_rec`'s
@@ -623,10 +623,11 @@ pub fn replace_payloads<PT: ProtocolTypes>(
         let (pos_start, encountered_get_symbol) =
             find_unique_match(path_payload, eval_tree, term, is_to_search_in_list)?;
 
-        // [R2 PROTOTYPE] Debug-only cross-check: does length-based offset memoization agree with the
-        // heuristic byte-search locator on the clean concatenative case (no get symbol, no opaque/
-        // reframing boundary above)? Logged (AGREE/DISAGREE), never fatal -> measures whether
-        // memoization could RETIRE find_unique_match_rec. Grep `[R2 memo-locator]`.
+        // [R2 PROTOTYPE] Debug-only cross-check: does length-based offset memoization agree with
+        // the heuristic byte-search locator on the clean concatenative case (no get symbol,
+        // no opaque/ reframing boundary above)? Logged (AGREE/DISAGREE), never fatal ->
+        // measures whether memoization could RETIRE find_unique_match_rec. Grep `[R2
+        // memo-locator]`.
         #[cfg(any(debug_assertions, feature = "debug"))]
         if !encountered_get_symbol && !is_opaque_boundary_in_path(term, path_payload) {
             match memoized_offset(eval_tree, path_payload) {
@@ -894,8 +895,9 @@ impl<PT: ProtocolTypes> Term<PT> {
                                  // encode are not inverse of each other.
                                  // Otherwise, later payload replacements will fail.
                         if &di.get_encoding()[..] != &bi[..] {
-                            // [R3] For STRUCTURAL re-framing ([reframing], e.g. fn_coalesced_flight)
-                            // -- as opposed to CRYPTOGRAPHIC [opaque] -- do NOT drop the mutation
+                            // [R3] For STRUCTURAL re-framing ([reframing], e.g.
+                            // fn_coalesced_flight) -- as opposed to
+                            // CRYPTOGRAPHIC [opaque] -- do NOT drop the mutation
                             // when the consumed arg fails to round-trip. The function needs a typed
                             // arg, so we proceed best-effort with `di`, letting more
                             // under-coalescing bit-mutations survive ("better evaluation"). Crypto

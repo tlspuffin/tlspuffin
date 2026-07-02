@@ -58,8 +58,9 @@ pub enum RuntimeStats {
     TermSize(&'static MinMaxMean),
     NbPayload(&'static MinMaxMean),
     PayloadLength(&'static MinMaxMean),
-    /// [R1 datapoint #1] Deepest trace step reached during execution (ctx.executed_until), recorded
-    /// for every execution (success or early failure). mean << trace length => traces die early.
+    /// \[R1 datapoint #1] Deepest trace step reached during execution (ctx.executed_until),
+    /// recorded for every execution (success or early failure). mean << trace length => traces
+    /// die early.
     ReachedStep(&'static MinMaxMean),
     Duplicates(&'static Counter),
     // [shared-payload] Phase 5 observability counters
@@ -158,7 +159,7 @@ pub static TRACE_LENGTH: MinMaxMean = MinMaxMean::new("trace-length");
 pub static TERM_SIZE: MinMaxMean = MinMaxMean::new("term-size");
 pub static NB_PAYLOAD: MinMaxMean = MinMaxMean::new("nb-payload");
 pub static PAYLOAD_LENGTH: MinMaxMean = MinMaxMean::new("payload-length");
-/// [R1 #1] Deepest step index reached per execution.
+/// \[R1 #1] Deepest step index reached per execution.
 pub static REACHED_STEP: MinMaxMean = MinMaxMean::new("reached-step");
 
 /// [reached-step histogram] Per-execution bucket counts of how many trace steps executed WITHOUT
@@ -209,23 +210,25 @@ pub static BIT_EXEC: Counter = Counter::new("bit-exec");
 pub static BIT_EXEC_SUCCESS: Counter = Counter::new("bit-exec-success");
 pub static MM_EXEC: Counter = Counter::new("mm-exec");
 pub static MM_EXEC_SUCCESS: Counter = Counter::new("mmn-exec-success");
-/// [INV-A counters] MakeMessage failures split: reachability (trace can't execute to the step) vs
+/// \[INV-A counters] MakeMessage failures split: reachability (trace can't execute to the step) vs
 /// eval (payload computation failed at the step). And how often the frontier pre-check skips.
 pub static MM_FAIL_REACH: Counter = Counter::new("mm-fail-reach");
 pub static MM_FAIL_MAKE: Counter = Counter::new("mm-fail-make");
 pub static FRONTIER_SKIP: Counter = Counter::new("frontier-skip");
-/// [INV-B per-case] MakeMessage outcomes split by whether the target is strictly under an
-/// opaque/reframing boundary. "plain" is derived = total (mm_term_ok / mm_fail_reach) minus *_opaque.
+/// \[INV-B per-case] MakeMessage outcomes split by whether the target is strictly under an
+/// opaque/reframing boundary. "plain" is derived = total (mm_term_ok / mm_fail_reach) minus
+/// *_opaque.
 pub static MM_TERM_OK: Counter = Counter::new("mm-term-ok");
 pub static MM_OK_OPAQUE: Counter = Counter::new("mm-ok-opaque");
 pub static MM_FAILREACH_OPAQUE: Counter = Counter::new("mm-failreach-opaque");
-/// [INV-C] ReadMessage outcomes: applied (read_message_term ok) vs skipped (no payload term found).
+/// \[INV-C] ReadMessage outcomes: applied (read_message_term ok) vs skipped (no payload term
+/// found).
 pub static RM_OK: Counter = Counter::new("rm-ok");
 pub static RM_SKIP_NOTERM: Counter = Counter::new("rm-skip-noterm");
 pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
 pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
 pub static DUPLICATES: Counter = Counter::new("duplicates");
-/// [shared-payload] Phase 5 observability counters.
+/// \[shared-payload] Phase 5 observability counters.
 /// MM_SHARED_OK: MakeMessageShared successfully formed a linked group (≥2 members).
 /// MM_SHARED_SINGLETON: MakeMessageShared found no duplicate occurrences (group size 1).
 /// SHARED_SYNC_PROPAGATED: payloads propagated to non-authority members by sync_shared_payloads.

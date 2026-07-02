@@ -668,7 +668,7 @@ pub struct MetadataTrace {
     /// not over-restrict exploration.
     #[serde(default)]
     last_executable_step: Option<usize>,
-    /// [shared-payload] Monotonic source of fresh shared_ids for this trace.
+    /// \[shared-payload] Monotonic source of fresh shared_ids for this trace.
     /// Incremented by `fresh_shared_id()`; always starts at 0 for new traces.
     #[serde(default)]
     pub next_shared_id: u64,
@@ -1259,24 +1259,25 @@ impl<PT: ProtocolTypes> Trace<PT> {
 
     // ---- shared-payload helpers (Phase 1/2/3) ----
 
-    /// [shared-payload] Allocate a fresh trace-local shared group id (monotonically increasing).
+    /// \[shared-payload] Allocate a fresh trace-local shared group id (monotonically increasing).
     pub fn fresh_shared_id(&mut self) -> u64 {
         let id = self.metadata_trace.next_shared_id;
         self.metadata_trace.next_shared_id += 1;
         id
     }
 
-    /// [shared-payload] After bit-mutation of any payload, propagate its bytes to all other
+    /// \[shared-payload] After bit-mutation of any payload, propagate its bytes to all other
     /// members of the same shared group within this trace (Phase 3 sync).
     ///
     /// For each shared_id `k` that has at least one mutated member (payload != payload_0), we pick
     /// the first mutated member (deterministic traversal order) as the authority and copy its
     /// `payload` bytes into every other member with the same id.  Idempotent: calling multiple
     /// times has no additional effect once the group is in sync.
-    /// [shared-payload Phase 3 FIX] Propagate the bytes of a JUST-MUTATED payload to every member
+    /// \[shared-payload Phase 3 FIX] Propagate the bytes of a JUST-MUTATED payload to every member
     /// of its shared group. Called by the mutators right after they mutate a specific payload, so
     /// there is no authority ambiguity (unlike the old `sync_shared_payloads` global scan, which
-    /// reverted iterated mutations on non-first members). `bytes` = the mutated payload's new bytes.
+    /// reverted iterated mutations on non-first members). `bytes` = the mutated payload's new
+    /// bytes.
     pub fn sync_shared_payloads_from(&mut self, id: u64, bytes: &[u8]) {
         use libafl::inputs::HasMutatorBytes;
         let mut propagated = 0usize;
@@ -1303,7 +1304,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
     // Replaced by the unambiguous `sync_shared_payloads_from(id, bytes)` above, called by each
     // mutator with the bytes of the payload it JUST mutated.
 
-    /// [staleness, OPTIMISTIC] Update the frontier after a step was INSERTED at `insert_index`
+    /// \[staleness, OPTIMISTIC] Update the frontier after a step was INSERTED at `insert_index`
     /// (call AFTER `steps.insert`). If the insertion lands within/at the reachable prefix, assume
     /// the inserted (cloned) step is also reachable and extend the frontier by one (clamped to the
     /// new length). Otherwise leave it unchanged.
@@ -1315,7 +1316,7 @@ impl<PT: ProtocolTypes> Trace<PT> {
         }
     }
 
-    /// [staleness, OPTIMISTIC] Update the frontier after a step was REMOVED (call AFTER
+    /// \[staleness, OPTIMISTIC] Update the frontier after a step was REMOVED (call AFTER
     /// `steps.remove`). We do NOT decrease the frontier for the removal (removing a step may even
     /// unblock later steps); we only clamp it to the new trace length. Optimistic by design.
     pub fn frontier_on_step_removed(&mut self, _remove_index: usize) {
