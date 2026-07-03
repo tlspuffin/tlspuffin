@@ -8,6 +8,10 @@ use libafl::SerdeAny;
 use libafl_bolts::{Error, Named};
 use serde::{Deserialize, Serialize};
 
+use crate::fuzzer::stats_stage::{
+    HIT_FDB_CLAIM, HIT_FDB_CLAIM_PROFILE,HIT_FDB_SEM_EDGE,HIT_FDB_TERM,
+};
+
 #[derive(Debug, Serialize, Deserialize, SerdeAny)]
 pub struct FeedbackStatsMetadata {
     pub total_evaluated: u64,
@@ -85,7 +89,7 @@ where
         if is_interesting {
             stats.total_interesting += 1;
         }
-        if stats.total_evaluated % 1000 == 0 {
+        if stats.total_evaluated % 10000 == 0 {
             let percentage = stats.total_interesting as f64 / stats.total_evaluated as f64 * 100.0;
             log::info!(
                 "[STATS: {}] Evaluated: {} | Hit rate: {:.4}%",
@@ -93,6 +97,17 @@ where
                 stats.total_evaluated,
                 percentage
             );
+        }
+
+        // Increment hit stats
+        if is_interesting {
+            match name.as_str() {
+                "claim_feedback" => HIT_FDB_CLAIM.increment(),
+                "profile_feedback" => HIT_FDB_CLAIM_PROFILE.increment(),
+                "term_observer" => HIT_FDB_TERM.increment(),
+                "semantic_edge_observer" => HIT_FDB_SEM_EDGE.increment(),
+                _ => {}
+            }
         }
 
         Ok(is_interesting)

@@ -16,7 +16,11 @@ use serde::Serialize;
 use serde_json::Serializer as JSONSerializer;
 
 use crate::fuzzer::feedback::MAP_FEEDBACK_NAME;
-use crate::fuzzer::stats_stage::{RuntimeStats, DUPLICATES, STATS};
+use crate::fuzzer::stats_stage::{
+    RuntimeStats, DUPLICATES, HIT_FDB_CLAIM, HIT_FDB_CLAIM_PROFILE,
+    HIT_FDB_SEM_EDGE, HIT_FDB_TERM,
+    STATS,
+};
 
 trait ClonableMonitor: Monitor + DynClone {}
 impl ClonableMonitor for TuiMonitor {}
@@ -154,6 +158,14 @@ impl StatsMonitor {
 
             let duplicates = get_number(client, DUPLICATES.name);
 
+            let hit_fdb_claim = get_number(client, HIT_FDB_CLAIM.name);
+            let hit_fdb_claim_profile = get_number(client, HIT_FDB_CLAIM_PROFILE.name);
+            let hit_fdb_term = get_number(client, HIT_FDB_TERM.name);
+            let hit_fdb_sem_edge = get_number(client, HIT_FDB_SEM_EDGE.name);
+
+            let sd_num = get_number(client, "structural_depth");
+            let structural_depth = if sd_num == 0 { None } else { Some(sd_num) };
+    
             Statistics::Client(ClientStatistics {
                 id: id.0,
                 time: SystemTime::now(),
@@ -167,6 +179,10 @@ impl StatsMonitor {
                 total_execs,
                 exec_per_sec: exec_sec as u64,
                 duplicates,
+                hit_fdb_claim,
+                hit_fdb_claim_profile,
+                hit_fdb_term,
+                hit_fdb_sem_edge,
             })
         })
     }
@@ -178,6 +194,27 @@ impl StatsMonitor {
             .map(|client| get_number(client, DUPLICATES.name))
             .sum();
 
+        let hit_fdb_claim: u64 = client_stats_manager
+            .client_stats()
+            .values()
+            .map(|client| get_number(client, HIT_FDB_CLAIM.name))
+            .sum();
+        let hit_fdb_claim_profile: u64 = client_stats_manager
+            .client_stats()
+            .values()
+            .map(|client| get_number(client, HIT_FDB_CLAIM_PROFILE.name))
+            .sum();
+        let hit_fdb_term: u64 = client_stats_manager
+            .client_stats()
+            .values()
+            .map(|client| get_number(client, HIT_FDB_TERM.name))
+            .sum();
+        let hit_fdb_sem_edge: u64 = client_stats_manager
+            .client_stats()
+            .values()
+            .map(|client| get_number(client, HIT_FDB_SEM_EDGE.name))
+            .sum();
+
         let global_stats = client_stats_manager.global_stats();
 
         Statistics::Global(GlobalStatistics {
@@ -187,6 +224,10 @@ impl StatsMonitor {
             corpus_size: global_stats.corpus_size,
             objective_size: global_stats.objective_size,
             duplicates,
+            hit_fdb_claim,
+            hit_fdb_claim_profile,
+            hit_fdb_term,
+            hit_fdb_sem_edge,
             total_execs: global_stats.total_execs,
             exec_per_sec: global_stats.execs_per_sec as u64,
         })
@@ -300,6 +341,11 @@ struct GlobalStatistics {
     total_execs: u64,
     exec_per_sec: u64,
     duplicates: u64,
+    // Feedback hit rates (relative)
+    hit_fdb_claim: u64,
+    hit_fdb_claim_profile: u64,
+    hit_fdb_term: u64,
+    hit_fdb_sem_edge: u64,
 }
 
 #[derive(Serialize)]
@@ -312,12 +358,19 @@ struct ClientStatistics {
     #[cfg(feature = "introspection")]
     intro: IntrospectStatistics,
     coverage: Option<CoverageStatistics>,
-
+    //structural_depth: Option<u64>,
+    //algebraic_diversity: Option<u64>,
+    //feedback_rates: HashMap<String, (u64, u64)>,
     corpus_size: u64,
     objective_size: u64,
     total_execs: u64,
     exec_per_sec: u64,
     duplicates: u64,
+    // Feedback hit rates 
+    hit_fdb_claim: u64,
+    hit_fdb_claim_profile: u64,
+    hit_fdb_term: u64,
+    hit_fdb_sem_edge: u64,
 }
 
 #[derive(Serialize)]
@@ -444,6 +497,14 @@ struct TraceStatistics {
     min_term_size: Option<u64>,
     max_term_size: Option<u64>,
     mean_term_size: Option<u64>,
+
+    min_algebraic_diversity: Option<u64>,
+    max_algebraic_diversity: Option<u64>,
+    mean_algebraic_diversity: Option<u64>,
+
+    min_fail_step: Option<u64>,
+    max_fail_step: Option<u64>,
+    mean_fail_step: Option<u64>,
 }
 
 #[cfg(feature = "introspection")]
@@ -632,6 +693,12 @@ impl ErrorStatistics {
                 RuntimeStats::NbPayload(_) => {}
                 RuntimeStats::PayloadLength(_) => {}
                 RuntimeStats::TermSize(_) => {}
+                RuntimeStats::AlgebraicDiversity(_) => {}
+                RuntimeStats::FailStep(_) => {}
+                RuntimeStats::HitFdbClaim(_) => {}
+                RuntimeStats::HitFdbClaimProfile(_) => {}
+                RuntimeStats::HitFdbTerm(_) => {}
+                RuntimeStats::HitFdbSemEdge(_) => {}
             }
         }
     }
@@ -662,6 +729,13 @@ impl TraceStatistics {
             min_term_size: None,
             max_term_size: None,
             mean_term_size: None,
+            min_algebraic_diversity: None,
+            max_algebraic_diversity: None,
+            mean_algebraic_diversity: None,
+
+            min_fail_step: None,
+            max_fail_step: None,
+            mean_fail_step: None,
         };
 
         // Sum for all TraceLength and TermSize
@@ -695,6 +769,22 @@ impl TraceStatistics {
                     trace_stats.max_payload_size =
                         Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
                     trace_stats.mean_payload_size =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
+                }
+                RuntimeStats::AlgebraicDiversity(mmm) => {
+                    trace_stats.min_algebraic_diversity =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
+                    trace_stats.max_algebraic_diversity =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
+                    trace_stats.mean_algebraic_diversity =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
+                }
+                RuntimeStats::FailStep(mmm) => {
+                    trace_stats.min_fail_step =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
+                    trace_stats.max_fail_step =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
+                    trace_stats.mean_fail_step =
                         Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
                 }
                 _ => {}

@@ -12,8 +12,9 @@ use crate::fuzzer::feedback::term_observer::CAPTURED_TERMS;
 use crate::fuzzer::objective_feedback::{FAIL_AT_STEP, OBJECTIVE_HASH, OBJECTIVE_TRIGGERED};
 use crate::fuzzer::stats_stage::{
     HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
-    TERM_SIZE, TRACE_LENGTH,
+    TERM_SIZE, TRACE_LENGTH, ALGEBRAIC_DIVERSITY
 };
+use std::collections::HashSet;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;
@@ -76,21 +77,6 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
 
                 for raw_k in ctx.knowledge_store.knowledges() {
                     if let Some(associated_term) = &raw_k.associated_term {
-                        // Extract the DY repressentation if available
-                        term_signatures.push(associated_term.to_string());
-                    } else {
-                        // Fallback to type name
-                        term_signatures.push(format!("Type:{}", raw_k.data.type_name()));
-                    }
-                }
-                *captured.borrow_mut() = Some(term_signatures);
-            });
-            // Flatten and capture algebraic terms currently known by the attacker
-            CAPTURED_TERMS.with(|captured| {
-                let mut term_signatures: Vec<String> = Vec::new();
-
-                for raw_k in ctx.knowledge_store.knowledges() {
-                    if let Some(associated_term) = &raw_k.associated_term {
                         // Extract the DY representation if available (probably never happened but
                         // not sure)
                         term_signatures.push(associated_term.to_string());
@@ -109,7 +95,14 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
                         }
                     }
                 }
+                let diversity = term_signatures
+                    .iter()
+                    .cloned()
+                    .collect::<HashSet<String>>()
+                    .len();
+
                 *captured.borrow_mut() = Some(term_signatures);
+                ALGEBRAIC_DIVERSITY.update(diversity);
             });
             HARNESS_EXEC_SUCCESS.increment();
             if cfg!(feature = "introspection") && ctx.agents_successful() {
