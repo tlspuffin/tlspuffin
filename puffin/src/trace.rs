@@ -1088,35 +1088,25 @@ impl<PT: ProtocolTypes> Trace<PT> {
         self.spawn_agents(ctx)?;
         let steps = &self.steps[0..stop_at_step];
         ctx.executed_until = 0;
-        // for (i, step) in steps.iter().enumerate() {
-        //     log::debug!("Executing step #{}", i);
-        //     step.execute(StepNumber::new(*trace_number, i), ctx)?;
-
-        //     if check_security_violation {
-        //         ctx.verify_security_violations()?;
-        //     }
-        //     ctx.executed_until = i + 1;
-        // }
         let max_edges = unsafe { libafl_targets::MAX_EDGES_FOUND };
         let mut edges_before = vec![0u8; max_edges];
 
         for (i, step) in steps.iter().enumerate() {
             log::debug!("Executing step #{}", i);
 
-            // [CAPTURE BEFORE] Snapshot the edges just before this step runs
+            // [CAPTURE BEFORE] Snapshot the edges before step runs
             unsafe {
                 let src = &libafl_targets::EDGES_MAP[0..max_edges];
                 edges_before[..src.len()].copy_from_slice(src);
             }
 
-            // Core execution of the step
             step.execute(StepNumber::new(*trace_number, i), ctx)?;
 
             if check_security_violation {
                 ctx.verify_security_violations()?;
             }
 
-            // [CAPTURE AFTER] Compute differential semantic coverage if it's an Input
+            // [CAPTURE AFTER] Compute change semantic coverage if it's an Input
             if let Action::Input(input_action) = &step.action {
                 let term_str = input_action.recipe.to_string();
                 let term_str_cut = term_str.split('(').next().unwrap_or(&term_str).to_string();
