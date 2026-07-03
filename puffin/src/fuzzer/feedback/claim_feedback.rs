@@ -64,7 +64,7 @@ where
         }
         if discovered_new_claim {
             for unique_claim in new_keys_this_exec {
-                log::info!("New claim discovered : {}", unique_claim);
+                //log::info!("New claim discovered : {}", unique_claim);
             }
             return Ok(true);
         }

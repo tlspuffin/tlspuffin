@@ -79,12 +79,12 @@ where
     let tracked_profile_feedback = TrackingFeedbackWrapper::new(profile_feedback);
     let tracked_term_feedback = TrackingFeedbackWrapper::new(term_feedback);
     let feedback = feedback_or!(
-        map_feedback,
-        time_feedback,
+        //tracked_term_feedback,
         //tracked_claim_feedback,
         //tracked_profile_feedback,
         //tracked_semantic_edge_feedback,
-        tracked_term_feedback
+        map_feedback,
+        time_feedback,
     );
     let observers = tuple_list!(
         edges_observer,
