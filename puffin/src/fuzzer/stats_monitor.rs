@@ -17,8 +17,7 @@ use serde_json::Serializer as JSONSerializer;
 
 use crate::fuzzer::feedback::MAP_FEEDBACK_NAME;
 use crate::fuzzer::stats_stage::{
-    RuntimeStats, DUPLICATES, HIT_FDB_CLAIM, HIT_FDB_CLAIM_PROFILE,
-    HIT_FDB_SEM_EDGE, HIT_FDB_TERM,
+    RuntimeStats, DUPLICATES, HIT_FDB_CLAIM, HIT_FDB_CLAIM_PROFILE, HIT_FDB_SEM_EDGE, HIT_FDB_TERM,
     STATS,
 };
 
@@ -165,7 +164,7 @@ impl StatsMonitor {
 
             let sd_num = get_number(client, "structural_depth");
             let structural_depth = if sd_num == 0 { None } else { Some(sd_num) };
-    
+
             Statistics::Client(ClientStatistics {
                 id: id.0,
                 time: SystemTime::now(),
@@ -366,7 +365,7 @@ struct ClientStatistics {
     total_execs: u64,
     exec_per_sec: u64,
     duplicates: u64,
-    // Feedback hit rates 
+    // Feedback hit rates
     hit_fdb_claim: u64,
     hit_fdb_claim_profile: u64,
     hit_fdb_term: u64,

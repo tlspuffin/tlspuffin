@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
 use libafl::executors::ExitKind;
@@ -11,10 +12,9 @@ use crate::fuzzer::feedback::claim_observer::CAPTURED_CLAIMS;
 use crate::fuzzer::feedback::term_observer::CAPTURED_TERMS;
 use crate::fuzzer::objective_feedback::{FAIL_AT_STEP, OBJECTIVE_HASH, OBJECTIVE_TRIGGERED};
 use crate::fuzzer::stats_stage::{
-    HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
-    TERM_SIZE, TRACE_LENGTH, ALGEBRAIC_DIVERSITY
+    ALGEBRAIC_DIVERSITY, HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS,
+    NB_PAYLOAD, PAYLOAD_LENGTH, TERM_SIZE, TRACE_LENGTH,
 };
-use std::collections::HashSet;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
 use crate::put_registry::PutRegistry;

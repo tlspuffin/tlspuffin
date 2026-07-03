@@ -149,12 +149,11 @@ pub static PAYLOAD_LENGTH: MinMaxMean = MinMaxMean::new("payload-length");
 pub static ALGEBRAIC_DIVERSITY: MinMaxMean = MinMaxMean::new("algebraic-diversity");
 pub static FAIL_STEP: MinMaxMean = MinMaxMean::new("fail-step");
 
-/// Feedback hit counters 
+/// Feedback hit counters
 pub static HIT_FDB_CLAIM: Counter = Counter::new("hit-rate-claim-relative");
 pub static HIT_FDB_CLAIM_PROFILE: Counter = Counter::new("hit-rate-claim-profile-relative");
 pub static HIT_FDB_TERM: Counter = Counter::new("hit-rate-term-relative");
 pub static HIT_FDB_SEM_EDGE: Counter = Counter::new("hit-rate-sem-edge-relative");
-
 
 /// Metrics for evaluations and executions
 pub static ALL_EXEC: Counter = Counter::new("all-exec");
@@ -172,7 +171,6 @@ pub static MM_EXEC_SUCCESS: Counter = Counter::new("mmn-exec-success");
 pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
 pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
 pub static DUPLICATES: Counter = Counter::new("duplicates");
-
 
 pub static STATS: [RuntimeStats; 41] = [
     RuntimeStats::EvalFnCryptoError(&EVAL_ERR_FN_CRYPTO),

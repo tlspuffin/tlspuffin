@@ -9,10 +9,10 @@ use nix::sys::wait::{waitpid, WaitPidFlag};
 use nix::unistd::{fork, ForkResult, Pid};
 
 use crate::error::Error;
+use crate::fuzzer::feedback::semantic_edge_observer::CAPTURED_SEMANTIC_EDGES;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
 use crate::trace::{Action, ConfigTrace, Spawner, Trace, TraceContext};
-use crate::fuzzer::feedback::semantic_edge_observer::CAPTURED_SEMANTIC_EDGES;
 pub trait TraceRunner: Sized {
     type PB: ProtocolBehavior;
     type R;
@@ -75,7 +75,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
         let max_edges = unsafe { libafl_targets::MAX_EDGES_FOUND }; //size of libafl edge map
         let mut edges_before = vec![0u8; max_edges]; //buffer for edge impression before trace exec
         CAPTURED_SEMANTIC_EDGES.with(|edges| edges.borrow_mut().clear());
-        //trace exec step by step 
+        //trace exec step by step
         for (idx, step) in full_trace.steps.iter().enumerate() {
             unsafe {
                 let src = &libafl_targets::EDGES_MAP[0..max_edges];
@@ -93,7 +93,7 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
                     *executed_until = ctx.executed_until;
                     e
                 })?;
-                if let Action::Input(input_action) = &step.action {
+            if let Action::Input(input_action) = &step.action {
                 let term_str = input_action.recipe.to_string();
                 let term_str_cut = term_str.split('(').next().unwrap_or(&term_str).to_string();
 

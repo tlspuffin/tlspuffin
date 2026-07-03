@@ -9,7 +9,7 @@ use libafl_bolts::{Error, Named};
 use serde::{Deserialize, Serialize};
 
 use crate::fuzzer::stats_stage::{
-    HIT_FDB_CLAIM, HIT_FDB_CLAIM_PROFILE,HIT_FDB_SEM_EDGE,HIT_FDB_TERM,
+    HIT_FDB_CLAIM, HIT_FDB_CLAIM_PROFILE, HIT_FDB_SEM_EDGE, HIT_FDB_TERM,
 };
 
 #[derive(Debug, Serialize, Deserialize, SerdeAny)]
