@@ -486,9 +486,9 @@ dependencies = [
 
 [[package]]
 name = "comparable"
-version = "0.5.5"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8606f9aa5b5a2df738584b139c79413d0c1545ed0ffd16e76e0944d1de7388c0"
+checksum = "a8582d59b2e3f69e206fc893a30ed094317e922c4d6cda583e26191589ec747e"
 dependencies = [
  "comparable_derive",
  "comparable_helper",
@@ -498,11 +498,11 @@ dependencies = [
 
 [[package]]
 name = "comparable_derive"
-version = "0.5.6"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8fef8fab462495e2956b0666a4fb50c6c5058bdbd2c2bc91c5894a03f916177f"
+checksum = "95d4cd19b75655e4cfb0731d1bca92cecc41b05f40f109d84890c97197379ca6"
 dependencies = [
- "convert_case 0.4.0",
+ "convert_case 0.6.0",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -510,9 +510,9 @@ dependencies = [
 
 [[package]]
 name = "comparable_helper"
-version = "0.5.6"
+version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be7a1af3ce1ccc3c9a6edfc769672c5d7512959e292882beca663843a660eb9e"
+checksum = "95c88d7d5400a6f4d64b21bd3e31e817707ce2be337717f370e461657ae2ba8b"
 dependencies = [
  "convert_case 0.6.0",
  "proc-macro2",
@@ -548,12 +548,6 @@ checksum = "e262cdaac42494e3ae34c43969f9cdeb7da178bdb4b66fa6a1ea2edb4c8ae652"
 dependencies = [
  "typewit",
 ]
-
-[[package]]
-name = "convert_case"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 
 [[package]]
 name = "convert_case"
