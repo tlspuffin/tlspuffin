@@ -66,49 +66,91 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
         T: AsRef<Trace<<Self::PB as ProtocolBehavior>::ProtocolTypes>>,
     {
         if config_trace.with_reseed {
-            // We reseed all PUTs before executing a trace!
+            // Re-seed all PUTs before executing a trace to ensure determinism
             self.registry.determinism_reseed_all_factories();
         }
 
         let mut ctx = TraceContext::new_config(self.spawner.clone(), config_trace);
-        let full_trace = trace.as_ref();
-        let max_edges = unsafe { libafl_targets::MAX_EDGES_FOUND }; //size of libafl edge map
-        let mut edges_before = vec![0u8; max_edges]; //buffer for edge impression before trace exec
-        CAPTURED_SEMANTIC_EDGES.with(|edges| edges.borrow_mut().clear());
-        //trace exec step by step
-        for (idx, step) in full_trace.steps.iter().enumerate() {
-            unsafe {
-                let src = &libafl_targets::EDGES_MAP[0..max_edges];
-                edges_before[..src.len()].copy_from_slice(src);
-            }
-            let mut trace_number = 0;
-            full_trace
-                .execute_until_step(
-                    &mut ctx,
-                    idx + 1,
-                    &mut trace_number,
-                    config_trace.check_security_violation,
-                )
-                .map_err(|e| {
-                    *executed_until = ctx.executed_until;
-                    e
-                })?;
-            if let Action::Input(input_action) = &step.action {
-                let term_str = input_action.recipe.to_string();
-                let term_str_cut = term_str.split('(').next().unwrap_or(&term_str).to_string();
+        trace
+            .as_ref()
+            .execute(&mut ctx, &mut 0, config_trace.check_security_violation)
+            .map_err(|e| {
+                *executed_until = ctx.executed_until;
+                e
+            })?;
+        // let full_trace = trace.as_ref();
+        // let max_edges = unsafe { libafl_targets::MAX_EDGES_FOUND }; // Size of the LibAFL edge map
+        // let mut edges_before = vec![0u8; max_edges]; // Snapshot buffer for edges before step execution
+        
+        // CAPTURED_SEMANTIC_EDGES.with(|edges| edges.borrow_mut().clear());
 
-                let edges_after = unsafe { &libafl_targets::EDGES_MAP[0..max_edges] };
+        // // 1. Clone the trace to safely extract prior_traces without modifying the original reference
+        // let mut local_trace = full_trace.clone();
+        // let prior_traces = std::mem::take(&mut local_trace.prior_traces);
 
-                CAPTURED_SEMANTIC_EDGES.with(|semantic_edges| {
-                    let mut semantic_edges = semantic_edges.borrow_mut();
-                    for (edge_idx, &val) in edges_after.iter().enumerate() {
-                        if val > 0 && edges_before[edge_idx] != val {
-                            semantic_edges.push((edge_idx as u32, term_str_cut.clone()));
-                        }
-                    }
-                });
-            }
-        }
+        // // 2. Create a dummy trace containing ONLY the prior_traces
+        // let mut prior_only_trace = Trace {
+        //     descriptors: full_trace.descriptors.clone(),
+        //     steps: vec![],
+        //     prior_traces,
+        //     metadata_trace: full_trace.metadata_trace.clone(),
+        // };
+
+        // // 3. Execute prior_traces ONLY ONCE to properly initialize the TLS/agent state
+        // let mut trace_number = 0;
+        // prior_only_trace
+        //     .execute_until_step(
+        //         &mut ctx,
+        //         0,
+        //         &mut trace_number,
+        //         config_trace.check_security_violation,
+        //     )
+        //     .map_err(|e| {
+        //         *executed_until = ctx.executed_until;
+        //         e
+        //     })?;
+
+        // // 4. Run the main trace step-by-step (without re-executing parent traces each time)
+        // for (idx, step) in local_trace.steps.iter().enumerate() {
+        //     unsafe {
+        //         let src = &libafl_targets::EDGES_MAP[0..max_edges];
+        //         edges_before[..src.len()].copy_from_slice(src);
+        //     }
+            
+        //     // Keep the trace ID stable based on the step 3 initialization
+        //     let mut current_step_trace_number = trace_number;
+            
+        //     local_trace
+        //         .execute_until_step(
+        //             &mut ctx,
+        //             idx + 1,
+        //             &mut current_step_trace_number,
+        //             config_trace.check_security_violation,
+        //         )
+        //         .map_err(|e| {
+        //             *executed_until = ctx.executed_until;
+        //             e
+        //         })?;
+
+        //     if let Action::Input(input_action) = &step.action {
+        //         // Extract and clean the semantic constructor root name (e.g., "ClientHello")
+        //         let term_str = input_action.recipe.to_string();
+        //         let term_str_cut = term_str.split('(').next().unwrap_or(&term_str).to_string();
+
+        //         let edges_after = unsafe { &libafl_targets::EDGES_MAP[0..max_edges] };
+
+        //         // Step-by-step differential analysis: map triggered edges to this specific input
+        //         CAPTURED_SEMANTIC_EDGES.with(|semantic_edges| {
+        //             let mut semantic_edges = semantic_edges.borrow_mut();
+        //             for (edge_idx, &val) in edges_after.iter().enumerate() {
+        //                 if val > 0 && edges_before[edge_idx] != val {
+        //                     semantic_edges.push((edge_idx as u32, term_str_cut.clone()));
+        //                 }
+        //             }
+        //         });
+        //     }
+        // }
+
         *executed_until = ctx.executed_until;
         Ok(ctx)
     }
