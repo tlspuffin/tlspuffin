@@ -162,9 +162,6 @@ impl StatsMonitor {
             let hit_fdb_term = get_number(client, HIT_FDB_TERM.name);
             let hit_fdb_sem_edge = get_number(client, HIT_FDB_SEM_EDGE.name);
 
-            let sd_num = get_number(client, "structural_depth");
-            let structural_depth = if sd_num == 0 { None } else { Some(sd_num) };
-
             Statistics::Client(ClientStatistics {
                 id: id.0,
                 time: SystemTime::now(),

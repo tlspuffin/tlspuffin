@@ -332,6 +332,13 @@ introspection = ["puffin/introspection"]
 # Use IndexesLenTimeMinimizerScheduler instead of RandScheduler
 with-min-scheduler = ["puffin/with-min-scheduler"]
 
+# Add feedback type to review trace
+with-claim-fdb = ["puffin/with-claim-fdb"]
+with-claim-profile-fdb = ["puffin/with-claim-profile-fdb"]
+with-term-fdb = ["puffin/with-term-fdb"]
+with-semantic-edge-fdb = ["puffin/with-semantic-edge-fdb"]
+without-code-cover-fdb = ["puffin/without-code-cover-fdb"]
+
 # PUT exposes an API to change the TLS 1.2 ciphersuites
 allow_setting_tls12_ciphers = []
 # PUT exposes an API to change the TLS 1.3 ciphersuites

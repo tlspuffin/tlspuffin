@@ -89,7 +89,7 @@ where
         if is_interesting {
             stats.total_interesting += 1;
         }
-        if stats.total_evaluated % 10000 == 0 {
+        if stats.total_evaluated % 1000 == 0 {
             let percentage = stats.total_interesting as f64 / stats.total_evaluated as f64 * 100.0;
             log::info!(
                 "[STATS: {}] Evaluated: {} | Hit rate: {:.4}%",

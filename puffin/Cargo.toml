@@ -25,6 +25,13 @@ with-min-scheduler = []
 
 introspection = ["libafl/introspection"]
 
+# Add feedback type  to review trace
+with-claim-fdb = []
+with-claim-profile-fdb = []
+with-term-fdb = []
+with-semantic-edge-fdb = []
+without-code-cover-fdb = []
+
 # Options to disable part of differential fuzzing, used to do ablation studies
 ddyf-disable-status = []
 ddyf-disable-claims = []

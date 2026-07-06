@@ -69,20 +69,42 @@ where
     let semantic_edge_observer = SemanticEdgeObserver::new("semantic_edge_observer");
 
     let time_feedback = TimeFeedback::new(&time_observer);
+    #[cfg(not(feature = "without-code-cover-fdb"))]
     let map_feedback = MaxMapFeedback::with_name(MAP_FEEDBACK_NAME, &edges_observer);
+    #[cfg(feature = "with-claim-fdb")]
     let claim_feedback: ClaimFeedback = ClaimFeedback::new(&claim_observer);
+    #[cfg(feature = "with-term-fdb")]
     let term_feedback: TermFeedback = TermFeedback::new(&term_observer);
+    #[cfg(feature = "with-semantic-edge-fdb")]
     let semantic_edge_feedback = SemanticEdgeFeedback::new(&semantic_edge_observer);
+    #[cfg(feature = "with-claim-profile-fdb")]
     let profile_feedback: ProfileFeedback = ProfileFeedback::new(&claim_observer);
+
+    #[cfg(feature = "with-claim-fdb")]
     let tracked_claim_feedback = TrackingFeedbackWrapper::new(claim_feedback);
+    #[cfg(feature = "with-semantic-edge-fdb")]
     let tracked_semantic_edge_feedback = TrackingFeedbackWrapper::new(semantic_edge_feedback);
+    #[cfg(feature = "with-claim-profile-fdb")]
     let tracked_profile_feedback = TrackingFeedbackWrapper::new(profile_feedback);
+    #[cfg(feature = "with-term-fdb")]
     let tracked_term_feedback = TrackingFeedbackWrapper::new(term_feedback);
+
+    #[cfg(feature = "without-code-cover-fdb")]
+    let map_feedback = ConstFeedback::False;
+    #[cfg(not(feature = "with-claim-fdb"))]
+    let tracked_claim_feedback = ConstFeedback::False;
+    #[cfg(not(feature = "with-semantic-edge-fdb"))]
+    let tracked_semantic_edge_feedback = ConstFeedback::False;
+    #[cfg(not(feature = "with-claim-profile-fdb"))]
+    let tracked_profile_feedback = ConstFeedback::False;
+    #[cfg(not(feature = "with-term-fdb"))]
+    let tracked_term_feedback = ConstFeedback::False;
+
     let feedback = feedback_or!(
-        //tracked_term_feedback,
-        //tracked_claim_feedback,
-        //tracked_profile_feedback,
-        //tracked_semantic_edge_feedback,
+        tracked_term_feedback,
+        tracked_claim_feedback,
+        tracked_profile_feedback,
+        tracked_semantic_edge_feedback,
         map_feedback,
         time_feedback,
     );
