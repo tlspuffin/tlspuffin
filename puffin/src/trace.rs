@@ -1088,6 +1088,15 @@ impl<PT: ProtocolTypes> Trace<PT> {
         self.spawn_agents(ctx)?;
         let steps = &self.steps[0..stop_at_step];
         ctx.executed_until = 0;
+        // for (i, step) in steps.iter().enumerate() {
+        //     log::debug!("Executing step #{}", i);
+        //     step.execute(StepNumber::new(*trace_number, i), ctx)?;
+
+        //     if check_security_violation {
+        //         ctx.verify_security_violations()?;
+        //     }
+        //     ctx.executed_until = i + 1;
+        // }
         let max_edges = unsafe { libafl_targets::MAX_EDGES_FOUND };
         let mut edges_before = vec![0u8; max_edges];
 
