@@ -60,6 +60,7 @@ pub enum RuntimeStats {
     HitFdbClaimProfile(&'static Counter),
     HitFdbTerm(&'static Counter),
     HitFdbSemEdge(&'static Counter),
+    EdgeCovered(&'static Counter),
 }
 
 impl RuntimeStats {
@@ -109,6 +110,7 @@ impl RuntimeStats {
             Self::HitFdbClaimProfile(inner) => inner.fire(consume),
             Self::HitFdbTerm(inner) => inner.fire(consume),
             Self::HitFdbSemEdge(inner) => inner.fire(consume),
+            Self::EdgeCovered(inner) => inner.fire(consume),
         }
     }
 }
@@ -154,6 +156,7 @@ pub static HIT_FDB_CLAIM: Counter = Counter::new("hit-rate-claim-relative");
 pub static HIT_FDB_CLAIM_PROFILE: Counter = Counter::new("hit-rate-claim-profile-relative");
 pub static HIT_FDB_TERM: Counter = Counter::new("hit-rate-term-relative");
 pub static HIT_FDB_SEM_EDGE: Counter = Counter::new("hit-rate-sem-edge-relative");
+pub static EDGE_COVERED: Counter = Counter::new("edge_covered");
 
 /// Metrics for evaluations and executions
 pub static ALL_EXEC: Counter = Counter::new("all-exec");
@@ -172,7 +175,7 @@ pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
 pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
 pub static DUPLICATES: Counter = Counter::new("duplicates");
 
-pub static STATS: [RuntimeStats; 41] = [
+pub static STATS: [RuntimeStats; 42] = [
     RuntimeStats::EvalFnCryptoError(&EVAL_ERR_FN_CRYPTO),
     RuntimeStats::EvalFnMalformedError(&EVAL_ERR_FN_MALFORMED),
     RuntimeStats::EvalFnUnknownError(&EVAL_ERR_FN_UNKNOWN),
@@ -214,6 +217,7 @@ pub static STATS: [RuntimeStats; 41] = [
     RuntimeStats::HitFdbClaimProfile(&HIT_FDB_CLAIM_PROFILE),
     RuntimeStats::HitFdbTerm(&HIT_FDB_TERM),
     RuntimeStats::HitFdbSemEdge(&HIT_FDB_SEM_EDGE),
+    RuntimeStats::EdgeCovered(&EDGE_COVERED),
 ];
 
 pub trait Fire: Sync {

@@ -337,6 +337,7 @@ with-claim-fdb = ["puffin/with-claim-fdb"]
 with-claim-profile-fdb = ["puffin/with-claim-profile-fdb"]
 with-term-fdb = ["puffin/with-term-fdb"]
 with-semantic-edge-fdb = ["puffin/with-semantic-edge-fdb"]
+with-depth-fdb = ["puffin/with-depth-fdb"]
 without-code-cover-fdb = ["puffin/without-code-cover-fdb"]
 
 # PUT exposes an API to change the TLS 1.2 ciphersuites

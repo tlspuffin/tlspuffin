@@ -17,8 +17,8 @@ use serde_json::Serializer as JSONSerializer;
 
 use crate::fuzzer::feedback::MAP_FEEDBACK_NAME;
 use crate::fuzzer::stats_stage::{
-    RuntimeStats, DUPLICATES, HIT_FDB_CLAIM, HIT_FDB_CLAIM_PROFILE, HIT_FDB_SEM_EDGE, HIT_FDB_TERM,
-    STATS,
+    RuntimeStats, DUPLICATES, EDGE_COVERED, HIT_FDB_CLAIM, HIT_FDB_CLAIM_PROFILE, HIT_FDB_SEM_EDGE,
+    HIT_FDB_TERM, STATS,
 };
 
 trait ClonableMonitor: Monitor + DynClone {}
@@ -161,6 +161,7 @@ impl StatsMonitor {
             let hit_fdb_claim_profile = get_number(client, HIT_FDB_CLAIM_PROFILE.name);
             let hit_fdb_term = get_number(client, HIT_FDB_TERM.name);
             let hit_fdb_sem_edge = get_number(client, HIT_FDB_SEM_EDGE.name);
+            let edge_covered = get_number(client, EDGE_COVERED.name);
 
             Statistics::Client(ClientStatistics {
                 id: id.0,
@@ -179,6 +180,7 @@ impl StatsMonitor {
                 hit_fdb_claim_profile,
                 hit_fdb_term,
                 hit_fdb_sem_edge,
+                edge_covered,
             })
         })
     }
@@ -210,6 +212,11 @@ impl StatsMonitor {
             .values()
             .map(|client| get_number(client, HIT_FDB_SEM_EDGE.name))
             .sum();
+        let edge_covered: u64 = client_stats_manager
+            .client_stats()
+            .values()
+            .map(|client| get_number(client, EDGE_COVERED.name))
+            .sum();
 
         let global_stats = client_stats_manager.global_stats();
 
@@ -224,6 +231,7 @@ impl StatsMonitor {
             hit_fdb_claim_profile,
             hit_fdb_term,
             hit_fdb_sem_edge,
+            edge_covered,
             total_execs: global_stats.total_execs,
             exec_per_sec: global_stats.execs_per_sec as u64,
         })
@@ -342,6 +350,7 @@ struct GlobalStatistics {
     hit_fdb_claim_profile: u64,
     hit_fdb_term: u64,
     hit_fdb_sem_edge: u64,
+    edge_covered: u64,
 }
 
 #[derive(Serialize)]
@@ -367,6 +376,7 @@ struct ClientStatistics {
     hit_fdb_claim_profile: u64,
     hit_fdb_term: u64,
     hit_fdb_sem_edge: u64,
+    edge_covered: u64,
 }
 
 #[derive(Serialize)]
@@ -695,6 +705,7 @@ impl ErrorStatistics {
                 RuntimeStats::HitFdbClaimProfile(_) => {}
                 RuntimeStats::HitFdbTerm(_) => {}
                 RuntimeStats::HitFdbSemEdge(_) => {}
+                RuntimeStats::EdgeCovered(_) => {}
             }
         }
     }

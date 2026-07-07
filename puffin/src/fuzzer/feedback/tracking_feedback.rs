@@ -104,7 +104,7 @@ where
             match name.as_str() {
                 "claim_feedback" => HIT_FDB_CLAIM.increment(),
                 "profile_feedback" => HIT_FDB_CLAIM_PROFILE.increment(),
-                "term_observer" => HIT_FDB_TERM.increment(),
+                "term_feedback" => HIT_FDB_TERM.increment(),
                 "semantic_edge_observer" => HIT_FDB_SEM_EDGE.increment(),
                 _ => {}
             }

@@ -13,6 +13,7 @@ pub struct TermFeedback {
     /// Persistent global memory storing all DY terms discovered
     global_knowledge_memory: HashSet<String>,
     observer_handle: Handle<TermObserver>,
+    name: Cow<'static, str>,
 }
 
 impl<S> StateInitializer<S> for TermFeedback {}
@@ -22,13 +23,14 @@ impl TermFeedback {
         Self {
             global_knowledge_memory: HashSet::new(),
             observer_handle: observer.handle(),
+            name: Cow::Borrowed("term_feedback")
         }
     }
 }
 
 impl Named for TermFeedback {
     fn name(&self) -> &Cow<'static, str> {
-        self.observer_handle.name()
+        &self.name()
     }
 }
 

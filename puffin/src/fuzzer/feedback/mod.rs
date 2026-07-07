@@ -1,5 +1,6 @@
 pub mod claim_feedback;
 pub mod claim_observer;
+pub mod depth_feedback;
 pub mod semantic_edge_feedback;
 pub mod semantic_edge_observer;
 pub mod term_feedback;
@@ -7,6 +8,7 @@ pub mod term_observer;
 pub mod tracking_feedback;
 pub use claim_feedback::{ClaimFeedback, ProfileFeedback};
 pub use claim_observer::ClaimObserver;
+pub use depth_feedback::DepthFeedback;
 use libafl::feedbacks::{Feedback, MaxMapFeedback, TimeFeedback};
 use libafl::observers::{HitcountsMapObserver, StdMapObserver, TimeObserver};
 use libafl::prelude::*;
@@ -79,6 +81,8 @@ where
     let semantic_edge_feedback = SemanticEdgeFeedback::new(&semantic_edge_observer);
     #[cfg(feature = "with-claim-profile-fdb")]
     let profile_feedback: ProfileFeedback = ProfileFeedback::new(&claim_observer);
+    #[cfg(feature = "with-depth-fdb")]
+    let depth_feedback: DepthFeedback = DepthFeedback::new(&term_observer);
 
     #[cfg(feature = "with-claim-fdb")]
     let tracked_claim_feedback = TrackingFeedbackWrapper::new(claim_feedback);
@@ -88,6 +92,8 @@ where
     let tracked_profile_feedback = TrackingFeedbackWrapper::new(profile_feedback);
     #[cfg(feature = "with-term-fdb")]
     let tracked_term_feedback = TrackingFeedbackWrapper::new(term_feedback);
+    #[cfg(feature = "with-depth-fdb")]
+    let tracked_depth_feedback = TrackingFeedbackWrapper::new(depth_feedback);
 
     #[cfg(feature = "without-code-cover-fdb")]
     let map_feedback = ConstFeedback::False;
@@ -99,14 +105,17 @@ where
     let tracked_profile_feedback = ConstFeedback::False;
     #[cfg(not(feature = "with-term-fdb"))]
     let tracked_term_feedback = ConstFeedback::False;
+    #[cfg(not(feature = "with-depth-fdb"))]
+    let tracked_depth_feedback = ConstFeedback::False;
 
     let feedback = feedback_or!(
+        map_feedback, // map first to track code coverage
+        time_feedback,
         tracked_term_feedback,
         tracked_claim_feedback,
         tracked_profile_feedback,
         tracked_semantic_edge_feedback,
-        map_feedback,
-        time_feedback,
+        tracked_depth_feedback,
     );
     let observers = tuple_list!(
         edges_observer,
