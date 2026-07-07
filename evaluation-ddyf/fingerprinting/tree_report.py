@@ -30,9 +30,10 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from collections import defaultdict
+from collections import defaultdict, Counter
 from concurrent.futures import ThreadPoolExecutor
 
+import probe
 import puts
 
 # Cache for trace summaries to avoid redundant executions across different tree branches
@@ -58,76 +59,132 @@ def build_trace_map(cfg, put):
                 if f.endswith(".trace") and f not in _TRACE_MAP:
                     _TRACE_MAP[f] = os.path.join(root, f)
 
-def get_trace_summary(cfg, put, trace_name, version):
-    """Run display-execute to extract the wire-observable flight sequence.
-    
-    This function replays the given trace against a specific version of the PUT
-    using the 'display-execute' command. It then parses the resulting JSON to
-    extract high-level message types (e.g., ServerHello, Alert) and identifies
-    the exact step where the PUT stopped responding.
+def _notable_details(k):
+    """Structural sub-fields of a server flight that the message-type list drops but that can be
+    the actual distinguisher between two branches (e.g. the EncryptThenMac extension echo, or the
+    group a HelloRetryRequest / ServerHello selects). Returned as a sorted, de-duplicated list."""
+    det = []
+    if 'EncryptThenMac' in k:
+        det.append('EncryptThenMac')
+    if 'ExtendedMasterSecret' in k:
+        det.append('ExtendedMasterSecret')
+    # KeyShare group in a ServerHello / HelloRetryRequest (e.g. "KeyShare(secp256r1)")
+    for g in re.findall(r'KeyShare\((\w+)\)', k):
+        det.append(f'KeyShare({g})')
+    for g in re.findall(r'KeyShareEntry\w*\s*\{\s*group:\s*(\w+)', k):
+        det.append(f'KeyShare({g})')
+    return sorted(set(det))
+
+
+def _render_flight(data):
+    """Parse one execution JSON into a human summary:
+    "0: <flight> | 1: <flight> | N: (Terminated)". Server flights are annotated with notable
+    structural sub-fields (extensions / selected group) so that two branches that share the same
+    message types but differ in a sub-field (e.g. EtM echo, HRR group) render distinctly."""
+    ex = data.get('execution', {})
+    until = ex.get('executed_until', -1)
+    steps = ex.get('steps', [])
+    flights = {}
+    for i, step in enumerate(steps):
+        if i > until:
+            break
+        msgs = []
+        for k in step.get('knowledges', []):
+            if not (isinstance(k, str) and k.startswith('MessageFlight')):
+                continue
+            # TLS Alerts: keep the description code (the true distinguisher)
+            alerts = re.findall(r'Alert\(AlertMessagePayload { level: \w+, description: (\w+) } ?\)', k)
+            if alerts:
+                msgs.append(" + ".join(f"Alert({a})" for a in alerts))
+            else:
+                types = re.findall(r'typ: (\w+)', k)
+                t_filtered = [t for t in types if t not in ('HandshakeMessagePayload', 'Message')]
+                if t_filtered:
+                    label = " + ".join(t_filtered)
+                    details = _notable_details(k)
+                    if details:
+                        label += " [" + ", ".join(details) + "]"
+                    msgs.append(label)
+        if msgs:
+            flights[i] = ", ".join(msgs)
+    summary_parts = []
+    term_step = until + 1
+    for s in sorted(set(list(flights.keys()) + [term_step])):
+        if s in flights:
+            summary_parts.append(f"{s}: {flights[s]}")
+        if s == term_step:
+            summary_parts.append(f"{s}: (Terminated)")
+    return " | ".join(summary_parts)
+
+
+def _live_capture(cfg, trace_path, port):
+    """One live-TCP replay -> (depth, full_canon_sig, data) or None."""
+    try:
+        r = subprocess.run(cfg.task_prefix() + [cfg.prober(), "tcp", str(trace_path),
+                                                "--host", "127.0.0.1", "--port", str(port), "--json"],
+                           capture_output=True, text=True, timeout=cfg.timeout)
+    except subprocess.TimeoutExpired:
+        return None
+    i = r.stdout.find("{")
+    if i < 0:
+        return None
+    try:
+        d = json.loads(r.stdout[i:])
+    except json.JSONDecodeError:
+        return None
+    depth = (d.get("execution") or {}).get("executed_until", 0) or 0
+    return (depth, probe._canon_quiet(d, seg_robust=getattr(cfg, "seg_robust", False)), d)
+
+
+def get_trace_summary(cfg, put, trace_name, version, port=None, target_sig=None, sig_len=0):
+    """Render a branch's wire observable by probing the version LIVE over TCP -- the same channel
+    the tree keys on -- pooled over K replays.
+
+    Previously this used FFI `display-execute`, whose response can diverge from the live server
+    (e.g. an FFI `HandshakeFailure` where the live server sends `InternalError`), producing labels
+    that don't match the tree's live-TCP branch signatures. When `target_sig` is given, the label
+    is rendered from a replay whose canonical signature (truncated to `sig_len`) equals it, so the
+    printed label is guaranteed to correspond to the actual branch; otherwise the modal max-depth
+    replay is used.
     """
     cache_key = (trace_name, version)
     if cache_key in _SUMMARY_CACHE:
         return _SUMMARY_CACHE[cache_key]
-
     trace_path = _TRACE_MAP.get(trace_name)
     if not trace_path:
         return "Trace not found"
-        
+    if port is None:
+        port = cfg.base_port + 500
+    srv = None
     try:
-        binary = cfg.prober(put)
-        # Replay the trace using display-execute to get the full execution log
-        cmd = [binary, '--put', version, 'display-execute', '--json', '-k', str(trace_path)]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        out = proc.stdout
-        idx = out.find('{')
-        
-        if idx < 0:
-            res = "(Binary Error)"
+        srv = probe.launch(cfg, put, version, port)
+        if not probe.wait_listen(port):
+            res = "(server unavailable)"
         else:
-            data = json.loads(out[idx:])
-            ex = data.get('execution', {})
-            until = ex.get('executed_until', -1)
-            steps = ex.get('steps', [])
-            
-            flights = {}
-            for i, step in enumerate(steps):
-                if i > until:
-                    break
-                knowledges = step.get('knowledges', [])
-                msgs = []
-                for k in knowledges:
-                    if k.startswith('MessageFlight'):
-                        # Capture TLS Alerts with their description codes
-                        alerts = re.findall(r'Alert\(AlertMessagePayload { level: \w+, description: (\w+) } ?\)', k)
-                        if alerts:
-                            msgs.append(" + ".join([f"Alert({a})" for a in alerts]))
-                        else:
-                            # Capture other TLS message types
-                            types = re.findall(r'typ: (\w+)', k)
-                            if types:
-                                 # Strip internal puffin structural types
-                                 t_filtered = [t for t in types if t not in ('HandshakeMessagePayload', 'Message')]
-                                 if t_filtered:
-                                     msgs.append(" + ".join(t_filtered))
-                if msgs:
-                    flights[i] = ", ".join(msgs)
-            
-            # Build the sequence: "Step: Flight | Step: Flight | LastStep: (Terminated)"
-            summary_parts = []
-            term_step = until + 1
-            all_steps = sorted(set(list(flights.keys()) + [term_step]))
-            for s in all_steps:
-                if s in flights:
-                    summary_parts.append(f"{s}: {flights[s]}")
-                if s == term_step:
-                    summary_parts.append(f"{s}: (Terminated)")
-            res = " | ".join(summary_parts)
-            
-        _SUMMARY_CACHE[cache_key] = res
-        return res
+            K = max(getattr(cfg, "n_pool", 15) // 2, 9)
+            caps = [c for c in (_live_capture(cfg, trace_path, port) for _ in range(K)) if c]
+            if not caps:
+                res = "(no response)"
+            else:
+                best = max(d for d, _, _ in caps)
+                pool = [(s, dat) for d, s, dat in caps if d == best]
+                data = None
+                if target_sig is not None:
+                    for s, dat in pool:
+                        if probe.sigkey(s, sig_len) == target_sig:
+                            data = dat
+                            break
+                if data is None:
+                    modal = Counter(s for s, _ in pool).most_common(1)[0][0]
+                    data = next(dat for s, dat in pool if s == modal)
+                res = _render_flight(data)
     except Exception as e:
-        return f"(Summary Error: {str(e)})"
+        res = f"(Summary Error: {e})"
+    finally:
+        if srv is not None:
+            probe.kill(srv)
+    _SUMMARY_CACHE[cache_key] = res
+    return res
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -176,7 +233,15 @@ def main():
     build_trace_map(cfg, put)
     print(" done.")
 
-    # 2. Parallelism: Pre-calculate all required branch summaries
+    # Signature key length the tree was built on (0/None => full sig), so labels are rendered
+    # from the live replay whose canonical signature matches the branch key.
+    sig_len = 0
+    try:
+        sig_len = json.loads((tree_path.parent / "meta.json").read_text()).get("sig_len", 0) or 0
+    except Exception:
+        pass
+
+    # 2. Parallelism: Pre-calculate all required branch summaries (live-TCP, matched to branch sig)
     reqs = set()
     def collect_reqs(node):
         if node['type'] == 'leaf':
@@ -184,13 +249,18 @@ def main():
         trace = os.path.basename(node['trace'])
         for sig in node['children'].keys():
             if (trace, sig) in sig_map:
-                reqs.add((trace, sig_map[(trace, sig)][0]))
+                reqs.add((trace, sig_map[(trace, sig)][0], sig))
             collect_reqs(node['children'][sig])
     collect_reqs(tree)
 
-    print(f"Replaying {len(reqs)} distinguishers in parallel...", end="", flush=True)
+    reqs_list = list(reqs)
+    print(f"Replaying {len(reqs_list)} distinguishers live over TCP...", end="", flush=True)
     with ThreadPoolExecutor(max_workers=cfg.jobs) as ex:
-        list(ex.map(lambda r: get_trace_summary(cfg, put, r[0], r[1]), reqs))
+        list(ex.map(
+            lambda iv: get_trace_summary(cfg, put, iv[1][0], iv[1][1],
+                                         port=cfg.base_port + 500 + iv[0],
+                                         target_sig=iv[1][2], sig_len=sig_len),
+            list(enumerate(reqs_list))))
     print(" done.")
 
     # Infer mode (Live vs Offline) from meta.json
@@ -251,9 +321,11 @@ def main():
             child = node['children'][sig]
             is_last_child = (i == len(sigs) - 1)
             
-            # Find a version that follows this branch to get its wire summary
+            # Find a version that follows this branch to get its wire summary (live-TCP, matched
+            # to this branch's signature). Normally a cache hit from the parallel pre-pass.
             rep_ver = sig_map[(trace, sig)][0] if (trace, sig) in sig_map else None
-            summary = get_trace_summary(cfg, put, trace, rep_ver) if rep_ver else "Unknown"
+            summary = get_trace_summary(cfg, put, trace, rep_ver, target_sig=sig,
+                                        sig_len=sig_len) if rep_ver else "Unknown"
             
             # Print the branch label (the wire observable)
             child_marker = "└── " if is_last_child else "├── "
