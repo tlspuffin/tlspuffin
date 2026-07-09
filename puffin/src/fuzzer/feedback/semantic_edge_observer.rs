@@ -15,6 +15,9 @@ thread_local! {
     // Keep pairs (ID_edge, term) discovered during trace execution
     pub static CAPTURED_SEMANTIC_EDGES: RefCell<Vec<(u32, String)>> = RefCell::new(Vec::new());
 }
+
+/// Persistent metadata attached to the fuzzer global state 
+/// to track the complete historical coverage of raw semantic edge IDs.
 #[derive(Debug, Serialize, Deserialize, SerdeAny)]
 pub struct GlobalEdgeHistoryMetadata {
     pub seen_edges: HashSet<u32>,
@@ -27,6 +30,7 @@ impl GlobalEdgeHistoryMetadata {
         }
     }
 }
+/// Observer responsible for capturing execution edges paired with their
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SemanticEdgeObserver {
     name: Cow<'static, str>,
@@ -45,7 +49,7 @@ impl SemanticEdgeObserver {
 impl<I, S> Observer<I, S> for SemanticEdgeObserver
 where
     S: HasMetadata,
-{
+{   /// Pre-execution hook that flushes the internal storage and the instrumentation cache
     fn pre_exec(&mut self, _state: &mut S, _input: &I) -> Result<(), Error> {
         self.semantic_edges.clear();
         CAPTURED_SEMANTIC_EDGES.with(|s| s.borrow_mut().clear());

@@ -27,6 +27,7 @@ impl ClaimObserver {
     }
 }
 impl<I, S> Observer<I, S> for ClaimObserver {
+    /// Post-execution hook that extracts type-erased claims from the thread-local storage
     fn post_exec(&mut self, state: &mut S, _input: &I, _exit_kind: &ExitKind) -> Result<(), Error> {
         let _ = state;
         CAPTURED_CLAIMS.with(|captured_cell| {

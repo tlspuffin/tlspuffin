@@ -41,6 +41,7 @@ where
     }
 }
 impl SemanticEdgeFeedback {
+    /// Creates a new [`SemanticEdgeFeedback`] tied to the provided [`SemanticEdgeObserver`].
     pub fn new(observer: &SemanticEdgeObserver) -> Self {
         Self {
             observer_handle: observer.handle(),
