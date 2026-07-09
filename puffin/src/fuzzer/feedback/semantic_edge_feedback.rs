@@ -86,7 +86,7 @@ where
                 .or_insert_with(HashSet::new);
             // if we can add the couple to the hashmap, it is a new one
             if entry.insert(term.clone()) {
-                log::debug!("New semantic edge cover found: {}{}",edge, term);
+                log::debug!("New semantic edge cover found: {}{}", edge, term);
                 is_interesting = true;
             }
         }

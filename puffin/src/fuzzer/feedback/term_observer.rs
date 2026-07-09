@@ -1,4 +1,4 @@
-git rebase --skipuse std::borrow::Cow;
+use std::borrow::Cow;
 use std::cell::RefCell;
 
 use libafl::executors::ExitKind;
@@ -57,7 +57,7 @@ impl<I, S> Observer<I, S> for TermObserver {
         _exit_kind: &ExitKind,
     ) -> Result<(), Error> {
         self.discovered_terms.clear();
-        
+
         // Recover latest traces from the harness instrumentation memory slot
         CAPTURED_TERMS.with(|captured_cell| {
             if let Some(terms) = captured_cell.borrow().as_ref() {

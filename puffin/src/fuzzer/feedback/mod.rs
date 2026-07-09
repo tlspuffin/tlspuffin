@@ -10,17 +10,16 @@ pub mod tracking_feedback;
 pub use claim_feedback::{ClaimFeedback, ProfileFeedback};
 pub use claim_observer::ClaimObserver;
 pub use depth_feedback::DepthFeedback;
-pub use semantic_edge_feedback::SemanticEdgeFeedback;
-pub use semantic_edge_observer::SemanticEdgeObserver;
-pub use term_feedback::TermFeedback;
-pub use term_observer::TermObserver;
-pub use tracking_feedback::TrackingFeedbackWrapper;
-
 use libafl::feedbacks::{Feedback, MaxMapFeedback, TimeFeedback};
 use libafl::observers::{HitcountsMapObserver, StdMapObserver, TimeObserver};
 use libafl::prelude::*;
 use libafl::state::{HasClientPerfMonitor, HasExecutions};
 use libafl_bolts::tuples::tuple_list;
+pub use semantic_edge_feedback::SemanticEdgeFeedback;
+pub use semantic_edge_observer::SemanticEdgeObserver;
+pub use term_feedback::TermFeedback;
+pub use term_observer::TermObserver;
+pub use tracking_feedback::TrackingFeedbackWrapper;
 
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
@@ -66,7 +65,7 @@ where
         &mut EDGES_MAP[0..MAX_EDGES_NUM]
     };
 
-    // Observers Instantiation 
+    // Observers Instantiation
     // Observers always need to be active to satisfy the LibAFL tuple signature
     let time_observer = TimeObserver::new("time");
     let edges_observer =
@@ -102,7 +101,6 @@ where
     let tracked_term_feedback = TrackingFeedbackWrapper::new(term_feedback);
     #[cfg(feature = "with-depth-fdb")]
     let tracked_depth_feedback = TrackingFeedbackWrapper::new(depth_feedback);
-
 
     // Replace disabled features with a neutral ConstFeedback::False fallback
     #[cfg(feature = "without-code-cover-fdb")]

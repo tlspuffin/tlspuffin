@@ -56,9 +56,6 @@ where
         };
 
         if observer.max_depth > self.max_history_depth {
-            log::debug!("Nouvelle profondeur syntaxique atteinte : {} (ancienne: {})",
-            observer.max_depth, self.max_history_depth);
-
             self.max_history_depth = observer.max_depth;
             return Ok(true);
         }

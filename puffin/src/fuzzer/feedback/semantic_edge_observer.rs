@@ -16,7 +16,7 @@ thread_local! {
     pub static CAPTURED_SEMANTIC_EDGES: RefCell<Vec<(u32, String)>> = RefCell::new(Vec::new());
 }
 
-/// Persistent metadata attached to the fuzzer global state 
+/// Persistent metadata attached to the fuzzer global state
 /// to track the complete historical coverage of raw semantic edge IDs.
 #[derive(Debug, Serialize, Deserialize, SerdeAny)]
 pub struct GlobalEdgeHistoryMetadata {
@@ -49,7 +49,8 @@ impl SemanticEdgeObserver {
 impl<I, S> Observer<I, S> for SemanticEdgeObserver
 where
     S: HasMetadata,
-{   /// Pre-execution hook that flushes the internal storage and the instrumentation cache
+{
+    /// Pre-execution hook that flushes the internal storage and the instrumentation cache
     fn pre_exec(&mut self, _state: &mut S, _input: &I) -> Result<(), Error> {
         self.semantic_edges.clear();
         CAPTURED_SEMANTIC_EDGES.with(|s| s.borrow_mut().clear());

@@ -40,7 +40,7 @@ impl Named for ClaimFeedback {
 impl<EM, I, OT, S> Feedback<EM, I, OT, S> for ClaimFeedback
 where
     OT: MatchName,
-{  
+{
     fn is_interesting(
         &mut self,
         _state: &mut S,
