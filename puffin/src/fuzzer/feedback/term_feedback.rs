@@ -8,7 +8,7 @@ use libafl_bolts::tuples::*;
 use libafl_bolts::{Error, Named};
 
 use crate::fuzzer::feedback::term_observer::TermObserver;
-
+/// Feedback that monitors structural or symbolic terms extracted from the protocol
 pub struct TermFeedback {
     /// Persistent global memory storing all DY terms discovered
     global_knowledge_memory: HashSet<String>,
@@ -19,18 +19,19 @@ pub struct TermFeedback {
 impl<S> StateInitializer<S> for TermFeedback {}
 
 impl TermFeedback {
+    /// Creates a new [`TermFeedback`] associated with the given [`TermObserver`].
     pub fn new(observer: &TermObserver) -> Self {
         Self {
             global_knowledge_memory: HashSet::new(),
             observer_handle: observer.handle(),
-            name: Cow::Borrowed("term_feedback")
+            name: Cow::Borrowed("term_feedback"),
         }
     }
 }
 
 impl Named for TermFeedback {
     fn name(&self) -> &Cow<'static, str> {
-        &self.name()
+        &self.name
     }
 }
 
@@ -55,7 +56,7 @@ where
 
         for term_signature in &observer.discovered_terms {
             if !self.global_knowledge_memory.contains(term_signature) {
-                //log::info!("New term found: {}", term_signature);
+                log::debug!("New term found: {}", term_signature);
                 // Add discovered term to the global knowledge
                 self.global_knowledge_memory.insert(term_signature.clone());
                 found_new_term = true;

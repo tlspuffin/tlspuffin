@@ -13,24 +13,26 @@ thread_local! {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TermObserver {
     name: Cow<'static, str>,
+    /// Collection of all trace or message terms identified throughout the execution cycle
     pub discovered_terms: Vec<String>,
+    /// Maximum structural nesting depth tracked across all parsed terms during a single loop.
     pub max_depth: usize,
-    pub unique_ops_count: usize,
 }
 
 impl TermObserver {
+    /// Creates a new [`TermObserver`] with the given name.
     pub fn new(name: &'static str) -> Self {
         Self {
             name: Cow::Borrowed(name),
             discovered_terms: Vec::new(),
             max_depth: 0,
-            unique_ops_count: 0,
         }
     }
+
     fn compute_depth(term: &str) -> usize {
         let mut max_d = 0;
         let mut current_d = 0;
-        
+
         for c in term.chars() {
             if c == '(' {
                 current_d += 1;
@@ -55,12 +57,14 @@ impl<I, S> Observer<I, S> for TermObserver {
         _exit_kind: &ExitKind,
     ) -> Result<(), Error> {
         self.discovered_terms.clear();
-        self.unique_ops_count = 0;
+        
+        // Recover latest traces from the harness instrumentation memory slot
         CAPTURED_TERMS.with(|captured_cell| {
             if let Some(terms) = captured_cell.borrow().as_ref() {
                 self.discovered_terms = terms.clone();
             }
         });
+        // Parse terms to record the global maximum complexity depth achieved in this run
         let mut global_max_depth = 0;
         for term in &self.discovered_terms {
             let depth = Self::compute_depth(term);

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::fuzzer::stats_stage::{
     HIT_FDB_CLAIM, HIT_FDB_CLAIM_PROFILE, HIT_FDB_SEM_EDGE, HIT_FDB_TERM,
 };
-
+/// Tracked execution metrics container associated with an individual feedback layer.
 #[derive(Debug, Serialize, Deserialize, SerdeAny)]
 pub struct FeedbackStatsMetadata {
     pub total_evaluated: u64,
@@ -33,6 +33,7 @@ pub struct TrackingFeedbackWrapper<F> {
 }
 
 impl<F> TrackingFeedbackWrapper<F> {
+    /// Wraps a standard feedback instance inside a performance and hit tracking monitor shell.
     pub fn new(feedback: F) -> Self {
         Self { inner: feedback }
     }
