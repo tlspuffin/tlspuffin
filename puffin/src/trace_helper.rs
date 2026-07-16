@@ -53,7 +53,7 @@ where
 
 /// Builds a seed corpus as a `Vec<(Trace, &'static str)>` from a list of
 /// `seed_fn: condition` pairs. Each seed function must implement
-/// [`TraceHelper`](crate::trace_helper::TraceHelper) (blanket-implemented for the
+/// [`TraceHelper`] (blanket-implemented for the
 /// usual `Fn(AgentName) -> Trace` / `Fn(AgentName, AgentName) -> Trace` seed
 /// signatures). A seed is included only when its condition evaluates to `true`,
 /// which lets callers gate seeds on PUT capabilities. Protocol-agnostic — usable

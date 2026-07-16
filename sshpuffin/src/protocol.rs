@@ -228,7 +228,10 @@ impl ProtocolBehavior for SshProtocolBehavior {
     type SecurityViolationPolicy = SshSecurityViolationPolicy;
 
     fn corpus_registry() -> Vec<(&'static str, CorpusBuilder<Self>)> {
-        vec![] // TODO
+        // No SSH seeds yet; register an empty `default` corpus so that `seed`
+        // succeeds (producing an empty ./seeds) like the other protocols.
+        // TODO: add real SSH seeds.
+        vec![("default", (|_| vec![]) as CorpusBuilder<Self>)]
     }
 
     fn try_read_bytes(
