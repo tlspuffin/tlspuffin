@@ -17,7 +17,7 @@ use crate::tls::rustls::msgs::message::OpaqueMessage;
 use crate::tls::seeds::*;
 
 /// The `vulnerabilities` corpus: known CVE reproducers. These seeds are not
-/// gated on PUT capabilities.
+/// gated on PUT capabilities for now.
 pub fn create_corpus(
     _put: &dyn Factory<TLSProtocolBehavior>,
 ) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
