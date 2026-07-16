@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::collections::HashMap;
 
 use libafl::executors::ExitKind;
 use libafl::feedbacks::{Feedback, StateInitializer};
@@ -14,7 +15,7 @@ use crate::fuzzer::feedback::term_observer::TermObserver;
 pub struct DepthFeedback {
     observer_handle: Handle<TermObserver>,
     /// Highest term tree depth achieved across all past fuzzing generations.
-    pub max_history_depth: usize,
+    pub max_depth_by_context: HashMap<String, usize>,
     name: Cow<'static, str>,
 }
 
@@ -25,7 +26,7 @@ impl DepthFeedback {
     pub fn new(observer: &TermObserver) -> Self {
         Self {
             observer_handle: observer.handle(),
-            max_history_depth: 0,
+            max_depth_by_context: HashMap::new(),
             name: Cow::Borrowed("depth_feedback"),
         }
     }
@@ -54,12 +55,19 @@ where
                 "Observer referenced by DepthFeedback is not found in observers given to the fuzzer",
             ));
         };
-
-        if observer.max_depth > self.max_history_depth {
-            self.max_history_depth = observer.max_depth;
-            return Ok(true);
+        let mut is_interesting = false;
+        // Check if we reach new depth for this message type
+        for (context, depth) in &observer.terms_with_depths {
+            let current_max = self
+                .max_depth_by_context
+                .entry(context.clone())
+                .or_insert(0);
+            if *depth > *current_max {
+                *current_max = *depth;
+                is_interesting = true;
+            }
         }
 
-        Ok(false)
+        Ok(is_interesting)
     }
 }

@@ -15,6 +15,7 @@ pub struct TermObserver {
     name: Cow<'static, str>,
     /// Collection of all trace or message terms identified throughout the execution cycle
     pub discovered_terms: Vec<String>,
+    pub terms_with_depths: Vec<(String, usize)>,
     /// Maximum structural nesting depth tracked across all parsed terms during a single loop.
     pub max_depth: usize,
 }
@@ -25,8 +26,17 @@ impl TermObserver {
         Self {
             name: Cow::Borrowed(name),
             discovered_terms: Vec::new(),
+            terms_with_depths: Vec::new(),
             max_depth: 0,
         }
+    }
+
+    fn extract_term_context(term: &str) -> String {
+        term.split('(')
+            .next()
+            .unwrap_or("unknown")
+            .trim()
+            .to_string()
     }
 
     fn compute_depth(term: &str) -> usize {
@@ -57,6 +67,7 @@ impl<I, S> Observer<I, S> for TermObserver {
         _exit_kind: &ExitKind,
     ) -> Result<(), Error> {
         self.discovered_terms.clear();
+        self.terms_with_depths.clear();
 
         // Recover latest traces from the harness instrumentation memory slot
         CAPTURED_TERMS.with(|captured_cell| {
@@ -71,6 +82,8 @@ impl<I, S> Observer<I, S> for TermObserver {
             if depth > global_max_depth {
                 global_max_depth = depth;
             }
+            let context = Self::extract_term_context(term);
+            self.terms_with_depths.push((context, depth));
         }
         self.max_depth = global_max_depth;
         Ok(())
