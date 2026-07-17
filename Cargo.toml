@@ -6,6 +6,7 @@ members = [
     "puffin",
     "tlspuffin",
     "sshpuffin",
+    "sppuffin",
     "tlspuffin-claims",
     "puffin-build",
     "puffin-macros",
