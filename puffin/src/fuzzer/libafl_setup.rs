@@ -573,16 +573,30 @@ where
                     };
                     Box::new(|input: &_| harness::harness::<PB>(put_registry, put_desc, input))
                 }
-                FuzzingTarget::Differential(first, second) => Box::new(|input: &_| {
-                    harness::differential_harness::<PB>(put_registry, first, second, input)
-                }),
+                FuzzingTarget::Differential(first, second) => {
+                    let fingerprinting = config.fingerprinting;
+                    Box::new(move |input: &_| {
+                        harness::differential_harness::<PB>(
+                            put_registry,
+                            first,
+                            second,
+                            input,
+                            fingerprinting,
+                        )
+                    })
+                }
             };
 
         let harness_fn = &mut (|input: &_| boxed_harness_fn(input));
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder
-            .with_initial_inputs(PB::create_corpus(put_registry.default_put().clone()))
+            .with_initial_inputs(PB::create_corpus(
+                put_registry.default_put().clone(),
+                crate::protocol::CorpusOptions {
+                    fingerprinting: config.fingerprinting,
+                },
+            ))
             .with_rand(StdRand::new())
             .with_corpus(
                 //InMemoryCorpus::new(),

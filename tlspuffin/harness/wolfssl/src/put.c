@@ -1261,7 +1261,9 @@ static AGENT wolfssl_create_agent(TLS_AGENT_DESCRIPTOR const *descriptor,
     }
 #endif
 
-    if (peer_authentication)
+    /* FP_NO_PEER_VERIFY (fingerprinting only) disables peer auth so puppet agents do not abort;
+       unset (default) restores the descriptor-driven verification used by the fuzzer. */
+    if (!getenv("FP_NO_PEER_VERIFY") && peer_authentication)
     {
         wolfSSL_CTX_set_verify(agent->ctx, SSL_VERIFY_PEER | SSL_VERIFY_FAIL_IF_NO_PEER_CERT, NULL);
 
@@ -1522,7 +1524,7 @@ time_t time_cb(time_t *t)
     return time(t);
 }
 
-word32 LowResTimer(void)
+__attribute__((weak)) word32 LowResTimer(void)
 {
 #ifdef USE_CUSTOM_PRNG
     if (clock_value != 0)
@@ -1536,7 +1538,7 @@ word32 LowResTimer(void)
     return (word32)time(NULL);
 }
 
-TYPETIME TimeNowInMilliseconds(void)
+__attribute__((weak)) TYPETIME TimeNowInMilliseconds(void)
 {
 #ifdef USE_CUSTOM_PRNG
     if (clock_value != 0)

@@ -36,7 +36,22 @@ pub fn fn_client_extensions_append(
 pub fn fn_client_extensions_make(
     extensions: &Vec<ClientExtension>,
 ) -> Result<ClientExtensions, FnError> {
-    Ok(ClientExtensions(extensions.clone()))
+    let mut exts = extensions.clone();
+    if let Ok(sni) = std::env::var("PUFFIN_SNI") {
+        exts.retain(|e| !matches!(e, ClientExtension::ServerName(_)));
+        exts.push(ClientExtension::ServerName(ServerNameRequest(vec![
+            ServerName {
+                typ: ServerNameType::HostName,
+                payload: ServerNamePayload::HostName((
+                    PayloadU16(sni.as_bytes().to_vec()),
+                    DnsNameRef::try_from_ascii_str(&sni)
+                        .map_err(|err| FnError::Codec(err.to_string()))?
+                        .to_owned(),
+                )),
+            },
+        ])));
+    }
+    Ok(ClientExtensions(exts))
 }
 
 pub fn fn_server_extensions_new() -> Result<Vec<ServerExtension>, FnError> {

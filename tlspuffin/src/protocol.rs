@@ -431,6 +431,10 @@ impl ProtocolDescriptorConfig for TLSDescriptorConfig {
             && self.groups == other.groups
             && self.sigalgs == other.sigalgs
     }
+
+    fn is_server(&self) -> bool {
+        self.typ == AgentType::Server
+    }
 }
 
 // Bulk strings are not well-supported across wolfssl versions (better in later ones)
@@ -725,7 +729,23 @@ impl ProtocolTypes for TLSProtocolTypes {
     ///
     /// Use a set of TLS 1.2 and TLS 1.3 ciphers and curves that are mandatory to implement
     /// according to the TLS RFCs
-    fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self> {
+    fn differential_fuzzing_uniformise_put_config(
+        trace: Trace<Self>,
+        fingerprinting: bool,
+    ) -> Trace<Self> {
+        // FINGERPRINTING: when `fingerprinting` is set, do NOT uniformise. Uniformisation narrows
+        // every PUT's groups/sigalgs/ciphers so different implementations agree on parameters --
+        // useful for clean cross-implementation differential comparison, but wrong for
+        // fingerprinting a *remote server*: it configures the PUT into an artificial regime a
+        // stock server never uses, so divergences found under it fail to reproduce against a
+        // default-configured server over TCP. In fingerprinting mode each PUT is probed under its
+        // real (broad, default) config so FFI/differential results match what a live stock server
+        // exposes. The `fingerprinting` flag is threaded from the CLI via FuzzerConfig (fuzzing
+        // harness) and from the `seed` subcommand's `--fingerprinting` flag (seed generation), so
+        // it reaches fuzzer worker processes correctly (a process global would not).
+        if fingerprinting {
+            return trace;
+        }
         let mut uniformized_trace = trace.clone();
         for agent in uniformized_trace.descriptors.iter_mut() {
             agent.protocol_config.set_cipher_string_12(String::from(
@@ -746,7 +766,7 @@ impl ProtocolTypes for TLSProtocolTypes {
         }
 
         for t in uniformized_trace.prior_traces.iter_mut() {
-            *t = Self::differential_fuzzing_uniformise_put_config(t.to_owned());
+            *t = Self::differential_fuzzing_uniformise_put_config(t.to_owned(), fingerprinting);
         }
 
         uniformized_trace
@@ -787,11 +807,15 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     type ProtocolTypes = TLSProtocolTypes;
     type SecurityViolationPolicy = TlsSecurityViolationPolicy;
 
-    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
+    fn create_corpus(
+        put: PutDescriptor,
+        opts: puffin::protocol::CorpusOptions,
+    ) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
         crate::tls::seeds::create_corpus(
             tls_registry()
                 .find_by_id(put.factory)
                 .expect("missing PUT in TLS registry"),
+            opts,
         )
     }
 
