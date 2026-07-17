@@ -100,6 +100,53 @@ trait TcpPut {
     fn read_to_flight(&mut self) -> Result<Option<OpaqueMessageFlight>, Error>;
 }
 
+/// FINGERPRINTING (live-TCP probe path only). Optional pacing pause applied on each TCP read
+/// (input) and write (output) of the live `tcp` PUT. Sleeping just before a `read_to_end` gives a
+/// slow live server time to emit its full flight, so the fixed 200 ms read timeout no longer
+/// truncates it -- the fix for WolfSSL probe instability; sleeping after a write paces the messages
+/// we feed the server.
+///
+/// This is exclusively a *fingerprinting* concern: it runs only in the `TcpPut` transport used by
+/// the `tcp` probe command. Normal and differential fuzzing use the in-process (FFI) PUTs and never
+/// reach this code, so the pause cannot affect fuzzing throughput. Controlled by
+/// `PUFFIN_TCP_IO_SLEEP_MS` (default 100 ms; set 0 to disable). See the fingerprinting docs
+/// (`evaluation-ddyf/fingerprinting/README_fingerprinting.md`).
+fn io_pacing_sleep() {
+    let ms = std::env::var("PUFFIN_TCP_IO_SLEEP_MS")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(100);
+    if ms > 0 {
+        thread::sleep(Duration::from_millis(ms));
+    }
+}
+
+/// Classify how the peer terminated a `read_to_end` into a stable behavioral token. With a finite
+/// read timeout, `Ok(_)` means the peer sent EOF (clean FIN/close); `WouldBlock`/`TimedOut` means
+/// the connection is still open and the peer is idle (it "waits for more"); `ConnectionReset`/
+/// `BrokenPipe` is an RST. These distinctions are the version-fingerprinting signal that a plain
+/// "no bytes parsed" (EMPTY) throws away. `read_to_end` leaves already-read bytes in `buf` even on
+/// error, so a partial flight is still captured alongside the disposition.
+fn classify_disposition(res: &io::Result<usize>) -> &'static str {
+    match res {
+        Ok(_) => "TCP_CLOSE",
+        Err(e) => match e.kind() {
+            ErrorKind::WouldBlock | ErrorKind::TimedOut => "TCP_WAIT",
+            ErrorKind::ConnectionReset | ErrorKind::BrokenPipe => "TCP_RST",
+            _ => "TCP_ERR",
+        },
+    }
+}
+
+/// Emit the terminal TCP disposition for fingerprinting, gated by `FP_EMIT_DISPOSITION` so normal
+/// fuzzing is completely unaffected. Printed to STDERR (stdout carries the JSON the prober
+/// exports), one tagged line per read; the live prober keeps the last one as the terminal behavior.
+fn maybe_emit_disposition(res: &io::Result<usize>) {
+    if std::env::var_os("FP_EMIT_DISPOSITION").is_some() {
+        eprintln!("__FP_DISP__ {}", classify_disposition(res));
+    }
+}
+
 /// A PUT which is backed by a TCP stream to a server.
 /// In order to use this start an OpenSSL server like this:
 ///
@@ -115,12 +162,16 @@ pub struct TcpClientPut {
 impl TcpPut for TcpClientPut {
     fn write_to_stream(&mut self, buf: &[u8]) -> io::Result<()> {
         self.stream.write_all(buf)?;
-        self.stream.flush()
+        self.stream.flush()?;
+        io_pacing_sleep(); // pace each output flight to the server
+        Ok(())
     }
 
     fn read_to_flight(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
+        io_pacing_sleep(); // let the server's full response buffer before reading
         let mut buf = vec![];
-        let _ = self.stream.read_to_end(&mut buf);
+        let res = self.stream.read_to_end(&mut buf);
+        maybe_emit_disposition(&res); // fingerprinting: capture FIN/RST/WAIT (gated)
         let flight = OpaqueMessageFlight::read_bytes(&buf);
         Ok(flight)
     }
@@ -145,10 +196,10 @@ impl TcpClientPut {
         let mut tries = 500;
         let stream = loop {
             if let Ok(stream) = TcpStream::connect(&addr) {
-                // We are waiting 500ms for a response of the PUT behind the TCP socket.
+                // We are waiting 200ms for a response of the PUT behind the TCP socket.
                 // If we are expecting data from it and this timeout is reached, then we assume that
                 // no more will follow.
-                stream.set_read_timeout(Some(Duration::from_millis(500)))?;
+                stream.set_read_timeout(Some(Duration::from_millis(200)))?;
                 stream.set_nodelay(true)?;
                 break Some(stream);
             }
@@ -188,16 +239,17 @@ impl TcpServerPut {
         let (sender, stream_receiver) = channel();
         let addr = addr_from_config(options).map_err(|err| Error::Put(err.to_string()))?;
 
-        let listener = TcpListener::bind(addr).unwrap();
+        let listener = TcpListener::bind(addr)
+            .map_err(|err| Error::Put(format!("TcpServerPut failed to bind to {addr}: {err}")))?;
 
         thread::spawn(move || {
             if let Some(new_stream) = listener.incoming().next() {
                 let stream = new_stream.unwrap();
-                // We are waiting 500ms for a response of the PUT behind the TCP socket.
+                // We are waiting 200ms for a response of the PUT behind the TCP socket.
                 // If we are expecting data from it and this timeout is reached, then we assume that
                 // no more will follow.
                 stream
-                    .set_read_timeout(Some(Duration::from_millis(500)))
+                    .set_read_timeout(Some(Duration::from_millis(200)))
                     .unwrap();
                 stream.set_nodelay(true).unwrap();
                 sender.send((stream, listener)).unwrap();
@@ -235,13 +287,16 @@ impl TcpPut for TcpServerPut {
         let stream = &mut self.stream.as_mut().unwrap().0;
         stream.write_all(buf)?;
         stream.flush()?;
+        io_pacing_sleep(); // pace each output flight
         Ok(())
     }
 
     fn read_to_flight(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
         self.receive_stream();
+        io_pacing_sleep(); // let the full response buffer before reading
         let mut buf = vec![];
-        let _ = self.stream.as_mut().unwrap().0.read_to_end(&mut buf);
+        let res = self.stream.as_mut().unwrap().0.read_to_end(&mut buf);
+        maybe_emit_disposition(&res); // fingerprinting: capture FIN/RST/WAIT (gated)
         let flight = OpaqueMessageFlight::read_bytes(&buf);
         Ok(flight)
     }
@@ -249,7 +304,14 @@ impl TcpPut for TcpServerPut {
 
 impl Stream<TLSProtocolBehavior> for TcpServerPut {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
-        self.write_to_stream(message).unwrap();
+        // This trait method cannot return an error; a failed write (e.g. the peer
+        // closed/reset the connection) would otherwise be silently dropped, so we log it.
+        if let Err(err) = self.write_to_stream(message) {
+            log::warn!(
+                "add_to_inbound: failed to write {} bytes to TCP stream: {err}",
+                message.len()
+            );
+        }
     }
 
     fn take_message_from_outbound(
@@ -262,7 +324,14 @@ impl Stream<TLSProtocolBehavior> for TcpServerPut {
 
 impl Stream<TLSProtocolBehavior> for TcpClientPut {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
-        self.write_to_stream(message).unwrap();
+        // This trait method cannot return an error; a failed write (e.g. the peer
+        // closed/reset the connection) would otherwise be silently dropped, so we log it.
+        if let Err(err) = self.write_to_stream(message) {
+            log::warn!(
+                "add_to_inbound: failed to write {} bytes to TCP stream: {err}",
+                message.len()
+            );
+        }
     }
 
     fn take_message_from_outbound(

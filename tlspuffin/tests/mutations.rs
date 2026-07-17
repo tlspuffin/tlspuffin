@@ -35,10 +35,11 @@ fn test_mutators() {
     let registry = tls_registry();
     let factory = registry.default();
 
-    let inputs: Vec<Trace<TLSProtocolTypes>> = create_corpus(factory)
-        .iter()
-        .map(|(t, _)| t.to_owned())
-        .collect();
+    let inputs: Vec<Trace<TLSProtocolTypes>> =
+        create_corpus(factory, puffin::protocol::CorpusOptions::default())
+            .iter()
+            .map(|(t, _)| t.to_owned())
+            .collect();
 
     if inputs.is_empty() {
         // NOTE: no seeds to test our mutations, nothing to do

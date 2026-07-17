@@ -1522,7 +1522,7 @@ time_t time_cb(time_t *t)
     return time(t);
 }
 
-word32 LowResTimer(void)
+__attribute__((weak)) word32 LowResTimer(void)
 {
 #ifdef USE_CUSTOM_PRNG
     if (clock_value != 0)
@@ -1536,7 +1536,7 @@ word32 LowResTimer(void)
     return (word32)time(NULL);
 }
 
-TYPETIME TimeNowInMilliseconds(void)
+__attribute__((weak)) TYPETIME TimeNowInMilliseconds(void)
 {
 #ifdef USE_CUSTOM_PRNG
     if (clock_value != 0)

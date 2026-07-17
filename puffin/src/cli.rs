@@ -11,7 +11,7 @@ use libafl::inputs::Input;
 use log::LevelFilter;
 use puffin_build::puffin;
 
-use crate::agent::AgentName;
+use crate::agent::{AgentName, ProtocolDescriptorConfig};
 use crate::algebra::TermType;
 use crate::execution::{DifferentialRunner, ForkedRunner, Runner, TraceRunner};
 use crate::experiment::{format_title, write_experiment_markdown};
@@ -42,6 +42,7 @@ where
         .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do")
             .value_parser(value_parser!(u64).range(0..)))
         .arg(arg!(--minimizer "Use a minimizer"))
+        .arg(arg!(--fingerprinting "Enable fingerprinting mode (off by default; single switch that guards every fingerprinting-specific behaviour). Restricts the seed corpus to client-attacker-only + the fingerprinting probe seeds, skips PUT-config uniformisation (each PUT probed under its real default config), and restricts differential status objectives to wire-observable PUT-level outcomes. Applies to seed generation, execute commands, and fuzzing campaigns (experiment and non-experiment).").global(true))
         .arg(arg!(--tui "Display fuzzing logs using the interactive terminal UI"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
@@ -62,6 +63,9 @@ where
             ,
             Command::new("seed").about("Generates seeds to ./seeds")
                 .arg(arg!(--differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing")),
+            // NOTE: `--fingerprinting` is a global flag (defined on the root command above), so it
+            // works here too (`seed --fingerprinting`); it excludes server-attacker seeds and adds
+            // the fingerprinting-only probe seeds, so the PUT is only ever exercised as a server.
             Command::new("plot")
                 .about("Plots a trace stored in a file")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -98,8 +102,11 @@ where
                 .arg(arg!(-b --binary [p] "The program to start"))
                 .arg(arg!(-a --args [a] "The args of the program"))
                 .arg(arg!(-t --host [h] "The host to connect to, or the server host"))
+                .arg(arg!(-g --agent [n] "The agent index to map to TCP")
+                    .value_parser(value_parser!(usize)))
                 .arg(arg!(-p --port [n] "The client port to connect to, or the server port")
-                    .value_parser(value_parser!(u16).range(1..))),
+                    .value_parser(value_parser!(u16).range(1..)))
+                .arg(arg!(-j --json "Export trace execution as JSON").value_parser(value_parser!(bool))),
             Command::new("differential-execute")
                 .about("Execute a trace on multiple targets, returning the differences between the executions")
                 .arg(arg!(<first_target> "First PUT"))
@@ -133,6 +140,9 @@ where
     let port: u16 = *matches.get_one::<u16>("port").unwrap_or(&1337u16);
     let static_seed: Option<u64> = matches.get_one("seed").copied();
     let max_iters: Option<u64> = matches.get_one("max-iters").copied();
+    // Fingerprinting mode: threaded into FuzzerConfig (below) so fuzzer worker processes honour
+    // it, and read directly for the single-process seed/execute paths.
+    let fingerprinting = matches.get_flag("fingerprinting");
     let minimizer = matches.get_flag("minimizer");
     let tui = matches.get_flag("tui");
     let no_launcher = matches.get_flag("no-launcher");
@@ -187,6 +197,7 @@ where
         no_launcher,
         verbosity,
         stats_interval,
+        fingerprinting,
         ..Default::default()
     };
 
@@ -266,9 +277,12 @@ where
     };
 
     if let Some(matches) = matches.subcommand_matches("seed") {
-        let is_differential = matches.get_flag("differential");
+        let is_fingerprinting = matches.get_flag("fingerprinting");
+        // Fingerprinting is a specialization of differential seeding: it reuses the
+        // same uniformised PUT descriptors but drops server-attacker seeds.
+        let is_differential = matches.get_flag("differential") || is_fingerprinting;
 
-        if let Err(err) = seed(&put_registry, is_differential) {
+        if let Err(err) = seed(&put_registry, is_differential, is_fingerprinting) {
             log::error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -409,7 +423,13 @@ where
             !*disable_security_oracle,
         ) {
             Ok(_) => (ExitCode::SUCCESS, None),
-            Err(e) => (ExitCode::FAILURE, Some(e.to_string())),
+            Err(e) => {
+                // Log the execution error (kept in `err` for the printed/JSON ExecutionResult
+                // below); previously the error was silently carried only in the result value.
+                let msg = e.to_string();
+                log::error!("{}", msg);
+                (ExitCode::FAILURE, Some(msg))
+            }
         };
 
         if *differential_post_computations {
@@ -447,6 +467,15 @@ where
         } else {
             println!("{}", exec);
         }
+
+        // Exit with a non-zero process status when the trace failed, *after* printing the
+        // result above. The fingerprinting prober (and CI scripts) spawn this as a subprocess
+        // and rely on the exit code to tell a failed replay from a successful one; returning
+        // `res` alone is not always surfaced as a non-zero process status by the caller.
+        if res != ExitCode::SUCCESS {
+            std::process::exit(1);
+        }
+
         return res;
     } else if let Some(matches) = matches.subcommand_matches("binary-attack") {
         let input: &String = matches.get_one("input").unwrap();
@@ -467,6 +496,7 @@ where
             .get_one::<u16>("port")
             .unwrap_or(&44338u16)
             .to_string();
+        let export_json: &bool = matches.get_one("json").unwrap();
 
         let trace = Trace::<PB::ProtocolTypes>::from_file(input).unwrap();
 
@@ -484,19 +514,65 @@ where
             options.push(("cwd", cwd));
         }
 
-        let server = trace.descriptors[0].name;
+        let agent_index: usize = matches
+            .get_one::<usize>("agent")
+            .copied()
+            .unwrap_or_else(|| {
+                trace
+                    .descriptors
+                    .iter()
+                    .position(|d| d.protocol_config.is_server())
+                    .unwrap_or(0)
+            });
+        // `--agent` is user-controlled: validate the index rather than panic on an out-of-range
+        // subscript, returning a clean CLI error instead.
+        let Some(descriptor) = trace.descriptors.get(agent_index) else {
+            log::error!(
+                "--agent index {} is out of range: the trace has {} agent(s) (valid indices 0..{})",
+                agent_index,
+                trace.descriptors.len(),
+                trace.descriptors.len()
+            );
+            return ExitCode::FAILURE;
+        };
+        let server_name = descriptor.name;
         let put = PutDescriptor::new(TCP_PUT, options);
-        let runner = Runner::new(
-            put_registry.clone(),
-            Spawner::new(put_registry).with_mapping(&[(server, put)]),
-        );
-        let mut context = runner.execute(trace, &mut 0).unwrap();
+        let mut context =
+            TraceContext::new(Spawner::new(put_registry).with_mapping(&[(server_name, put)]));
 
-        let server = AgentName::first();
-        let shutdown = context.find_agent_mut(server).unwrap().shutdown();
-        log::info!("{}", shutdown);
+        let mut err = None;
+        let res = match trace.execute_until_step(&mut context, trace.steps.len(), &mut 0, false) {
+            Ok(_) => ExitCode::SUCCESS,
+            Err(e) => {
+                err = Some(e.to_string());
+                ExitCode::FAILURE
+            }
+        };
 
-        return ExitCode::SUCCESS;
+        if *export_json {
+            let exec = ExecutionResult::from(
+                "tcp".to_string(),
+                err,
+                &trace,
+                context,
+                false,
+                true,
+                false,
+                false,
+            );
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&exec).unwrap_or("".into())
+            );
+            return res;
+        }
+
+        let first_agent = AgentName::first();
+        if let Ok(agent) = context.find_agent_mut(first_agent) {
+            log::info!("{}", agent.shutdown());
+        }
+
+        return res;
     } else if let Some(matches) = matches.subcommand_matches("differential-execute") {
         // differential fuzzing here
         let first_put: &String = matches.get_one("first_target").unwrap();
@@ -523,9 +599,13 @@ where
         }
 
         // Uniformise PUT configuration (ciphers, sigalgs, groups) so both PUTs
-        // use a comparable config — same as the test helper does.
+        // use a comparable config — same as the test helper does. In fingerprinting mode this is a
+        // no-op (each PUT is probed under its real default config).
         let trace =
-            <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(trace);
+            <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
+                trace,
+                fingerprinting,
+            );
 
         // Map ALL agents in the trace (including prior traces) to the specified PUT.
         // Without this, agents in prior traces silently fall back to the default PUT.
@@ -554,6 +634,7 @@ where
             put_registry.clone(),
             Spawner::new(put_registry.clone()).with_mapping(&first_mappings),
             Spawner::new(put_registry.clone()).with_mapping(&second_mappings),
+            fingerprinting,
         );
 
         return match runner.execute_config(
@@ -591,8 +672,11 @@ where
                             println!("{}\n", diff);
                         }
                     }
+                    ExitCode::FAILURE
+                } else {
+                    log::error!("{}", e);
+                    std::process::exit(1);
                 }
-                ExitCode::FAILURE
             }
         };
     } else {
@@ -730,13 +814,21 @@ fn plot<PB: ProtocolBehavior>(
 fn seed<PB: ProtocolBehavior>(
     put_registry: &PutRegistry<PB>,
     differential_fuzzing: bool,
+    fingerprinting: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
-    for (mut trace, name) in PB::create_corpus(put_registry.default_put().clone()) {
+    let corpus_opts = crate::protocol::CorpusOptions { fingerprinting };
+    // `create_corpus` decides, via `CorpusOptions`, which seeds to emit: in fingerprinting mode it
+    // already drops the server-attacker and MiM/full-handshake seeds and keeps only the
+    // client-attacker + fingerprinting probe seeds, so no filtering is needed here.
+    for (mut trace, name) in PB::create_corpus(put_registry.default_put().clone(), corpus_opts) {
         if differential_fuzzing {
+            // In fingerprinting mode this is a no-op: probe each PUT under its real default config
+            // so results reproduce against a live stock server (see the trait doc).
             trace =
                 <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
                     trace,
+                    fingerprinting,
                 );
         }
 
