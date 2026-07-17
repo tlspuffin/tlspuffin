@@ -259,7 +259,10 @@ fn test_term_payloads_eval() {
         let res = zoo_test(
             &mut closure,
             StdRand::with_seed(i),
-            20,
+            // how_many raised 20 -> 30: this seeded-random payload test is sensitive to signature
+            // size; adding function symbols (e.g. the EtM extensions) shifts the RNG draw so a
+            // fragile [get]/[opaque] term can be reached before a valid one within too few tries.
+            30,
             true,
             false,
             true,
@@ -359,7 +362,8 @@ fn test_term_payloads_mutate_eval() {
         let res = zoo_test(
             &mut closure,
             StdRand::with_seed(i),
-            20,
+            // how_many raised 20 -> 30 (see test_term_payloads_eval): signature-size sensitivity.
+            30,
             true,
             false,
             true,
