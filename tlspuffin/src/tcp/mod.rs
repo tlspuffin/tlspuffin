@@ -100,11 +100,17 @@ trait TcpPut {
     fn read_to_flight(&mut self) -> Result<Option<OpaqueMessageFlight>, Error>;
 }
 
-/// Optional pacing pause applied on each TCP read (input) and write (output) of the live `tcp`
-/// PUT. Controlled by `PUFFIN_TCP_IO_SLEEP_MS` (default 100 ms; 0 disables). Sleeping just before a
-/// `read_to_end` gives a slow live server time to emit its full flight, so the fixed 200 ms read
-/// timeout no longer truncates it -- the fix for WolfSSL probe instability. Sleeping after a write
-/// paces the messages we feed the server. Read every call (cheap relative to the sleep itself).
+/// FINGERPRINTING (live-TCP probe path only). Optional pacing pause applied on each TCP read
+/// (input) and write (output) of the live `tcp` PUT. Sleeping just before a `read_to_end` gives a
+/// slow live server time to emit its full flight, so the fixed 200 ms read timeout no longer
+/// truncates it -- the fix for WolfSSL probe instability; sleeping after a write paces the messages
+/// we feed the server.
+///
+/// This is exclusively a *fingerprinting* concern: it runs only in the `TcpPut` transport used by
+/// the `tcp` probe command. Normal and differential fuzzing use the in-process (FFI) PUTs and never
+/// reach this code, so the pause cannot affect fuzzing throughput. Controlled by
+/// `PUFFIN_TCP_IO_SLEEP_MS` (default 100 ms; set 0 to disable). See the fingerprinting docs
+/// (`evaluation-ddyf/fingerprinting/README_fingerprinting.md`).
 fn io_pacing_sleep() {
     let ms = std::env::var("PUFFIN_TCP_IO_SLEEP_MS")
         .ok()

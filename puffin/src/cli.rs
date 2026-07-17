@@ -42,7 +42,7 @@ where
         .arg(arg!(-i --"max-iters" [i] "Maximum iterations to do")
             .value_parser(value_parser!(u64).range(0..)))
         .arg(arg!(--minimizer "Use a minimizer"))
-        .arg(arg!(--fingerprinting "Enable fingerprinting mode for the whole process: probe each PUT under its real (default) config instead of the uniformised cross-implementation regime. Applies to all execute commands and fuzzing campaigns (experiment and non-experiment). Guards every fingerprinting-specific behaviour edit to puffin."))
+        .arg(arg!(--fingerprinting "Enable fingerprinting mode (off by default; single switch that guards every fingerprinting-specific behaviour). Restricts the seed corpus to client-attacker-only + the fingerprinting probe seeds, skips PUT-config uniformisation (each PUT probed under its real default config), and restricts differential status objectives to wire-observable PUT-level outcomes. Applies to seed generation, execute commands, and fuzzing campaigns (experiment and non-experiment).").global(true))
         .arg(arg!(--tui "Display fuzzing logs using the interactive terminal UI"))
         .arg(arg!(--"put-use-clear" "Use clearing functionality instead of recreating puts"))
         .arg(arg!(--"no-launcher" "Do not use the convenient launcher"))
@@ -62,8 +62,10 @@ where
                 .arg(arg!(-d --description [d] "Description of the experiment"))
             ,
             Command::new("seed").about("Generates seeds to ./seeds")
-                .arg(arg!(--differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing"))
-                .arg(arg!(--fingerprinting "Like --differential, but excludes server-attacker seeds so the PUT is only ever exercised as a server. Use for differential campaigns aimed at fingerprinting a remote server.")),
+                .arg(arg!(--differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing")),
+            // NOTE: `--fingerprinting` is a global flag (defined on the root command above), so it
+            // works here too (`seed --fingerprinting`); it excludes server-attacker seeds and adds
+            // the fingerprinting-only probe seeds, so the PUT is only ever exercised as a server.
             Command::new("plot")
                 .about("Plots a trace stored in a file")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -594,6 +596,7 @@ where
             put_registry.clone(),
             Spawner::new(put_registry.clone()).with_mapping(&first_put_descriptors),
             Spawner::new(put_registry).with_mapping(&second_put_descriptors),
+            fingerprinting,
         );
 
         return match runner.execute_config(
@@ -776,7 +779,8 @@ fn seed<PB: ProtocolBehavior>(
     fingerprinting: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
     fs::create_dir_all("./seeds")?;
-    for (mut trace, name) in PB::create_corpus(put_registry.default_put().clone()) {
+    let corpus_opts = crate::protocol::CorpusOptions { fingerprinting };
+    for (mut trace, name) in PB::create_corpus(put_registry.default_put().clone(), corpus_opts) {
         // In fingerprinting mode the PUT is only ever exercised as a server (the
         // attacker is the client), so server-attacker seeds are not deployable and
         // are skipped. Client-attacker and honest-handshake (incl. MiM) seeds are kept.

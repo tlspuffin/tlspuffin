@@ -800,11 +800,15 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     type ProtocolTypes = TLSProtocolTypes;
     type SecurityViolationPolicy = TlsSecurityViolationPolicy;
 
-    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
+    fn create_corpus(
+        put: PutDescriptor,
+        opts: puffin::protocol::CorpusOptions,
+    ) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
         crate::tls::seeds::create_corpus(
             tls_registry()
                 .find_by_id(put.factory)
                 .expect("missing PUT in TLS registry"),
+            opts,
         )
     }
 

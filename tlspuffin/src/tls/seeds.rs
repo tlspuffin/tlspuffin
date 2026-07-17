@@ -2999,40 +2999,43 @@ macro_rules! corpus {
 
 pub fn create_corpus(
     put: &dyn puffin::put_registry::Factory<TLSProtocolBehavior>,
+    opts: puffin::protocol::CorpusOptions,
 ) -> Vec<(Trace<TLSProtocolTypes>, &'static str)> {
-    // Fingerprinting campaigns set FP_CLIENT_ATTACKER_ONLY to keep ONLY seeds where the PUT plays
-    // (only) the SERVER -- i.e. client-attacker seeds (`seed_client_attacker*`, and the
-    // session-resumption seeds which are client-attacker handshakes against a PUT server). It drops
-    // the MITM / full-handshake seeds (`seed_successful*`, which create BOTH a client and a server
-    // PUT agent) and the server-attacker seeds (`seed_server_attacker*`, where the PUT plays the
-    // CLIENT): those don't fit remote-server fingerprinting and their objective traces are rejected
-    // by our wire-signature canon anyway. Default (var unset) keeps the full corpus for other fuzzing.
-    let all = std::env::var("FP_CLIENT_ATTACKER_ONLY").is_err();
-    let v13_only = std::env::var("FP_V13_ONLY").is_ok();
+    // Fingerprinting mode keeps ONLY seeds where the PUT plays (only) the SERVER -- i.e.
+    // client-attacker seeds (`seed_client_attacker*`, and the session-resumption seeds which are
+    // client-attacker handshakes against a PUT server). It drops the MITM / full-handshake seeds
+    // (`seed_successful*`, which create BOTH a client and a server PUT agent) and the
+    // server-attacker seeds (`seed_server_attacker*`, where the PUT plays the CLIENT): those don't
+    // fit remote-server fingerprinting and their objective traces are rejected by our
+    // wire-signature canon anyway. Not fingerprinting -> full corpus for normal / differential
+    // fuzzing. Driven by the single `--fingerprinting` flag via `CorpusOptions`.
+    let fingerprinting = opts.fingerprinting;
 
     corpus!(
-        // Full Handshakes (MITM: both a client and a server PUT agent)
-        seed_successful: all && put.supports("tls13"),
-        seed_successful_with_ccs: all && put.supports("tls13"),
-        seed_successful_with_tickets: all && put.supports("tls13"),
-        seed_successful12: !v13_only && all && put.supports("tls12") && !put.supports("tls12_session_resumption"),
-        seed_successful12_with_tickets: !v13_only && all && put.supports("tls12") && put.supports("tls12_session_resumption"),
+        // Full Handshakes (MITM: both a client and a server PUT agent) -- not for fingerprinting
+        seed_successful: !fingerprinting && put.supports("tls13"),
+        seed_successful_with_ccs: !fingerprinting && put.supports("tls13"),
+        seed_successful_with_tickets: !fingerprinting && put.supports("tls13"),
+        seed_successful12: !fingerprinting && put.supports("tls12") && !put.supports("tls12_session_resumption"),
+        seed_successful12_with_tickets: !fingerprinting && put.supports("tls12") && put.supports("tls12_session_resumption"),
         // Client Attackers (PUT = server) -- kept for fingerprinting
         seed_client_attacker: put.supports("tls13"),
-        seed_client_attacker13_no_sigalgs: put.supports("tls13"),
-        seed_client_attacker13_no_sigalgs_dualstack: put.supports("tls13"),
-        seed_client_attacker13_group_mismatch: put.supports("tls13"),
+        // Fingerprinting-only probe seeds (C1 distinguisher experiments): kept out of normal /
+        // differential fuzzing corpora -- only included in fingerprinting campaigns.
+        seed_client_attacker13_no_sigalgs: fingerprinting && put.supports("tls13"),
+        seed_client_attacker13_no_sigalgs_dualstack: fingerprinting && put.supports("tls13"),
+        seed_client_attacker13_group_mismatch: fingerprinting && put.supports("tls13"),
         seed_client_attacker_full: put.supports("tls13"),
         seed_client_attacker_auth: put.supports("tls13") && put.supports("client_authentication_transcript_extraction"),
-        seed_client_attacker12: !v13_only && put.supports("tls12"),
+        seed_client_attacker12: put.supports("tls12"),
         // Session resumption (PUT = server, client-attacker handshakes) -- kept for fingerprinting
         seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
         seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption"),
-        // Server Attackers (PUT = client)
-        seed_server_attacker_full: all && put.supports("tls13"),
-        seed_server_attacker_full_coalesced: all && put.supports("tls13"),
-        seed_server_attacker_with_hello_retry_request : all && put.supports("tls13"),
-        seed_server_attacker12: !v13_only && all && put.supports("tls12"),
+        // Server Attackers (PUT = client) -- not for fingerprinting
+        seed_server_attacker_full: !fingerprinting && put.supports("tls13"),
+        seed_server_attacker_full_coalesced: !fingerprinting && put.supports("tls13"),
+        seed_server_attacker_with_hello_retry_request : !fingerprinting && put.supports("tls13"),
+        seed_server_attacker12: !fingerprinting && put.supports("tls12"),
     )
 }
 
@@ -3256,7 +3259,7 @@ pub mod tests {
         let registry = tls_registry();
         let factory = registry.default();
 
-        for (trace, name) in create_corpus(factory) {
+        for (trace, name) in create_corpus(factory, puffin::protocol::CorpusOptions::default()) {
             for step in &trace.steps {
                 match &step.action {
                     Action::Input(input) => {
@@ -3707,14 +3710,16 @@ pub mod tests {
             .find_by_id(second_put)
             .expect("second differential PUT must exist in the TLS registry");
 
-        let second_seed_names: std::collections::HashSet<_> = super::create_corpus(second_factory)
-            .into_iter()
-            .map(|(_, name)| name)
-            .collect();
-        let corpus: Vec<_> = super::create_corpus(first_factory)
-            .into_iter()
-            .filter(|(_, name)| second_seed_names.contains(name))
-            .collect();
+        let second_seed_names: std::collections::HashSet<_> =
+            super::create_corpus(second_factory, puffin::protocol::CorpusOptions::default())
+                .into_iter()
+                .map(|(_, name)| name)
+                .collect();
+        let corpus: Vec<_> =
+            super::create_corpus(first_factory, puffin::protocol::CorpusOptions::default())
+                .into_iter()
+                .filter(|(_, name)| second_seed_names.contains(name))
+                .collect();
 
         for (trace, name) in corpus {
             let trace =
@@ -3745,6 +3750,7 @@ pub mod tests {
                 registry.clone(),
                 Spawner::new(registry.clone()).with_mapping(&first_mapping),
                 Spawner::new(registry.clone()).with_mapping(&second_mapping),
+                true, // fingerprinting: this differential test asserts wire-observable equivalence
             );
 
             let result = runner.execute(trace, &mut 0);

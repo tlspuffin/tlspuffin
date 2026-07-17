@@ -13,7 +13,7 @@ Two binary modes:
     focused edge map -- the proven mechanism). For each pair it symlinks the two vendored versions
     into a temp VENDOR_DIR, touches build.rs, rebuilds (non-ASAN), and copies to /tmp/bin_<A>_<B>.
 
-`--client-attacker-only` sets FP_CLIENT_ATTACKER_ONLY=1 so the corpus keeps only client-attacker
+`--client-attacker-only` passes the binary's `--fingerprinting` flag so the corpus keeps only client-attacker
 seeds (drops the MITM/full-handshake and server-attacker seeds -- see tls/seeds.rs::create_corpus).
 
 Examples:
@@ -102,7 +102,8 @@ def main():
     ap.add_argument("--per-pair-binary", action="store_true",
                     help="build a separate binary per pair linking ONLY those 2 PUTs (focused edge map)")
     ap.add_argument("--client-attacker-only", action="store_true",
-                    help="set FP_CLIENT_ATTACKER_ONLY=1 (corpus keeps client-attacker seeds only)")
+                    help="pass the binary's --fingerprinting flag (client-attacker-only corpus, "
+                         "no PUT-config uniformisation, wire-observable objectives)")
     ap.add_argument("--edges", type=int, default=8388608,
                     help="LibAFL edge-map size for per-pair binaries (default 8388608)")
     ap.add_argument("--target-dir", default="/tmp/fp_campaign_target",
@@ -118,8 +119,11 @@ def main():
     cores = expand_cores(cfg.cores)
     par = args.parallel or (len(cores) if cores else 8)
     camp_env = dict(os.environ)
-    if args.client_attacker_only:
-        camp_env["FP_CLIENT_ATTACKER_ONLY"] = "1"   # read at runtime by tls::seeds::create_corpus
+    # --client-attacker-only now maps to the single `--fingerprinting` binary flag (added to `cmd`
+    # below). It drives the whole fingerprinting mode: client-attacker-only corpus, no PUT-config
+    # uniformisation, and wire-observable differential objectives. (Superseded the former
+    # FP_CLIENT_ATTACKER_ONLY env var, which create_corpus no longer reads.)
+    fp_flag = ["--fingerprinting"] if args.client_attacker_only else []
 
     print(f"[campaigns] PUT={put}  pairs={len(pairs)}  timeout={secs}s/pair  parallel={par}  "
           f"per_pair_binary={args.per_pair_binary}  client_attacker_only={args.client_attacker_only}  "
@@ -148,13 +152,13 @@ def main():
         title = f"fpp-{puts.dotted(put, a)}-{puts.dotted(put, b)}"
         port = cfg.base_port + (i % 1000)
         core = cores[i % len(cores)] if cores else None
-        cmd = [binary, "-p", str(port), "--cores", (core or args.fuzz_cores),
+        cmd = [binary, "-p", str(port), "--cores", (core or args.fuzz_cores)] + fp_flag + [
                "differential-experiment", a, b, "-t", title]
         if core:
             cmd = ["taskset", "-c", core] + cmd
         if args.dry_run:
-            print("  " + ("FP_CLIENT_ATTACKER_ONLY=1 " if args.client_attacker_only else "")
-                  + (binary or "<no-binary>") + " ... differential-experiment %s %s -t %s" % (a, b, title))
+            print("  " + (binary or "<no-binary>")
+                  + " %s differential-experiment %s %s -t %s" % (" ".join(fp_flag), a, b, title))
             return (a, b, 0)
         if not binary:
             print(f"  [{i+1}/{len(pairs)}] {title}  SKIP (no binary)", flush=True)

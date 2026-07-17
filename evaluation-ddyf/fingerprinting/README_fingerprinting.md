@@ -126,6 +126,22 @@ etc. Inspecting the committed `reference/<put>/report.md` needs none of the abov
 > deployment prober that doesn't know the target's library is the open problem — the adaptive-pause
 > idea (return early on a response/FIN) would let one fixed setting fit both.
 
+## Fingerprinting mode & controls (all off by default — normal fuzzing is never affected)
+
+Every fingerprinting-specific behaviour in `puffin`/`tlspuffin` is guarded so that normal and
+differential fuzzing keep their baseline semantics unless explicitly requested. There is **one
+primary switch** plus **two live-probe env-gates**:
+
+| Control | Where | Effect (only when enabled) |
+|---|---|---|
+| **`--fingerprinting`** (CLI flag) | `puffin` root + `seed` subcommand | The single fingerprinting switch. Threaded via `FuzzerConfig` so it reaches fuzzer workers. Enables three things together: (1) **corpus** = client-attacker seeds only + the fingerprinting-only probe seeds (`tls::seeds::create_corpus` via `CorpusOptions`); (2) **no PUT-config uniformisation** — each PUT is probed under its real default config (`ProtocolTypes::differential_fuzzing_uniformise_put_config`); (3) **wire-observable differential objectives** — status objectives are restricted to PUT-level outcomes, dropping non-deterministic internal Fn/Crypto errors (`DifferentialRunner`). `run_campaigns.py --client-attacker-only` passes this flag. |
+| **`FP_EMIT_DISPOSITION`** (env) | `tlspuffin/src/tcp/mod.rs` | Live-`tcp`-PUT only. Emits the terminal TCP disposition (`TCP_CLOSE`/`TCP_WAIT`/`TCP_RST`/`TCP_ERR`) on stderr so the prober can fold FIN/RST/WAIT into the signature. Set by the pipeline when the model's `disposition` param is on. Off ⇒ legacy signatures unchanged. |
+| **`PUFFIN_TCP_IO_SLEEP_MS`** (env) | `tlspuffin/src/tcp/mod.rs` | Live-`tcp`-PUT only (see the prober note above). Paces socket I/O so slow servers aren't truncated. Default 100 ms; `0` disables. Never runs under in-process (FFI) fuzzing, so it cannot affect fuzzing throughput. |
+
+Rule of thumb: **nothing here changes what a normal `experiment` / `differential-experiment`
+campaign does unless you pass `--fingerprinting`** (or set the two `tcp`-PUT env-gates, which only
+matter to the live prober).
+
 ## Reproduce
 
 ### Live-test the committed models (default)

@@ -151,6 +151,11 @@ pub struct DifferentialRunner<PB: ProtocolBehavior> {
     registry: PutRegistry<PB>,
     first_spawner: Spawner<PB>,
     second_spawner: Spawner<PB>,
+    /// Fingerprinting mode: restrict differential *status* objectives to wire-observable PUT-level
+    /// outcomes (drop tlspuffin-internal Fn/Crypto/etc. errors, which are non-deterministic).
+    /// OFF by default so normal differential fuzzing keeps its baseline status-objective
+    /// semantics -- threaded from the `--fingerprinting` flag via FuzzerConfig.
+    fingerprinting: bool,
 }
 
 impl<PB: ProtocolBehavior> DifferentialRunner<PB> {
@@ -158,11 +163,13 @@ impl<PB: ProtocolBehavior> DifferentialRunner<PB> {
         registry: impl Into<PutRegistry<PB>>,
         first_spawner: impl Into<Spawner<PB>>,
         second_spawner: impl Into<Spawner<PB>>,
+        fingerprinting: bool,
     ) -> Self {
         Self {
             registry: registry.into(),
             first_spawner: first_spawner.into(),
             second_spawner: second_spawner.into(),
+            fingerprinting,
         }
     }
 }
@@ -207,14 +214,14 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
         // check status first
         let mut diff = vec![];
         #[cfg(not(feature = "ddyf-disable-status"))]
-        {
-            // A status objective must be WIRE-OBSERVABLE. Only PUT-level outcomes count, and
-            // only the STEP reached is observable over TCP -- the internal error *string* is
-            // not (it is internal state, like err=/until=, which signatures already strip).
-            // tlspuffin-internal errors (Fn/Crypto/Term/IO/Agent/Stream/Extraction) are
-            // non-deterministic -- e.g. a fuzzer-mutated fn_decode_* parsing the server's
-            // fresh crypto-random bytes as a length-prefixed field fails ~50% of the time --
-            // so they must NEVER create an objective. SecurityClaim diffs are handled below.
+        if self.fingerprinting {
+            // FINGERPRINTING: a status objective must be WIRE-OBSERVABLE. Only PUT-level outcomes
+            // count, and only the STEP reached is observable over TCP -- the internal error
+            // *string* is not (it is internal state, like err=/until=, which signatures already
+            // strip). tlspuffin-internal errors (Fn/Crypto/Term/IO/Agent/Stream/Extraction) are
+            // non-deterministic -- e.g. a fuzzer-mutated fn_decode_* parsing the server's fresh
+            // crypto-random bytes as a length-prefixed field fails ~50% of the time -- so they
+            // must NEVER create an objective. SecurityClaim diffs are handled below.
             //   - both PUT errors            -> objective iff they stop at a DIFFERENT step
             //   - exactly one PUT error      -> always an objective (one PUT erred, the other
             //                                   completed or had only a non-PUT error)
@@ -242,6 +249,54 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
                     }
                     .as_trace_difference(),
                 )
+            }
+        } else {
+            // BASELINE (normal differential fuzzing): unchanged pre-fingerprinting semantics --
+            // any PUT error vs a differing status is a status objective, using the error strings.
+            match (&first_trace_status, &second_trace_status) {
+                (Err(Error::Put(put1_error)), Err(Error::Put(put2_error))) => {
+                    // If both PUT fail at the same step we consider that they fail for the same
+                    // reason
+                    if first_ctx.executed_until != second_ctx.executed_until {
+                        diff.push(
+                            crate::differential::StatusDiff {
+                                first_executed_steps: first_ctx.executed_until,
+                                first_status: put1_error.to_string(),
+                                second_executed_steps: second_ctx.executed_until,
+                                second_status: put2_error.to_string(),
+                                total_step: trace.as_ref().steps.len(),
+                            }
+                            .as_trace_difference(),
+                        )
+                    }
+                }
+                (Err(Error::Put(put1_error)), second_put_status) => diff.push(
+                    crate::differential::StatusDiff {
+                        first_executed_steps: first_ctx.executed_until,
+                        first_status: put1_error.to_string(),
+                        second_executed_steps: second_ctx.executed_until,
+                        second_status: match second_put_status {
+                            Ok(_) => "Success".into(),
+                            Err(e) => e.to_string(),
+                        },
+                        total_step: trace.as_ref().steps.len(),
+                    }
+                    .as_trace_difference(),
+                ),
+                (first_put_status, Err(Error::Put(put2_error))) => diff.push(
+                    crate::differential::StatusDiff {
+                        first_executed_steps: first_ctx.executed_until,
+                        first_status: match first_put_status {
+                            Ok(_) => "Success".into(),
+                            Err(e) => e.to_string(),
+                        },
+                        second_executed_steps: second_ctx.executed_until,
+                        second_status: put2_error.to_string(),
+                        total_step: trace.as_ref().steps.len(),
+                    }
+                    .as_trace_difference(),
+                ),
+                _ => (),
             }
         }
 

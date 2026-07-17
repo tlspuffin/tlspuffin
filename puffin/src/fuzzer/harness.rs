@@ -111,6 +111,7 @@ pub fn differential_harness<PB: ProtocolBehavior + 'static>(
                 .map(|d| (d.name, second_put.clone()))
                 .collect::<Vec<_>>(),
         ),
+        fingerprinting,
     );
 
     HARNESS_EXEC.increment();

@@ -591,7 +591,12 @@ where
 
         let mut builder = RunClientBuilder::new(config.clone(), harness_fn, state, event_manager);
         builder = builder
-            .with_initial_inputs(PB::create_corpus(put_registry.default_put().clone()))
+            .with_initial_inputs(PB::create_corpus(
+                put_registry.default_put().clone(),
+                crate::protocol::CorpusOptions {
+                    fingerprinting: config.fingerprinting,
+                },
+            ))
             .with_rand(StdRand::new())
             .with_corpus(
                 //InMemoryCorpus::new(),

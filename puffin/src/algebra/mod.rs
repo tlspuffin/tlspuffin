@@ -636,7 +636,10 @@ pub mod test_signature {
         type ProtocolTypes = TestProtocolTypes;
         type SecurityViolationPolicy = TestSecurityViolationPolicy;
 
-        fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
+        fn create_corpus(
+            _put: PutDescriptor,
+            _opts: crate::protocol::CorpusOptions,
+        ) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
             panic!("Not implemented for test stub");
         }
 
