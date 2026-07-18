@@ -1,0 +1,216 @@
+{
+  "type": "node",
+  "trace": "probes/20260609-223621285-33c7da567f17ae4f.trace",
+  "probe": 528,
+  "default": "894ce6278bbad3adf372f7ec55aa17ae9a4132732b174fc4989f9ee3a5ad5c5e",
+  "children": {
+    "7539b6dba836750f53e0811127abbe88e8af209980a22208bb6808db01d7cff0": {
+      "type": "leaf",
+      "clusters": [
+        [
+          "wolfssl500",
+          "wolfssl521"
+        ]
+      ]
+    },
+    "73dfb09a736fad6efe49524273c93492e3689af8b1e14cbffb764133912a0bde": {
+      "type": "node",
+      "trace": "probes/20260610-010911646-2c2af137200ba09d.trace",
+      "probe": 621,
+      "default": "06d9ed64a079bc89921c9d72525ac3a9004306bd797084b5e3e3e63a619a8952",
+      "children": {
+        "06d9ed64a079bc89921c9d72525ac3a9004306bd797084b5e3e3e63a619a8952": {
+          "type": "node",
+          "trace": "probes/seed_client_attacker12_etm.trace",
+          "probe": 806,
+          "default": "b01ee737f19e809f307435864eb71aafa53cac5a433a12ae7af225ccceae0ebf",
+          "children": {
+            "b01ee737f19e809f307435864eb71aafa53cac5a433a12ae7af225ccceae0ebf": {
+              "type": "leaf",
+              "clusters": [
+                [
+                  "wolfssl510",
+                  "wolfssl511"
+                ]
+              ]
+            },
+            "2157ce321c8c7d5e504afc1d6ac684ef292d6bc809c7e6f8ac0600fd60447089": {
+              "type": "node",
+              "trace": "probes/20260609-222826816-e4c49967a70ff749.trace",
+              "probe": 1,
+              "default": "5a96bdd74849c81ba93619b9b746a229c456fbd97a6cd386817e868c6aa35e76",
+              "children": {
+                "5a96bdd74849c81ba93619b9b746a229c456fbd97a6cd386817e868c6aa35e76": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "wolfssl520"
+                    ]
+                  ]
+                },
+                "9875e264abb04791c4eb19905ed6b8d2c5eacc9f4c6c374f959223998b55e25d": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "wolfssl530"
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "dda6368300d11f50f3ae241dfe9168c80d358b339ade136af7a2f232a74d8fbc": {
+          "type": "leaf",
+          "clusters": [
+            [
+              "wolfssl540"
+            ]
+          ]
+        },
+        "0a3270fd9b63db10a9dcc28f63ef9e77ae8e17e3a176fc81ee096c9f61f0ae2e": {
+          "type": "leaf",
+          "clusters": [
+            [
+              "wolfssl552",
+              "wolfssl553"
+            ]
+          ]
+        }
+      }
+    },
+    "a79552944b26581d7cac622bd7139983c0bce1331d0b12b824ef9a83c1f14ca5": {
+      "type": "leaf",
+      "clusters": [
+        [
+          "wolfssl554"
+        ]
+      ]
+    },
+    "1e468e928dafd5be91d1c0d8b5f9c78d9e516bd3626e268602f08056b7d59870": {
+      "type": "node",
+      "trace": "probes/20260610-010911646-2c2af137200ba09d.trace",
+      "probe": 621,
+      "default": "0a3270fd9b63db10a9dcc28f63ef9e77ae8e17e3a176fc81ee096c9f61f0ae2e",
+      "children": {
+        "0a3270fd9b63db10a9dcc28f63ef9e77ae8e17e3a176fc81ee096c9f61f0ae2e": {
+          "type": "leaf",
+          "clusters": [
+            [
+              "wolfssl560",
+              "wolfssl562",
+              "wolfssl563"
+            ]
+          ]
+        },
+        "1f508b68f375b22d4eb6871b955d24faa6340d2f750a90fa8ac815e00f5c0f7e": {
+          "type": "node",
+          "trace": "probes/20260609-222832145-30ea54344987b100.trace",
+          "probe": 10,
+          "default": "cd3efacbb74aeb2a64ead98a9fca60fdcefca4d6bd84ceed69c37bad87ff69ba",
+          "children": {
+            "8d4e6d8b296d8a75ae1373d2f19bee1a40604e2f494ea141aaefbd77f85774c3": {
+              "type": "leaf",
+              "clusters": [
+                [
+                  "wolfssl564"
+                ]
+              ]
+            },
+            "cd3efacbb74aeb2a64ead98a9fca60fdcefca4d6bd84ceed69c37bad87ff69ba": {
+              "type": "node",
+              "trace": "probes/20260609-222833190-062338c391042522.trace",
+              "probe": 13,
+              "default": "2863567ab1de04dc5dc1cf6cc62cfe3a6d2a315f5f0911760cbc4b2d32df7332",
+              "children": {
+                "2863567ab1de04dc5dc1cf6cc62cfe3a6d2a315f5f0911760cbc4b2d32df7332": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "wolfssl566"
+                    ]
+                  ]
+                },
+                "1e468e928dafd5be91d1c0d8b5f9c78d9e516bd3626e268602f08056b7d59870": {
+                  "type": "leaf",
+                  "clusters": [
+                    [
+                      "wolfssl570"
+                    ]
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "894ce6278bbad3adf372f7ec55aa17ae9a4132732b174fc4989f9ee3a5ad5c5e": {
+      "type": "node",
+      "trace": "probes/20260610-010911646-2c2af137200ba09d.trace",
+      "probe": 621,
+      "default": "06d9ed64a079bc89921c9d72525ac3a9004306bd797084b5e3e3e63a619a8952",
+      "children": {
+        "1f508b68f375b22d4eb6871b955d24faa6340d2f750a90fa8ac815e00f5c0f7e": {
+          "type": "leaf",
+          "clusters": [
+            [
+              "wolfssl572"
+            ]
+          ]
+        },
+        "06d9ed64a079bc89921c9d72525ac3a9004306bd797084b5e3e3e63a619a8952": {
+          "type": "node",
+          "trace": "probes/20260609-223948410-9d8cf6eeba3b5691.trace",
+          "probe": 531,
+          "default": "a79552944b26581d7cac622bd7139983c0bce1331d0b12b824ef9a83c1f14ca5",
+          "children": {
+            "4c4988d51ba4f3564810603359b3dde13dae7656f9bded572a5d3488821ad9de": {
+              "type": "leaf",
+              "clusters": [
+                [
+                  "wolfssl574"
+                ]
+              ]
+            },
+            "a79552944b26581d7cac622bd7139983c0bce1331d0b12b824ef9a83c1f14ca5": {
+              "type": "leaf",
+              "clusters": [
+                [
+                  "wolfssl576",
+                  "wolfssl580",
+                  "wolfssl582"
+                ]
+              ]
+            }
+          }
+        },
+        "591606a4cd544ce6bc70233b840fa65e760cbe5bb8af98c168f05665ca44361e": {
+          "type": "node",
+          "trace": "probes/20260609-222849778-18c1fbc4990d2b63.trace",
+          "probe": 40,
+          "default": "9093fb207a46946f8fd01f17f20ed97ebe37490ac2788a8ec020fd8619fd9151",
+          "children": {
+            "1f722a17bb082c18f8b3b9710baf0c6d2df96f4bb88db8600c8bf5e232e6fd15": {
+              "type": "leaf",
+              "clusters": [
+                [
+                  "wolfssl584"
+                ]
+              ]
+            },
+            "9093fb207a46946f8fd01f17f20ed97ebe37490ac2788a8ec020fd8619fd9151": {
+              "type": "leaf",
+              "clusters": [
+                [
+                  "wolfssl590",
+                  "wolfssl591"
+                ]
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}
