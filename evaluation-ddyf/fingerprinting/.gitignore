@@ -1,0 +1,11 @@
+# Large mined corpus (raw differential-fuzzing objectives; reproducible from experiment
+# archives). Only the decision probes under reference/*/probes/ are committed.
+reference/*/probes_full/
+
+# Scratch reproduction / logs / campaign output (not part of the committed model)
+reproduced/
+reproduced_*/
+log/
+experiments/
+__pycache__/
+*.pyc
