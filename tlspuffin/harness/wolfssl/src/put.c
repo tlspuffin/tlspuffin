@@ -202,7 +202,8 @@ static int wolfssl_get_sig_wire_value(WOLFSSL *ssl)
 {
     byte sigAlgo, hashAlgo;
 
-#if LIBWOLFSSL_VERSION_HEX >= 0x05008000 /* 5.8.0: fields moved from Suites to Options */
+#if LIBWOLFSSL_VERSION_HEX >= 0x05006000 /* 5.6.0: sigAlgo/hashAlgo moved from Suites to Options   \
+                                          */
     sigAlgo = ssl->options.sigAlgo;
     hashAlgo = ssl->options.hashAlgo;
 #else
