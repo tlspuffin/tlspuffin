@@ -493,7 +493,10 @@ fn search_for_seed_cve_2021_3449(
     state: &mut TLSState,
     config: MutationConfig,
 ) -> Option<Trace<TLSProtocolTypes>> {
-    let loop_tries = 5000;
+    // Each stage searches for a rare mutation: stage 3 needs the mutator to both select the last
+    // step's sequence-number leaf and redraw it as `fn_seq_1` (one of ~17 same-shape symbols),
+    // which lands only a handful of times per 10k tries. Keep the budget generous.
+    let loop_tries = 100000;
     let mut attempts = 0;
     let (mut trace, _) = _seed_client_attacker12(AgentName::first());
     let mut success = false;

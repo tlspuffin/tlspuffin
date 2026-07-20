@@ -64,6 +64,7 @@ signal-hook = { workspace = true, features = ["iterator", "extended-siginfo"] }
 comparable = { workspace = true, features = ["derive"] }
 derivative = { workspace = true }
 paste = { workspace = true }
+linkme = { workspace = true }
 
 [build-dependencies]
 bindgen = { workspace = true }

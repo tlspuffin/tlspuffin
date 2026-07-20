@@ -24,6 +24,7 @@ extractable-macro = { path = "../extractable-macro" }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 comparable = { workspace = true, features = ["derive"] }
+linkme = { workspace = true }
 
 # libssh
 foreign-types = { workspace = true }
