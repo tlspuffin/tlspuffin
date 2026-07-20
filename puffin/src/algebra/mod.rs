@@ -101,8 +101,9 @@ pub mod test_signature {
     use serde::{Deserialize, Serialize};
 
     use crate::agent::{AgentDescriptor, AgentName, ProtocolDescriptorConfig};
-    use crate::algebra::dynamic_function::{FunctionAttributes, TypeShape};
+    use crate::algebra::dynamic_function::TypeShape;
     use crate::algebra::error::FnError;
+    use crate::algebra::signature::Signature;
     use crate::algebra::{AnyMatcher, Term};
     use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
     use crate::codec::{CodecP, Reader};
@@ -116,7 +117,7 @@ pub mod test_signature {
     use crate::put_registry::Factory;
     use crate::trace::{Action, InputAction, Knowledge, Source, Step, StepNumber, Trace};
     use crate::{
-        codec, define_signature, dummy_codec, dummy_extract_knowledge,
+        codec, declare_signature, define_signature, dummy_codec, dummy_extract_knowledge,
         dummy_extract_knowledge_codec, term,
     };
 
@@ -346,8 +347,11 @@ pub mod test_signature {
         }
     }
 
+    declare_signature!(TEST_SIGNATURE<TestProtocolTypes>);
+
     define_signature!(
-        TEST_SIGNATURE<TestProtocolTypes>,
+        TEST_SIGNATURE,
+        TestProtocolTypes;
         fn_hmac256_new_key
         fn_hmac256
         fn_client_hello
