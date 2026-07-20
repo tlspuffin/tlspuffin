@@ -18,5 +18,7 @@ comparable = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 puffin = { path = "../puffin" }
+# required in scope by the code that `declare_signature!`/`define_signature!` expand to
+linkme = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

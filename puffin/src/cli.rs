@@ -58,7 +58,7 @@ where
             ,
             Command::new("mapper")
                 .about("Debugging information about the mapper")
-                .arg(arg!(--path "Show the full Rust path of each symbol instead of just its name"))
+                .arg(arg!(--path "Show the full Rust path of each symbol instead of just its name").global(true))
                 .subcommands(vec![
                     Command::new("symbols")
                         .about("Show all function symbols of ProtocolTypes signatures (sorted alphabetically)"),
