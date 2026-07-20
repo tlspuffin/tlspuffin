@@ -368,6 +368,7 @@ comparable = { workspace = true, features = ["derive"] }
 ring = { version = "0.16.20", features = ["std"] }
 webpki = { version = "0.22.0", features = ["alloc", "std"] }
 sct = "0.7.0"
+linkme = { workspace = true }
 
 # OpenSSL
 

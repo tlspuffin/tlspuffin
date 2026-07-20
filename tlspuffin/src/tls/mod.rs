@@ -5,10 +5,9 @@
 //! the fuzzing.
 
 use fn_impl::*;
-use puffin::algebra::dynamic_function::FunctionAttributes;
 use puffin::algebra::error::FnError;
-use puffin::define_signature;
 use puffin::error::Error;
+use puffin::{declare_signature, define_signature};
 
 use crate::protocol::TLSProtocolTypes;
 
@@ -62,8 +61,11 @@ macro_rules! nyi_fn {
     ($(#[$attr:meta])*) => {};
 }
 
+declare_signature!(TLS_SIGNATURE<TLSProtocolTypes>);
+
 define_signature!(
-    TLS_SIGNATURE<TLSProtocolTypes>,
+    TLS_SIGNATURE,
+    TLSProtocolTypes;
     // constants
     fn_true
     fn_false
