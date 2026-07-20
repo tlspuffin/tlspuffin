@@ -3,12 +3,12 @@ use std::any::{Any, TypeId};
 use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::agent::ProtocolDescriptorConfig;
-use puffin::algebra::dynamic_function::FunctionAttributes;
+use puffin::algebra::signature::Signature;
 use puffin::algebra::Matcher;
 use puffin::error::Error;
 use puffin::protocol::{Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
-use puffin::{atom_extract_knowledge, codec, define_signature, dummy_codec};
+use puffin::{atom_extract_knowledge, codec, declare_signature, define_signature, dummy_codec};
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -89,7 +89,8 @@ fn fn_void() -> Result<Void, puffin::algebra::error::FnError> {
     Ok(Void())
 }
 
-define_signature!(TEST_SIGNATURE<TestProtocolTypes>, fn_void);
+declare_signature!(TEST_SIGNATURE<TestProtocolTypes>);
+define_signature!(TEST_SIGNATURE, TestProtocolTypes; fn_void);
 dummy_codec!(TestProtocolTypes, Void);
 atom_extract_knowledge!(TestProtocolTypes, Void);
 atom_extract_knowledge!(TestProtocolTypes, u8);
