@@ -1,5 +1,6 @@
 use_languages(C)
 
+
 cmake_builder(
   TARGETS
     install
@@ -10,6 +11,11 @@ cmake_builder(
     -DWITH_SFTP=OFF
     -DWITH_NACL=OFF
     -DBUILD_SHARED_LIBS=OFF
+    # libssh 0.8.x builds its main target shared unconditionally and only emits a
+    # static archive under these knobs; newer libssh (0.9+) ignores them and uses
+    # BUILD_SHARED_LIBS=OFF. Setting both keeps every version producing libssh.a.
+    -DBUILD_STATIC_LIB=ON
+    -DWITH_STATIC_LIB=ON
     -DCMAKE_POLICY_DEFAULT_CMP0148:STRING=OLD
 
   CFLAGS
