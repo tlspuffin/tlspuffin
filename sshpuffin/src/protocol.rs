@@ -230,12 +230,7 @@ impl ProtocolTypes for SshProtocolTypes {
     }
 
     fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
-        // Intermediate phase claims (liveness-depth signal for claim coverage)
-        // are emitted only by the libssh harness, not wolfSSH, so comparing them
-        // cross-vendor is a spurious diff on every run. They carry a distinct
-        // TypeShape (see SshClaim::id) so we drop them from differential
-        // comparison by type; only completed-handshake claims are compared.
-        Some(vec![TypeId::of::<crate::claim::SshProgressClaim>()])
+        None
     }
 
     fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self> {
@@ -376,7 +371,10 @@ mod filter_diff_tests {
     #[test]
     fn cross_vendor_acceptance_divergences_are_all_kept() {
         // libssh rejects, wolfSSH accepts — wolfSSH over-permissiveness.
-        assert!(keep(&status("Receiving banner: too large banner", "Success")));
+        assert!(keep(&status(
+            "Receiving banner: too large banner",
+            "Success"
+        )));
         assert!(keep(&status(
             "No version of SSH protocol usable (...)",
             "Success"
@@ -436,26 +434,5 @@ impl ProtocolBehavior for SshProtocolBehavior {
         ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error> {
         crate::ssh::message::try_read_bytes(bitstring, ty)
-    }
-
-    fn check_trace_security_violation(
-        _trace: &Trace<Self::ProtocolTypes>,
-        _ctx: &puffin::trace::TraceContext<Self>,
-    ) -> Option<&'static str> {
-        // The matching-conversation property is now judged by the claims-based
-        // DY oracle (`SshSecurityViolationPolicy::check_violation`): it compares
-        // the KEX transcript (session id / exchange hash H) and the post-NEWKEYS
-        // secure-channel message-type digests, which are derived from the
-        // *parsed, MAC-authenticated* message stream.
-        //
-        // The earlier trace-level byte-stream comparison
-        // (`matching_conversation_violation`) is retired as the live oracle: it
-        // over-approximated the property by diffing raw delivered bytes, so it
-        // flagged corruption of fields SSH explicitly does not protect — padding
-        // and SSH_MSG_IGNORE (RFC 4251 §9.3.6) — producing the bulk of the
-        // bit-level campaign false positives. The function is kept for its
-        // direct unit tests. Returning `None` here leaves the (FP-free) claims
-        // oracle as the sole matching-conversation judge.
-        None
     }
 }

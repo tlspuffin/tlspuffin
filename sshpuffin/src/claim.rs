@@ -20,6 +20,16 @@ pub struct SshClaim {
     step: Option<StepNumber>,
 }
 
+impl SshClaim {
+    pub fn new(agent_name: AgentName, inner: SshClaimInner) -> Self {
+        Self {
+            agent_name,
+            inner: Box::new(inner),
+            step: None,
+        }
+    }
+}
+
 dummy_extract_knowledge_codec!(SshProtocolTypes, SshClaim);
 
 impl Claim for SshClaim {

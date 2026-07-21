@@ -23,81 +23,29 @@ use crate::ssh::deframe::SshMessageDeframer;
 
 // ── Claim FFI bridge ──────────────────────────────────────────────────────
 //
-// bindgen treats `struct Claim` as opaque (it is forward-declared in
-// puffin.h), so we mirror the real C layout from `puffin/ssh.h` ourselves and
-// cast the opaque `*mut Claim` through it. Keep these in lockstep.
+// The C harness exposes a claim callback, but this build does not use claims
+// (the security oracle is a no-op). The notify trampoline pushes an empty
+// `SshClaimInner` so the FFI contract is satisfied without decoding any claim
+// data. Real claim decoding lives in the claims/oracle change set.
 
-const SSH_CLAIM_STR_LEN: usize = 128;
-
-#[repr(C)]
-struct CSshClaim {
-    kex: [c_char; SSH_CLAIM_STR_LEN],
-    cipher_in: [c_char; SSH_CLAIM_STR_LEN],
-    cipher_out: [c_char; SSH_CLAIM_STR_LEN],
-    hmac_in: [c_char; SSH_CLAIM_STR_LEN],
-    hmac_out: [c_char; SSH_CLAIM_STR_LEN],
-    auth_method: [c_char; SSH_CLAIM_STR_LEN],
-    auth_user: [c_char; SSH_CLAIM_STR_LEN],
-    auth_key_fp: [u8; 32],
-    auth_key_fp_len: u8,
-    session_id: [u8; 64],
-    session_id_len: u8,
-    secure_tx_digest: u64,
-    secure_rx_digest: u64,
-    phase: u8,
-    rx_count: u32,
-    tx_count: u32,
-}
-
-/// Decode a NUL-terminated, fixed-size C claim field into an owned `String`.
-fn claim_field(buf: &[c_char; SSH_CLAIM_STR_LEN]) -> String {
-    unsafe { CStr::from_ptr(buf.as_ptr()) }
-        .to_string_lossy()
-        .into_owned()
-}
-
-/// Opaque data handed back to us on every `notify`/`destroy` call. Owns a clone
-/// of the per-execution claim list and the agent identity needed to build a
-/// `SshClaim`. Boxed and leaked into the C side; reclaimed by `ssh_claim_destroy`.
+/// Opaque data handed back to us on every `notify`/`destroy` call.
 struct ClaimerContext {
     claims: GlobalClaimList<SshClaim>,
     agent_name: AgentName,
+    #[allow(dead_code)]
     is_server: bool,
 }
 
-/// `notify` trampoline: invoked by the C harness when an agent reaches a claim
-/// point. Reconstructs a `SshClaim` and pushes it onto the global claim list.
-extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
-    if context.is_null() || claim.is_null() {
+/// `notify` trampoline: invoked by the C harness at a claim point. This build
+/// records an empty claim (claims are unused by the current oracle).
+extern "C" fn ssh_claim_notify(context: *mut c_void, _claim: *mut Claim) {
+    if context.is_null() {
         return;
     }
     let ctx = unsafe { &*(context as *const ClaimerContext) };
-    let c = unsafe { &*(claim as *const CSshClaim) };
-
-    let inner = SshClaimInner {
-        is_server: ctx.is_server,
-        kex: claim_field(&c.kex),
-        cipher_in: claim_field(&c.cipher_in),
-        cipher_out: claim_field(&c.cipher_out),
-        hmac_in: claim_field(&c.hmac_in),
-        hmac_out: claim_field(&c.hmac_out),
-        auth_method: claim_field(&c.auth_method),
-        auth_user: claim_field(&c.auth_user),
-        auth_key_fingerprint: c.auth_key_fp[..(c.auth_key_fp_len as usize).min(32)].to_vec(),
-        session_id: c.session_id[..(c.session_id_len as usize).min(64)].to_vec(),
-        secure_tx_digest: c.secure_tx_digest,
-        secure_rx_digest: c.secure_rx_digest,
-        phase: c.phase,
-        rx_count: c.rx_count,
-        tx_count: c.tx_count,
-    }
-    // Canonicalize vendor-specific algorithm names to SSH wire names so claims
-    // are comparable across libssh and wolfSSH.
-    .canonicalize();
-
     ctx.claims
         .deref_borrow_mut()
-        .claim_sized(SshClaim::new(ctx.agent_name, inner));
+        .claim_sized(SshClaim::new(ctx.agent_name, SshClaimInner));
 }
 
 /// `destroy` trampoline: reclaims the boxed `ClaimerContext`.
