@@ -21,8 +21,8 @@ The same pipeline runs on any supported PUT (Program-Under-Test). Today: **OpenS
 > `validate.py`/`fingerprint_probe.py`. History: an early 12-cluster model → a strict 806-probe
 > rebuild at `N_POOL=30, DOM=21, timeout=8` → **15** clusters, then the RFC 7366 Encrypt-then-MAC
 > probe split cluster {5.1.0, 5.1.1, 5.2.0} → **16** (adding the 8th decision probe). The remaining
-> merged groups are indistinguishable over the current probe set (see
-> `../../docs/wolfssl-cluster-merge-analysis.md` and `wolfssl-c1-split-analysis.md`).
+> merged groups are indistinguishable over the current probe set (see the paper's fingerprinting
+> appendix for the per-cluster source-diff analysis).
 > (WolfSSL 5.5.0/5.5.1 are excluded — their vendored example server does not build; the model
 > covers 24 versions. The vendored `wolfssl521` dir actually contains 5.0.1, so the `{5.0.0, 5.2.1}`
 > cluster is really {5.0.0, 5.0.1}.)
@@ -38,8 +38,8 @@ numbers were rebuilt with exactly the per-PUT prober params in the table.
 > slower distinguishing flights.
 
 > **Merged groups are data/server-bound, not method-bound.** A few adjacent WolfSSL versions are
-> wire-identical on *these* vendored default servers, so no probe separates them (see
-> `../../docs/wolfssl-cluster-merge-analysis.md`). On servers/objectives that split those pairs the
+> wire-identical on *these* vendored default servers, so no probe separates them (see the paper's
+> fingerprinting appendix). On servers/objectives that split those pairs the
 > count can rise; 16 is the honest reproducible number for this repo's data + stock example servers.
 
 > **Scope note.** These are the **live-TCP** numbers (a remote observer who never decrypts). An

@@ -1,7 +1,7 @@
 # Developer guide — DDYF version fingerprinting
 
 How the pipeline is built, the invariants that make it correct, and how to extend it. For *using*
-it (reproduce, identify a target), see `README_fingerprinting.md`.
+it (reproduce, identify a target), see `../FINGERPRINTING_README.md`.
 
 ## Big picture
 

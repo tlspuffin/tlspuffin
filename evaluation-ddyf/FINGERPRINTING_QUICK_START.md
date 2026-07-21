@@ -10,8 +10,8 @@ Supported PUTs: **OpenSSL 3.x** (61 versions → **11** clusters) and **WolfSSL 
 does not discuss the 21 OpenSSL 3.0.x versions (over those 40 the model is still 11 clusters).
 
 For the full reference (layout, prober internals, `--fingerprinting` mode & controls, archive URLs
-+ checksums) see [`README_fingerprinting.md`](README_fingerprinting.md) and
-[`DEVELOPER.md`](DEVELOPER.md).
++ checksums) see [`FINGERPRINTING_README.md`](FINGERPRINTING_README.md) and
+[`DEVELOPER.md`](fingerprinting/DEVELOPER.md).
 
 ## Setup
 
@@ -42,7 +42,7 @@ cluster — never triggering a crash or memory violation.
 ## Reproduce the committed results
 
 The prober env is **per PUT** (OpenSSL answers immediately; WolfSSL needs an I/O pause + longer
-timeout so its slower distinguishing flights are not truncated — see `README_fingerprinting.md`).
+timeout so its slower distinguishing flights are not truncated — see `FINGERPRINTING_README.md`).
 
 ### 1. Validate the committed decision tree (no campaigns needed)
 
