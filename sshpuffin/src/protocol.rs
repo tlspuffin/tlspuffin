@@ -376,7 +376,10 @@ mod filter_diff_tests {
     #[test]
     fn cross_vendor_acceptance_divergences_are_all_kept() {
         // libssh rejects, wolfSSH accepts — wolfSSH over-permissiveness.
-        assert!(keep(&status("Receiving banner: too large banner", "Success")));
+        assert!(keep(&status(
+            "Receiving banner: too large banner",
+            "Success"
+        )));
         assert!(keep(&status(
             "No version of SSH protocol usable (...)",
             "Success"
