@@ -1,0 +1,17 @@
+{
+  "put": "wolfssl",
+  "correct": 26,
+  "consistent": 26,
+  "total": 26,
+  "max_traces": 4,
+  "walks": 5,
+  "depth": 4,
+  "params": {
+    "n_pool": 30,
+    "dom": 21,
+    "retry": 3,
+    "timeout": 8.0,
+    "disposition": false,
+    "seg_robust": false
+  }
+}

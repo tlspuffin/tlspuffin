@@ -1,0 +1,73 @@
+{
+  "canon": "tcp_mode",
+  "vendor": "wolfssl",
+  "sig_len": 0,
+  "params": {
+    "n_pool": 30,
+    "dom": 21,
+    "retry": 3,
+    "timeout": 8.0,
+    "disposition": false,
+    "seg_robust": false
+  },
+  "clusters": [
+    [
+      "wolfssl560",
+      "wolfssl562",
+      "wolfssl563"
+    ],
+    [
+      "wolfssl576",
+      "wolfssl580",
+      "wolfssl582"
+    ],
+    [
+      "wolfssl500",
+      "wolfssl521"
+    ],
+    [
+      "wolfssl510",
+      "wolfssl511"
+    ],
+    [
+      "wolfssl550",
+      "wolfssl551",
+      "wolfssl552",
+      "wolfssl553"
+    ],
+    [
+      "wolfssl590",
+      "wolfssl591"
+    ],
+    [
+      "wolfssl520"
+    ],
+    [
+      "wolfssl530"
+    ],
+    [
+      "wolfssl540"
+    ],
+    [
+      "wolfssl554"
+    ],
+    [
+      "wolfssl564"
+    ],
+    [
+      "wolfssl566"
+    ],
+    [
+      "wolfssl570"
+    ],
+    [
+      "wolfssl572"
+    ],
+    [
+      "wolfssl574"
+    ],
+    [
+      "wolfssl584"
+    ]
+  ]
+}
