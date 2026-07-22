@@ -550,6 +550,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "constructor-macro"
+version = "0.0.1"
+dependencies = [
+ "comparable",
+ "linkme",
+ "log",
+ "proc-macro2",
+ "puffin",
+ "quote",
+ "serde",
+ "syn 2.0.114",
+]
+
+[[package]]
 name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
