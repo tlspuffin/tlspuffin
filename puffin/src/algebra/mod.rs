@@ -690,7 +690,7 @@ mod tests {
     use super::test_signature::*;
     use crate::agent::AgentName;
     use crate::algebra::atoms::Variable;
-    use crate::algebra::dynamic_function::TypeShape;
+    use crate::algebra::dynamic_function::{DescribableFunction, TypeShape};
     use crate::algebra::signature::Signature;
     use crate::algebra::term::TermType;
     use crate::algebra::{AnyMatcher, DYTerm, Term};
@@ -890,5 +890,67 @@ mod tests {
         //println!("{}", constructed_term);
         let _graph = constructed_term.dot_subgraph(true, 0, "test");
         //println!("{}", graph);
+    }
+
+    /// The `term!` macro accepts nested applications both with wrapping parentheses (legacy) and
+    /// without, and both spellings produce structurally equal terms.
+    #[test_log::test]
+    fn term_macro_optional_parentheses() {
+        let with_parens: TestTerm = term! {
+            fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    fn_client_extensions_new,
+                    (fn_support_group_extension(fn_named_group_secp384r1))
+                )),
+                (fn_support_group_extension(fn_named_group_secp384r1))
+            )
+        };
+        let without_parens: TestTerm = term! {
+            fn_client_extensions_append(
+                fn_client_extensions_append(
+                    fn_client_extensions_new,
+                    fn_support_group_extension(fn_named_group_secp384r1)
+                ),
+                fn_support_group_extension(fn_named_group_secp384r1)
+            )
+        };
+        // Legacy and new spelling can also be freely mixed.
+        let mixed: TestTerm = term! {
+            fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    fn_client_extensions_new,
+                    fn_support_group_extension(fn_named_group_secp384r1)
+                )),
+                fn_support_group_extension(fn_named_group_secp384r1)
+            )
+        };
+
+        assert_eq!(with_parens, without_parens);
+        assert_eq!(with_parens, mixed);
+        assert_eq!(with_parens.size(), without_parens.size());
+    }
+
+    /// Nested applications without wrapping parentheses still work next to variable and constant
+    /// arguments (variables keep their parentheses), and empty argument lists are accepted.
+    #[test_log::test]
+    fn term_macro_mixed_argument_kinds() {
+        let client = AgentName::first();
+        let term: TestTerm = term! {
+            fn_client_hello(
+                fn_protocol_version12(),
+                ((client, 0) / Random),
+                fn_new_session_id,
+                fn_append_cipher_suite(fn_new_cipher_suites(), fn_cipher_suite12),
+                fn_compressions,
+                fn_client_extensions_append(
+                    fn_client_extensions_new,
+                    fn_support_group_extension(fn_named_group_secp384r1)
+                )
+            )
+        };
+
+        // fn_client_hello has 6 arguments, one of which is a variable.
+        assert_eq!(term.get(&[0]).unwrap().name(), fn_protocol_version12.name());
+        assert!(term.has_variable());
     }
 }
