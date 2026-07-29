@@ -1,4 +1,4 @@
-From 8e71b9fcdb1c482c15a00cc3dd035be2c425414f Mon Sep 17 00:00:00 2001
+From 536ea6ecb96c73bd6b1eeb7906f3251cae558264 Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
 Date: Fri, 24 Apr 2026 14:58:14 +0200
 Subject: [PATCH 2/3] Instrumentation for debug
@@ -6,13 +6,13 @@ Subject: [PATCH 2/3] Instrumentation for debug
 (cherry picked from commit 9f619b84cbc320dbe1fc0fff7531383aca9b8386)
 ---
  arch/posix/eventloop_posix_tcp.c       | 19 +++++++++++++------
- src/client/ua_client_connect.c         |  3 ++-
+ src/client/ua_client_connect.c         |  4 +++-
  src/server/ua_server.c                 | 25 ++++++++++++++++++++++++-
  src/server/ua_services_securechannel.c | 16 ++++++++++++++++
- 4 files changed, 55 insertions(+), 8 deletions(-)
+ 4 files changed, 56 insertions(+), 8 deletions(-)
 
 diff --git a/arch/posix/eventloop_posix_tcp.c b/arch/posix/eventloop_posix_tcp.c
-index b0fb9b3df..1b3b6ef34 100644
+index ff5e7aa0a..662704933 100644
 --- a/arch/posix/eventloop_posix_tcp.c
 +++ b/arch/posix/eventloop_posix_tcp.c
 @@ -263,13 +263,12 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
@@ -66,19 +66,20 @@ index b0fb9b3df..1b3b6ef34 100644
      UA_UNLOCK(&el->elMutex);
      return res;
 diff --git a/src/client/ua_client_connect.c b/src/client/ua_client_connect.c
-index dd2f2622c..182c908b8 100644
+index 9662ecce2..61da1a5be 100644
 --- a/src/client/ua_client_connect.c
 +++ b/src/client/ua_client_connect.c
-@@ -2185,7 +2185,8 @@ initConnect(UA_Client *client) {
-         UA_parseEndpointUrl(&client->config.endpointUrl, &hostname, &port, &path);
-     if(client->connectStatus != UA_STATUSCODE_GOOD) {
+@@ -2291,7 +2291,9 @@ initConnect(UA_Client *client) {
+     res = UA_parseEndpointUrl(&client->config.endpointUrl, &hostname, &port, &path);
+     if(res != UA_STATUSCODE_GOOD) {
          UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
 -                       "Endpoint URL is invalid: %S", client->config.endpointUrl);
-+            "Endpoint URL is invalid: %S (%s)", client->config.endpointUrl,
-+            UA_StatusCode_name(client->connectStatus) );
++                       "Endpoint URL is invalid: %S (%s)",
++                       client->config.endpointUrl,
++                       UA_StatusCode_name(client->connectStatus) );
+         setConnectStatus(client, res);
          return;
      }
- 
 diff --git a/src/server/ua_server.c b/src/server/ua_server.c
 index 1dece1eab..53d61a086 100644
 --- a/src/server/ua_server.c
