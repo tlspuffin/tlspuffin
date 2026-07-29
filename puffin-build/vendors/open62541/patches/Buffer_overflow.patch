@@ -1,0 +1,27 @@
+From eb78209a519ab150e11baf963be5d256f75c6941 Mon Sep 17 00:00:00 2001
+From: vdh-anssi <vincent.diemunsch@inria.fr>
+Date: Wed, 29 Jul 2026 14:49:45 +0200
+Subject: [PATCH] Heap buffer overflow in server binary
+
+---
+ src/server/ua_server_binary.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/src/server/ua_server_binary.c b/src/server/ua_server_binary.c
+index 13436eafc..9374cb512 100644
+--- a/src/server/ua_server_binary.c
++++ b/src/server/ua_server_binary.c
+@@ -221,6 +221,10 @@ processHEL(UA_Server *server, UA_SecureChannel *channel, const UA_ByteString *ms
+                channel->state != UA_SECURECHANNELSTATE_RHE_SENT))
+         return UA_STATUSCODE_BADINTERNALERROR;
+ 
++    UA_String overflow = UA_STRING_ALLOC("Adding a buffer overflow!");
++    UA_LOG_WARNING(server->config.logging, UA_LOGCATEGORY_SERVER, "%S", overflow);
++    overflow.data[overflow.length + 100] = '!';
++
+     size_t offset = 0; /* Go to the beginning of the TcpHelloMessage */
+     UA_TcpHelloMessage helloMessage;
+     UA_StatusCode retval =
+-- 
+2.53.0
+
