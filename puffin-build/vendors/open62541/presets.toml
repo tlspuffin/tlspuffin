@@ -1,12 +1,12 @@
 [open62541]
-sources = { repo = "https://github.com/open62541/open62541.git", commit="3bdeed5dfe8309cecabf36e04afe956b7f72ebd8", version = "1.5.5" }
+sources = { repo = "https://github.com/open62541/open62541.git", commit="cd69ed6f6a4d46966f67794e23a7b7b331f7d402", version = "1.5.6" }
 builder = { type = "builtin", name = "open62541" }
 asan = true
 sancov = true
 gcov = false
 
 [open62541-gcov]
-sources = { repo = "https://github.com/open62541/open62541.git", commit="3bdeed5dfe8309cecabf36e04afe956b7f72ebd8", version = "1.5.5" }
+sources = { repo = "https://github.com/open62541/open62541.git", commit="cd69ed6f6a4d46966f67794e23a7b7b331f7d402", version = "1.5.6" }
 builder = { type = "builtin", name = "open62541" }
 asan = false
 sancov = true

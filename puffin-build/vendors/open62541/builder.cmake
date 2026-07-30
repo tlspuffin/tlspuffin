@@ -6,6 +6,9 @@ patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-fix-of-ClientUserId.patch)
 
 # Bug injection:
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Buffer_overflow.patch)
+#patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-Certificate-Thumbprint.patch)
+#patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-certificate.patch)
+#patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-policy.patch)
 
 cmake_builder(
   TARGETS
