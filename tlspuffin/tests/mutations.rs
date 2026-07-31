@@ -573,7 +573,7 @@ fn search_for_seed_cve_2021_3449(
         if let Some(last) = mutate.steps.iter().last() {
             match &last.action {
                 Action::Input(input) => match &input.recipe.term {
-                    DYTerm::Variable(_) => {}
+                    DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
                     DYTerm::Application(_, subterms) => {
                         if let Some(first_subterm) = subterms.iter().next() {
                             if first_subterm.name() == fn_client_hello.name() {
@@ -612,7 +612,7 @@ fn search_for_seed_cve_2021_3449(
         if let Some(last) = mutate.steps.iter().last() {
             match &last.action {
                 Action::Input(input) => match &input.recipe.term {
-                    DYTerm::Variable(_) => {}
+                    DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
                     DYTerm::Application(_, subterms) => {
                         if let Some(last_subterm) = subterms
                             .iter()
@@ -656,7 +656,7 @@ fn search_for_seed_cve_2021_3449(
             if let Some(last) = mutate.steps.iter().last() {
                 match &last.action {
                     Action::Input(input) => match &input.recipe.term {
-                        DYTerm::Variable(_) => {}
+                        DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
                         DYTerm::Application(_, subterms) => {
                             if let Some(first_subterm) = subterms.iter().next() {
                                 log::warn!("mutational result: {:?}", first_subterm);
@@ -705,7 +705,7 @@ fn search_for_seed_cve_2021_3449(
         if let Some(last) = mutate.steps.iter().last() {
             match &last.action {
                 Action::Input(input) => match &input.recipe.term {
-                    DYTerm::Variable(_) => {}
+                    DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
                     DYTerm::Application(_, subterms) => {
                         if let Some(first_subterm) = subterms.iter().next() {
                             log::warn!("mutational resul first sub-term: {:?}", first_subterm);

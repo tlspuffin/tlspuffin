@@ -576,6 +576,13 @@ pub fn test_pay<PT: ProtocolTypes>(term: &Term<PT>) {
                     }
                 }
             }
+            DYTerm::Deconstructor(_, inner, _) => {
+                if already_found && !inner.is_symbolic() {
+                    panic!("Eheh, found one! Sub: {inner},\n whole_term: {whole_term}")
+                } else {
+                    rec_inside(inner, already_found, whole_term)
+                }
+            }
         }
     }
 }
