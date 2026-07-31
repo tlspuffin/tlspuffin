@@ -17,7 +17,7 @@ use crate::fuzzer::stats_stage::{
     EVAL_ERR_FN_MALFORMED, EVAL_ERR_FN_UNKNOWN, EVAL_ERR_TERM, EVAL_ERR_TERMBUG,
 };
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
-use crate::trace::TraceContext;
+use crate::trace::{Query, TraceContext};
 
 const SIZE_LEAF: usize = 1;
 const BITSTRING_NAME: &str = "BITSTRING_";
@@ -25,7 +25,12 @@ const BITSTRING_NAME: &str = "BITSTRING_";
 pub type ConcreteMessage = Vec<u8>;
 
 /// A first-order term: either a [`Variable`] or an application of an [`Function`].
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq, Hash)]
+///
+/// We cannot derive [`Eq`] because the [`Query`] carried by a [`DYTerm::Deconstructor`] only
+/// requires its [`Matcher`](crate::algebra::Matcher) to be [`PartialEq`] (and not [`Eq`]). We thus
+/// derive [`PartialEq`] and provide [`Eq`] as a marker implementation, like [`Variable`] and
+/// [`Function`] do.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Hash)]
 #[serde(bound = "PT: ProtocolTypes")]
 pub enum DYTerm<PT: ProtocolTypes> {
     /// A concrete but unspecified `Term` (e.g. `x`, `y`).
@@ -36,7 +41,17 @@ pub enum DYTerm<PT: ProtocolTypes> {
     /// A `Term` that is an application of an [`Function`] with arity 0 applied to 0 `Term`s can be
     /// considered a constant.
     Application(Function<PT>, Vec<Term<PT>>),
+
+    /// Extract a sub-value out of a *concretized* term.
+    ///
+    /// The inner [`Term`] is the source: it is evaluated into a concrete value, out of which a
+    /// sub-value of the given [`TypeShape`] (the deconstructor's result type) is extracted using
+    /// the [`Query`]. This is the symmetric operation of a constructor
+    /// [`DYTerm::Application`].
+    Deconstructor(TypeShape<PT>, Box<Term<PT>>, Query<PT::Matcher>),
 }
+
+impl<PT: ProtocolTypes> Eq for DYTerm<PT> {}
 
 impl<PT: ProtocolTypes> fmt::Display for DYTerm<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -163,6 +178,9 @@ fn append<'a, PT: ProtocolTypes>(term: &'a DYTerm<PT>, v: &mut Vec<&'a DYTerm<PT
                 append(&subterm.term, v);
             }
         }
+        DYTerm::Deconstructor(_, ref inner, _) => {
+            append(&inner.term, v);
+        }
     }
 
     v.push(term);
@@ -251,6 +269,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         match &self.term {
             DYTerm::Variable(_) => false,
             DYTerm::Application(fd, _) => fd.is_list(),
+            DYTerm::Deconstructor(..) => false,
         }
     }
 
@@ -259,6 +278,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         match &self.term {
             DYTerm::Variable(_) => false,
             DYTerm::Application(fd, _) => fd.is_opaque(),
+            DYTerm::Deconstructor(..) => false,
         }
     }
 
@@ -267,6 +287,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         match &self.term {
             DYTerm::Variable(_) => false,
             DYTerm::Application(fd, _) => fd.is_get(),
+            DYTerm::Deconstructor(..) => false,
         }
     }
 
@@ -276,6 +297,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         match &self.term {
             DYTerm::Variable(_) => false,
             DYTerm::Application(fd, _) => fd.no_bit(),
+            DYTerm::Deconstructor(..) => false,
         }
     }
 
@@ -284,6 +306,7 @@ impl<PT: ProtocolTypes> Term<PT> {
         match &self.term {
             DYTerm::Variable(_) => false,
             DYTerm::Application(fd, _) => fd.no_det(),
+            DYTerm::Deconstructor(..) => false,
         }
     }
 
@@ -291,6 +314,7 @@ impl<PT: ProtocolTypes> Term<PT> {
     pub fn has_variable(&self) -> bool {
         match &self.term {
             DYTerm::Variable(_) => true,
+            DYTerm::Deconstructor(_, inner, _) => !self.is_readable() && inner.has_variable(),
             DYTerm::Application(_, args) => {
                 !self.is_readable() && args.iter().any(|arg| arg.has_variable())
             }
@@ -301,6 +325,12 @@ impl<PT: ProtocolTypes> Term<PT> {
     pub fn has_no_det(&self) -> bool {
         match &self.term {
             DYTerm::Variable(_) => false,
+            DYTerm::Deconstructor(_, inner, _) => {
+                if self.is_no_det() {
+                    return true;
+                }
+                !self.is_readable() && inner.has_no_det()
+            }
             DYTerm::Application(_, args) => {
                 if self.is_no_det() {
                     return true;
@@ -332,6 +362,9 @@ impl<PT: ProtocolTypes> Term<PT> {
                 for t in args {
                     t.erase_payloads_subterms(true);
                 }
+            }
+            DYTerm::Deconstructor(_, inner, _) => {
+                inner.erase_payloads_subterms(true);
             }
         }
     }
@@ -409,6 +442,9 @@ impl<PT: ProtocolTypes> Term<PT> {
                         rec(st, acc);
                     }
                 }
+                DYTerm::Deconstructor(_, inner, _) => {
+                    rec(inner, acc);
+                }
             }
         }
         let mut acc = Vec::new();
@@ -427,6 +463,11 @@ impl<PT: ProtocolTypes> Term<PT> {
                         for t in args {
                             rec(t, acc);
                         }
+                    }
+                }
+                DYTerm::Deconstructor(_, inner, _) => {
+                    if !term.is_opaque() && !term.is_readable() {
+                        rec(inner, acc);
                     }
                 }
             }
@@ -464,6 +505,11 @@ pub fn has_payload_to_replace_rec<PT: ProtocolTypes>(term: &Term<PT>, include_ro
                         return true;
                     }
                 }
+            }
+        }
+        DYTerm::Deconstructor(_, inner, _) => {
+            if !term.is_opaque() && !term.is_readable() && has_payload_to_replace_rec(inner, true) {
+                return true;
             }
         }
     }
@@ -530,6 +576,18 @@ fn display_term_at_depth<PT: ProtocolTypes>(
                 format!("{tabs}{is_bitstring}{op_str}(\n{args_str}\n{tabs}) -> {return_type}")
             }
         }
+        DYTerm::Deconstructor(ref typ, ref inner, ref query) => {
+            let return_type = remove_prefix(typ.name);
+            let inner_str = display_term_at_depth(
+                &inner.term,
+                depth + 1,
+                !inner.is_symbolic(),
+                inner.is_readable(),
+            );
+            format!(
+                "{tabs}{is_bitstring}deconstruct[{query}](\n{inner_str}\n{tabs}) -> {return_type}"
+            )
+        }
     }
 }
 
@@ -541,6 +599,9 @@ fn append_eval<'a, PT: ProtocolTypes>(term_eval: &'a Term<PT>, v: &mut Vec<&'a T
                 for subterm in subterms {
                     append_eval(subterm, v);
                 }
+            }
+            DYTerm::Deconstructor(_, ref inner, _) => {
+                append_eval(inner, v);
             }
         }
     }
@@ -587,6 +648,9 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         match &self.term {
             DYTerm::Variable(v) => v.resistant_id,
             DYTerm::Application(f, _) => f.resistant_id,
+            // A deconstructor has no function/variable of its own, so we reuse the identity of its
+            // source term (stable across cloning, like the other variants' ids).
+            DYTerm::Deconstructor(_, inner, _) => inner.resistant_id(),
         }
     }
 
@@ -604,6 +668,13 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
                         subterms.iter().map(TermType::size).sum::<usize>() + 1
                     }
                 }
+                DYTerm::Deconstructor(_, ref inner, _) => {
+                    if !self.is_symbolic() {
+                        SIZE_LEAF
+                    } else {
+                        inner.size() + 1
+                    }
+                }
             }
         }
     }
@@ -617,6 +688,8 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
                 DYTerm::Application(_, ref subterms) => {
                     subterms.is_empty() // constant
                 }
+                // A deconstructor always wraps a source term, so it is never a leaf.
+                DYTerm::Deconstructor(..) => false,
             }
         } else {
             true
@@ -627,6 +700,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         match &self.term {
             DYTerm::Variable(v) => &v.typ,
             DYTerm::Application(function, _) => &function.shape().return_type,
+            DYTerm::Deconstructor(typ, _, _) => typ,
         }
     }
 
@@ -636,6 +710,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
             match &self.term {
                 DYTerm::Variable(v) => v.typ.name,
                 DYTerm::Application(function, _) => function.name(),
+                DYTerm::Deconstructor(typ, _, _) => typ.name,
             }
         } else {
             // let str =
@@ -683,6 +758,16 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
                     )))
                 }
                 args[nb].get(path)
+            }
+            DYTerm::Deconstructor(_, inner, _) => {
+                let nb = path[0];
+                let path = &path[1..];
+                if nb != 0 {
+                    return Err(Error::TermBug(format!(
+                        "--> [get] Should never happen! deconstructor has a single sub-term. Term: {self}\n, path: {path:?}"
+                    )))
+                }
+                inner.get(path)
             }
         }
     }
@@ -736,6 +821,11 @@ impl<PT: ProtocolTypes> Subterms<PT, Term<PT>> for Vec<Term<PT>> {
                                 .filter(|grand_subterm| predicate(subterm, grand_subterm))
                                 .map(|grand_subterm| ((i, subterm), grand_subterm)),
                         );
+                    }
+                }
+                DYTerm::Deconstructor(_, inner, _) => {
+                    if subterm.is_symbolic() && predicate(subterm, inner) {
+                        found_grand_subterms.push(((i, subterm), inner.as_ref()));
                     }
                 }
             };

@@ -14,7 +14,7 @@ use crate::algebra::{DYTerm, Subterms, Term, TermType};
 use crate::fuzzer::term_zoo::TermZoo;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
-use crate::trace::{Spawner, Trace, TraceContext};
+use crate::trace::{Query, Spawner, Trace, TraceContext};
 
 #[derive(Clone, Copy, Debug)]
 pub struct MutationConfig {
@@ -62,6 +62,7 @@ pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
     ReplaceReuseMutator<S>,
     ReplaceMatchMutator<S, PT>,
     RemoveAndLiftMutator<S>,
+    MakeDeconstructorMutator<S>,
     GenerateMutator<'harness, S, PB>,
     SwapMutator<S>,
 );
@@ -92,6 +93,7 @@ where
         ReplaceReuseMutator::new(term_constraints, with_dy, with_bit_level),
         ReplaceMatchMutator::new(term_constraints, signature, with_dy),
         RemoveAndLiftMutator::new(term_constraints, with_dy),
+        MakeDeconstructorMutator::new(term_constraints, with_dy),
         GenerateMutator::new(
             0,
             fresh_zoo_after,
@@ -221,12 +223,14 @@ where
         let filter = |term: &Term<PT>| {
             term.is_symbolic() && // exclude terms with payloads since we aim to modify its internal structure
             match &term.term {
-                DYTerm::Variable(_) => false,
+                // A deconstructor has a single boxed sub-term and does not support the
+                // lift-and-remove operation, so it is excluded from this mutation.
+                DYTerm::Variable(_) | DYTerm::Deconstructor(..) => false,
                 DYTerm::Application(_, subterms) =>
                     {
                         subterms
                             .find_subterm(|subterm| match &subterm.term {
-                                DYTerm::Variable(_) => false,
+                                DYTerm::Variable(_) | DYTerm::Deconstructor(..) => false,
                                 DYTerm::Application(_, grand_subterms) => {
                                     grand_subterms.find_subterm_same_shape(subterm).is_some()
                                 }
@@ -242,7 +246,7 @@ where
             );
             match &mut to_mutate.term {
                 // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
-                DYTerm::Variable(_) => {
+                DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {
                     log::debug!("       Skipped {}", self.name());
                     Ok(MutationResult::Skipped)
                 }
@@ -279,6 +283,96 @@ where
 {
     fn name(&self) -> &Cow<'static, str> {
         &Cow::Borrowed("RemoveAndLiftMutator")
+    }
+}
+
+/// Upper bound (inclusive) on the counter randomly chosen when creating a deconstructor: it selects
+/// the n-th matching sub-value of the source.
+const MAX_DECONSTRUCTOR_COUNTER: usize = 3;
+
+/// MAKE DECONSTRUCTOR: wraps a sub-term of type `T` into a [`DYTerm::Deconstructor`] that extracts
+/// a `T` out of another sub-term (the *source*) taken from the trace.
+///
+/// The wrapping is speculative: at execution time the deconstructor extracts a value of type `T`
+/// from the source's evaluation, which may or may not contain one. When it does not, evaluation
+/// fails gracefully (`Error::Term`) and the trace is discarded, so no invariant is broken.
+pub struct MakeDeconstructorMutator<S>
+where
+    S: HasRand,
+{
+    constraints: TermConstraints,
+    phantom_s: std::marker::PhantomData<S>,
+    with_dy: bool,
+}
+
+impl<S> MakeDeconstructorMutator<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub const fn new(constraints: TermConstraints, with_dy: bool) -> Self {
+        Self {
+            constraints,
+            phantom_s: std::marker::PhantomData,
+            with_dy,
+        }
+    }
+}
+
+impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for MakeDeconstructorMutator<S>
+where
+    S: HasRand,
+{
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
+        log::debug!("[DY] Start mutate with {}", self.name());
+        if !self.with_dy {
+            return Ok(MutationResult::Skipped);
+        }
+        let rand = state.rand_mut();
+        // Pick the source sub-term first (cloned so we can reborrow the trace mutably below).
+        if let Some(source) = choose_term(trace, &self.constraints, rand).cloned() {
+            // Pick a symbolic, non-deconstructor target to wrap; its type becomes the
+            // deconstructor's result type.
+            if let Some(to_wrap) = choose_term_filtered_mut(
+                trace,
+                |term: &Term<PT>| {
+                    term.is_symbolic() && !matches!(&term.term, DYTerm::Deconstructor(..))
+                },
+                &self.constraints,
+                rand,
+            ) {
+                let typ = to_wrap.get_type_shape().clone();
+                let counter = rand.between(0, MAX_DECONSTRUCTOR_COUNTER) as u16;
+                log::debug!(
+                    "[Mutation] MakeDeconstructorMutator: wrap\n{to_wrap}\ninto a deconstructor of type {typ} over source\n{source}"
+                );
+                to_wrap.mutate(Term::from(DYTerm::Deconstructor(
+                    typ,
+                    Box::new(source),
+                    Query {
+                        source: None,
+                        matcher: None,
+                        counter,
+                    },
+                )));
+                return Ok(MutationResult::Mutated);
+            }
+        }
+        log::debug!("       Skipped {}", self.name());
+        Ok(MutationResult::Skipped)
+    }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
+}
+
+impl<S> Named for MakeDeconstructorMutator<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("MakeDeconstructorMutator")
     }
 }
 
@@ -362,6 +456,11 @@ where
                         log::debug!("       Skipped {}", self.name());
                         Ok(MutationResult::Skipped)
                     }
+                }
+                // A deconstructor has no function symbol to replace.
+                DYTerm::Deconstructor(..) => {
+                    log::debug!("       Skipped {}", self.name());
+                    Ok(MutationResult::Skipped)
                 }
             }
         } else {
@@ -781,6 +880,7 @@ mod tests {
     use crate::algebra::test_signature::{TestTrace, *};
     use crate::algebra::DYTerm;
     use crate::fuzzer::utils::{choose_term_path, TracePath};
+    use crate::term;
     use crate::trace::{Action, Step};
 
     fn create_state(
@@ -838,7 +938,7 @@ mod tests {
             if let Some(last) = trace.steps.iter().last() {
                 match &last.action {
                     Action::Input(input) => match &input.recipe.term {
-                        DYTerm::Variable(_) => {}
+                        DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
                         DYTerm::Application(_, subterms) => {
                             if let Some(last_subterm) = subterms.iter().last() {
                                 if last_subterm.name() == fn_seq_1.name() {
@@ -963,6 +1063,97 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// Counts every deconstructor node appearing in the recipes of a trace.
+    fn count_deconstructors(trace: &TestTrace) -> usize {
+        trace
+            .steps
+            .iter()
+            .filter_map(|step| match &step.action {
+                Action::Input(input) => Some(&input.recipe),
+                Action::Output(_) => None,
+            })
+            .map(|recipe| {
+                recipe
+                    .into_iter()
+                    .filter(|t| matches!(&t.term, DYTerm::Deconstructor(..)))
+                    .count()
+            })
+            .sum()
+    }
+
+    #[test_log::test]
+    fn test_make_deconstructor_mutator() {
+        let mut state = create_state();
+        let mut mutator = MakeDeconstructorMutator::new(TermConstraints::default(), true);
+
+        // A single successful mutation should introduce exactly one deconstructor.
+        let mut introduced = false;
+        for _ in 0..50 {
+            let mut trace = setup_simple_trace();
+            if let Ok(MutationResult::Mutated) = mutator.mutate(&mut state, &mut trace) {
+                assert!(count_deconstructors(&trace) >= 1);
+                introduced = true;
+                break;
+            }
+        }
+        assert!(
+            introduced,
+            "MakeDeconstructorMutator never produced a deconstructor"
+        );
+    }
+
+    /// A [`DYTerm::Deconstructor`] node is a regular typed sub-term, so the generic
+    /// [`ReplaceReuseMutator`] can select it and replace it with another same-typed sub-term reused
+    /// from the trace (there is no dedicated "unwrap" mutator: replacement handles it). Here the
+    /// deconstructor wraps a same-typed source, so replacing it with that source removes it.
+    #[test_log::test]
+    fn test_replace_reuse_mutator_replaces_deconstructor() {
+        let mut state = create_state();
+
+        // Build a trace whose first input recipe is a deconstructor over a same-typed source, so a
+        // same-typed non-deconstructor replacement (the source itself) is always available.
+        let make_trace = || {
+            let mut trace = setup_simple_trace();
+            let source = term! { fn_protocol_version12 };
+            let deconstructor = Term::from(DYTerm::Deconstructor(
+                source.get_type_shape().clone(),
+                Box::new(source.clone()),
+                Query {
+                    source: None,
+                    matcher: None,
+                    counter: 0,
+                },
+            ));
+            for step in &mut trace.steps {
+                if let Action::Input(input) = &mut step.action {
+                    input.recipe = deconstructor.clone();
+                    break;
+                }
+            }
+            assert_eq!(count_deconstructors(&trace), 1);
+            trace
+        };
+
+        let mut mutator = ReplaceReuseMutator::new(TermConstraints::default(), true, false);
+
+        // Over enough trials, ReplaceReuseMutator eventually selects the deconstructor node and
+        // replaces it with a same-typed non-deconstructor term, removing the deconstructor.
+        let mut replaced = false;
+        for _ in 0..200 {
+            let mut trace = make_trace();
+            if let Ok(MutationResult::Mutated) = mutator.mutate(&mut state, &mut trace) {
+                if count_deconstructors(&trace) == 0 {
+                    replaced = true;
+                    break;
+                }
+            }
+        }
+        assert!(
+            replaced,
+            "ReplaceReuseMutator never replaced the deconstructor with a same-typed term"
+        );
     }
 
     #[test_log::test]

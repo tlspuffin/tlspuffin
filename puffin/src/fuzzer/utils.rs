@@ -303,6 +303,10 @@ fn sample_subterms<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool>(
 
         let subterms: &'a [Term<PT>] = match &frame.term.term {
             DYTerm::Application(_, subterms) if frame.term.is_symbolic() => subterms,
+            // A deconstructor's source is its single sub-term, at index 0.
+            DYTerm::Deconstructor(_, inner, _) if frame.term.is_symbolic() => {
+                std::slice::from_ref(&**inner)
+            }
             _ => &[],
         };
 
@@ -363,6 +367,13 @@ pub fn find_term_by_term_path_mut<'a, PT: ProtocolTypes>(
                 None
             }
         }
+        DYTerm::Deconstructor(_, inner, _) => {
+            if subterm_index == 0 {
+                find_term_by_term_path_mut(inner, &term_path[1..])
+            } else {
+                None
+            }
+        }
     }
 }
 
@@ -381,6 +392,13 @@ pub fn find_term_by_term_path<'a, PT: ProtocolTypes>(
         DYTerm::Application(_, subterms) => {
             if let Some(subterm) = subterms.get(subterm_index) {
                 find_term_by_term_path(subterm, &term_path[1..])
+            } else {
+                None
+            }
+        }
+        DYTerm::Deconstructor(_, inner, _) => {
+            if subterm_index == 0 {
+                find_term_by_term_path(inner, &term_path[1..])
             } else {
                 None
             }
@@ -555,6 +573,19 @@ fn collect_subterms<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
                     path.pop();
                 }
             }
+            // A deconstructor's source is its single sub-term, at index 0.
+            DYTerm::Deconstructor(_, inner, _) => {
+                path.push(0);
+                size += collect_subterms(
+                    inner,
+                    path,
+                    children_selectable,
+                    filter,
+                    constraints,
+                    result,
+                );
+                path.pop();
+            }
         }
     }
 
@@ -596,7 +627,11 @@ mod tests {
     use libafl_bolts::rands::StdRand;
 
     use super::*;
+    use crate::agent::{AgentDescriptor, AgentName};
+    use crate::algebra::dynamic_function::TypeShape;
     use crate::algebra::test_signature::*;
+    use crate::term;
+    use crate::trace::{InputAction, Query};
 
     /// Verbatim copy of the recursive `sample_subterms` this module replaced, kept as the
     /// behavioural reference for `test_sample_subterms_matches_recursive_reference`.
@@ -640,6 +675,22 @@ mod tests {
                         path.pop();
                     }
                 }
+                // A deconstructor's source is its single sub-term, at index 0.
+                DYTerm::Deconstructor(_, inner, _) => {
+                    path.push(0);
+                    size += sample_subterms_reference(
+                        inner,
+                        step_index,
+                        path,
+                        children_selectable,
+                        filter,
+                        constraints,
+                        rand,
+                        reservoir,
+                        visited,
+                    );
+                    path.pop();
+                }
             }
         }
 
@@ -657,7 +708,64 @@ mod tests {
     /// replaced: same visit order (hence same RNG draws), same folded sizes, same paths.
     #[test_log::test]
     fn test_sample_subterms_matches_recursive_reference() {
-        let trace = setup_simple_trace();
+        assert_sample_subterms_matches_reference(&setup_simple_trace());
+        assert_sample_subterms_matches_reference(&setup_deconstructor_trace());
+    }
+
+    /// A trace exercising [`DYTerm::Deconstructor`]: at the root, nested under an application,
+    /// under another deconstructor, and beside ordinary siblings.
+    fn setup_deconstructor_trace() -> TestTrace {
+        let server = AgentName::first();
+
+        // `deconstruct<Vec<u8>>(deconstruct<Vec<u8>>(fn_make_byte_container))`: the inner
+        // deconstructor sits at path [0, 0], so a wrong path fold shows up here.
+        let deconstructor_of_deconstructor = Term::from(DYTerm::Deconstructor(
+            TypeShape::of::<Vec<u8>>(),
+            Box::new(term! { D(fn_make_byte_container, Vec<u8>) }),
+            Query {
+                source: None,
+                matcher: None,
+                counter: 0,
+            },
+        ));
+
+        let recipes: Vec<TestTerm> = vec![
+            // Deconstructor at the root.
+            term! { D(fn_make_byte_container, Vec<u8>) },
+            deconstructor_of_deconstructor,
+            // Deconstructors under applications, with ordinary siblings on both sides: a size
+            // folded into the wrong sibling changes the outcome here.
+            term! {
+                fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        fn_client_extensions_new,
+                        (fn_renegotiation_info_extension(D(fn_make_byte_container)))
+                    )),
+                    (fn_renegotiation_info_extension(
+                        (fn_hmac256(fn_hmac256_new_key, D(fn_make_byte_pair)))
+                    ))
+                )
+            },
+        ];
+
+        Trace {
+            prior_traces: vec![],
+            descriptors: vec![AgentDescriptor::from_name(server)],
+            steps: recipes
+                .into_iter()
+                .map(|recipe| Step {
+                    agent: server,
+                    action: Action::Input(InputAction {
+                        precomputations: vec![],
+                        recipe,
+                    }),
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    fn assert_sample_subterms_matches_reference(trace: &TestTrace) {
         let constraints = TermConstraints::default();
 
         for seed in 0..64u64 {
