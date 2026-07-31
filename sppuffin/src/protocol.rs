@@ -62,6 +62,11 @@ impl ProtocolDescriptorConfig for SwissPUTConfig {
 use comparable::Comparable;
 
 
+impl std::fmt::Display for SwissProtocolTypes {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "sppuffin")
+    }
+}
 
 // Small wrapper for u64 so it can be used as an EvaluatedTerm in the signature
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize, Comparable)]
