@@ -1,15 +1,17 @@
+use std::any::TypeId;
 use std::fmt::Display;
 
 use libafl::inputs::{BytesInput, HasMutatorBytes};
 use serde::{Deserialize, Serialize};
 
 use crate::algebra::dynamic_function::TypeShape;
-use crate::algebra::{ConcreteMessage, DYTerm, Term, TermType};
+use crate::algebra::{remove_prefix, ConcreteMessage, DYTerm, Matcher, Term, TermType};
 use crate::error::Error;
 use crate::error::Error::TermBug;
+use crate::fuzzer::stats_stage::{DECONSTRUCTOR_EVAL, DECONSTRUCTOR_EVAL_FAIL};
 use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
-use crate::trace::{Source, TraceContext};
+use crate::trace::{Knowledge, Source, TraceContext};
 
 /// Constants governing heuristic for finding payloads in term evaluations
 const THRESHOLD_SIZE: usize = 3; // minimum size of a payload to be directly searched in root_eval
@@ -794,6 +796,114 @@ impl<PT: ProtocolTypes> Term<PT> {
                 }
 
                 Ok((result, all_payloads))
+            }
+            DYTerm::Deconstructor(target_type, inner, query) => {
+                // Count every deconstructor evaluation; the matching `DECONSTRUCTOR_EVAL_FAIL`
+                // below is incremented only on the deconstructor's own failure mode (no matching
+                // sub-value), so `fail / eval` is the symbol's extraction-failure rate.
+                DECONSTRUCTOR_EVAL.increment();
+                log::trace!(
+                    "[eval_until_opaque] [Deconstructor]: from path={:?} with query {}",
+                    eval_tree.path,
+                    query
+                );
+                // A `Deconstructor` is the symmetric operation of a constructor `Application`: it
+                // first builds a concretized term by evaluating its inner (source) term, then uses
+                // `query` to extract, out of the knowledge reachable from that concretized term, a
+                // sub-value whose type matches `target_type` (the deconstructor's result type).
+                let target_type_id: TypeId = target_type.clone().into();
+                let local_source = Source::Label(None);
+
+                // A deconstructor is opaque w.r.t. its source, so a payload-bearing source is
+                // treated as an opaque symbol's argument is above: evaluated down to bytes so the
+                // payloads apply, then read back. Symbolic evaluation would silently discard them.
+                let source: Box<dyn EvaluatedTerm<PT>> = if with_payloads
+                    && inner.has_payload_to_replace()
+                {
+                    let inner_type = inner.get_type_shape();
+                    // Not `evaluate`: it defers to `ctx.config_trace.with_bit_level`, which can be
+                    // false even here. `_wrap` keeps the error counters consistent.
+                    let bytes = inner.evaluate_config_wrap(ctx, true)?.0; // payloads consumed here
+                    let read = PB::try_read_bytes(&bytes, inner_type.clone().into()).map_err(|e| {
+                        DECONSTRUCTOR_EVAL_FAIL.increment();
+                        Error::Term(format!(
+                            "--> [Deconstructor] Unable to read back the mutated source of type {inner_type}: {e}"
+                        ))
+                    })?;
+                    // As in the opaque-argument path: if read and encode disagree, the value we
+                    // extract from is not the one on the wire.
+                    if read.get_encoding()[..] != bytes[..] {
+                        DECONSTRUCTOR_EVAL_FAIL.increment();
+                        return Err(Error::Term(format!(
+                            "--> [Deconstructor] Failed consistency check for read.encode of the source of type {inner_type}:\n\
+                            - evaluated  : {bytes:?}\n\
+                            - read.encode: {:?}",
+                            read.get_encoding(),
+                        )));
+                    }
+                    read
+                } else {
+                    let mut inner_eval_tree = EvalTree::with_path(vec![]);
+                    inner
+                        .eval_until_opaque(
+                            &mut inner_eval_tree,
+                            ctx,
+                            false,
+                            false,
+                            &inner.get_type_shape(),
+                        )?
+                        .0
+                };
+
+                // Gather all the knowledge reachable from the concretized term.
+                let mut knowledges: Vec<Knowledge<PT>> = vec![];
+                source.extract_knowledge(&mut knowledges, None, &local_source)?;
+
+                // Keep only the knowledge of the target type whose matcher matches the query, and
+                // pick the `query.counter`-th most specific one (same selection strategy as
+                // `TraceContext::find_variable`).
+                let mut possibilities: Vec<&Knowledge<PT>> = knowledges
+                    .iter()
+                    .filter(|knowledge| {
+                        knowledge.data.type_id() == target_type_id
+                            && knowledge.matcher.matches(&query.matcher)
+                    })
+                    .collect();
+                possibilities.sort_by_key(|knowledge| knowledge.specificity());
+
+                let result = possibilities
+                    .get(query.counter as usize)
+                    .map(|knowledge| knowledge.data.boxed())
+                    .ok_or_else(|| {
+                        DECONSTRUCTOR_EVAL_FAIL.increment();
+                        Error::Term(format!(
+                            "--> [Deconstructor] Unable to find a value of type {} matching query {} in the concretized term:\n{}",
+                            remove_prefix(target_type.name),
+                            query,
+                            self
+                        ))
+                    })?;
+
+                if with_payloads {
+                    let eval = PB::any_get_encoding(result.as_ref());
+                    eval_tree.encode = Some(eval);
+
+                    // As for a variable: the node's own payload has to be handed up. The fast path
+                    // at the top only catches it when the source holds no variable. The source's
+                    // own payloads were consumed above, so they are not propagated.
+                    if let Some(payloads) = &self.payloads {
+                        return Ok((
+                            result,
+                            vec![PayloadContext {
+                                of_term: self,
+                                payloads,
+                                path: eval_tree.path.clone(),
+                            }],
+                        ));
+                    }
+                }
+
+                Ok((result, vec![]))
             }
         }
     }

@@ -297,6 +297,22 @@ fn sample_subterms<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Co
                     path.pop();
                 }
             }
+            // A deconstructor's source is its single sub-term, at index 0.
+            DYTerm::Deconstructor(_, inner, _) => {
+                path.push(0);
+                size += sample_subterms(
+                    inner,
+                    step_index,
+                    path,
+                    children_selectable,
+                    filter,
+                    constraints,
+                    rand,
+                    reservoir,
+                    visited,
+                );
+                path.pop();
+            }
         }
     }
 
@@ -331,6 +347,13 @@ pub fn find_term_by_term_path_mut<'a, PT: ProtocolTypes>(
                 None
             }
         }
+        DYTerm::Deconstructor(_, inner, _) => {
+            if subterm_index == 0 {
+                find_term_by_term_path_mut(inner, &term_path[1..])
+            } else {
+                None
+            }
+        }
     }
 }
 
@@ -349,6 +372,13 @@ pub fn find_term_by_term_path<'a, PT: ProtocolTypes>(
         DYTerm::Application(_, subterms) => {
             if let Some(subterm) = subterms.get(subterm_index) {
                 find_term_by_term_path(subterm, &term_path[1..])
+            } else {
+                None
+            }
+        }
+        DYTerm::Deconstructor(_, inner, _) => {
+            if subterm_index == 0 {
+                find_term_by_term_path(inner, &term_path[1..])
             } else {
                 None
             }
@@ -522,6 +552,19 @@ fn collect_subterms<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
                     );
                     path.pop();
                 }
+            }
+            // A deconstructor's source is its single sub-term, at index 0.
+            DYTerm::Deconstructor(_, inner, _) => {
+                path.push(0);
+                size += collect_subterms(
+                    inner,
+                    path,
+                    children_selectable,
+                    filter,
+                    constraints,
+                    result,
+                );
+                path.pop();
             }
         }
     }
