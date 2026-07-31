@@ -138,49 +138,51 @@ appenders:
       - kind: threshold
         level: error
 
-#  trace.log:
-#    kind: rolling_file
-#    path: "log/trace.log"
-#    encoder:
-#      pattern: "{d}\t{l}\t{m}{n}"
-#    policy:
-#      trigger:
-#        kind: size
-#        limit: 10 mb  # 10 MB
-#      roller:
-#        kind: fixed_window
-#        pattern: "log/trace.{}.gz"
-#        base: 1
-#        count: 20
-#    filters:
-#      - kind: threshold
-#        level: trace
-#
-#  debug.log:
-#    kind: rolling_file
-#    path: "log/debug.log"
-#    encoder:
-#      pattern: "{d}\t{l}\t{m}{n}"
-#    policy:
-#      trigger:
-#        kind: size
-#        limit: 10 mb  # 10 MB
-#      roller:
-#        kind: fixed_window
-#        pattern: "log/debug.{}.gz"
-#        base: 1
-#        count: 20
-#    filters:
-#      - kind: threshold
-#        level: debug
+  trace.log:
+    kind: rolling_file
+    path: "log/trace.log"
+    encoder:
+      pattern: "{d}\t{l}\t{m}{n}"
+    policy:
+      trigger:
+        kind: size
+        limit: 10 mb  # 10 MB
+      roller:
+        kind: fixed_window
+        pattern: "log/trace.{}.gz"
+        base: 1
+        count: 20
+    filters:
+      - kind: threshold
+        level: trace
+
+  debug.log:
+    kind: rolling_file
+    path: "log/debug.log"
+    encoder:
+      pattern: "{d}\t{l}\t{m}{n}"
+    policy:
+      trigger:
+        kind: size
+        limit: 10 mb  # 10 MB
+      roller:
+        kind: fixed_window
+        pattern: "log/debug.{}.gz"
+        base: 1
+        count: 20
+    filters:
+      - kind: threshold
+        level: debug
 
 # Set the default logging level to "info" and attach the level-specific appenders
 root:
-  level: info # Can modify the default level here
+  level: trace # Can modify the default level here
   appenders:
     - info.log
     - warn.log
     - error.log
+    - debug.log
+    - trace.log
     # debug.log and trace.log can be added here
 
 loggers:

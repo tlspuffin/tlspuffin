@@ -2,26 +2,57 @@ use once_cell::sync::Lazy;
 use std::sync::Mutex;
 
 use jni::errors::Result as JniResult;
-use jni::objects::{JByteArray, JObject, JValue, Global};
+use jni::objects::{Global, JByteArray, JObject, JString, JValue};
 use jni::{JNIVersion, JavaVM};
-
+use jni_macros::{jni_sig, jni_str};
 use puffin::algebra::error::FnError;
-use puffin::protocol::EvaluatedTerm;
-use puffin::protocol::ProtocolTypes;
 
 use crate::protocol::SppU64;
 
-
 // Manual serde impls rely on JNI helpers in crate::fn_impl
-use serde::de::{Deserializer};
+use serde::de::Deserializer;
 use serde::ser::Serializer;
-
-
+use serde::{Deserialize, Serialize};
+use puffin::codec::encode_vec_u16;
 use puffin::error::Error as PuffinError;
 use puffin::trace::Knowledge;
 use puffin::trace::Source;
+// Concrete Global handle type for Java objects
+type JavaGlobal = jni::objects::Global<jni::objects::JObject<'static>>;
 
-use serde::{Deserialize, Serialize};
+static JVM: Lazy<Mutex<Option<JavaVM>>> = Lazy::new(|| {
+    let jvm_args = jni::InitArgsBuilder::new()
+        .version(JNIVersion::V1_8)
+        .option(format!(
+            "-Djava.class.path={}:{}:{}:{}:{}:{}",
+            "/home/binj/Documents/stageM2/e-voting/control-component/target/control-component-1.5.3.2.jar",
+            "/home/binj/Documents/stageM2/crypto-primitives/target/crypto-primitives-1.5.2.1.jar",
+            "/home/binj/.m2/repository/com/google/guava/guava/32.0.1-jre/guava-32.0.1-jre.jar",
+            "/home/binj/.m2/repository/com/fasterxml/jackson/core/jackson-databind/2.20.0/jackson-databind-2.20.0.jar",
+            "/home/binj/.m2/repository/com/fasterxml/jackson/core/jackson-core/2.20.0/jackson-core-2.20.0.jar",
+            "/home/binj/.m2/repository/com/fasterxml/jackson/core/jackson-annotations/2.20.0/jackson-annotations-2.20.0.jar",
+        ))
+        .option("-Xcheck:jni")
+        .build();
+    match jvm_args {
+        Ok(args) => match JavaVM::new(args) {
+            Ok(jvm) => Mutex::new(Some(jvm)),
+            Err(_) => Mutex::new(None),
+        },
+        Err(_) => Mutex::new(None),
+    }
+});
+
+fn java_class() -> &'static str {
+    "ch/post/it/evoting/cryptoprimitives/collection/ImmutableByteArray"
+}
+
+fn get_jvm() -> Result<JavaVM, FnError> {
+    let guard = JVM.lock().unwrap();
+    guard.as_ref().cloned().ok_or_else(|| {
+        FnError::Malformed("JVM not initialized; set SPP_JAVA_CLASSPATH".to_string())
+    })
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct SwissProtocolTypes;
@@ -40,9 +71,56 @@ impl Clone for ImmutableByteArray {
         }
     }
 }
+use std::result::Result;
+
 impl puffin::codec::Codec for ImmutableByteArray {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        bytes.extend("uaeitnrasetnr".bytes());
+        let vm = get_jvm().unwrap();
+
+        if let Err(e) = vm.attach_current_thread(
+            |env: &mut jni::Env| -> Result<(), Box<dyn std::error::Error>> {
+                let mapper_class_opt =
+                    env.find_class(jni_str!("com/fasterxml/jackson/databind/ObjectMapper"));
+
+                let mapper_class = match mapper_class_opt {
+                    Ok(class) => class,
+                    Err(e) => {
+                        if env.exception_check() {
+                            env.exception_describe();
+                            env.exception_clear();
+                        }
+                        return Err(Box::new(e));
+
+                    }
+                };
+
+                let mapper = env.new_object(mapper_class, jni_sig!(()), &[])?;
+
+                let java_serialized = env.call_method(
+                    &mapper,
+                    jni_str!("writeValueAsString"),
+                    jni_sig!((obj: JObject) -> JString),
+                    &[JValue::Object(self.0.as_obj())],
+                )?;
+
+                let jstr_obj = java_serialized.l()?;
+                let jstr = JString::cast_local(env, jstr_obj)?;
+
+                let rust_str: String = jstr.to_string();
+
+                bytes.extend_from_slice(rust_str.as_bytes());
+                bytes.extend_from_slice(b"Agauog");
+
+                Ok(())
+            },
+        ) {
+            log::error!(
+                "Failed to encode ImmutableByteArray with Jackson ObjectMapper: {}",
+                e
+            );
+        }
+
+        // bytes.extend("uaeitnrasetnr".bytes());
         // if let Ok(v) = crate::fn_impl::global_elements(&self.0) {
         // <Vec<u8> as puffin::codec::Codec>::encode(&v, bytes);
         // }
@@ -72,6 +150,8 @@ impl puffin::protocol::Extractable<SwissProtocolTypes> for ImmutableByteArray {
         Ok(())
     }
 }
+
+use puffin::protocol::{EvaluatedTerm, ProtocolTypes};
 
 // Implement CompareKnowledge manually by comparing Java-side elements
 impl puffin::protocol::CompareKnowledge<SwissProtocolTypes> for ImmutableByteArray {
@@ -124,40 +204,6 @@ impl puffin::protocol::CompareKnowledge<SwissProtocolTypes> for ImmutableByteArr
             ));
         }
     }
-}
-
-impl std::fmt::Display for SwissProtocolTypes {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "sppuffin")
-    }
-}
-// Concrete Global handle type for Java objects
-type JavaGlobal = jni::objects::Global<jni::objects::JObject<'static>>;
-
-static JVM: Lazy<Mutex<Option<JavaVM>>> = Lazy::new(|| {
-    let jvm_args = jni::InitArgsBuilder::new()
-        .version(JNIVersion::V1_8)
-        .option(format!("-Djava.class.path=/home/binj/Documents/stageM2/e-voting/control-component/target/control-component-1.5.3.2.jar:/home/binj/Documents/stageM2/crypto-primitives/target/crypto-primitives-1.5.2.1.jar:/home/binj/.m2/repository/com/google/guava/guava/32.0.1-jre/guava-32.0.1-jre.jar"))
-        .option("-Xcheck:jni")
-        .build();
-    match jvm_args {
-        Ok(args) => match JavaVM::new(args) {
-            Ok(jvm) => Mutex::new(Some(jvm)),
-            Err(_) => Mutex::new(None),
-        },
-        Err(_) => Mutex::new(None),
-    }
-});
-
-fn java_class() -> &'static str {
-    "ch/post/it/evoting/cryptoprimitives/collection/ImmutableByteArray"
-}
-
-fn get_jvm() -> Result<JavaVM, FnError> {
-    let guard = JVM.lock().unwrap();
-    guard.as_ref().cloned().ok_or_else(|| {
-        FnError::Malformed("JVM not initialized; set SPP_JAVA_CLASSPATH".to_string())
-    })
 }
 
 pub fn create_global_from_bytes(bytes: &[u8]) -> Result<JavaGlobal, FnError> {
