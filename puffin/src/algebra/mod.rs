@@ -277,6 +277,69 @@ pub mod test_signature {
         Ok(u16::from(a + 1))
     }
 
+    /// A container holding an inner `Vec<u8>`, used to exercise the [`DYTerm::Deconstructor`]
+    /// mechanism: its `extract_knowledge` exposes both itself and its inner `Vec<u8>` sub-value.
+    #[derive(Debug, Clone, Comparable)]
+    pub struct TestByteContainer(pub Vec<u8>);
+
+    impl Extractable<TestProtocolTypes> for TestByteContainer {
+        fn extract_knowledge<'a>(
+            &'a self,
+            knowledges: &mut Vec<Knowledge<'a, TestProtocolTypes>>,
+            matcher: Option<AnyMatcher>,
+            source: &'a Source,
+        ) -> Result<(), Error> {
+            knowledges.push(Knowledge {
+                source,
+                matcher: matcher.clone(),
+                data: self,
+            });
+            // Expose the inner bytes as an extractable sub-value, tagged with a matcher so the
+            // `D(term, [matcher] / Type)` deconstructor syntax can select them.
+            self.0
+                .extract_knowledge(knowledges, Some(AnyMatcher), source)
+        }
+    }
+
+    dummy_codec!(TestProtocolTypes, TestByteContainer);
+
+    /// Builds a concretized [`TestByteContainer`]; used as the *source* term of a deconstructor.
+    pub fn fn_make_byte_container() -> Result<TestByteContainer, FnError> {
+        Ok(TestByteContainer(vec![4, 2]))
+    }
+
+    /// A container exposing two `Vec<u8>` sub-values, used to exercise the deconstructor counter
+    /// (the N-th matching sub-value).
+    #[derive(Debug, Clone, Comparable)]
+    pub struct TestBytePair(pub Vec<u8>, pub Vec<u8>);
+
+    impl Extractable<TestProtocolTypes> for TestBytePair {
+        fn extract_knowledge<'a>(
+            &'a self,
+            knowledges: &mut Vec<Knowledge<'a, TestProtocolTypes>>,
+            matcher: Option<AnyMatcher>,
+            source: &'a Source,
+        ) -> Result<(), Error> {
+            knowledges.push(Knowledge {
+                source,
+                matcher: matcher.clone(),
+                data: self,
+            });
+            // Exposed in order: counter 0 selects the first, counter 1 the second.
+            self.0
+                .extract_knowledge(knowledges, Some(AnyMatcher), source)?;
+            self.1
+                .extract_knowledge(knowledges, Some(AnyMatcher), source)
+        }
+    }
+
+    dummy_codec!(TestProtocolTypes, TestBytePair);
+
+    /// Builds a concretized [`TestBytePair`]; used as the *source* term of a deconstructor.
+    pub fn fn_make_byte_pair() -> Result<TestBytePair, FnError> {
+        Ok(TestBytePair(vec![1, 1], vec![2, 2]))
+    }
+
     fn create_client_hello() -> TestTerm {
         term! {
               fn_client_hello(
@@ -378,6 +441,8 @@ pub mod test_signature {
         fn_encrypt12
         fn_seq_0
         fn_seq_1
+        fn_make_byte_container
+        fn_make_byte_pair
     );
 
     pub type TestTrace = Trace<TestProtocolTypes>;
@@ -698,7 +763,7 @@ mod tests {
     use crate::put::{PutDescriptor, PutOptions};
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
-    use crate::trace::{Source, Spawner, TraceContext};
+    use crate::trace::{Query, Source, Spawner, TraceContext};
 
     #[allow(dead_code)]
     fn test_compilation() {
@@ -953,5 +1018,177 @@ mod tests {
         // fn_client_hello has 6 arguments, one of which is a variable.
         assert_eq!(term.get(&[0]).unwrap().name(), fn_protocol_version12.name());
         assert!(term.has_variable());
+    }
+
+    // ---- `DYTerm::Deconstructor` mechanism ----
+
+    fn empty_context() -> TraceContext<TestProtocolBehavior> {
+        fn dummy_factory() -> Box<dyn Factory<TestProtocolBehavior>> {
+            Box::new(TestFactory)
+        }
+        let registry = PutRegistry::<TestProtocolBehavior>::new(
+            [("teststub", dummy_factory())],
+            PutDescriptor::new("teststub", PutOptions::empty()),
+        );
+        TraceContext::new(Spawner::new(registry))
+    }
+
+    /// Builds `deconstruct[query]<Vec<u8>>(fn_make_byte_container)`: it concretizes a
+    /// [`TestByteContainer`] and extracts the inner `Vec<u8>` selected by `query`.
+    fn byte_container_deconstructor(counter: u16) -> TestTerm {
+        Term::from(DYTerm::Deconstructor(
+            TypeShape::of::<Vec<u8>>(),
+            Box::new(Term::from(DYTerm::Application(
+                Signature::new_function(&fn_make_byte_container),
+                vec![],
+            ))),
+            Query {
+                source: None,
+                matcher: None,
+                counter,
+            },
+        ))
+    }
+
+    /// The deconstructor concretizes its source term and extracts the inner `Vec<u8>` sub-value.
+    #[test_log::test]
+    fn deconstructor_extracts_inner_value() {
+        let context = empty_context();
+        let deconstructor = byte_container_deconstructor(0);
+
+        let evaluated = deconstructor
+            .evaluate_dy(&context)
+            .expect("deconstructor evaluation should succeed");
+        let extracted = evaluated
+            .as_any()
+            .downcast_ref::<Vec<u8>>()
+            .expect("deconstructor should extract a Vec<u8>");
+
+        assert_eq!(extracted, &vec![4u8, 2u8]);
+    }
+
+    /// A deconstructor's result type is the stored `TypeShape`, and its single source term is
+    /// exposed as a regular subterm.
+    #[test_log::test]
+    fn deconstructor_structure_and_display() {
+        let deconstructor = byte_container_deconstructor(0);
+
+        // The result type is the stored TypeShape.
+        assert_eq!(deconstructor.get_type_shape(), &TypeShape::of::<Vec<u8>>());
+        assert_eq!(
+            deconstructor.name(),
+            TypeShape::<TestProtocolTypes>::of::<Vec<u8>>().name
+        );
+
+        // The source term is a real subterm: size counts it and `get` reaches it.
+        assert_eq!(deconstructor.size(), 2);
+        assert_eq!(
+            deconstructor.get(&[0]).unwrap().name(),
+            fn_make_byte_container.name()
+        );
+        // Iteration visits the source term and the deconstructor node itself.
+        assert_eq!(deconstructor.into_iter().count(), 2);
+
+        // Display marks the node as a deconstructor.
+        assert!(deconstructor.to_string().contains("deconstruct"));
+    }
+
+    /// The `D(...)` `term!` operator builds a deconstructor, with or without an explicit matcher,
+    /// and accepts the same source-term spellings as a normal function argument.
+    #[test_log::test]
+    fn deconstructor_macro_syntax() {
+        let context = empty_context();
+
+        // `D(term, Type)` — no matcher — is equivalent to the manually built deconstructor.
+        let without_matcher: TestTerm = term! { D(fn_make_byte_container, Vec<u8>) };
+        assert_eq!(without_matcher, byte_container_deconstructor(0));
+
+        // The source term can also be written as an application (with or without parentheses).
+        let app_source: TestTerm = term! { D(fn_make_byte_container(), Vec<u8>) };
+        assert_eq!(app_source, byte_container_deconstructor(0));
+
+        // `D(term, [matcher] / Type)` — explicit matcher.
+        let with_matcher: TestTerm =
+            term! { D(fn_make_byte_container, [Some(AnyMatcher)] / Vec<u8>) };
+
+        // All spellings evaluate by extracting the inner Vec<u8>.
+        for deconstructor in [without_matcher, app_source, with_matcher] {
+            let evaluated = deconstructor.evaluate_dy(&context).unwrap();
+            assert_eq!(
+                evaluated.as_any().downcast_ref::<Vec<u8>>().unwrap(),
+                &vec![4u8, 2u8]
+            );
+        }
+    }
+
+    /// `fn_myfn(D(term))` infers the deconstructor's target type from the enclosing function's
+    /// argument type.
+    #[test_log::test]
+    fn deconstructor_macro_infers_argument_type() {
+        // fn_renegotiation_info_extension expects a `Vec<u8>` argument.
+        let term: TestTerm = term! {
+            fn_renegotiation_info_extension(D(fn_make_byte_container))
+        };
+
+        let arg = term.get(&[0]).unwrap();
+        assert!(matches!(&arg.term, DYTerm::Deconstructor(..)));
+        // The target type was inferred to be `Vec<u8>` (the argument type), not spelled out.
+        assert_eq!(arg.get_type_shape(), &TypeShape::of::<Vec<u8>>());
+
+        // It also evaluates: the inner Vec<u8> is extracted and fed to the function.
+        let context = empty_context();
+        assert!(term.evaluate_dy(&context).is_ok());
+    }
+
+    /// The optional trailing counter selects the N-th matching sub-value.
+    #[test_log::test]
+    fn deconstructor_macro_counter_selects_nth() {
+        let context = empty_context();
+
+        let first: TestTerm = term! { D(fn_make_byte_pair, Vec<u8>, 0) };
+        let second: TestTerm = term! { D(fn_make_byte_pair, Vec<u8>, 1) };
+
+        let eval_first = first.evaluate_dy(&context).unwrap();
+        assert_eq!(
+            eval_first.as_any().downcast_ref::<Vec<u8>>().unwrap(),
+            &vec![1u8, 1u8]
+        );
+        let eval_second = second.evaluate_dy(&context).unwrap();
+        assert_eq!(
+            eval_second.as_any().downcast_ref::<Vec<u8>>().unwrap(),
+            &vec![2u8, 2u8]
+        );
+
+        // Omitting the counter defaults to 0.
+        let default: TestTerm = term! { D(fn_make_byte_pair, Vec<u8>) };
+        assert_eq!(default, first);
+
+        // The counter also works with the matcher form and the inferred-type argument form.
+        let with_matcher: TestTerm =
+            term! { D(fn_make_byte_pair, [Some(AnyMatcher)] / Vec<u8>, 1) };
+        assert_eq!(
+            with_matcher
+                .evaluate_dy(&context)
+                .unwrap()
+                .as_any()
+                .downcast_ref::<Vec<u8>>()
+                .unwrap(),
+            &vec![2u8, 2u8]
+        );
+
+        let inferred: TestTerm = term! { fn_renegotiation_info_extension(D(fn_make_byte_pair, 1)) };
+        let arg = inferred.get(&[0]).unwrap();
+        assert_eq!(arg.get_type_shape(), &TypeShape::of::<Vec<u8>>());
+        assert!(inferred.evaluate_dy(&context).is_ok());
+    }
+
+    /// Requesting a counter beyond the number of matching sub-values fails cleanly (no panic).
+    #[test_log::test]
+    fn deconstructor_missing_value_errors() {
+        let context = empty_context();
+        // There is a single `Vec<u8>` reachable from the container, so counter 1 has no match.
+        let deconstructor = byte_container_deconstructor(1);
+
+        assert!(deconstructor.evaluate_dy(&context).is_err());
     }
 }
