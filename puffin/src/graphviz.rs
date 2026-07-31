@@ -128,6 +128,11 @@ impl<PT: ProtocolTypes> Term<PT> {
                     format!("f_{}", func.resistant_id)
                 }
             }
+            // Derive the id from the source term (with a distinct prefix so it does not collide
+            // with the source node itself, which is this node's only child).
+            DYTerm::Deconstructor(_, inner, _) => {
+                format!("d_{}", inner.unique_id(tree_mode, cluster_id))
+            }
         }
     }
 
@@ -164,6 +169,35 @@ impl<PT: ProtocolTypes> Term<PT> {
                     Self::node_attributes(variable, color, shape),
                     FONT
                 ));
+            }
+            DYTerm::Deconstructor(typ, inner, query) => {
+                let color = if term.is_symbolic() {
+                    COLOR
+                } else {
+                    COLOR_PAYLOAD
+                };
+                let shape = if term.is_symbolic() {
+                    SHAPE
+                } else {
+                    SHAPE_PAYLOAD
+                };
+                statements.push(format!(
+                    "{} {} [fontname=\"{}\"];",
+                    term.unique_id(tree_mode, cluster_id),
+                    Self::node_attributes(
+                        format!("deconstruct[{}]//{}", query, remove_prefix(typ.name)),
+                        color,
+                        shape,
+                    ),
+                    FONT
+                ));
+
+                statements.push(format!(
+                    "{} -> {};",
+                    term.unique_id(tree_mode, cluster_id),
+                    inner.unique_id(tree_mode, cluster_id)
+                ));
+                Self::collect_statements(inner, tree_mode, cluster_id, statements);
             }
             DYTerm::Application(func, subterms) => {
                 let color = if term.is_symbolic() {

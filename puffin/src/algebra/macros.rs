@@ -72,6 +72,71 @@ macro_rules! term {
     }};
 
     //
+    // Deconstructor: `D(term, [matcher] / Type)`, `D(term, Type)` or `D(term)`, each with an
+    // optional trailing counter `, N` selecting the N-th matching sub-value (default 0).
+    //
+    // Evaluates `term` (the source), then extracts out of it a sub-value of `Type`, selected by the
+    // optional `matcher` (an `Option<Matcher>` expression, like the variable `[...]` syntax). These
+    // arms must come before the function-application arm, otherwise `D(term, Type)` would be parsed
+    // as an application of a function symbol named `D`.
+    //
+    // The type-less form `D(term)` is only valid as a function argument: the target type is then
+    // inferred from the enclosing function's argument type (threaded in through `> $req_type`).
+    //
+    // The explicit-type arms come first (they are more specific), then the inferred-type arm, and
+    // finally a `compile_error!` catch-all for a standalone `D(term)` that has no type to infer.
+    (D( $st:tt $( ( $($inner:tt)* ) )? , [$matcher:expr] / $typ:ty $(, $counter:expr)? ) $(>$req_type:expr)?) => {{
+        use $crate::algebra::dynamic_function::TypeShape;
+        use $crate::algebra::{DYTerm, Term};
+        use $crate::trace::Query;
+
+        Term::from(DYTerm::Deconstructor(
+            TypeShape::of::<$typ>(),
+            Box::new($crate::term_arg!($st $( ( $($inner)* ) )?)),
+            Query {
+                source: None,
+                matcher: $matcher,
+                counter: $crate::term_counter!($($counter)?),
+            },
+        ))
+    }};
+    (D( $st:tt $( ( $($inner:tt)* ) )? , $typ:ty $(, $counter:expr)? ) $(>$req_type:expr)?) => {{
+        use $crate::algebra::dynamic_function::TypeShape;
+        use $crate::algebra::{DYTerm, Term};
+        use $crate::trace::Query;
+
+        Term::from(DYTerm::Deconstructor(
+            TypeShape::of::<$typ>(),
+            Box::new($crate::term_arg!($st $( ( $($inner)* ) )?)),
+            Query {
+                source: None,
+                matcher: None,
+                counter: $crate::term_counter!($($counter)?),
+            },
+        ))
+    }};
+    (D( $st:tt $( ( $($inner:tt)* ) )? $(, $counter:expr)? ) > $req_type:expr) => {{
+        use $crate::algebra::{DYTerm, Term};
+        use $crate::trace::Query;
+
+        Term::from(DYTerm::Deconstructor(
+            $req_type,
+            Box::new($crate::term_arg!($st $( ( $($inner)* ) )?)),
+            Query {
+                source: None,
+                matcher: None,
+                counter: $crate::term_counter!($($counter)?),
+            },
+        ))
+    }};
+    (D( $st:tt $( ( $($inner:tt)* ) )? $(, $counter:expr)? )) => {{
+        compile_error!(
+            "`D(term)` without an explicit type is only allowed as a function argument (where the \
+             argument type is inferred); use `D(term, Type)` otherwise"
+        )
+    }};
+
+    //
     // Function Applications
     ($func:ident ( $( $arg:tt $( ( $($inner:tt)* ) )? ),* ) $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
@@ -121,13 +186,13 @@ macro_rules! term_arg {
     // Parenthesized nested term (unwrap the parentheses and re-parse the content).
     // e.g. `(fn_f())`. This path is kept for backward compatibility when double parentheses were mandatory
     ( ( $($e:tt)* ) $(>$req_type:expr)?) => {{
-        use $crate::algebra::{DYTerm,Term};
+        use $crate::algebra::Term;
 
         Term::from(term!($($e)* $(>$req_type)?))
     }};
     // Nested application without wrapping parentheses: `fn_f(...)`.
     ( $f:ident ( $($inner:tt)* ) $(>$req_type:expr)?) => {{
-        use $crate::algebra::{DYTerm,Term};
+        use $crate::algebra::Term;
 
         Term::from(term!($f ( $($inner)* ) $(>$req_type)?))
     }};
@@ -135,4 +200,17 @@ macro_rules! term_arg {
     ($e:tt $(>$req_type:expr)?) => {{
         Term::from(term!($e $(>$req_type)?))
     }};
+}
+
+/// Internal helper used by [`term!`]'s `D(...)` deconstructor arms to turn an optional trailing
+/// counter into a value: absent means `0`, present means the given expression.
+#[macro_export]
+#[doc(hidden)]
+macro_rules! term_counter {
+    () => {
+        0
+    };
+    ($counter:expr) => {
+        $counter
+    };
 }
