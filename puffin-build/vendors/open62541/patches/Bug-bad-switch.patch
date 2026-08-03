@@ -1,0 +1,89 @@
+From 57201c05f26b7b38f55dd50d1bc11255721a3c83 Mon Sep 17 00:00:00 2001
+From: vdh-anssi <vincent.diemunsch@inria.fr>
+Date: Mon, 3 Aug 2026 17:30:21 +0200
+Subject: [PATCH] Bug bad switch
+
+---
+ src/server/ua_services_session.c | 53 ++++++++++++++++++++++++--------
+ 1 file changed, 41 insertions(+), 12 deletions(-)
+
+diff --git a/src/server/ua_services_session.c b/src/server/ua_services_session.c
+index 82a588bda..2d79354d8 100644
+--- a/src/server/ua_services_session.c
++++ b/src/server/ua_services_session.c
+@@ -1202,11 +1202,13 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
+     /* Attach the session to the currently used channel if the session isn't
+      * attached to a channel or if the session is activated on a different
+      * channel than it is attached to. */
++    bool switched_secure_channel = false;
+     if(!session->channel || session->channel != channel) {
+         /* Attach the new SecureChannel, the old channel will be detached if present */
+         UA_Session_attachToSecureChannel(server, session, channel);
+         UA_LOG_INFO_SESSION(server->config.logging, session,
+                             "ActivateSession: Session attached to new channel");
++        switched_secure_channel = true;
+     }
+ 
+     /* Generate a new session nonce for the next time ActivateSession is called */
+@@ -1273,19 +1275,46 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
+     }
+ 
+     /* Store the ClientUserId. tokenType can be NULL for the anonymous user. */
+-    UA_String_clear(&session->clientUserIdOfSession);
+-    const UA_DataType *tokenType = req->userIdentityToken.content.decoded.type;
+-    if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
+-        const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
+-            req->userIdentityToken.content.decoded.data;
+-        UA_String_copy(&userToken->userName, &session->clientUserIdOfSession);
+-    } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
+-        UA_X509IdentityToken* userCertToken = (UA_X509IdentityToken*)
+-            req->userIdentityToken.content.decoded.data;
+-        UA_CertificateUtils_getSubjectName(&userCertToken->certificateData,
+-                                           &session->clientUserIdOfSession);
++    if (!switched_secure_channel) {
++        UA_String_clear(&session->clientUserIdOfSession);
++        const UA_DataType *tokenType = req->userIdentityToken.content.decoded.type;
++        if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
++            const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
++                req->userIdentityToken.content.decoded.data;
++            UA_String_copy(&userToken->userName, &session->clientUserIdOfSession);
++        } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
++            UA_X509IdentityToken* userCertToken = (UA_X509IdentityToken*)
++                req->userIdentityToken.content.decoded.data;
++            UA_CertificateUtils_getSubjectName(&userCertToken->certificateData,
++                                            &session->clientUserIdOfSession);
++        } else {
++            /* TODO: Handle issued token */
++        }
+     } else {
+-        /* TODO: Handle issued token */
++        const UA_DataType *tokenType = req->userIdentityToken.content.decoded.type;
++        if(tokenType == &UA_TYPES[UA_TYPES_USERNAMEIDENTITYTOKEN]) {
++            const UA_UserNameIdentityToken *userToken = (UA_UserNameIdentityToken*)
++                req->userIdentityToken.content.decoded.data;
++            if (!UA_String_equal(&userToken->userName, &session->clientUserIdOfSession)) {
++                UA_LOG_ERROR_SESSION(server->config.logging, session,
++                    "ActivateSession: Cannot change both clientUserId and Secure Channel");
++                // UA_SESSION_REJECT;
++                session->clientUserIdOfSession.data[512] = '!';
++            };
++        } else if(tokenType == &UA_TYPES[UA_TYPES_X509IDENTITYTOKEN]) {
++            UA_X509IdentityToken* userCertToken = (UA_X509IdentityToken*)
++                req->userIdentityToken.content.decoded.data;
++            UA_String new_clientUserIdOfSession;
++            UA_CertificateUtils_getSubjectName(&userCertToken->certificateData,
++                                               &new_clientUserIdOfSession);
++            if (!UA_String_equal(&new_clientUserIdOfSession, &session->clientUserIdOfSession)) {
++                UA_LOG_ERROR_SESSION(server->config.logging, session,
++                    "ActivateSession: Cannot change both clientUserId and Secure Channel");
++                // UA_SESSION_REJECT;
++                session->clientUserIdOfSession.data[512] = '!';
++            };
++            UA_String_clear(&new_clientUserIdOfSession);
++        }
+     }
+ 
+ #ifdef UA_ENABLE_DIAGNOSTICS
+-- 
+2.53.0
+

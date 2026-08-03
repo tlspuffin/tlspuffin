@@ -9,6 +9,7 @@ patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-fix-of-ClientUserId.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-Certificate-Thumbprint.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-certificate.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-policy.patch)
+patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-switch.patch)
 
 cmake_builder(
   TARGETS
