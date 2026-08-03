@@ -128,10 +128,13 @@ impl<PT: ProtocolTypes> Term<PT> {
                     format!("f_{}", func.resistant_id)
                 }
             }
-            // Derive the id from the source term (with a distinct prefix so it does not collide
-            // with the source node itself, which is this node's only child).
-            DYTerm::Deconstructor(_, inner, _) => {
-                format!("d_{}", inner.unique_id(tree_mode, cluster_id))
+            DYTerm::Deconstructor(typ, inner, query) => {
+                let mut h = std::collections::hash_map::DefaultHasher::new();
+                let inner_id = inner.unique_id(tree_mode, cluster_id);
+                std::hash::Hash::hash(&inner_id, &mut h);
+                std::hash::Hash::hash(typ, &mut h);
+                std::hash::Hash::hash(query, &mut h);
+                format!("d_{:x}", std::hash::Hasher::finish(&h))
             }
         }
     }
