@@ -648,9 +648,17 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
         match &self.term {
             DYTerm::Variable(v) => v.resistant_id,
             DYTerm::Application(f, _) => f.resistant_id,
-            // A deconstructor has no function/variable of its own, so we reuse the identity of its
-            // source term (stable across cloning, like the other variants' ids).
-            DYTerm::Deconstructor(_, inner, _) => inner.resistant_id(),
+            DYTerm::Deconstructor(typ, inner, query) => {
+                // Derive a stable id from the deconstructor's defining fields.
+                // Using the inner id directly causes collisions between the deconstructor node and
+                // its source (and between different deconstructors over the same source).
+                let mut h = std::collections::hash_map::DefaultHasher::new();
+                typ.hash(&mut h);
+                inner.resistant_id().hash(&mut h);
+                query.hash(&mut h);
+                let hash = std::hash::Hasher::finish(&h);
+                (hash as u32) ^ ((hash >> 32) as u32)
+            }
         }
     }
 
