@@ -4,11 +4,12 @@ use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
 use super::utils::{
-    choose, choose_iter, choose_term, choose_term_filtered_mut, choose_term_mut,
-    choose_term_path_filtered, find_all_term_filtered, find_term_mut, reservoir_sample, Choosable,
-    TermConstraints,
+    choose, choose_filtered, choose_iter, choose_term, choose_term_filtered_mut, choose_term_path,
+    choose_term_path_filtered, find_all_term_filtered, find_term, find_term_mut, reservoir_sample,
+    Choosable, TermConstraints, TracePath,
 };
 use crate::algebra::atoms::Function;
+use crate::algebra::dynamic_function::DynamicFunctionShape;
 use crate::algebra::signature::Signature;
 use crate::algebra::{DYTerm, Subterms, Term, TermType};
 use crate::fuzzer::term_zoo::TermZoo;
@@ -152,6 +153,16 @@ where
                 rand,
             ) {
                 let term_a_cloned = term_a.clone();
+                // Swapping must not install an invalid source under a deconstructor.
+                let term_b_is_deconstructible =
+                    find_term(trace, &trace_path_b).is_some_and(is_deconstructible);
+                if (is_deconstructor_source(trace, &trace_path_a) && !term_b_is_deconstructible)
+                    || (is_deconstructor_source(trace, &trace_path_b)
+                        && !is_deconstructible(&term_a_cloned))
+                {
+                    log::debug!("       Skipped {}", self.name());
+                    return Ok(MutationResult::Skipped);
+                }
                 if let Some(term_b_mut) = find_term_mut(trace, &trace_path_b) {
                     log::debug!(
                         "[Mutation] Mutate SwapMutator on terms\n{} and\n {}",
@@ -290,8 +301,51 @@ where
 /// the n-th matching sub-value of the source.
 const MAX_DECONSTRUCTOR_COUNTER: usize = 3;
 
+/// Whether a term is an admissible *source* for a [`DYTerm::Deconstructor`].
+///
+/// A deconstructor only pays off when the sub-values of its source are not already spelled out in
+/// the recipe, which is the case for exactly three kinds of source:
+/// - an opaque function symbol (like encryption), whose concretization hides its arguments,
+/// - a variable, whose concretization comes from the PUT,
+/// - another deconstructor, whose result is itself extracted from one of the above.
+///
+/// Over a transparent application, extraction could only yield a value that the recipe already
+/// contains as a sub-term, so building a deconstructor there is forbidden.
+pub fn is_deconstructible<PT: ProtocolTypes>(term: &Term<PT>) -> bool {
+    match &term.term {
+        DYTerm::Variable(_) | DYTerm::Deconstructor(..) => true,
+        DYTerm::Application(func, _) => func.is_opaque(),
+    }
+}
+
+/// Whether `trace_path` designates the source sub-term of a [`DYTerm::Deconstructor`], that is a
+/// position where only [`is_deconstructible`] terms may be installed.
+fn is_deconstructor_source<PT: ProtocolTypes>(
+    trace: &Trace<PT>,
+    (step_index, term_path): &TracePath,
+) -> bool {
+    let Some((_, parent_path)) = term_path.split_last() else {
+        return false; // the root of a recipe has no parent
+    };
+    find_term(trace, &(*step_index, parent_path.to_vec()))
+        .is_some_and(|parent| matches!(&parent.term, DYTerm::Deconstructor(..)))
+}
+
+/// Whether the function symbol named by `shape` is declared opaque in `signature`.
+fn is_opaque_shape<PT: ProtocolTypes>(
+    signature: &Signature<PT>,
+    shape: &DynamicFunctionShape<PT>,
+) -> bool {
+    signature
+        .attrs_by_name
+        .get(shape.name)
+        .is_some_and(|attrs| attrs.is_opaque)
+}
+
 /// MAKE DECONSTRUCTOR: wraps a sub-term of type `T` into a [`DYTerm::Deconstructor`] that extracts
-/// a `T` out of another sub-term (the *source*) taken from the trace.
+/// a `T` out of another sub-term (the *source*) taken from the trace. The source is restricted to
+/// the terms accepted by [`is_deconstructible`]: an opaque symbol, a variable or another
+/// deconstructor.
 ///
 /// The wrapping is speculative: at execution time the deconstructor extracts a value of type `T`
 /// from the source's evaluation, which may or may not contain one. When it does not, evaluation
@@ -329,8 +383,17 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        // Pick the source sub-term first (cloned so we can reborrow the trace mutably below).
-        if let Some(source) = choose_term(trace, &self.constraints, rand).cloned() {
+        // Pick the source sub-term first (cloned so we can reborrow the trace mutably below). Only
+        // sources whose sub-values are not already available in the recipe are worth deconstructing
+        // (see [`is_deconstructible`]).
+        if let Some(source) = choose_filtered(
+            trace,
+            &self.constraints,
+            |term: &Term<PT>| is_deconstructible(term),
+            rand,
+        )
+        .map(|(source, _)| source.clone())
+        {
             // Pick a symbolic, non-deconstructor target to wrap; its type becomes the
             // deconstructor's result type.
             if let Some(to_wrap) = choose_term_filtered_mut(
@@ -423,12 +486,25 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        if let Some(to_mutate) = choose_term_mut(trace, &self.constraints, rand) {
+        let signature = self.signature;
+        if let Some(to_mutate_path) = choose_term_path(trace, &self.constraints, rand) {
+            // At the source position of a deconstructor, only an opaque symbol may replace the
+            // current symbol, since a variable becoming a transparent application (or an opaque
+            // symbol becoming a transparent one) would break [`is_deconstructible`].
+            let must_stay_opaque = is_deconstructor_source(trace, &to_mutate_path);
+            let Some(to_mutate) = find_term_mut(trace, &to_mutate_path) else {
+                log::debug!("       Skipped {}", self.name());
+                return Ok(MutationResult::Skipped);
+            };
             log::debug!("[Mutation] ReplaceMatchMutator on term\n{}", to_mutate);
             match &mut to_mutate.term {
                 DYTerm::Variable(variable) => {
-                    if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
-                        |(shape, _)| variable.typ == shape.return_type && shape.is_constant(),
+                    if let Some((shape, dynamic_fn)) = signature.functions.choose_filtered(
+                        |(shape, _)| {
+                            variable.typ == shape.return_type
+                                && shape.is_constant()
+                                && (!must_stay_opaque || is_opaque_shape(signature, shape))
+                        },
                         rand,
                     ) {
                         to_mutate.mutate(Term::from(DYTerm::Application(
@@ -442,11 +518,12 @@ where
                     }
                 }
                 DYTerm::Application(func_mut, _) => {
-                    if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
+                    if let Some((shape, dynamic_fn)) = signature.functions.choose_filtered(
                         |(shape, _)| {
                             func_mut.shape() != shape
                                 && func_mut.shape().return_type == shape.return_type
                                 && func_mut.shape().argument_types == shape.argument_types
+                                && (!must_stay_opaque || is_opaque_shape(signature, shape))
                         },
                         rand,
                     ) {
@@ -527,12 +604,25 @@ where
             (0, 0)
         };
         if let Some(replacement) = choose_term(trace, &self.constraints, rand).cloned() {
-            if let Some(to_replace) = choose_term_filtered_mut(
+            if let Some(to_replace_path) = choose_term_path_filtered(
                 trace,
                 |term: &Term<PT>| term.get_type_shape() == replacement.get_type_shape(),
                 &self.constraints,
                 rand,
             ) {
+                // Never turn the source of a deconstructor into a term we would not have been
+                // allowed to build a deconstructor over in the first place.
+                if is_deconstructor_source(trace, &to_replace_path)
+                    && !is_deconstructible(&replacement)
+                {
+                    log::debug!("[ReplaceReuseMutator] Skipped as the chosen replacement is not a valid deconstructor source.");
+                    log::debug!("       Skipped {}", self.name());
+                    return Ok(MutationResult::Skipped);
+                }
+                let Some(to_replace) = find_term_mut(trace, &to_replace_path) else {
+                    log::debug!("       Skipped {}", self.name());
+                    return Ok(MutationResult::Skipped);
+                };
                 if self.with_bit {
                     let nb_payloads = trace_nb_payloads + replacement.all_payloads().len()
                         - to_replace.all_payloads().len();
@@ -819,6 +909,15 @@ where
                     ..TermConstraints::no_constraint()
                 },
             ) {
+                // Skip the matches sitting under a deconstructor when the generated term would
+                // not be a valid source there.
+                if is_deconstructor_source(trace, &trace_path) && !is_deconstructible(new_term) {
+                    log::debug!(
+                        "[GenerateMutator] [Global] skipping a match: the generated term is not a valid deconstructor source: {:?}",
+                        trace_path
+                    );
+                    continue;
+                }
                 if let Some(term_mut) = find_term_mut(trace, &trace_path) {
                     log::debug!(
                         "[GenerateMutator] [Global] we found a match and do the replacement: {:?}",
@@ -837,6 +936,12 @@ where
             }
         } else {
             // Apply locally, only once
+            if is_deconstructor_source(trace, &to_mutate_path) && !is_deconstructible(new_term) {
+                log::debug!(
+                    "[GenerateMutator] [Local] skipped: the generated term is not a valid deconstructor source"
+                );
+                return Ok(MutationResult::Skipped);
+            }
             if let Some(term_mut) = find_term_mut(trace, &to_mutate_path) {
                 log::debug!(
                     "[GenerateMutator] [Local] replacement at: {:?}",
@@ -876,12 +981,12 @@ mod tests {
 
     use super::*;
     use crate::agent::AgentName;
-    use crate::algebra::dynamic_function::DescribableFunction;
+    use crate::algebra::dynamic_function::{DescribableFunction, TypeShape};
     use crate::algebra::test_signature::{TestTrace, *};
     use crate::algebra::DYTerm;
     use crate::fuzzer::utils::{choose_term_path, TracePath};
     use crate::term;
-    use crate::trace::{Action, Step};
+    use crate::trace::{Action, InputAction, Source, Step};
 
     fn create_state(
     ) -> StdState<InMemoryCorpus<TestTrace>, TestTrace, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
@@ -1083,6 +1188,49 @@ mod tests {
             .sum()
     }
 
+    /// Returns whether every deconstructor of the trace is applied on a valid source, that is an
+    /// opaque symbol, a variable or another deconstructor.
+    fn all_deconstructor_sources_valid(trace: &TestTrace) -> bool {
+        trace
+            .steps
+            .iter()
+            .filter_map(|step| match &step.action {
+                Action::Input(input) => Some(&input.recipe),
+                Action::Output(_) => None,
+            })
+            .all(|recipe| {
+                recipe.into_iter().all(|t| match &t.term {
+                    DYTerm::Deconstructor(_, source, _) => is_deconstructible(source),
+                    DYTerm::Variable(_) | DYTerm::Application(..) => true,
+                })
+            })
+    }
+
+    /// Builds a variable term, the simplest valid deconstructor source.
+    fn variable_term() -> TestTerm {
+        Term::from(DYTerm::Variable(Signature::new_var(
+            TypeShape::of::<Vec<u8>>(),
+            Some(Source::Agent(AgentName::first())),
+            None,
+            0,
+        )))
+    }
+
+    /// [`setup_simple_trace`] contains neither a variable nor an opaque symbol (the test signature
+    /// declares no attribute), hence no valid deconstructor source: add a step whose recipe is a
+    /// variable to provide one.
+    fn setup_trace_with_variable() -> TestTrace {
+        let mut trace = setup_simple_trace();
+        trace.steps.push(Step {
+            agent: AgentName::first(),
+            action: Action::Input(InputAction {
+                precomputations: vec![],
+                recipe: variable_term(),
+            }),
+        });
+        trace
+    }
+
     #[test_log::test]
     fn test_make_deconstructor_mutator() {
         let mut state = create_state();
@@ -1091,9 +1239,10 @@ mod tests {
         // A single successful mutation should introduce exactly one deconstructor.
         let mut introduced = false;
         for _ in 0..50 {
-            let mut trace = setup_simple_trace();
+            let mut trace = setup_trace_with_variable();
             if let Ok(MutationResult::Mutated) = mutator.mutate(&mut state, &mut trace) {
                 assert!(count_deconstructors(&trace) >= 1);
+                assert!(all_deconstructor_sources_valid(&trace));
                 introduced = true;
                 break;
             }
@@ -1104,34 +1253,110 @@ mod tests {
         );
     }
 
-    /// A [`DYTerm::Deconstructor`] node is a regular typed sub-term, so the generic
-    /// [`ReplaceReuseMutator`] can select it and replace it with another same-typed sub-term reused
-    /// from the trace (there is no dedicated "unwrap" mutator: replacement handles it). Here the
-    /// deconstructor wraps a same-typed source, so replacing it with that source removes it.
+    /// Every sub-term of [`setup_simple_trace`] is a transparent application, whose sub-values are
+    /// already spelled out in the recipe: there is nothing worth deconstructing there.
     #[test_log::test]
-    fn test_replace_reuse_mutator_replaces_deconstructor() {
+    fn test_make_deconstructor_mutator_needs_a_valid_source() {
         let mut state = create_state();
+        let mut mutator = MakeDeconstructorMutator::new(TermConstraints::default(), true);
 
-        // Build a trace whose first input recipe is a deconstructor over a same-typed source, so a
-        // same-typed non-deconstructor replacement (the source itself) is always available.
+        for _ in 0..50 {
+            let mut trace = setup_simple_trace();
+            assert_eq!(
+                mutator.mutate(&mut state, &mut trace).unwrap(),
+                MutationResult::Skipped
+            );
+            assert_eq!(count_deconstructors(&trace), 0);
+        }
+    }
+
+    /// The restriction is also an invariant of the other DY mutators: none of them may replace the
+    /// source of an existing deconstructor with a transparent application.
+    #[test_log::test]
+    fn test_dy_mutators_preserve_deconstructor_sources() {
+        let mut state = create_state();
+        let mut swap = SwapMutator::new(TermConstraints::default(), true);
+        let mut replace_reuse = ReplaceReuseMutator::new(TermConstraints::default(), true, false);
+        let mut replace_match =
+            ReplaceMatchMutator::new(TermConstraints::default(), &TEST_SIGNATURE, true);
+
+        // A trace with a step deconstructing a variable, i.e. a valid source that the other
+        // mutators could otherwise overwrite with a transparent application: the untouched
+        // client-hello recipe holds `fn_empty_bytes_vec`, a transparent application of the very
+        // type of that source.
         let make_trace = || {
             let mut trace = setup_simple_trace();
-            let source = term! { fn_protocol_version12 };
+            let source = variable_term();
+            assert_eq!(
+                source.get_type_shape(),
+                term! { fn_empty_bytes_vec }.get_type_shape(),
+                "the fixture needs a same-typed transparent application to tempt the mutators"
+            );
             let deconstructor = Term::from(DYTerm::Deconstructor(
                 source.get_type_shape().clone(),
-                Box::new(source.clone()),
+                Box::new(source),
                 Query {
                     source: None,
                     matcher: None,
                     counter: 0,
                 },
             ));
-            for step in &mut trace.steps {
-                if let Action::Input(input) = &mut step.action {
-                    input.recipe = deconstructor.clone();
-                    break;
-                }
-            }
+            trace.steps.push(Step {
+                agent: AgentName::first(),
+                action: Action::Input(InputAction {
+                    precomputations: vec![],
+                    recipe: deconstructor,
+                }),
+            });
+            trace
+        };
+
+        for _ in 0..200 {
+            let mut trace = make_trace();
+            swap.mutate(&mut state, &mut trace).unwrap();
+            assert!(all_deconstructor_sources_valid(&trace));
+
+            let mut trace = make_trace();
+            replace_reuse.mutate(&mut state, &mut trace).unwrap();
+            assert!(all_deconstructor_sources_valid(&trace));
+
+            let mut trace = make_trace();
+            replace_match.mutate(&mut state, &mut trace).unwrap();
+            assert!(all_deconstructor_sources_valid(&trace));
+        }
+    }
+
+    /// A [`DYTerm::Deconstructor`] node is a regular typed sub-term, so the generic
+    /// [`ReplaceReuseMutator`] can select it and replace it with another same-typed sub-term reused
+    /// from the trace (there is no dedicated "unwrap" mutator: replacement handles it). Here the
+    /// deconstructor result type is the one of a term appearing in the trace, so replacing it with
+    /// that term removes it.
+    #[test_log::test]
+    fn test_replace_reuse_mutator_replaces_deconstructor() {
+        let mut state = create_state();
+
+        // Add to the trace a step whose recipe is a deconstructor over a variable (a valid source)
+        // and whose result type is the one of `fn_protocol_version12`, which the untouched
+        // client-hello recipe provides as a same-typed non-deconstructor replacement.
+        let make_trace = || {
+            let mut trace = setup_simple_trace();
+            let result_type = term! { fn_protocol_version12 }.get_type_shape().clone();
+            let deconstructor = Term::from(DYTerm::Deconstructor(
+                result_type,
+                Box::new(variable_term()),
+                Query {
+                    source: None,
+                    matcher: None,
+                    counter: 0,
+                },
+            ));
+            trace.steps.push(Step {
+                agent: AgentName::first(),
+                action: Action::Input(InputAction {
+                    precomputations: vec![],
+                    recipe: deconstructor,
+                }),
+            });
             assert_eq!(count_deconstructors(&trace), 1);
             trace
         };
