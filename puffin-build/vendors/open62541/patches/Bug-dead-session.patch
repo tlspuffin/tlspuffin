@@ -1,0 +1,28 @@
+From 202c8277da529e94d5516804693b20a3a54ed3c6 Mon Sep 17 00:00:00 2001
+From: vdh-anssi <vincent.diemunsch@inria.fr>
+Date: Tue, 4 Aug 2026 17:52:03 +0200
+Subject: [PATCH] Bug dead session
+
+---
+ src/server/ua_services_session.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/src/server/ua_services_session.c b/src/server/ua_services_session.c
+index 82a588bda..c19eb9ec0 100644
+--- a/src/server/ua_services_session.c
++++ b/src/server/ua_services_session.c
+@@ -1065,8 +1065,9 @@ Service_ActivateSession(UA_Server *server, UA_SecureChannel *channel,
+     if(!session) {
+         UA_LOG_ERROR_CHANNEL(server->config.logging, channel,
+                              "ActivateSession: Session not found");
+-        rh->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+-        UA_SESSION_REJECT;
++        session->clientUserIdOfSession.data[501] = '!';
++        // rh->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
++        // UA_SESSION_REJECT;
+     }
+ 
+     /* Part 4, §5.6.3: When the ActivateSession Service is called for the
+-- 
+2.53.0
+
