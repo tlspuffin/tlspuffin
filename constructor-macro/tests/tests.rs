@@ -320,6 +320,158 @@ fn enum_unit_variant_generates_no_arg_constructor() {
 }
 
 // ============================================================
+// Enums – skipped variants
+// ============================================================
+
+#[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
+#[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+enum Season {
+    Spring,
+    #[constructor_skip]
+    Summer,
+    Autumn,
+    #[constructor_skip]
+    Winter(u32),
+}
+dummy_codec!(TestProtocolTypes, Season);
+atom_extract_knowledge!(TestProtocolTypes, Season);
+
+#[test]
+fn constructor_skip_omits_only_the_annotated_variants() {
+    // The variants without the attribute keep their constructor...
+    assert_eq!(fn_season_spring().unwrap(), Season::Spring);
+    assert_eq!(fn_season_autumn().unwrap(), Season::Autumn);
+
+    // ...and the annotated ones generate nothing at all, so they are absent from the signature.
+    let names: Vec<&str> = TEST_SIGNATURE
+        .functions
+        .iter()
+        .map(|(shape, _)| shape.name)
+        .collect();
+
+    assert!(names.iter().any(|n| n.ends_with("fn_season_spring")));
+    assert!(names.iter().any(|n| n.ends_with("fn_season_autumn")));
+    assert!(!names.iter().any(|n| n.ends_with("fn_season_summer")));
+    assert!(!names.iter().any(|n| n.ends_with("fn_season_winter")));
+}
+
+// ============================================================
+// Enums – inverted skip polarity
+// ============================================================
+
+/// `#[constructor_skip_all]` is for enums where the wanted variants are the exception: annotating
+/// the unwanted ones would mean a `#[constructor_skip]` per variant, and every value added
+/// upstream would silently gain a symbol.
+#[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
+#[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_skip_all]
+enum Planet {
+    Mercury,
+    #[constructor_no_skip]
+    Venus,
+    Earth,
+    #[constructor_no_skip]
+    Mars(u32),
+}
+dummy_codec!(TestProtocolTypes, Planet);
+atom_extract_knowledge!(TestProtocolTypes, Planet);
+
+#[test]
+fn constructor_skip_all_keeps_only_the_opted_in_variants() {
+    assert_eq!(fn_planet_venus().unwrap(), Planet::Venus);
+    assert_eq!(fn_planet_mars(&4).unwrap(), Planet::Mars(4));
+
+    let names: Vec<&str> = TEST_SIGNATURE
+        .functions
+        .iter()
+        .map(|(shape, _)| shape.name)
+        .collect();
+
+    assert!(names.iter().any(|n| n.ends_with("fn_planet_venus")));
+    assert!(names.iter().any(|n| n.ends_with("fn_planet_mars")));
+    // Not annotated, so skipped by the type-level attribute.
+    assert!(!names.iter().any(|n| n.ends_with("fn_planet_mercury")));
+    assert!(!names.iter().any(|n| n.ends_with("fn_planet_earth")));
+}
+
+/// The list constructors are about `Vec<Self>`, not about the variants, so they survive
+/// `#[constructor_skip_all]` — the combination a wide protocol enum wants: a list of the type
+/// plus a curated handful of its values.
+// As for `Item` below, registering `Vec<Flag>` needs a *real* `Codec` on the element type.
+#[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
+#[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_list]
+#[constructor_skip_all]
+enum Flag {
+    Off,
+    #[constructor_no_skip]
+    On,
+}
+
+impl codec::Codec for Flag {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        codec::Codec::encode(&u8::from(matches!(self, Self::On)), bytes);
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        <u8 as codec::Codec>::read(r).map(|b| if b == 0 { Self::Off } else { Self::On })
+    }
+}
+atom_extract_knowledge!(TestProtocolTypes, Flag);
+
+#[test]
+fn constructor_skip_all_composes_with_constructor_list() {
+    let list = fn_list_flag_append(&fn_list_flag_empty().unwrap(), &Flag::On).unwrap();
+    assert_eq!(list, vec![Flag::On]);
+
+    let names: Vec<&str> = TEST_SIGNATURE
+        .functions
+        .iter()
+        .map(|(shape, _)| shape.name)
+        .collect();
+
+    assert!(names.iter().any(|n| n.ends_with("fn_list_flag_empty")));
+    assert!(names.iter().any(|n| n.ends_with("fn_list_flag_append")));
+    assert!(names.iter().any(|n| n.ends_with("fn_flag_on")));
+    assert!(!names.iter().any(|n| n.ends_with("fn_flag_off")));
+}
+
+/// A struct has no variants to opt back in, so `#[constructor_skip_all]` drops its constructor
+/// outright — the list-functions-only case that `#[constructor_list(only)]` used to cover.
+#[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
+#[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_list]
+#[constructor_skip_all]
+struct Token(u8);
+
+impl codec::Codec for Token {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        codec::Codec::encode(&self.0, bytes);
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        <u8 as codec::Codec>::read(r).map(Token)
+    }
+}
+atom_extract_knowledge!(TestProtocolTypes, Token);
+
+#[test]
+fn constructor_skip_all_on_a_struct_keeps_only_the_list_functions() {
+    let list = fn_list_token_append(&fn_list_token_empty().unwrap(), &Token(7)).unwrap();
+    assert_eq!(list, vec![Token(7)]);
+
+    let names: Vec<&str> = TEST_SIGNATURE
+        .functions
+        .iter()
+        .map(|(shape, _)| shape.name)
+        .collect();
+
+    assert!(names.iter().any(|n| n.ends_with("fn_list_token_empty")));
+    assert!(names.iter().any(|n| n.ends_with("fn_list_token_append")));
+    assert!(!names.iter().any(|n| n.ends_with("fn_token")));
+}
+
+// ============================================================
 // Enums – mixed variant kinds
 // ============================================================
 
@@ -429,15 +581,13 @@ fn generated_constructors_are_registered_in_the_signature() {
 // ============================================================
 // `#[constructor_list]` – list constructors
 //
-// On top of the usual element constructor, `#[constructor_list]` generates three functions
+// On top of the usual element constructor, `#[constructor_list]` generates two functions
 // operating on `Vec<Self>`:
 //   * `fn_list_<name>_empty()               -> Vec<Self>`   (an empty list)
 //   * `fn_list_<name>_append(&Vec, &Self)   -> Vec<Self>`   (a clone of the list with the element
 //     pushed at the end)
-//   * `fn_list_<name>_get_first(&Vec)       -> Self`        (the first element, or an error on an
-//     empty list)
-// It also emits `impl VecCodecWoSize for Self` so that `Vec<Self>: Codec`, and registers the
-// three functions into the signature.
+// It also emits `impl VecCodecWoSize for Self` so that `Vec<Self>: Codec`, and registers both
+// functions into the signature.
 //
 // Because the functions register `Vec<Self>`, that type must be an `EvaluatedTerm`, which
 // requires a *real* `Codec` on the element type (the `dummy_codec!` used elsewhere only
@@ -484,18 +634,6 @@ fn constructor_list_append_does_not_mutate_its_input() {
 }
 
 #[test]
-fn constructor_list_get_first_returns_the_first_element() {
-    let list = vec![Item(7), Item(8), Item(9)];
-    assert_eq!(fn_list_item_get_first(&list).unwrap(), Item(7));
-}
-
-#[test]
-fn constructor_list_get_first_on_an_empty_list_is_an_error() {
-    let empty: Vec<Item> = vec![];
-    assert!(fn_list_item_get_first(&empty).is_err());
-}
-
-#[test]
 fn constructor_list_functions_are_registered_in_the_signature() {
     let names: Vec<&str> = TEST_SIGNATURE
         .functions
@@ -506,7 +644,6 @@ fn constructor_list_functions_are_registered_in_the_signature() {
 
     assert!(is_registered("fn_list_item_empty"));
     assert!(is_registered("fn_list_item_append"));
-    assert!(is_registered("fn_list_item_get_first"));
     // The plain element constructor is still generated alongside the list ones.
     assert!(is_registered("fn_item"));
 }
@@ -521,102 +658,4 @@ fn constructor_list_is_opt_in_and_absent_without_the_attribute() {
 
     // `Point` does not carry `#[constructor_list]`, so no list constructors exist for it.
     assert!(!names.iter().any(|n| n.contains("fn_list_point")));
-}
-
-// ============================================================
-// `#[constructor_list]` on an enum – per-variant `find` constructors
-//
-// For a `#[constructor_list]` enum, each variant additionally gets a
-//   `fn_list_<name>_find_<variant>(&Vec<Self>) -> Self`
-// returning the *first* list element belonging to that variant, or an error if none does. The
-// match is by variant *shape* (`matches!(x, Self::Variant { .. } / (..) / )`), so it works for
-// unit, tuple and struct-like variants alike and never inspects the payload.
-// ============================================================
-
-#[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
-#[constructor(TEST_SIGNATURE, TestProtocolTypes)]
-#[constructor_list]
-enum Signal {
-    Off,                // unit variant
-    Level(u8),          // tuple variant (carries data)
-    Named { code: u8 }, // struct-like variant (carries data)
-}
-
-impl codec::Codec for Signal {
-    fn encode(&self, bytes: &mut Vec<u8>) {
-        match self {
-            Signal::Off => codec::Codec::encode(&0u8, bytes),
-            Signal::Level(v) => {
-                codec::Codec::encode(&1u8, bytes);
-                codec::Codec::encode(v, bytes);
-            }
-            Signal::Named { code } => {
-                codec::Codec::encode(&2u8, bytes);
-                codec::Codec::encode(code, bytes);
-            }
-        }
-    }
-
-    fn read(r: &mut codec::Reader) -> Option<Self> {
-        match <u8 as codec::Codec>::read(r)? {
-            0 => Some(Signal::Off),
-            1 => Some(Signal::Level(<u8 as codec::Codec>::read(r)?)),
-            2 => Some(Signal::Named {
-                code: <u8 as codec::Codec>::read(r)?,
-            }),
-            _ => None,
-        }
-    }
-}
-atom_extract_knowledge!(TestProtocolTypes, Signal);
-
-#[test]
-fn constructor_list_find_variant_returns_the_first_matching_variant() {
-    let list = vec![
-        Signal::Off,
-        Signal::Level(3),
-        Signal::Level(7),
-        Signal::Named { code: 9 },
-    ];
-    // Each finder matches on the variant regardless of payload and returns the first occurrence.
-    assert_eq!(fn_list_signal_find_off(&list).unwrap(), Signal::Off);
-    assert_eq!(fn_list_signal_find_level(&list).unwrap(), Signal::Level(3));
-    assert_eq!(
-        fn_list_signal_find_named(&list).unwrap(),
-        Signal::Named { code: 9 }
-    );
-}
-
-#[test]
-fn constructor_list_find_variant_skips_non_matching_leading_elements() {
-    // The `Level` variant only appears after a non-matching element; `find` still locates it.
-    let list = vec![Signal::Off, Signal::Level(5)];
-    assert_eq!(fn_list_signal_find_level(&list).unwrap(), Signal::Level(5));
-}
-
-#[test]
-fn constructor_list_find_variant_errors_when_the_variant_is_absent() {
-    let list = vec![Signal::Off, Signal::Off];
-    assert!(fn_list_signal_find_level(&list).is_err());
-}
-
-#[test]
-fn constructor_list_find_variant_on_an_empty_list_is_an_error() {
-    let empty: Vec<Signal> = vec![];
-    assert!(fn_list_signal_find_off(&empty).is_err());
-}
-
-#[test]
-fn constructor_list_find_variant_functions_are_registered_in_the_signature() {
-    let names: Vec<&str> = TEST_SIGNATURE
-        .functions
-        .iter()
-        .map(|(shape, _)| shape.name)
-        .collect();
-    let is_registered = |suffix: &str| names.iter().any(|n| n.ends_with(suffix));
-
-    // One finder is generated per variant, covering all three variant kinds.
-    assert!(is_registered("fn_list_signal_find_off"));
-    assert!(is_registered("fn_list_signal_find_level"));
-    assert!(is_registered("fn_list_signal_find_named"));
 }
