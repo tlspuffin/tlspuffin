@@ -11,6 +11,12 @@
 /// wrapped in `Result<_, FnError>`. The tests below therefore call the constructors with
 /// references and `unwrap()` the result.
 ///
+/// The derive also registers the type itself as one of the signature's readable types, so that
+/// `try_read_bytes` can read a bitstring back into it. That needs a real `Codec`, which the
+/// `dummy_codec!` used by most types below does not provide (only `CodecP`), so those types
+/// carry `#[constructor_no_try_read]`; see the readable-types section at the end for both
+/// polarities.
+///
 /// The scaffolding (a minimal `TestProtocolTypes` + `TEST_SIGNATURE`) mirrors the style of
 /// the `extractable-macro` integration tests.
 use std::any::TypeId;
@@ -91,6 +97,7 @@ atom_extract_knowledge!(TestProtocolTypes, String);
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 struct Point {
     x: u8,
     y: u8,
@@ -106,6 +113,7 @@ fn named_struct_generates_fn_with_all_fields_as_params() {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 struct Person {
     name: String,
     age: u32,
@@ -133,6 +141,7 @@ fn named_struct_multiple_heterogeneous_fields() {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 struct Pair(u32, u64);
 dummy_codec!(TestProtocolTypes, Pair);
 atom_extract_knowledge!(TestProtocolTypes, Pair);
@@ -145,6 +154,7 @@ fn tuple_struct_two_fields_passes_args_correctly() {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 struct Single(String);
 dummy_codec!(TestProtocolTypes, Single);
 atom_extract_knowledge!(TestProtocolTypes, Single);
@@ -157,6 +167,7 @@ fn tuple_struct_single_field() {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 struct Triple(u8, bool, String);
 dummy_codec!(TestProtocolTypes, Triple);
 atom_extract_knowledge!(TestProtocolTypes, Triple);
@@ -173,6 +184,7 @@ fn tuple_struct_three_heterogeneous_fields() {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 struct Empty {}
 dummy_codec!(TestProtocolTypes, Empty);
 atom_extract_knowledge!(TestProtocolTypes, Empty);
@@ -196,6 +208,7 @@ fn forty_two() -> u32 {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 struct WithDefaults {
     payload: u8,
     #[constructor_default(0)]
@@ -222,6 +235,7 @@ fn constructor_default_field_is_not_a_parameter_and_uses_the_expression() {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 struct TupleWithDefault(u8, #[constructor_default(7)] u8);
 dummy_codec!(TestProtocolTypes, TupleWithDefault);
 atom_extract_knowledge!(TestProtocolTypes, TupleWithDefault);
@@ -238,6 +252,7 @@ fn constructor_default_works_on_tuple_fields() {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 enum Shape {
     Circle(u32),
     Rectangle(u32, u32),
@@ -270,6 +285,7 @@ fn enum_tuple_variant_preserves_argument_order() {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 enum Color {
     Rgb { r: u8, g: u8, b: u8 },
     Grayscale { intensity: u8 },
@@ -302,6 +318,7 @@ fn enum_named_variant_single_field() {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 enum Direction {
     North,
     South,
@@ -325,6 +342,7 @@ fn enum_unit_variant_generates_no_arg_constructor() {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 enum Season {
     Spring,
     #[constructor_skip]
@@ -364,6 +382,7 @@ fn constructor_skip_omits_only_the_annotated_variants() {
 /// upstream would silently gain a symbol.
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 #[constructor_skip_all]
 enum Planet {
     Mercury,
@@ -477,6 +496,7 @@ fn constructor_skip_all_on_a_struct_keeps_only_the_list_functions() {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 enum Command {
     Quit,
     Move { dx: u32, dy: u32 },
@@ -508,6 +528,7 @@ fn mixed_enum_tuple_variant() {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 struct HTTPResponse {
     status: u16,
     body: String,
@@ -530,6 +551,7 @@ fn naming_struct_name_is_fully_lowercased() {
 
 #[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
 #[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
 enum APIStatus {
     NotFound(u32),
     ServerError { code: u16, message: String },
@@ -658,4 +680,81 @@ fn constructor_list_is_opt_in_and_absent_without_the_attribute() {
 
     // `Point` does not carry `#[constructor_list]`, so no list constructors exist for it.
     assert!(!names.iter().any(|n| n.contains("fn_list_point")));
+}
+
+// ============================================================
+// Readable types – `try_read_bytes` registration
+//
+// Unless the type carries `#[constructor_no_try_read]`, the derive registers it as one of the
+// signature's readable types, so a bitstring can be read back into it. `#[constructor_list]`
+// registers `Vec<Self>` alongside it, since that is a type the term algebra builds too.
+// ============================================================
+
+/// A type whose `Codec` round-trips, kept out of the readable types all the same: `read` would
+/// succeed but yield a value the encoding does not stand for, which is what the attribute is for.
+#[derive(Constructor, Debug, Clone, Comparable, PartialEq)]
+#[constructor(TEST_SIGNATURE, TestProtocolTypes)]
+#[constructor_no_try_read]
+struct Tagged(u8);
+
+impl codec::Codec for Tagged {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        codec::Codec::encode(&self.0, bytes);
+    }
+
+    fn read(r: &mut codec::Reader) -> Option<Self> {
+        <u8 as codec::Codec>::read(r).map(Tagged)
+    }
+}
+atom_extract_knowledge!(TestProtocolTypes, Tagged);
+
+#[test]
+fn derived_type_is_registered_as_a_readable_type() {
+    // `Item` has a real `Codec` and no opt-out, so the derive registered it.
+    assert!(TEST_SIGNATURE.readable_types.contains(TypeId::of::<Item>()));
+}
+
+#[test]
+fn constructor_list_also_registers_the_vec_as_a_readable_type() {
+    assert!(TEST_SIGNATURE
+        .readable_types
+        .contains(TypeId::of::<Vec<Item>>()));
+    // `Tagged` has no `#[constructor_list]`, so no `Vec<Self>` registration either.
+    assert!(!TEST_SIGNATURE
+        .readable_types
+        .contains(TypeId::of::<Vec<Tagged>>()));
+}
+
+#[test]
+fn constructor_no_try_read_keeps_the_type_out() {
+    assert!(!TEST_SIGNATURE
+        .readable_types
+        .contains(TypeId::of::<Tagged>()));
+    // ... and `Point`, which only has a dummy codec, could not be registered at all.
+    assert!(!TEST_SIGNATURE
+        .readable_types
+        .contains(TypeId::of::<Point>()));
+}
+
+#[test]
+fn registered_type_can_be_read_back_from_its_encoding() {
+    let encoding = codec::Codec::get_encoding(&Item(42));
+
+    let read = TEST_SIGNATURE
+        .try_read_bytes(&encoding, TypeId::of::<Item>())
+        .expect("Item is a readable type");
+
+    assert_eq!(
+        codec::Codec::get_encoding(&Item(42)),
+        puffin::codec::CodecP::get_encoding(read.as_ref())
+    );
+}
+
+#[test]
+fn reading_an_unregistered_type_fails() {
+    let encoding = codec::Codec::get_encoding(&Tagged(42));
+
+    assert!(TEST_SIGNATURE
+        .try_read_bytes(&encoding, TypeId::of::<Tagged>())
+        .is_err());
 }
