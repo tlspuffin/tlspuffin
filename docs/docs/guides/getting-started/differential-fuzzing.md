@@ -141,13 +141,13 @@ buckets: dict[str, BucketCondition] = {
     ),
     # Check that OpenSSL raises an error containing
     # `ossl_statem_client_read_transition` and that the last executed input
-    # step contains the `fn_change_cipher_spec` function symbol
+    # step contains the `fn_messagepayload_changecipherspec` function symbol
     "client_state_transition_CCS/": AllC(
         StatusC(
             OSSL,
             in_error="ossl_statem_client_read_transition",
         ),
-        TermContainsC(OSSL, "fn_change_cipher_spec", last_input_executed=True),
+        TermContainsC(OSSL, "fn_messagepayload_changecipherspec", last_input_executed=True),
     ),
 }
 ```
