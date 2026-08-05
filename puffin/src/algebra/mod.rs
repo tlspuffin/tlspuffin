@@ -42,6 +42,7 @@ pub mod bitstrings;
 pub mod dynamic_function;
 pub mod error;
 pub mod macros;
+pub mod readable_types;
 pub mod signature;
 pub mod term;
 
