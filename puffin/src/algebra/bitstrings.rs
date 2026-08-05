@@ -538,7 +538,9 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                 to_modify[start..end].to_vec(),
                 payload_context.payloads,
             );
-            if !encountered_get_symbol {
+            // As above: a `no_det` symbol re-evaluates to different bytes than `payload_0`, so the
+            // mismatch is expected rather than a bug.
+            if !encountered_get_symbol && !term.has_no_det() {
                 log::error!("{ft}");
                 return Err(Error::TermBug(ft));
             } else {

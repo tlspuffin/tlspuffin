@@ -45,23 +45,10 @@ pub fn fn_finished_get_cipher(claim: &Finished) -> Result<CipherSuite, FnError> 
 }
 
 /// This function is meant to be used in post-execution decryption recipes but not by the attacker
-pub fn fn_finished_get_secret(claim: &Finished) -> Result<Vec<u8>, FnError> {
-    let secret = Vec::from(claim.master_secret.as_slice());
-
-    Ok(secret)
-}
-
-/// This function is meant to be used in post-execution decryption recipes but not by the attacker
 pub fn fn_finished_get_handshake_secret(claim: &Finished) -> Result<Vec<u8>, FnError> {
     let secret = Vec::from(claim.handshake_secret.as_slice());
 
     Ok(secret)
-}
-
-/// This function is meant to be used in post-execution decryption recipes but not by the attacker
-pub fn fn_finished_get_server_random(claim: &Finished) -> Result<Random, FnError> {
-    let payload: [u8; 32] = claim.server_random[0..32].try_into().unwrap();
-    Ok(Random(payload))
 }
 
 /// This function is meant to be used in post-execution decryption recipes but not by the attacker

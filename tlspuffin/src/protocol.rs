@@ -1,6 +1,7 @@
 use std::any::TypeId;
 
 use comparable::Comparable;
+use constructor_macro::Constructor;
 use extractable_macro::Extractable;
 use puffin::agent::{AgentDescriptor, AgentName, ProtocolDescriptorConfig};
 use puffin::algebra::signature::Signature;
@@ -34,10 +35,9 @@ use crate::tls::rustls::msgs::alert::AlertMessagePayload;
 use crate::tls::rustls::msgs::deframer::MessageDeframer;
 use crate::tls::rustls::msgs::handshake::{
     CertReqExtension, CertificateEntry, CertificateExtension, CertificatePayloadTLS13,
-    CertificateRequestPayload, CertificateRequestPayloadTLS13, CertificateStatus,
-    ClientSessionTicket, DigitallySignedStruct, HandshakeMessagePayload, HelloRetryExtension,
-    NewSessionTicketExtension, NewSessionTicketPayloadTLS13, PresharedKeyIdentity, Random,
-    ServerExtension, SessionID, UnknownExtension,
+    CertificateRequestPayload, CertificateStatus, ClientSessionTicket, DigitallySignedStruct,
+    ECParameters, HandshakeMessagePayload, HelloRetryExtension, NewSessionTicketExtension,
+    OCSPCertificateStatusRequest, PresharedKeyIdentity, Random, SessionID, UnknownExtension,
 };
 use crate::tls::rustls::msgs::heartbeat::HeartbeatPayload;
 use crate::tls::rustls::msgs::message::{try_read_bytes, Message, MessagePayload, OpaqueMessage};
@@ -45,7 +45,8 @@ use crate::tls::rustls::msgs::{self};
 use crate::tls::violation::TlsSecurityViolationPolicy;
 use crate::tls::TLS_SIGNATURE;
 
-#[derive(Debug, Clone, Comparable)]
+#[derive(Debug, Clone, Comparable, Constructor)]
+#[constructor(crate::tls::TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct MessageFlight {
     pub messages: Vec<Message>,
 }
@@ -129,8 +130,9 @@ impl codec::Codec for MessageFlight {
     }
 }
 
-#[derive(Debug, Clone, Extractable, Comparable)]
+#[derive(Debug, Clone, Extractable, Comparable, Constructor)]
 #[extractable(TLSProtocolTypes)]
+#[constructor(crate::tls::TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct OpaqueMessageFlight {
     pub messages: Vec<OpaqueMessage>,
 }
@@ -273,16 +275,18 @@ atom_extract_knowledge!(TLSProtocolTypes, CertificateEntry);
 atom_extract_knowledge!(TLSProtocolTypes, CertificateExtension);
 atom_extract_knowledge!(TLSProtocolTypes, CertificatePayloadTLS13);
 atom_extract_knowledge!(TLSProtocolTypes, CertificateRequestPayload);
-atom_extract_knowledge!(TLSProtocolTypes, CertificateRequestPayloadTLS13);
 atom_extract_knowledge!(TLSProtocolTypes, CertificateStatus);
 atom_extract_knowledge!(TLSProtocolTypes, DigitallySignedStruct);
+// only needed to make these an `EvaluatedTerm`, i.e. usable as the return type of the generated
+// `fn_ecparameters` / `fn_ocspcertificatestatusrequest` (both are `#[extractable_ignore]` in their
+// parent, so nothing ever recurses into them)
+atom_extract_knowledge!(TLSProtocolTypes, ECParameters);
+atom_extract_knowledge!(TLSProtocolTypes, OCSPCertificateStatusRequest);
 atom_extract_knowledge!(TLSProtocolTypes, HandshakeHash);
 atom_extract_knowledge!(TLSProtocolTypes, HelloRetryExtension);
 atom_extract_knowledge!(TLSProtocolTypes, NewSessionTicketExtension);
-atom_extract_knowledge!(TLSProtocolTypes, NewSessionTicketPayloadTLS13);
 atom_extract_knowledge!(TLSProtocolTypes, PresharedKeyIdentity);
 atom_extract_knowledge!(TLSProtocolTypes, Random);
-atom_extract_knowledge!(TLSProtocolTypes, ServerExtension);
 atom_extract_knowledge!(TLSProtocolTypes, SessionID);
 atom_extract_knowledge!(TLSProtocolTypes, u32);
 atom_extract_knowledge!(TLSProtocolTypes, u64);

@@ -1,6 +1,6 @@
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::{DescribableFunction, TypeShape};
-use puffin::algebra::{DYTerm, TermType};
+use puffin::algebra::{DYTerm, Term, TermType};
 use puffin::execution::{run_in_subprocess, TraceRunner};
 use puffin::fuzzer::bit_mutations::{ByteFlipMutatorDY, ByteInterestingMutatorDY, MakeMessage};
 use puffin::fuzzer::mutations::{
@@ -18,12 +18,29 @@ use tlspuffin::protocol::TLSProtocolTypes;
 use tlspuffin::put_registry::tls_registry;
 use tlspuffin::test_utils::prelude::*;
 use tlspuffin::test_utils::{create_state, default_runner_for, test_mutations, TLSState};
-use tlspuffin::tls::fn_impl::{
-    fn_client_hello, fn_client_sign_transcript, fn_encrypt12, fn_seq_1,
-    fn_signature_algorithm_extension, fn_support_group_extension_make,
+use tlspuffin::tls::fn_impl::{fn_client_sign_transcript, fn_encrypt12, fn_seq_1};
+use tlspuffin::tls::rustls::msgs::enums::fn_handshaketype_clienthello;
+use tlspuffin::tls::rustls::msgs::handshake::{
+    fn_clientextension_namedgroups, fn_clientextension_signaturealgorithms, fn_clienthellopayload,
+    fn_handshakepayload_clienthello,
 };
+use tlspuffin::tls::rustls::msgs::message::fn_message;
 use tlspuffin::tls::seeds::{_seed_client_attacker12, create_corpus, seed_client_attacker_full};
 use tlspuffin::tls::TLS_SIGNATURE;
+
+/// The `ClientHelloPayload` of `term`, if `term` is a `Message` that really is a ClientHello.
+/// The handshake type byte is a separate, independently mutable argument, so it must be checked
+/// alongside the payload constructor.
+fn client_hello_payload(term: &Term<TLSProtocolTypes>) -> Option<&Term<TLSProtocolTypes>> {
+    if term.name() != fn_message.name() {
+        return None;
+    }
+    if term.get(&[1, 0, 0]).ok()?.name() != fn_handshaketype_clienthello.name() {
+        return None;
+    }
+    let payload = term.get(&[1, 0, 1]).ok()?;
+    (payload.name() == fn_handshakepayload_clienthello.name()).then_some(payload)
+}
 
 /// Test that all mutations can be successfully applied on all traces from the corpus
 #[test_log::test]
@@ -248,17 +265,19 @@ fn test_byte_remove_payloads(put: &str) {
                             continue;
                         }
 
-                        if args.len() > 5
-                            && input.recipe.is_symbolic()
-                            && !args[5].payloads_to_replace().is_empty()
+                        // The recipe is `fn_message(version, payload)`: the `MessagePayload`
+                        // argument is the strict sub-term carrying the message content.
+                        let payload_arg = args.last().expect("fn_message takes two arguments");
+                        if input.recipe.is_symbolic()
+                            && !payload_arg.payloads_to_replace().is_empty()
                         {
                             log::debug!(
-                                "Found term with payload in argument 5: {}",
+                                "Found term with payload in the message payload argument: {}",
                                 &input.recipe.term
                             );
                             log::debug!(
                                 "MakeMessage created at step {i} new payloads in a strict sub-term: {:?}",
-                                args[5].payloads_to_replace()
+                                payload_arg.payloads_to_replace()
                             );
                             break;
                         }
@@ -281,8 +300,9 @@ fn test_byte_remove_payloads(put: &str) {
             match &first.action {
                 Action::Input(input) => {
                     if let DYTerm::Application(_fd, args) = &input.recipe.term {
-                        if args.len() > 5 && !input.recipe.is_symbolic() {
-                            if args[5].payloads_to_replace().is_empty()
+                        let payload_arg = args.last().expect("fn_message takes two arguments");
+                        if !input.recipe.is_symbolic() {
+                            if payload_arg.payloads_to_replace().is_empty()
                                 && input.recipe.payloads_to_replace().len() == 1
                             {
                                 log::debug!(
@@ -576,7 +596,7 @@ fn search_for_seed_cve_2021_3449(
                     DYTerm::Variable(_) | DYTerm::Deconstructor(..) => {}
                     DYTerm::Application(_, subterms) => {
                         if let Some(first_subterm) = subterms.iter().next() {
-                            if first_subterm.name() == fn_client_hello.name() {
+                            if client_hello_payload(first_subterm).is_some() {
                                 if others_unchanged(&trace, &mutate) {
                                     trace = mutate;
                                     success = true;
@@ -660,13 +680,17 @@ fn search_for_seed_cve_2021_3449(
                         DYTerm::Application(_, subterms) => {
                             if let Some(first_subterm) = subterms.iter().next() {
                                 log::warn!("mutational result: {:?}", first_subterm);
-                                let sig_alg_extensions = first_subterm.count_functions_by_name(
-                                    fn_signature_algorithm_extension.name(),
-                                );
-                                let support_groups_extensions = first_subterm
-                                    .count_functions_by_name(
-                                        fn_support_group_extension_make.name(),
-                                    );
+                                // Scope the counting to the ClientHello being sent: a
+                                // whole-subtree count also sees the transcript's ClientHello.
+                                let hello = client_hello_payload(first_subterm);
+                                let sig_alg_extensions = hello.map_or(1, |h| {
+                                    h.count_functions_by_name(
+                                        fn_clientextension_signaturealgorithms.name(),
+                                    )
+                                });
+                                let support_groups_extensions = hello.map_or(0, |h| {
+                                    h.count_functions_by_name(fn_clientextension_namedgroups.name())
+                                });
                                 if sig_alg_extensions == 0 && support_groups_extensions == 1 {
                                     if others_unchanged(&trace, &mutate) {
                                         trace = mutate;
@@ -709,7 +733,7 @@ fn search_for_seed_cve_2021_3449(
                     DYTerm::Application(_, subterms) => {
                         if let Some(first_subterm) = subterms.iter().next() {
                             log::warn!("mutational resul first sub-term: {:?}", first_subterm);
-                            let is_client_hello = first_subterm.name() == fn_client_hello.name();
+                            let is_client_hello = client_hello_payload(first_subterm).is_some();
                             let signatures = first_subterm
                                 .count_functions_by_name(fn_client_sign_transcript.name());
                             if signatures == 1 && is_client_hello {

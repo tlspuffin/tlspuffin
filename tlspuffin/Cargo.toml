@@ -354,6 +354,7 @@ ddyf-disable-decryption = ["puffin/ddyf-disable-decryption"]
 puffin = { path = "../puffin" }
 puffin-macros = { path = "../puffin-macros" }
 extractable-macro = { path = "../extractable-macro" }
+constructor-macro = { path = "../constructor-macro" }
 
 log = { workspace = true }
 #features = ["release_max_level_off", "max_level_warn"]
