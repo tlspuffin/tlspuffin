@@ -1,6 +1,7 @@
 use std::{collections, fmt};
 
 use comparable::Comparable;
+use constructor_macro::Constructor;
 use extractable_macro::Extractable;
 use puffin::codec::{Codec, Reader};
 use puffin::error::Error;
@@ -17,9 +18,11 @@ use crate::tls::rustls::msgs::enums::{
     PSKKeyExchangeMode, ProtocolVersion, ServerNameType, SignatureAlgorithm, SignatureScheme,
 };
 use crate::tls::rustls::{key, rand};
+use crate::tls::{TLS_SIGNATURE_FNDEFS, TLS_SIGNATURE_TYPEDEFS};
 
 macro_rules! declare_u8_vec (
-  ($name:ident, $itemtype:ty) => {
+  ($(#[$attr:meta])* $name:ident, $itemtype:ty) => {
+    $(#[$attr])*
     #[derive(Debug, Clone, Comparable, PartialEq)]
     pub struct $name(pub Vec<$itemtype>);
 
@@ -38,7 +41,8 @@ macro_rules! declare_u8_vec (
 );
 
 macro_rules! declare_u16_vec (
-  ($name:ident, $itemtype:ty) => {
+  ($(#[$attr:meta])* $name:ident, $itemtype:ty) => {
+    $(#[$attr])*
     #[derive(Debug, Clone, Comparable, PartialEq)]
     pub struct $name(pub Vec<$itemtype>);
 
@@ -79,7 +83,8 @@ macro_rules! declare_u16_vec (
 );
 
 macro_rules! declare_u16_vec_empty (
-  ($name:ident, $itemtype:ty) => {
+  ($(#[$attr:meta])* $name:ident, $itemtype:ty) => {
+    $(#[$attr])*
     #[derive(Debug, Clone, Extractable, Comparable)]
     #[extractable(TLSProtocolTypes)]
     pub struct $name(pub Vec<$itemtype>);
@@ -109,7 +114,8 @@ macro_rules! declare_u16_vec_empty (
 );
 
 macro_rules! declare_u24_vec_limited (
-  ($name:ident, $itemtype:ty) => {
+  ($(#[$attr:meta])* $name:ident, $itemtype:ty) => {
+    $(#[$attr])*
     #[derive(Debug, Clone, Comparable)]
     pub struct $name(pub Vec<$itemtype>);
 
@@ -131,11 +137,24 @@ macro_rules! declare_u24_vec_limited (
   }
 );
 
-declare_u16_vec!(VecU16OfPayloadU8, PayloadU8);
-declare_u16_vec!(VecU16OfPayloadU16, PayloadU16);
+declare_u16_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    VecU16OfPayloadU8,
+    PayloadU8
+);
+declare_u16_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    VecU16OfPayloadU16,
+    PayloadU16
+);
 
-#[derive(Clone, Copy, Debug, PartialEq, Comparable)]
-pub struct Random(pub [u8; 32]);
+#[derive(Clone, Copy, Debug, PartialEq, Comparable, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+/// The generated `fn_random` supplies the value: `[u8; 32]` is not a registrable type, so the
+/// array cannot be a symbol argument and the constant the recipes use is baked in here instead.
+pub struct Random(#[constructor_default([1u8; 32])] pub [u8; 32]);
 
 static ZERO_RANDOM: Random = Random([0u8; 32]);
 
@@ -173,9 +192,15 @@ impl From<[u8; 32]> for Random {
     }
 }
 
-#[derive(Copy, Clone, Comparable)]
+#[derive(Copy, Clone, Comparable, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+/// The generated `fn_sessionid` supplies the value: neither field is a registrable type, so the
+/// session id the recipes use is baked in here. The empty one stays hand-written as
+/// `fn_empty_session_id`, since a type can only carry one default.
 pub struct SessionID {
+    #[constructor_default(32)]
     len: usize,
+    #[constructor_default([3u8; 32])]
     data: [u8; 32],
 }
 
@@ -265,7 +290,12 @@ impl UnknownExtension {
     }
 }
 
-declare_u8_vec!(ECPointFormatList, ECPointFormat);
+declare_u8_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    ECPointFormatList,
+    ECPointFormat
+);
 
 pub trait SupportedPointFormats {
     fn supported() -> ECPointFormatList;
@@ -279,9 +309,19 @@ impl SupportedPointFormats for ECPointFormatList {
     }
 }
 
-declare_u16_vec!(NamedGroups, NamedGroup);
+declare_u16_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    NamedGroups,
+    NamedGroup
+);
 
-declare_u16_vec!(SupportedSignatureSchemes, SignatureScheme);
+declare_u16_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    SupportedSignatureSchemes,
+    SignatureScheme
+);
 
 pub trait DecomposedSignatureScheme {
     fn sign(&self) -> SignatureAlgorithm;
@@ -361,14 +401,36 @@ impl ServerNamePayload {
     }
 }
 
-#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+/// Host name used by the generated `fn_servername` for its `#[constructor_default]` payload.
+///
+/// Every recipe building a server-name extension sends this host name, since the payload cannot
+/// be a symbol argument.
+const DEFAULT_SERVER_NAME: &str = "inria.fr";
+
+/// The payload the generated `fn_servername` fills in.
+///
+/// `ServerNamePayload::HostName` stores the host name twice, as bytes and as a
+/// [`webpki::DnsName`]; the latter is not a registrable type, so it cannot be a function symbol
+/// argument and the whole payload is supplied by `#[constructor_default]` instead.
+pub fn default_server_name_payload() -> ServerNamePayload {
+    ServerNamePayload::new_hostname(
+        webpki::DnsNameRef::try_from_ascii_str(DEFAULT_SERVER_NAME)
+            .expect("DEFAULT_SERVER_NAME is a valid DNS name")
+            .to_owned(),
+    )
+}
+
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq, Constructor)]
 #[extractable(TLSProtocolTypes)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub struct ServerName {
     // Fields in this struct could probably be aligned but for now they are ignored
     #[extractable_ignore]
     pub typ: ServerNameType,
     #[extractable_ignore]
     #[comparable_ignore]
+    #[constructor_default(default_server_name_payload())]
     pub payload: ServerNamePayload,
 }
 
@@ -390,7 +452,12 @@ impl codec::Codec for ServerName {
     }
 }
 
-declare_u16_vec!(ServerNameRequest, ServerName);
+declare_u16_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    ServerNameRequest,
+    ServerName
+);
 
 pub trait ConvertServerNameList {
     fn has_duplicate_names_for_type(&self) -> bool;
@@ -462,6 +529,9 @@ impl ConvertProtocolNameList for ProtocolNameList {
 // --- TLS 1.3 Key shares ---
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
 #[extractable(TLSProtocolTypes)]
+#[derive(Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub struct KeyShareEntry {
     pub group: NamedGroup,
     #[comparable_ignore]
@@ -492,7 +562,9 @@ impl codec::Codec for KeyShareEntry {
 }
 
 // --- TLS 1.3 PresharedKey offers ---
-#[derive(Clone, Debug, Comparable, PartialEq)]
+#[derive(Clone, Debug, Comparable, PartialEq, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub struct PresharedKeyIdentity {
     #[comparable_ignore]
     pub identity: PayloadU16,
@@ -523,12 +595,19 @@ impl codec::Codec for PresharedKeyIdentity {
     }
 }
 
-declare_u16_vec!(PresharedKeyIdentities, PresharedKeyIdentity);
+declare_u16_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    PresharedKeyIdentities,
+    PresharedKeyIdentity
+);
 pub type PresharedKeyBinder = PayloadU8;
 pub type PresharedKeyBinders = VecU16OfPayloadU8;
 
 #[derive(Clone, Debug, Extractable, PartialEq, Comparable)]
 #[extractable(TLSProtocolTypes)]
+#[derive(Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct PresharedKeyOffer {
     #[extractable_ignore]
     pub identities: PresharedKeyIdentities,
@@ -569,7 +648,12 @@ impl codec::Codec for PresharedKeyOffer {
 // --- RFC6066 certificate status request ---
 type ResponderIDs = VecU16OfPayloadU16;
 
-#[derive(Clone, Debug, PartialEq, Comparable)]
+/// Not readable: its `encode` writes the `CertificateStatusType::OCSP` tag that its own `read`
+/// does not consume — the tag is read by `CertificateStatusRequest::read` — so it cannot
+/// round-trip on its own.
+#[derive(Clone, Debug, PartialEq, Comparable, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_no_try_read]
 pub struct OCSPCertificateStatusRequest {
     // Fields in this struct were previously ignored but do no seem to introduce differences
     pub responder_ids: ResponderIDs,
@@ -593,8 +677,12 @@ impl codec::Codec for OCSPCertificateStatusRequest {
 
 #[derive(Clone, Debug, Extractable, PartialEq, Comparable)]
 #[extractable(TLSProtocolTypes)]
+#[derive(Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub enum CertificateStatusRequest {
     OCSP(#[extractable_ignore] OCSPCertificateStatusRequest),
+    // a tuple is not a registrable type
+    #[constructor_skip]
     Unknown(#[extractable_ignore] (CertificateStatusType, Payload)),
 }
 
@@ -642,18 +730,37 @@ pub type SCTList = VecU16OfPayloadU16;
 
 // ---
 
-declare_u8_vec!(PSKKeyExchangeModes, PSKKeyExchangeMode);
-declare_u16_vec!(KeyShareEntries, KeyShareEntry);
-declare_u8_vec!(ProtocolVersions, ProtocolVersion);
+declare_u8_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    PSKKeyExchangeModes,
+    PSKKeyExchangeMode
+);
+declare_u16_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    KeyShareEntries,
+    KeyShareEntry
+);
+declare_u8_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    ProtocolVersions,
+    ProtocolVersion
+);
 
-#[derive(Debug, Clone, Extractable, PartialEq, Comparable)]
+#[derive(Debug, Clone, Extractable, PartialEq, Comparable, Constructor)]
 #[extractable(TLSProtocolTypes)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list]
 pub enum ClientExtension {
     // `ECPointFormats` is ignored as the not all implementations send this extension
     ECPointFormats(#[comparable_ignore] ECPointFormatList),
     NamedGroups(NamedGroups),
     SignatureAlgorithms(SupportedSignatureSchemes),
     ServerName(ServerNameRequest),
+    // no function symbol produces its payload type
+    #[constructor_skip]
     SessionTicket(ClientSessionTicket),
     Protocols(ProtocolNameList),
     SupportedVersions(ProtocolVersions),
@@ -669,6 +776,8 @@ pub enum ClientExtension {
     EarlyData,
     RenegotiationInfo(PayloadU8),
     SignatureAlgorithmsCert(SupportedSignatureSchemes),
+    // no function symbol produces its payload type
+    #[constructor_skip]
     Unknown(UnknownExtension),
 }
 
@@ -839,9 +948,14 @@ pub enum ClientSessionTicket {
     Offer(#[extractable_ignore] Payload),
 }
 
-#[derive(Clone, Debug, PartialEq, Comparable)]
+#[derive(Clone, Debug, PartialEq, Comparable, Extractable, Constructor)]
+#[extractable(TLSProtocolTypes)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub enum ServerExtension {
     // `ECPointFormats` is ignored as the not all implementations send this extension
+    // no function symbol produces its payload type
+    #[constructor_skip]
     ECPointFormats(#[comparable_ignore] ECPointFormatList),
     ServerNameAck,
     SessionTicketAck,
@@ -856,6 +970,8 @@ pub enum ServerExtension {
     TransportParameters(Vec<u8>),
     TransportParametersDraft(Vec<u8>),
     EarlyData,
+    // no function symbol produces its payload type
+    #[constructor_skip]
     Unknown(UnknownExtension),
 }
 
@@ -967,12 +1083,29 @@ impl ServerExtension {
     }
 }
 
-declare_u16_vec_empty!(ClientExtensions, ClientExtension);
-declare_u16_vec!(CipherSuites, CipherSuite);
-declare_u8_vec!(Compressions, Compression);
+declare_u16_vec_empty!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    ClientExtensions,
+    ClientExtension
+);
+declare_u16_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    CipherSuites,
+    CipherSuite
+);
+declare_u8_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    Compressions,
+    Compression
+);
 
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
+#[derive(Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct ClientHelloPayload {
     #[comparable_synthetic {
         let sorted_cipher_suites = |x: &Self| -> CipherSuites {
@@ -1187,11 +1320,15 @@ impl ClientHelloPayload {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Comparable)]
+#[derive(Debug, Clone, PartialEq, Comparable, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub enum HelloRetryExtension {
     KeyShare(NamedGroup),
     Cookie(PayloadU16),
     SupportedVersions(ProtocolVersion),
+    // no function symbol produces its payload type
+    #[constructor_skip]
     Unknown(UnknownExtension),
 }
 
@@ -1244,9 +1381,18 @@ impl codec::Codec for HelloRetryExtension {
     }
 }
 
-declare_u16_vec_empty!(HelloRetryExtensions, HelloRetryExtension);
+declare_u16_vec_empty!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    HelloRetryExtensions,
+    HelloRetryExtension
+);
 
 #[derive(Debug, Clone, Comparable)]
+// No `#[derive(Constructor)]`: `HelloRetryRequest::encode` writes a *single* compression byte
+// instead of the `Compressions` vector, so the encoding of a strict sub-term does not appear in
+// the encoding of the whole message and the bit-level payload machinery cannot locate it. The
+// hand-written `fn_hello_retry_request` stays registered (flagged `[get]`) for that reason.
 pub struct HelloRetryRequest {
     #[comparable_synthetic {
         let sorted_extensions = |x: &Self| -> HelloRetryExtensions { let mut ext = x.extensions.clone(); ext.0.sort_by(puffin::codec::compare_encoding); ext };
@@ -1358,10 +1504,20 @@ impl HelloRetryRequest {
     }
 }
 
-declare_u16_vec_empty!(ServerExtensions, ServerExtension);
+declare_u16_vec_empty!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    ServerExtensions,
+    ServerExtension
+);
 
+/// Not readable: `read` deliberately skips `legacy_version` and `random` — the wrapping handshake
+/// message stores them — so reading back an encoding would silently drop those fields.
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
+#[derive(Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_no_try_read]
 pub struct ServerHelloPayload {
     #[comparable_synthetic {
         let sorted_extensions = |x: &Self| -> ServerExtensions {
@@ -1485,6 +1641,8 @@ impl ServerHelloPayload {
 
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
+#[derive(Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct CertificatePayload(#[extractable_no_recursion] pub Vec<key::Certificate>);
 
 impl codec::Codec for CertificatePayload {
@@ -1502,10 +1660,14 @@ impl codec::Codec for CertificatePayload {
 // That's annoying. It means the parsing is not
 // context-free any more.
 
-#[derive(Debug, Clone, PartialEq, Comparable)]
+#[derive(Debug, Clone, PartialEq, Comparable, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub enum CertificateExtension {
     CertificateStatus(CertificateStatus),
     SignedCertificateTimestamp(SCTList),
+    // no function symbol produces its payload type
+    #[constructor_skip]
     Unknown(UnknownExtension),
 }
 
@@ -1578,9 +1740,16 @@ impl codec::Codec for CertificateExtension {
     }
 }
 
-declare_u16_vec!(CertificateExtensions, CertificateExtension);
+declare_u16_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    CertificateExtensions,
+    CertificateExtension
+);
 
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Comparable, PartialEq, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub struct CertificateEntry {
     pub cert: key::Certificate,
     pub exts: CertificateExtensions,
@@ -1646,9 +1815,15 @@ impl CertificateEntry {
     }
 }
 
-declare_u24_vec_limited!(CertificateEntries, CertificateEntry);
+declare_u24_vec_limited!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    CertificateEntries,
+    CertificateEntry
+);
 
-#[derive(Debug, Clone, Comparable)]
+#[derive(Debug, Clone, Comparable, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct CertificatePayloadTLS13 {
     pub context: PayloadU8,
     pub entries: CertificateEntries,
@@ -1745,7 +1920,8 @@ pub enum KeyExchangeAlgorithm {
 // We don't support arbitrary curves.  It's a terrible
 // idea and unnecessary attack surface.  Please,
 // get a grip.
-#[derive(Debug, Clone, Comparable)]
+#[derive(Debug, Clone, Comparable, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct ECParameters {
     pub curve_type: ECCurveType,
     pub named_group: NamedGroup,
@@ -1768,7 +1944,8 @@ impl codec::Codec for ECParameters {
     }
 }
 
-#[derive(Debug, Clone, Comparable)]
+#[derive(Debug, Clone, Comparable, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct DigitallySignedStruct {
     pub scheme: SignatureScheme,
     #[comparable_ignore]
@@ -1816,6 +1993,8 @@ impl codec::Codec for ClientECDHParams {
 
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
+#[derive(Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct ServerECDHParams {
     // Fields in this struct are ignored but TLS implementation could probably be aligned
     #[extractable_ignore]
@@ -1856,6 +2035,8 @@ impl codec::Codec for ServerECDHParams {
 
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
+#[derive(Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct ECDHEServerKeyExchange {
     pub params: ServerECDHParams,
     #[extractable_ignore]
@@ -1878,6 +2059,8 @@ impl codec::Codec for ECDHEServerKeyExchange {
 
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
+#[derive(Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub enum ServerKeyExchangePayload {
     ECDHE(ECDHEServerKeyExchange),
     Unknown(Payload),
@@ -1918,7 +2101,12 @@ impl ServerKeyExchangePayload {
 }
 
 // -- EncryptedExtensions (TLS1.3 only) --
-declare_u16_vec!(EncryptedExtensions, ServerExtension);
+declare_u16_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    EncryptedExtensions,
+    ServerExtension
+);
 
 pub trait HasServerExtensions {
     fn get_extensions(&self) -> &[ServerExtension];
@@ -1981,11 +2169,17 @@ impl HasServerExtensions for Vec<ServerExtension> {
 }
 
 // -- CertificateRequest and sundries --
-declare_u8_vec!(ClientCertificateTypes, ClientCertificateType);
+declare_u8_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    ClientCertificateTypes,
+    ClientCertificateType
+);
 pub type DistinguishedName = PayloadU16;
 pub type DistinguishedNames = VecU16OfPayloadU16;
 
-#[derive(Debug, Clone, Comparable)]
+#[derive(Debug, Clone, Comparable, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct CertificateRequestPayload {
     pub certtypes: ClientCertificateTypes,
     pub sigschemes: SupportedSignatureSchemes,
@@ -2012,10 +2206,14 @@ impl codec::Codec for CertificateRequestPayload {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Comparable)]
+#[derive(Debug, Clone, PartialEq, Comparable, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub enum CertReqExtension {
     SignatureAlgorithms(#[comparable_ignore] SupportedSignatureSchemes),
     AuthorityNames(DistinguishedNames),
+    // no function symbol produces its payload type
+    #[constructor_skip]
     Unknown(UnknownExtension),
 }
 
@@ -2072,9 +2270,22 @@ impl codec::Codec for CertReqExtension {
     }
 }
 
-declare_u16_vec!(CertReqExtensions, CertReqExtension);
+declare_u16_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    CertReqExtensions,
+    CertReqExtension
+);
 
-#[derive(Debug, Clone, Comparable)]
+// No `#[derive(Constructor)]`: `CertificateRequestPayloadTLS13::encode` drops the `extensions`
+// field entirely when the list is empty, so the encoding of that sub-term does not occur in the
+// encoding of the whole message and the bit-level payload machinery cannot locate it. The
+// hand-written `fn_certificate_request13` stays registered for that reason.
+//
+// `Extractable` *is* derived (rather than the type being an extraction atom) so that the request
+// context shows up as knowledge and `D(.., Vec<u8>)` can read it.
+#[derive(Debug, Clone, Comparable, Extractable)]
+#[extractable(TLSProtocolTypes)]
 pub struct CertificateRequestPayloadTLS13 {
     pub context: PayloadU8,
     pub extensions: CertReqExtensions,
@@ -2129,6 +2340,8 @@ impl CertificateRequestPayloadTLS13 {
 // -- NewSessionTicket --
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
+#[derive(Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct NewSessionTicketPayload {
     #[comparable_ignore]
     pub lifetime_hint: u32,
@@ -2163,9 +2376,13 @@ impl codec::Codec for NewSessionTicketPayload {
 }
 
 // -- NewSessionTicket electric boogaloo --
-#[derive(Debug, Clone, Comparable, PartialEq)]
+#[derive(Debug, Clone, Comparable, PartialEq, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub enum NewSessionTicketExtension {
     EarlyData(u32),
+    // no function symbol produces its payload type
+    #[constructor_skip]
     Unknown(UnknownExtension),
 }
 
@@ -2210,9 +2427,19 @@ impl codec::Codec for NewSessionTicketExtension {
     }
 }
 
-declare_u16_vec!(NewSessionTicketExtensions, NewSessionTicketExtension);
+declare_u16_vec!(
+    #[derive(Constructor)]
+    #[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+    NewSessionTicketExtensions,
+    NewSessionTicketExtension
+);
 
-#[derive(Debug, Clone, Comparable)]
+// `Extractable` is derived (rather than the type being an extraction atom) so that the nonce and
+// the ticket show up as knowledge and `D(.., Vec<u8>, n)` can read them, replacing
+// the hand-written accessors that used to read them.
+#[derive(Debug, Clone, Comparable, Extractable, Constructor)]
+#[extractable(TLSProtocolTypes)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct NewSessionTicketPayloadTLS13 {
     pub lifetime: u32,
     pub age_add: u32,
@@ -2289,7 +2516,8 @@ impl codec::Codec for NewSessionTicketPayloadTLS13 {
 // -- RFC6066 certificate status types
 
 /// Only supports OCSP
-#[derive(Debug, Clone, PartialEq, Comparable)]
+#[derive(Debug, Clone, PartialEq, Comparable, Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct CertificateStatus {
     pub ocsp_response: PayloadU24,
 }
@@ -2324,17 +2552,26 @@ impl CertificateStatus {
     }
 }
 
+/// Not readable: `Codec::read` returns `None` because which variant a payload holds is given by
+/// the handshake type of the enclosing message, which the bitstring alone does not carry.
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
+#[derive(Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_no_try_read]
 pub enum HandshakePayload {
     HelloRequest,
     ClientHello(ClientHelloPayload),
     ServerHello(ServerHelloPayload),
+    // no constructor for `HelloRetryRequest`, see the comment on the struct
+    #[constructor_skip]
     HelloRetryRequest(#[extractable_ignore] HelloRetryRequest),
     Certificate(CertificatePayload),
     CertificateTLS13(CertificatePayloadTLS13),
     ServerKeyExchange(ServerKeyExchangePayload),
     CertificateRequest(CertificateRequestPayload),
+    // no constructor for `CertificateRequestPayloadTLS13`, see the comment on the struct
+    #[constructor_skip]
     CertificateRequestTLS13(CertificateRequestPayloadTLS13),
     CertificateVerify(DigitallySignedStruct),
     ServerHelloDone,
@@ -2383,6 +2620,8 @@ impl codec::Codec for HandshakePayload {
 
 #[derive(Debug, Clone, Extractable, Comparable)]
 #[extractable(TLSProtocolTypes)]
+#[derive(Constructor)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
 pub struct HandshakeMessagePayload {
     #[extractable_ignore]
     pub typ: HandshakeType,
