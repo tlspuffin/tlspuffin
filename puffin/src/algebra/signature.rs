@@ -57,6 +57,7 @@
 //! | `no_bit` | [`FunctionAttributes::no_bit`] |
 //! | `no_det` | [`FunctionAttributes::no_det`] |
 
+use std::any::TypeId;
 use std::collections::HashMap;
 
 use itertools::Itertools;
@@ -69,8 +70,10 @@ use crate::algebra::dynamic_function::{
     make_dynamic, DescribableFunction, DynamicFunction, DynamicFunctionShape, FunctionAttributes,
     TypeShape,
 };
+use crate::algebra::readable_types::{ReadableTypeDefinition, ReadableTypes};
 use crate::algebra::Matcher;
-use crate::protocol::ProtocolTypes;
+use crate::error::Error;
+use crate::protocol::{EvaluatedTerm, ProtocolTypes};
 use crate::trace::{Query, Source};
 
 pub type FunctionDefinition<PT> = (DynamicFunctionShape<PT>, Box<dyn DynamicFunction<PT>>);
@@ -96,6 +99,9 @@ pub struct Signature<PT: ProtocolTypes> {
     pub functions: Vec<FunctionDefinition<PT>>,
     pub types_by_name: HashMap<&'static str, TypeShape<PT>>,
     pub attrs_by_name: HashMap<&'static str, FunctionAttributes>,
+    /// The types of this signature a bitstring can be read back into, see
+    /// [`Self::try_read_bytes`]. Filled in by [`Self::with_readable_types`].
+    pub readable_types: ReadableTypes<PT>,
     /// Minimal generation depth and size per function symbol, see [`Self::min_gen_depth`] and
     /// [`Self::min_gen_size`].
     min_cost_by_name: HashMap<&'static str, Cost>,
@@ -237,6 +243,7 @@ impl<PT: ProtocolTypes> Signature<PT> {
             min_cost_by_name,
             min_cost_by_typ,
             functions_by_typ_by_depth,
+            readable_types: ReadableTypes::new(vec![]),
         }
     }
 
@@ -367,6 +374,28 @@ impl<PT: ProtocolTypes> Signature<PT> {
             .choose_within(depth, size, rand)
     }
 
+    /// Attach the types a bitstring can be read back into, as collected by
+    /// [`crate::define_readable_types!`] and by the `Constructor` derive.
+    ///
+    /// Called by [`crate::declare_signature!`]; a `Signature` built by hand has an empty registry,
+    /// so [`Self::try_read_bytes`] fails on every type until this is called.
+    #[must_use]
+    pub fn with_readable_types(mut self, definitions: Vec<ReadableTypeDefinition<PT>>) -> Self {
+        self.readable_types = ReadableTypes::new(definitions);
+        self
+    }
+
+    /// Read `bitstring` as the type identified by `ty`, one of this signature's registered types.
+    ///
+    /// See [`ReadableTypes::try_read_bytes`] for the failure modes.
+    pub fn try_read_bytes(
+        &self,
+        bitstring: &[u8],
+        ty: TypeId,
+    ) -> Result<Box<dyn EvaluatedTerm<PT>>, Error> {
+        self.readable_types.try_read_bytes(bitstring, ty)
+    }
+
     /// Create a new [`Function`] distinct from all existing [`Function`]s.
     pub fn new_function<F: 'static + DescribableFunction<PT, Types>, Types>(
         f: &'static F,
@@ -429,16 +458,17 @@ pub const fn create_static_signature<PT: ProtocolTypes>(
 ///
 /// # What this emits
 ///
-/// Two `pub static` items are created in the calling module:
+/// Three `pub static` items are created in the calling module:
 ///
 /// | Name | Type | Purpose |
 /// |------|------|---------|
 /// | `$name` | [`StaticSignature<$pt>`] | The lazily-initialised signature. |
 /// | `${name}_FNDEFS` | `linkme::DistributedSlice<[SignatureDefinitionFactory<$pt>]>` | Collects all registered function factories at link time. |
+/// | `${name}_TYPEDEFS` | `linkme::DistributedSlice<[ReadableTypeFactory<$pt>]>` | Collects the types a bitstring can be read back into, see [`Signature::try_read_bytes`]. |
 ///
-/// Users of the signature only ever interact with `$name`. The `_FNDEFS` slice
-/// is an implementation detail; it is referenced internally by [`crate::define_signature!`]
-/// when it appends the suffix automatically.
+/// Users of the signature only ever interact with `$name`. The `_FNDEFS` and `_TYPEDEFS` slices
+/// are an implementation detail; they are referenced internally by [`crate::define_signature!`]
+/// and [`crate::define_readable_types!`] respectively, which append the suffix automatically.
 ///
 /// # When to call
 ///
@@ -476,15 +506,31 @@ macro_rules! declare_signature {
                 $crate::algebra::signature::SignatureDefinitionFactory<$pt>
             ] = [..];
 
+            /// Distributed slice that accumulates all
+            /// [`ReadableTypeFactory`](puffin::algebra::readable_types::ReadableTypeFactory)
+            /// entries contributed by [`define_readable_types!`] — and by the `Constructor`
+            /// derive — for this signature.
+            #[allow(non_upper_case_globals)]
+            #[$crate::linkme::distributed_slice]
+            pub static [<$name _TYPEDEFS>]: [
+                $crate::algebra::readable_types::ReadableTypeFactory<$pt>
+            ] = [..];
+
             /// Lazily-initialised signature built from every
-            /// [`define_signature!`] contribution that references `[<$name _FNDEFS>]`.
+            /// [`define_signature!`] contribution that references `[<$name _FNDEFS>]`, with the
+            /// readable types from every contribution that references `[<$name _TYPEDEFS>]`.
             pub static $name: $crate::algebra::signature::StaticSignature<$pt> =
                 $crate::algebra::signature::create_static_signature(|| {
                     let definitions: ::std::vec::Vec<_> = [<$name _FNDEFS>]
                         .iter()
                         .flat_map(|f| f())
                         .collect();
+                    let readable_types: ::std::vec::Vec<_> = [<$name _TYPEDEFS>]
+                        .iter()
+                        .flat_map(|f| f())
+                        .collect();
                     $crate::algebra::signature::Signature::new(definitions)
+                        .with_readable_types(readable_types)
                 });
         }
     };
