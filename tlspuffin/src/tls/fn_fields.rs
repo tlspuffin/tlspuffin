@@ -9,29 +9,8 @@ use crate::tls::key_exchange::tls12_new_secrets;
 use crate::tls::key_schedule::dhe_key_schedule;
 use crate::tls::rustls::hash_hs::HandshakeHash;
 use crate::tls::rustls::key_log::NoKeyLog;
-use crate::tls::rustls::msgs::enums::{
-    CipherSuite, Compression, ExtensionType, NamedGroup, ProtocolVersion,
-};
-use crate::tls::rustls::msgs::handshake::{
-    CipherSuites, ClientExtension, Compressions, HasServerExtensions, Random, ServerExtension,
-    SessionID,
-};
-
-pub fn fn_protocol_version13() -> Result<ProtocolVersion, FnError> {
-    Ok(ProtocolVersion::TLSv1_3)
-}
-
-pub fn fn_protocol_version12() -> Result<ProtocolVersion, FnError> {
-    Ok(ProtocolVersion::TLSv1_2)
-}
-
-pub fn fn_new_session_id() -> Result<SessionID, FnError> {
-    let mut id: Vec<u8> = Vec::from([3u8; 32]);
-    id.insert(0, 32);
-    let id = SessionID::read(&mut Reader::init(id.as_slice()))
-        .ok_or_else(|| FnError::Codec("Failed to create session id".to_string()))?;
-    Ok(id)
-}
+use crate::tls::rustls::msgs::enums::{CipherSuite, ExtensionType, NamedGroup};
+use crate::tls::rustls::msgs::handshake::{ClientExtension, Random, SessionID};
 
 pub fn fn_empty_session_id() -> Result<SessionID, FnError> {
     let mut id: Vec<u8> = Vec::from([]);
@@ -40,39 +19,8 @@ pub fn fn_empty_session_id() -> Result<SessionID, FnError> {
     Ok(id.unwrap())
 }
 
-pub fn fn_new_random() -> Result<Random, FnError> {
-    let random_data: [u8; 32] = [1; 32];
-    Ok(Random::from(random_data))
-}
-
-pub fn fn_compressions() -> Result<Compressions, FnError> {
-    Ok(Compressions(vec![Compression::Null]))
-}
-
-pub fn fn_compression() -> Result<Compression, FnError> {
-    Ok(Compression::Null)
-}
-
 pub fn fn_no_key_share() -> Result<Option<Vec<u8>>, FnError> {
     Ok(None)
-}
-
-pub fn fn_get_server_key_share(
-    server_extensions: &Vec<ServerExtension>,
-) -> Result<Option<Vec<u8>>, FnError> {
-    let server_extension = server_extensions
-        .find_extension(ExtensionType::KeyShare)
-        .ok_or(FnError::Malformed(
-            "KeyShare extension not found".to_string(),
-        ))?;
-
-    if let ServerExtension::KeyShare(keyshare) = server_extension {
-        Ok(Some(keyshare.payload.0.clone()))
-    } else {
-        Err(FnError::Malformed(
-            "KeyShare extension not found".to_string(),
-        ))
-    }
 }
 
 pub fn fn_get_client_key_share(
@@ -93,29 +41,6 @@ pub fn fn_get_client_key_share(
             .find(|keyshare| keyshare.group == *group)
             .ok_or(FnError::Malformed("Keyshare not found".to_string()))?;
         Ok(Some(keyshare.payload.0.clone()))
-    } else {
-        Err(FnError::Malformed(
-            "KeyShare extension not found".to_string(),
-        ))
-    }
-}
-
-pub fn fn_get_any_client_curve(
-    client_extensions: &Vec<ClientExtension>,
-) -> Result<NamedGroup, FnError> {
-    let client_extension = client_extensions
-        .iter()
-        .find(|x| x.get_type() == ExtensionType::KeyShare)
-        .ok_or(FnError::Malformed(
-            "KeyShare extension not found".to_string(),
-        ))?;
-
-    if let ClientExtension::KeyShare(keyshares) = client_extension {
-        Ok(keyshares
-            .0
-            .first()
-            .ok_or(FnError::Malformed("Keyshare not found".to_string()))?
-            .group)
     } else {
         Err(FnError::Malformed(
             "KeyShare extension not found".to_string(),
@@ -229,58 +154,3 @@ pub fn fn_server_sign_transcript(
 // ----
 // Cipher Suites
 // ----
-
-pub fn fn_new_cipher_suites() -> Result<Vec<CipherSuite>, FnError> {
-    Ok(vec![])
-}
-
-// todo implement functions for all supported cipher suites as constants
-//      https://github.com/tlspuffin/tlspuffin/issues/155
-pub fn fn_append_cipher_suite(
-    suites: &Vec<CipherSuite>,
-    suite: &CipherSuite,
-) -> Result<Vec<CipherSuite>, FnError> {
-    let mut new: Vec<CipherSuite> = suites.clone();
-    new.push(*suite);
-    Ok(new)
-}
-
-pub fn fn_cipher_suites_make(suites: &Vec<CipherSuite>) -> Result<CipherSuites, FnError> {
-    Ok(CipherSuites(suites.clone()))
-}
-
-pub fn fn_cipher_suite12() -> Result<CipherSuite, FnError> {
-    Ok(
-        CipherSuite::TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-        /*CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
-        CipherSuite::TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
-        CipherSuite::TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256
-        CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256*/
-    )
-}
-
-pub fn fn_cipher_suite13_aes_128_gcm_sha256() -> Result<CipherSuite, FnError> {
-    Ok(CipherSuite::TLS13_AES_128_GCM_SHA256)
-}
-
-pub fn fn_cipher_suite13_aes_256_gcm_sha384() -> Result<CipherSuite, FnError> {
-    Ok(CipherSuite::TLS13_AES_256_GCM_SHA384)
-}
-
-pub fn fn_cipher_suite13_aes_128_ccm_sha256() -> Result<CipherSuite, FnError> {
-    Ok(CipherSuite::TLS13_AES_128_CCM_SHA256)
-}
-
-pub fn fn_weak_export_cipher_suite() -> Result<CipherSuite, FnError> {
-    Ok(CipherSuite::TLS_RSA_EXPORT_WITH_DES40_CBC_SHA)
-}
-
-/// Cipher suite that is not in the configuration list given to the PUT, therefore not supported by
-/// the PUT.
-pub fn fn_excluded_cipher_suite() -> Result<CipherSuite, FnError> {
-    Ok(CipherSuite::TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256)
-}
-
-pub fn fn_secure_rsa_cipher_suite12() -> Result<CipherSuite, FnError> {
-    Ok(CipherSuite::TLS_RSA_WITH_AES_256_CBC_SHA256)
-}
