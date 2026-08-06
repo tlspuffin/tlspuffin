@@ -64,6 +64,8 @@ where
                         .about("Show all function symbols of ProtocolTypes signatures (sorted alphabetically)"),
                     Command::new("signature")
                         .about("Show all function symbols with their type signatures (parameter types and output type)"),
+                    Command::new("buildable")
+                        .about("Show, per function symbol, the cost of the cheapest closed term rooted at it, and whether one exists at all"),
                 ]),
             Command::new("experiment").about("Starts a new experiment and writes the results out")
                 .arg(arg!(-t --title <t> "Title of the experiment"))
@@ -895,8 +897,57 @@ fn mapper_cmd<PT: ProtocolTypes>(sub_matches: &clap::ArgMatches) -> ExitCode {
                 display(shape.return_type.name)
             );
         }
+    } else if sub_matches.subcommand_matches("buildable").is_some() {
+        // `min_gen_depth` and `min_gen_size` are `None` for exactly the symbols no closed term is
+        // rooted at, at any budget (see [`crate::algebra::signature::Signature::min_gen_depth`]):
+        // some argument type has no closed term either. The term zoo never generates for those.
+        let rows: Vec<_> = functions
+            .iter()
+            .map(|(shape, _)| {
+                (
+                    display(shape.name),
+                    shape.argument_types.len(),
+                    sig.min_gen_depth(shape.name),
+                    sig.min_gen_size(shape.name),
+                )
+            })
+            .collect();
+
+        let name_width = rows
+            .iter()
+            .map(|(name, ..)| name.len())
+            .chain(std::iter::once("SYMBOL".len()))
+            .max()
+            .unwrap_or_default();
+        // Missing costs print as `-` rather than as a number, so a column stays scannable.
+        let cell = |value: Option<String>| value.unwrap_or_else(|| "-".to_string());
+
+        println!(
+            "{:<name_width$}  {:>4}  {:>9}  {:>8}  BUILDABLE",
+            "SYMBOL", "ARGS", "MIN DEPTH", "MIN SIZE"
+        );
+        for (name, args, depth, size) in &rows {
+            println!(
+                "{:<name_width$}  {:>4}  {:>9}  {:>8}  {}",
+                name,
+                args,
+                cell(depth.map(|depth| depth.to_string())),
+                cell(size.map(|size| size.to_string())),
+                if depth.is_some() { "yes" } else { "no" }
+            );
+        }
+
+        // On stderr, so that stdout stays a pipeable table.
+        let unbuildable = rows
+            .iter()
+            .filter(|(_, _, depth, _)| depth.is_none())
+            .count();
+        eprintln!("\n{unbuildable} of {} symbols unbuildable", rows.len());
     } else {
-        eprintln!("mapper: expected a subcommand. Use 'mapper symbols' or 'mapper signature'");
+        eprintln!(
+            "mapper: expected a subcommand. Use 'mapper symbols', 'mapper signature' or 'mapper \
+             buildable'"
+        );
         return ExitCode::FAILURE;
     }
     ExitCode::SUCCESS

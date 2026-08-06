@@ -787,6 +787,16 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     type ProtocolTypes = TLSProtocolTypes;
     type SecurityViolationPolicy = TlsSecurityViolationPolicy;
 
+    /// The TLS signature is deep: a message is built through a chain of wrappers (`fn_message` ->
+    /// ... -> the payload struct), and a `ClientHello` carrying one extension needs depth 9.
+    const ZOO_MAX_DEPTH: u16 = 14;
+    /// Unbounded, that depth produced terms of up to 1198 nodes; 64 is well above what the zoo
+    /// produces in practice (99th percentile ~20) and below `TermConstraints::max_term_size`.
+    const ZOO_MAX_SIZE: usize = 64;
+    /// A few symbols need it: filling a quota for the likes of `fn_derive_psk`, `fn_fill_binder`
+    /// or `fn_get_client_key_share` costs seconds.
+    const ZOO_MAX_TRIES: usize = 140_000;
+
     fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
         crate::tls::seeds::create_corpus(
             tls_registry()

@@ -427,6 +427,7 @@ where
                     &TLS_SIGNATURE,
                     &mut rand,
                     bucket_size_step,
+                    TermConstraints::default().zoo_max_depth,
                     Some(&f),
                     filter_executable,
                     filter_no_gen,
