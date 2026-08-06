@@ -200,6 +200,7 @@ fn compute_zoo_in_generate_mutator(c: &mut Criterion) {
                 &TLS_SIGNATURE,
                 &mut StdRand::with_seed(i),
                 TermConstraints::default().zoo_gen_how_many,
+                TermConstraints::default().zoo_max_depth,
             );
             i = i + 1;
         })
