@@ -1042,6 +1042,7 @@ where
                         self.signature,
                         rand,
                         self.config.term_constraints.zoo_gen_how_many,
+                        self.config.term_constraints.zoo_max_depth,
                     ))
                 } else {
                     self.zoo.get_or_insert_with(|| {
@@ -1052,6 +1053,7 @@ where
                             self.signature,
                             rand,
                             self.config.term_constraints.zoo_gen_how_many,
+                            self.config.term_constraints.zoo_max_depth,
                         )
                     })
                 };
