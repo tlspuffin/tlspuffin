@@ -405,21 +405,32 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 }
             }
         } else {
-            // right_sibling could not be found --> warning
-            #[cfg(any(debug_assertions, feature = "debug"))]
-            {
-                let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
-                return if parent_is_get {
-                    // This case is to be expected: we are looking for a child encoding that might
-                    // just not been present in the encoding because the
-                    // function symbol is a `get` symbol. No relevant payload
-                    // replacement is possible --> We returns a simple error in that
-                    // case.
-                    Err(Error::Term(format!("{ft}")))
-                } else {
-                    Err(Error::TermBug(format!("{ft}")))
-                };
-            }
+            // The right siblings' encodings do not appear as one contiguous run in the parent, so
+            // this heuristic cannot say which of `all_matches` is the child.
+            //
+            // This is a limitation of the search, not a malformed term, so it is a recoverable
+            // `Error::Term` for every parent -- not just `get` symbols. The concatenation above
+            // assumes a parent encodes exactly its children back to back, and a parent is free to
+            // emit bytes of its own in between. `OpaqueMessage` does, writing a `u16` payload
+            // length between `version` and `payload`:
+            //
+            //     typ.encode()                       -> 20
+            //     version.encode()                   -> fe ff
+            //     (payload.0.len() as u16).encode()  -> 01 9c   <-- owned by no child
+            //     payload.encode()                   -> 30 82 01 98 ..
+            //
+            // so looking for `fe ff ++ 30 82 ..` contiguously never matches. Raising `TermBug`
+            // here made that a panic, which took down every `term_zoo` payload test that happened
+            // to build such a term -- and since the trigger is a *subterm*, it reached any symbol
+            // able to contain an `OpaqueMessage`, not merely the ones constructing it.
+            //
+            // Note this branch used to be compiled out unless `debug_assertions` (or the `debug`
+            // feature) was on, so release builds fell through and returned a *wrong* `start_pos`
+            // instead of failing -- silently writing payloads at the wrong offset. It now reports
+            // the failure in every profile; the caller's business is to skip that payload.
+            let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
+            log::debug!("{ft}");
+            return Err(Error::Term(ft));
         }
     }
 
