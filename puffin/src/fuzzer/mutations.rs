@@ -788,6 +788,7 @@ where
                         source: None,
                         matcher: None,
                         counter,
+                        is_claim: false,
                     },
                 )));
                 return Ok(MutationResult::Mutated);
@@ -1884,6 +1885,7 @@ mod tests {
             Some(Source::Agent(AgentName::first())),
             None,
             0,
+            false,
         )))
     }
 
@@ -1969,6 +1971,7 @@ mod tests {
                     source: None,
                     matcher: None,
                     counter: 0,
+                    is_claim: false,
                 },
             ));
             trace.steps.push(Step {
@@ -2018,6 +2021,7 @@ mod tests {
                     source: None,
                     matcher: None,
                     counter: 0,
+                    is_claim: false,
                 },
             ));
             trace.steps.push(Step {

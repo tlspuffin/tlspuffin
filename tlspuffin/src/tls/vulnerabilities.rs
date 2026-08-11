@@ -102,12 +102,12 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
 
     let decrypted_handshake = term! {
         fn_decrypt_handshake_flight(
-            ((server, 0)/MessageFlight),
+            K((server, 0)/MessageFlight),
             // The first flight of messages sent by the server
-            (fn_server_hello_transcript(((server, 0)))),
+            (fn_server_hello_transcript(C((server, 0)))),
             (fn_psk(
                 D(
-                    ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -185,9 +185,9 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                     fn_handshakepayload_finished(
                         fn_payload(
                             (fn_verify_data(
-                                (fn_server_finished_transcript(((server, 0)))),
-                                (fn_server_hello_transcript(((server, 0)))),
-                                (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+                                (fn_server_finished_transcript(C((server, 0)))),
+                                (fn_server_hello_transcript(C((server, 0)))),
+                                (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
                                 fn_no_psk,
                                 fn_namedgroup_secp384r1,
                                 fn_random,
@@ -224,8 +224,8 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                 action: Action::Input(input_action! { term! {
                     fn_encrypt_handshake(
                         (@certificate_rsa),
-                        (fn_server_hello_transcript(((server, 0)))),
-                        (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+                        (fn_server_hello_transcript(C((server, 0)))),
+                        (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
                         fn_no_psk,
                         fn_namedgroup_secp384r1,
                         fn_true,
@@ -242,8 +242,8 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                 action: Action::Input(input_action! { term! {
                     fn_encrypt_handshake(
                         (@certificate_verify_rsa),
-                        (fn_server_hello_transcript(((server, 0)))),
-                        (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+                        (fn_server_hello_transcript(C((server, 0)))),
+                        (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
                         fn_no_psk,
                         fn_namedgroup_secp384r1,
                         fn_true,
@@ -260,8 +260,8 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                 action: Action::Input(input_action! { term! {
                     fn_encrypt_handshake(
                         (@client_finished),
-                        (fn_server_hello_transcript(((server, 0)))),
-                        (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+                        (fn_server_hello_transcript(C((server, 0)))),
+                        (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
                         fn_no_psk,
                         fn_namedgroup_secp384r1,
                         fn_true,
@@ -360,12 +360,12 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
 
     let decrypted_handshake = term! {
         fn_decrypt_handshake_flight(
-            ((server, 0)/MessageFlight),
+            K((server, 0)/MessageFlight),
             // The first flight of messages sent by the server
-            (fn_server_hello_transcript(((server, 0)))),
+            (fn_server_hello_transcript(C((server, 0)))),
             (fn_psk(
                 D(
-                    ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -421,9 +421,9 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                     fn_handshakepayload_finished(
                         fn_payload(
                             (fn_verify_data(
-                                (fn_certificate_transcript(((server, 0)))),
-                                (fn_server_hello_transcript(((server, 0)))),
-                                (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+                                (fn_certificate_transcript(C((server, 0)))),
+                                (fn_server_hello_transcript(C((server, 0)))),
+                                (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
                                 fn_no_psk,
                                 fn_namedgroup_secp384r1,
                                 fn_random,
@@ -460,8 +460,8 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                 action: Action::Input(input_action! { term! {
                     fn_encrypt_handshake(
                         (@certificate),
-                        (fn_server_hello_transcript(((server, 0)))),
-                        (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+                        (fn_server_hello_transcript(C((server, 0)))),
+                        (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
                         fn_no_psk,
                         fn_namedgroup_secp384r1,
                         fn_true,
@@ -478,8 +478,8 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                 action: Action::Input(input_action! { term! {
                     fn_encrypt_handshake(
                         (@client_finished),
-                        (fn_server_hello_transcript(((server, 0)))),
-                        (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+                        (fn_server_hello_transcript(C((server, 0)))),
+                        (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
                         fn_no_psk,
                         fn_namedgroup_secp384r1,
                         fn_true,
@@ -572,9 +572,9 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
         action: Action::Input(input_action! { term! {
             fn_encrypt12(
                 (@renegotiation_client_hello),
-                ((server, 0)),
+                K((server, 0)),
                 (fn_decode_server_ecdh_pubkey(
-                    ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                    K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                 )),
                 fn_namedgroup_secp384r1,
                 fn_true,
@@ -630,17 +630,17 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolType
                                 fn_handshaketype_clienthello,
                                 fn_handshakepayload_clienthello(
                                     fn_clienthellopayload(
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
                                         (fn_ciphersuites(
                                             (fn_list_ciphersuite_append(
                                                 (fn_list_ciphersuite_empty()),
                                                 fn_ciphersuite_tls_rsa_export_with_des40_cbc_sha
                                             ))
                                         )),
-                                        ((client, 0)),
-                                        ((client, 0))
+                                        K((client, 0)),
+                                        K((client, 0))
                                     )
                                 )
                             )
@@ -659,12 +659,12 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolType
                                 fn_handshaketype_serverhello,
                                 fn_handshakepayload_serverhello(
                                     fn_serverhellopayload(
-                                        ((server, 0)),
-                                        ((server, 0)),
-                                        ((server, 0)),
+                                        K((server, 0)),
+                                        K((server, 0)),
+                                        K((server, 0)),
                                         (fn_ciphersuite_tls_rsa_with_aes_256_cbc_sha256),
-                                        ((server, 0)),
-                                        ((server, 0))
+                                        K((server, 0)),
+                                        K((server, 0))
                                     )
                                 )
                             )
@@ -682,7 +682,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolType
                             fn_handshakemessagepayload(
                                 fn_handshaketype_certificate,
                                 fn_handshakepayload_certificate(
-                                    fn_certificatepayload(((server, 0)))
+                                    fn_certificatepayload(K((server, 0)))
                                 )
                             )
                         )
@@ -704,7 +704,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolType
                                     fn_serverkeyexchangepayload_unknown(
                                         fn_payload(
                                             // check whether the client rejects this if it does not support export
-                                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                                            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
                                         )
                                     )
                                 )
@@ -741,7 +741,7 @@ pub fn seed_freak(client: AgentName, server: AgentName) -> Trace<TLSProtocolType
                                 fn_handshaketype_clientkeyexchange,
                                 fn_handshakepayload_clientkeyexchange(
                                     fn_payload(
-                                        ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
+                                        K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
                                     )
                                 )
                             )
@@ -855,9 +855,9 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
                     fn_handshakepayload_finished(
                         fn_payload(
                             (fn_verify_data(
-                                (fn_server_finished_transcript(((server, 0)))),
-                                (fn_server_hello_transcript(((server, 0)))),
-                                (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+                                (fn_server_finished_transcript(C((server, 0)))),
+                                (fn_server_hello_transcript(C((server, 0)))),
+                                (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
                                 fn_no_psk,
                                 fn_namedgroup_secp384r1,
                                 fn_random,
@@ -894,8 +894,8 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
                 action: Action::Input(input_action! { term! {
                     fn_encrypt_handshake(
                         (@client_finished),
-                        (fn_server_hello_transcript(((server, 0)))),
-                        (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+                        (fn_server_hello_transcript(C((server, 0)))),
+                        (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
                         fn_no_psk,
                         fn_namedgroup_secp384r1,
                         fn_true,
@@ -932,12 +932,12 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
                                 fn_handshaketype_clienthello,
                                 fn_handshakepayload_clienthello(
                                     fn_clienthellopayload(
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0))
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0))
                                     )
                                 )
                             )
@@ -956,12 +956,12 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
                                 fn_handshaketype_serverhello,
                                 fn_handshakepayload_serverhello(
                                     fn_serverhellopayload(
-                                        ((server, 0)),
-                                        ((server, 0)),
-                                        ((client, 0)),
-                                        ((server, 0)),
-                                        ((server, 0)),
-                                        ((server, 0))
+                                        K((server, 0)),
+                                        K((server, 0)),
+                                        K((client, 0)),
+                                        K((server, 0)),
+                                        K((server, 0)),
+                                        K((server, 0))
                                     )
                                 )
                             )
@@ -979,7 +979,7 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
                             fn_handshakemessagepayload(
                                 fn_handshaketype_certificate,
                                 fn_handshakepayload_certificate(
-                                    fn_certificatepayload(((server, 0)))
+                                    fn_certificatepayload(K((server, 0)))
                                 )
                             )
                         )
@@ -999,7 +999,7 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
                                 fn_handshakepayload_serverkeyexchange(
                                     fn_serverkeyexchangepayload_unknown(
                                         fn_payload(
-                                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                                            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
                                         )
                                     )
                                 )
@@ -1036,7 +1036,7 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
                                 fn_handshaketype_clientkeyexchange,
                                 fn_handshakepayload_clientkeyexchange(
                                     fn_payload(
-                                        ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
+                                        K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
                                     )
                                 )
                             )
@@ -1063,7 +1063,7 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    (client, 3)[None] > TypeShape::of::<OpaqueMessage>()
+                    K((client, 3)[None]) > TypeShape::of::<OpaqueMessage>()
                 }
                 }),
             },
@@ -1078,7 +1078,7 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
                                 fn_handshaketype_newsessionticket,
                                 fn_handshakepayload_newsessionticket(
                                     fn_newsessionticketpayload(
-                                        ((server, 0)/u32),
+                                        K((server, 0)/u32),
                                         (fn_payloadu16(fn_large_bytes_vec))
                                     )
                                 )
@@ -1098,7 +1098,7 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
 pub fn seed_cve_simple_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     let new_session_ticket_payload = term! {
         fn_payloadu16(
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>)
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>)
         )
     };
 
@@ -1109,7 +1109,7 @@ pub fn seed_cve_simple_2022_38153(client: AgentName, server: AgentName) -> Trace
                 fn_handshakemessagepayload(
                     fn_handshaketype_newsessionticket,
                     fn_handshakepayload_newsessionticket(
-                        fn_newsessionticketpayload(((server, 0)/u32), (@new_session_ticket_payload))
+                        fn_newsessionticketpayload(K((server, 0)/u32), (@new_session_ticket_payload))
                     )
                 )
             )
@@ -1135,12 +1135,12 @@ pub fn seed_cve_simple_2022_38153(client: AgentName, server: AgentName) -> Trace
                                 fn_handshaketype_clienthello,
                                 fn_handshakepayload_clienthello(
                                     fn_clienthellopayload(
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0))
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0))
                                     )
                                 )
                             )
@@ -1159,12 +1159,12 @@ pub fn seed_cve_simple_2022_38153(client: AgentName, server: AgentName) -> Trace
                                 fn_handshaketype_serverhello,
                                 fn_handshakepayload_serverhello(
                                     fn_serverhellopayload(
-                                        ((server, 0)),
-                                        ((server, 0)),
-                                        ((client, 0)),
-                                        ((server, 0)),
-                                        ((server, 0)),
-                                        ((server, 0))
+                                        K((server, 0)),
+                                        K((server, 0)),
+                                        K((client, 0)),
+                                        K((server, 0)),
+                                        K((server, 0)),
+                                        K((server, 0))
                                     )
                                 )
                             )
@@ -1182,7 +1182,7 @@ pub fn seed_cve_simple_2022_38153(client: AgentName, server: AgentName) -> Trace
                             fn_handshakemessagepayload(
                                 fn_handshaketype_certificate,
                                 fn_handshakepayload_certificate(
-                                    fn_certificatepayload(((server, 0)))
+                                    fn_certificatepayload(K((server, 0)))
                                 )
                             )
                         )
@@ -1202,7 +1202,7 @@ pub fn seed_cve_simple_2022_38153(client: AgentName, server: AgentName) -> Trace
                                 fn_handshakepayload_serverkeyexchange(
                                     fn_serverkeyexchangepayload_unknown(
                                         fn_payload(
-                                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                                            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
                                         )
                                     )
                                 )
@@ -1239,7 +1239,7 @@ pub fn seed_cve_simple_2022_38153(client: AgentName, server: AgentName) -> Trace
                                 fn_handshaketype_clientkeyexchange,
                                 fn_handshakepayload_clientkeyexchange(
                                     fn_payload(
-                                        ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
+                                        K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
                                     )
                                 )
                             )
@@ -1266,7 +1266,7 @@ pub fn seed_cve_simple_2022_38153(client: AgentName, server: AgentName) -> Trace
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    (client, 3)[None] > TypeShape::of::<OpaqueMessage>()
+                    K((client, 3)[None]) > TypeShape::of::<OpaqueMessage>()
                 }
                 }),
             },
@@ -1288,11 +1288,11 @@ pub fn seed_cve_2022_39173(
 
     let new_ticket_message = term! {
         fn_decrypt_application(
-            ((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]),
+            K((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]),
             // Ticket from last session
-            (fn_server_hello_transcript(((initial_server, 0)))),
-            (fn_server_finished_transcript(((initial_server, 0)))),
-            (fn_psk(D(((initial_server, 0) / KeyShareEntry), Vec<u8>))),
+            (fn_server_hello_transcript(C((initial_server, 0)))),
+            (fn_server_finished_transcript(C((initial_server, 0)))),
+            (fn_psk(D(K((initial_server, 0) / KeyShareEntry), Vec<u8>))),
             fn_no_psk,
             fn_namedgroup_secp384r1,
             fn_true,
@@ -1414,12 +1414,12 @@ pub fn seed_cve_2022_39173(
 
     let psk = term! {
         fn_derive_psk(
-            (fn_server_hello_transcript(((initial_server, 0)))),
-            (fn_server_finished_transcript(((initial_server, 0)))),
-            (fn_client_finished_transcript(((initial_server, 0)))),
+            (fn_server_hello_transcript(C((initial_server, 0)))),
+            (fn_server_finished_transcript(C((initial_server, 0)))),
+            (fn_client_finished_transcript(C((initial_server, 0)))),
             (fn_psk(
                 D(
-                    ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -1488,11 +1488,11 @@ pub fn seed_cve_2022_39173_full(
 
     let new_ticket_message = term! {
         fn_decrypt_application(
-            ((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]),
+            K((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]),
             // Ticket?
             (@server_hello_transcript),
             (@server_finished_transcript),
-            (fn_psk(D(((initial_server, 0) / KeyShareEntry), Vec<u8>))),
+            (fn_psk(D(K((initial_server, 0) / KeyShareEntry), Vec<u8>))),
             fn_no_psk,
             fn_namedgroup_secp384r1,
             fn_true,
@@ -1612,7 +1612,7 @@ pub fn seed_cve_2022_39173_full(
             (@client_finished_transcript),
             (fn_psk(
                 D(
-                    ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -1826,7 +1826,7 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
                         fn_serverhellopayload(
                             fn_protocolversion_tlsv1_2,
                             fn_random,
-                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
                             (@selected_cipher_suite),
                             // Using a cipher not in configuration cipher string
                             fn_compression_null,
@@ -1849,7 +1849,7 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
         fn_append_transcript(
             (fn_append_transcript(
                 fn_new_transcript12,
-                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+                K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
             )),
             (@server_hello) // plaintext ServerHello
         )
@@ -1889,7 +1889,7 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_payload(
                                 (fn_sign_rsa_ecdhe_server_key_exchange12(
                                     fn_namedgroup_secp384r1,
-                                    ((client, 0)),
+                                    K((client, 0)),
                                     fn_random,
                                     fn_alice_key
                                 ))
@@ -1923,13 +1923,13 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
     let client_key_exchange_transcript = term! {
         fn_append_transcript(
             (@server_hello_done_transcript),
-            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))])
+            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))])
         )
     };
 
     let client_ecdh_pubkey = term! {
         fn_decode_client_ecdh_pubkey(
-            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>) // ClientECDHParams
+            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>) // ClientECDHParams
         )
     };
 
@@ -1938,14 +1938,14 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
             (@client_key_exchange_transcript),
             (fn_decrypt12(
                 // Decrypt client finished
-                ((client, 0)[Some(TlsQueryMatcher::Handshake(None))]),
+                K((client, 0)[Some(TlsQueryMatcher::Handshake(None))]),
                 //EncryptedHandshake
                 fn_random,
                 (@client_ecdh_pubkey),
                 fn_namedgroup_secp384r1,
                 fn_false,
                 fn_seq_0,
-                ((client, 0)),
+                K((client, 0)),
                 (@selected_cipher_suite)
             ))
         )
@@ -1957,7 +1957,7 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
             (@client_ecdh_pubkey),
             (@client_finished_transcript),
             fn_namedgroup_secp384r1,
-            ((client, 0)),
+            K((client, 0)),
             (@selected_cipher_suite)
         )
     };
@@ -2037,7 +2037,7 @@ pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
                         fn_namedgroup_secp384r1,
                         fn_false,
                         fn_seq_0,
-                        ((client, 0)),
+                        K((client, 0)),
                         (@selected_cipher_suite)
                     )
                 }

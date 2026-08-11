@@ -410,12 +410,13 @@ impl<PT: ProtocolTypes> Signature<PT> {
         source: Option<Source>,
         matcher: Option<M>,
         counter: u16,
+        is_claim: bool,
     ) -> Variable<PT>
     where
         PT: ProtocolTypes<Matcher = M>,
     {
         let type_shape = TypeShape::<PT>::of::<T>();
-        Self::new_var(type_shape, source, matcher, counter)
+        Self::new_var(type_shape, source, matcher, counter, is_claim)
     }
 
     #[must_use]
@@ -424,6 +425,7 @@ impl<PT: ProtocolTypes> Signature<PT> {
         source: Option<Source>,
         matcher: Option<M>,
         counter: u16,
+        is_claim: bool,
     ) -> Variable<PT>
     where
         PT: ProtocolTypes<Matcher = M>,
@@ -432,6 +434,7 @@ impl<PT: ProtocolTypes> Signature<PT> {
             source,
             matcher,
             counter,
+            is_claim,
         };
         Variable::new(type_shape, query)
     }
