@@ -4,71 +4,139 @@
 #[macro_export]
 macro_rules! term {
     //
-    // Handshake with QueryMatcher
-    // `>$req_type:expr` must be the last part of the arm, even if it is not used.
+    // Knowledge query: `K((source, counter) [matcher] / Type)`
     //
-    ((!$precomp:literal, $counter:expr) / $typ:ty $(>$req_type:expr)?) => {{
-        use $crate::algebra::dynamic_function::TypeShape;
-
-        // ignore $req_type as we are overriding it with $type
-        Term::from(term!((!$precomp, $counter) > TypeShape::of::<$typ>()))
-    }};
-    (($agent:expr, $counter:expr) / $typ:ty $(>$req_type:expr)?) => {{
-        use $crate::algebra::dynamic_function::TypeShape;
-        use $crate::algebra::Term;
-
-
-        // ignore $req_type as we are overriding it with $type
-        Term::from(term!(($agent, $counter) > TypeShape::of::<$typ>()))
-    }};
-    ((!$precomp:literal, $counter:expr) $(>$req_type:expr)?) => {{
-        use $crate::algebra::signature::Signature;
-        use $crate::algebra::Term;
-        use $crate::trace::Source;
-
-        let var = Signature::new_var($($req_type)?, Some(Source::Label(Some($precomp.into()))), None, $counter); // TODO: verify hat using here None is fine. Before a refactor it was: Some(TlsMessageType::Handshake(None))
-        Term::from(DYTerm::Variable(var))
-    }};
-    (($agent:expr, $counter:expr) $(>$req_type:expr)?) => {{
-        use $crate::algebra::signature::Signature;
-        use $crate::algebra::{DYTerm,Term};
-        use $crate::trace::Source;
-
-        let var = Signature::new_var($($req_type)?, Some(Source::Agent($agent)), None, $counter); // TODO: verify hat using here None is fine. Before a refactor it was: Some(TlsMessageType::Handshake(None))
-        Term::from(DYTerm::Variable(var))
+    // Looks the value up in the knowledge learned during the execution of the trace. The `source`
+    // is either an agent (`K((server, 0) / Random)`) or the label of a precomputation, written with
+    // a leading `!` (`K((!"decrypted_extensions", 0) / MessageFlight)`). The `[matcher]` part is an
+    // `Option<Matcher>` expression restricting which messages are searched, and `counter` selects
+    // the `counter`-th matching sub-value.
+    //
+    // Both the `[matcher]` and the `/ Type` parts are optional. Omitting the type is only valid as a
+    // function argument: the target type is then inferred from the enclosing function's argument
+    // type (threaded in through `> $req_type`).
+    //
+    // As for `D(...)` below, these arms must come before the function-application arm, otherwise
+    // `K(...)` would be parsed as an application of a function symbol named `K`.
+    //
+    (K( (!$precomp:literal, $counter:expr) [$matcher:expr] / $typ:ty ) $(>$req_type:expr)?) => {
+        // ignore $req_type as we are overriding it with $typ
+        $crate::term_query!(
+            $crate::algebra::dynamic_function::TypeShape::of::<$typ>(),
+            Some($crate::trace::Source::Label(Some($precomp.into()))),
+            $matcher, $counter, false
+        )
+    };
+    (K( (!$precomp:literal, $counter:expr) / $typ:ty ) $(>$req_type:expr)?) => {
+        // ignore $req_type as we are overriding it with $typ
+        $crate::term_query!(
+            $crate::algebra::dynamic_function::TypeShape::of::<$typ>(),
+            Some($crate::trace::Source::Label(Some($precomp.into()))),
+            None, $counter, false
+        )
+    };
+    (K( (!$precomp:literal, $counter:expr) [$matcher:expr] ) > $req_type:expr) => {
+        $crate::term_query!(
+            $req_type,
+            Some($crate::trace::Source::Label(Some($precomp.into()))),
+            $matcher, $counter, false
+        )
+    };
+    (K( (!$precomp:literal, $counter:expr) ) > $req_type:expr) => {
+        $crate::term_query!(
+            $req_type,
+            Some($crate::trace::Source::Label(Some($precomp.into()))),
+            None, $counter, false
+        )
+    };
+    (K( ($agent:expr, $counter:expr) [$matcher:expr] / $typ:ty ) $(>$req_type:expr)?) => {
+        // ignore $req_type as we are overriding it with $typ
+        $crate::term_query!(
+            $crate::algebra::dynamic_function::TypeShape::of::<$typ>(),
+            Some($crate::trace::Source::Agent($agent)),
+            $matcher, $counter, false
+        )
+    };
+    (K( ($agent:expr, $counter:expr) / $typ:ty ) $(>$req_type:expr)?) => {
+        // ignore $req_type as we are overriding it with $typ
+        $crate::term_query!(
+            $crate::algebra::dynamic_function::TypeShape::of::<$typ>(),
+            Some($crate::trace::Source::Agent($agent)),
+            None, $counter, false
+        )
+    };
+    (K( ($agent:expr, $counter:expr) [$matcher:expr] ) > $req_type:expr) => {
+        $crate::term_query!(
+            $req_type,
+            Some($crate::trace::Source::Agent($agent)),
+            $matcher, $counter, false
+        )
+    };
+    (K( ($agent:expr, $counter:expr) ) > $req_type:expr) => {
+        $crate::term_query!(
+            $req_type,
+            Some($crate::trace::Source::Agent($agent)),
+            None, $counter, false
+        )
+    };
+    (K( $($rest:tt)* ) $(>$req_type:expr)?) => {{
+        compile_error!(
+            "malformed knowledge query: expected `K((source, counter) [matcher] / Type)`, where \
+             `source` is an agent or a `!\"label\"` precomputation and where `[matcher]` and \
+             `/ Type` are optional (the type can only be omitted in a function argument, where it \
+             is inferred)"
+        )
     }};
 
     //
-    // Handshake TlsMessageType with `$message_type` as `TlsMessageType`
+    // Claim query: `C((agent, counter) [matcher] / Type)`
     //
-    ((!$precomp:literal, $counter:expr) [$message_type:expr] / $typ:ty $(>$req_type:expr)?) => {{
-        use $crate::algebra::dynamic_function::TypeShape;
-
-        // ignore $req_type as we are overriding it with $type
-       Term::from(term!((!$precomp, $counter) [$message_type] > TypeShape::of::<$typ>()))
+    // Same syntax as the knowledge query `K(...)` above, but the value is looked up in the claims
+    // made by the agent rather than in the knowledge learned from its messages. Claims are only
+    // ever produced by agents, so a precomputation label is not a valid source here.
+    //
+    (C( (!$precomp:literal, $counter:expr) $($rest:tt)* ) $(>$req_type:expr)?) => {{
+        compile_error!(
+            "a claim query `C(...)` cannot have a precomputation label as source: claims are only \
+             produced by agents, so use `C((agent, counter) ...)`"
+        )
     }};
-    (($agent:expr, $counter:expr) [$message_type:expr] / $typ:ty $(>$req_type:expr)?) => {{
-        use $crate::algebra::dynamic_function::TypeShape;
-
-        // ignore $req_type as we are overriding it with $type
-        Term::from(term!(($agent, $counter) [$message_type] > TypeShape::of::<$typ>()))
-    }};
-    // Extended with custom $type
-    ((!$precomp:literal, $counter:expr) [$message_type:expr] $(>$req_type:expr)?) => {{
-        use $crate::algebra::signature::Signature;
-        use $crate::algebra::Term;
-        use $crate::trace::Source;
-
-        let var = Signature::new_var($($req_type)?, Some(Source::Label(Some($precomp.into()))), $message_type, $counter);
-        Term::from(DYTerm::Variable(var))
-    }};
-    (($agent:expr, $counter:expr) [$message_type:expr] $(>$req_type:expr)?) => {{
-        use $crate::algebra::signature::Signature;
-        use $crate::algebra::{DYTerm,Term};
-        use $crate::trace::Source;
-
-        let var = Signature::new_var($($req_type)?, Some(Source::Agent($agent)), $message_type, $counter);
-        Term::from(DYTerm::Variable(var))
+    (C( ($agent:expr, $counter:expr) [$matcher:expr] / $typ:ty ) $(>$req_type:expr)?) => {
+        // ignore $req_type as we are overriding it with $typ
+        $crate::term_query!(
+            $crate::algebra::dynamic_function::TypeShape::of::<$typ>(),
+            Some($crate::trace::Source::Agent($agent)),
+            $matcher, $counter, true
+        )
+    };
+    (C( ($agent:expr, $counter:expr) / $typ:ty ) $(>$req_type:expr)?) => {
+        // ignore $req_type as we are overriding it with $typ
+        $crate::term_query!(
+            $crate::algebra::dynamic_function::TypeShape::of::<$typ>(),
+            Some($crate::trace::Source::Agent($agent)),
+            None, $counter, true
+        )
+    };
+    (C( ($agent:expr, $counter:expr) [$matcher:expr] ) > $req_type:expr) => {
+        $crate::term_query!(
+            $req_type,
+            Some($crate::trace::Source::Agent($agent)),
+            $matcher, $counter, true
+        )
+    };
+    (C( ($agent:expr, $counter:expr) ) > $req_type:expr) => {
+        $crate::term_query!(
+            $req_type,
+            Some($crate::trace::Source::Agent($agent)),
+            None, $counter, true
+        )
+    };
+    (C( $($rest:tt)* ) $(>$req_type:expr)?) => {{
+        compile_error!(
+            "malformed claim query: expected `C((agent, counter) [matcher] / Type)`, where \
+             `[matcher]` and `/ Type` are optional (the type can only be omitted in a function \
+             argument, where it is inferred)"
+        )
     }};
 
     //
@@ -96,6 +164,7 @@ macro_rules! term {
             Query {
                 source: None,
                 matcher: $matcher,
+                is_claim: false,
                 counter: $crate::term_counter!($($counter)?),
             },
         ))
@@ -111,6 +180,7 @@ macro_rules! term {
             Query {
                 source: None,
                 matcher: None,
+                is_claim: false,
                 counter: $crate::term_counter!($($counter)?),
             },
         ))
@@ -125,6 +195,7 @@ macro_rules! term {
             Query {
                 source: None,
                 matcher: None,
+                is_claim: false,
                 counter: $crate::term_counter!($($counter)?),
             },
         ))
@@ -199,6 +270,21 @@ macro_rules! term_arg {
     // Any single token tree (constant, variable, ...).
     ($e:tt $(>$req_type:expr)?) => {{
         Term::from(term!($e $(>$req_type)?))
+    }};
+}
+
+/// Internal helper used by [`term!`]'s `K(...)` and `C(...)` arms to build a variable term out of
+/// an already resolved [`crate::algebra::dynamic_function::TypeShape`], source, matcher, counter
+/// and `is_claim` flag.
+#[macro_export]
+#[doc(hidden)]
+macro_rules! term_query {
+    ($type_shape:expr, $source:expr, $matcher:expr, $counter:expr, $is_claim:expr) => {{
+        use $crate::algebra::signature::Signature;
+        use $crate::algebra::{DYTerm, Term};
+
+        let var = Signature::new_var($type_shape, $source, $matcher, $counter, $is_claim);
+        Term::from(DYTerm::Variable(var))
     }};
 }
 

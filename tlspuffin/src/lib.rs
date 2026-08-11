@@ -40,6 +40,7 @@
 //!         Some(Source::Agent(client)),
 //!         Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
 //!         0,
+//!         false, // search the knowledge, not the claims
 //!     )))
 //! }
 //!
@@ -118,16 +119,16 @@
 //! let client = AgentName::first();
 //! let term: Term<TLSProtocolTypes> = term! {
 //!     fn_message(
-//!         ((client, 0)/ProtocolVersion),
+//!         K((client, 0)/ProtocolVersion),
 //!         fn_messagepayload_handshake(fn_handshakemessagepayload(
 //!             fn_handshaketype_clienthello,
 //!             fn_handshakepayload_clienthello(fn_clienthellopayload(
-//!                 ((client, 0)/ProtocolVersion),
-//!                 ((client, 0)/Random),
-//!                 ((client, 0)/SessionID),
-//!                 ((client, 0)/CipherSuites),
-//!                 ((client, 0)/Compressions),
-//!                 ((client, 0)/ClientExtensions)
+//!                 K((client, 0)/ProtocolVersion),
+//!                 K((client, 0)/Random),
+//!                 K((client, 0)/SessionID),
+//!                 K((client, 0)/CipherSuites),
+//!                 K((client, 0)/Compressions),
+//!                 K((client, 0)/ClientExtensions)
 //!             ))
 //!         ))
 //!     )

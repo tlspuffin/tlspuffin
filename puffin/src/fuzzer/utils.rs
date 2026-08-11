@@ -726,6 +726,7 @@ mod tests {
                 source: None,
                 matcher: None,
                 counter: 0,
+                is_claim: false,
             },
         ));
 

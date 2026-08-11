@@ -24,28 +24,28 @@ fn seed_successful_12_both(client12: AgentName, server: AgentName) -> Trace<TLSP
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    (client12, 0)/MessageFlight
+                    K((client12, 0)/MessageFlight)
                 } }),
             },
             // ServerHello + Certificate + ServerKeyExchange + ServerHelloDone → Client12
             Step {
                 agent: client12,
                 action: Action::Input(input_action! { term! {
-                    (server, 0)/MessageFlight
+                    K((server, 0)/MessageFlight)
                 } }),
             },
             // ClientKeyExchange + ChangeCipherSpec + Finished → Server
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    (client12, 1)/MessageFlight
+                    K((client12, 1)/MessageFlight)
                 } }),
             },
             // ChangeCipherSpec + Finished → Client12
             Step {
                 agent: client12,
                 action: Action::Input(input_action! { term! {
-                    (server, 1)/MessageFlight
+                    K((server, 1)/MessageFlight)
                 } }),
             },
         ],
@@ -67,7 +67,7 @@ fn seed_successful_13_both(client13: AgentName, server: AgentName) -> Trace<TLSP
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    (client13, 0)/MessageFlight
+                    K((client13, 0)/MessageFlight)
                 } }),
             },
             // ServerHello + EncryptedExtensions + Certificate + CertificateVerify + Finished →
@@ -75,14 +75,14 @@ fn seed_successful_13_both(client13: AgentName, server: AgentName) -> Trace<TLSP
             Step {
                 agent: client13,
                 action: Action::Input(input_action! { term! {
-                    (server, 0)/MessageFlight
+                    K((server, 0)/MessageFlight)
                 } }),
             },
             // Finished → Server
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    (client13, 1)/MessageFlight
+                    K((client13, 1)/MessageFlight)
                 } }),
             },
         ],
@@ -104,7 +104,7 @@ fn seed_successful_both_13(client: AgentName, server13: AgentName) -> Trace<TLSP
             Step {
                 agent: server13,
                 action: Action::Input(input_action! { term! {
-                    (client, 0)/MessageFlight
+                    K((client, 0)/MessageFlight)
                 } }),
             },
             // ServerHello + EncryptedExtensions + Certificate + CertificateVerify + Finished →
@@ -112,14 +112,14 @@ fn seed_successful_both_13(client: AgentName, server13: AgentName) -> Trace<TLSP
             Step {
                 agent: client,
                 action: Action::Input(input_action! { term! {
-                    (server13, 0)/MessageFlight
+                    K((server13, 0)/MessageFlight)
                 } }),
             },
             // Finished → Server
             Step {
                 agent: server13,
                 action: Action::Input(input_action! { term! {
-                    (client, 1)/MessageFlight
+                    K((client, 1)/MessageFlight)
                 } }),
             },
         ],
@@ -141,28 +141,28 @@ fn seed_successful_both_12(client: AgentName, server12: AgentName) -> Trace<TLSP
             Step {
                 agent: server12,
                 action: Action::Input(input_action! { term! {
-                    (client, 0)/MessageFlight
+                    K((client, 0)/MessageFlight)
                 } }),
             },
             // ServerHello + Certificate + ServerKeyExchange + ServerHelloDone → Client12
             Step {
                 agent: client,
                 action: Action::Input(input_action! { term! {
-                    (server12, 0)/MessageFlight
+                    K((server12, 0)/MessageFlight)
                 } }),
             },
             // ClientKeyExchange + ChangeCipherSpec + Finished → Server
             Step {
                 agent: server12,
                 action: Action::Input(input_action! { term! {
-                    (client, 1)/MessageFlight
+                    K((client, 1)/MessageFlight)
                 } }),
             },
             // ChangeCipherSpec + Finished → Client12
             Step {
                 agent: client,
                 action: Action::Input(input_action! { term! {
-                    (server12, 1)/MessageFlight
+                    K((server12, 1)/MessageFlight)
                 } }),
             },
         ],
@@ -184,14 +184,14 @@ fn seed_error_12_13(client12: AgentName, server13: AgentName) -> Trace<TLSProtoc
             Step {
                 agent: server13,
                 action: Action::Input(input_action! { term! {
-                    (client12, 0)/MessageFlight
+                    K((client12, 0)/MessageFlight)
                 } }),
             },
             // ServerHello + Certificate + ServerKeyExchange + ServerHelloDone → Client12
             Step {
                 agent: client12,
                 action: Action::Input(input_action! { term! {
-                    (server13, 0)/MessageFlight
+                    K((server13, 0)/MessageFlight)
                 } }),
             },
         ],
@@ -213,28 +213,28 @@ fn seed_error_13_12(client13: AgentName, server12: AgentName) -> Trace<TLSProtoc
             Step {
                 agent: server12,
                 action: Action::Input(input_action! { term! {
-                    (client13, 0)/MessageFlight
+                    K((client13, 0)/MessageFlight)
                 } }),
             },
             // ServerHello + Certificate + ServerKeyExchange + ServerHelloDone → Client12
             Step {
                 agent: client13,
                 action: Action::Input(input_action! { term! {
-                    (server12, 0)/MessageFlight
+                    K((server12, 0)/MessageFlight)
                 } }),
             },
             // ClientKeyExchange + ChangeCipherSpec + Finished → Server
             Step {
                 agent: server12,
                 action: Action::Input(input_action! { term! {
-                    (client13, 1)/MessageFlight
+                    K((client13, 1)/MessageFlight)
                 } }),
             },
             // ChangeCipherSpec + Finished → Client12
             Step {
                 agent: client13,
                 action: Action::Input(input_action! { term! {
-                    (server12, 1)/MessageFlight
+                    K((server12, 1)/MessageFlight)
                 } }),
             },
         ],
@@ -330,28 +330,28 @@ fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
                 fn_new_transcript12,
                 (@client_hello12) // ClientHello
             )),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
     let certificate_transcript12 = term! {
         fn_append_transcript(
             (@server_hello_transcript12),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
         )
     };
 
     let server_key_exchange_transcript12 = term! {
         fn_append_transcript(
             (@certificate_transcript12),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
         )
     };
 
     let server_hello_done_transcript12 = term! {
         fn_append_transcript(
             (@server_key_exchange_transcript12),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
         )
     };
 
@@ -379,9 +379,9 @@ fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
 
     let client_verify_data12 = term! {
         fn_client_sign_transcript(
-            ((server, 0)),
+            K((server, 0)),
             (fn_decode_server_ecdh_pubkey(
-                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript12),
             fn_namedgroup_secp384r1,
@@ -478,9 +478,9 @@ fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
                     fn_handshakepayload_finished(
                         fn_payload(
                             (fn_verify_data(
-                                (fn_server_finished_transcript(((server, 1)))),
-                                (fn_server_hello_transcript(((server, 1)))),
-                                (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+                                (fn_server_finished_transcript(C((server, 1)))),
+                                (fn_server_hello_transcript(C((server, 1)))),
+                                (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
                                 fn_no_psk,
                                 fn_namedgroup_secp384r1,
                                 fn_random,
@@ -532,9 +532,9 @@ fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
                                 )
                             )
                         )),
-                        ((server, 0)),
+                        K((server, 0)),
                         (fn_decode_server_ecdh_pubkey(
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                         )),
                         fn_namedgroup_secp384r1,
                         fn_true,
@@ -566,8 +566,8 @@ fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
                 action: Action::Input(input_action! { term! {
                     fn_encrypt_handshake(
                         (@client_finished13),
-                        (fn_server_hello_transcript(((server, 1)))),
-                        (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+                        (fn_server_hello_transcript(C((server, 1)))),
+                        (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
                         fn_no_psk,
                         fn_namedgroup_secp384r1,
                         fn_true,
@@ -673,28 +673,28 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
                 fn_new_transcript12,
                 (@client_hello12) // ClientHello
             )),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
     let certificate_transcript12 = term! {
         fn_append_transcript(
             (@server_hello_transcript12),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
         )
     };
 
     let server_key_exchange_transcript12 = term! {
         fn_append_transcript(
             (@certificate_transcript12),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
         )
     };
 
     let server_hello_done_transcript12 = term! {
         fn_append_transcript(
             (@server_key_exchange_transcript12),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
         )
     };
 
@@ -722,9 +722,9 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
 
     let client_verify_data12 = term! {
         fn_client_sign_transcript(
-            ((server, 0)),
+            K((server, 0)),
             (fn_decode_server_ecdh_pubkey(
-                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript12),
             fn_namedgroup_secp384r1,
@@ -740,28 +740,28 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
                 fn_new_transcript12,
                 (@client_hello12) // ClientHello
             )),
-            ((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            K((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
     let certificate_transcript12_2 = term! {
         fn_append_transcript(
             (@server_hello_transcript12_2),
-            ((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
+            K((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
         )
     };
 
     let server_key_exchange_transcript12_2 = term! {
         fn_append_transcript(
             (@certificate_transcript12_2),
-            ((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
+            K((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
         )
     };
 
     let server_hello_done_transcript12_2 = term! {
         fn_append_transcript(
             (@server_key_exchange_transcript12_2),
-            ((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
+            K((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
         )
     };
 
@@ -771,9 +771,9 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
 
     let client_verify_data12_2 = term! {
         fn_client_sign_transcript(
-            ((server, 1)),
+            K((server, 1)),
             (fn_decode_server_ecdh_pubkey(
-                ((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                K((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript12_2),
             fn_namedgroup_secp384r1,
@@ -821,9 +821,9 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
                                 )
                             )
                         )),
-                        ((server, 0)),
+                        K((server, 0)),
                         (fn_decode_server_ecdh_pubkey(
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                         )),
                         fn_namedgroup_secp384r1,
                         fn_true,
@@ -880,9 +880,9 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
                                 )
                             )
                         )),
-                        ((server, 1)),
+                        K((server, 1)),
                         (fn_decode_server_ecdh_pubkey(
-                            ((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                            K((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                         )),
                         fn_namedgroup_secp384r1,
                         fn_true,
