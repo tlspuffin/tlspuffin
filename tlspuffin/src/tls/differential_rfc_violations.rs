@@ -23,7 +23,7 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
     _server: AgentName,
 ) -> Trace<TLSProtocolTypes> {
     let curve = term! {
-        D(((client, 0) / KeyShareEntry), NamedGroup)
+        D(K((client, 0) / KeyShareEntry), NamedGroup)
     };
 
     let server_hello = term! {
@@ -36,7 +36,7 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
                         fn_serverhellopayload(
                             fn_protocolversion_tlsv1_2,
                             fn_random,
-                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
                             fn_ciphersuite_tls13_aes_128_ccm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
@@ -61,7 +61,7 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
         fn_append_transcript(
             (fn_append_transcript(
                 fn_new_transcript,
-                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+                K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
             )),
             (@server_hello) // plaintext ServerHello
         )
@@ -162,7 +162,7 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
                                 (@certificate_verify_transcript),
                                 //(fn_server_finished_transcript(((client, 0)))),
                                 (@server_hello_transcript),
-                                (fn_get_client_key_share(((client, 0)), (@curve))),
+                                (fn_get_client_key_share(K((client, 0)), (@curve))),
                                 (@curve),
                                 fn_no_psk,
                                 fn_random,
@@ -201,7 +201,7 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
                     fn_encrypt_handshake(
                         (@encrypted_extensions),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        (fn_get_client_key_share(K((client, 0)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -219,7 +219,7 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
                     fn_encrypt_handshake(
                         (@certificate),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        (fn_get_client_key_share(K((client, 0)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -237,7 +237,7 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
                     fn_encrypt_handshake(
                         (@certificate_verify),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        (fn_get_client_key_share(K((client, 0)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -255,7 +255,7 @@ pub fn rfc_violation_alert_unsupported_cipher_suite(
                     fn_encrypt_handshake(
                         (@server_finished),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        (fn_get_client_key_share(K((client, 0)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -357,7 +357,7 @@ pub fn rfc_violation_alert_bad_key_share(
                 fn_new_transcript,
                 (@client_hello) // ClientHello
             )),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
@@ -365,10 +365,10 @@ pub fn rfc_violation_alert_bad_key_share(
 
     let extensions = term! {
         fn_decrypt_handshake_flight(
-            ((server, 0)/MessageFlight),
+            K((server, 0)/MessageFlight),
             // The first flight of messages sent by the server
             (@server_hello_transcript),
-            (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+            (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
             fn_no_psk,
             fn_namedgroup_secp384r1,
             fn_true,
@@ -446,7 +446,7 @@ pub fn rfc_violation_alert_bad_key_share(
                             (fn_verify_data(
                                 (@server_finished_transcript),
                                 (@server_hello_transcript),
-                                (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+                                (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
                                 fn_no_psk,
                                 fn_namedgroup_secp384r1,
                                 fn_random,
@@ -477,7 +477,7 @@ pub fn rfc_violation_alert_bad_key_share(
                     fn_encrypt_handshake(
                         (@client_finished),
                         (@server_hello_transcript),
-                        (fn_psk(D(((server, 0) / KeyShareEntry), Vec<u8>))),
+                        (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
                         fn_no_psk,
                         fn_namedgroup_secp384r1,
                         fn_true,
@@ -503,7 +503,7 @@ pub fn rfc_violation_missing_alert_out_of_order_encrypted(
     _server: AgentName,
 ) -> Trace<TLSProtocolTypes> {
     let curve = term! {
-        D(((client, 0) / KeyShareEntry), NamedGroup)
+        D(K((client, 0) / KeyShareEntry), NamedGroup)
     };
 
     let server_hello = term! {
@@ -516,7 +516,7 @@ pub fn rfc_violation_missing_alert_out_of_order_encrypted(
                         fn_serverhellopayload(
                             fn_protocolversion_tlsv1_2,
                             fn_random,
-                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
                             fn_ciphersuite_tls13_aes_128_gcm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
@@ -541,7 +541,7 @@ pub fn rfc_violation_missing_alert_out_of_order_encrypted(
         fn_append_transcript(
             (fn_append_transcript(
                 fn_new_transcript,
-                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+                K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
             )),
             (@server_hello) // plaintext ServerHello
         )
@@ -642,7 +642,7 @@ pub fn rfc_violation_missing_alert_out_of_order_encrypted(
                                 (@certificate_verify_transcript),
                                 //(fn_server_finished_transcript(((client, 0)))),
                                 (@server_hello_transcript),
-                                (fn_get_client_key_share(((client, 0)), (@curve))),
+                                (fn_get_client_key_share(K((client, 0)), (@curve))),
                                 (@curve),
                                 fn_no_psk,
                                 fn_random,
@@ -680,7 +680,7 @@ pub fn rfc_violation_missing_alert_out_of_order_encrypted(
                     fn_encrypt_handshake(
                         (@server_hello),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        (fn_get_client_key_share(K((client, 0)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -698,7 +698,7 @@ pub fn rfc_violation_missing_alert_out_of_order_encrypted(
                     fn_encrypt_handshake(
                         (@certificate),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        (fn_get_client_key_share(K((client, 0)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -716,7 +716,7 @@ pub fn rfc_violation_missing_alert_out_of_order_encrypted(
                     fn_encrypt_handshake(
                         (@certificate_verify),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        (fn_get_client_key_share(K((client, 0)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -734,7 +734,7 @@ pub fn rfc_violation_missing_alert_out_of_order_encrypted(
                     fn_encrypt_handshake(
                         (@server_finished),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        (fn_get_client_key_share(K((client, 0)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -760,7 +760,7 @@ pub fn rfc_violation_bad_alert_non_requested_psk(
     _server: AgentName,
 ) -> Trace<TLSProtocolTypes> {
     let curve = term! {
-        D(((client, 0) / KeyShareEntry), NamedGroup)
+        D(K((client, 0) / KeyShareEntry), NamedGroup)
     };
 
     let server_hello = term! {
@@ -773,7 +773,7 @@ pub fn rfc_violation_bad_alert_non_requested_psk(
                         fn_serverhellopayload(
                             fn_protocolversion_tlsv1_2,
                             fn_random,
-                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
                             fn_ciphersuite_tls13_aes_128_gcm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
@@ -1023,7 +1023,7 @@ pub fn rfc_violation_no_alert_duplicate_extension(
     _server: AgentName,
 ) -> Trace<TLSProtocolTypes> {
     let curve = term! {
-        D(((client, 0) / KeyShareEntry), NamedGroup)
+        D(K((client, 0) / KeyShareEntry), NamedGroup)
     };
 
     let server_hello = term! {
@@ -1036,7 +1036,7 @@ pub fn rfc_violation_no_alert_duplicate_extension(
                         fn_serverhellopayload(
                             fn_protocolversion_tlsv1_2,
                             fn_random,
-                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
                             fn_ciphersuite_tls13_aes_128_gcm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
@@ -1186,14 +1186,14 @@ pub fn rfc_violation_missing_supported_group(server: AgentName) -> Trace<TLSProt
 /// <https://github.com/wolfSSL/wolfssl/issues/9331>
 pub fn rfc_violation_changing_cipher_after_hrr(client: AgentName) -> Trace<TLSProtocolTypes> {
     let curve = term! {
-        D(((client, 1) / KeyShareEntry), NamedGroup)
+        D(K((client, 1) / KeyShareEntry), NamedGroup)
     };
 
     let server_hrr = term! {
         fn_hello_retry_request(
             fn_protocolversion_tlsv1_2,
             fn_hello_retry_request_random,
-            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
             fn_ciphersuite_tls13_aes_128_gcm_sha256,
             fn_compressions(
                 fn_list_compression_append(fn_list_compression_empty, fn_compression_null)
@@ -1221,7 +1221,7 @@ pub fn rfc_violation_changing_cipher_after_hrr(client: AgentName) -> Trace<TLSPr
                         fn_serverhellopayload(
                             fn_protocolversion_tlsv1_2,
                             fn_random,
-                            ((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                            K((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
                             fn_ciphersuite_tls13_aes_256_gcm_sha384,
                             fn_compression_null,
                             (fn_serverextensions(
@@ -1276,7 +1276,7 @@ pub fn rfc_violation_no_change_after_hrr(client: AgentName) -> Trace<TLSProtocol
         fn_hello_retry_request(
             fn_protocolversion_tlsv1_2,
             fn_hello_retry_request_random,
-            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
             fn_ciphersuite_tls13_aes_128_gcm_sha256,
             fn_compressions(
                 fn_list_compression_append(fn_list_compression_empty, fn_compression_null)
@@ -1319,7 +1319,7 @@ pub fn rfc_violation_incorrect_extension_in_sh(
     _server: AgentName,
 ) -> Trace<TLSProtocolTypes> {
     let curve = term! {
-        D(((client, 0) / KeyShareEntry), NamedGroup)
+        D(K((client, 0) / KeyShareEntry), NamedGroup)
     };
 
     let server_hello = term! {
@@ -1332,7 +1332,7 @@ pub fn rfc_violation_incorrect_extension_in_sh(
                         fn_serverhellopayload(
                             fn_protocolversion_tlsv1_2,
                             fn_random,
-                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
                             fn_ciphersuite_tls13_aes_128_gcm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
