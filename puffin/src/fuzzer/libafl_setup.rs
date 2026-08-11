@@ -17,6 +17,7 @@ pub(crate) use crate::fuzzer::config::FuzzerConfig;
 use crate::fuzzer::config::{FuzzingTarget, MIN_BIT_CORPUS, MIN_BIT_EXECS};
 use crate::fuzzer::feedback::{MinimizingFeedback, ObjectiveFeedback};
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
+use crate::fuzzer::observed_knowledge::AttributingScheduler;
 use crate::fuzzer::stages::FocusScheduledMutator;
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
@@ -627,9 +628,10 @@ where
                 feedback
             );
             #[cfg(feature = "with-min-scheduler")]
-            let scheduler = IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new());
+            let inner = IndexesLenTimeMinimizerScheduler::new(QueueScheduler::new());
             #[cfg(not(feature = "with-min-scheduler"))]
-            let scheduler = RandScheduler::new();
+            let inner = RandScheduler::new();
+            let scheduler = AttributingScheduler::<PB::ProtocolTypes, _>::new(inner);
 
             builder = builder
                 .with_feedback(feedback_with_minimizer)

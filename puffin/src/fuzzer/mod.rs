@@ -12,6 +12,7 @@ use crate::trace::Trace;
 
 pub mod harness;
 mod libafl_setup;
+pub mod observed_knowledge;
 pub mod sanitizer;
 pub mod stages;
 mod stats_monitor;

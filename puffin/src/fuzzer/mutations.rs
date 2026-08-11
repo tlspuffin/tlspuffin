@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use libafl::corpus::HasCurrentCorpusId;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
@@ -8,14 +9,15 @@ use super::utils::{
     choose_term_path_filtered, find_all_term_filtered, find_term, find_term_mut, reservoir_sample,
     Choosable, TermConstraints, TracePath,
 };
-use crate::algebra::atoms::Function;
+use crate::algebra::atoms::{Function, Variable};
 use crate::algebra::dynamic_function::DynamicFunctionShape;
 use crate::algebra::signature::Signature;
 use crate::algebra::{DYTerm, Subterms, Term, TermType};
+use crate::fuzzer::observed_knowledge::with_observed_knowledge;
 use crate::fuzzer::term_zoo::TermZoo;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
-use crate::trace::{Query, Spawner, Trace, TraceContext};
+use crate::trace::{Action, Query, Source, Spawner, Trace, TraceContext};
 
 #[derive(Clone, Copy, Debug)]
 pub struct MutationConfig {
@@ -64,6 +66,7 @@ pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
     ReplaceMatchMutator<S, PT>,
     RemoveAndLiftMutator<S>,
     MakeDeconstructorMutator<S>,
+    MakeKnowledgeQueryMutator<S>,
     GenerateMutator<'harness, S, PB>,
     SwapMutator<S>,
 );
@@ -95,6 +98,7 @@ where
         ReplaceMatchMutator::new(term_constraints, signature, with_dy),
         RemoveAndLiftMutator::new(term_constraints, with_dy),
         MakeDeconstructorMutator::new(term_constraints, with_dy),
+        MakeKnowledgeQueryMutator::new(term_constraints, with_dy),
         GenerateMutator::new(
             0,
             fresh_zoo_after,
@@ -437,6 +441,168 @@ where
 {
     fn name(&self) -> &Cow<'static, str> {
         &Cow::Borrowed("MakeDeconstructorMutator")
+    }
+}
+
+/// One created query in `GENERALIZE_SOURCE_ONE_IN` drops its source, matching the knowledge of
+/// every source: used to add variability.
+const GENERALIZE_SOURCE_ONE_IN: usize = 4;
+
+/// The sources that can already hold knowledge when the recipe of `step_index` is evaluated: the
+/// agent of any step that has run (`Step::execute` reads its outbound messages, input step
+/// included), and the label of any precomputation already evaluated, `step_index`'s own included.
+/// Prior traces count as preceding steps.
+fn query_sources<PT: ProtocolTypes>(trace: &Trace<PT>, step_index: usize) -> Vec<Source> {
+    let prior_steps = || {
+        trace
+            .prior_traces
+            .iter()
+            .flat_map(|prior| prior.steps.iter())
+    };
+
+    let mut sources: Vec<Source> = vec![];
+    let push = |sources: &mut Vec<Source>, source: Source| {
+        if !sources.contains(&source) {
+            sources.push(source);
+        }
+    };
+
+    for step in prior_steps().chain(trace.steps.iter().take(step_index)) {
+        push(&mut sources, Source::Agent(step.agent));
+    }
+    for step in prior_steps().chain(trace.steps.iter().take(step_index + 1)) {
+        if let Action::Input(input) = &step.action {
+            for precomputation in &input.precomputations {
+                push(&mut sources, Source::Label(precomputation.label.clone()));
+            }
+        }
+    }
+
+    sources
+}
+
+/// MAKE KNOWLEDGE QUERY: replaces a sub-term of type `T` with a fresh knowledge query, that is a
+/// [`DYTerm::Variable`] of type `T` reading a value the attacker learned during the execution
+/// instead of a value the recipe builds itself.
+///
+/// The query is drawn from the knowledge the mutated entry's own execution produced
+/// ([`crate::fuzzer::observed_knowledge`]), restricted to what is readable at that position, so a
+/// type that never appeared as knowledge is never queried at all.
+///
+/// It stays speculative: the mutated trace may no longer produce that knowledge, in which case
+/// evaluation fails gracefully (`Error::Term`).
+pub struct MakeKnowledgeQueryMutator<S>
+where
+    S: HasRand,
+{
+    constraints: TermConstraints,
+    phantom_s: std::marker::PhantomData<S>,
+    with_dy: bool,
+}
+
+impl<S> MakeKnowledgeQueryMutator<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub const fn new(constraints: TermConstraints, with_dy: bool) -> Self {
+        Self {
+            constraints,
+            phantom_s: std::marker::PhantomData,
+            with_dy,
+        }
+    }
+}
+
+impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for MakeKnowledgeQueryMutator<S>
+where
+    S: HasRand + HasCurrentCorpusId,
+{
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
+        log::debug!("[DY] Start mutate with {}", self.name());
+        if !self.with_dy {
+            return Ok(MutationResult::Skipped);
+        }
+        // A variable is an admissible deconstructor source ([`is_deconstructible`]), so the query
+        // may be installed anywhere, including at the source position of a deconstructor. Only
+        // symbolic terms are replaced, so that a payload is never silently dropped.
+        let Some(to_replace_path) = choose_term_path_filtered(
+            trace,
+            |term: &Term<PT>| term.is_symbolic(),
+            &self.constraints,
+            state.rand_mut(),
+        ) else {
+            log::debug!("       Skipped {}", self.name());
+            return Ok(MutationResult::Skipped);
+        };
+
+        let Some(to_replace) = find_term(trace, &to_replace_path) else {
+            log::debug!("       Skipped {}", self.name());
+            return Ok(MutationResult::Skipped);
+        };
+        let typ = to_replace.get_type_shape().clone();
+
+        // Without a combination readable at this step the query could only be a guess.
+        let parent = state.current_corpus_id().ok().flatten();
+        let reachable = query_sources(trace, to_replace_path.0);
+        let rand = state.rand_mut();
+        let Some(observation) = with_observed_knowledge::<PT, _>(|pools| {
+            pools
+                .observations(parent, typ.clone().into())
+                .unwrap_or_default()
+                .iter()
+                .filter(|observation| {
+                    observation.available_from <= to_replace_path.0
+                        && reachable.contains(&observation.source)
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+                .choose(rand)
+                .cloned()
+        }) else {
+            log::debug!("[MakeKnowledgeQueryMutator] Skipped as no execution ever produced a knowledge of type {typ} reachable from this step.");
+            log::debug!("       Skipped {}", self.name());
+            return Ok(MutationResult::Skipped);
+        };
+
+        let query = Query {
+            source: (rand.below_or_zero(GENERALIZE_SOURCE_ONE_IN) != 0)
+                .then_some(observation.source),
+            matcher: observation.matcher,
+            counter: rand.below_or_zero(observation.multiplicity as usize) as u16,
+            is_claim: false,
+        };
+
+        let Some(to_replace) = find_term_mut(trace, &to_replace_path) else {
+            log::debug!("       Skipped {}", self.name());
+            return Ok(MutationResult::Skipped);
+        };
+        // Re-querying exactly the same knowledge would leave the trace unchanged.
+        if matches!(&to_replace.term, DYTerm::Variable(variable) if variable.query == query) {
+            log::debug!("[MakeKnowledgeQueryMutator] Skipped as the drawn query is the one already made by the term.");
+            log::debug!("       Skipped {}", self.name());
+            return Ok(MutationResult::Skipped);
+        }
+
+        log::debug!(
+            "[Mutation] MakeKnowledgeQueryMutator: replace\n{to_replace}\nwith the knowledge query {query}/{typ}"
+        );
+        to_replace.mutate(Term::from(DYTerm::Variable(Variable::new(typ, query))));
+        Ok(MutationResult::Mutated)
+    }
+
+    fn post_exec(&mut self, _state: &mut S, new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        with_observed_knowledge::<PT, _>(|pools| pools.commit(new_corpus_id));
+        Ok(())
+    }
+}
+
+impl<S> Named for MakeKnowledgeQueryMutator<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("MakeKnowledgeQueryMutator")
     }
 }
 
@@ -973,6 +1139,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::any::TypeId;
     use std::collections::{HashMap, HashSet};
 
     use libafl::corpus::InMemoryCorpus;
@@ -981,13 +1148,14 @@ mod tests {
     use libafl_bolts::rands::{RomuDuoJrRand, StdRand};
 
     use super::*;
-    use crate::agent::AgentName;
+    use crate::agent::{AgentDescriptor, AgentName};
     use crate::algebra::dynamic_function::{DescribableFunction, TypeShape};
     use crate::algebra::test_signature::{TestTrace, *};
-    use crate::algebra::DYTerm;
+    use crate::algebra::{AnyMatcher, DYTerm};
+    use crate::fuzzer::observed_knowledge::clear_observed_knowledge;
     use crate::fuzzer::utils::{choose_term_path, TracePath};
     use crate::term;
-    use crate::trace::{Action, InputAction, Source, Step};
+    use crate::trace::{Action, InputAction, OutputAction, Source, Step};
 
     fn create_state(
     ) -> StdState<InMemoryCorpus<TestTrace>, TestTrace, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
@@ -1272,6 +1440,185 @@ mod tests {
         }
     }
 
+    /// Collects the query of every variable of a trace, together with the index of the step whose
+    /// recipe holds it.
+    fn all_queries(trace: &TestTrace) -> Vec<(usize, Query<AnyMatcher>)> {
+        trace
+            .steps
+            .iter()
+            .enumerate()
+            .filter_map(|(step_index, step)| match &step.action {
+                Action::Input(input) => Some((step_index, &input.recipe)),
+                Action::Output(_) => None,
+            })
+            .flat_map(|(step_index, recipe)| {
+                recipe.into_iter().filter_map(move |term| match &term.term {
+                    DYTerm::Variable(variable) => Some((step_index, variable.query.clone())),
+                    DYTerm::Application(..) | DYTerm::Deconstructor(..) => None,
+                })
+            })
+            .collect()
+    }
+
+    /// [`setup_simple_trace`] with one step per agent, so that the sources a knowledge query may
+    /// draw from differ from step to step. It holds no variable, hence every query found after a
+    /// mutation was created by that mutation.
+    fn setup_multi_agent_trace() -> TestTrace {
+        let mut trace = setup_simple_trace();
+        let mut agent = AgentName::first();
+        for step in &mut trace.steps {
+            step.agent = agent;
+            trace.descriptors.push(AgentDescriptor::from_name(agent));
+            agent = agent.next();
+        }
+        // Give the first agent an output step, so that it can be a source.
+        trace
+            .steps
+            .insert(1, OutputAction::new_step(AgentName::first()));
+        trace
+    }
+
+    /// Records what an execution producing `multiplicity` values of `T` would.
+    fn observe<T: 'static>(
+        source: &Source,
+        matcher: Option<AnyMatcher>,
+        multiplicity: usize,
+        available_from: usize,
+    ) {
+        with_observed_knowledge::<TestProtocolTypes, _>(|observed| {
+            observed.record((0..multiplicity).map(|_| {
+                (
+                    TypeId::of::<T>(),
+                    source.clone(),
+                    matcher.clone(),
+                    available_from,
+                )
+            }));
+        });
+    }
+
+    /// Source, matcher and counter all come from one observation, and the source has to have
+    /// produced something before the mutated step.
+    #[test_log::test]
+    fn test_make_knowledge_query_mutator() {
+        let mut state = create_state();
+        let mut mutator = MakeKnowledgeQueryMutator::new(TermConstraints::default(), true);
+
+        clear_observed_knowledge::<TestProtocolTypes>();
+        let first = Source::Agent(AgentName::first());
+        observe::<HandshakeMessage>(&first, None, 2, 1);
+        observe::<u32>(&first, Some(AnyMatcher), 1, 1);
+
+        let mut introduced = false;
+        for _ in 0..200 {
+            let mut trace = setup_multi_agent_trace();
+            assert!(all_queries(&trace).is_empty());
+            if let Ok(MutationResult::Mutated) = mutator.mutate(&mut state, &mut trace) {
+                let queries = all_queries(&trace);
+                assert!(!queries.is_empty(), "the mutation created no query");
+                for (step_index, query) in queries {
+                    assert!(!query.is_claim, "a knowledge query never reads the claims");
+                    assert!(
+                        query.counter < 2,
+                        "counter {} exceeds the observed multiplicity",
+                        query.counter
+                    );
+                    if let Some(Source::Agent(agent)) = query.source {
+                        let spoke_earlier = trace.steps[..step_index].iter().any(|step| {
+                            step.agent == agent && matches!(step.action, Action::Output(_))
+                        });
+                        assert!(
+                            spoke_earlier,
+                            "queried agent {agent} produced no knowledge before step {step_index}"
+                        );
+                    }
+                }
+                introduced = true;
+            }
+        }
+        assert!(
+            introduced,
+            "MakeKnowledgeQueryMutator never created a query"
+        );
+    }
+
+    /// Nothing is queried out of a pool holding no type the trace uses.
+    #[test_log::test]
+    fn test_make_knowledge_query_mutator_only_queries_observed_types() {
+        let mut state = create_state();
+        let mut mutator = MakeKnowledgeQueryMutator::new(TermConstraints::default(), true);
+
+        for pool in ["empty", "unrelated type"] {
+            clear_observed_knowledge::<TestProtocolTypes>();
+            if pool == "unrelated type" {
+                // `HmacKey` appears in the test signature but not in the fixture.
+                observe::<HmacKey>(&Source::Agent(AgentName::first()), None, 4, 1);
+            }
+
+            for _ in 0..200 {
+                let mut trace = setup_multi_agent_trace();
+                assert_eq!(
+                    mutator.mutate(&mut state, &mut trace).unwrap(),
+                    MutationResult::Skipped,
+                    "a query was created out of a {pool} pool"
+                );
+                assert!(all_queries(&trace).is_empty());
+            }
+        }
+    }
+
+    /// A query is never placed before the step where its knowledge becomes readable.
+    #[test_log::test]
+    fn test_make_knowledge_query_mutator_respects_the_step_the_knowledge_appears_at() {
+        let mut state = create_state();
+        let mut mutator = MakeKnowledgeQueryMutator::new(TermConstraints::default(), true);
+
+        clear_observed_knowledge::<TestProtocolTypes>();
+        let available_from = setup_multi_agent_trace().steps.len() - 1;
+        observe::<HandshakeMessage>(&Source::Agent(AgentName::first()), None, 2, available_from);
+
+        let mut introduced = false;
+        for _ in 0..200 {
+            let mut trace = setup_multi_agent_trace();
+            if mutator.mutate(&mut state, &mut trace).unwrap() == MutationResult::Mutated {
+                for (step_index, query) in all_queries(&trace) {
+                    assert!(
+                        step_index >= available_from,
+                        "a query was created at step {step_index}, before its knowledge exists                          (from step {available_from} on): {query}"
+                    );
+                }
+                introduced = true;
+            }
+        }
+        assert!(introduced, "no query was created at all");
+    }
+
+    /// Matcher and counter are the ones the knowledge was observed under.
+    #[test_log::test]
+    fn test_make_knowledge_query_mutator_draws_matcher_and_counter_from_the_pool() {
+        let mut state = create_state();
+        let mut mutator = MakeKnowledgeQueryMutator::new(TermConstraints::default(), true);
+
+        clear_observed_knowledge::<TestProtocolTypes>();
+        observe::<HandshakeMessage>(&Source::Agent(AgentName::first()), Some(AnyMatcher), 3, 1);
+
+        let mut counters = HashSet::new();
+        for _ in 0..200 {
+            let mut trace = setup_multi_agent_trace();
+            if mutator.mutate(&mut state, &mut trace).unwrap() == MutationResult::Mutated {
+                for (_, query) in all_queries(&trace) {
+                    assert_eq!(query.matcher, Some(AnyMatcher));
+                    assert!(query.counter < 3);
+                    counters.insert(query.counter);
+                }
+            }
+        }
+        assert!(
+            counters.len() > 1,
+            "the counter should vary over the observed multiplicity, saw {counters:?}"
+        );
+    }
+
     /// The restriction is also an invariant of the other DY mutators: none of them may replace the
     /// source of an existing deconstructor with a transparent application.
     #[test_log::test]
@@ -1279,6 +1626,7 @@ mod tests {
         let mut state = create_state();
         let mut swap = SwapMutator::new(TermConstraints::default(), true);
         let mut replace_reuse = ReplaceReuseMutator::new(TermConstraints::default(), true, false);
+        let mut make_query = MakeKnowledgeQueryMutator::new(TermConstraints::default(), true);
         let mut replace_match =
             ReplaceMatchMutator::new(TermConstraints::default(), &TEST_SIGNATURE, true);
 
@@ -1325,6 +1673,10 @@ mod tests {
 
             let mut trace = make_trace();
             replace_match.mutate(&mut state, &mut trace).unwrap();
+            assert!(all_deconstructor_sources_valid(&trace));
+
+            let mut trace = make_trace();
+            make_query.mutate(&mut state, &mut trace).unwrap();
             assert!(all_deconstructor_sources_valid(&trace));
         }
     }

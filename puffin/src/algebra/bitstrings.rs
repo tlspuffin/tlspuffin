@@ -8,7 +8,9 @@ use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{remove_prefix, ConcreteMessage, DYTerm, Matcher, Term, TermType};
 use crate::error::Error;
 use crate::error::Error::TermBug;
-use crate::fuzzer::stats_stage::{DECONSTRUCTOR_EVAL, DECONSTRUCTOR_EVAL_FAIL};
+use crate::fuzzer::stats_stage::{
+    DECONSTRUCTOR_EVAL, DECONSTRUCTOR_EVAL_FAIL, VARIABLE_EVAL, VARIABLE_EVAL_FAIL,
+};
 use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Knowledge, Source, TraceContext};
@@ -654,13 +656,17 @@ impl<PT: ProtocolTypes> Term<PT> {
 
         match &self.term {
             DYTerm::Variable(variable) => {
+                VARIABLE_EVAL.increment();
                 let d = if variable.query.is_claim {
                     if let Some(Source::Agent(agent_name)) = &variable.query.source {
                         ctx.find_claim(*agent_name, variable.typ.clone())
                     } else {
                         None
                     }
-                    .ok_or_else(|| Error::Term(format!("--> Unable to find claim {variable}!")))?
+                    .ok_or_else(|| {
+                        VARIABLE_EVAL_FAIL.increment();
+                        Error::Term(format!("--> Unable to find claim {variable}!"))
+                    })?
                 } else {
                     ctx.find_variable(variable.typ.clone(), &variable.query)
                         .map(|data| data.boxed())
@@ -673,6 +679,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                             }
                         })
                         .ok_or_else(|| {
+                            VARIABLE_EVAL_FAIL.increment();
                             Error::Term(format!("--> Unable to find variable {variable}!"))
                         })?
                 };
