@@ -10,6 +10,7 @@ use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::{Corpus, Testcase};
 use puffin::libafl::mutators::{MutationResult, Mutator, MutatorsTuple};
 use puffin::libafl::state::HasCorpus;
+use puffin::libafl_bolts::tuples::NamedTuple;
 use puffin::libafl_bolts::HasLen;
 use puffin::test_utils::AssertExecution;
 use puffin::trace::{Action, Spawner, Step, Trace, TraceContext};
@@ -38,6 +39,32 @@ fn client_hello_payload(term: &Term<TLSProtocolTypes>) -> Option<&Term<TLSProtoc
     (payload.name() == fn_handshakepayload_clienthello.name()).then_some(payload)
 }
 
+/// [`test_mutators`] walks the mutations by index, relying on their layout: every DY mutation
+/// first, then `MakeMessage` and the other bit-level ones.
+#[test_log::test]
+fn test_mutations_layout() {
+    let registry = tls_registry();
+    let names = test_mutations(&registry, true, true).names();
+
+    let make_message = names
+        .iter()
+        .position(|name| name == "MakeMessage")
+        .expect("MakeMessage opens the bit-level mutations");
+    let dy_names = &names[..make_message];
+
+    assert_eq!(
+        dy_names.last().map(AsRef::as_ref),
+        Some("SwapMutator"),
+        "the DY mutations must all come before MakeMessage, found: {names:?}"
+    );
+    for expected in ["MakeDeconstructorMutator", "MakeKnowledgeQueryMutator"] {
+        assert!(
+            dy_names.iter().any(|name| name == expected),
+            "{expected} is missing from the DY mutations: {dy_names:?}"
+        );
+    }
+}
+
 /// Test that all mutations can be successfully applied on all traces from the corpus
 #[test_log::test]
 #[ignore]
@@ -64,13 +91,19 @@ fn test_mutators() {
     let mut nb_failures = 0;
     let mut nb_success = 0;
 
+    // The mutations are laid out as: the DY ones, then `MakeMessage`, then the remaining bit-level
+    // ones. Deriving the boundaries from the mutation names rather than hard-coding indices keeps
+    // this test correct when a mutation is added to (or removed from) the list.
+    let names = mutations.names();
+    let make_message_idx = names.iter().position(|name| name == "MakeMessage");
+    let dy_end = make_message_idx.unwrap_or(names.len());
+
     if with_dy {
         log::debug!("Start [test_mutators::with_dy] with nb mutations={} and corpus: {:?}, DY mutations only first", mutations.len(), inputs);
 
         for (id_i, input) in inputs.iter().enumerate() {
             log::debug!("Treating input nb{id_i}....");
-            let max_idx = if with_bit_level { 8 } else { 7 }; // all DY mutations, including MakeMessages
-            'outer: for idx in 0..max_idx {
+            'outer: for idx in 0..dy_end {
                 log::debug!("Treating mutation nb{idx}");
                 for c in 0..10000 {
                     // log::debug!(".");
@@ -89,7 +122,7 @@ fn test_mutators() {
                         MutationResult::Skipped => (),
                     };
                 }
-                if idx == 4 || idx == 1 {
+                if names[idx] == "RemoveAndLiftMutator" || names[idx] == "SkipMutator" {
                     // former requires a list that some traces don't have, latter requires a trace
                     // of length >2
                     log::error!("[test_mutators::with_dy] Failed to process input nb{id_i} for mutation id {idx}.\n Trace is {}", input)
@@ -102,7 +135,7 @@ fn test_mutators() {
     if with_bit_level {
         log::debug!("Start [test_mutators:MakeMessage] with nb mutations={} and corpus: {:?}, MakeMessage only", mutations.len(), inputs);
         let mut acc = vec![];
-        let idx = 7; // mutation ID for MakeMessage
+        let idx = make_message_idx.expect("the bit-level mutations start with MakeMessage");
         log::debug!(
             "First generating many MakeMessages nb idx={} from the inputs...",
             idx
@@ -164,7 +197,7 @@ fn test_mutators() {
         let max_tries = 1000;
         for (id_i, input) in acc.iter().enumerate() {
             log::debug!("Treating MakeMessage input nb{id_i}....");
-            for idx in 8..mutations.len() {
+            for idx in (dy_end + 1)..mutations.len() {
                 log::debug!("Treating mutation nb{idx}");
                 let mut succeeded = false;
                 for c in 0..max_tries {

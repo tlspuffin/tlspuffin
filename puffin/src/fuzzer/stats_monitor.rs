@@ -360,6 +360,7 @@ struct IntrospectFeatures {
 /// - `total_execs`: Total number of executions performed by the client
 /// - `all_term_eval`: Total number of term evaluations.
 /// - `all_term_eval_success`: Number of successful term evaluations.
+/// - `variable_eval` / `variable_eval_fail`: query evaluations, and those left unanswered.
 /// - `deconstructor_eval`: Number of `DYTerm::Deconstructor` node evaluations.
 /// - `deconstructor_eval_fail`: Number of deconstructor evaluations that failed because no
 ///   sub-value of the target type matched the query (the symbol's own failure mode); the ratio
@@ -409,6 +410,8 @@ struct ErrorStatistics {
     // symbol's extraction-failure rate, comparable to `1 - all_term_eval_success / all_term_eval`.
     deconstructor_eval: u64,
     deconstructor_eval_fail: u64,
+    variable_eval: u64,
+    variable_eval_fail: u64,
 
     // Trace exec
     fn_error: u64,
@@ -534,6 +537,8 @@ impl ErrorStatistics {
             all_term_eval_success: 0,
             deconstructor_eval: 0,
             deconstructor_eval_fail: 0,
+            variable_eval: 0,
+            variable_eval_fail: 0,
             all_exec: 0,
             all_exec_success: 0,
             all_exec_agent_success: 0,
@@ -613,6 +618,12 @@ impl ErrorStatistics {
                 }
                 RuntimeStats::DeconstructorEvalFail(c) => {
                     self.deconstructor_eval_fail += get_number(client_stats, c.name)
+                }
+                RuntimeStats::VariableEval(c) => {
+                    self.variable_eval += get_number(client_stats, c.name)
+                }
+                RuntimeStats::VariableEvalFail(c) => {
+                    self.variable_eval_fail += get_number(client_stats, c.name)
                 }
                 RuntimeStats::AllExec(c) => self.all_exec += get_number(client_stats, c.name),
                 RuntimeStats::AllExecSuccess(c) => {
