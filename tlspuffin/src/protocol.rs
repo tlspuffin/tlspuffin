@@ -686,13 +686,13 @@ impl ProtocolTypes for TLSProtocolTypes {
         if is_server {
             terms.push(term! {
                 fn_decrypt_handshake_flight_with_secret(
-                ((server, 0)[Some(TlsQueryMatcher::ServerHelloFlight)]/MessageFlight),
-                (fn_server_hello_transcript(((server, 0)))),
+                K((server, 0)[Some(TlsQueryMatcher::ServerHelloFlight)]/MessageFlight),
+                (fn_server_hello_transcript(C((server, 0)))),
                 fn_true,
                 fn_seq_0,  // sequence 0
-                (fn_finished_get_client_random(((server, 0)))),
-                (fn_finished_get_cipher(((server, 0)))),
-                (fn_finished_get_handshake_secret(((server, 2))))
+                (fn_finished_get_client_random(C((server, 0)))),
+                (fn_finished_get_cipher(C((server, 0)))),
+                (fn_finished_get_handshake_secret(C((server, 2))))
             )
             });
         }
@@ -700,13 +700,13 @@ impl ProtocolTypes for TLSProtocolTypes {
         if is_client {
             terms.push(term! {
                 fn_decrypt_handshake_flight_with_secret(
-                ((client, 0)[Some(TlsQueryMatcher::EncryptedFlight)]/MessageFlight),
-                (fn_server_hello_transcript(((client, 0)))),
+                K((client, 0)[Some(TlsQueryMatcher::EncryptedFlight)]/MessageFlight),
+                (fn_server_hello_transcript(C((client, 0)))),
                 fn_false,
                 fn_seq_0,
-                (fn_finished_get_client_random(((client, 0)))),
-                (fn_finished_get_cipher(((client, 0)))),
-                (fn_finished_get_handshake_secret(((client, 0))))
+                (fn_finished_get_client_random(C((client, 0)))),
+                (fn_finished_get_cipher(C((client, 0)))),
+                (fn_finished_get_handshake_secret(C((client, 0))))
             )
             });
         }

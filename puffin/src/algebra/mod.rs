@@ -777,7 +777,7 @@ mod tests {
                     (fn_client_hello(fn_protocol_version12,
                         fn_new_random,
                         fn_new_random,
-                        ((client,0)/ProtocolVersion)
+                        K((client,0)/ProtocolVersion)
                     ))
                 )),
                 fn_new_random
@@ -789,16 +789,16 @@ mod tests {
         };
 
         let _test_simple_function2: TestTerm = term! {
-           fn_new_random(((client,0)))
+           fn_new_random(K((client,0)))
         };
         let _test_simple_function1: TestTerm = term! {
            fn_protocol_version12
         };
         let _test_simple_function: TestTerm = term! {
-           fn_new_random(((client,0)/ProtocolVersion))
+           fn_new_random(K((client,0)/ProtocolVersion))
         };
         let _test_variable: TestTerm = term! {
-            (client,0)/ProtocolVersion
+            K((client,0)/ProtocolVersion)
         };
         let _set_nested_function: TestTerm = term! {
            fn_client_extensions_append(
@@ -826,6 +826,7 @@ mod tests {
             Some(Source::Agent(AgentName::first())),
             None,
             0,
+            false,
         );
 
         let generated_term = Term::from(DYTerm::Application(
@@ -908,6 +909,7 @@ mod tests {
                                     Some(Source::Agent(AgentName::first())),
                                     None,
                                     0,
+                                    false,
                                 ))),
                             ],
                         )),
@@ -918,6 +920,7 @@ mod tests {
                             Some(Source::Agent(AgentName::first())),
                             None,
                             0,
+                            false,
                         ))),
                     ],
                 )),
@@ -934,6 +937,7 @@ mod tests {
                                     Some(Source::Agent(AgentName::first())),
                                     None,
                                     0,
+                                    false,
                                 ))),
                                 Term::from(DYTerm::Application(
                                     Signature::new_function(&example_op_c),
@@ -946,6 +950,7 @@ mod tests {
                                 Some(Source::Agent(AgentName::first())),
                                 None,
                                 0,
+                                false,
                             ),
                         )),
                     ],
@@ -1004,7 +1009,7 @@ mod tests {
         let term: TestTerm = term! {
             fn_client_hello(
                 fn_protocol_version12(),
-                ((client, 0) / Random),
+                K((client, 0) / Random),
                 fn_new_session_id,
                 fn_append_cipher_suite(fn_new_cipher_suites(), fn_cipher_suite12),
                 fn_compressions,
@@ -1018,6 +1023,69 @@ mod tests {
         // fn_client_hello has 6 arguments, one of which is a variable.
         assert_eq!(term.get(&[0]).unwrap().name(), fn_protocol_version12.name());
         assert!(term.has_variable());
+    }
+
+    /// The query of the variable at the root of `term`, which must be one.
+    fn root_query(term: &TestTerm) -> &Query<AnyMatcher> {
+        match &term.term {
+            DYTerm::Variable(variable) => &variable.query,
+            other => panic!("expected a variable at the root, got {other}"),
+        }
+    }
+
+    /// `K(...)` searches the knowledge, `C(...)` searches the claims: both build a variable, the
+    /// only difference being the `is_claim` flag of their query.
+    #[test_log::test]
+    fn term_macro_knowledge_and_claim_queries() {
+        let client = AgentName::first();
+
+        let knowledge: TestTerm = term! { K((client, 3)[Some(AnyMatcher)] / Random) };
+        let claim: TestTerm = term! { C((client, 3)[Some(AnyMatcher)] / Random) };
+
+        for term in [&knowledge, &claim] {
+            let query = root_query(term);
+            assert_eq!(query.source, Some(Source::Agent(client)));
+            assert_eq!(query.matcher, Some(AnyMatcher));
+            assert_eq!(query.counter, 3);
+            assert_eq!(term.get_type_shape(), &TypeShape::of::<Random>());
+        }
+
+        assert!(!root_query(&knowledge).is_claim);
+        assert!(root_query(&claim).is_claim);
+    }
+
+    /// A knowledge query can also read a precomputation, selected by its label. Claims are only
+    /// produced by agents, so `C(...)` has no such form.
+    #[test_log::test]
+    fn term_macro_knowledge_query_on_precomputation() {
+        let term: TestTerm = term! { K((!"precomputed", 0) / Random) };
+        let query = root_query(&term);
+
+        assert_eq!(
+            query.source,
+            Some(Source::Label(Some("precomputed".to_owned())))
+        );
+        assert_eq!(query.matcher, None);
+        assert!(!query.is_claim);
+    }
+
+    /// Both query kinds may omit their type when used as a function argument: it is then inferred
+    /// from the type of the argument they are passed as.
+    #[test_log::test]
+    fn term_macro_queries_infer_their_type_from_the_argument() {
+        let client = AgentName::first();
+
+        let knowledge: TestTerm = term! { fn_renegotiation_info_extension(K((client, 0))) };
+        let claim: TestTerm =
+            term! { fn_renegotiation_info_extension(C((client, 0)[Some(AnyMatcher)])) };
+
+        for (term, is_claim) in [(&knowledge, false), (&claim, true)] {
+            let argument = term
+                .get(&[0])
+                .expect("fn_renegotiation_info_extension takes one argument");
+            assert_eq!(argument.get_type_shape(), &TypeShape::of::<Vec<u8>>());
+            assert_eq!(root_query(argument).is_claim, is_claim);
+        }
     }
 
     // ---- `DYTerm::Deconstructor` mechanism ----
@@ -1046,6 +1114,7 @@ mod tests {
                 source: None,
                 matcher: None,
                 counter,
+                is_claim: false,
             },
         ))
     }

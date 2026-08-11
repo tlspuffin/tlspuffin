@@ -654,20 +654,29 @@ impl<PT: ProtocolTypes> Term<PT> {
 
         match &self.term {
             DYTerm::Variable(variable) => {
-                let d = ctx
-                    .find_variable(variable.typ.clone(), &variable.query)
-                    .map(|data| data.boxed())
-                    .or_else(|| {
-                        if let Some(Source::Agent(agent_name)) = &variable.query.source {
-                            ctx.find_claim(*agent_name, variable.typ.clone())
-                        } else {
-                            // Claims doesn't have precomputations as source
-                            None
-                        }
-                    })
-                    .ok_or_else(|| {
-                        Error::Term(format!("--> Unable to find variable {variable}!"))
-                    })?;
+                let d = if variable.query.is_claim {
+                    if let Some(Source::Agent(agent_name)) = &variable.query.source {
+                        ctx.find_claim(*agent_name, variable.typ.clone())
+                    } else {
+                        None
+                    }
+                    .ok_or_else(|| Error::Term(format!("--> Unable to find claim {variable}!")))?
+                } else {
+                    ctx.find_variable(variable.typ.clone(), &variable.query)
+                        .map(|data| data.boxed())
+                        .or_else(|| {
+                            if let Some(Source::Agent(agent_name)) = &variable.query.source {
+                                ctx.find_claim(*agent_name, variable.typ.clone())
+                            } else {
+                                // Claims doesn't have precomputations as source
+                                None
+                            }
+                        })
+                        .ok_or_else(|| {
+                            Error::Term(format!("--> Unable to find variable {variable}!"))
+                        })?
+                };
+
                 if with_payloads {
                     // TODO: we might want to relax this a bit and only do this for nodes that are
                     // in the paths towards a payload or a right sibling of such a node. Not sure
