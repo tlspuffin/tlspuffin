@@ -13,7 +13,11 @@
 //! * lists are `fn_list_<element>_empty` / `fn_list_<element>_append`, wrapped into their newtype
 //!   by that type's own constructor (`fn_ciphersuites`, `fn_clientextensions`, ...);
 //! * sub-values are extracted with the `D(source, [matcher] / Type)` deconstructor terms instead of
-//!   hand-written `fn_find_*` / `fn_get_*` accessors.
+//!   hand-written `fn_find_*` / `fn_get_*` accessors;
+//! * what an agent learned during the execution is read with the knowledge query `K((agent,
+//!   counter) [matcher] / Type)` (the source may also be a `!"label"` precomputation), and what it
+//!   claimed with the claim query `C((agent, counter) [matcher] / Type)` — the latter being the
+//!   only way to reach the transcripts and the `Finished` claim.
 //!
 //! Hand-written symbols remain only where no generated constructor can replace them:
 //!
@@ -39,7 +43,7 @@
 
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::dynamic_function::TypeShape;
-use puffin::algebra::{DYTerm, Term};
+use puffin::algebra::Term;
 use puffin::trace::{Action, InputAction, OutputAction, Precomputation, Step, Trace};
 use puffin::{input_action, term};
 
@@ -102,12 +106,12 @@ pub fn seed_successful_client_auth(
                                 fn_handshaketype_clienthello,
                                 fn_handshakepayload_clienthello(
                                     fn_clienthellopayload(
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0))
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0))
                                     )
                                 )
                             )
@@ -127,12 +131,12 @@ pub fn seed_successful_client_auth(
                                 fn_handshaketype_serverhello,
                                 fn_handshakepayload_serverhello(
                                     fn_serverhellopayload(
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Random),
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ServerExtensions)
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Random),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ServerExtensions)
                                     )
                                 )
                             )
@@ -149,7 +153,7 @@ pub fn seed_successful_client_auth(
                         fn_protocolversion_tlsv1_2,
                         fn_messagepayload_applicationdata(
                             fn_payload(
-                                ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                                K((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                             )
                         )
                     )
@@ -164,7 +168,7 @@ pub fn seed_successful_client_auth(
                         fn_protocolversion_tlsv1_2,
                         fn_messagepayload_applicationdata(
                             fn_payload(
-                                ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                                K((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                             )
                         )
                     )
@@ -179,7 +183,7 @@ pub fn seed_successful_client_auth(
                         fn_protocolversion_tlsv1_2,
                         fn_messagepayload_applicationdata(
                             fn_payload(
-                                ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                                K((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                             )
                         )
                     )
@@ -194,7 +198,7 @@ pub fn seed_successful_client_auth(
                         fn_protocolversion_tlsv1_2,
                         fn_messagepayload_applicationdata(
                             fn_payload(
-                                ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                                K((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                             )
                         )
                     )
@@ -209,7 +213,7 @@ pub fn seed_successful_client_auth(
                         fn_protocolversion_tlsv1_2,
                         fn_messagepayload_applicationdata(
                             fn_payload(
-                                ((server, 4)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                                K((server, 4)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                             )
                         )
                     )
@@ -224,7 +228,7 @@ pub fn seed_successful_client_auth(
                         fn_protocolversion_tlsv1_2,
                         fn_messagepayload_applicationdata(
                             fn_payload(
-                                ((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                                K((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                             )
                         )
                     )
@@ -239,7 +243,7 @@ pub fn seed_successful_client_auth(
                         fn_protocolversion_tlsv1_2,
                         fn_messagepayload_applicationdata(
                             fn_payload(
-                                ((client, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                                K((client, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                             )
                         )
                     )
@@ -254,7 +258,7 @@ pub fn seed_successful_client_auth(
                         fn_protocolversion_tlsv1_2,
                         fn_messagepayload_applicationdata(
                             fn_payload(
-                                ((client, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                                K((client, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                             )
                         )
                     )
@@ -280,7 +284,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TLSProtoco
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    (client, 0)/MessageFlight
+                    K((client, 0)/MessageFlight)
                 }
                 }),
             },
@@ -289,7 +293,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TLSProtoco
             Step {
                 agent: client,
                 action: Action::Input(input_action! { term! {
-                    (server, 0)/MessageFlight
+                    K((server, 0)/MessageFlight)
                 }
                 }),
             },
@@ -297,7 +301,7 @@ pub fn seed_successful(client: AgentName, server: AgentName) -> Trace<TLSProtoco
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    (client, 1)/MessageFlight
+                    K((client, 1)/MessageFlight)
                 }
                 }),
             },
@@ -327,17 +331,17 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TLSPr
                                 fn_handshaketype_clienthello,
                                 fn_handshakepayload_clienthello(
                                     fn_clienthellopayload(
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
                                         (fn_ciphersuites(
                                             (fn_list_ciphersuite_append(
                                                 fn_list_ciphersuite_empty,
                                                 fn_ciphersuite_tls13_aes_128_gcm_sha256
                                             ))
                                         )),
-                                        ((client, 0)),
-                                        ((client, 0))
+                                        K((client, 0)),
+                                        K((client, 0))
                                     )
                                 )
                             )
@@ -351,7 +355,7 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TLSPr
             Step {
                 agent: client,
                 action: Action::Input(input_action! { term! {
-                    (server, 0)/MessageFlight
+                    K((server, 0)/MessageFlight)
                 }
                 }),
             },
@@ -359,7 +363,7 @@ pub fn seed_successful_mitm(client: AgentName, server: AgentName) -> Trace<TLSPr
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    (client, 1)/MessageFlight
+                    K((client, 1)/MessageFlight)
                 }
                 }),
             },
@@ -388,9 +392,9 @@ pub fn seed_successful12_with_tickets(
                             fn_handshaketype_newsessionticket,
                             fn_handshakepayload_newsessionticket(
                                 fn_newsessionticketpayload(
-                                    ((server, 0)/u32),
+                                    K((server, 0)/u32),
                                     (fn_payloadu16(
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>)
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>)
                                     ))
                                 )
                             )
@@ -405,7 +409,7 @@ pub fn seed_successful12_with_tickets(
     trace.steps[11] = Step {
         agent: client,
         action: Action::Input(input_action! { term! {
-            (server, 6)[None]> TypeShape::of::<OpaqueMessage>()
+            K((server, 6)[None])> TypeShape::of::<OpaqueMessage>()
         }
         }),
     };
@@ -433,12 +437,12 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProto
                                 fn_handshaketype_clienthello,
                                 fn_handshakepayload_clienthello(
                                     fn_clienthellopayload(
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0))
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0))
                                     )
                                 )
                             )
@@ -457,12 +461,12 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProto
                                 fn_handshaketype_serverhello,
                                 fn_handshakepayload_serverhello(
                                     fn_serverhellopayload(
-                                        ((server, 0)),
-                                        ((server, 0)),
-                                        ((server, 0)),
-                                        ((server, 0)),
-                                        ((server, 0)),
-                                        ((server, 0))
+                                        K((server, 0)),
+                                        K((server, 0)),
+                                        K((server, 0)),
+                                        K((server, 0)),
+                                        K((server, 0)),
+                                        K((server, 0))
                                     )
                                 )
                             )
@@ -480,7 +484,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProto
                             fn_handshakemessagepayload(
                                 fn_handshaketype_certificate,
                                 fn_handshakepayload_certificate(
-                                    fn_certificatepayload(((server, 0)))
+                                    fn_certificatepayload(K((server, 0)))
                                 )
                             )
                         )
@@ -500,7 +504,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProto
                                 fn_handshakepayload_serverkeyexchange(
                                     fn_serverkeyexchangepayload_unknown(
                                         fn_payload(
-                                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                                            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
                                         )
                                     )
                                 )
@@ -537,7 +541,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProto
                                 fn_handshaketype_clientkeyexchange,
                                 fn_handshakepayload_clientkeyexchange(
                                     fn_payload(
-                                        ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
+                                        K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
                                     )
                                 )
                             )
@@ -564,7 +568,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProto
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    (client, 3)[None] > TypeShape::of::<OpaqueMessage>()
+                    K((client, 3)[None]) > TypeShape::of::<OpaqueMessage>()
                 }
                 }),
             },
@@ -583,7 +587,7 @@ pub fn seed_successful12(client: AgentName, server: AgentName) -> Trace<TLSProto
             Step {
                 agent: client,
                 action: Action::Input(input_action! { term! {
-                    (server, 5)[None] > TypeShape::of::<OpaqueMessage>()
+                    K((server, 5)[None]) > TypeShape::of::<OpaqueMessage>()
                 }
                 }),
             },
@@ -607,7 +611,7 @@ pub fn seed_successful12_forward(client: AgentName, server: AgentName) -> Trace<
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    (client, 0)/MessageFlight
+                    K((client, 0)/MessageFlight)
                 }
                 }),
             },
@@ -616,7 +620,7 @@ pub fn seed_successful12_forward(client: AgentName, server: AgentName) -> Trace<
             Step {
                 agent: client,
                 action: Action::Input(input_action! { term! {
-                    (server, 0)/MessageFlight
+                    K((server, 0)/MessageFlight)
                 }
                 }),
             },
@@ -624,14 +628,14 @@ pub fn seed_successful12_forward(client: AgentName, server: AgentName) -> Trace<
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                    (client, 1)/MessageFlight
+                    K((client, 1)/MessageFlight)
                 }
                 }),
             },
             Step {
                 agent: client,
                 action: Action::Input(input_action! { term! {
-                    (server, 1)/MessageFlight
+                    K((server, 1)/MessageFlight)
                 }
                 }),
             },
@@ -661,12 +665,12 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
                                 fn_handshaketype_clienthello,
                                 fn_handshakepayload_clienthello(
                                     fn_clienthellopayload(
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0)),
-                                        ((client, 0))
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0)),
+                                        K((client, 0))
                                     )
                                 )
                             )
@@ -686,12 +690,12 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
                                 fn_handshaketype_serverhello,
                                 fn_handshakepayload_serverhello(
                                     fn_serverhellopayload(
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Random),
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ServerExtensions)
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ProtocolVersion),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Random),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/SessionID),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/CipherSuite),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/Compression),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]/ServerExtensions)
                                     )
                                 )
                             )
@@ -719,7 +723,7 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
                         fn_protocolversion_tlsv1_2,
                         fn_messagepayload_applicationdata(
                             fn_payload(
-                                ((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                                K((server, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                             )
                         )
                     )
@@ -734,7 +738,7 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
                         fn_protocolversion_tlsv1_2,
                         fn_messagepayload_applicationdata(
                             fn_payload(
-                                ((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                                K((server, 1)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                             )
                         )
                     )
@@ -749,7 +753,7 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
                         fn_protocolversion_tlsv1_2,
                         fn_messagepayload_applicationdata(
                             fn_payload(
-                                ((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                                K((server, 2)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                             )
                         )
                     )
@@ -764,7 +768,7 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
                         fn_protocolversion_tlsv1_2,
                         fn_messagepayload_applicationdata(
                             fn_payload(
-                                ((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                                K((server, 3)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                             )
                         )
                     )
@@ -789,7 +793,7 @@ pub fn seed_successful_with_ccs(client: AgentName, server: AgentName) -> Trace<T
                         fn_protocolversion_tlsv1_2,
                         fn_messagepayload_applicationdata(
                             fn_payload(
-                                ((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
+                                K((client, 0)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>)
                             )
                         )
                     )
@@ -816,7 +820,7 @@ pub fn seed_successful_with_tickets(
             fn_message(
                 fn_protocolversion_tlsv1_2,
                 fn_messagepayload_applicationdata(
-                    fn_payload(((server, 4)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>))
+                    fn_payload(K((server, 4)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>))
                 )
             )
         }
@@ -832,7 +836,7 @@ pub fn seed_successful_with_tickets(
             fn_message(
                 fn_protocolversion_tlsv1_2,
                 fn_messagepayload_applicationdata(
-                    fn_payload(((server, 5)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>))
+                    fn_payload(K((server, 5)[Some(TlsQueryMatcher::ApplicationData)]/Vec<u8>))
                 )
             )
         }
@@ -846,7 +850,7 @@ pub fn seed_successful_with_tickets(
 pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
     let curve = term! {
         D(
-            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))] / KeyShareEntry),
+            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))] / KeyShareEntry),
             NamedGroup
         )
     };
@@ -861,7 +865,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                         fn_serverhellopayload(
                             fn_protocolversion_tlsv1_2,
                             fn_random,
-                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
                             fn_ciphersuite_tls13_aes_128_gcm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
@@ -886,7 +890,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
         fn_append_transcript(
             (fn_append_transcript(
                 fn_new_transcript,
-                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+                K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
             )),
             (@server_hello) // plaintext ServerHello
         )
@@ -987,7 +991,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                                 (@certificate_verify_transcript),
                                 //(fn_server_finished_transcript(((client, 0)))),
                                 (@server_hello_transcript),
-                                (fn_get_client_key_share(((client, 0)), (@curve))),
+                                (fn_get_client_key_share(K((client, 0)), (@curve))),
                                 (@curve),
                                 fn_no_psk,
                                 fn_random,
@@ -1023,7 +1027,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                     fn_encrypt_handshake(
                         (@encrypted_extensions),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        (fn_get_client_key_share(K((client, 0)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -1041,7 +1045,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                     fn_encrypt_handshake(
                         (@certificate),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        (fn_get_client_key_share(K((client, 0)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -1059,7 +1063,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                     fn_encrypt_handshake(
                         (@certificate_verify),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        (fn_get_client_key_share(K((client, 0)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -1077,7 +1081,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
                     fn_encrypt_handshake(
                         (@server_finished),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        (fn_get_client_key_share(K((client, 0)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -1097,7 +1101,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
 pub fn seed_server_attacker_full_coalesced(client: AgentName) -> Trace<TLSProtocolTypes> {
     let curve = term! {
         D(
-            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))] / KeyShareEntry),
+            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))] / KeyShareEntry),
             NamedGroup
         )
     };
@@ -1112,7 +1116,7 @@ pub fn seed_server_attacker_full_coalesced(client: AgentName) -> Trace<TLSProtoc
                         fn_serverhellopayload(
                             fn_protocolversion_tlsv1_2,
                             fn_random,
-                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
                             fn_ciphersuite_tls13_aes_128_gcm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
@@ -1137,7 +1141,7 @@ pub fn seed_server_attacker_full_coalesced(client: AgentName) -> Trace<TLSProtoc
         fn_append_transcript(
             (fn_append_transcript(
                 fn_new_transcript,
-                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+                K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
             )),
             (@server_hello) // plaintext ServerHello
         )
@@ -1238,7 +1242,7 @@ pub fn seed_server_attacker_full_coalesced(client: AgentName) -> Trace<TLSProtoc
                                 (@certificate_verify_transcript),
                                 //(fn_server_finished_transcript(((client, 0)))),
                                 (@server_hello_transcript),
-                                (fn_get_client_key_share(((client, 0)), (@curve))),
+                                (fn_get_client_key_share(K((client, 0)), (@curve))),
                                 (@curve),
                                 fn_no_psk,
                                 fn_random,
@@ -1292,7 +1296,7 @@ pub fn seed_server_attacker_full_coalesced(client: AgentName) -> Trace<TLSProtoc
                             )
                         )),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        (fn_get_client_key_share(K((client, 0)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -1317,7 +1321,7 @@ pub fn seed_server_attacker_full_coalesced(client: AgentName) -> Trace<TLSProtoc
 pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace<TLSProtocolTypes> {
     let curve = term! {
         D(
-            ((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))] / KeyShareEntry),
+            K((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))] / KeyShareEntry),
             NamedGroup
         )
     };
@@ -1329,7 +1333,7 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
         fn_hello_retry_request(
             fn_protocolversion_tlsv1_2,
             fn_hello_retry_request_random,
-            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
             fn_ciphersuite_tls13_aes_128_gcm_sha256,
             fn_compressions(
                 fn_list_compression_append(fn_list_compression_empty, fn_compression_null)
@@ -1357,7 +1361,7 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
                         fn_serverhellopayload(
                             fn_protocolversion_tlsv1_2,
                             fn_random,
-                            ((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                            K((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
                             fn_ciphersuite_tls13_aes_128_gcm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
@@ -1385,11 +1389,11 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
                     // Compute the hash of the first Client Hello and add the hash in a new transcript buffer
                     // see RFC 8446 section 4.4.1
                     (fn_new_hrr_transcript(
-                        ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+                        K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
                     )),
                     (@server_hrr)
                 )),
-                ((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+                K((client, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
             )),
             (@server_hello)
         )
@@ -1490,7 +1494,7 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
                                 (@certificate_verify_transcript),
                                 //(fn_server_finished_transcript(((client, 0)))),
                                 (@server_hello_transcript),
-                                (fn_get_client_key_share(((client, 1)), (@curve))),
+                                (fn_get_client_key_share(K((client, 1)), (@curve))),
                                 (@curve),
                                 fn_no_psk,
                                 fn_random,
@@ -1529,7 +1533,7 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
                     fn_encrypt_handshake(
                         (@encrypted_extensions),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 1)), (@curve))),
+                        (fn_get_client_key_share(K((client, 1)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -1547,7 +1551,7 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
                     fn_encrypt_handshake(
                         (@certificate),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 1)), (@curve))),
+                        (fn_get_client_key_share(K((client, 1)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -1565,7 +1569,7 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
                     fn_encrypt_handshake(
                         (@certificate_verify),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 1)), (@curve))),
+                        (fn_get_client_key_share(K((client, 1)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -1583,7 +1587,7 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
                     fn_encrypt_handshake(
                         (@server_finished),
                         (@server_hello_transcript),
-                        (fn_get_client_key_share(((client, 1)), (@curve))),
+                        (fn_get_client_key_share(K((client, 1)), (@curve))),
                         fn_no_psk,
                         (@curve),
                         fn_false,
@@ -1682,12 +1686,12 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
 
     let extensions = term! {
         fn_decrypt_handshake_flight(
-            ((server, 0)/MessageFlight),
+            K((server, 0)/MessageFlight),
             // The first flight of messages sent by the server
-            (fn_server_hello_transcript(((server, 0)))),
+            (fn_server_hello_transcript(C((server, 0)))),
             (fn_psk(
                 D(
-                    ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -1745,7 +1749,7 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                             fn_signaturescheme_rsa_pss_sha256,
                             (fn_payloadu16(
                                 (fn_rsa_sign_client(
-                                    (fn_certificate_transcript(((server, 0)))),
+                                    (fn_certificate_transcript(C((server, 0)))),
                                     fn_bob_key,
                                     fn_signaturescheme_rsa_pss_sha256
                                 ))
@@ -1766,11 +1770,11 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                     fn_handshakepayload_finished(
                         fn_payload(
                             (fn_verify_data(
-                                (fn_server_finished_transcript(((server, 0)))),
-                                (fn_server_hello_transcript(((server, 0)))),
+                                (fn_server_finished_transcript(C((server, 0)))),
+                                (fn_server_hello_transcript(C((server, 0)))),
                                 (fn_psk(
                                     D(
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                         Vec<u8>
                                     )
                                 )),
@@ -1810,10 +1814,10 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                 action: Action::Input(input_action! { term! {
                     fn_encrypt_handshake(
                         (@certificate),
-                        (fn_server_hello_transcript(((server, 0)))),
+                        (fn_server_hello_transcript(C((server, 0)))),
                         (fn_psk(
                             D(
-                                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                 Vec<u8>
                             )
                         )),
@@ -1833,10 +1837,10 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                 action: Action::Input(input_action! { term! {
                     fn_encrypt_handshake(
                         (@certificate_verify),
-                        (fn_server_hello_transcript(((server, 0)))),
+                        (fn_server_hello_transcript(C((server, 0)))),
                         (fn_psk(
                             D(
-                                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                 Vec<u8>
                             )
                         )),
@@ -1856,10 +1860,10 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                 action: Action::Input(input_action! { term! {
                     fn_encrypt_handshake(
                         (@client_finished),
-                        (fn_server_hello_transcript(((server, 0)))),
+                        (fn_server_hello_transcript(C((server, 0)))),
                         (fn_psk(
                             D(
-                                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                 Vec<u8>
                             )
                         )),
@@ -1977,11 +1981,11 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
                     fn_handshakepayload_finished(
                         fn_payload(
                             (fn_verify_data(
-                                (fn_server_finished_transcript(((server, 0)))),
-                                (fn_server_hello_transcript(((server, 0)))),
+                                (fn_server_finished_transcript(C((server, 0)))),
+                                (fn_server_hello_transcript(C((server, 0)))),
                                 (fn_psk(
                                     D(
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                         Vec<u8>
                                     )
                                 )),
@@ -2013,10 +2017,10 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
                 action: Action::Input(input_action! { term! {
                     fn_encrypt_handshake(
                         (@client_finished),
-                        (fn_server_hello_transcript(((server, 0)))),
+                        (fn_server_hello_transcript(C((server, 0)))),
                         (fn_psk(
                             D(
-                                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                 Vec<u8>
                             )
                         )),
@@ -2130,28 +2134,28 @@ pub fn _seed_client_attacker12(
                 fn_new_transcript12,
                 (@client_hello) // ClientHello
             )),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
     let certificate_transcript = term! {
         fn_append_transcript(
             (@server_hello_transcript),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
         )
     };
 
     let server_key_exchange_transcript = term! {
         fn_append_transcript(
             (@certificate_transcript),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
         )
     };
 
     let server_hello_done_transcript = term! {
         fn_append_transcript(
             (@server_key_exchange_transcript),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
         )
     };
 
@@ -2179,9 +2183,9 @@ pub fn _seed_client_attacker12(
 
     let client_verify_data = term! {
         fn_client_sign_transcript(
-            ((server, 0)),
+            K((server, 0)),
             (fn_decode_server_ecdh_pubkey(
-                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript),
             fn_namedgroup_secp384r1,
@@ -2227,9 +2231,9 @@ pub fn _seed_client_attacker12(
                                 )
                             )
                         )),
-                        ((server, 0)),
+                        K((server, 0)),
                         (fn_decode_server_ecdh_pubkey(
-                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                         )),
                         fn_namedgroup_secp384r1,
                         fn_true,
@@ -2263,7 +2267,7 @@ pub fn _seed_server_attacker12(
                         fn_serverhellopayload(
                             fn_protocolversion_tlsv1_2,
                             fn_random,
-                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+                            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
                             fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256,
                             fn_compression_null,
                             (fn_serverextensions(
@@ -2285,7 +2289,7 @@ pub fn _seed_server_attacker12(
         fn_append_transcript(
             (fn_append_transcript(
                 fn_new_transcript12,
-                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+                K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
             )),
             (@server_hello) // plaintext ServerHello
         )
@@ -2325,7 +2329,7 @@ pub fn _seed_server_attacker12(
                             fn_payload(
                                 (fn_sign_rsa_ecdhe_server_key_exchange12(
                                     fn_namedgroup_secp384r1,
-                                    ((client, 0)),
+                                    K((client, 0)),
                                     fn_random,
                                     fn_alice_key
                                 ))
@@ -2359,13 +2363,13 @@ pub fn _seed_server_attacker12(
     let client_key_exchange_transcript = term! {
         fn_append_transcript(
             (@server_hello_done_transcript),
-            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))])
+            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))])
         )
     };
 
     let client_ecdh_pubkey = term! {
         fn_decode_client_ecdh_pubkey(
-            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>) // ClientECDHParams
+            K((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>) // ClientECDHParams
         )
     };
 
@@ -2374,14 +2378,14 @@ pub fn _seed_server_attacker12(
             (@client_key_exchange_transcript),
             (fn_decrypt12(
                 // Decrypt client finished
-                ((client, 0)[Some(TlsQueryMatcher::Handshake(None))]),
+                K((client, 0)[Some(TlsQueryMatcher::Handshake(None))]),
                 //EncryptedHandshake
                 fn_random,
                 (@client_ecdh_pubkey),
                 fn_namedgroup_secp384r1,
                 fn_false,
                 fn_seq_0,
-                ((client, 0)),
+                K((client, 0)),
                 fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
             ))
         )
@@ -2393,7 +2397,7 @@ pub fn _seed_server_attacker12(
             (@client_ecdh_pubkey),
             (@client_finished_transcript),
             fn_namedgroup_secp384r1,
-            ((client, 0)),
+            K((client, 0)),
             fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
         )
     };
@@ -2473,7 +2477,7 @@ pub fn _seed_server_attacker12(
                         fn_namedgroup_secp384r1,
                         fn_false,
                         fn_seq_0,
-                        ((client, 0)),
+                        K((client, 0)),
                         fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
                     )
                 }
@@ -2496,13 +2500,13 @@ pub fn seed_session_resumption_dhe(
 
     let extensions = term! {
         fn_decrypt_application_flight(
-            ((initial_server, 1)/MessageFlight),
+            K((initial_server, 1)/MessageFlight),
             // The first flight of messages sent by the server
-            (fn_server_hello_transcript(((initial_server, 0)))),
-            (fn_server_finished_transcript(((initial_server, 0)))),
+            (fn_server_hello_transcript(C((initial_server, 0)))),
+            (fn_server_finished_transcript(C((initial_server, 0)))),
             (fn_psk(
                 D(
-                    ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -2618,12 +2622,12 @@ pub fn seed_session_resumption_dhe(
 
     let psk = term! {
         fn_derive_psk(
-            (fn_server_hello_transcript(((initial_server, 0)))),
-            (fn_server_finished_transcript(((initial_server, 0)))),
-            (fn_client_finished_transcript(((initial_server, 0)))),
+            (fn_server_hello_transcript(C((initial_server, 0)))),
+            (fn_server_finished_transcript(C((initial_server, 0)))),
+            (fn_client_finished_transcript(C((initial_server, 0)))),
             (fn_psk(
                 D(
-                    ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -2651,11 +2655,11 @@ pub fn seed_session_resumption_dhe(
                     fn_handshakepayload_finished(
                         fn_payload(
                             (fn_verify_data(
-                                (fn_server_finished_transcript(((server, 0)))),
-                                (fn_server_hello_transcript(((server, 0)))),
+                                (fn_server_finished_transcript(C((server, 0)))),
+                                (fn_server_hello_transcript(C((server, 0)))),
                                 (fn_psk(
                                     D(
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                         Vec<u8>
                                     )
                                 )),
@@ -2687,10 +2691,10 @@ pub fn seed_session_resumption_dhe(
                 action: Action::Input(input_action! { term! {
                     fn_encrypt_handshake(
                         (@resumption_client_finished),
-                        (fn_server_hello_transcript(((server, 0)))),
+                        (fn_server_hello_transcript(C((server, 0)))),
                         (fn_psk(
                             D(
-                                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                 Vec<u8>
                             )
                         )),
@@ -2720,13 +2724,13 @@ pub fn seed_session_resumption_ke(
 
     let extensions = term! {
         fn_decrypt_application_flight(
-            ((initial_server, 1)/MessageFlight),
+            K((initial_server, 1)/MessageFlight),
             // The first flight of messages sent by the server
-            (fn_server_hello_transcript(((initial_server, 0)))),
-            (fn_server_finished_transcript(((initial_server, 0)))),
+            (fn_server_hello_transcript(C((initial_server, 0)))),
+            (fn_server_finished_transcript(C((initial_server, 0)))),
             (fn_psk(
                 D(
-                    ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -2842,12 +2846,12 @@ pub fn seed_session_resumption_ke(
 
     let psk = term! {
         fn_derive_psk(
-            (fn_server_hello_transcript(((initial_server, 0)))),
-            (fn_server_finished_transcript(((initial_server, 0)))),
-            (fn_client_finished_transcript(((initial_server, 0)))),
+            (fn_server_hello_transcript(C((initial_server, 0)))),
+            (fn_server_finished_transcript(C((initial_server, 0)))),
+            (fn_client_finished_transcript(C((initial_server, 0)))),
             (fn_psk(
                 D(
-                    ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -2875,8 +2879,8 @@ pub fn seed_session_resumption_ke(
                     fn_handshakepayload_finished(
                         fn_payload(
                             (fn_verify_data(
-                                (fn_server_finished_transcript(((server, 0)))),
-                                (fn_server_hello_transcript(((server, 0)))),
+                                (fn_server_finished_transcript(C((server, 0)))),
+                                (fn_server_hello_transcript(C((server, 0)))),
                                 fn_no_key_share,
                                 (fn_psk((@psk))),
                                 fn_namedgroup_secp384r1,
@@ -2906,7 +2910,7 @@ pub fn seed_session_resumption_ke(
                 action: Action::Input(input_action! { term! {
                     fn_encrypt_handshake(
                         (@resumption_client_finished),
-                        (fn_server_hello_transcript(((server, 0)))),
+                        (fn_server_hello_transcript(C((server, 0)))),
                         fn_no_key_share,
                         (fn_psk((@psk))),
                         fn_namedgroup_secp384r1,
@@ -3031,7 +3035,7 @@ pub fn _seed_client_attacker_full(
                 fn_new_transcript,
                 (@client_hello) // ClientHello
             )),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
@@ -3039,12 +3043,12 @@ pub fn _seed_client_attacker_full(
 
     let extensions = term! {
         fn_decrypt_handshake_flight(
-            ((server, 0)/MessageFlight),
+            K((server, 0)/MessageFlight),
             // The first flight of messages sent by the server
             (@server_hello_transcript),
             (fn_psk(
                 D(
-                    ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -3127,7 +3131,7 @@ pub fn _seed_client_attacker_full(
                                 (@server_hello_transcript),
                                 (fn_psk(
                                     D(
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                         Vec<u8>
                                     )
                                 )),
@@ -3167,7 +3171,7 @@ pub fn _seed_client_attacker_full(
                         (@server_hello_transcript),
                         (fn_psk(
                             D(
-                                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                 Vec<u8>
                             )
                         )),
@@ -3318,19 +3322,19 @@ pub fn _seed_client_attacker_full_precomputation(
                 fn_new_transcript,
                 (@client_hello) // ClientHello
             )),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
     // ((0, 1)) could be a CCS the server sends one
     let extensions = term! {
         fn_decrypt_handshake_flight(
-            ((server, 0)/MessageFlight),
+            K((server, 0)/MessageFlight),
             // The first flight of messages sent by the server
             (@server_hello_transcript),
             (fn_psk(
                 D(
-                    ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -3346,9 +3350,9 @@ pub fn _seed_client_attacker_full_precomputation(
 
     // We are using a query on a precomputation with label decrypted_extensions
     let encrypted_extensions = term! {
-        (!"decrypted_extensions", 0)[Some(TlsQueryMatcher::Handshake(Some(
+        K((!"decrypted_extensions", 0)[Some(TlsQueryMatcher::Handshake(Some(
         HandshakeType::EncryptedExtensions
-        )))] / Message
+        )))] / Message)
     };
 
     let encrypted_extension_transcript = term! {
@@ -3359,9 +3363,9 @@ pub fn _seed_client_attacker_full_precomputation(
     };
 
     let server_certificate = term! {
-        (!"decrypted_extensions", 0)[Some(TlsQueryMatcher::Handshake(Some(
+        K((!"decrypted_extensions", 0)[Some(TlsQueryMatcher::Handshake(Some(
         HandshakeType::Certificate
-        )))] / Message
+        )))] / Message)
     };
 
     let server_certificate_transcript = term! {
@@ -3372,9 +3376,9 @@ pub fn _seed_client_attacker_full_precomputation(
     };
 
     let server_certificate_verify = term! {
-        (!"decrypted_extensions", 0)[Some(TlsQueryMatcher::Handshake(Some(
+        K((!"decrypted_extensions", 0)[Some(TlsQueryMatcher::Handshake(Some(
         HandshakeType::CertificateVerify
-        )))] / Message
+        )))] / Message)
     };
 
     let server_certificate_verify_transcript = term! {
@@ -3385,9 +3389,9 @@ pub fn _seed_client_attacker_full_precomputation(
     };
 
     let server_finished = term! {
-        (!"decrypted_extensions", 0)[Some(TlsQueryMatcher::Handshake(Some(
+        K((!"decrypted_extensions", 0)[Some(TlsQueryMatcher::Handshake(Some(
         HandshakeType::Finished
-        )))] / Message
+        )))] / Message)
     };
 
     let server_finished_transcript = term! {
@@ -3410,7 +3414,7 @@ pub fn _seed_client_attacker_full_precomputation(
                                 (@server_hello_transcript),
                                 (fn_psk(
                                     D(
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                         Vec<u8>
                                     )
                                 )),
@@ -3455,7 +3459,7 @@ pub fn _seed_client_attacker_full_precomputation(
                             (@server_hello_transcript),
                             (fn_psk(
                                 D(
-                                    ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                    K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                     Vec<u8>
                                 )
                             )),
@@ -3498,13 +3502,13 @@ pub fn seed_session_resumption_dhe_full(
 
     let new_ticket_message = term! {
         fn_decrypt_application(
-            ((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]),
+            K((initial_server, 4)[Some(TlsQueryMatcher::ApplicationData)]),
             // Ticket?
             (@server_hello_transcript),
             (@server_finished_transcript),
             (fn_psk(
                 D(
-                    ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -3618,7 +3622,7 @@ pub fn seed_session_resumption_dhe_full(
             (@client_finished_transcript),
             (fn_psk(
                 D(
-                    ((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((initial_server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -3643,18 +3647,18 @@ pub fn seed_session_resumption_dhe_full(
                 fn_new_transcript,
                 (@full_client_hello) // ClientHello
             )),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
     let resumption_decrypted_handshake = term! {
         fn_decrypt_handshake_flight(
-            ((server, 0)/MessageFlight),
+            K((server, 0)/MessageFlight),
             // The first flight of messages sent by the server
             (@resumption_server_hello_transcript),
             (fn_psk(
                 D(
-                    ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -3709,7 +3713,7 @@ pub fn seed_session_resumption_dhe_full(
                                 (@resumption_server_hello_transcript),
                                 (fn_psk(
                                     D(
-                                        ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                        K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                         Vec<u8>
                                     )
                                 )),
@@ -3744,7 +3748,7 @@ pub fn seed_session_resumption_dhe_full(
                         (@resumption_server_hello_transcript),
                         (fn_psk(
                             D(
-                                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                                K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                                 Vec<u8>
                             )
                         )),
@@ -3795,11 +3799,11 @@ fn decrypt_handshake_from_claims() -> Term<TLSProtocolTypes> {
     let server = AgentName::first();
     term! {
         fn_decrypt_handshake_flight(
-            ((server, 0)/MessageFlight),
-            (fn_server_hello_transcript(((server,0)))),
+            K((server, 0)/MessageFlight),
+            (fn_server_hello_transcript(C((server,0)))),
             (fn_psk(
                 D(
-                    ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
+                    K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))] / KeyShareEntry),
                     Vec<u8>
                 )
             )),
@@ -4643,6 +4647,7 @@ pub mod tests {
                 source: None,
                 matcher: Some(TlsQueryMatcher::Alert),
                 counter: 0,
+                is_claim: false,
             },
         );
 

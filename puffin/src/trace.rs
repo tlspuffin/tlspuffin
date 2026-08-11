@@ -50,6 +50,7 @@ use crate::trace::Action::Input;
 pub struct Query<M> {
     pub source: Option<Source>,
     pub matcher: Option<M>,
+    pub is_claim: bool,
     pub counter: u16, // in case an agent sends multiple messages of the same type
 }
 
