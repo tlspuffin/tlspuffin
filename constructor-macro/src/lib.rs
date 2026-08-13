@@ -154,12 +154,26 @@ pub fn constructor_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStr
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
     let options = ConstructorOptions::parse(&input.attrs);
 
+    // A constructor is registered under the `TypeId` of the type it builds, which only a concrete
+    // type has: `define_signature!` has nothing to infer a generic `fn_foo`'s parameters from.
+    if !input.generics.params.is_empty() {
+        return syn::Error::new_spanned(
+            &input.generics,
+            "Constructor cannot be derived for a generic type: a function symbol is registered \
+             under the TypeId of the type it builds, which only a concrete type has. Register the \
+             instantiations that take part in the term algebra by hand, with `define_signature!` \
+             and `define_readable_types!`.",
+        )
+        .to_compile_error()
+        .into();
+    }
+
     let constructors = map_type_definition(&input.ident, &input.generics, &input, &options);
     // The readable-type registration is about the type, not about which constructors were
     // generated, so it is emitted here rather than in any of the branches of
     // `map_type_definition`: a type whose variants are all skipped is still a type a bitstring
     // can be read back into.
-    let readable_types = add_to_readable_types(&input.ident, &input.generics, &options);
+    let readable_types = add_to_readable_types(&input.ident, &options);
 
     quote! {
         #constructors
@@ -346,15 +360,10 @@ fn add_to_signature(fn_name: &syn::Ident, options: &ConstructorOptions) -> Token
 /// Registers the type — and, under [`LIST_ATTR`], `Vec<Self>` — as one of the signature's
 /// readable types, so that `try_read_bytes` can read a bitstring back into it.
 ///
-/// Emits nothing when the type carries [`NO_TRY_READ_ATTR`], or when it is generic: a registration
-/// stores a `TypeId`, which only exists for a concrete `'static` type, so a generic type has to be
-/// registered by hand for each instantiation that is part of the term algebra.
-fn add_to_readable_types(
-    name: &syn::Ident,
-    generics: &syn::Generics,
-    options: &ConstructorOptions,
-) -> TokenStream {
-    if options.no_try_read || !generics.params.is_empty() {
+/// Emits nothing when the type carries [`NO_TRY_READ_ATTR`]. Generic types never reach here, the
+/// derive rejects them outright.
+fn add_to_readable_types(name: &syn::Ident, options: &ConstructorOptions) -> TokenStream {
+    if options.no_try_read {
         return quote! {};
     }
 
