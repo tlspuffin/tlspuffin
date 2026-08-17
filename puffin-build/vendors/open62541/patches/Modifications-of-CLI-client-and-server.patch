@@ -1,13 +1,12 @@
-From fe9c73cb8b3380ecab1b5990ee6ecee1f9bd8247 Mon Sep 17 00:00:00 2001
+From e38b12f14e91af06b186bcbbc13690448c021562 Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
 Date: Fri, 24 Apr 2026 14:57:00 +0200
-Subject: [PATCH 1/3] Modifications of CLI client and server used by Puffin
+Subject: [PATCH 2/4] Modification of CLI client and server for Puffin
 
-(cherry picked from commit 4bce42e7d79c424c9dd90ccc7b982847ebac73a2)
 ---
- examples/ci_server.c      | 52 +++++++++++++++++++++++++++------------
- examples/client_connect.c | 49 ++++++++++++++++++++++++++++++++++--
- 2 files changed, 83 insertions(+), 18 deletions(-)
+ examples/ci_server.c      | 52 +++++++++++++++++++++---------
+ examples/client_connect.c | 68 ++++++++++++++++++++++++++++++++++++---
+ 2 files changed, 99 insertions(+), 21 deletions(-)
 
 diff --git a/examples/ci_server.c b/examples/ci_server.c
 index 655072153..1cde798f7 100644
@@ -119,19 +118,25 @@ index 655072153..1cde798f7 100644
      UA_Server_delete(server);
      return retval == UA_STATUSCODE_GOOD ? EXIT_SUCCESS : EXIT_FAILURE;
 diff --git a/examples/client_connect.c b/examples/client_connect.c
-index e07548ebc..2301c2d28 100644
+index e07548ebc..0d406e31a 100644
 --- a/examples/client_connect.c
 +++ b/examples/client_connect.c
-@@ -14,7 +14,7 @@ static void usage(void) {
+@@ -12,9 +12,12 @@ static void usage(void) {
+     printf("Usage: client [-username name] [-password password] ");
+ #ifdef UA_ENABLE_ENCRYPTION
      printf("[-cert certfile.der] [-key keyfile.der] "
-            "[-securityMode <0-3>] [-securityPolicy policyUri] ");
+-           "[-securityMode <0-3>] [-securityPolicy policyUri] ");
++           "[-securityMode <0-3>] [-securityPolicy policyUri]\n");
  #endif
 -    printf("opc.tcp://<host>:<port>\n");
++    printf("       client [-cert certfile.der] [-key keyfile.der] ");
++    printf("[-userCert certAuthFile.der] [-userKey keyAuthFile.der] ");
++    printf("[-securityMode <0-3>] [-securityPolicy policyUri] ");
 +    printf("[-reverse] opc.tcp://<host>:<port>\n");
  }
  
  int main(int argc, char *argv[]) {
-@@ -23,6 +23,7 @@ int main(int argc, char *argv[]) {
+@@ -23,6 +26,7 @@ int main(int argc, char *argv[]) {
      char *serverurl = NULL;
      char *username = NULL;
      char *password = NULL;
@@ -139,7 +144,7 @@ index e07548ebc..2301c2d28 100644
  #ifdef UA_ENABLE_ENCRYPTION
      char *certfile = NULL;
      char *keyfile = NULL;
-@@ -64,6 +65,12 @@ int main(int argc, char *argv[]) {
+@@ -64,6 +68,12 @@ int main(int argc, char *argv[]) {
              continue;
          }
  
@@ -152,7 +157,23 @@ index e07548ebc..2301c2d28 100644
  #ifdef UA_ENABLE_ENCRYPTION
          if(strcmp(argv[argpos], "-cert") == 0) {
              argpos++;
-@@ -123,6 +130,17 @@ int main(int argc, char *argv[]) {
+@@ -99,13 +109,13 @@ int main(int argc, char *argv[]) {
+         }
+ #endif
+ #if defined(UA_ENABLE_ENCRYPTION_OPENSSL) || defined(UA_ENABLE_ENCRYPTION_MBEDTLS)
+-        if(strcmp(argv[argpos], "-certAuth") == 0) {
++        if(strcmp(argv[argpos], "-userCert") == 0) {
+             argpos++;
+             certAuthFile = argv[argpos];
+             continue;
+         }
+ 
+-        if(strcmp(argv[argpos], "-keyAuth") == 0) {
++        if(strcmp(argv[argpos], "-userKey") == 0) {
+             argpos++;
+             keyAuthFile = argv[argpos];
+             continue;
+@@ -123,6 +133,17 @@ int main(int argc, char *argv[]) {
      cc->securityMode = securityMode;
      cc->securityPolicyUri = securityPolicyUri;
  
@@ -170,15 +191,14 @@ index e07548ebc..2301c2d28 100644
  #ifdef UA_ENABLE_ENCRYPTION
      if(certfile) {
          UA_ByteString certificate = loadFile(certfile);
-@@ -166,14 +184,41 @@ int main(int argc, char *argv[]) {
+@@ -166,14 +187,51 @@ int main(int argc, char *argv[]) {
          UA_ByteString certificateAuth = loadFile(certAuthFile);
          UA_ByteString privateKeyAuth  = loadFile(keyAuthFile);
          UA_ClientConfig_setAuthenticationCert(cc, certificateAuth, privateKeyAuth);
 -        retval = UA_Client_connect(client, serverurl);
  
 +        if(reverse) {
-+            /* Set endpoint URL */
-+            cc->endpointUrl = UA_String_fromChars("opc.tcp://localhost:4840/opcuapuffin.oscar");
++            UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_APPLICATION, "Reverse client!");
 +            cc->timeout = 100000; // ms = 100s
 +            const UA_String listenHost = UA_STRING_STATIC("127.0.0.1");
 +
@@ -193,13 +213,24 @@ index e07548ebc..2301c2d28 100644
 +            if (found) port = atoi(found+1);
 +    
 +            retval = UA_Client_startListeningForReverseConnect(client, &listenHost, 1, port);
-+            if (retval  == UA_STATUSCODE_GOOD) {
-+                UA_LOG_INFO(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Reverse connection to %S!",
-+                    cc->endpointUrl);
-+            } else {
-+                UA_LOG_ERROR(UA_Log_Stdout, UA_LOGCATEGORY_USERLAND, "Reverse connect error: (%s)",
-+                   UA_StatusCode_name(retval));
-+            };
++            if(retval != UA_STATUSCODE_GOOD) {
++                UA_Client_delete(client);
++                return (int)retval;
++            }
++
++            // Background loop to accept connection...
++            bool connected = false;
++            while(!connected) {
++                UA_Client_run_iterate(client, 100);
++                UA_SecureChannelState channelState;
++                UA_SessionState sessionState;
++                UA_Client_getState(client, &channelState, &sessionState, NULL);
++
++                if(sessionState == UA_SESSIONSTATE_ACTIVATED) {
++                    printf("Securely connected and authenticated!\n");
++                    connected = true;
++                }
++            }
 +        } else {
 +            retval = UA_Client_connect(client, serverurl);
 +        }
