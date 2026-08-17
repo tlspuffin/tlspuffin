@@ -1,7 +1,7 @@
-From 536ea6ecb96c73bd6b1eeb7906f3251cae558264 Mon Sep 17 00:00:00 2001
+From 391bf739d213eac472f9a393581f2235bd1e7e9b Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
 Date: Fri, 24 Apr 2026 14:58:14 +0200
-Subject: [PATCH 2/3] Instrumentation for debug
+Subject: [PATCH 3/4] Instrumentation for debug
 
 (cherry picked from commit 9f619b84cbc320dbe1fc0fff7531383aca9b8386)
 ---
@@ -66,10 +66,10 @@ index ff5e7aa0a..662704933 100644
      UA_UNLOCK(&el->elMutex);
      return res;
 diff --git a/src/client/ua_client_connect.c b/src/client/ua_client_connect.c
-index 9662ecce2..61da1a5be 100644
+index fe402adaa..aff15be3e 100644
 --- a/src/client/ua_client_connect.c
 +++ b/src/client/ua_client_connect.c
-@@ -2291,7 +2291,9 @@ initConnect(UA_Client *client) {
+@@ -2301,7 +2301,9 @@ initConnect(UA_Client *client) {
      res = UA_parseEndpointUrl(&client->config.endpointUrl, &hostname, &port, &path);
      if(res != UA_STATUSCODE_GOOD) {
          UA_LOG_WARNING(client->config.logging, UA_LOGCATEGORY_NETWORK,
@@ -81,7 +81,7 @@ index 9662ecce2..61da1a5be 100644
          return;
      }
 diff --git a/src/server/ua_server.c b/src/server/ua_server.c
-index 1dece1eab..53d61a086 100644
+index 1610c5c9a..cf55ce2eb 100644
 --- a/src/server/ua_server.c
 +++ b/src/server/ua_server.c
 @@ -1393,6 +1393,8 @@ UA_StatusCode

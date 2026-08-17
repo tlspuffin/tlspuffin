@@ -1,8 +1,8 @@
 use_languages(C)
 
+patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-fix-of-ClientUserId.patch)
 patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Modifications-of-CLI-client-and-server.patch)
 patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Instrumentation-to-debug.patch)
-patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-fix-of-ClientUserId.patch)
 
 # Bug injection:
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Buffer_overflow.patch)

@@ -96,18 +96,11 @@ static const CLAIMER_CB DEFAULT_CLAIMER_CB = {.context = NULL,
 
 
 void open62541_register_claimer(AGENT agent, const CLAIMER_CB *callback) {
-    if (agent->claimer != NULL)
-    {
-        agent->claimer->destroy(agent->claimer->context);
-    }
-
+// #ifdef HAS_CLAIMS
     CLAIMER_CB *new_claimer = malloc(sizeof(CLAIMER_CB));
     memcpy(new_claimer, callback, sizeof(CLAIMER_CB));
     agent->claimer = new_claimer;
-
-#ifdef HAS_CLAIMS
-    register_claimer(agent->ssl, _inner_claimer, agent);
-#endif
+// #endif
 };
 
 AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
@@ -174,7 +167,7 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
         agent->id = descriptor->id;
         agent->role = descriptor->role;
         agent->application = (Application*) client;
-        //open62541_register_claimer(agent, &DEFAULT_CLAIMER_CB);
+        open62541_register_claimer(agent, &DEFAULT_CLAIMER_CB);
         UA_PuffinConnectionManager *pcm = take_last_puffin_connection_manager();
         if (pcm) {
             agent->connexion_manager = pcm;
@@ -249,6 +242,7 @@ AGENT open62541_create(const APPLICATION_DESCRIPTOR *descriptor) {
         agent->id = descriptor->id;
         agent->role = descriptor->role;
         agent->application = (Application*) server;
+        open62541_register_claimer(agent, &DEFAULT_CLAIMER_CB);
         UA_PuffinConnectionManager *pcm = take_last_puffin_connection_manager();
         if (pcm) {
             agent->connexion_manager = pcm;
@@ -282,6 +276,10 @@ void open62541_destroy(AGENT agent) {
         _log(PUFFIN.trace,"Server delete ...");
         status = UA_Server_delete(server);
         if (status) _log(PUFFIN.error, "UA Server delete returned %s", UA_StatusCode_name(status));
+    }
+    if (agent->claimer != NULL) {
+        agent->claimer->destroy(agent->claimer->context);
+        UA_free(agent->claimer);
     }
     UA_free(agent);
 }

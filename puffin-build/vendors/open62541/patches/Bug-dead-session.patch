@@ -1,7 +1,7 @@
-From 202c8277da529e94d5516804693b20a3a54ed3c6 Mon Sep 17 00:00:00 2001
+From 2e8d46a2927379f26103bdf94412fcdaae4f4d98 Mon Sep 17 00:00:00 2001
 From: vdh-anssi <vincent.diemunsch@inria.fr>
 Date: Tue, 4 Aug 2026 17:52:03 +0200
-Subject: [PATCH] Bug dead session
+Subject: [PATCH 4/4] Bug dead session
 
 ---
  src/server/ua_services_session.c | 5 +++--
