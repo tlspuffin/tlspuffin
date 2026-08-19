@@ -3,36 +3,45 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 # 1. import a campaign
-from convergence_bug_dead_session_05 import title, measurements
+from convergence_bug_dead_session_17 import title, measurements
 
 # 2. experimental data
 t_raw_data = []
-y_raw_data = []
-start = datetime.fromisoformat(measurements[0][0]).timestamp()
-for (t, y) in measurements:
-   t_raw_data += [(datetime.fromisoformat(t).timestamp() - start) / 3600.0]
-   y_raw_data += [y]
+a_raw_data = []
+T_ini = datetime.fromisoformat(measurements[0][0]).timestamp() / 3600.0
+A_inf = measurements[-1][1] # asymptotic value
+T_0 = 0
+for (t, a) in measurements:
+    if a > A_inf / 2:
+        if T_0 == 0:
+            T_0 = datetime.fromisoformat(t).timestamp() / 3600.0
+            R_0 = A_inf - a
+        t_raw_data += [datetime.fromisoformat(t).timestamp() / 3600.0 - T_0]
+        a_raw_data += [a]
 t_data = np.array(t_raw_data)
-y_data = np.array(y_raw_data)
+a_data = np.array(a_raw_data)
 
 print(title + ", " + measurements[0][0])
-print("t data: " + str(t_data))
-print("y data: " + str(y_data))
+print("t: " + str(t_data))
+print("a: " + str(a_data))
 
 # 3. Theoretical model
-B = y_data[-1]
-def model(t, A, k):
-    return A * np.exp(-k * t) + B
+def model(t, k):
+    return A_inf - R_0 * np.exp(-k * t)
 
 # 5. Fitting using the non-linear least squares method
-parametres, covariance = curve_fit(model, t_data, y_data, p0=[y_data[0] - B, 1])
+parameters, covariance = curve_fit(model, t_data, a_data, p0=[1])
 
 # 6. Results
-A_optimal, k_optimal = parametres
-print(f"A : {A_optimal:.3f}")
-print(f"k : {k_optimal:.3f}")
+k_optimal = parameters[0]
+uncertainties = np.sqrt(np.diag(covariance))
+k_uncertainty = uncertainties[0]
+print(f"k : {k_optimal:.3f} ± {k_uncertainty:.3f} (en h^-1)")
 
 # 7. Typical time to have less than 1% variation
 error = 0.1 # %
-tau = -1/k_optimal * np.log(error/100*B/-A_optimal)
-print(f"Convergence time (<{error:.1f} %): {tau:.1f} h") 
+tau = -1/k_optimal * np.log(error/100*A_inf/R_0)
+t = T_0 - T_ini + tau
+print(f"Convergence time (<{error:.1f} %): {tau:.1f} h")
+print(f"total time: {t:.1f} h")
+
