@@ -10,7 +10,8 @@ members = [
     "puffin-build",
     "puffin-macros",
     "extractable-macro",
-    "constructor-macro"
+    "constructor-macro",
+    "signature-macro"
 ]
 
 exclude = [
