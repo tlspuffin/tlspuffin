@@ -4,14 +4,14 @@ use comparable::Comparable;
 use extractable_macro::Extractable;
 use puffin::agent::ProtocolDescriptorConfig;
 use puffin::algebra::dynamic_function::FunctionAttributes;
-use puffin::algebra::AnyMatcher;
+use puffin::algebra::Matcher;
 use puffin::error::Error;
 use puffin::protocol::{Extractable, ProtocolTypes};
 use puffin::trace::{Knowledge, Source};
 use puffin::{atom_extract_knowledge, codec, define_signature, dummy_codec};
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Clone, Debug, Hash, Serialize, Deserialize)]
+#[derive(Default, Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 struct TestProtocolDescriptorConfig {}
 
 impl ProtocolDescriptorConfig for TestProtocolDescriptorConfig {
@@ -20,7 +20,27 @@ impl ProtocolDescriptorConfig for TestProtocolDescriptorConfig {
     }
 }
 
-#[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+/// A matcher whose values are distinguishable, so that a test can assert *which* matcher a
+/// knowledge was recorded under. `puffin`'s `AnyMatcher` matches everything and would make every
+/// assertion below pass regardless.
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+enum TestMatcher {
+    Alert,
+    Handshake(u8),
+    Other,
+}
+
+impl Matcher for TestMatcher {
+    fn matches(&self, matcher: &Self) -> bool {
+        self == matcher
+    }
+
+    fn specificity(&self) -> u32 {
+        0
+    }
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 struct TestProtocolTypes {}
 
 impl std::fmt::Display for TestProtocolTypes {
@@ -30,7 +50,7 @@ impl std::fmt::Display for TestProtocolTypes {
 }
 
 impl ProtocolTypes for TestProtocolTypes {
-    type Matcher = AnyMatcher;
+    type Matcher = TestMatcher;
     type PUTConfig = TestProtocolDescriptorConfig;
 
     fn signature() -> &'static Signature<Self> {
@@ -105,7 +125,11 @@ fn extractable_no_recursion_named_struct() {
     let mut store = vec![];
     let a = TestStruct { a: Void() };
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 2);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -125,7 +149,11 @@ fn extractable_named_struct() {
     let mut store = vec![];
     let a = TestStruct { a: Void() };
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 2);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -151,7 +179,11 @@ fn extractable_named_struct_multiple_fields() {
         c: Void(),
     };
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 4);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -181,7 +213,11 @@ fn extractable_named_struct_ignored_fields() {
         _c: Void(),
     };
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 2);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -215,7 +251,11 @@ fn extractable_named_struct_recursive() {
         c: Void(),
     };
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 6);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -237,7 +277,11 @@ fn extractable_no_recursion_unnamed_struct() {
     let mut store = vec![];
     let a = TestStruct(Void());
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 2);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -255,7 +299,11 @@ fn extractable_unnamed_struct() {
     let mut store = vec![];
     let a = TestStruct(Void());
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 2);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -273,7 +321,11 @@ fn extractable_unnamed_struct_multiple_fields() {
     let mut store = vec![];
     let a = TestStruct(Void(), Void(), Void());
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 4);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -293,7 +345,11 @@ fn extractable_unnamed_struct_ignored_fields() {
     let mut store = vec![];
     let a = TestStruct(Void(), 0, Void());
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 2);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -319,7 +375,11 @@ fn extractable_unnamed_struct_recursive() {
     let mut store = vec![];
     let a = TestStruct(Void(), OtherStruct { x: 1, y: 2 }, Void());
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 6);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -376,7 +436,11 @@ fn extractable_enum_no_recursion_named_fields() {
         x: TestStruct { x: 0, y: 1 },
     };
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 2);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -417,7 +481,11 @@ fn extractable_enum_ignore_named_fields() {
         z: Void(),
     };
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 3);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -456,7 +524,11 @@ fn extractable_enum_named_fields_recursive() {
         b: Void(),
     };
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 5);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -500,7 +572,11 @@ fn extractable_enum_ignore_unnamed_fields() {
     let mut store = vec![];
     let a = TestEnum::A(Void(), TestStruct { x: 0, y: 1 }, Void());
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 3);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -536,7 +612,11 @@ fn extractable_enum_unnamed_fields_recursive() {
     let mut store = vec![];
     let a = TestEnum::A(TestStruct { x: 0, y: 1 }, Void());
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 5);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -585,7 +665,11 @@ fn extractable_enum_named_unnamed_fields_recursive() {
         TestStruct { x: 42, y: 42 },
     );
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 8);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
@@ -627,7 +711,7 @@ fn extractable_enum_named_unnamed_fields_recursive() {
 
     let _ = b.extract_knowledge(
         &mut other_store,
-        None as Option<AnyMatcher>,
+        None as Option<TestMatcher>,
         &Source::Label(None),
     );
 
@@ -685,8 +769,177 @@ fn extractable_union() {
     let mut store = vec![];
     let a = TestUnion { _x: 64 };
 
-    let _ = a.extract_knowledge(&mut store, None as Option<AnyMatcher>, &Source::Label(None));
+    let _ = a.extract_knowledge(
+        &mut store,
+        None as Option<TestMatcher>,
+        &Source::Label(None),
+    );
 
     assert_eq!(store.len(), 1);
     assert_eq!(store[0].data.as_any().type_id(), Any::type_id(&a));
+}
+
+// ── #[extractable_matcher(...)] ──────────────────────────────────────────────
+//
+// The assertions are on `Knowledge::matcher` rather than on the number of knowledges: what the
+// attribute changes is which query finds a message, and nothing else.
+
+#[test]
+fn matcher_on_a_type_replaces_the_one_passed_in() {
+    #[derive(Clone, Debug, Comparable, Extractable)]
+    #[extractable(TestProtocolTypes)]
+    #[extractable_matcher(Some(TestMatcher::Alert))]
+    struct TestStruct {
+        a: u8,
+    }
+
+    dummy_codec!(TestProtocolTypes, TestStruct);
+
+    let mut store = vec![];
+    let a = TestStruct { a: 1 };
+
+    let _ = a.extract_knowledge(&mut store, Some(TestMatcher::Other), &Source::Label(None));
+
+    // The type's own knowledge and its field are both recorded under the type's matcher, not
+    // under the `Other` it was called with.
+    assert_eq!(store.len(), 2);
+    assert!(store.iter().all(|k| k.matcher == Some(TestMatcher::Alert)));
+}
+
+#[test]
+fn matcher_on_a_type_reaches_nested_types() {
+    #[derive(Clone, Debug, Comparable, Extractable)]
+    #[extractable(TestProtocolTypes)]
+    #[extractable_matcher(Some(TestMatcher::Alert))]
+    struct Outer {
+        inner: Inner,
+    }
+
+    #[derive(Clone, Debug, Comparable, Extractable)]
+    #[extractable(TestProtocolTypes)]
+    struct Inner {
+        a: u8,
+    }
+
+    dummy_codec!(TestProtocolTypes, Outer);
+    dummy_codec!(TestProtocolTypes, Inner);
+
+    let mut store = vec![];
+    let a = Outer {
+        inner: Inner { a: 1 },
+    };
+
+    let _ = a.extract_knowledge(&mut store, None, &Source::Label(None));
+
+    // Outer, Inner and Inner's u8 — the matcher is passed down, not applied only at the top.
+    assert_eq!(store.len(), 3);
+    assert!(store.iter().all(|k| k.matcher == Some(TestMatcher::Alert)));
+}
+
+#[test]
+fn matcher_on_a_variant_can_read_the_variants_fields() {
+    #[derive(Clone, Debug, Comparable, Extractable)]
+    #[extractable(TestProtocolTypes)]
+    enum TestEnum {
+        #[extractable_matcher(Some(TestMatcher::Handshake(*field_0)))]
+        Handshake(u8),
+        #[extractable_matcher(Some(TestMatcher::Alert))]
+        Alert(u8),
+        #[extractable_matcher(None)]
+        Ccs(u8),
+        Other(u8),
+    }
+
+    dummy_codec!(TestProtocolTypes, TestEnum);
+
+    let matcher_of = |value: TestEnum| {
+        let mut store = vec![];
+        let _ = value.extract_knowledge(&mut store, Some(TestMatcher::Other), &Source::Label(None));
+        // Both the enum and its payload land under the same matcher.
+        assert_eq!(store.len(), 2);
+        assert_eq!(store[0].matcher, store[1].matcher);
+        store[0].matcher
+    };
+
+    // The expression sees the variant's field, so the matcher depends on the message content.
+    assert_eq!(
+        matcher_of(TestEnum::Handshake(7)),
+        Some(TestMatcher::Handshake(7))
+    );
+    assert_eq!(
+        matcher_of(TestEnum::Handshake(9)),
+        Some(TestMatcher::Handshake(9))
+    );
+    assert_eq!(matcher_of(TestEnum::Alert(0)), Some(TestMatcher::Alert));
+    // A variant is free to say it carries no matcher at all.
+    assert_eq!(matcher_of(TestEnum::Ccs(0)), None);
+    // Without an annotation, the matcher passed in is kept.
+    assert_eq!(matcher_of(TestEnum::Other(0)), Some(TestMatcher::Other));
+}
+
+#[test]
+fn matcher_on_a_variant_wins_over_the_one_on_the_enum() {
+    #[derive(Clone, Debug, Comparable, Extractable)]
+    #[extractable(TestProtocolTypes)]
+    #[extractable_matcher(Some(TestMatcher::Other))]
+    enum TestEnum {
+        #[extractable_matcher(Some(TestMatcher::Alert))]
+        Alert(u8),
+        // No annotation of its own: the enum's is the default.
+        Unannotated(u8),
+    }
+
+    dummy_codec!(TestProtocolTypes, TestEnum);
+
+    let matcher_of = |value: TestEnum| {
+        let mut store = vec![];
+        let _ = value.extract_knowledge(
+            &mut store,
+            Some(TestMatcher::Handshake(1)),
+            &Source::Label(None),
+        );
+        store[0].matcher
+    };
+
+    assert_eq!(matcher_of(TestEnum::Alert(0)), Some(TestMatcher::Alert));
+    assert_eq!(
+        matcher_of(TestEnum::Unannotated(0)),
+        Some(TestMatcher::Other)
+    );
+}
+
+#[test]
+fn matcher_on_a_named_variant_binds_fields_by_name() {
+    #[derive(Clone, Debug, Comparable, Extractable)]
+    #[extractable(TestProtocolTypes)]
+    enum TestEnum {
+        #[extractable_matcher(Some(TestMatcher::Handshake(*typ)))]
+        Handshake { typ: u8 },
+    }
+
+    dummy_codec!(TestProtocolTypes, TestEnum);
+
+    let mut store = vec![];
+    let _ =
+        TestEnum::Handshake { typ: 3 }.extract_knowledge(&mut store, None, &Source::Label(None));
+
+    assert_eq!(store[0].matcher, Some(TestMatcher::Handshake(3)));
+}
+
+#[test]
+fn without_the_attribute_the_matcher_is_passed_through() {
+    #[derive(Clone, Debug, Comparable, Extractable)]
+    #[extractable(TestProtocolTypes)]
+    struct TestStruct {
+        a: u8,
+    }
+
+    dummy_codec!(TestProtocolTypes, TestStruct);
+
+    let mut store = vec![];
+    let a = TestStruct { a: 1 };
+
+    let _ = a.extract_knowledge(&mut store, Some(TestMatcher::Other), &Source::Label(None));
+
+    assert!(store.iter().all(|k| k.matcher == Some(TestMatcher::Other)));
 }
