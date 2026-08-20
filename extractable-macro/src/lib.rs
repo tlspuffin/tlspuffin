@@ -109,9 +109,46 @@ use syn::{Token, Type};
 ///     y: char,
 /// }
 /// ```
+///
+/// # Providing a query matcher
+///
+///
+/// ## On structs
+///
+/// ```ignore
+/// #[derive(Clone, Debug, Extractable)]
+/// #[extractable(TestProtocolTypes)]
+/// #[extractable_matcher(Some(Matcher::Alert))]
+/// struct Alert {
+///     level: u8,
+/// }
+/// ```
+///
+/// ## On enums
+///
+/// ```ignore
+/// #[derive(Clone, Debug, Extractable)]
+/// #[extractable(TestProtocolTypes)]
+/// enum Payload {
+///     #[extractable_matcher(Some(Matcher::Handshake(Some(field_0.typ))))]
+///     Handshake(HandshakeMessage),
+///     #[extractable_matcher(None)]
+///     ChangeCipherSpec(Ccs),
+///     // No annotation: keeps the matcher it was given.
+///     Other(Bytes),
+/// }
+/// ```
+///
+/// A variant annotation wins over one on the enum itself, which is then the default for the
+/// variants that do not carry their own.
 #[proc_macro_derive(
     Extractable,
-    attributes(extractable, extractable_ignore, extractable_no_recursion,)
+    attributes(
+        extractable,
+        extractable_ignore,
+        extractable_no_recursion,
+        extractable_matcher,
+    )
 )]
 pub fn extractable_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = syn::parse_macro_input!(input as syn::DeriveInput);
@@ -126,12 +163,18 @@ pub fn extractable_macro(input: proc_macro::TokenStream) -> proc_macro::TokenStr
         "failed parsing extractable attribute : expected #[attribute(ProtocolType, Matcher)]",
     );
 
+    let matcher = match matcher_binding(&input) {
+        Ok(matcher) => matcher,
+        Err(err) => return err.to_compile_error().into(),
+    };
+
     let fields = map_type_definition(&input, &types.protocol_types);
 
     generate_impl(
         &input.ident,
         &input.generics,
         &types.protocol_types,
+        &matcher,
         &fields,
     )
     .into()
@@ -158,6 +201,7 @@ fn generate_impl(
     name: &syn::Ident,
     generics: &syn::Generics,
     protocol_type: &syn::Type,
+    matcher_binding: &TokenStream,
     fields: &TokenStream,
 ) -> TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
@@ -169,6 +213,10 @@ fn generate_impl(
                 matcher: Option<<#protocol_type as puffin::protocol::ProtocolTypes>::Matcher>,
                 source: &'a puffin::trace::Source,
             ) -> Result<(), puffin::error::Error> {
+                // Shadows the parameter when the type provides its own matcher, so that both the
+                // knowledge pushed below and the fields extracted after it use the new one.
+                #matcher_binding
+
                 knowledges.push(puffin::trace::Knowledge {
                     source,
                     matcher: matcher.clone(),
@@ -181,6 +229,78 @@ fn generate_impl(
             }
         }
     }
+}
+
+/// The `#[extractable_matcher(...)]` expression on a type or a variant, if it carries one.
+fn matcher_attr(attrs: &[syn::Attribute]) -> syn::Result<Option<syn::Expr>> {
+    has_attr(attrs, "extractable_matcher")
+        .map(syn::Attribute::parse_args::<syn::Expr>)
+        .transpose()
+}
+
+/// The pattern binding a variant's fields, using the same names the field extraction uses so that
+/// a `#[extractable_matcher(...)]` expression can name them.
+fn variant_pattern(name: &syn::Ident, variant: &syn::Variant) -> TokenStream {
+    let variant_name = &variant.ident;
+
+    match &variant.fields {
+        syn::Fields::Named(named) => {
+            let fields = named.named.iter().map(|field| {
+                field
+                    .ident
+                    .as_ref()
+                    .expect("unnamed field in named variant")
+            });
+            quote! { #name::#variant_name { #(#fields),* } }
+        }
+        syn::Fields::Unnamed(unnamed) => {
+            let fields = (0..unnamed.unnamed.len()).map(|idx| format_ident!("field_{}", idx));
+            quote! { #name::#variant_name ( #(#fields),* ) }
+        }
+        syn::Fields::Unit => quote! { #name::#variant_name },
+    }
+}
+
+/// The `let matcher = ...;` shadowing the parameter, or nothing when the type takes the matcher it
+/// is given — which is the default, and what every type did before the attribute existed.
+fn matcher_binding(input: &syn::DeriveInput) -> syn::Result<TokenStream> {
+    let type_level = matcher_attr(&input.attrs)?;
+
+    let mut arms = Vec::new();
+    if let syn::Data::Enum(en) = &input.data {
+        for variant in &en.variants {
+            if let Some(expr) = matcher_attr(&variant.attrs)? {
+                let pattern = variant_pattern(&input.ident, variant);
+                arms.push(quote! { #pattern => #expr, });
+            }
+        }
+    }
+
+    // The enum's own annotation is what a variant without one falls back to; without either, the
+    // matcher passed in is kept.
+    let default = match &type_level {
+        Some(expr) => quote! { #expr },
+        None => quote! { matcher },
+    };
+
+    if arms.is_empty() {
+        return Ok(match type_level {
+            Some(_) => quote! { let matcher = #default; },
+            None => quote! {},
+        });
+    }
+
+    Ok(quote! {
+        let matcher = {
+            // A variant's fields are bound so the expression can name them, whether or not it
+            // does; and the fallback arm is unreachable once every variant is annotated.
+            #[allow(unused_variables, unreachable_patterns)]
+            match self {
+                #(#arms)*
+                _ => #default,
+            }
+        };
+    })
 }
 
 fn has_attr<'a>(attrs: &'a [syn::Attribute], attr_name: &str) -> Option<&'a syn::Attribute> {
