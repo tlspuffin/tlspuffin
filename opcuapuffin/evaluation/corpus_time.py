@@ -3,7 +3,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 # 1. import a campaign
-from convergence_bug_dead_session_17 import title, measurements
+from convergence_bug_dead_session_21 import title, measurements
 
 # 2. experimental data
 t_raw_data = []
@@ -42,6 +42,7 @@ print(f"k : {k_optimal:.3f} ± {k_uncertainty:.3f} (en h^-1)")
 error = 0.1 # %
 tau = -1/k_optimal * np.log(error/100*A_inf/R_0)
 t = T_0 - T_ini + tau
+print(f"t_0: %i min" % ((T_0 - T_ini)* 60.0))
 print(f"Convergence time (<{error:.1f} %): {tau:.1f} h")
 print(f"total time: {t:.1f} h")
 
