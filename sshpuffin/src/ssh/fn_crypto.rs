@@ -51,10 +51,12 @@ pub fn fn_ecdh_shared_secret(
     peer_pub: &SshBytes,
 ) -> Result<SshBytes, FnError> {
     if priv_key.0.len() != 32 {
-        return Err(FnError::Unknown("private key must be 32 bytes".into()));
+        return Err(FnError::Malformed("private key must be 32 bytes".into()));
     }
     if peer_pub.0.len() != 32 {
-        return Err(FnError::Unknown("peer public key must be 32 bytes".into()));
+        return Err(FnError::Malformed(
+            "peer public key must be 32 bytes".into(),
+        ));
     }
     let mut seed = [0u8; 32];
     seed.copy_from_slice(&priv_key.0);
@@ -77,7 +79,7 @@ pub fn fn_banner_id(raw: &RawSshMessage) -> Result<SshBytes, FnError> {
             let trimmed = s.trim_end_matches('\n').trim_end_matches('\r');
             Ok(SshBytes::new(trimmed.as_bytes().to_vec()))
         }
-        _ => Err(FnError::Unknown("Expected RawSshMessage::Banner".into())),
+        _ => Err(FnError::Malformed("Expected RawSshMessage::Banner".into())),
     }
 }
 
@@ -86,7 +88,7 @@ pub fn fn_banner_id(raw: &RawSshMessage) -> Result<SshBytes, FnError> {
 pub fn fn_kexinit_payload(msg: &SshMessage) -> Result<SshBytes, FnError> {
     match msg {
         SshMessage::KexInit(_) => Ok(SshBytes::new(msg.get_encoding())),
-        _ => Err(FnError::Unknown("Expected SshMessage::KexInit".into())),
+        _ => Err(FnError::Malformed("Expected SshMessage::KexInit".into())),
     }
 }
 
@@ -97,7 +99,9 @@ pub fn fn_server_ecdh_pubkey(msg: &SshMessage) -> Result<SshBytes, FnError> {
             ephemeral_public_key,
             ..
         }) => Ok(ephemeral_public_key.clone()),
-        _ => Err(FnError::Unknown("Expected SshMessage::KexEcdhReply".into())),
+        _ => Err(FnError::Malformed(
+            "Expected SshMessage::KexEcdhReply".into(),
+        )),
     }
 }
 
@@ -107,7 +111,9 @@ pub fn fn_server_hostkey(msg: &SshMessage) -> Result<SshPublicKey, FnError> {
         SshMessage::KexEcdhReply(KexEcdhReplyMessage {
             public_host_key, ..
         }) => Ok(public_host_key.clone()),
-        _ => Err(FnError::Unknown("Expected SshMessage::KexEcdhReply".into())),
+        _ => Err(FnError::Malformed(
+            "Expected SshMessage::KexEcdhReply".into(),
+        )),
     }
 }
 
@@ -125,24 +131,24 @@ pub fn fn_server_hostkey_raw(raw: &RawSshMessage) -> Result<SshBytes, FnError> {
             let payload = packet.payload();
             // payload[0] = message type (31 = SSH_MSG_KEX_ECDH_REPLY)
             if payload.is_empty() || payload[0] != 31 {
-                return Err(FnError::Unknown(
+                return Err(FnError::Malformed(
                     "Expected KexEcdhReply packet (type 31)".into(),
                 ));
             }
             let mut reader = Reader::init(&payload[1..]); // skip type byte
             let ks_len = u32::read(&mut reader)
-                .ok_or_else(|| FnError::Unknown("Failed to read K_S length".into()))?
+                .ok_or_else(|| FnError::Malformed("Failed to read K_S length".into()))?
                 as usize;
             // The K_S outer string starts at payload[1] and spans 4 + ks_len bytes.
             let raw_start = 1usize;
             if raw_start + 4 + ks_len > payload.len() {
-                return Err(FnError::Unknown("K_S truncated in KexEcdhReply".into()));
+                return Err(FnError::Malformed("K_S truncated in KexEcdhReply".into()));
             }
             Ok(SshBytes::new(
                 payload[raw_start..raw_start + 4 + ks_len].to_vec(),
             ))
         }
-        _ => Err(FnError::Unknown(
+        _ => Err(FnError::Malformed(
             "Expected RawSshMessage::Packet for KexEcdhReply".into(),
         )),
     }
@@ -330,10 +336,10 @@ pub fn fn_encrypt_packet_aesgcm(
     counter: &u32,
 ) -> Result<RawSshMessage, FnError> {
     if key.0.len() != 32 {
-        return Err(FnError::Unknown("AES-GCM key must be 32 bytes".into()));
+        return Err(FnError::Malformed("AES-GCM key must be 32 bytes".into()));
     }
     if iv.0.len() != 12 {
-        return Err(FnError::Unknown("AES-GCM IV must be 12 bytes".into()));
+        return Err(FnError::Malformed("AES-GCM IV must be 12 bytes".into()));
     }
 
     let plaintext = msg.get_encoding();
@@ -362,7 +368,7 @@ pub fn fn_encrypt_packet_aesgcm(
                 aad: &len_be,
             },
         )
-        .map_err(|_| FnError::Unknown("AES-GCM encryption failed".into()))?;
+        .map_err(|_| FnError::Malformed("AES-GCM encryption failed".into()))?;
     // ct = ciphertext || 16-byte tag (the aes-gcm crate appends the tag)
 
     let mut out = Vec::with_capacity(4 + ct.len());
@@ -381,16 +387,16 @@ pub fn fn_decrypt_packet_aesgcm(
     use puffin::codec::Reader;
 
     if key.0.len() != 32 || iv.0.len() != 12 {
-        return Err(FnError::Unknown("AES-GCM key/IV size".into()));
+        return Err(FnError::Malformed("AES-GCM key/IV size".into()));
     }
     let wire = &data.0;
     if wire.len() < 4 + 16 {
-        return Err(FnError::Unknown("packet too short".into()));
+        return Err(FnError::Malformed("packet too short".into()));
     }
     let len_be: [u8; 4] = wire[0..4].try_into().unwrap();
     let enc_len = u32::from_be_bytes(len_be) as usize;
     if wire.len() < 4 + enc_len + 16 {
-        return Err(FnError::Unknown("declared length exceeds packet".into()));
+        return Err(FnError::Malformed("declared length exceeds packet".into()));
     }
     let ct_and_tag = &wire[4..4 + enc_len + 16];
 
@@ -404,19 +410,19 @@ pub fn fn_decrypt_packet_aesgcm(
                 aad: &len_be,
             },
         )
-        .map_err(|_| FnError::Unknown("AES-GCM tag mismatch".into()))?;
+        .map_err(|_| FnError::Malformed("AES-GCM tag mismatch".into()))?;
 
     if pt.is_empty() {
-        return Err(FnError::Unknown("empty plaintext".into()));
+        return Err(FnError::Malformed("empty plaintext".into()));
     }
     let pad = pt[0] as usize;
     if 1 + pad > pt.len() {
-        return Err(FnError::Unknown("invalid padding".into()));
+        return Err(FnError::Malformed("invalid padding".into()));
     }
     let payload = &pt[1..pt.len() - pad];
     let mut reader = Reader::init(payload);
     SshMessage::read(&mut reader)
-        .ok_or_else(|| FnError::Unknown("failed to parse decrypted SshMessage".into()))
+        .ok_or_else(|| FnError::Malformed("failed to parse decrypted SshMessage".into()))
 }
 
 // ── AES-256-CTR + HMAC-SHA2-256 (RFC 4253 §6, Encrypt-and-MAC) ────────────────
@@ -505,10 +511,10 @@ pub fn fn_encrypt_packet_ctr(
     seqno: &u32,
 ) -> Result<RawSshMessage, FnError> {
     if enc_key.0.len() != 32 {
-        return Err(FnError::Unknown("AES-CTR key must be 32 bytes".into()));
+        return Err(FnError::Malformed("AES-CTR key must be 32 bytes".into()));
     }
     if iv.0.len() != 16 {
-        return Err(FnError::Unknown("AES-CTR IV must be 16 bytes".into()));
+        return Err(FnError::Malformed("AES-CTR IV must be 16 bytes".into()));
     }
 
     let plaintext = msg.get_encoding();
@@ -530,13 +536,13 @@ pub fn fn_encrypt_packet_ctr(
     // AES-256-CTR over the whole cleartext, starting at the right block.
     let mut ct = clear.clone();
     let mut cipher = Aes256Ctr::new_from_slices(&enc_key.0, &iv.0)
-        .map_err(|_| FnError::Unknown("AES-CTR init failed".into()))?;
+        .map_err(|_| FnError::Malformed("AES-CTR init failed".into()))?;
     cipher.seek((*block_offset as u64) * block as u64);
     cipher.apply_keystream(&mut ct);
 
     // HMAC-SHA-256(mac_key, seqno || cleartext) appended after the ciphertext.
     let mut mac = <HmacSha256 as Mac>::new_from_slice(&mac_key.0)
-        .map_err(|_| FnError::Unknown("HMAC key error".into()))?;
+        .map_err(|_| FnError::Malformed("HMAC key error".into()))?;
     mac.update(&seqno.to_be_bytes());
     mac.update(&clear);
     let tag = mac.finalize().into_bytes();
@@ -559,45 +565,45 @@ pub fn fn_decrypt_packet_ctr(
     use puffin::codec::Reader;
 
     if enc_key.0.len() != 32 || iv.0.len() != 16 {
-        return Err(FnError::Unknown("AES-CTR key/IV size".into()));
+        return Err(FnError::Malformed("AES-CTR key/IV size".into()));
     }
     let wire = &data.0;
     let mac_len = 32usize;
     if wire.len() < 16 + mac_len {
-        return Err(FnError::Unknown("packet too short".into()));
+        return Err(FnError::Malformed("packet too short".into()));
     }
     let ct = &wire[..wire.len() - mac_len];
     let tag = &wire[wire.len() - mac_len..];
     if ct.len() % 16 != 0 {
-        return Err(FnError::Unknown("ciphertext not block-aligned".into()));
+        return Err(FnError::Malformed("ciphertext not block-aligned".into()));
     }
 
     let mut clear = ct.to_vec();
     let mut cipher = Aes256Ctr::new_from_slices(&enc_key.0, &iv.0)
-        .map_err(|_| FnError::Unknown("AES-CTR init failed".into()))?;
+        .map_err(|_| FnError::Malformed("AES-CTR init failed".into()))?;
     cipher.seek((*block_offset as u64) * 16u64);
     cipher.apply_keystream(&mut clear);
 
     // Verify HMAC over seqno || cleartext.
     let mut mac = <HmacSha256 as Mac>::new_from_slice(&mac_key.0)
-        .map_err(|_| FnError::Unknown("HMAC key error".into()))?;
+        .map_err(|_| FnError::Malformed("HMAC key error".into()))?;
     mac.update(&seqno.to_be_bytes());
     mac.update(&clear);
     mac.verify_slice(tag)
-        .map_err(|_| FnError::Unknown("HMAC verification failed".into()))?;
+        .map_err(|_| FnError::Malformed("HMAC verification failed".into()))?;
 
     let packet_len = u32::from_be_bytes(clear[0..4].try_into().unwrap()) as usize;
     if 4 + packet_len > clear.len() || packet_len < 2 {
-        return Err(FnError::Unknown("invalid packet length".into()));
+        return Err(FnError::Malformed("invalid packet length".into()));
     }
     let pad = clear[4] as usize;
     if 1 + pad > packet_len {
-        return Err(FnError::Unknown("invalid padding".into()));
+        return Err(FnError::Malformed("invalid padding".into()));
     }
     let payload = &clear[5..4 + packet_len - pad];
     let mut reader = Reader::init(payload);
     SshMessage::read(&mut reader)
-        .ok_or_else(|| FnError::Unknown("failed to parse decrypted SshMessage".into()))
+        .ok_or_else(|| FnError::Malformed("failed to parse decrypted SshMessage".into()))
 }
 
 // ── ChaCha20-Poly1305@openssh.com packet encryption ──────────────────────────
@@ -622,7 +628,7 @@ pub fn fn_encrypt_packet(
     seqno: &u32,
 ) -> Result<RawSshMessage, FnError> {
     if key.0.len() != 64 {
-        return Err(FnError::Unknown("encryption key must be 64 bytes".into()));
+        return Err(FnError::Malformed("encryption key must be 64 bytes".into()));
     }
 
     let plaintext = msg.get_encoding(); // type byte + fields, no framing
@@ -703,11 +709,11 @@ pub fn fn_decrypt_packet(
     use puffin::codec::Reader;
 
     if key.0.len() != 64 {
-        return Err(FnError::Unknown("decryption key must be 64 bytes".into()));
+        return Err(FnError::Malformed("decryption key must be 64 bytes".into()));
     }
     let wire = &data.0;
     if wire.len() < 4 + 16 {
-        return Err(FnError::Unknown("packet too short to decrypt".into()));
+        return Err(FnError::Malformed("packet too short to decrypt".into()));
     }
 
     let k2 = chacha20::Key::from_slice(&key.0[0..32]);
@@ -730,7 +736,7 @@ pub fn fn_decrypt_packet(
 
     // Bounds: wire must hold enc_len(4) + enc_body(packet_len) + tag(16).
     if wire.len() < 4 + packet_len + 16 {
-        return Err(FnError::Unknown(
+        return Err(FnError::Malformed(
             "declared packet length exceeds available bytes".into(),
         ));
     }
@@ -746,7 +752,7 @@ pub fn fn_decrypt_packet(
     mac_input.extend_from_slice(enc_body);
     let expected = poly.compute_unpadded(&mac_input);
     if expected.as_slice() != tag_bytes {
-        return Err(FnError::Unknown("Poly1305 tag mismatch".into()));
+        return Err(FnError::Malformed("Poly1305 tag mismatch".into()));
     }
 
     // Step 4: decrypt the body with k2 at counter 1 (byte offset 64).
@@ -756,17 +762,17 @@ pub fn fn_decrypt_packet(
 
     // body = [pad_len: u8][payload][padding]; strip framing and parse payload.
     if body.is_empty() {
-        return Err(FnError::Unknown("empty decrypted body".into()));
+        return Err(FnError::Malformed("empty decrypted body".into()));
     }
     let pad_len = body[0] as usize;
     if 1 + pad_len > body.len() {
-        return Err(FnError::Unknown("invalid padding length".into()));
+        return Err(FnError::Malformed("invalid padding length".into()));
     }
     let payload = &body[1..body.len() - pad_len];
 
     let mut reader = Reader::init(payload);
     SshMessage::read(&mut reader)
-        .ok_or_else(|| FnError::Unknown("failed to parse decrypted SshMessage".into()))
+        .ok_or_else(|| FnError::Malformed("failed to parse decrypted SshMessage".into()))
 }
 
 // ── Server-attacker helpers ───────────────────────────────────────────────────
@@ -813,7 +819,7 @@ FVCIVIuCGO0unWSrPlL7FFPldcYMTy7S33HmlzIuywlUdqD8qCMbA1IP2a9+oD9SAhzk4f
 
 fn load_server_key() -> Result<ssh_key::PrivateKey, FnError> {
     ssh_key::PrivateKey::from_openssh(SERVER_HOST_KEY_OPENSSH)
-        .map_err(|e| FnError::Unknown(format!("failed to parse server key: {e}")))
+        .map_err(|e| FnError::Malformed(format!("failed to parse server key: {e}")))
 }
 
 /// Return the server RSA public key as a `SshPublicKey` (for use in `fn_kex_ecdh_reply`).
@@ -823,14 +829,14 @@ pub fn fn_server_rsa_pubkey() -> Result<SshPublicKey, FnError> {
     let pubkey = key.public_key();
     let wire = pubkey
         .to_bytes()
-        .map_err(|e| FnError::Unknown(format!("pubkey encoding failed: {e}")))?;
+        .map_err(|e| FnError::Malformed(format!("pubkey encoding failed: {e}")))?;
 
     // ssh-key's to_bytes() returns the key blob WITHOUT an outer length prefix:
     //   wire = [string algo]["ssh-rsa"][mpint e][mpint n]
     // Parse into SshPublicKey { algorithm, key_data = raw [e][n] }.
     use puffin::codec::Reader;
     let mut r = Reader::init(&wire);
-    let algorithm = SshBytes::read(&mut r).ok_or_else(|| FnError::Unknown("bad algo".into()))?;
+    let algorithm = SshBytes::read(&mut r).ok_or_else(|| FnError::Malformed("bad algo".into()))?;
     let key_data = SshBytes::new(r.rest().to_vec());
 
     Ok(SshPublicKey {
@@ -846,7 +852,7 @@ pub fn fn_server_rsa_pubkey_bytes() -> Result<SshBytes, FnError> {
     let wire = key
         .public_key()
         .to_bytes()
-        .map_err(|e| FnError::Unknown(format!("pubkey encoding failed: {e}")))?;
+        .map_err(|e| FnError::Malformed(format!("pubkey encoding failed: {e}")))?;
     // K_S in the exchange hash is the full outer SSH string: [u32 len][blob].
     // ssh-key's to_bytes() omits the outer length, so we prepend it here to
     // match what SshPublicKey::encode produces when we send the KexEcdhReply.
@@ -867,7 +873,7 @@ pub fn fn_sign_exchange_hash(h: &SshBytes) -> Result<SshBytes, FnError> {
     let key = load_server_key()?;
     let rsa_keypair = match key.key_data() {
         ssh_key::private::KeypairData::Rsa(r) => r,
-        _ => return Err(FnError::Unknown("server key is not RSA".into())),
+        _ => return Err(FnError::Malformed("server key is not RSA".into())),
     };
 
     // Build the rsa-crate private key from the raw mpint components. BigUint
@@ -878,13 +884,13 @@ pub fn fn_sign_exchange_hash(h: &SshBytes) -> Result<SshBytes, FnError> {
     let p = BigUint::from_bytes_be(rsa_keypair.private.p.as_bytes());
     let q = BigUint::from_bytes_be(rsa_keypair.private.q.as_bytes());
     let priv_key = RsaPrivateKey::from_components(n, e, d, vec![p, q])
-        .map_err(|e| FnError::Unknown(format!("RSA key conversion failed: {e}")))?;
+        .map_err(|e| FnError::Malformed(format!("RSA key conversion failed: {e}")))?;
 
     // rsa-sha2-256 = RSASSA-PKCS1-v1_5 over SHA-256.
     let signing_key = SigningKey::<Sha256>::new(priv_key);
     let signature = signing_key
         .try_sign(h.0.as_slice())
-        .map_err(|e| FnError::Unknown(format!("signing failed: {e}")))?;
+        .map_err(|e| FnError::Malformed(format!("signing failed: {e}")))?;
 
     Ok(SshBytes::new(signature.to_bytes().to_vec()))
 }
@@ -908,7 +914,7 @@ pub fn fn_client_a_pubkey_blob() -> Result<SshBytes, FnError> {
     let wire = key
         .public_key()
         .to_bytes()
-        .map_err(|e| FnError::Unknown(format!("pubkey encoding failed: {e}")))?;
+        .map_err(|e| FnError::Malformed(format!("pubkey encoding failed: {e}")))?;
     Ok(SshBytes::new(wire))
 }
 
@@ -940,7 +946,7 @@ pub fn fn_sign_userauth(
     let key = load_server_key()?;
     let rsa_keypair = match key.key_data() {
         ssh_key::private::KeypairData::Rsa(r) => r,
-        _ => return Err(FnError::Unknown("client key A is not RSA".into())),
+        _ => return Err(FnError::Malformed("client key A is not RSA".into())),
     };
     let n = BigUint::from_bytes_be(rsa_keypair.public.n.as_bytes());
     let e = BigUint::from_bytes_be(rsa_keypair.public.e.as_bytes());
@@ -948,11 +954,11 @@ pub fn fn_sign_userauth(
     let p = BigUint::from_bytes_be(rsa_keypair.private.p.as_bytes());
     let q = BigUint::from_bytes_be(rsa_keypair.private.q.as_bytes());
     let priv_key = RsaPrivateKey::from_components(n, e, d, vec![p, q])
-        .map_err(|e| FnError::Unknown(format!("RSA key conversion failed: {e}")))?;
+        .map_err(|e| FnError::Malformed(format!("RSA key conversion failed: {e}")))?;
     let signing_key = SigningKey::<Sha256>::new(priv_key);
     let signature = signing_key
         .try_sign(&data)
-        .map_err(|e| FnError::Unknown(format!("userauth signing failed: {e}")))?;
+        .map_err(|e| FnError::Malformed(format!("userauth signing failed: {e}")))?;
     Ok(SshBytes::new(signature.to_bytes().to_vec()))
 }
 
