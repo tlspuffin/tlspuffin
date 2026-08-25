@@ -1622,15 +1622,24 @@ pub fn create_corpus(
     // Only seeds that complete a full handshake are kept (the legacy mutual /
     // pre-crypto stub seeds were pruned). The chacha20 *_full seeds complete on
     // libssh; the *_aesgcm seeds complete on BOTH libssh and wolfSSH.
+    //
+    // On this branch the cross-vendor differential corpus is restricted to the
+    // seeds that complete IDENTICALLY on both libssh and wolfSSH (the AES-GCM
+    // client seeds). The other seeds do not (chacha20/ctr are libssh-only;
+    // server-attacker / channel / rekey / ext-info / two-party seeds diverge
+    // cross-vendor), so they would become spurious objectives and starve the
+    // differential corpus — they are commented out below but kept documented
+    // (and their `seed_*` functions remain defined above) for single-PUT /
+    // claims-oracle campaigns.
     vec![
-        (
-            seed_client_attacker_full(server),
-            "seed_client_attacker_full",
-        ),
-        (
-            seed_server_attacker_full(client),
-            "seed_server_attacker_full",
-        ),
+        // (
+        //     seed_client_attacker_full(server),
+        //     "seed_client_attacker_full",
+        // ),
+        // (
+        //     seed_server_attacker_full(client),
+        //     "seed_server_attacker_full",
+        // ),
         (
             seed_client_attacker_full_aesgcm(server),
             "seed_client_attacker_full_aesgcm",
@@ -1643,56 +1652,56 @@ pub fn create_corpus(
         ),
         // Non-AEAD suite (aes256-ctr + hmac-sha2-256): drives the separate
         // cipher + separate-MAC code path, distinct from the AEAD seeds.
-        (
-            seed_client_attacker_full_ctr(server),
-            "seed_client_attacker_full_ctr",
-        ),
-        (
-            seed_server_attacker_full_aesgcm(client),
-            "seed_server_attacker_full_aesgcm",
-        ),
+        // (
+        //     seed_client_attacker_full_ctr(server),
+        //     "seed_client_attacker_full_ctr",
+        // ),
+        // (
+        //     seed_server_attacker_full_aesgcm(client),
+        //     "seed_server_attacker_full_aesgcm",
+        // ),
         // Publickey login as key A — the baseline for the entity-authentication
         // / impersonation oracle. Mutations that make the server authenticate a
         // different key are flagged as impersonation. The chacha20 variant is
         // libssh-only; the aesgcm variant completes on both libssh and wolfSSH.
-        (
-            seed_client_attacker_pubkey(server),
-            "seed_client_attacker_pubkey",
-        ),
+        // (
+        //     seed_client_attacker_pubkey(server),
+        //     "seed_client_attacker_pubkey",
+        // ),
         (
             seed_client_attacker_pubkey_aesgcm(server),
             "seed_client_attacker_pubkey_aesgcm",
         ),
         // Session layer: authenticated channel with full connection-protocol
         // traffic (window-adjust / data / extended-data / eof / close).
-        (
-            seed_client_attacker_channel_data(server),
-            "seed_client_attacker_channel_data",
-        ),
+        // (
+        //     seed_client_attacker_channel_data(server),
+        //     "seed_client_attacker_channel_data",
+        // ),
         // Session layer: authenticated client-initiated rekey (RFC 4253 §9) —
         // drives the server's re-KEX state machine on an established connection.
-        (
-            seed_client_attacker_rekey(server),
-            "seed_client_attacker_rekey",
-        ),
+        // (
+        //     seed_client_attacker_rekey(server),
+        //     "seed_client_attacker_rekey",
+        // ),
         // RFC 8308 ext-info: client advertises ext-info-c and sends EXT_INFO,
         // exercising the server's EXT_INFO parser.
-        (
-            seed_client_attacker_ext_info(server),
-            "seed_client_attacker_ext_info",
-        ),
+        // (
+        //     seed_client_attacker_ext_info(server),
+        //     "seed_client_attacker_ext_info",
+        // ),
         // Two real PUTs relayed by the attacker — the substrate the live
         // matching-conversation oracle needs. Mutations that desync the relayed
         // transcript (Terrapin-style) are flagged as a security objective.
-        (
-            seed_handshake_two_party(client, server),
-            "seed_handshake_two_party",
-        ),
+        // (
+        //     seed_handshake_two_party(client, server),
+        //     "seed_handshake_two_party",
+        // ),
         // Packet-granular honest relay: the substrate whose 2-mutation
         // neighbourhood (skip EXT_INFO forward + insert IGNORE) contains Terrapin.
-        (
-            seed_handshake_two_party_packet_complete(client, server),
-            "seed_handshake_two_party_packet_complete",
-        ),
+        // (
+        //     seed_handshake_two_party_packet_complete(client, server),
+        //     "seed_handshake_two_party_packet_complete",
+        // ),
     ]
 }
