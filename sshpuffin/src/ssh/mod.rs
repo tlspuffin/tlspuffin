@@ -194,9 +194,9 @@ define_signature!(
     fn_algo_aes256_gcm
     fn_server_rsa_pubkey
     fn_server_rsa_pubkey_bytes
-    fn_sign_exchange_hash
+    fn_sign_exchange_hash [no_gen]
     fn_rsa_sha2_256_signature
     fn_client_a_pubkey_blob
-    fn_sign_userauth
+    fn_sign_userauth [no_gen]
     fn_publickey_auth_data
 );
