@@ -182,28 +182,19 @@ impl CAgent {
             return Err(Error::Put("C SSH agent creation failed".to_owned()));
         }
 
-        // Register the claim callback. The context owns a clone of the global
-        // claim list (Rc-backed) plus this agent's identity.
-        let context = Box::new(ClaimerContext {
-            claims: claims.clone(),
-            agent_name: descriptor.name,
-            is_server: matches!(descriptor.protocol_config.typ, AgentType::Server),
-        });
-        let claimer = Box::new(CLAIMER_CB {
-            context: Box::into_raw(context) as *mut c_void,
-            notify: Some(ssh_claim_notify),
-            destroy: Some(ssh_claim_destroy),
-        });
-        if let Some(register) = put.interface.agent_interface.register_claimer {
-            unsafe { register(c_agent, &*claimer as *const _) };
-        }
+        // No claim callback is registered in this build: the security oracle is
+        // a no-op and claims are unused. Leaving the harness claimer unset keeps
+        // the C harness from emitting claims, so the cross-vendor differential
+        // compares only execution status and knowledge (no spurious claim diffs
+        // from harness-specific claim emission).
+        let _ = claims;
 
         Ok(Self {
             put: put.clone(),
             descriptor: descriptor.clone(),
             deframer: SshMessageDeframer::new(),
             c_agent,
-            claimer: Some(claimer),
+            claimer: None,
         })
     }
 }
