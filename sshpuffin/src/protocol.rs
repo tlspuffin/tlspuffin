@@ -359,6 +359,14 @@ impl ProtocolTypes for SshProtocolTypes {
         }
     }
 
+    fn differential_fuzzing_always_compare_knowledge() -> bool {
+        // In decrypt-only mode, objectives are exactly the decryption
+        // differences, so we must compute the decryption comparison even when the
+        // two PUTs disagree on execution status (and filter_diff then drops the
+        // status diff). Off otherwise, preserving the default short-circuit.
+        cfg!(feature = "decrypt-only")
+    }
+
     fn differential_fuzzing_alignment_key(
         data: &dyn puffin::protocol::EvaluatedTerm<Self>,
     ) -> String {

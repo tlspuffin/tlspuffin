@@ -276,6 +276,20 @@ pub trait ProtocolTypes:
     fn differential_fuzzing_alignment_key(data: &dyn EvaluatedTerm<Self>) -> String {
         data.type_name().to_string()
     }
+
+    /// Whether to ALWAYS compute the knowledge/decryption comparison, even when
+    /// the two PUTs already disagree on execution status. Default `false`: a
+    /// status disagreement short-circuits the comparison (the stores are usually
+    /// incomparable when one PUT stopped early, and it avoids the work).
+    ///
+    /// A protocol that filters objectives down to decryption differences (so a
+    /// status difference must NOT hide/skip a decryption difference, and status
+    /// diffs must themselves pass through `differential_fuzzing_filter_diff` to be
+    /// dropped) overrides this to `true`. `filter_diff` is then applied to every
+    /// difference — status, security-claim, and knowledge alike.
+    fn differential_fuzzing_always_compare_knowledge() -> bool {
+        false
+    }
 }
 
 /// Defines the protocol which is being tested.
