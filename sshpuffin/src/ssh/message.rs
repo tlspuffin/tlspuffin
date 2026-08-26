@@ -90,10 +90,25 @@ pub struct NameList {
     // sorted copy and ignore the raw ordering. Encoding is unaffected (this only
     // changes the Comparable view, not Codec), so on-wire order is preserved.
     #[comparable_synthetic {
-        let sorted_names = |x: &Self| -> Vec<String> {
-            let mut names = x.names.clone();
-            names.sort();
-            names
+        let comparable_names = |x: &Self| -> Vec<String> {
+            // Drop the extension-negotiation / Terrapin SIGNALING pseudo-algorithms
+            // that each stack auto-appends to its KEXINIT (kex-strict-{c,s}-v00,
+            // ext-info-{c,s}). These are not negotiable algorithms and their
+            // presence is implementation-defined (libssh advertises kex-strict-s,
+            // wolfSSH ext-info-s), so comparing them positionally is pure noise —
+            // and, unlike the negotiable algorithms, they cannot be uniformised
+            // away via the PUT config.
+            //
+            // We do NOT sort here: differential_fuzzing_uniformise_put_config
+            // makes both PUTs advertise the SAME list in the SAME order (verified
+            // by measurement), so once the markers are removed the two name-lists
+            // are already identical. Ordering is thus handled by uniformise, and
+            // this synthetic only strips the markers uniformise cannot reach.
+            x.names
+                .iter()
+                .filter(|n| !n.starts_with("kex-strict-") && !n.starts_with("ext-info-"))
+                .cloned()
+                .collect::<Vec<String>>()
         };
     }]
     #[comparable_ignore]
@@ -431,7 +446,14 @@ pub struct KexInitMessage {
     pub encryption_algorithms_client_to_server: EncryptionAlgorithms,
     pub mac_algorithms_client_to_server: MacAlgorithms,
     pub mac_algorithms_server_to_client: MacAlgorithms,
+    // Advertised compression is static per-implementation capability (libssh
+    // offers zlib@openssh.com, wolfSSH does not) and cannot be uniformised via
+    // the PUT config (no compression-restriction API in either harness). The
+    // negotiated compression is always "none" here (the client offers only
+    // "none"), so the advertised list is noise — exclude it from comparison.
+    #[comparable_ignore]
     pub compression_algorithms_client_to_server: CompressionAlgorithms,
+    #[comparable_ignore]
     pub compression_algorithms_server_to_client: CompressionAlgorithms,
     pub languages_client_to_server: NameList,
     pub languages_server_to_client: NameList,
