@@ -359,13 +359,16 @@ impl ProtocolTypes for SshProtocolTypes {
         }
     }
 
-    fn differential_fuzzing_always_compare_knowledge() -> bool {
-        // In decrypt-only mode, objectives are exactly the decryption
-        // differences, so we must compute the decryption comparison even when the
-        // two PUTs disagree on execution status (and filter_diff then drops the
-        // status diff). Off otherwise, preserving the default short-circuit.
-        cfg!(feature = "decrypt-only")
-    }
+    // NOTE: we deliberately do NOT override differential_fuzzing_always_compare_knowledge
+    // (default false). In decrypt-only mode the short-circuit is PROTECTIVE: when
+    // the two PUTs disagree on execution status (e.g. a term-evaluation error or
+    // one PUT stopping early), their decrypted streams are from divergent runs and
+    // any presence/content difference between them is an execution-divergence
+    // artifact, not a clean library divergence. Keeping the short-circuit means the
+    // decryption comparison runs ONLY when both PUTs executed identically far, and
+    // filter_diff (applied to all diffs) then drops the status diff itself — so a
+    // decrypt-only objective is exactly "both PUTs ran cleanly AND their decrypted
+    // output differs". That is the sound decryption-differential signal.
 
     fn differential_fuzzing_alignment_key(
         data: &dyn puffin::protocol::EvaluatedTerm<Self>,
