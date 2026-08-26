@@ -17,7 +17,7 @@
 use core::fmt;
 use std::any::TypeId;
 use std::cmp::PartialEq;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -33,7 +33,7 @@ use crate::algebra::bitstrings::Payloads;
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{remove_prefix, Matcher, Term, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
-use crate::differential::TraceDifference;
+use crate::differential::{KnowledgeDiff, TraceDifference};
 use crate::error::Error;
 use crate::fuzzer::stats_stage::{
     ALL_EXEC, ALL_EXEC_AGENT_SUCCESS, ALL_EXEC_SUCCESS, ERROR_AGENT, ERROR_CODEC, ERROR_EXTRACTION,
@@ -271,49 +271,85 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
 
         let mut differences: Vec<TraceDifference> = vec![];
 
-        let mut first_store: Vec<Knowledge<'_, PT>> = self
+        let first_store: Vec<Knowledge<'_, PT>> = self
             .knowledges()
             .iter()
             .flatten()
             .filter(|x| filter_knowledge(x, &whitelist))
             .collect();
-        let mut second_store: Vec<Knowledge<'_, PT>> = other
+        let second_store: Vec<Knowledge<'_, PT>> = other
             .knowledges()
             .iter()
             .flatten()
             .filter(|x| filter_knowledge(x, &whitelist))
             .collect();
-        let first_store_count = first_store.len();
-        let second_store_count = second_store.len();
-
-        if first_store_count > second_store_count {
-            second_store.extend((second_store_count..first_store_count).map(|_| Knowledge {
-                source: &Source::Label(None),
-                matcher: None,
-                data: &(),
-            }))
-        } else {
-            first_store.extend((first_store_count..second_store_count).map(|_| Knowledge {
-                source: &Source::Label(None),
-                matcher: None,
-                data: &(),
-            }))
+        // Semantic alignment: bucket both stores by a coarse alignment key
+        // (protocol-defined; default = type name, SSH = message variant) and
+        // compare like-with-like, so packet reordering / pipelining between two
+        // independent implementations does not make us compare unrelated
+        // messages. BTreeMap keeps the key iteration order deterministic.
+        let mut first_buckets: BTreeMap<String, Vec<Knowledge<'_, PT>>> = BTreeMap::new();
+        let mut second_buckets: BTreeMap<String, Vec<Knowledge<'_, PT>>> = BTreeMap::new();
+        for k in first_store {
+            first_buckets
+                .entry(PT::differential_fuzzing_alignment_key(k.data))
+                .or_default()
+                .push(k);
+        }
+        for k in second_store {
+            second_buckets
+                .entry(PT::differential_fuzzing_alignment_key(k.data))
+                .or_default()
+                .push(k);
         }
 
-        log::trace!("Comparing knowledge stores");
-        let _ = std::iter::zip(first_store, second_store)
-            .enumerate()
-            .for_each(|(idx, (x, y))| {
-                log::trace!(
-                    "{} (source:{}) | {} (source:{})",
-                    x.data.type_name(),
-                    x.source,
-                    y.data.type_name(),
-                    y.source
-                );
-                x.data
-                    .find_differences(y.data, &mut differences, idx, x.source, y.source);
-            });
+        log::trace!("Comparing knowledge stores (semantic alignment)");
+        let keys: BTreeSet<&String> = first_buckets.keys().chain(second_buckets.keys()).collect();
+        for key in keys {
+            let empty = Vec::new();
+            let fs = first_buckets.get(key).unwrap_or(&empty);
+            let ss = second_buckets.get(key).unwrap_or(&empty);
+            for idx in 0..fs.len().max(ss.len()) {
+                match (fs.get(idx), ss.get(idx)) {
+                    // Same kind on both sides -> compare CONTENT: a real
+                    // divergence in a decrypted message surfaces here.
+                    (Some(x), Some(y)) => {
+                        x.data
+                            .find_differences(y.data, &mut differences, idx, x.source, y.source);
+                    }
+                    // Kind present on ONE side only. This is NOT auto-dropped:
+                    // a security message one implementation emits and the other
+                    // does not (e.g. an unexpected UserAuthSuccess) is exactly a
+                    // finding. Report it as a presence difference carrying the
+                    // ALIGNMENT KEY (so differential_fuzzing_filter_diff can
+                    // narrowly whitelist a specific benign-framing kind, rather
+                    // than a blanket drop of anything-vs-()).
+                    (Some(x), None) => {
+                        differences.push(TraceDifference::Knowledges(
+                            KnowledgeDiff::DifferentTypes {
+                                index: idx,
+                                first_type: key.clone(),
+                                second_type: "()".to_string(),
+                                first_source: x.source.clone(),
+                                second_source: Source::Label(None),
+                            },
+                        ));
+                    }
+                    (None, Some(y)) => {
+                        differences.push(TraceDifference::Knowledges(
+                            KnowledgeDiff::DifferentTypes {
+                                index: idx,
+                                first_type: "()".to_string(),
+                                second_type: key.clone(),
+                                first_source: Source::Label(None),
+                                second_source: y.source.clone(),
+                            },
+                        ));
+                    }
+                    (None, None) => {}
+                }
+            }
+        }
 
         match differences.is_empty() {
             false => Err(differences),

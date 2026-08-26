@@ -1630,11 +1630,45 @@ pub fn server_decryption_recipes_aesgcm(server: AgentName) -> Vec<Term<SshProtoc
         term! { fn_decrypt_packet_aesgcm((@idx_term), (@key), (@iv), (@counter)) }
     };
 
-    vec![
-        mk(term! { (server, 0)[None]/OnWireData }, term! { fn_u32_0 }),
-        mk(term! { (server, 1)[None]/OnWireData }, term! { fn_u32_1 }),
-        mk(term! { (server, 2)[None]/OnWireData }, term! { fn_u32_2 }),
-    ]
+    // Widened decryption window. The original recipe decrypted only the first
+    // three s2c packets on the diagonal (output i at counter i), so any packet
+    // reordering / pipelining (e.g. the fuzzer sending USERAUTH before
+    // SERVICE_REQUEST) pushed the server's replies outside the window and they
+    // were silently missed. Instead we sweep a grid: for each AES-GCM counter c
+    // (= s2c packet seqno, which resets to 0 at NewKeys) we try every observed
+    // server output. Only the packet whose true seqno is c passes the GCM tag,
+    // so (a) we capture the server's replies even when they land at a different
+    // knowledge index than expected, (b) we reach deeper into the stream
+    // (auth results, channel-open, early channel data), and (c) because the
+    // outer loop is the counter, the decrypted store fills in seqno order — a
+    // coarse alignment that survives index shifts. Missing outputs / wrong
+    // counters just fail the tag and are skipped.
+    let counters = [
+        term! { fn_u32_0 },
+        term! { fn_u32_1 },
+        term! { fn_u32_2 },
+        term! { fn_u32_3 },
+        term! { fn_u32_4 },
+        term! { fn_u32_5 },
+        term! { fn_u32_6 },
+        term! { fn_u32_7 },
+    ];
+    let outputs = [
+        term! { (server, 0)[None]/OnWireData },
+        term! { (server, 1)[None]/OnWireData },
+        term! { (server, 2)[None]/OnWireData },
+        term! { (server, 3)[None]/OnWireData },
+        term! { (server, 4)[None]/OnWireData },
+        term! { (server, 5)[None]/OnWireData },
+        term! { (server, 6)[None]/OnWireData },
+    ];
+    let mut recipes = Vec::with_capacity(counters.len() * outputs.len());
+    for counter in &counters {
+        for output in &outputs {
+            recipes.push(mk(output.clone(), counter.clone()));
+        }
+    }
+    recipes
 }
 
 pub fn create_corpus(

@@ -258,6 +258,24 @@ pub trait ProtocolTypes:
     /// differential fuzzer
     /// Return `true` to keep the difference
     fn differential_fuzzing_filter_diff(diff: &TraceDifference) -> bool;
+
+    /// Coarse key used to ALIGN knowledge/decrypted messages before comparison,
+    /// so like-with-like are compared regardless of packet position. Two
+    /// independent implementations legitimately packetize/pipeline their replies
+    /// differently, so a raw positional comparison compares unrelated messages
+    /// and reports spurious content differences. Bucketing both stores by this
+    /// key and comparing within a bucket fixes that.
+    ///
+    /// Default: the Rust type name (positional-equivalent for single-type
+    /// stores). Protocols whose messages are a tagged union should override this
+    /// to return a per-variant key (e.g. `"SshMessage::ServiceAccept"`), so a
+    /// genuine content difference between two same-kind messages still surfaces,
+    /// while a message present on only ONE side is reported as a presence
+    /// difference (fail-closed: a missing security message is NOT silently
+    /// dropped) rather than mis-compared against an unrelated message.
+    fn differential_fuzzing_alignment_key(data: &dyn EvaluatedTerm<Self>) -> String {
+        data.type_name().to_string()
+    }
 }
 
 /// Defines the protocol which is being tested.
