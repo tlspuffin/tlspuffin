@@ -17,6 +17,13 @@ default = ["sancov"]
 # Current put supports claims
 claims = []
 
+# Restrict differential-fuzzing OBJECTIVES to decryption-recipe differences only.
+# With this feature, differential_fuzzing_filter_diff drops every difference whose
+# source is not a decryption recipe (Status, Claims, on-wire transcript, …), so a
+# campaign's corpus/objectives are not polluted with the kinds of differences that
+# are out of scope for the decryption-differential research. Off by default.
+decrypt-only = []
+
 # Sanitizer / instrumentation flags forwarded to the C harness build
 asan    = ["puffin/asan"]
 sancov  = ["puffin/sancov"]
