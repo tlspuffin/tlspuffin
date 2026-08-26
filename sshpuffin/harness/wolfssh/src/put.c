@@ -219,6 +219,18 @@ static AGENT wolfssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
         return NULL;
     }
 
+    /* Uniformise advertised algorithms (differential fuzzing). NULL = keep
+     * wolfSSH defaults. Restricting the offered sets makes this PUT's KEXINIT
+     * match the other PUT's so static capability no longer diffs. */
+    if (descriptor->kex)
+        wolfSSH_CTX_SetAlgoListKex(ctx, descriptor->kex);
+    if (descriptor->ciphers)
+        wolfSSH_CTX_SetAlgoListCipher(ctx, descriptor->ciphers);
+    if (descriptor->macs)
+        wolfSSH_CTX_SetAlgoListMac(ctx, descriptor->macs);
+    if (descriptor->hostkey_algos)
+        wolfSSH_CTX_SetAlgoListKey(ctx, descriptor->hostkey_algos);
+
     if (is_server)
     {
         wolfSSH_SetUserAuth(ctx, auth_callback);

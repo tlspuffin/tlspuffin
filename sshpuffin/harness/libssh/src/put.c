@@ -267,6 +267,31 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
             return NULL;
         }
 
+        /* Uniformise advertised algorithms (differential fuzzing). NULL = keep
+         * libssh defaults. Restricting the server's offered sets makes its
+         * KEXINIT match the other PUT's so static capability no longer diffs.
+         * The algorithm bind options were introduced in libssh 0.9; older
+         * vendored builds (0.8.x) keep their defaults — they are not used in the
+         * differential (which runs libssh 0.11.4 vs wolfSSH). */
+#if defined(LIBSSH_VERSION_INT) && LIBSSH_VERSION_INT >= SSH_VERSION_INT(0, 9, 0)
+        if (descriptor->kex)
+            ssh_bind_options_set(bind, SSH_BIND_OPTIONS_KEY_EXCHANGE, descriptor->kex);
+        if (descriptor->ciphers)
+        {
+            ssh_bind_options_set(bind, SSH_BIND_OPTIONS_CIPHERS_C_S, descriptor->ciphers);
+            ssh_bind_options_set(bind, SSH_BIND_OPTIONS_CIPHERS_S_C, descriptor->ciphers);
+        }
+        if (descriptor->macs)
+        {
+            ssh_bind_options_set(bind, SSH_BIND_OPTIONS_HMAC_C_S, descriptor->macs);
+            ssh_bind_options_set(bind, SSH_BIND_OPTIONS_HMAC_S_C, descriptor->macs);
+        }
+        if (descriptor->hostkey_algos)
+            ssh_bind_options_set(bind,
+                                 SSH_BIND_OPTIONS_HOSTKEY_ALGORITHMS,
+                                 descriptor->hostkey_algos);
+#endif
+
         /* Import the embedded RSA host key */
         ssh_key host_key = NULL;
         if (ssh_pki_import_privkey_base64(SERVER_HOST_KEY, NULL, NULL, NULL, &host_key) != SSH_OK)

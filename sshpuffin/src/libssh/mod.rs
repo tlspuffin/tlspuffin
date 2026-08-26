@@ -160,6 +160,11 @@ pub struct CAgent {
     /// `&*claimer`, so this box must not move for the agent's lifetime, and its
     /// owned `context` is reclaimed in `Drop` via the CB's `destroy` hook.
     claimer: Option<Box<CLAIMER_CB>>,
+    /// Uniformised algorithm-list CStrings passed into the C harness. wolfSSH's
+    /// `wolfSSH_CTX_SetAlgoList*` stores the raw pointer (it does NOT copy) and
+    /// dereferences it later in `SendKexInit`, so these must stay alive for the
+    /// whole agent lifetime — not just across `create()`. Kept here for that.
+    _algos: Vec<std::ffi::CString>,
 }
 
 impl CAgent {
@@ -168,12 +173,32 @@ impl CAgent {
         descriptor: &AgentDescriptor<SshDescriptorConfig>,
         claims: &GlobalClaimList<SshClaim>,
     ) -> Result<Self, Error> {
+        // Uniformised algorithm lists (differential fuzzing). Keep the CStrings
+        // alive in locals: the C harness reads the pointers synchronously during
+        // create(), so they must outlive the call below. A NULL pointer tells the
+        // harness to leave the PUT default (single-PUT / non-differential runs).
+        let cfg = &descriptor.protocol_config;
+        let as_cstring = |s: &Option<String>| {
+            s.as_ref()
+                .map(|v| std::ffi::CString::new(v.as_str()).unwrap())
+        };
+        let kex_c = as_cstring(&cfg.kex);
+        let ciphers_c = as_cstring(&cfg.ciphers);
+        let macs_c = as_cstring(&cfg.macs);
+        let hostkey_c = as_cstring(&cfg.hostkey_algos);
+        let as_ptr =
+            |c: &Option<std::ffi::CString>| c.as_ref().map_or(std::ptr::null(), |v| v.as_ptr());
+
         let c_descriptor = SSH_AGENT_DESCRIPTOR {
             name: descriptor.name.into(),
-            role: match descriptor.protocol_config.typ {
+            role: match cfg.typ {
                 AgentType::Client => SSH_AGENT_ROLE::SSH_CLIENT,
                 AgentType::Server => SSH_AGENT_ROLE::SSH_SERVER,
             },
+            kex: as_ptr(&kex_c),
+            ciphers: as_ptr(&ciphers_c),
+            macs: as_ptr(&macs_c),
+            hostkey_algos: as_ptr(&hostkey_c),
         };
 
         let c_agent = unsafe { (put.interface.create.unwrap())(&c_descriptor as *const _) };
@@ -195,6 +220,12 @@ impl CAgent {
             deframer: SshMessageDeframer::new(),
             c_agent,
             claimer: None,
+            // Move (not copy) the CStrings in: their heap buffers keep the same
+            // address, so the pointers the harness stored stay valid until Drop.
+            _algos: [kex_c, ciphers_c, macs_c, hostkey_c]
+                .into_iter()
+                .flatten()
+                .collect(),
         })
     }
 }

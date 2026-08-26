@@ -132,6 +132,7 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<SshProtocolTypes> {
             SshDescriptorConfig {
                 typ: AgentType::Server,
                 try_reuse: false,
+                ..Default::default()
             },
         )],
         steps: vec![
@@ -222,6 +223,7 @@ pub fn seed_client_attacker_pubkey(server: AgentName) -> Trace<SshProtocolTypes>
             SshDescriptorConfig {
                 typ: AgentType::Server,
                 try_reuse: false,
+                ..Default::default()
             },
         )],
         steps: vec![
@@ -300,6 +302,7 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
             SshDescriptorConfig {
                 typ: AgentType::Server,
                 try_reuse: false,
+                ..Default::default()
             },
         )],
         steps: vec![
@@ -392,6 +395,7 @@ pub fn seed_client_attacker_full_kexinit_synth(server: AgentName) -> Trace<SshPr
             SshDescriptorConfig {
                 typ: AgentType::Server,
                 try_reuse: false,
+                ..Default::default()
             },
         )],
         steps: vec![
@@ -479,6 +483,7 @@ pub fn seed_client_attacker_full_ctr(server: AgentName) -> Trace<SshProtocolType
             SshDescriptorConfig {
                 typ: AgentType::Server,
                 try_reuse: false,
+                ..Default::default()
             },
         )],
         steps: vec![
@@ -556,6 +561,7 @@ pub fn seed_client_attacker_auth_bypass(server: AgentName) -> Trace<SshProtocolT
             SshDescriptorConfig {
                 typ: AgentType::Server,
                 try_reuse: false,
+                ..Default::default()
             },
         )],
         steps: vec![
@@ -639,6 +645,7 @@ pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtoco
             SshDescriptorConfig {
                 typ: AgentType::Server,
                 try_reuse: false,
+                ..Default::default()
             },
         )],
         steps: vec![
@@ -734,6 +741,7 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
             SshDescriptorConfig {
                 typ: AgentType::Server,
                 try_reuse: false,
+                ..Default::default()
             },
         )],
         steps: vec![
@@ -828,6 +836,7 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
             SshDescriptorConfig {
                 typ: AgentType::Server,
                 try_reuse: false,
+                ..Default::default()
             },
         )],
         steps: vec![
@@ -917,6 +926,7 @@ pub fn seed_client_attacker_ext_info(server: AgentName) -> Trace<SshProtocolType
             SshDescriptorConfig {
                 typ: AgentType::Server,
                 try_reuse: false,
+                ..Default::default()
             },
         )],
         steps: vec![
@@ -1019,6 +1029,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<SshProtocolTypes> {
             SshDescriptorConfig {
                 typ: AgentType::Client,
                 try_reuse: false,
+                ..Default::default()
             },
         )],
         steps: vec![
@@ -1089,6 +1100,7 @@ pub fn seed_server_attacker_full_aesgcm(client: AgentName) -> Trace<SshProtocolT
             SshDescriptorConfig {
                 typ: AgentType::Client,
                 try_reuse: false,
+                ..Default::default()
             },
         )],
         steps: vec![
@@ -1204,6 +1216,7 @@ pub fn seed_handshake_two_party(client: AgentName, server: AgentName) -> Trace<S
                 SshDescriptorConfig {
                     typ: AgentType::Client,
                     try_reuse: false,
+                    ..Default::default()
                 },
             ),
             AgentDescriptor::from_config(
@@ -1211,6 +1224,7 @@ pub fn seed_handshake_two_party(client: AgentName, server: AgentName) -> Trace<S
                 SshDescriptorConfig {
                     typ: AgentType::Server,
                     try_reuse: false,
+                    ..Default::default()
                 },
             ),
         ],
@@ -1254,6 +1268,7 @@ pub fn seed_terrapin_attempt(client: AgentName, server: AgentName) -> Trace<SshP
                 SshDescriptorConfig {
                     typ: AgentType::Client,
                     try_reuse: false,
+                    ..Default::default()
                 },
             ),
             AgentDescriptor::from_config(
@@ -1261,6 +1276,7 @@ pub fn seed_terrapin_attempt(client: AgentName, server: AgentName) -> Trace<SshP
                 SshDescriptorConfig {
                     typ: AgentType::Server,
                     try_reuse: false,
+                    ..Default::default()
                 },
             ),
         ],
@@ -1324,6 +1340,7 @@ pub fn seed_handshake_two_party_packet(
                 SshDescriptorConfig {
                     typ: AgentType::Client,
                     try_reuse: false,
+                    ..Default::default()
                 },
             ),
             AgentDescriptor::from_config(
@@ -1331,6 +1348,7 @@ pub fn seed_handshake_two_party_packet(
                 SshDescriptorConfig {
                     typ: AgentType::Server,
                     try_reuse: false,
+                    ..Default::default()
                 },
             ),
         ],
@@ -1398,6 +1416,7 @@ pub fn seed_terrapin_packet(client: AgentName, server: AgentName) -> Trace<SshPr
                 SshDescriptorConfig {
                     typ: AgentType::Client,
                     try_reuse: false,
+                    ..Default::default()
                 },
             ),
             AgentDescriptor::from_config(
@@ -1405,6 +1424,7 @@ pub fn seed_terrapin_packet(client: AgentName, server: AgentName) -> Trace<SshPr
                 SshDescriptorConfig {
                     typ: AgentType::Server,
                     try_reuse: false,
+                    ..Default::default()
                 },
             ),
         ],
@@ -1457,6 +1477,7 @@ pub fn seed_terrapin_s2c(client: AgentName, server: AgentName) -> Trace<SshProto
                 SshDescriptorConfig {
                     typ: AgentType::Client,
                     try_reuse: false,
+                    ..Default::default()
                 },
             ),
             AgentDescriptor::from_config(
@@ -1464,6 +1485,7 @@ pub fn seed_terrapin_s2c(client: AgentName, server: AgentName) -> Trace<SshProto
                 SshDescriptorConfig {
                     typ: AgentType::Server,
                     try_reuse: false,
+                    ..Default::default()
                 },
             ),
         ],
@@ -1529,6 +1551,7 @@ pub fn seed_handshake_two_party_packet_complete(
                 SshDescriptorConfig {
                     typ: AgentType::Client,
                     try_reuse: false,
+                    ..Default::default()
                 },
             ),
             AgentDescriptor::from_config(
@@ -1536,6 +1559,7 @@ pub fn seed_handshake_two_party_packet_complete(
                 SshDescriptorConfig {
                     typ: AgentType::Server,
                     try_reuse: false,
+                    ..Default::default()
                 },
             ),
         ],
