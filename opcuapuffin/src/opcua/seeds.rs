@@ -2607,7 +2607,7 @@ pub fn seed_bug_dead_session (
                                         (fn_header(fn_final,
                                             ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
                                         (fn_service(
-                                            (fn_sequence_header(fn_seq_2, fn_seq_2)),
+                                            (fn_sequence_header(fn_seq_5, fn_seq_5)),
                                             (@activate_certificate)
                                         ))
                                     )),
@@ -2621,7 +2621,7 @@ pub fn seed_bug_dead_session (
                                         ))
                                     )),
                                     (fn_service(
-                                        (fn_sequence_header(fn_seq_2, fn_seq_2)),
+                                        (fn_sequence_header(fn_seq_5, fn_seq_5)),
                                         (@activate_certificate)
                                     ))
                                 )),
