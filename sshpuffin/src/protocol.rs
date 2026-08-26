@@ -278,12 +278,39 @@ impl ProtocolTypes for SshProtocolTypes {
     }
 
     fn differential_fuzzing_filter_diff(diff: &puffin::differential::TraceDifference) -> bool {
-        // WIP(empty-filter): keep EVERY difference. We are moving denoising into
-        // the data model (comparable_ignore / comparable_synthetic) and the
-        // recipes, and will re-add here ONLY the cross-message/behavioral rules
-        // that are proven necessary by measurement (see filter_diff_tests).
-        let _ = diff;
-        true
+        use puffin::differential::{KnowledgeDiff, TraceDifference};
+        use puffin::trace::Source;
+
+        // Denoising lives in the data model (whitelist / comparable_ignore /
+        // comparable_synthetic) and uniformise_put_config, so this filter is
+        // nearly empty. The ONE behavioral residual measurement proved necessary:
+        //
+        // The two SSH stacks pipeline a different NUMBER of control-plane replies
+        // (ServiceAccept / UserAuthSuccess / ChannelOpenConfirmation) into the
+        // first s2c packets that the decryption recipes cover, so the shorter
+        // decrypted store is ()-padded and shows up as a DifferentTypes of a real
+        // message against `()`. That is RFC-permitted framing/pipelining, not a
+        // divergence. We drop ONLY that exact shape — a Decryption-sourced
+        // knowledge opposite a `()` pad. A real difference in decrypted CONTENT is
+        // an InnerDifference (kept), and every other diff kind is kept: fail open.
+        fn is_decryption(source: &Source) -> bool {
+            matches!(source, Source::Label(Some(s)) if s == "Decryption")
+        }
+
+        match diff {
+            TraceDifference::Knowledges(KnowledgeDiff::DifferentTypes {
+                first_type,
+                second_type,
+                first_source,
+                second_source,
+                ..
+            }) => {
+                let decryption_count_pad = (first_type == "()" && is_decryption(second_source))
+                    || (second_type == "()" && is_decryption(first_source));
+                !decryption_count_pad
+            }
+            _ => true,
+        }
     }
 }
 
@@ -391,6 +418,47 @@ mod filter_diff_tests {
             second_type: "()".into(),
         });
         assert!(keep(&presence));
+    }
+
+    /// The one behavioral rule kept in `filter_diff`: drop the benign
+    /// decrypted-message COUNT mismatch (a Decryption-sourced knowledge opposite
+    /// a `()` pad, from the two stacks pipelining a different number of s2c
+    /// control-plane replies), but KEEP a real difference in decrypted content.
+    #[test]
+    fn decryption_count_pad_dropped_but_content_kept() {
+        use puffin::differential::KnowledgeDiff;
+        use puffin::trace::Source;
+
+        let decryption = || Source::Label(Some("Decryption".into()));
+
+        // libssh decrypted one more message than wolfSSH -> real vs () pad: DROP.
+        let count_pad = TraceDifference::Knowledges(KnowledgeDiff::DifferentTypes {
+            index: 2,
+            first_type: "sshpuffin::ssh::message::SshMessage".into(),
+            second_type: "()".into(),
+            first_source: decryption(),
+            second_source: Source::Label(None),
+        });
+        assert!(!keep(&count_pad));
+
+        // Both decrypted a message but they DIFFER in content: KEEP (fail open).
+        let content = TraceDifference::Knowledges(KnowledgeDiff::InnerDifference {
+            index: 0,
+            type_name: "sshpuffin::ssh::message::SshMessage".into(),
+            diff: "Different(UserAuthSuccess, UserAuthFailure(..))".into(),
+            source: decryption(),
+        });
+        assert!(keep(&content));
+
+        // A `()` pad that is NOT decryption-sourced is kept (not our benign case).
+        let non_decryption_pad = TraceDifference::Knowledges(KnowledgeDiff::DifferentTypes {
+            index: 1,
+            first_type: "sshpuffin::ssh::message::SshMessage".into(),
+            second_type: "()".into(),
+            first_source: Source::Agent(puffin::agent::AgentName::first()),
+            second_source: Source::Label(None),
+        });
+        assert!(keep(&non_decryption_pad));
     }
 }
 
