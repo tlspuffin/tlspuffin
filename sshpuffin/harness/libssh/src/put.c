@@ -660,10 +660,12 @@ static RESULT libssh_progress(AGENT agent)
                         }
                         /* pk == 0: a pk_ok probe reply was sent; await signature. */
                     }
-                    else
+                    else if (method == SSH_AUTH_METHOD_PASSWORD)
                     {
-                        /* Password / other: accepted as before (the impersonation
-                         * property is publickey-specific). */
+                        /* Password: accept unconditionally, mirroring the wolfSSH
+                         * harness (its auth callback returns SUCCESS for any
+                         * password). The impersonation property is
+                         * publickey-specific. */
                         snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
                         snprintf(agent->auth_user,
                                  sizeof(agent->auth_user),
@@ -676,6 +678,20 @@ static RESULT libssh_progress(AGENT agent)
                         emit_handshake_claim(agent);
                         ssh_message_free(msg);
                         break;
+                    }
+                    else
+                    {
+                        /* Unknown / unsupported method (none, hostbased, or a
+                         * malformed method-name field that libssh classifies as
+                         * not-publickey/not-password): REJECT. RFC 4252 §5.1
+                         * requires SSH_MSG_USERAUTH_FAILURE for an unrecognized
+                         * method, which wolfSSH's library does. The previous
+                         * blanket accept here was a harness artifact that made the
+                         * cross-vendor differential report spurious auth
+                         * divergences (libssh "accepting" a garbage method-name
+                         * that wolfSSH refuses). reply_default sends FAILURE; we do
+                         * not break, so the loop frees msg and awaits the next. */
+                        ssh_message_reply_default(msg);
                     }
                 }
                 else if ((msg_type == SSH_REQUEST_CHANNEL_OPEN ||
