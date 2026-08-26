@@ -83,6 +83,20 @@ impl Codec for BinaryPacket {
 
 #[derive(Clone, Debug, Comparable, PartialEq)]
 pub struct NameList {
+    // SSH name-lists encode *preference order* (RFC 4251 §5), which is
+    // implementation-defined: libssh and wolfSSH advertise the same algorithms
+    // in a different order. For differential comparison we care about the SET
+    // (a genuinely different set is real signal), not the order — so compare a
+    // sorted copy and ignore the raw ordering. Encoding is unaffected (this only
+    // changes the Comparable view, not Codec), so on-wire order is preserved.
+    #[comparable_synthetic {
+        let sorted_names = |x: &Self| -> Vec<String> {
+            let mut names = x.names.clone();
+            names.sort();
+            names
+        };
+    }]
+    #[comparable_ignore]
     names: Vec<String>,
 }
 

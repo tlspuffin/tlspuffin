@@ -92,6 +92,17 @@ extern "C"
     {
         uint8_t name;
         SSH_AGENT_ROLE role;
+        /*
+         * Uniformised algorithm lists (comma-separated SSH wire names, e.g.
+         * "ecdh-sha2-nistp256"). Used by differential fuzzing to make both PUTs
+         * advertise the SAME negotiable algorithms so their KEXINIT no longer
+         * diverges on static per-implementation capability. A NULL pointer means
+         * "leave the PUT default" (single-PUT / non-differential runs).
+         */
+        const char *kex;
+        const char *ciphers;
+        const char *macs;
+        const char *hostkey_algos;
     } SSH_AGENT_DESCRIPTOR;
 
     typedef struct SSH_PUT_INTERFACE
