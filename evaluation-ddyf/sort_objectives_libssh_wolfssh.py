@@ -97,6 +97,19 @@ buckets: dict[str, BucketCondition] = {
         KnowledgeDiffC(first_type_name="SshMessage::ServiceAccept", second_type_name="()"),
         KnowledgeDiffC(first_type_name="()", second_type_name="SshMessage::ServiceAccept"),
     ),
+    # CHANNEL_FAILURE / CHANNEL_OPEN_FAILURE on one stream only. Same
+    # channel-control framing / numbering class as channel_open_confirmation /
+    # channel_success: the seed's fixed recipient_channel matches one stack's
+    # channel numbering but not the other's, so a channel reply lands on one
+    # decrypted stream only. Benign.
+    "benign_decrypt_channel_failure/": AnyC(
+        KnowledgeDiffC(first_type_name="SshMessage::ChannelFailure", second_type_name="()"),
+        KnowledgeDiffC(first_type_name="()", second_type_name="SshMessage::ChannelFailure"),
+    ),
+    "benign_decrypt_channel_open_failure/": AnyC(
+        KnowledgeDiffC(first_type_name="SshMessage::ChannelOpenFailure", second_type_name="()"),
+        KnowledgeDiffC(first_type_name="()", second_type_name="SshMessage::ChannelOpenFailure"),
+    ),
     # One stack answers an unexpected/out-of-order message with SSH_MSG_UNIMPLEMENTED
     # (RFC 4253 §11.4 latitude) where the other stays silent. Either direction.
     "benign_decrypt_unimplemented/": AnyC(
