@@ -902,9 +902,101 @@ FVCIVIuCGO0unWSrPlL7FFPldcYMTy7S33HmlzIuywlUdqD8qCMbA1IP2a9+oD9SAhzk4f
 3dp5eeqWxq8N6lAAAADm1heEBtYXgtdWJ1bnR1AQIDBA==
 -----END OPENSSH PRIVATE KEY-----";
 
+// ── Client identity keys ─────────────────────────────────────────────────────
+//
+// Distinct client credentials the fuzzer can present. Identity A reuses the
+// server host key (historical, keeps the pubkey seeds stable); identities B and
+// C are their own RSA-3072 keypairs. The harness authorized-keys allow-list
+// (both PUTs) grants A and B; C is deliberately NOT authorized, so presenting
+// C's key is the "unauthorized key" attack. Mutations that swap a username, a
+// pubkey blob, and/or a signature across identities are the credential-confusion
+// / impersonation surface — a cross-vendor accept/reject asymmetry is a finding.
+const CLIENT_B_KEY_OPENSSH: &str = "-----BEGIN OPENSSH PRIVATE KEY-----
+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
+-----END OPENSSH PRIVATE KEY-----";
+
+const CLIENT_C_KEY_OPENSSH: &str = "-----BEGIN OPENSSH PRIVATE KEY-----
+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
+-----END OPENSSH PRIVATE KEY-----";
+
 fn load_server_key() -> Result<ssh_key::PrivateKey, FnError> {
     ssh_key::PrivateKey::from_openssh(SERVER_HOST_KEY_OPENSSH)
         .map_err(|e| FnError::Malformed(format!("failed to parse server key: {e}")))
+}
+
+fn load_openssh_key(pem: &str, label: &str) -> Result<ssh_key::PrivateKey, FnError> {
+    ssh_key::PrivateKey::from_openssh(pem)
+        .map_err(|e| FnError::Malformed(format!("failed to parse {label} key: {e}")))
 }
 
 /// Return the server RSA public key as a `SshPublicKey` (for use in `fn_kex_ecdh_reply`).
@@ -988,12 +1080,9 @@ pub fn fn_rsa_sha2_256_signature(sig_data: &SshBytes) -> Result<SshSignature, Fn
     })
 }
 
-/// Client identity key A's public key blob (`["ssh-rsa"][mpint e][mpint n]`),
-/// reusing the embedded RSA key as the attacker's client credential. This is the
-/// blob carried in a publickey USERAUTH_REQUEST and hashed (SHA-256) to the
-/// fingerprint the server records — `ATTACKER_PUBKEY_SHA256` must match it.
-pub fn fn_client_a_pubkey_blob() -> Result<SshBytes, FnError> {
-    let key = load_server_key()?;
+/// Encode a private key's public half as the publickey blob carried in a
+/// USERAUTH_REQUEST (`["ssh-rsa"][mpint e][mpint n]`, no outer length prefix).
+fn pubkey_blob_of(key: &ssh_key::PrivateKey) -> Result<SshBytes, FnError> {
     // ssh-key's to_bytes() returns the inner blob without an outer length prefix,
     // which is exactly the publickey-blob format used in USERAUTH_REQUEST.
     let wire = key
@@ -1003,11 +1092,12 @@ pub fn fn_client_a_pubkey_blob() -> Result<SshBytes, FnError> {
     Ok(SshBytes::new(wire))
 }
 
-/// Sign a publickey USERAUTH_REQUEST with client identity key A (the embedded
-/// RSA key). Produces the raw rsa-sha2-256 signature over the RFC 4252 §7 blob:
+/// Sign a publickey USERAUTH_REQUEST with the given RSA private key. Produces the
+/// raw rsa-sha2-256 signature over the RFC 4252 §7 blob:
 ///   string session id, byte 50, string user, string service, string "publickey",
 ///   boolean TRUE, string "rsa-sha2-256", string public-key blob.
-pub fn fn_sign_userauth(
+fn sign_userauth_with(
+    key: &ssh_key::PrivateKey,
     session_id: &SshBytes,
     user: &SshBytes,
     service: &SshBytes,
@@ -1028,10 +1118,9 @@ pub fn fn_sign_userauth(
     push_ssh_string(&mut data, b"rsa-sha2-256");
     push_ssh_string(&mut data, &pubkey_blob.0);
 
-    let key = load_server_key()?;
     let rsa_keypair = match key.key_data() {
         ssh_key::private::KeypairData::Rsa(r) => r,
-        _ => return Err(FnError::Malformed("client key A is not RSA".into())),
+        _ => return Err(FnError::Malformed("client key is not RSA".into())),
     };
     let n = BigUint::from_bytes_be(rsa_keypair.public.n.as_bytes());
     let e = BigUint::from_bytes_be(rsa_keypair.public.e.as_bytes());
@@ -1047,10 +1136,98 @@ pub fn fn_sign_userauth(
     Ok(SshBytes::new(signature.to_bytes().to_vec()))
 }
 
+/// Client identity key A's public key blob (reuses the embedded server RSA key).
+/// This is the blob carried in a publickey USERAUTH_REQUEST and hashed (SHA-256)
+/// to the fingerprint the server records — the harness allow-list authorizes A.
+pub fn fn_client_a_pubkey_blob() -> Result<SshBytes, FnError> {
+    pubkey_blob_of(&load_server_key()?)
+}
+
+/// Client identity key B's public key blob. B is a distinct RSA-3072 key that the
+/// harness allow-list also authorizes — the swap target for impersonation tests.
+pub fn fn_client_b_pubkey_blob() -> Result<SshBytes, FnError> {
+    pubkey_blob_of(&load_openssh_key(CLIENT_B_KEY_OPENSSH, "client B")?)
+}
+
+/// Client identity key C's public key blob. C is a distinct RSA-3072 key that is
+/// deliberately NOT in the harness allow-list — the "unauthorized key" attack.
+pub fn fn_client_c_pubkey_blob() -> Result<SshBytes, FnError> {
+    pubkey_blob_of(&load_openssh_key(CLIENT_C_KEY_OPENSSH, "client C")?)
+}
+
+/// Sign a publickey USERAUTH_REQUEST with client identity key A.
+pub fn fn_sign_userauth(
+    session_id: &SshBytes,
+    user: &SshBytes,
+    service: &SshBytes,
+    pubkey_blob: &SshBytes,
+) -> Result<SshBytes, FnError> {
+    sign_userauth_with(&load_server_key()?, session_id, user, service, pubkey_blob)
+}
+
+/// Sign a publickey USERAUTH_REQUEST with client identity key B.
+pub fn fn_sign_userauth_b(
+    session_id: &SshBytes,
+    user: &SshBytes,
+    service: &SshBytes,
+    pubkey_blob: &SshBytes,
+) -> Result<SshBytes, FnError> {
+    sign_userauth_with(
+        &load_openssh_key(CLIENT_B_KEY_OPENSSH, "client B")?,
+        session_id,
+        user,
+        service,
+        pubkey_blob,
+    )
+}
+
+/// Sign a publickey USERAUTH_REQUEST with client identity key C.
+pub fn fn_sign_userauth_c(
+    session_id: &SshBytes,
+    user: &SshBytes,
+    service: &SshBytes,
+    pubkey_blob: &SshBytes,
+) -> Result<SshBytes, FnError> {
+    sign_userauth_with(
+        &load_openssh_key(CLIENT_C_KEY_OPENSSH, "client C")?,
+        session_id,
+        user,
+        service,
+        pubkey_blob,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ssh::message::{ServiceRequestMessage, SshMessage};
+
+    #[test]
+    fn client_identities_load_and_are_distinct() {
+        // Guards against a copy-paste error in the embedded B/C PEMs: each key
+        // must parse, yield an ssh-rsa publickey blob, and be distinct from the
+        // others (A reuses the server key, B and C are their own keypairs).
+        let a = fn_client_a_pubkey_blob().expect("A blob");
+        let b = fn_client_b_pubkey_blob().expect("B blob");
+        let c = fn_client_c_pubkey_blob().expect("C blob");
+        for (name, blob) in [("A", &a), ("B", &b), ("C", &c)] {
+            assert!(
+                blob.0.windows(7).any(|w| w == b"ssh-rsa"),
+                "identity {name} blob is not an ssh-rsa key"
+            );
+        }
+        assert_ne!(a.0, b.0, "A and B must differ");
+        assert_ne!(a.0, c.0, "A and C must differ");
+        assert_ne!(b.0, c.0, "B and C must differ");
+
+        // Each identity signs the RFC 4252 §7 blob with its own key without error.
+        let sid = SshBytes::new(vec![7u8; 32]);
+        let user = SshBytes::new(b"user".to_vec());
+        let svc = SshBytes::new(b"ssh-connection".to_vec());
+        assert!(fn_sign_userauth(&sid, &user, &svc, &a).is_ok());
+        assert!(fn_sign_userauth_b(&sid, &user, &svc, &b).is_ok());
+        assert!(fn_sign_userauth_c(&sid, &user, &svc, &c).is_ok());
+    }
 
     #[test]
     fn test_encrypt_decrypt_roundtrip() {

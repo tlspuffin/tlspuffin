@@ -26,6 +26,7 @@
 
 #include "bindings.h"
 #include "server_key.h"
+#include <puffin/ssh_authorized_creds.h>
 
 /* ── Internal state ──────────────────────────────────────────────────────── */
 
@@ -75,48 +76,71 @@ static RESULT
 wolfssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 static void wolfssh_rng_reseed(const uint8_t *buffer, size_t length);
 
-/* ── auth callback: accept everything ────────────────────────────────────── */
+/* ── auth callback: enforce the shared authorization boundary ─────────────── */
 
 static const char WOLFSSH_AUTH_PASSWORD[] = "password";
 
 static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
 {
     AGENT agent = (AGENT)ctx;
-    /* Dual purpose: as a SERVER, accept any credential (return SUCCESS); as a
-       CLIENT, *provide* a password so SendUserAuthRequest has something to send
-       (wolfSSH calls the same callback to obtain client credentials). */
-    if (authType == WOLFSSH_USERAUTH_PASSWORD && authData != NULL)
+    bool is_server = (agent != NULL && agent->descriptor.role == SSH_SERVER);
+
+    /* CLIENT role: *provide* a password so SendUserAuthRequest has something to
+       send (wolfSSH calls the same callback to obtain client credentials). Only
+       do this off the server path — on the server, sf.password holds the
+       RECEIVED password and must not be overwritten. */
+    if (!is_server)
     {
-        authData->sf.password.password = (const uint8_t *)WOLFSSH_AUTH_PASSWORD;
-        authData->sf.password.passwordSz = (uint32_t)(sizeof(WOLFSSH_AUTH_PASSWORD) - 1);
+        if (authType == WOLFSSH_USERAUTH_PASSWORD && authData != NULL)
+        {
+            authData->sf.password.password = (const uint8_t *)WOLFSSH_AUTH_PASSWORD;
+            authData->sf.password.passwordSz =
+                (uint32_t)(sizeof(WOLFSSH_AUTH_PASSWORD) - 1);
+        }
+        return WOLFSSH_USERAUTH_SUCCESS;
     }
 
-    /* Record the server's authentication belief for the claim. wolfSSH has
-       cryptographically verified the publickey signature by the time it calls
-       us with hasSignature set, so this mirrors the libssh harness: the method,
-       user, and — for publickey — the SHA-256 fingerprint of the verified key. */
-    if (agent != NULL && agent->descriptor.role == SSH_SERVER && authData != NULL)
+    /* SERVER role: enforce the shared (user, key) / (user, password) allow-list
+       so the boundary is identical to the libssh harness. wolfSSH has
+       cryptographically verified the publickey signature by the time it calls us
+       with hasSignature set; a valid signature is necessary but not sufficient —
+       the key must be authorized FOR THIS USER. */
+    if (authData == NULL)
+        return WOLFSSH_USERAUTH_FAILURE;
+
+    char user[SSH_CLAIM_STR_LEN];
+    snprintf(user, sizeof(user), "%.*s", (int)authData->usernameSz,
+             authData->username ? (const char *)authData->username : "");
+    snprintf(agent->auth_user, sizeof(agent->auth_user), "%s", user);
+
+    if (authType == WOLFSSH_USERAUTH_PUBLICKEY)
     {
-        snprintf(agent->auth_user,
-                 sizeof(agent->auth_user),
-                 "%.*s",
-                 (int)authData->usernameSz,
-                 authData->username ? (const char *)authData->username : "");
-        if (authType == WOLFSSH_USERAUTH_PUBLICKEY && authData->sf.publicKey.hasSignature)
-        {
-            snprintf(agent->auth_method, sizeof(agent->auth_method), "publickey");
-            wc_Sha256Hash(authData->sf.publicKey.publicKey,
-                          authData->sf.publicKey.publicKeySz,
-                          agent->auth_key_fp);
-            agent->auth_key_fp_len = 32;
-        }
-        else if (authType == WOLFSSH_USERAUTH_PASSWORD)
-        {
-            snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
-            agent->auth_key_fp_len = 0;
-        }
+        if (!authData->sf.publicKey.hasSignature)
+            return WOLFSSH_USERAUTH_SUCCESS; /* probe: let the client send the sig */
+
+        uint8_t fp[32];
+        wc_Sha256Hash(authData->sf.publicKey.publicKey,
+                      authData->sf.publicKey.publicKeySz, fp);
+        if (!ssh_creds_key_authorized(user, fp, sizeof(fp)))
+            return WOLFSSH_USERAUTH_INVALID_PUBLICKEY;
+
+        snprintf(agent->auth_method, sizeof(agent->auth_method), "publickey");
+        memcpy(agent->auth_key_fp, fp, sizeof(fp));
+        agent->auth_key_fp_len = 32;
+        return WOLFSSH_USERAUTH_SUCCESS;
     }
-    return WOLFSSH_USERAUTH_SUCCESS;
+    else if (authType == WOLFSSH_USERAUTH_PASSWORD)
+    {
+        if (!ssh_creds_password_authorized(user, authData->sf.password.password,
+                                           authData->sf.password.passwordSz))
+            return WOLFSSH_USERAUTH_INVALID_PASSWORD;
+
+        snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
+        agent->auth_key_fp_len = 0;
+        return WOLFSSH_USERAUTH_SUCCESS;
+    }
+
+    return WOLFSSH_USERAUTH_FAILURE;
 }
 
 /* Client-side host-key check: accept any server key. Without this, wolfSSH's

@@ -95,6 +95,10 @@ define_signature!(
     fn_username_long
     fn_password_empty
     fn_password_long
+    fn_username_b
+    fn_username_c
+    fn_password_b
+    fn_password_c
     fn_u32_7
     fn_u32_max
     fn_u32_0x10000
@@ -110,6 +114,7 @@ define_signature!(
     fn_password_auth_data
     fn_none_auth_data
     fn_exec_payload
+    fn_channel_payload
     fn_ssh_bytes
     fn_ssh_bytes_empty
     fn_ssh_public_key
@@ -198,6 +203,10 @@ define_signature!(
     fn_sign_exchange_hash [no_gen]
     fn_rsa_sha2_256_signature
     fn_client_a_pubkey_blob
+    fn_client_b_pubkey_blob
+    fn_client_c_pubkey_blob
     fn_sign_userauth [no_gen]
+    fn_sign_userauth_b [no_gen]
+    fn_sign_userauth_c [no_gen]
     fn_publickey_auth_data
 );

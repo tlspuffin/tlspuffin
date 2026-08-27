@@ -24,6 +24,16 @@ claims = []
 # are out of scope for the decryption-differential research. Off by default.
 decrypt-only = []
 
+# Add the richer, cross-vendor-DIVERGING seeds to the corpus (post-auth channel
+# DATA, client-initiated rekey, RFC 8308 ext-info, and the credential-confusion
+# seeds using identities B/C). These deliberately do NOT complete identically on
+# libssh and wolfSSH, so they would flood a differential campaign with benign
+# objectives — hence they are gated off by default and intended for single-PUT
+# parser/crash campaigns (`-T <put> experiment`). The differential corpus stays
+# the 3 clean seeds. Promote individual seeds to the differential set once their
+# benign divergence class is bucketed.
+rich-corpus = []
+
 # Sanitizer / instrumentation flags forwarded to the C harness build
 asan    = ["puffin/asan"]
 sancov  = ["puffin/sancov"]
