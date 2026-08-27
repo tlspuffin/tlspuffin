@@ -22,12 +22,12 @@ pub fn create_corpus(
 ) -> Vec<(Trace<OpcuaProtocolTypes>, &'static str)> {
     vec![
         (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
-        (seed_ap_client_open_unsecure_channel(AgentName::first()), "seed_ap_client_open_unsecure_channel"),
+        // (seed_ap_client_open_unsecure_channel(AgentName::first()), "seed_ap_client_open_unsecure_channel"),
         (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel"),
-        // (seed_c_server_open_unsecure_channel(AgentName::first()), "seed_c_server_open_unsecure_channel"),
-        (seed_d_client_simple_request(AgentName::first()), "seed_d_client_simple_request"),
-        (seed_e_client_reopen_reactivate(AgentName::first()), "seed_e_client_reopen_reactivate"),
-        (seed_f_client_switch_secure_channels(AgentName::first()), "seed_f_client_switch_secure_channels"),
+        // // (seed_c_server_open_unsecure_channel(AgentName::first()), "seed_c_server_open_unsecure_channel"),
+        // (seed_d_client_simple_request(AgentName::first()), "seed_d_client_simple_request"),
+        // (seed_e_client_reopen_reactivate(AgentName::first()), "seed_e_client_reopen_reactivate"),
+        // (seed_f_client_switch_secure_channels(AgentName::first()), "seed_f_client_switch_secure_channels"),
         (seed_bug_dead_session(AgentName::first()), "seed_bug_dead_session"),
     ]
 }
@@ -2205,14 +2205,11 @@ pub fn seed_bug_dead_session (
         )
     };
     let create_request = term! {
-        fn_service(
-            (fn_sequence_header(fn_seq_1, fn_seq_1)),
-            (fn_create_request(
-                (fn_request_header(fn_sa_token_zero, fn_seq_1)),
-                fn_bob_endpoint,
-                fn_session_nonce_1,
-                fn_mallory_cert
-            ))
+        fn_create_request(
+            (fn_request_header(fn_sa_token_zero, fn_seq_1)),
+            fn_bob_endpoint,
+            fn_session_nonce_1,
+            fn_mallory_cert
         )
     };
     let hmac_key = term! {
@@ -2351,7 +2348,7 @@ pub fn seed_bug_dead_session (
                             fn_basic256sha256,
                             (fn_header(fn_final,
                                 ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (@create_request)
+                            (fn_service_size((@create_request)))
                         )),
                         (fn_body(
                             (fn_get_channel_token(
@@ -2364,19 +2361,14 @@ pub fn seed_bug_dead_session (
                                 ))
                             )),
                             (fn_sequence_header(fn_seq_1, fn_seq_1)),
-                            (fn_create_request(
-                                (fn_request_header(fn_sa_token_zero, fn_seq_1)),
-                                fn_bob_endpoint,
-                                fn_session_nonce_1,
-                                fn_mallory_cert
-                            )),
+                            (@create_request),
                             (fn_mac(
                                 (fn_data_to_mac(
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
                                             ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (@create_request)
+                                        (fn_service_size((@create_request)))
                                     )),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
@@ -2387,7 +2379,10 @@ pub fn seed_bug_dead_session (
                                             fn_mallory_sk
                                         ))
                                     )),
-                                    (@create_request)
+                                    (fn_service(
+                                        (fn_sequence_header(fn_seq_1, fn_seq_1)),
+                                        (@create_request)
+                                    ))
                                 )),
                                 fn_basic256sha256,
                                 (@hmac_key)
@@ -2406,10 +2401,7 @@ pub fn seed_bug_dead_session (
                             fn_basic256sha256,
                             (fn_header(fn_final,
                                 ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service(
-                                (fn_sequence_header(fn_seq_2, fn_seq_2)),
-                                (@activate_certificate)
-                            ))
+                            (fn_service_size((@activate_certificate)))
                         )),
                         (fn_body(
                             (fn_get_channel_token(
@@ -2429,10 +2421,7 @@ pub fn seed_bug_dead_session (
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
                                             ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service(
-                                            (fn_sequence_header(fn_seq_2, fn_seq_2)),
-                                            (@activate_certificate)
-                                        ))
+                                        (fn_service_size((@activate_certificate)))
                                     )),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
@@ -2465,10 +2454,7 @@ pub fn seed_bug_dead_session (
                             fn_basic256sha256,
                             (fn_header(fn_final,
                                 ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service(
-                                (fn_sequence_header(fn_seq_3, fn_seq_3)),
-                                (@simple_request)
-                            ))
+                            (fn_service_size((@simple_request)))
                         )),
                         (fn_body(
                             (fn_get_channel_token(
@@ -2488,10 +2474,7 @@ pub fn seed_bug_dead_session (
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
                                             ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service(
-                                            (fn_sequence_header(fn_seq_3, fn_seq_3)),
-                                            (@simple_request)
-                                        ))
+                                        (fn_service_size((@simple_request)))
                                     )),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
@@ -2524,10 +2507,7 @@ pub fn seed_bug_dead_session (
                             fn_basic256sha256,
                             (fn_header(fn_final,
                                 ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service(
-                                (fn_sequence_header(fn_seq_4, fn_seq_4)),
-                                (@close_session)
-                            ))
+                            (fn_service_size((@close_session)))
                         )),
                         (fn_body(
                             (fn_get_channel_token(
@@ -2547,10 +2527,7 @@ pub fn seed_bug_dead_session (
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
                                             ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service(
-                                            (fn_sequence_header(fn_seq_4, fn_seq_4)),
-                                            (@close_session)
-                                        ))
+                                        (fn_service_size((@close_session)))
                                     )),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
@@ -2583,10 +2560,7 @@ pub fn seed_bug_dead_session (
                             fn_basic256sha256,
                             (fn_header(fn_final,
                                 ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service(
-                                (fn_sequence_header(fn_seq_2, fn_seq_2)),
-                                (@activate_certificate)
-                            ))
+                            (fn_service_size((@activate_certificate)))
                         )),
                         (fn_body(
                             (fn_get_channel_token(
@@ -2598,7 +2572,7 @@ pub fn seed_bug_dead_session (
                                     fn_mallory_sk
                                 ))
                             )),
-                            (fn_sequence_header(fn_seq_2, fn_seq_2)),
+                            (fn_sequence_header(fn_seq_5, fn_seq_5)),
                             (@activate_certificate),
                             (fn_mac(
                                 (fn_data_to_mac(
@@ -2606,10 +2580,7 @@ pub fn seed_bug_dead_session (
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
                                             ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service(
-                                            (fn_sequence_header(fn_seq_5, fn_seq_5)),
-                                            (@activate_certificate)
-                                        ))
+                                        (fn_service_size((@activate_certificate)))
                                     )),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
@@ -2621,7 +2592,7 @@ pub fn seed_bug_dead_session (
                                         ))
                                     )),
                                     (fn_service(
-                                        (fn_sequence_header(fn_seq_5, fn_seq_5)),
+                                        (fn_sequence_header(fn_seq_2, fn_seq_2)),
                                         (@activate_certificate)
                                     ))
                                 )),
