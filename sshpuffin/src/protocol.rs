@@ -280,10 +280,11 @@ impl ProtocolTypes for SshProtocolTypes {
     fn differential_fuzzing_filter_diff(diff: &puffin::differential::TraceDifference) -> bool {
         use puffin::differential::{KnowledgeDiff, TraceDifference};
 
-        // decrypt-only research mode: keep ONLY differences produced by the
-        // decryption recipes (Source::Label("Decryption")), dropping Status,
-        // Claims, and on-wire transcript differences so the campaign's objectives
-        // are exclusively decrypted-content divergences. Off by default.
+        // decrypt-only RESEARCH mode (a scope selector, not a denoiser, off by
+        // default): keep ONLY differences produced by the decryption recipes
+        // (Source::Label("Decryption")), dropping status / claim / on-wire
+        // transcript diffs so a campaign's objectives are exclusively
+        // decrypted-content divergences.
         #[cfg(feature = "decrypt-only")]
         {
             use puffin::trace::Source;
@@ -307,39 +308,27 @@ impl ProtocolTypes for SshProtocolTypes {
         }
 
         // Denoising lives in the data model (whitelist / comparable_ignore /
-        // comparable_synthetic), uniformise_put_config, and — for the
-        // decrypted/on-wire message streams — SEMANTIC ALIGNMENT
-        // (differential_fuzzing_alignment_key), which compares messages of the
-        // same kind regardless of packet position. A message present on only one
-        // side is therefore reported as a presence difference (kind vs "()"),
-        // and is KEPT by default: an implementation emitting a security message
-        // (e.g. an unexpected UserAuthSuccess) the other does not is a genuine
-        // finding, NOT to be dropped. This filter fails CLOSED.
+        // comparable_synthetic), uniformise_put_config, and — for the decrypted
+        // streams — FLIGHT DECRYPTION + SEMANTIC ALIGNMENT (messages compared by
+        // variant, with each socket write peeled packet-by-packet). This filter
+        // is otherwise FULLY FAIL-CLOSED: content differences of any kind, and
+        // presence differences of every kind, are KEPT as objectives — we do NOT
+        // broadly whitelist, to avoid masking a real bug. Benign classification
+        // of the surviving presence differences (control-plane framing / reply
+        // timing) is done downstream as an explicit, precise BENIGN triage bucket
+        // (mirroring the TLS triaging pipeline), not by dropping them here.
         //
-        // Documented benign exceptions: SERVICE- and CHANNEL-CONTROL-plane
-        // framing. Two independent stacks packetize/order these control replies
-        // differently, and the decryption recipe's fixed seqno window captures a
-        // different subset from each (e.g. libssh's CHANNEL_OPEN_CONFIRMATION vs
-        // wolfSSH's CHANNEL_SUCCESS at the same slot), so a control message
-        // legitimately appears on one side's decrypted stream only. That
-        // presence asymmetry is benign framing, not a security divergence.
-        //
-        // This set is DELIBERATELY LIMITED to control-plane framing. It does NOT
-        // include the security-relevant kinds, which stay fail-closed and are
-        // reported if they appear on one side only:
-        //   - auth results:  UserAuthSuccess / UserAuthFailure / UserAuthBanner
-        //   - channel DATA:  ChannelData / ChannelExtendedData  (the research target)
-        //   - Disconnect
-        // and CONTENT differences (InnerDifference) of any kind are always kept.
-        const BENIGN_PRESENCE: &[&str] = &[
-            "SshMessage::ServiceAccept",
+        // The SOLE exception is the MINIMAL set needed to keep the differential
+        // SEEDS at 0 differences: on the clean matching-conversation seeds the two
+        // stacks packetize the channel-setup replies differently, so exactly
+        // ChannelOpenConfirmation (libssh side) and ChannelSuccess (wolfSSH side)
+        // appear on one decrypted stream only. Investigation (transport-level
+        // instrumentation of both stacks) confirmed this is benign framing/reply
+        // timing, not a protocol/security divergence. We drop ONLY those two exact
+        // presence shapes; every other presence/content difference is kept.
+        const SEED_BENIGN_PRESENCE: &[&str] = &[
             "SshMessage::ChannelOpenConfirmation",
-            "SshMessage::ChannelOpenFailure",
             "SshMessage::ChannelSuccess",
-            "SshMessage::ChannelFailure",
-            "SshMessage::ChannelWindowAdjust",
-            "SshMessage::ChannelEof",
-            "SshMessage::ChannelClose",
         ];
 
         match diff {
@@ -348,12 +337,10 @@ impl ProtocolTypes for SshProtocolTypes {
                 second_type,
                 ..
             }) => {
-                // A presence difference is `<kind>` vs `()`. Drop it only when the
-                // present kind is benign control-plane framing.
-                let benign_framing = (second_type == "()"
-                    && BENIGN_PRESENCE.contains(&first_type.as_str()))
-                    || (first_type == "()" && BENIGN_PRESENCE.contains(&second_type.as_str()));
-                !benign_framing
+                let seed_benign_framing = (second_type == "()"
+                    && SEED_BENIGN_PRESENCE.contains(&first_type.as_str()))
+                    || (first_type == "()" && SEED_BENIGN_PRESENCE.contains(&second_type.as_str()));
+                !seed_benign_framing
             }
             _ => true,
         }
@@ -499,45 +486,51 @@ mod filter_diff_tests {
         assert!(keep(&presence));
     }
 
-    /// Semantic-alignment filter policy: presence/absence of a message is a
-    /// FINDING by default (fail closed), with ONE explicit benign exception —
-    /// ServiceAccept framing. Content differences are always kept.
+    /// Filter policy: fail closed for everything EXCEPT the minimal seed-benign
+    /// framing set (ChannelOpenConfirmation / ChannelSuccess). We deliberately do
+    /// NOT broadly whitelist — presence differences of other control-plane kinds
+    /// (e.g. ServiceAccept) stay objectives and are classified benign downstream.
     #[test]
-    fn presence_absence_kept_except_service_accept() {
+    fn fail_closed_except_minimal_seed_framing() {
         use puffin::differential::KnowledgeDiff;
         use puffin::trace::Source;
 
         let decryption = || Source::Label(Some("Decryption".into()));
-
-        // A message present on one side only, of a SECURITY-relevant kind (auth
-        // result): this is exactly an omission/asymmetry finding -> KEEP.
-        let missing_auth = TraceDifference::Knowledges(KnowledgeDiff::DifferentTypes {
-            index: 0,
-            first_type: "SshMessage::UserAuthSuccess".into(),
-            second_type: "()".into(),
-            first_source: decryption(),
-            second_source: Source::Label(None),
-        });
-        assert!(keep(&missing_auth));
-
-        // ServiceAccept present on one side only: benign RFC-permitted framing
-        // (wolfSSH sends it explicitly, libssh pipelines past it) -> DROP.
-        // Either direction.
-        for (a, b) in [
-            ("SshMessage::ServiceAccept", "()"),
-            ("()", "SshMessage::ServiceAccept"),
-        ] {
-            let sa = TraceDifference::Knowledges(KnowledgeDiff::DifferentTypes {
+        let presence = |kind: &str| {
+            TraceDifference::Knowledges(KnowledgeDiff::DifferentTypes {
                 index: 0,
-                first_type: a.into(),
-                second_type: b.into(),
+                first_type: kind.into(),
+                second_type: "()".into(),
                 first_source: decryption(),
                 second_source: Source::Label(None),
-            });
-            assert!(!keep(&sa), "ServiceAccept framing must be dropped");
+            })
+        };
+
+        // Kept (fail closed): security-relevant AND other control-plane framing
+        // that is NOT in the minimal seed set.
+        for kind in [
+            "SshMessage::UserAuthSuccess",
+            "SshMessage::UserAuthFailure",
+            "SshMessage::ChannelData",
+            "SshMessage::Disconnect",
+            "SshMessage::ServiceAccept",
+            "SshMessage::ChannelOpenFailure",
+        ] {
+            assert!(keep(&presence(kind)), "{kind} presence must be kept");
         }
 
-        // Both decrypted a same-kind message but they DIFFER in content: KEEP.
+        // Dropped: ONLY the two kinds needed to keep the seeds at 0 differences.
+        for kind in [
+            "SshMessage::ChannelOpenConfirmation",
+            "SshMessage::ChannelSuccess",
+        ] {
+            assert!(
+                !keep(&presence(kind)),
+                "{kind} seed-framing must be dropped"
+            );
+        }
+
+        // Content differences are always kept.
         let content = TraceDifference::Knowledges(KnowledgeDiff::InnerDifference {
             index: 0,
             type_name: "sshpuffin::ssh::message::SshMessage".into(),
