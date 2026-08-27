@@ -666,6 +666,249 @@ pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtoco
     }
 }
 
+/// Credential-confusion baseline: authenticate by publickey as identity **B**
+/// (user "userb", key B), which the harness allow-list authorizes. Mirrors the
+/// key-A publickey seed but with B's username / blob / signature, so it completes
+/// the handshake. This is the starting point the fuzzer mutates toward cross-
+/// identity attacks (swap B's username/blob/signature for A's or C's).
+/// AES-256-GCM, c2s counters: SERVICE_REQUEST 0, USERAUTH_REQUEST 1, channel 2,3.
+pub fn seed_client_attacker_pubkey_b(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id = term! { fn_banner_id(((server, 0)[None]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+    };
+    // B signs over (session id, "userb", service, key-B blob) with B's key.
+    let sig = term! {
+        fn_sign_userauth_b((@exch_hash), (fn_username_b), (fn_ssh_connection), (fn_client_b_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username_b), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_b_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_1))
+    };
+    let chan_open = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+                             (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_2))
+    };
+    let chan_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
+                                (fn_exec_payload((fn_ssh_userauth))))),
+            (@key), (@iv), (fn_u32_3))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @chan_open }),
+            InputAction::new_step(server, term! { @chan_req }),
+        ],
+        ..Default::default()
+    }
+}
+
+/// Credential-confusion **impersonation** seed: present user **A**'s name ("user")
+/// but key **B**, with a cryptographically VALID signature by key B over that very
+/// request. The stack's signature check passes (B really signed it), so the only
+/// thing standing between the attacker and a session is the (user, key) binding:
+/// (user "user", key B) is NOT in the allow-list, so a correct server rejects.
+/// A stack that authenticates here — or a cross-vendor accept/reject disagreement —
+/// is an impersonation finding. This is the headline credential-confusion case.
+pub fn seed_client_attacker_impersonate_a_with_b(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id = term! { fn_banner_id(((server, 0)[None]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+    };
+    // Valid signature by key B, but over a request whose username is "user" (A's
+    // name). Signature verifies; the (user "user", key B) pairing is unauthorized.
+    let sig = term! {
+        fn_sign_userauth_b((@exch_hash), (fn_username), (fn_ssh_connection), (fn_client_b_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_b_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_1))
+    };
+    // After a REJECTED auth, pump with SSH_MSG_IGNORE (permitted in any state) so
+    // wolfSSH flushes its USERAUTH_FAILURE without hitting "message not allowed
+    // before user authentication" (which a channel message would trigger). This
+    // keeps the seed differential-clean: both stacks reject identically, so the
+    // un-mutated trace is 0-diff and mutations that make one stack ACCEPT the bad
+    // pairing surface as a real accept/reject divergence.
+    let pump1 = term! {
+        fn_encrypt_packet_aesgcm((fn_ignore((fn_ssh_bytes_empty))), (@key), (@iv), (fn_u32_2))
+    };
+    let pump2 = term! {
+        fn_encrypt_packet_aesgcm((fn_ignore((fn_ssh_bytes_empty))), (@key), (@iv), (fn_u32_3))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @pump1 }),
+            InputAction::new_step(server, term! { @pump2 }),
+        ],
+        ..Default::default()
+    }
+}
+
+/// Credential-confusion **unauthorized-key** seed: authenticate as identity **C**
+/// (user "userc", key C) with a valid signature by key C. Key C is deliberately
+/// absent from the allow-list, so a correct server rejects despite the valid
+/// signature. A stack that accepts — or a cross-vendor disagreement — is a finding.
+pub fn seed_client_attacker_unauthorized_key_c(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id = term! { fn_banner_id(((server, 0)[None]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+    };
+    let sig = term! {
+        fn_sign_userauth_c((@exch_hash), (fn_username_c), (fn_ssh_connection), (fn_client_c_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username_c), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_c_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_1))
+    };
+    // Pump with SSH_MSG_IGNORE after the rejected auth (see impersonate seed).
+    let pump1 = term! {
+        fn_encrypt_packet_aesgcm((fn_ignore((fn_ssh_bytes_empty))), (@key), (@iv), (fn_u32_2))
+    };
+    let pump2 = term! {
+        fn_encrypt_packet_aesgcm((fn_ignore((fn_ssh_bytes_empty))), (@key), (@iv), (fn_u32_3))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @pump1 }),
+            InputAction::new_step(server, term! { @pump2 }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// Session-layer (RFC 4254 connection protocol) seed: authenticate by publickey
 /// (key A, accepted), open a session channel, then drive the full set of channel
 /// messages — WINDOW_ADJUST, DATA, EXTENDED_DATA, EOF, CLOSE. The other seeds stop
@@ -718,13 +961,17 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
         fn_encrypt_packet_aesgcm(
             (fn_channel_window_adjust((fn_u32_0), (fn_u32_0x10000))), (@key), (@iv), (fn_u32_3))
     };
+    // Mutable byte payload (fn_ssh_bytes over a Vec<u8> leaf): bit-level havoc
+    // grows/shrinks/flips the bytes and the DY mutator can swap the leaf — the
+    // entry point for fuzzing the peer's post-auth channel-data parser.
     let chan_data = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_data((fn_u32_0), (fn_placeholder_32bytes))), (@key), (@iv), (fn_u32_4))
+            (fn_channel_data((fn_u32_0), (fn_ssh_bytes((fn_channel_payload))))),
+            (@key), (@iv), (fn_u32_4))
     };
     let chan_ext_data = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_extended_data((fn_u32_0), (fn_u32_1), (fn_placeholder_32bytes))),
+            (fn_channel_extended_data((fn_u32_0), (fn_u32_1), (fn_ssh_bytes((fn_channel_payload))))),
             (@key), (@iv), (fn_u32_5))
     };
     let chan_eof = term! {
@@ -816,10 +1063,33 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
             (@key), (@iv), (fn_u32_1))
     };
 
-    // Rekey handshake, encrypted under the first keys (c2s counters 2,3,4).
+    // Rekey handshake, encrypted under the first keys (c2s counters 2,3,4). The
+    // rekey KEXINIT is synthesized bottom-up from algorithm-name atoms (like
+    // seed_client_attacker_full_kexinit_synth) so its name-lists are mutable
+    // sub-terms: this exposes the server's *re-KEX* negotiation to downgrade /
+    // strict-kex-rearm / Terrapin-class mutations mid-session, a code path a
+    // fixed rekey KEXINIT cannot reach. The clean algorithm set matches the
+    // first handshake so the rekey still completes on an un-mutated run.
+    //
+    // NOTE: sending post-rekey *traffic* (encrypted under the re-derived keys, to
+    // prove the switch took) would require the server's SECOND KexEcdhReply — but
+    // that is s2c-encrypted and only flushed when the server processes rekey_newkeys,
+    // the same flush/decryption wall documented for the channel-number query. So
+    // this seed drives the re-KEX handshake but stops at rekey_newkeys.
     let rekey_kexinit = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_client_kexinit_aesgcm((fn_cookie_zeros))), (@key), (@iv), (fn_u32_2))
+            (fn_kex_init(
+                (fn_cookie_zeros),
+                (fn_kex_algos((fn_namelist_1((fn_algo_curve25519_sha256))))),
+                (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+                (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+                (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+                (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+                (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+                (fn_comp_algos((fn_namelist_1((fn_algo_none))))),
+                (fn_comp_algos((fn_namelist_1((fn_algo_none)))))
+            )),
+            (@key), (@iv), (fn_u32_2))
     };
     let rekey_ecdh_init = term! {
         fn_encrypt_packet_aesgcm(
@@ -1686,7 +1956,12 @@ pub fn create_corpus(
     // differential corpus — they are commented out below but kept documented
     // (and their `seed_*` functions remain defined above) for single-PUT /
     // claims-oracle campaigns.
-    vec![
+    //
+    // The `rich-corpus` feature appends the divergent seeds (channel DATA, rekey,
+    // ext-info, credential-confusion B/C) for single-PUT parser/crash campaigns;
+    // see the cfg block after this vec.
+    #[allow(unused_mut)]
+    let mut corpus: Vec<(Trace<SshProtocolTypes>, &'static str)> = vec![
         // (
         //     seed_client_attacker_full(server),
         //     "seed_client_attacker_full",
@@ -1727,6 +2002,22 @@ pub fn create_corpus(
             seed_client_attacker_pubkey_aesgcm(server),
             "seed_client_attacker_pubkey_aesgcm",
         ),
+        // Credential-confusion entry point, PROMOTED to the differential corpus.
+        // Publickey login as authorized identity B (user "userb", key B): both
+        // stacks emit USERAUTH_SUCCESS and the trace is 0-diff. From here the DY
+        // mutator explores the credential space under differential comparison —
+        // swapping the username / pubkey blob / signature across identities A/B/C
+        // — so a mutation that makes one stack AUTHENTICATE a pairing the other
+        // rejects surfaces as a real accept/reject (UserAuthSuccess vs Failure)
+        // divergence. The explicit *rejection* seeds (impersonate / unauthorized
+        // C) stay single-PUT only: both stacks correctly reject, but they flush
+        // USERAUTH_FAILURE at different s2c counter positions, so the decryption
+        // recipe aligns on one side only — the same flush-timing wall documented
+        // for the channel-number query. Not a bug; just not positionally clean.
+        (
+            seed_client_attacker_pubkey_b(server),
+            "seed_client_attacker_pubkey_b",
+        ),
         // Session layer: authenticated channel with full connection-protocol
         // traffic (window-adjust / data / extended-data / eof / close).
         // (
@@ -1758,5 +2049,85 @@ pub fn create_corpus(
         //     seed_handshake_two_party_packet_complete(client, server),
         //     "seed_handshake_two_party_packet_complete",
         // ),
-    ]
+    ];
+
+    // Richer, cross-vendor-DIVERGING seeds for single-PUT parser/crash campaigns.
+    // Kept out of the differential corpus (they don't complete identically on both
+    // stacks) but invaluable for exercising post-auth channel data, re-KEX, ext-
+    // info, and the credential-confusion boundary on one stack at a time.
+    #[cfg(feature = "rich-corpus")]
+    {
+        let _ = client; // (reserved for future server-attacker rich seeds)
+        corpus.extend([
+            // Post-auth channel DATA / flow-control / teardown, mutable payload.
+            (
+                seed_client_attacker_channel_data(server),
+                "seed_client_attacker_channel_data",
+            ),
+            // Client-initiated rekey (RFC 4253 §9) with a mutable rekey KEXINIT.
+            (
+                seed_client_attacker_rekey(server),
+                "seed_client_attacker_rekey",
+            ),
+            // RFC 8308 ext-info parser.
+            (
+                seed_client_attacker_ext_info(server),
+                "seed_client_attacker_ext_info",
+            ),
+            // Credential-confusion REJECTION seeds (impersonation A-name-with-key-B,
+            // and unauthorized key C). Both stacks correctly reject; single-PUT
+            // only because they flush USERAUTH_FAILURE at different s2c positions
+            // (flush-timing wall). The authorized-B baseline is promoted to the
+            // differential corpus above (seed_client_attacker_pubkey_b).
+            (
+                seed_client_attacker_impersonate_a_with_b(server),
+                "seed_client_attacker_impersonate_a_with_b",
+            ),
+            (
+                seed_client_attacker_unauthorized_key_c(server),
+                "seed_client_attacker_unauthorized_key_c",
+            ),
+        ]);
+    }
+
+    corpus
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // The credential-confusion seeds must build without panicking and carry the
+    // full publickey handshake (9 steps: output + banner + kexinit + ecdh +
+    // newkeys + svc_req + auth_req + chan_open + chan_req). Type-correctness is
+    // enforced by the term! macro at compile time; this guards the shape.
+    #[test]
+    fn credential_confusion_seeds_build() {
+        let client = AgentName::first();
+        let server = client.next();
+        for (trace, name) in [
+            (seed_client_attacker_pubkey_b(server), "pubkey_b"),
+            (
+                seed_client_attacker_impersonate_a_with_b(server),
+                "impersonate_a_with_b",
+            ),
+            (
+                seed_client_attacker_unauthorized_key_c(server),
+                "unauthorized_key_c",
+            ),
+        ] {
+            assert_eq!(trace.steps.len(), 9, "seed {name} step count");
+            assert_eq!(trace.descriptors.len(), 1, "seed {name} descriptor count");
+        }
+    }
+
+    // The rekey seed keeps its 10-step re-KEX shape after the mutable-KEXINIT
+    // enrichment, and the channel-data seed keeps its 13 steps.
+    #[test]
+    fn enriched_seeds_shape() {
+        let client = AgentName::first();
+        let server = client.next();
+        assert_eq!(seed_client_attacker_rekey(server).steps.len(), 10);
+        assert_eq!(seed_client_attacker_channel_data(server).steps.len(), 13);
+    }
 }

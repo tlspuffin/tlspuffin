@@ -38,6 +38,7 @@
 
 #include "bindings.h"
 #include "rng.h"
+#include <puffin/ssh_authorized_creds.h>
 
 /*
  * Claim instrumentation (HAS_CLAIMS).
@@ -465,18 +466,30 @@ static int cb_auth_pubkey(ssh_session session,
     if (sig_state != SSH_PUBLICKEY_STATE_VALID)
         return SSH_AUTH_DENIED;
 
-    /* libssh cryptographically verified the signature: record the authorized key
-     * fingerprint for the impersonation oracle. */
+    /* libssh cryptographically verified the signature. Compute the key
+     * fingerprint and enforce the shared (user, key) allow-list: a valid
+     * signature is necessary but not sufficient — the key must be authorized
+     * FOR THIS USER. This rejects unauthorized key C and any cross-identity
+     * pairing (e.g. user "user" presenting key B), which is the credential-
+     * confusion boundary a differential run can compare against wolfSSH. */
     unsigned char *hash = NULL;
     size_t hlen = 0;
+    uint8_t fp[32];
+    size_t fp_len = 0;
     if (pubkey != NULL &&
         ssh_get_publickey_hash(pubkey, SSH_PUBLICKEY_HASH_SHA256, &hash, &hlen) == 0)
     {
-        size_t n = hlen > sizeof(agent->auth_key_fp) ? sizeof(agent->auth_key_fp) : hlen;
-        memcpy(agent->auth_key_fp, hash, n);
-        agent->auth_key_fp_len = (uint8_t)n;
+        fp_len = hlen > sizeof(fp) ? sizeof(fp) : hlen;
+        memcpy(fp, hash, fp_len);
         ssh_clean_pubkey_hash(&hash);
     }
+
+    if (!ssh_creds_key_authorized(user, fp, fp_len))
+        return SSH_AUTH_DENIED;
+
+    /* Authorized: record the belief (kept for the claim path). */
+    memcpy(agent->auth_key_fp, fp, fp_len);
+    agent->auth_key_fp_len = (uint8_t)fp_len;
     snprintf(agent->auth_method, sizeof(agent->auth_method), "publickey");
     snprintf(agent->auth_user, sizeof(agent->auth_user), "%s", user ? user : "");
     agent->authenticated = true;
@@ -487,10 +500,12 @@ static int
 cb_auth_password(ssh_session session, const char *user, const char *password, void *userdata)
 {
     (void)session;
-    (void)password;
     AGENT agent = (AGENT)userdata;
-    /* Accept any password, mirroring the wolfSSH harness (impersonation is
-     * publickey-specific). */
+    /* Enforce the shared (user, password) allow-list, mirroring wolfSSH. */
+    size_t pw_len = password ? strlen(password) : 0;
+    if (!ssh_creds_password_authorized(user, (const uint8_t *)password, pw_len))
+        return SSH_AUTH_DENIED;
+
     snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
     snprintf(agent->auth_user, sizeof(agent->auth_user), "%s", user ? user : "");
     agent->auth_key_fp_len = 0;
