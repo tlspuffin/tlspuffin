@@ -60,6 +60,60 @@ buckets: dict[str, BucketCondition] = {
     "wolfssh_message_not_allowed/": AllC(StatusC(WOLFSSH, in_error="message not allowed before user authentication"), TermContainsC(WOLFSSH, in_term="fn_onwire_message")),
     # AUDITED
     "libssh_packet_filter_rejected_type_7/": AllC(StatusC(LIBSSH, in_error="type 7)"), TermContainsC(LIBSSH, in_term="fn_packet")),
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # BENIGN decryption-recipe divergences.
+    #
+    # These are cross-vendor differences observed in the DECRYPTED s2c message
+    # streams (Source::Label("Decryption")). After flight decryption + semantic
+    # alignment, the objective filter is fail-closed and keeps them as objectives
+    # (rather than silently whitelisting), and we classify them here as BENIGN via
+    # a precise per-shape bucket condition (mirroring the TLS triaging pipeline).
+    #
+    # Each was confirmed benign by transport-level instrumentation of both stacks:
+    # they are implementation latitude in HOW each stack packetizes replies and
+    # WHEN it flushes a control reply relative to reading the next packet — RFC
+    # 4253/4254 permit this — not a protocol or security divergence. A message can
+    # therefore appear on one PUT's decrypted stream only (kind vs "()").
+    #
+    # NOTE: these buckets match on the KNOWLEDGE (decryption) diff shape, which is
+    # exactly what these objectives carry. A genuinely new decryption divergence
+    # will NOT match any BENIGN bucket and will stand out for manual audit.
+
+    # libssh replies to CHANNEL_OPEN with CHANNEL_OPEN_CONFIRMATION at a packet
+    # position wolfSSH does not (channel-setup packetization). Either direction.
+    "benign_decrypt_channel_open_confirmation/": AnyC(
+        KnowledgeDiffC(first_type_name="SshMessage::ChannelOpenConfirmation", second_type_name="()"),
+        KnowledgeDiffC(first_type_name="()", second_type_name="SshMessage::ChannelOpenConfirmation"),
+    ),
+    # wolfSSH acknowledges the CHANNEL_REQUEST with CHANNEL_SUCCESS where libssh
+    # does not (want_reply handling differs). Either direction.
+    "benign_decrypt_channel_success/": AnyC(
+        KnowledgeDiffC(first_type_name="SshMessage::ChannelSuccess", second_type_name="()"),
+        KnowledgeDiffC(first_type_name="()", second_type_name="SshMessage::ChannelSuccess"),
+    ),
+    # ServiceAccept appears on one decrypted stream only (reply pipelining).
+    "benign_decrypt_service_accept/": AnyC(
+        KnowledgeDiffC(first_type_name="SshMessage::ServiceAccept", second_type_name="()"),
+        KnowledgeDiffC(first_type_name="()", second_type_name="SshMessage::ServiceAccept"),
+    ),
+    # One stack answers an unexpected/out-of-order message with SSH_MSG_UNIMPLEMENTED
+    # (RFC 4253 §11.4 latitude) where the other stays silent. Either direction.
+    "benign_decrypt_unimplemented/": AnyC(
+        KnowledgeDiffC(first_type_name="SshMessage::Unimplemented", second_type_name="()"),
+        KnowledgeDiffC(first_type_name="()", second_type_name="SshMessage::Unimplemented"),
+    ),
+    # Auth-reply flush timing: one stack emits USERAUTH_FAILURE / USERAUTH_SUCCESS
+    # before hitting a subsequent malformed packet, the other dies first without
+    # flushing. Both ultimately reject; not a protocol/security divergence.
+    "benign_decrypt_userauth_failure/": AnyC(
+        KnowledgeDiffC(first_type_name="SshMessage::UserAuthFailure", second_type_name="()"),
+        KnowledgeDiffC(first_type_name="()", second_type_name="SshMessage::UserAuthFailure"),
+    ),
+    "benign_decrypt_userauth_success/": AnyC(
+        KnowledgeDiffC(first_type_name="SshMessage::UserAuthSuccess", second_type_name="()"),
+        KnowledgeDiffC(first_type_name="()", second_type_name="SshMessage::UserAuthSuccess"),
+    ),
 }
 
 if __name__ == "__main__":
