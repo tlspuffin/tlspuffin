@@ -407,36 +407,13 @@ mod filter_diff_tests {
         SshProtocolTypes::differential_fuzzing_filter_diff(diff)
     }
 
-    // Ignored while `filter_diff` is intentionally empty during the denoising
-    // refactor: denoising now lives in the data model (whitelist /
-    // comparable_synthetic) + uniformise, and the both-reject Status drop is
-    // being re-evaluated (kept only if measurement proves it necessary). The
-    // behavioral filter rules and their tests are re-added in the pipelining
-    // (decryption) filter step.
-    #[ignore = "filter_diff empty during denoising refactor; rule re-added later"]
-    #[test]
-    fn status_diff_kept_only_on_acceptance_disagreement() {
-        // Exactly one PUT completed ("Success") -> they disagree on acceptance: keep.
-        assert!(keep(&status("Success", "too large banner")));
-        assert!(keep(&status(
-            "would overflow if continued failure",
-            "Success"
-        )));
-
-        // Both rejected (even with different errors / steps) -> agree it's bad: drop.
-        assert!(!keep(&status(
-            "too large banner",
-            "error evaluating a term: Unable to find variable"
-        )));
-        assert!(!keep(&status(
-            "peer version unsupported",
-            "Unknown error code"
-        )));
-
-        // Both completed -> agree on acceptance: drop (and the engine never emits
-        // a StatusDiff in this case anyway).
-        assert!(!keep(&status("Success", "Success")));
-    }
+    // NOTE: an earlier `status_diff_kept_only_on_acceptance_disagreement` test
+    // asserted that a both-reject Status diff is DROPPED. The differential is now
+    // deliberately fail-closed — every Status diff is kept (both-reject noise is
+    // filtered downstream, in decrypt-only mode or the triaging BENIGN buckets,
+    // rather than in filter_diff) — so that assertion tested removed behaviour and
+    // was deleted. The important property (acceptance divergences are always kept)
+    // is covered by `cross_vendor_acceptance_divergences_are_all_kept` below.
 
     /// Regression guard locking in the conservative keep-behavior against the
     /// ACTUAL diff classes triaged from a libssh-vs-wolfSSH cross-vendor campaign
