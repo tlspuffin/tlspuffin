@@ -40,21 +40,31 @@
 #include "rng.h"
 
 /*
- * PUFFIN claim-instrumentation hooks exposed by the patched libssh
- * (puffin-build/vendors/libssh/instrument_claims.cmake). They expose the
- * session id (exchange hash H) and a per-direction secure-channel message-type
- * digest, for the matching-conversation oracle. Declared here because they are
- * not part of any libssh public header. Declared `weak` so the harness still
- * links against a libssh build that lacks the instrumentation patch (e.g. an
- * older vendored version): the symbols then resolve to NULL and the claim
- * fields stay "unavailable" (0 / empty), which the oracle treats as a no-op.
+ * Claim instrumentation (HAS_CLAIMS).
+ *
+ * Everything guarded by HAS_CLAIMS below builds the security-claim used by the
+ * claims-based matching-conversation / entity-authentication oracle. It is
+ * compiled ONLY when the vendored libssh carries the PUFFIN claim-instrumentation
+ * patch (puffin-build/vendors/libssh/instrument_claims.cmake) — the build sets
+ * -DHAS_CLAIMS iff the library exposes those hooks (see puffin-build harness
+ * wrap()). When it is absent (a plain vendored libssh, or the differential
+ * fuzzing setup that does not register a claimer), this code compiles out to
+ * no-ops, keeping the harness minimal and symmetric with the wolfSSH harness —
+ * i.e. a thin driver that only makes authorization decisions and lets libssh
+ * own the protocol. It never affects the protocol path (state transitions live
+ * outside these functions), only whether a claim is emitted.
+ *
+ * The hooks below expose the session id (exchange hash H) and per-direction
+ * secure-channel message-type digests; they are not in any public libssh header.
  */
+#ifdef HAS_CLAIMS
 extern uint64_t puffin_ssh_get_secure_tx_digest(ssh_session session) __attribute__((weak));
 extern uint64_t puffin_ssh_get_secure_rx_digest(ssh_session session) __attribute__((weak));
 extern int puffin_ssh_get_session_id(ssh_session session, const unsigned char **out, size_t *len)
     __attribute__((weak));
 extern uint32_t puffin_ssh_get_rx_count(ssh_session session) __attribute__((weak));
 extern uint32_t puffin_ssh_get_tx_count(ssh_session session) __attribute__((weak));
+#endif /* HAS_CLAIMS */
 
 /* ── Embedded RSA host key (server only) ─────────────────────────────────── */
 
@@ -421,6 +431,7 @@ static void libssh_destroy(AGENT agent)
 
 /* ── claim emission ──────────────────────────────────────────────────────── */
 
+#ifdef HAS_CLAIMS
 /* Copy a libssh getter string (may be NULL) into a fixed-size claim buffer. */
 static void claim_set(char *dst, const char *src)
 {
@@ -428,6 +439,7 @@ static void claim_set(char *dst, const char *src)
         src = "";
     snprintf(dst, SSH_CLAIM_STR_LEN, "%s", src);
 }
+#endif /* HAS_CLAIMS */
 
 /* ── High-level server callbacks ─────────────────────────────────────────────
  *
@@ -528,6 +540,7 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
     return agent->channel;
 }
 
+#ifdef HAS_CLAIMS
 /*
  * Build a HandshakeComplete claim from the session's negotiated parameters and
  * hand it to the registered callback. Fires at most once per agent (guarded by
@@ -627,6 +640,20 @@ static void emit_phase_claim(AGENT agent)
     agent->claimer->notify(agent->claimer->context, &claim);
     agent->last_emitted_phase = phase;
 }
+#else  /* !HAS_CLAIMS */
+/* No claim instrumentation in this libssh build: claim emission compiles out to
+ * no-ops so call sites need no guarding and the differential harness stays
+ * minimal. Protocol behaviour is unaffected — state transitions live in the
+ * caller, not here. */
+static void emit_handshake_claim(AGENT agent)
+{
+    (void)agent;
+}
+static void emit_phase_claim(AGENT agent)
+{
+    (void)agent;
+}
+#endif /* HAS_CLAIMS */
 
 static RESULT libssh_progress(AGENT agent)
 {
