@@ -1,6 +1,7 @@
 use libafl_bolts::rands::Rand;
 
 use crate::algebra::{DYTerm, Term, TermType};
+use crate::fuzzer::term_zoo::DEFAULT_MAX_DEPTH;
 use crate::protocol::ProtocolTypes;
 use crate::trace::{Action, Step, Trace};
 
@@ -30,6 +31,8 @@ pub struct TermConstraints {
     pub must_be_det: bool,
     /// Number of terms to generate for each type
     pub zoo_gen_how_many: usize,
+    /// Max depth of the terms generated for the zoo, see [`crate::fuzzer::term_zoo`]
+    pub zoo_max_depth: u16,
     /// Max number of paylaods per term (limiting further MakeMessage)
     pub threshold_max_payloads_per_term: usize,
 }
@@ -55,6 +58,7 @@ impl Default for TermConstraints {
                                    * `test_term_payloads_eval`, making sure we successfully
                                    * generate, MakeMessage,
                                    * and evaluate after 10 expansions of TermZoo. Was 1 initially */
+            zoo_max_depth: DEFAULT_MAX_DEPTH,
             threshold_max_payloads_per_term: 10,
         }
     }
@@ -132,6 +136,7 @@ impl TermConstraints {
             not_readable: false,
             must_be_det: false,
             zoo_gen_how_many: usize::MAX,
+            zoo_max_depth: DEFAULT_MAX_DEPTH,
             threshold_max_payloads_per_term: usize::MAX,
         }
     }
