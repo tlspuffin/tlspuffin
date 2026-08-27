@@ -112,13 +112,37 @@ impl SshMessageDeframer {
                 BufferContents::Valid
             }
             None => {
+                // Unparseable bytes = an ENCRYPTED (post-NewKeys) packet. To keep
+                // one BPP packet per `OnWire` frame — so a packet is never split
+                // across reads / OutputActions and the differential decryption
+                // can compare whole messages regardless of how the peer batched
+                // its socket writes — we frame by the AES-GCM plaintext length
+                // prefix (RFC 5647: the 4-byte packet_length is sent in the clear
+                // as AEAD associated data). On-wire size = 4 (length) + enc_len
+                // (ciphertext) + 16 (GCM tag). If the buffer doesn't yet hold a
+                // full packet we return `Partial` so the deframer keeps the bytes
+                // and waits for more (the buffer persists across OutputActions).
+                //
+                // Fallback: if the length prefix is missing or implausible (e.g.
+                // a non-GCM cipher where the length is encrypted, or garbage),
+                // emit the whole buffer as one opaque frame as before, so we never
+                // stall or buffer unboundedly.
+                if self.used < 4 {
+                    return BufferContents::Partial;
+                }
+                let enc_len = u32::from_be_bytes(self.buf[0..4].try_into().unwrap()) as usize;
+                let total = 4usize.saturating_add(enc_len).saturating_add(16);
+                let plausible = enc_len >= 2 && total <= MAX_WIRE_SIZE;
+                if plausible && self.used < total {
+                    return BufferContents::Partial; // wait for the rest of the packet
+                }
+                let take = if plausible { total } else { self.used };
                 self.frames
                     .push_back(RawSshMessage::OnWire(OnWireData(Vec::from(
-                        &self.buf[..self.used],
+                        &self.buf[..take],
                     ))));
-                self.buf_consume(self.used);
+                self.buf_consume(take);
                 BufferContents::Valid
-                //BufferContents::Invalid
             }
         }
     }

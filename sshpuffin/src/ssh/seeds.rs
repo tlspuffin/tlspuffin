@@ -1627,22 +1627,19 @@ pub fn server_decryption_recipes_aesgcm(server: AgentName) -> Vec<Term<SshProtoc
     let mk = |idx_term: Term<SshProtocolTypes>, counter: Term<SshProtocolTypes>| {
         let key = key.clone();
         let iv = iv.clone();
-        term! { fn_decrypt_packet_aesgcm((@idx_term), (@key), (@iv), (@counter)) }
+        // Flight decryption: peel EVERY BPP packet in this socket-write blob,
+        // decrypting each with a consecutive GCM counter starting at `counter`.
+        // This makes capture independent of how the peer batched packets into
+        // writes (libssh vs wolfSSH batch differently), so both PUTs' full s2c
+        // message sequences are recovered and semantic alignment compares
+        // like-with-like — no more spurious presence diffs from batched packets.
+        term! { fn_decrypt_flight_aesgcm((@idx_term), (@key), (@iv), (@counter)) }
     };
 
-    // Widened decryption window. The original recipe decrypted only the first
-    // three s2c packets on the diagonal (output i at counter i), so any packet
-    // reordering / pipelining (e.g. the fuzzer sending USERAUTH before
-    // SERVICE_REQUEST) pushed the server's replies outside the window and they
-    // were silently missed. Instead we sweep a grid: for each AES-GCM counter c
-    // (= s2c packet seqno, which resets to 0 at NewKeys) we try every observed
-    // server output. Only the packet whose true seqno is c passes the GCM tag,
-    // so (a) we capture the server's replies even when they land at a different
-    // knowledge index than expected, (b) we reach deeper into the stream
-    // (auth results, channel-open, early channel data), and (c) because the
-    // outer loop is the counter, the decrypted store fills in seqno order — a
-    // coarse alignment that survives index shifts. Missing outputs / wrong
-    // counters just fail the tag and are skipped.
+    // For each observed server socket-write (OnWireData) we try each possible
+    // starting s2c sequence number (which resets to 0 at NewKeys); only the true
+    // one passes the first packet's GCM tag, and the flight decryption then peels
+    // the rest of that write. Missing outputs / wrong counters fail and skip.
     let counters = [
         term! { fn_u32_0 },
         term! { fn_u32_1 },
@@ -1654,13 +1651,13 @@ pub fn server_decryption_recipes_aesgcm(server: AgentName) -> Vec<Term<SshProtoc
         term! { fn_u32_7 },
     ];
     let outputs = [
-        term! { (server, 0)[None]/OnWireData },
-        term! { (server, 1)[None]/OnWireData },
-        term! { (server, 2)[None]/OnWireData },
-        term! { (server, 3)[None]/OnWireData },
-        term! { (server, 4)[None]/OnWireData },
-        term! { (server, 5)[None]/OnWireData },
-        term! { (server, 6)[None]/OnWireData },
+        term! { (server, 0)[None]/RawSshMessageFlight },
+        term! { (server, 1)[None]/RawSshMessageFlight },
+        term! { (server, 2)[None]/RawSshMessageFlight },
+        term! { (server, 3)[None]/RawSshMessageFlight },
+        term! { (server, 4)[None]/RawSshMessageFlight },
+        term! { (server, 5)[None]/RawSshMessageFlight },
+        term! { (server, 6)[None]/RawSshMessageFlight },
     ];
     let mut recipes = Vec::with_capacity(counters.len() * outputs.len());
     for counter in &counters {

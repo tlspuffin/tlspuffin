@@ -12,6 +12,7 @@ use puffin::codec::Codec;
 use sha2::{Digest, Sha256};
 use x25519_dalek::{PublicKey, StaticSecret};
 
+use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
 use crate::ssh::message::{
     KexEcdhReplyMessage, OnWireData, RawSshMessage, SshBytes, SshMessage, SshPublicKey,
     SshSignature,
@@ -423,6 +424,90 @@ pub fn fn_decrypt_packet_aesgcm(
     let mut reader = Reader::init(payload);
     SshMessage::read(&mut reader)
         .ok_or_else(|| FnError::Malformed("failed to parse decrypted SshMessage".into()))
+}
+
+/// Decrypt an ENTIRE AES-256-GCM s2c FLIGHT into a flight of messages.
+///
+/// This mirrors the TLS `fn_decrypt_handshake_flight`: it takes the whole
+/// `RawSshMessageFlight` a server produced (one OutputAction's worth of raw
+/// output) and recovers ALL its plaintext messages, independent of how the peer
+/// framed them. The server's post-NewKeys output is opaque `OnWire` chunks, and
+/// two implementations chop the same message sequence into chunks/socket-writes
+/// differently (libssh batches, wolfSSH does not). We therefore CONCATENATE every
+/// `OnWire` chunk in the flight into one byte stream and peel BPP packets off it
+/// one at a time, decrypting each with a consecutive GCM counter starting at
+/// `start_counter` (the s2c sequence number of the flight's first packet, which
+/// resets to 0 at NewKeys). The recovered message sequence is thus independent of
+/// the peer's chunking — the SSH analogue of "decrypt(flight) == flight of
+/// decrypt(packet)". If the FIRST packet fails its tag the whole flight errors
+/// (wrong `start_counter` guess, skipped by the engine); a later failure stops
+/// the peel and returns the successfully decrypted prefix.
+pub fn fn_decrypt_flight_aesgcm(
+    flight: &RawSshMessageFlight,
+    key: &SshBytes,
+    iv: &SshBytes,
+    start_counter: &u32,
+) -> Result<SshMessageFlight, FnError> {
+    use puffin::codec::Reader;
+
+    if key.0.len() != 32 || iv.0.len() != 12 {
+        return Err(FnError::Malformed("AES-GCM key/IV size".into()));
+    }
+
+    // Concatenate every opaque OnWire chunk in the flight into one ciphertext
+    // stream, so packets that the peer split across chunks/writes are recovered.
+    let mut wire: Vec<u8> = Vec::new();
+    for m in &flight.messages {
+        if let RawSshMessage::OnWire(od) = m {
+            wire.extend_from_slice(&od.0);
+        }
+    }
+
+    let cipher = Aes256Gcm::new(AesKey::<Aes256Gcm>::from_slice(&key.0));
+    let mut messages = Vec::new();
+    let mut off = 0usize;
+    let mut counter = *start_counter;
+
+    while off + 4 + 16 <= wire.len() {
+        let len_be: [u8; 4] = wire[off..off + 4].try_into().unwrap();
+        let enc_len = u32::from_be_bytes(len_be) as usize;
+        if off + 4 + enc_len + 16 > wire.len() {
+            break; // truncated / not a packet boundary
+        }
+        let ct_and_tag = &wire[off + 4..off + 4 + enc_len + 16];
+        let nonce = aesgcm_nonce(&iv.0, counter as u64);
+        let pt = match cipher.decrypt(
+            AesNonce::from_slice(&nonce),
+            Payload {
+                msg: ct_and_tag,
+                aad: &len_be,
+            },
+        ) {
+            Ok(pt) => pt,
+            Err(_) => {
+                if messages.is_empty() {
+                    return Err(FnError::Malformed("AES-GCM tag mismatch".into()));
+                }
+                break;
+            }
+        };
+        if !pt.is_empty() {
+            let pad = pt[0] as usize;
+            if 1 + pad <= pt.len() {
+                let payload = &pt[1..pt.len() - pad];
+                if let Some(msg) = SshMessage::read(&mut Reader::init(payload)) {
+                    messages.push(msg);
+                }
+            }
+        }
+        off += 4 + enc_len + 16;
+        counter += 1;
+    }
+
+    if messages.is_empty() {
+        return Err(FnError::Malformed("no packet decrypted in flight".into()));
+    }
+    Ok(SshMessageFlight { messages })
 }
 
 // ── AES-256-CTR + HMAC-SHA2-256 (RFC 4253 §6, Encrypt-and-MAC) ────────────────
