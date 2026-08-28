@@ -410,6 +410,29 @@ static RESULT wolfssh_progress(AGENT agent)
                 snprintf(agent->state_desc, sizeof(agent->state_desc), "HANDSHAKE/WOULD_BLOCK");
                 return ok_result();
             }
+            /* wolfSSH_accept returns non-error STATUS codes (not failures) when
+               channel activity happens while it is still driving the accept
+               loop: channel data / extended data became available, or a rekey
+               is in flight. libssh's harness consumes these via its channel
+               callbacks and keeps going; treating them as a failed handshake
+               here (as any non-would-block code otherwise is) is a harness
+               asymmetry that made post-auth channel-data seeds diverge. Mirror
+               libssh: a channel-data status means KEX+auth+channel-open already
+               completed, so move to DONE (the DONE path's wolfSSH_worker drains
+               the channel); a rekey status just means keep progressing. */
+            if (rc == WS_CHAN_RXD || gerr == WS_CHAN_RXD || rc == WS_EXTDATA ||
+                gerr == WS_EXTDATA)
+            {
+                agent->state = PUT_STATE_DONE;
+                snprintf(agent->state_desc, sizeof(agent->state_desc),
+                         "DONE (channel data during accept)");
+                return ok_result();
+            }
+            if (rc == WS_REKEYING || gerr == WS_REKEYING)
+            {
+                snprintf(agent->state_desc, sizeof(agent->state_desc), "HANDSHAKE/REKEYING");
+                return ok_result();
+            }
             /* A failed handshake is the common, expected outcome when the
                fuzzer feeds mutated input — the PUT is correctly rejecting it.
                Report it through error_result (the channel the fuzzer handles)

@@ -2019,23 +2019,25 @@ pub fn create_corpus(
             "seed_client_attacker_pubkey_b",
         ),
         // Session layer: authenticated channel with full connection-protocol
-        // traffic (window-adjust / data / extended-data / eof / close).
+        // traffic (window-adjust / data / extended-data / eof / close). Not
+        // promoted here — kept single-PUT (rich-corpus) pending the wolfSSH
+        // WS_CHAN_RXD harness handling that zeros its execution-status divergence.
         // (
         //     seed_client_attacker_channel_data(server),
         //     "seed_client_attacker_channel_data",
         // ),
-        // Session layer: authenticated client-initiated rekey (RFC 4253 §9) —
-        // drives the server's re-KEX state machine on an established connection.
-        // (
-        //     seed_client_attacker_rekey(server),
-        //     "seed_client_attacker_rekey",
-        // ),
-        // RFC 8308 ext-info: client advertises ext-info-c and sends EXT_INFO,
-        // exercising the server's EXT_INFO parser.
-        // (
-        //     seed_client_attacker_ext_info(server),
-        //     "seed_client_attacker_ext_info",
-        // ),
+        // Client-initiated rekey (RFC 4253 §9), mutable rekey KEXINIT. PROMOTED:
+        // 0-diff cross-vendor now that uniformise + semantic alignment + flight
+        // decryption are in place (the earlier "diverges" note was stale).
+        (
+            seed_client_attacker_rekey(server),
+            "seed_client_attacker_rekey",
+        ),
+        // RFC 8308 ext-info parser. PROMOTED: 0-diff cross-vendor.
+        (
+            seed_client_attacker_ext_info(server),
+            "seed_client_attacker_ext_info",
+        ),
         // Two real PUTs relayed by the attacker — the substrate the live
         // matching-conversation oracle needs. Mutations that desync the relayed
         // transcript (Terrapin-style) are flagged as a security objective.
@@ -2060,19 +2062,10 @@ pub fn create_corpus(
         let _ = client; // (reserved for future server-attacker rich seeds)
         corpus.extend([
             // Post-auth channel DATA / flow-control / teardown, mutable payload.
+            // (rekey and ext_info were promoted to the differential corpus.)
             (
                 seed_client_attacker_channel_data(server),
                 "seed_client_attacker_channel_data",
-            ),
-            // Client-initiated rekey (RFC 4253 §9) with a mutable rekey KEXINIT.
-            (
-                seed_client_attacker_rekey(server),
-                "seed_client_attacker_rekey",
-            ),
-            // RFC 8308 ext-info parser.
-            (
-                seed_client_attacker_ext_info(server),
-                "seed_client_attacker_ext_info",
             ),
             // Credential-confusion REJECTION seeds (impersonation A-name-with-key-B,
             // and unauthorized key C). Both stacks correctly reject; single-PUT
