@@ -10,3 +10,4 @@
 
 pub mod seeds;
 pub mod violations;
+pub mod vulnerabilities;
