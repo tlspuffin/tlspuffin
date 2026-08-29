@@ -456,13 +456,37 @@ static RESULT wolfssh_progress(AGENT agent)
 
     if (agent->state == PUT_STATE_DONE)
     {
-        /* Drive the channel layer so post-auth traffic is processed. */
-        word32 channelId = 0;
-        int rc = wolfSSH_worker(agent->ssh, &channelId);
-        if (rc != WS_SUCCESS && !is_would_block(rc))
+        /* Drive the post-handshake state machine to quiescence, exactly like a
+         * real server's event loop (and mirroring the libssh harness's
+         * ssh_event_dopoll loop above). A SINGLE wolfSSH_worker call is NOT a
+         * faithful I/O stub: some operations need several worker calls to fully
+         * process input and FLUSH all output (e.g. reading a peer KEXINIT and
+         * then sending the rekey KEXINIT response). Calling worker once dropped
+         * that second-step output, making the harness's wolfSSH behave
+         * differently from a real TCP server. Loop until it would-block (nothing
+         * left to do) or hits a fatal error; a bounded cap prevents a spin. */
+        for (int i = 0; i < 32; ++i)
         {
-            /* Channel-layer errors are not fatal for the harness. */
+            word32 channelId = 0;
+            int rc = wolfSSH_worker(agent->ssh, &channelId);
+            int err = wolfSSH_get_error(agent->ssh);
+            /* Mirror the wolfSSH echoserver's post-handshake loop exactly (see
+             * examples/echoserver.c): during a rekey, KEEP TURNING THE CRANK —
+             * wolfSSH_worker returns WS_REKEYING while it drives the re-exchange
+             * across several calls (reading the peer KEXINIT, sending its own
+             * KEXINIT and KEXDH_REPLY, NEWKEYS). Breaking on WS_REKEYING (as a
+             * single call does) leaves the rekey half-driven and drops the
+             * server's rekey output, making the harness diverge from a real
+             * server. */
+            if (rc == WS_REKEYING)
+                continue;
+            if (is_would_block(err))
+                break; /* WANT_READ/WANT_WRITE: no more to do this round */
+            if (rc == WS_SUCCESS || rc == WS_CHAN_RXD)
+                continue; /* made progress; more may be pending */
+            /* Real error / EOF: record and stop (next input feeds on next step). */
             snprintf(agent->state_desc, sizeof(agent->state_desc), "DONE/worker rc=%d", rc);
+            break;
         }
         return ok_result();
     }

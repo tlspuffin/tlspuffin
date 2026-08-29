@@ -323,6 +323,92 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
     }
 }
 
+/// CONTROLLED conformance test for the injected-KexInit divergence. Identical to
+/// seed_client_attacker_full_aesgcm, but injects ONE valid, uncorrupted KEXINIT
+/// (encrypted, counter 0) as the first post-NewKeys packet — a client-initiated
+/// rekey trigger (RFC 4253 §9) — then proceeds straight to the auth flow WITHOUT
+/// completing the rekey (no KEXDH_INIT / NEWKEYS). Everything else is the clean
+/// 0-diff handshake, so any divergence isolates how each stack handles an
+/// unexpected mid-session KEXINIT: a strict stack must respond with its own
+/// KEXINIT and reject the non-KEX follow-up (or abort); a lenient stack ignores
+/// the KEXINIT and authenticates anyway. Counters shift by 1 (inject=0, svc=1,
+/// auth=2, chan=3,4).
+pub fn seed_client_attacker_kexinit_injection(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id = term! { fn_banner_id(((server, 0)[None]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw = term! { (server, 2)[None]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+
+    // Injected valid rekey KEXINIT (encrypted, counter 0).
+    let inject_kexinit = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_client_kexinit_aesgcm((fn_cookie_zeros))), (@key), (@iv), (fn_u32_0))
+    };
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_1))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request((fn_username), (fn_ssh_connection), (fn_method_password),
+                                  (fn_password_auth_data((fn_password))))),
+            (@key), (@iv), (fn_u32_2))
+    };
+    let chan_open = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_session), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+                             (fn_empty_bytes_vec))),
+            (@key), (@iv), (fn_u32_3))
+    };
+    let chan_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_request((fn_u32_0), (fn_channel_exec), (fn_true),
+                                (fn_exec_payload((fn_ssh_userauth))))),
+            (@key), (@iv), (fn_u32_4))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @inject_kexinit }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @chan_open }),
+            InputAction::new_step(server, term! { @chan_req }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// Same AES-GCM client-attacker handshake as `seed_client_attacker_full_aesgcm`,
 /// but the client KEXINIT is *synthesized* from algorithm-name atoms via
 /// `fn_kex_init` + the new `fn_namelist_*` / `fn_*_algos` builders, instead of the
@@ -1928,8 +2014,46 @@ pub fn server_decryption_recipes_aesgcm(server: AgentName) -> Vec<Term<SshProtoc
         term! { (server, 4)[None]/RawSshMessageFlight },
         term! { (server, 5)[None]/RawSshMessageFlight },
         term! { (server, 6)[None]/RawSshMessageFlight },
+        term! { (server, 7)[None]/RawSshMessageFlight },
     ];
-    let mut recipes = Vec::with_capacity(counters.len() * outputs.len());
+    let mut recipes = Vec::with_capacity(counters.len() * outputs.len() + 1);
+
+    // ROBUST full-stream decryption: merge the first 8 drains into one flight and
+    // peel every encrypted packet from counter 0 in a single pass. Puffin forces
+    // a drain after each input step, so drains 0..7 exist for both PUTs on every
+    // differential-corpus seed; the s2c counter resets to 0 at NewKeys and the
+    // pre-NewKeys packets are unencrypted (skipped by the flight decryptor), so
+    // the concatenated OnWire stream starts at counter 0. This recovers the FULL
+    // post-NewKeys s2c message sequence regardless of how the peer batched it
+    // across drains — closing the under-decode gap where a per-drain, fixed-
+    // counter recipe could miss a packet (e.g. a rekey KEXINIT) and manufacture a
+    // spurious `() vs <msg>` presence divergence.
+    let all_drains = term! {
+        fn_concat_raw_flights(
+            (fn_concat_raw_flights(
+                (fn_concat_raw_flights(
+                    (fn_concat_raw_flights(
+                        (fn_concat_raw_flights(
+                            (fn_concat_raw_flights(
+                                (fn_concat_raw_flights(
+                                    ((server, 0)[None]/RawSshMessageFlight),
+                                    ((server, 1)[None]/RawSshMessageFlight)
+                                )),
+                                ((server, 2)[None]/RawSshMessageFlight)
+                            )),
+                            ((server, 3)[None]/RawSshMessageFlight)
+                        )),
+                        ((server, 4)[None]/RawSshMessageFlight)
+                    )),
+                    ((server, 5)[None]/RawSshMessageFlight)
+                )),
+                ((server, 6)[None]/RawSshMessageFlight)
+            )),
+            ((server, 7)[None]/RawSshMessageFlight)
+        )
+    };
+    recipes.push(term! { fn_decrypt_flight_aesgcm((@all_drains), (@key), (@iv), (fn_u32_0)) });
+
     for counter in &counters {
         for output in &outputs {
             recipes.push(mk(output.clone(), counter.clone()));
@@ -2079,6 +2203,14 @@ pub fn create_corpus(
             (
                 seed_client_attacker_unauthorized_key_c(server),
                 "seed_client_attacker_unauthorized_key_c",
+            ),
+            // Peer-initiated-rekey conformance probe: inject a valid KEXINIT after
+            // NewKeys, then non-KEX traffic. Single-PUT (drives each stack's rekey
+            // state machine); the confirmed-correct behaviour was validated with a
+            // fresh-build TCP reproducer (wolfssh-repro/rekey_repro.py).
+            (
+                seed_client_attacker_kexinit_injection(server),
+                "seed_client_attacker_kexinit_injection",
             ),
         ]);
     }
