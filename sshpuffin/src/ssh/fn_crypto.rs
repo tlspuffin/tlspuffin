@@ -426,6 +426,25 @@ pub fn fn_decrypt_packet_aesgcm(
         .ok_or_else(|| FnError::Malformed("failed to parse decrypted SshMessage".into()))
 }
 
+/// Concatenate two raw s2c flights (drains) into one. Puffin captures the
+/// server's output as a separate `RawSshMessageFlight` after every input step,
+/// so a single logical message sequence is spread across many drains. Chaining
+/// this lets a recipe merge all drains into ONE flight and decrypt the whole
+/// post-NewKeys s2c stream from counter 0 in a single peel — recovering every
+/// encrypted packet regardless of how the peer batched them across drains. This
+/// removes the under-decoding that a per-drain, fixed-counter-window recipe
+/// suffers (which could miss e.g. a rekey KEXINIT and manufacture a spurious
+/// presence divergence).
+pub fn fn_concat_raw_flights(
+    a: &RawSshMessageFlight,
+    b: &RawSshMessageFlight,
+) -> Result<RawSshMessageFlight, FnError> {
+    let mut messages = Vec::with_capacity(a.messages.len() + b.messages.len());
+    messages.extend_from_slice(&a.messages);
+    messages.extend_from_slice(&b.messages);
+    Ok(RawSshMessageFlight { messages })
+}
+
 /// Decrypt an ENTIRE AES-256-GCM s2c FLIGHT into a flight of messages.
 ///
 /// This mirrors the TLS `fn_decrypt_handshake_flight`: it takes the whole

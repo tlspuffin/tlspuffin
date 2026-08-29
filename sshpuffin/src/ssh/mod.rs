@@ -189,6 +189,7 @@ define_signature!(
     fn_encrypt_packet_aesgcm
     fn_decrypt_packet_aesgcm
     fn_decrypt_flight_aesgcm
+    fn_concat_raw_flights
     fn_derive_ctr_key_c2s
     fn_derive_ctr_key_s2c
     fn_derive_ctr_iv_c2s
