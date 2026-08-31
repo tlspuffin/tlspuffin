@@ -201,7 +201,10 @@ impl ProtocolTypes for SshProtocolTypes {
         None
     }
 
-    fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self> {
+    fn differential_fuzzing_uniformise_put_config(
+        trace: Trace<Self>,
+        _fingerprinting: bool,
+    ) -> Trace<Self> {
         trace
     }
 
@@ -228,7 +231,10 @@ impl ProtocolBehavior for SshProtocolBehavior {
     type ProtocolTypes = SshProtocolTypes;
     type SecurityViolationPolicy = SshSecurityViolationPolicy;
 
-    fn create_corpus(_put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
+    fn create_corpus(
+        _put: PutDescriptor,
+        _opts: puffin::protocol::CorpusOptions,
+    ) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
         vec![] // TODO
     }
 

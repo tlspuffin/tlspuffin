@@ -67,6 +67,11 @@ pub trait ProtocolDescriptorConfig:
     /// Indicates wheter a agent is reusable, ie. it's configuration is compatible with the new
     /// agent to spawn
     fn is_reusable_with(&self, other: &Self) -> bool;
+
+    /// Indicates whether the agent is a server
+    fn is_server(&self) -> bool {
+        false
+    }
 }
 
 /// [`AgentDescriptor`]s act like a blueprint to spawn [`Agent`]s with a corresponding server or

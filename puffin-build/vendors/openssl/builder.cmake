@@ -48,6 +48,14 @@ set(CONFIGURE_FLAGS
   no-tests
   $<$<BOOL:${asan}>:enable-asan>
 
+  # OpenSSL 3.0.0–3.0.7 only: their static libcrypto.a bundles the legacy provider objects
+  # (des/bn x86_64-gcc/…) alongside the identical core objects, so the harness relocatable link
+  # (-whole-archive) fails with "multiple definition". Later 3.0.x/3.1.x+ builds don't. `no-legacy`
+  # drops the duplicate legacy-provider objects for exactly these versions; modern TLS is
+  # unaffected. Bounded on BOTH sides: the legacy provider is a 3.0 concept, so `no-legacy` is not
+  # a valid Configure option before 3.0 (\eg 1.1.1) and must not be passed there.
+  $<$<AND:$<VERSION_GREATER_EQUAL:${VENDOR_VERSION},3.0.0>,$<VERSION_LESS:${VENDOR_VERSION},3.0.8>>:no-legacy>
+
   --prefix=<INSTALL_DIR>
   --openssldir=<INSTALL_DIR>
   --libdir=lib  # force consistent libdir across platforms

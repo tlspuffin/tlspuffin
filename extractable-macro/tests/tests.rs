@@ -53,6 +53,7 @@ impl ProtocolTypes for TestProtocolTypes {
 
     fn differential_fuzzing_uniformise_put_config(
         _trace: puffin::trace::Trace<Self>,
+        _fingerprinting: bool,
     ) -> puffin::trace::Trace<Self> {
         todo!()
     }
