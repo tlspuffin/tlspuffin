@@ -207,16 +207,17 @@ impl ProtocolTypes for SshProtocolTypes {
     }
 
     fn differential_fuzzing_whitelist() -> Option<Vec<std::any::TypeId>> {
-        use crate::ssh::message::SshMessage;
-        // Compare exactly ONE structured level: the individual `SshMessage`.
-        // `SshMessage` already recurses into its variants (KexInit, KexEcdhReply,
-        // …), so listing those leaves — or the `SshMessageFlight` wrapper —
-        // separately only re-reports the same divergence at 3 granularities.
-        // Opaque types (RawSshMessage, OnWireData, BinaryPacket, Vec<u8>, banner
-        // String) stay excluded: they are ciphertext / framing / version strings
-        // with no comparable fields. All within-message noise is handled at the
-        // field level via #[comparable_ignore] / #[comparable_synthetic].
-        Some(vec![TypeId::of::<SshMessage>()])
+        use crate::ssh::transcript::AlignedTranscript;
+        // Compare exactly ONE knowledge per stream: the `AlignedTranscript` folded
+        // from the whole server flight (ssh/transcript.rs). It is the sole
+        // comparison object, so puffin's upstream positional compare pairs the two
+        // maps 1:1 and the `comparable` BTreeMap diff does the key-based alignment
+        // inside. Everything else in the stores — raw ciphertext/framing, the
+        // per-message SshMessage/flight intermediates, the chacha recipe output —
+        // is excluded: the fold already carries the full decoded transcript
+        // (plaintext KEXINIT + decrypted post-NewKeys), and within-message noise is
+        // handled at the field level via #[comparable_ignore] / #[comparable_synthetic].
+        Some(vec![TypeId::of::<AlignedTranscript>()])
     }
 
     fn differential_fuzzing_terms_to_eval(
@@ -277,107 +278,38 @@ impl ProtocolTypes for SshProtocolTypes {
         trace
     }
 
-    fn differential_fuzzing_filter_diff(diff: &puffin::differential::TraceDifference) -> bool {
-        use puffin::differential::{KnowledgeDiff, TraceDifference};
-
-        // decrypt-only RESEARCH mode (a scope selector, not a denoiser, off by
-        // default): keep ONLY differences produced by the decryption recipes
-        // (Source::Label("Decryption")), dropping status / claim / on-wire
-        // transcript diffs so a campaign's objectives are exclusively
-        // decrypted-content divergences.
-        #[cfg(feature = "decrypt-only")]
-        {
-            use puffin::trace::Source;
-            let is_decryption =
-                |s: &Source| matches!(s, Source::Label(Some(x)) if x == "Decryption");
-            let decryption_sourced = match diff {
-                TraceDifference::Knowledges(KnowledgeDiff::InnerDifference { source, .. }) => {
-                    is_decryption(source)
-                }
-                TraceDifference::Knowledges(KnowledgeDiff::DifferentTypes {
-                    first_source,
-                    second_source,
-                    ..
-                }) => is_decryption(first_source) || is_decryption(second_source),
-                _ => false,
-            };
-            if !decryption_sourced {
-                return false;
-            }
-            // fall through to the benign-framing filtering below
-        }
-
-        // Denoising lives in the data model (whitelist / comparable_ignore /
-        // comparable_synthetic), uniformise_put_config, and — for the decrypted
-        // streams — FLIGHT DECRYPTION + SEMANTIC ALIGNMENT (messages compared by
-        // variant, with each socket write peeled packet-by-packet). This filter
-        // is otherwise FULLY FAIL-CLOSED: content differences of any kind, and
-        // presence differences of every kind, are KEPT as objectives — we do NOT
-        // broadly whitelist, to avoid masking a real bug. Benign classification
-        // of the surviving presence differences (control-plane framing / reply
-        // timing) is done downstream as an explicit, precise BENIGN triage bucket
-        // (mirroring the TLS triaging pipeline), not by dropping them here.
+    fn differential_fuzzing_filter_diff(_diff: &puffin::differential::TraceDifference) -> bool {
+        // FULLY FAIL-CLOSED: every difference — status, security-claim, and the
+        // AlignedTranscript's content/presence divergences — is KEPT as an
+        // objective. We do NOT whitelist anything here (the old ChannelOpen*/
+        // ChannelSuccess "seed-benign" whitelist was dangerous: a presence
+        // whitelist keyed on message kind cannot tell a benign framing difference
+        // from a real acceptance divergence, so it could mask a bug — exactly the
+        // concern that motivated this rework).
         //
-        // The SOLE exception is the MINIMAL set needed to keep the differential
-        // SEEDS at 0 differences: on the clean matching-conversation seeds the two
-        // stacks packetize the channel-setup replies differently, so exactly
-        // ChannelOpenConfirmation (libssh side) and ChannelSuccess (wolfSSH side)
-        // appear on one decrypted stream only. Investigation (transport-level
-        // instrumentation of both stacks) confirmed this is benign framing/reply
-        // timing, not a protocol/security divergence. We drop ONLY those two exact
-        // presence shapes; every other presence/content difference is kept.
-        const SEED_BENIGN_PRESENCE: &[&str] = &[
-            "SshMessage::ChannelOpenConfirmation",
-            "SshMessage::ChannelSuccess",
-        ];
-
-        match diff {
-            TraceDifference::Knowledges(KnowledgeDiff::DifferentTypes {
-                first_type,
-                second_type,
-                ..
-            }) => {
-                let seed_benign_framing = (second_type == "()"
-                    && SEED_BENIGN_PRESENCE.contains(&first_type.as_str()))
-                    || (first_type == "()" && SEED_BENIGN_PRESENCE.contains(&second_type.as_str()));
-                !seed_benign_framing
-            }
-            _ => true,
-        }
+        // Denoising instead lives where it is PROVABLY safe:
+        //   * structural, in the data model — the AlignedTranscript's key-based
+        //     alignment (ssh/transcript.rs), #[comparable_ignore] /
+        //     #[comparable_synthetic] on message fields, and uniformise_put_config;
+        //   * seed-level — the differential-corpus seeds are constructed to be
+        //     genuinely 0-diff (e.g. a channel request the two stacks answer
+        //     identically), rather than diffing-then-whitelisting;
+        //   * downstream — benign CLASSES (strict-kex/ext-info marker asymmetry,
+        //     reply pipelining) are labelled as explicit, precise triage buckets
+        //     that a human reviews, never dropped before they become objectives.
+        true
     }
 
-    // NOTE: we deliberately do NOT override differential_fuzzing_always_compare_knowledge
-    // (default false). In decrypt-only mode the short-circuit is PROTECTIVE: when
-    // the two PUTs disagree on execution status (e.g. a term-evaluation error or
-    // one PUT stopping early), their decrypted streams are from divergent runs and
-    // any presence/content difference between them is an execution-divergence
-    // artifact, not a clean library divergence. Keeping the short-circuit means the
-    // decryption comparison runs ONLY when both PUTs executed identically far, and
-    // filter_diff (applied to all diffs) then drops the status diff itself — so a
-    // decrypt-only objective is exactly "both PUTs ran cleanly AND their decrypted
-    // output differs". That is the sound decryption-differential signal.
-
-    fn differential_fuzzing_alignment_key(
-        data: &dyn puffin::protocol::EvaluatedTerm<Self>,
-    ) -> String {
-        use crate::ssh::message::SshMessage;
-        // Align decrypted/on-wire messages by SSH message VARIANT (not just the
-        // Rust type `SshMessage`), so like-with-like are compared across the two
-        // implementations regardless of how each packetizes its replies.
-        if let Some(msg) = data.as_any().downcast_ref::<SshMessage>() {
-            // The derived Debug head is the variant name ("ServiceAccept(..)" /
-            // "NewKeys"); take the leading identifier.
-            let dbg = format!("{msg:?}");
-            let name = dbg
-                .split(|c: char| c == '(' || c == ' ' || c == '{')
-                .next()
-                .unwrap_or("")
-                .trim();
-            format!("SshMessage::{name}")
-        } else {
-            data.type_name().to_string()
-        }
-    }
+    // NOTE: alignment is NOT done via puffin's `differential_fuzzing_alignment_key`
+    // hook anymore (that hook is reverted to upstream). All semantic alignment of
+    // the decrypted messages lives inside sshpuffin's `AlignedTranscript`
+    // (ssh/transcript.rs): the fold recipe emits ONE key-aligned `BTreeMap` per
+    // stream, and the `comparable` crate's key-based Map diff does the alignment.
+    // Likewise `differential_fuzzing_always_compare_knowledge` stays the upstream
+    // default (false): in the sound fail-closed mode a status disagreement is
+    // itself an objective (and ASYM auth is surfaced structurally by the
+    // entity-authentication SecurityClaim, compared unconditionally), so nothing is
+    // hidden by the short-circuit.
 }
 
 impl std::fmt::Display for SshProtocolTypes {
@@ -463,16 +395,21 @@ mod filter_diff_tests {
         assert!(keep(&presence));
     }
 
-    /// Filter policy: fail closed for everything EXCEPT the minimal seed-benign
-    /// framing set (ChannelOpenConfirmation / ChannelSuccess). We deliberately do
-    /// NOT broadly whitelist — presence differences of other control-plane kinds
-    /// (e.g. ServiceAccept) stay objectives and are classified benign downstream.
+    /// Filter policy: FULLY fail-closed. Every difference kind is kept — including
+    /// the ones the old code dropped as "seed-benign framing"
+    /// (ChannelOpenConfirmation / ChannelSuccess). Those are no longer a filter
+    /// concern: with the AlignedTranscript's key-based alignment the two stacks'
+    /// channel replies align on a canonical channel (so ChannelOpenConfirmation no
+    /// longer diverges at all), and any genuine residual is a real objective for a
+    /// human to classify downstream — never silently dropped here.
     #[test]
-    fn fail_closed_except_minimal_seed_framing() {
+    fn fully_fail_closed_keeps_every_kind() {
         use puffin::differential::KnowledgeDiff;
         use puffin::trace::Source;
 
         let decryption = || Source::Label(Some("Decryption".into()));
+
+        // Presence differences of EVERY kind are kept (nothing is whitelisted).
         let presence = |kind: &str| {
             TraceDifference::Knowledges(KnowledgeDiff::DifferentTypes {
                 index: 0,
@@ -482,54 +419,38 @@ mod filter_diff_tests {
                 second_source: Source::Label(None),
             })
         };
-
-        // Kept (fail closed): security-relevant AND other control-plane framing
-        // that is NOT in the minimal seed set.
         for kind in [
             "SshMessage::UserAuthSuccess",
-            "SshMessage::UserAuthFailure",
-            "SshMessage::ChannelData",
-            "SshMessage::Disconnect",
             "SshMessage::ServiceAccept",
-            "SshMessage::ChannelOpenFailure",
-        ] {
-            assert!(keep(&presence(kind)), "{kind} presence must be kept");
-        }
-
-        // Dropped: ONLY the two kinds needed to keep the seeds at 0 differences.
-        for kind in [
             "SshMessage::ChannelOpenConfirmation",
             "SshMessage::ChannelSuccess",
+            "sshpuffin::ssh::transcript::AlignedTranscript",
         ] {
-            assert!(
-                !keep(&presence(kind)),
-                "{kind} seed-framing must be dropped"
-            );
+            assert!(keep(&presence(kind)), "{kind} presence must be kept");
         }
 
         // Content differences are always kept.
         let content = TraceDifference::Knowledges(KnowledgeDiff::InnerDifference {
             index: 0,
-            type_name: "sshpuffin::ssh::message::SshMessage".into(),
-            diff: "Different(UserAuthSuccess, UserAuthFailure(..))".into(),
+            type_name: "sshpuffin::ssh::transcript::AlignedTranscript".into(),
+            diff: "Changed([Removed(UserAuthSuccess)])".into(),
             source: decryption(),
         });
         assert!(keep(&content));
     }
 }
 
-/// Positive control for the differential *knowledge* comparison.
+/// Positive control for the differential *knowledge* comparison (store level).
 ///
-/// The decryption recipes (`differential_fuzzing_terms_to_eval`) feed their
-/// decrypted `SshMessage`s into a `KnowledgeStore`, and the two PUTs' stores are
-/// compared by `KnowledgeStore::compare` (puffin/src/trace.rs). Reporting "zero
-/// `Knowledges` differences across a campaign" is only meaningful if that
-/// comparison actually *fires* when the payloads differ — otherwise a null
-/// result is a false negative from an inert detector (e.g. the decrypted type
-/// being silently dropped by `differential_fuzzing_whitelist`). These tests lock
-/// the detector in: two *different* whitelisted `SshMessage`s at the same store
-/// position MUST yield a `TraceDifference::Knowledges`, and two equal ones MUST
-/// yield none.
+/// The fold recipe (`differential_fuzzing_terms_to_eval`) feeds ONE
+/// `AlignedTranscript` per PUT into a `KnowledgeStore`, and the two stores are
+/// compared by puffin's upstream `KnowledgeStore::compare`. Reporting "zero
+/// differences across a campaign" is only meaningful if that comparison actually
+/// *fires* when the transcripts differ — otherwise a null result is a false
+/// negative from an inert detector (e.g. the transcript type being dropped by the
+/// whitelist). These tests lock the detector in through the REAL store path: two
+/// different transcripts MUST yield a `Knowledges` difference, two equal ones MUST
+/// yield none, and the whitelist MUST admit `AlignedTranscript`.
 #[cfg(test)]
 mod knowledge_compare_positive_control {
     use puffin::differential::TraceDifference;
@@ -537,86 +458,66 @@ mod knowledge_compare_positive_control {
 
     use super::SshProtocolTypes;
     use crate::ssh::message::SshMessage;
+    use crate::ssh::transcript::AlignedTranscript;
 
-    fn decryption_store(msg: SshMessage) -> KnowledgeStore<SshProtocolTypes> {
+    fn transcript_store(msgs: Vec<SshMessage>) -> KnowledgeStore<SshProtocolTypes> {
         let mut store = KnowledgeStore::new();
-        // Mirror how trace.rs::compare stores decrypted recipe output.
-        store.add_raw_knowledge(msg, None, Source::Label(Some("Decryption".into())), None);
+        // Mirror how trace.rs::compare stores the folded recipe output.
+        store.add_raw_knowledge(
+            AlignedTranscript::from_messages(msgs),
+            None,
+            Source::Label(Some("Decryption".into())),
+            None,
+        );
         store
     }
 
+    /// Gate A (must fire): an auth-state divergence — one stack authenticates
+    /// (USERAUTH_SUCCESS), the other rejects (USERAUTH_FAILURE) — surfaces through
+    /// the real store comparison.
     #[test]
-    fn differing_decrypted_messages_produce_a_knowledges_diff() {
-        let first = decryption_store(SshMessage::NewKeys);
-        let second = decryption_store(SshMessage::UserAuthSuccess);
+    fn diverging_auth_outcome_produces_a_knowledges_diff() {
+        use crate::ssh::message::{NameList, UserAuthFailureMessage};
 
-        let diffs = first
-            .compare(&second)
-            .expect_err("two different decrypted payloads must be detected as a difference");
+        let authed = transcript_store(vec![SshMessage::UserAuthSuccess]);
+        let rejected = transcript_store(vec![SshMessage::UserAuthFailure(UserAuthFailureMessage {
+            authentications_that_can_continue: NameList::empty(),
+            partial_success: false,
+        })]);
+
+        let diffs = authed
+            .compare(&rejected)
+            .expect_err("an auth-outcome divergence must be detected");
         assert!(
             diffs
                 .iter()
                 .any(|d| matches!(d, TraceDifference::Knowledges(_))),
-            "expected a Knowledges difference from the decrypted-store comparison, got {diffs:?}"
+            "expected a Knowledges difference, got {diffs:?}"
         );
     }
 
+    /// Gate A (must fire): a Terrapin-shaped presence divergence — one stack emits
+    /// a message the other does not, at the same logical position.
     #[test]
-    fn equal_decrypted_messages_produce_no_diff() {
-        let first = decryption_store(SshMessage::NewKeys);
-        let second = decryption_store(SshMessage::NewKeys);
+    fn single_sided_message_produces_a_knowledges_diff() {
+        let with_success = transcript_store(vec![SshMessage::NewKeys, SshMessage::UserAuthSuccess]);
+        let without = transcript_store(vec![SshMessage::NewKeys]);
         assert!(
-            first.compare(&second).is_ok(),
-            "identical decrypted payloads must not be flagged (no false positive)"
+            with_success.compare(&without).is_err(),
+            "a message present on only one side must surface as a difference"
         );
     }
 
-    /// Reproduces the EXACT asymmetric decryption observed on
-    /// seed_client_attacker_pubkey_aesgcm: wolfSSH decrypts one more message
-    /// (a ServiceAccept) than libssh at the same recipe position, so the two
-    /// decrypted stores are MISALIGNED:
-    ///   libssh  = [UserAuthSuccess]
-    ///   wolfSSH = [ServiceAccept, UserAuthSuccess]
-    /// If `compare` aligns purely by index it will report a difference
-    /// (UserAuthSuccess vs ServiceAccept, then () vs UserAuthSuccess); if it
-    /// silently swallows the misalignment it will report none. This pins down
-    /// whether `differential-execute` returning 0 on that seed is a genuine
-    /// agreement or a masked divergence.
+    /// No false positive: identical transcripts compare equal (and this also
+    /// proves the whitelist ADMITS AlignedTranscript — a dropped type would make
+    /// even differing transcripts compare equal, which the Gate-A tests forbid).
     #[test]
-    fn misaligned_asymmetric_decryption_is_surfaced() {
-        use crate::ssh::message::{ServiceAcceptMessage, SshBytes};
-
-        let mut libssh = KnowledgeStore::new();
-        libssh.add_raw_knowledge(
-            SshMessage::UserAuthSuccess,
-            None,
-            Source::Label(Some("Decryption".into())),
-            None,
-        );
-
-        let mut wolfssh = KnowledgeStore::new();
-        wolfssh.add_raw_knowledge(
-            SshMessage::ServiceAccept(ServiceAcceptMessage {
-                service_name: SshBytes(b"ssh-userauth".to_vec()),
-            }),
-            None,
-            Source::Label(Some("Decryption".into())),
-            None,
-        );
-        wolfssh.add_raw_knowledge(
-            SshMessage::UserAuthSuccess,
-            None,
-            Source::Label(Some("Decryption".into())),
-            None,
-        );
-
-        let result = libssh.compare(&wolfssh);
-        println!("misaligned compare result: {result:?}");
+    fn equal_transcripts_produce_no_diff() {
+        let a = transcript_store(vec![SshMessage::NewKeys, SshMessage::UserAuthSuccess]);
+        let b = transcript_store(vec![SshMessage::NewKeys, SshMessage::UserAuthSuccess]);
         assert!(
-            result.is_err(),
-            "asymmetric cross-vendor decryption (wolfSSH decrypts a ServiceAccept \
-             libssh does not) MUST surface as a difference, otherwise it is a masked \
-             false negative"
+            a.compare(&b).is_ok(),
+            "identical transcripts must not be flagged (no false positive)"
         );
     }
 }

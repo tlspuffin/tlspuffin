@@ -17,7 +17,7 @@
 use core::fmt;
 use std::any::TypeId;
 use std::cmp::PartialEq;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 use std::marker::PhantomData;
@@ -33,7 +33,7 @@ use crate::algebra::bitstrings::Payloads;
 use crate::algebra::dynamic_function::TypeShape;
 use crate::algebra::{remove_prefix, Matcher, Term, TermType};
 use crate::claims::{Claim, GlobalClaimList, SecurityViolationPolicy};
-use crate::differential::{KnowledgeDiff, TraceDifference};
+use crate::differential::TraceDifference;
 use crate::error::Error;
 use crate::fuzzer::stats_stage::{
     ALL_EXEC, ALL_EXEC_AGENT_SUCCESS, ALL_EXEC_SUCCESS, ERROR_AGENT, ERROR_CODEC, ERROR_EXTRACTION,
@@ -51,6 +51,17 @@ pub struct Query<M> {
     pub source: Option<Source>,
     pub matcher: Option<M>,
     pub counter: u16, // in case an agent sends multiple messages of the same type
+    /// When set, the query resolves to the CONCATENATION of *all* matching
+    /// knowledges (by source/type/matcher, in insertion order) rather than the
+    /// single `counter`-th one. The concatenation is generic: each match is
+    /// encoded and the bytes are re-read into the queried type via
+    /// `ProtocolBehavior::try_read_bytes`. This lets a protocol whose agent emits
+    /// its output across several per-step drains recover the whole stream as one
+    /// value (e.g. SSH's full server transcript), independent of how many drains
+    /// there happen to be. `#[serde(default)]` keeps pre-existing traces (without
+    /// the field) loadable — they deserialize to `false`.
+    #[serde(default)]
+    pub concatenate_all: bool,
 }
 
 impl<M: Matcher> fmt::Display for Query<M> {
@@ -271,85 +282,49 @@ impl<PT: ProtocolTypes> KnowledgeStore<PT> {
 
         let mut differences: Vec<TraceDifference> = vec![];
 
-        let first_store: Vec<Knowledge<'_, PT>> = self
+        let mut first_store: Vec<Knowledge<'_, PT>> = self
             .knowledges()
             .iter()
             .flatten()
             .filter(|x| filter_knowledge(x, &whitelist))
             .collect();
-        let second_store: Vec<Knowledge<'_, PT>> = other
+        let mut second_store: Vec<Knowledge<'_, PT>> = other
             .knowledges()
             .iter()
             .flatten()
             .filter(|x| filter_knowledge(x, &whitelist))
             .collect();
-        // Semantic alignment: bucket both stores by a coarse alignment key
-        // (protocol-defined; default = type name, SSH = message variant) and
-        // compare like-with-like, so packet reordering / pipelining between two
-        // independent implementations does not make us compare unrelated
-        // messages. BTreeMap keeps the key iteration order deterministic.
-        let mut first_buckets: BTreeMap<String, Vec<Knowledge<'_, PT>>> = BTreeMap::new();
-        let mut second_buckets: BTreeMap<String, Vec<Knowledge<'_, PT>>> = BTreeMap::new();
-        for k in first_store {
-            first_buckets
-                .entry(PT::differential_fuzzing_alignment_key(k.data))
-                .or_default()
-                .push(k);
-        }
-        for k in second_store {
-            second_buckets
-                .entry(PT::differential_fuzzing_alignment_key(k.data))
-                .or_default()
-                .push(k);
+        let first_store_count = first_store.len();
+        let second_store_count = second_store.len();
+
+        if first_store_count > second_store_count {
+            second_store.extend((second_store_count..first_store_count).map(|_| Knowledge {
+                source: &Source::Label(None),
+                matcher: None,
+                data: &(),
+            }))
+        } else {
+            first_store.extend((first_store_count..second_store_count).map(|_| Knowledge {
+                source: &Source::Label(None),
+                matcher: None,
+                data: &(),
+            }))
         }
 
-        log::trace!("Comparing knowledge stores (semantic alignment)");
-        let keys: BTreeSet<&String> = first_buckets.keys().chain(second_buckets.keys()).collect();
-        for key in keys {
-            let empty = Vec::new();
-            let fs = first_buckets.get(key).unwrap_or(&empty);
-            let ss = second_buckets.get(key).unwrap_or(&empty);
-            for idx in 0..fs.len().max(ss.len()) {
-                match (fs.get(idx), ss.get(idx)) {
-                    // Same kind on both sides -> compare CONTENT: a real
-                    // divergence in a decrypted message surfaces here.
-                    (Some(x), Some(y)) => {
-                        x.data
-                            .find_differences(y.data, &mut differences, idx, x.source, y.source);
-                    }
-                    // Kind present on ONE side only. This is NOT auto-dropped:
-                    // a security message one implementation emits and the other
-                    // does not (e.g. an unexpected UserAuthSuccess) is exactly a
-                    // finding. Report it as a presence difference carrying the
-                    // ALIGNMENT KEY (so differential_fuzzing_filter_diff can
-                    // narrowly whitelist a specific benign-framing kind, rather
-                    // than a blanket drop of anything-vs-()).
-                    (Some(x), None) => {
-                        differences.push(TraceDifference::Knowledges(
-                            KnowledgeDiff::DifferentTypes {
-                                index: idx,
-                                first_type: key.clone(),
-                                second_type: "()".to_string(),
-                                first_source: x.source.clone(),
-                                second_source: Source::Label(None),
-                            },
-                        ));
-                    }
-                    (None, Some(y)) => {
-                        differences.push(TraceDifference::Knowledges(
-                            KnowledgeDiff::DifferentTypes {
-                                index: idx,
-                                first_type: "()".to_string(),
-                                second_type: key.clone(),
-                                first_source: Source::Label(None),
-                                second_source: y.source.clone(),
-                            },
-                        ));
-                    }
-                    (None, None) => {}
-                }
-            }
-        }
+        log::trace!("Comparing knowledge stores");
+        let _ = std::iter::zip(first_store, second_store)
+            .enumerate()
+            .for_each(|(idx, (x, y))| {
+                log::trace!(
+                    "{} (source:{}) | {} (source:{})",
+                    x.data.type_name(),
+                    x.source,
+                    y.data.type_name(),
+                    y.source
+                );
+                x.data
+                    .find_differences(y.data, &mut differences, idx, x.source, y.source);
+            });
 
         match differences.is_empty() {
             false => Err(differences),
@@ -588,6 +563,39 @@ impl<PB: ProtocolBehavior> TraceContext<PB> {
             query
         );
         self.knowledge_store.find_variable(query_type_shape, query)
+    }
+
+    /// Resolve a `concatenate_all` query: gather every knowledge matching the
+    /// query's source / type / matcher (in insertion order), encode each, and
+    /// re-read the concatenated bytes into the queried type. Generic — no protocol
+    /// knowledge here: the merge is byte-level `encode` + `try_read_bytes`, so it
+    /// works for any type whose codec round-trips concatenation (e.g. an SSH
+    /// `RawSshMessageFlight`, whose deframer re-frames the joined drains back into
+    /// the same message list). Returns an OWNED value (the concatenation does not
+    /// exist as a stored knowledge to borrow).
+    pub fn find_variable_concat(
+        &self,
+        query_type_shape: TypeShape<PB::ProtocolTypes>,
+        query: &Query<<PB::ProtocolTypes as ProtocolTypes>::Matcher>,
+    ) -> Option<Box<dyn EvaluatedTerm<PB::ProtocolTypes>>> {
+        let type_id: TypeId = query_type_shape.into();
+        let mut bytes: Vec<u8> = Vec::new();
+        let mut found = false;
+        for knowledge in self
+            .knowledge_store
+            .knowledges()
+            .iter()
+            .filter(|raw| query.source.is_none() || query.source.as_ref().unwrap() == &raw.source)
+            .flatten()
+            .filter(|k| type_id == k.data.type_id() && k.matcher.matches(&query.matcher))
+        {
+            bytes.extend_from_slice(&PB::any_get_encoding(knowledge.data));
+            found = true;
+        }
+        if !found {
+            return None;
+        }
+        PB::try_read_bytes(&bytes, type_id).ok()
     }
 
     pub fn spawn(

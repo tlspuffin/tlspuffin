@@ -1980,86 +1980,35 @@ pub fn server_decryption_recipes_aesgcm(server: AgentName) -> Vec<Term<SshProtoc
     let key = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@exch_hash)) };
     let iv = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@exch_hash)) };
 
-    let mk = |idx_term: Term<SshProtocolTypes>, counter: Term<SshProtocolTypes>| {
-        let key = key.clone();
-        let iv = iv.clone();
-        // Flight decryption: peel EVERY BPP packet in this socket-write blob,
-        // decrypting each with a consecutive GCM counter starting at `counter`.
-        // This makes capture independent of how the peer batched packets into
-        // writes (libssh vs wolfSSH batch differently), so both PUTs' full s2c
-        // message sequences are recovered and semantic alignment compares
-        // like-with-like — no more spurious presence diffs from batched packets.
-        term! { fn_decrypt_flight_aesgcm((@idx_term), (@key), (@iv), (@counter)) }
-    };
+    // The server's post-NewKeys s2c AES-GCM counter is CONTINUOUS across the whole
+    // stream, so the full transcript is only recoverable by concatenating ALL of
+    // the server's per-step output drains and peeling continuously from counter 0.
+    // Puffin drains after every step, so the drain count varies per trace (and
+    // even differs between the two PUTs, which batch their replies differently).
+    // The `(server, *)` "concatenate-all" query resolves to EVERY server
+    // `RawSshMessageFlight` joined in emission order — the whole s2c stream as one
+    // flight — so a SINGLE fold recovers the complete transcript regardless of how
+    // many drains there are or how each stack batched them. Exactly one
+    // `AlignedTranscript` is emitted per PUT and the two are compared 1:1 (no
+    // per-drain prefixes, hence no batching-induced false positives).
+    vec![term! { fn_fold_s2c_transcript(((server, *)/RawSshMessageFlight), (@key), (@iv)) }]
+}
 
-    // For each observed server socket-write (OnWireData) we try each possible
-    // starting s2c sequence number (which resets to 0 at NewKeys); only the true
-    // one passes the first packet's GCM tag, and the flight decryption then peels
-    // the rest of that write. Missing outputs / wrong counters fail and skip.
-    let counters = [
-        term! { fn_u32_0 },
-        term! { fn_u32_1 },
-        term! { fn_u32_2 },
-        term! { fn_u32_3 },
-        term! { fn_u32_4 },
-        term! { fn_u32_5 },
-        term! { fn_u32_6 },
-        term! { fn_u32_7 },
-    ];
-    let outputs = [
-        term! { (server, 0)[None]/RawSshMessageFlight },
-        term! { (server, 1)[None]/RawSshMessageFlight },
-        term! { (server, 2)[None]/RawSshMessageFlight },
-        term! { (server, 3)[None]/RawSshMessageFlight },
-        term! { (server, 4)[None]/RawSshMessageFlight },
-        term! { (server, 5)[None]/RawSshMessageFlight },
-        term! { (server, 6)[None]/RawSshMessageFlight },
-        term! { (server, 7)[None]/RawSshMessageFlight },
-    ];
-    let mut recipes = Vec::with_capacity(counters.len() * outputs.len() + 1);
-
-    // ROBUST full-stream decryption: merge the first 8 drains into one flight and
-    // peel every encrypted packet from counter 0 in a single pass. Puffin forces
-    // a drain after each input step, so drains 0..7 exist for both PUTs on every
-    // differential-corpus seed; the s2c counter resets to 0 at NewKeys and the
-    // pre-NewKeys packets are unencrypted (skipped by the flight decryptor), so
-    // the concatenated OnWire stream starts at counter 0. This recovers the FULL
-    // post-NewKeys s2c message sequence regardless of how the peer batched it
-    // across drains — closing the under-decode gap where a per-drain, fixed-
-    // counter recipe could miss a packet (e.g. a rekey KEXINIT) and manufacture a
-    // spurious `() vs <msg>` presence divergence.
-    let all_drains = term! {
-        fn_concat_raw_flights(
-            (fn_concat_raw_flights(
-                (fn_concat_raw_flights(
-                    (fn_concat_raw_flights(
-                        (fn_concat_raw_flights(
-                            (fn_concat_raw_flights(
-                                (fn_concat_raw_flights(
-                                    ((server, 0)[None]/RawSshMessageFlight),
-                                    ((server, 1)[None]/RawSshMessageFlight)
-                                )),
-                                ((server, 2)[None]/RawSshMessageFlight)
-                            )),
-                            ((server, 3)[None]/RawSshMessageFlight)
-                        )),
-                        ((server, 4)[None]/RawSshMessageFlight)
-                    )),
-                    ((server, 5)[None]/RawSshMessageFlight)
-                )),
-                ((server, 6)[None]/RawSshMessageFlight)
-            )),
-            ((server, 7)[None]/RawSshMessageFlight)
-        )
-    };
-    recipes.push(term! { fn_decrypt_flight_aesgcm((@all_drains), (@key), (@iv), (fn_u32_0)) });
-
-    for counter in &counters {
-        for output in &outputs {
-            recipes.push(mk(output.clone(), counter.clone()));
-        }
-    }
-    recipes
+/// Truncate a client-attacker seed to end at USERAUTH_SUCCESS by dropping its two
+/// trailing channel steps (CHANNEL_OPEN + CHANNEL_REQUEST).
+///
+/// The connection/channel layer is NOT differential-ready: it needs real-channel
+/// addressing (Phase 3 — the seed hard-codes `recipient_channel = 0`, which only
+/// one stack's numbering matches) AND a fix for wolfSSH's *non-deterministic*
+/// CHANNEL_OPEN_CONFIRMATION draining (Phase 6 — wolfSSH-vs-wolfSSH is itself
+/// non-zero on channel-opening traces). Both stacks are fully deterministic and
+/// agree through the auth boundary, so the DIFFERENTIAL corpus stops there; the
+/// full channel flow stays exercised single-PUT via the rich-corpus
+/// `channel_data` seed. Restore the channel steps here once Phase 3+6 land.
+fn auth_complete(mut trace: Trace<SshProtocolTypes>) -> Trace<SshProtocolTypes> {
+    let n = trace.steps.len();
+    trace.steps.truncate(n.saturating_sub(2));
+    trace
 }
 
 pub fn create_corpus(
@@ -2095,13 +2044,13 @@ pub fn create_corpus(
         //     "seed_server_attacker_full",
         // ),
         (
-            seed_client_attacker_full_aesgcm(server),
+            auth_complete(seed_client_attacker_full_aesgcm(server)),
             "seed_client_attacker_full_aesgcm",
         ),
         // Same handshake but with a synthesized KEXINIT whose algorithm lists are
         // mutable sub-terms — the entry point for negotiation / downgrade fuzzing.
         (
-            seed_client_attacker_full_kexinit_synth(server),
+            auth_complete(seed_client_attacker_full_kexinit_synth(server)),
             "seed_client_attacker_full_kexinit_synth",
         ),
         // Non-AEAD suite (aes256-ctr + hmac-sha2-256): drives the separate
@@ -2123,7 +2072,7 @@ pub fn create_corpus(
         //     "seed_client_attacker_pubkey",
         // ),
         (
-            seed_client_attacker_pubkey_aesgcm(server),
+            auth_complete(seed_client_attacker_pubkey_aesgcm(server)),
             "seed_client_attacker_pubkey_aesgcm",
         ),
         // Credential-confusion entry point, PROMOTED to the differential corpus.
@@ -2139,7 +2088,7 @@ pub fn create_corpus(
         // recipe aligns on one side only — the same flush-timing wall documented
         // for the channel-number query. Not a bug; just not positionally clean.
         (
-            seed_client_attacker_pubkey_b(server),
+            auth_complete(seed_client_attacker_pubkey_b(server)),
             "seed_client_attacker_pubkey_b",
         ),
         // Session layer: authenticated channel with full connection-protocol

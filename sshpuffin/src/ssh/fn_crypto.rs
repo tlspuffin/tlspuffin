@@ -17,6 +17,7 @@ use crate::ssh::message::{
     KexEcdhReplyMessage, OnWireData, RawSshMessage, SshBytes, SshMessage, SshPublicKey,
     SshSignature,
 };
+use crate::ssh::transcript::AlignedTranscript;
 
 // ── Deterministic client ECDH seed ───────────────────────────────────────────
 //
@@ -527,6 +528,97 @@ pub fn fn_decrypt_flight_aesgcm(
         return Err(FnError::Malformed("no packet decrypted in flight".into()));
     }
     Ok(SshMessageFlight { messages })
+}
+
+/// Fold an ENTIRE server flight into one [`AlignedTranscript`] for differential
+/// comparison.
+///
+/// This is the single comparison recipe of the AES-GCM decryption differential
+/// (it replaces the per-message decryption recipes + the puffin `alignment_key`
+/// bucketing hook). It recovers the server's *whole* transcript, plaintext and
+/// encrypted alike, in emission order:
+///
+///   * `RawSshMessage::Packet` — the pre-NewKeys plaintext packets (KEXINIT,
+///     KEX_ECDH_REPLY, NEWKEYS). Parsed directly; carries the negotiation /
+///     downgrade signal.
+///   * `RawSshMessage::OnWire` — the post-NewKeys AES-256-GCM ciphertext. Every
+///     opaque chunk in the flight is concatenated and peeled packet-by-packet
+///     from GCM counter 0 (which is where the s2c sequence resets at NewKeys), so
+///     capture is independent of how the peer batched its socket writes.
+///
+/// The recovered in-order message list is then folded into the key-aligned map
+/// (see [`AlignedTranscript::from_messages`]). Decryption is BEST-EFFORT: the
+/// plaintext prefix is always captured even if the key/IV are wrong (e.g. a
+/// mutated handshake), and GCM peeling stops at the first packet that fails its
+/// tag, keeping whatever decrypted cleanly. Only a completely empty transcript is
+/// an error (so the term is skipped by the differential engine).
+pub fn fn_fold_s2c_transcript(
+    flight: &RawSshMessageFlight,
+    key: &SshBytes,
+    iv: &SshBytes,
+) -> Result<AlignedTranscript, FnError> {
+    use puffin::codec::Reader;
+
+    let mut messages: Vec<SshMessage> = Vec::new();
+    let mut wire: Vec<u8> = Vec::new();
+    for m in &flight.messages {
+        match m {
+            // Pre-NewKeys plaintext packet: parse directly (key-independent).
+            RawSshMessage::Packet(bp) => {
+                if let Ok(msg) = SshMessage::try_from(bp) {
+                    messages.push(msg);
+                }
+            }
+            // Post-NewKeys ciphertext: accumulate for one GCM peel below.
+            RawSshMessage::OnWire(od) => wire.extend_from_slice(&od.0),
+            RawSshMessage::Banner(_) => {}
+        }
+    }
+
+    // Peel the encrypted stream from counter 0, best-effort. A wrong key/IV or a
+    // truncated packet just stops the peel; the plaintext prefix already gathered
+    // above is kept, so the negotiation signal never depends on decryption.
+    if key.0.len() == 32 && iv.0.len() == 12 && !wire.is_empty() {
+        let cipher = Aes256Gcm::new(AesKey::<Aes256Gcm>::from_slice(&key.0));
+        let mut off = 0usize;
+        let mut counter = 0u64;
+        while off + 4 + 16 <= wire.len() {
+            let len_be: [u8; 4] = wire[off..off + 4].try_into().unwrap();
+            let enc_len = u32::from_be_bytes(len_be) as usize;
+            if off + 4 + enc_len + 16 > wire.len() {
+                break; // truncated / not a packet boundary
+            }
+            let ct_and_tag = &wire[off + 4..off + 4 + enc_len + 16];
+            let nonce = aesgcm_nonce(&iv.0, counter);
+            match cipher.decrypt(
+                AesNonce::from_slice(&nonce),
+                Payload {
+                    msg: ct_and_tag,
+                    aad: &len_be,
+                },
+            ) {
+                Ok(pt) => {
+                    if !pt.is_empty() {
+                        let pad = pt[0] as usize;
+                        if 1 + pad <= pt.len() {
+                            let payload = &pt[1..pt.len() - pad];
+                            if let Some(msg) = SshMessage::read(&mut Reader::init(payload)) {
+                                messages.push(msg);
+                            }
+                        }
+                    }
+                }
+                Err(_) => break,
+            }
+            off += 4 + enc_len + 16;
+            counter += 1;
+        }
+    }
+
+    if messages.is_empty() {
+        return Err(FnError::Malformed("empty s2c transcript".into()));
+    }
+    Ok(AlignedTranscript::from_messages(messages))
 }
 
 // ── AES-256-CTR + HMAC-SHA2-256 (RFC 4253 §6, Encrypt-and-MAC) ────────────────
