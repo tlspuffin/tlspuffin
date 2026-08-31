@@ -1,5 +1,4 @@
 use core::time::Duration;
-use std::fmt;
 use std::marker::PhantomData;
 
 use libafl::corpus::ondisk::OnDiskMetadataFormat;
@@ -15,8 +14,9 @@ use crate::fuzzer::bit_mutations::{
 };
 pub(crate) use crate::fuzzer::config::FuzzerConfig;
 use crate::fuzzer::config::{FuzzingTarget, MIN_BIT_CORPUS, MIN_BIT_EXECS};
-use crate::fuzzer::feedback::{MinimizingFeedback, ObjectiveFeedback};
+use crate::fuzzer::feedback;
 use crate::fuzzer::mutations::{dy_mutations, MutationConfig};
+use crate::fuzzer::objective_feedback::{MinimizingFeedback, ObjectiveFeedback};
 use crate::fuzzer::stages::FocusScheduledMutator;
 use crate::fuzzer::stats_monitor::StatsMonitor;
 use crate::fuzzer::stats_stage::{StatsStage, CORPUS_EXEC, CORPUS_EXEC_MINIMAL};
@@ -24,9 +24,6 @@ use crate::log::{load_fuzzing_client, set_experiment_fuzzing_client};
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
 use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
-
-pub const MAP_FEEDBACK_NAME: &str = "edges";
-const EDGES_OBSERVER_NAME: &str = "edges_observer";
 
 type ConcreteExecutor<'harness, EM, H, I, OT, S, Z> =
     InProcessExecutor<'harness, EM, H, I, OT, S, Z>;
@@ -419,96 +416,6 @@ where
     }
 }
 
-type EdgesObserver = HitcountsMapObserver<StdMapObserver<'static, u8, false>>;
-type EdgesTracking = ExplicitTracking<EdgesObserver, true, false>;
-
-type ConcreteObservers<'a> = (EdgesTracking, (TimeObserver, ()));
-
-type ConcreteFeedback<'a> =
-    CombinedFeedback<MaxMapFeedback<EdgesTracking, EdgesObserver>, TimeFeedback, LogicEagerOr>;
-
-impl<'harness, 'a, H, SC, C, R, EM, OF, CS, PT>
-    RunClientBuilder<
-        'harness,
-        H,
-        C,
-        R,
-        SC,
-        EM,
-        CombinedFeedback<
-            MinimizingFeedback<
-                StdState<
-                    CachedOnDiskCorpus<Trace<PT>>,
-                    Trace<PT>,
-                    RomuDuoJrRand,
-                    CachedOnDiskCorpus<Trace<PT>>,
-                >,
-                PT,
-            >,
-            ConcreteFeedback<'a>,
-            LogicEagerOr,
-        >,
-        OF,
-        ConcreteObservers<'a>,
-        CS,
-        PT,
-    >
-where
-    Trace<PT>: Input,
-    //ConcreteState<C, R, SC, Trace<PT>>: Input,
-    C: Corpus<Trace<PT>> + fmt::Debug,
-    R: Rand,
-    SC: Corpus<Trace<PT>> + fmt::Debug,
-    H: FnMut(&Trace<PT>) -> ExitKind,
-    OF: Feedback<EM, Trace<PT>, ConcreteObservers<'a>, ConcreteState<C, R, SC, Trace<PT>>>,
-    CS: Scheduler<Trace<PT>, ConcreteState<C, R, SC, Trace<PT>>>,
-    EM: EventFirer<Trace<PT>, ConcreteState<C, R, SC, Trace<PT>>>
-        + EventRestarter<ConcreteState<C, R, SC, Trace<PT>>>
-        + HasEventManagerId
-        + ProgressReporter<ConcreteState<C, R, SC, Trace<PT>>>,
-    ConcreteState<C, R, SC, Trace<PT>>: HasClientPerfMonitor + HasMetadata + HasExecutions,
-    PT: ProtocolTypes + 'static,
-{
-    fn create_feedback_observers(&self) -> (ConcreteFeedback<'a>, ConcreteObservers<'a>) {
-        #[cfg(not(test))]
-        let map = unsafe {
-            pub use libafl_targets::{EDGES_MAP, MAX_EDGES_FOUND};
-            &mut EDGES_MAP[0..MAX_EDGES_FOUND]
-        };
-
-        #[cfg(test)]
-        let map = unsafe {
-            // When testing we should not import libafl_targets, else it conflicts with sancov_dummy
-            pub const EDGES_MAP_SIZE: usize = 65536;
-            pub static mut EDGES_MAP: [u8; EDGES_MAP_SIZE] = [0; EDGES_MAP_SIZE];
-            pub static mut MAX_EDGES_FOUND: usize = 0;
-            &mut EDGES_MAP[0..MAX_EDGES_FOUND]
-        };
-
-        {
-            let time_observer = TimeObserver::new("time");
-            let edges_observer =
-                HitcountsMapObserver::new(unsafe { StdMapObserver::new(EDGES_OBSERVER_NAME, map) });
-
-            let edges_observer = edges_observer.track_indices();
-
-            let map_feedback = MaxMapFeedback::with_name(MAP_FEEDBACK_NAME, &edges_observer);
-
-            let feedback = feedback_or!(
-                // New maximization map feedback linked to the edges observer and the feedback
-                // state `track_indexes` needed because of
-                // IndexesLenTimeMinimizerCorpusScheduler
-                map_feedback,
-                // Time feedback, this one does not need a feedback state
-                // needed for IndexesLenTimeMinimizerCorpusScheduler
-                TimeFeedback::new(&time_observer)
-            );
-            let observers = tuple_list!(edges_observer, time_observer);
-            (feedback, observers)
-        }
-    }
-}
-
 /// Starts the fuzzing loop
 pub fn start<PB>(
     put_registry: &PutRegistry<PB>,
@@ -621,7 +528,7 @@ where
         {
             // FIXME
             log::warn!("Running without minimizer is unsupported");
-            let (feedback, observer) = builder.create_feedback_observers();
+            let (feedback, observer) = feedback::build_feedback_and_observers();
             let feedback_with_minimizer = feedback_or!(
                 MinimizingFeedback::new(mutation_stage_config.with_truncation),
                 feedback
