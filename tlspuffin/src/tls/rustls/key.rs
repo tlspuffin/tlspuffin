@@ -1,10 +1,11 @@
 use std::fmt;
 
 use comparable::Comparable;
+use constructor_macro::Constructor;
 use extractable_macro::Extractable;
 use puffin::codec::{Codec, Reader};
 
-use crate::tls::TLSProtocolTypes;
+use crate::tls::{TLSProtocolTypes, TLS_SIGNATURE_FNDEFS, TLS_SIGNATURE_TYPEDEFS};
 
 /// This type contains a private key by value.
 ///
@@ -21,8 +22,10 @@ pub struct PrivateKey(pub Vec<u8>);
 /// The certificate must be DER-encoded X.509.
 ///
 /// The `rustls-pemfile` crate can be used to parse a PEM file.
-#[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd, Extractable, Comparable)]
+#[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd, Extractable, Comparable, Constructor)]
 #[extractable(TLSProtocolTypes)]
+#[constructor(TLS_SIGNATURE, TLSProtocolTypes)]
+#[constructor_list(no_codec_impl)]
 pub struct Certificate(#[extractable_no_recursion] pub Vec<u8>);
 
 impl Codec for PrivateKey {

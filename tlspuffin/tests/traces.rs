@@ -4,7 +4,11 @@ use puffin::{input_action, term};
 use tlspuffin::protocol::{MessageFlight, TLSDescriptorConfig, TLSProtocolTypes, TLSVersion};
 use tlspuffin::query::TlsQueryMatcher;
 use tlspuffin::tls::fn_impl::*;
-use tlspuffin::tls::rustls::msgs::enums::HandshakeType;
+use tlspuffin::tls::rustls::msgs::base::*;
+use tlspuffin::tls::rustls::msgs::ccs::fn_changecipherspecpayload;
+use tlspuffin::tls::rustls::msgs::enums::{HandshakeType, *};
+use tlspuffin::tls::rustls::msgs::handshake::{fn_compressions, *};
+use tlspuffin::tls::rustls::msgs::message::*;
 
 fn seed_successful_12_both(client12: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
     Trace {
@@ -19,22 +23,30 @@ fn seed_successful_12_both(client12: AgentName, server: AgentName) -> Trace<TLSP
             // ClientHello → Server
             Step {
                 agent: server,
-                action: Action::Input(input_action! { term! { (client12, 0)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((client12, 0)/MessageFlight)
+                } }),
             },
             // ServerHello + Certificate + ServerKeyExchange + ServerHelloDone → Client12
             Step {
                 agent: client12,
-                action: Action::Input(input_action! { term! { (server, 0)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((server, 0)/MessageFlight)
+                } }),
             },
             // ClientKeyExchange + ChangeCipherSpec + Finished → Server
             Step {
                 agent: server,
-                action: Action::Input(input_action! { term! { (client12, 1)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((client12, 1)/MessageFlight)
+                } }),
             },
             // ChangeCipherSpec + Finished → Client12
             Step {
                 agent: client12,
-                action: Action::Input(input_action! { term! { (server, 1)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((server, 1)/MessageFlight)
+                } }),
             },
         ],
         ..Default::default()
@@ -54,18 +66,24 @@ fn seed_successful_13_both(client13: AgentName, server: AgentName) -> Trace<TLSP
             // ClientHello → Server
             Step {
                 agent: server,
-                action: Action::Input(input_action! { term! { (client13, 0)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((client13, 0)/MessageFlight)
+                } }),
             },
             // ServerHello + EncryptedExtensions + Certificate + CertificateVerify + Finished →
             // Client13
             Step {
                 agent: client13,
-                action: Action::Input(input_action! { term! { (server, 0)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((server, 0)/MessageFlight)
+                } }),
             },
             // Finished → Server
             Step {
                 agent: server,
-                action: Action::Input(input_action! { term! { (client13, 1)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((client13, 1)/MessageFlight)
+                } }),
             },
         ],
         ..Default::default()
@@ -85,18 +103,24 @@ fn seed_successful_both_13(client: AgentName, server13: AgentName) -> Trace<TLSP
             // ClientHello → Server
             Step {
                 agent: server13,
-                action: Action::Input(input_action! { term! { (client, 0)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((client, 0)/MessageFlight)
+                } }),
             },
             // ServerHello + EncryptedExtensions + Certificate + CertificateVerify + Finished →
             // Client13
             Step {
                 agent: client,
-                action: Action::Input(input_action! { term! { (server13, 0)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((server13, 0)/MessageFlight)
+                } }),
             },
             // Finished → Server
             Step {
                 agent: server13,
-                action: Action::Input(input_action! { term! { (client, 1)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((client, 1)/MessageFlight)
+                } }),
             },
         ],
         ..Default::default()
@@ -116,22 +140,30 @@ fn seed_successful_both_12(client: AgentName, server12: AgentName) -> Trace<TLSP
             // ClientHello → Server
             Step {
                 agent: server12,
-                action: Action::Input(input_action! { term! { (client, 0)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((client, 0)/MessageFlight)
+                } }),
             },
             // ServerHello + Certificate + ServerKeyExchange + ServerHelloDone → Client12
             Step {
                 agent: client,
-                action: Action::Input(input_action! { term! { (server12, 0)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((server12, 0)/MessageFlight)
+                } }),
             },
             // ClientKeyExchange + ChangeCipherSpec + Finished → Server
             Step {
                 agent: server12,
-                action: Action::Input(input_action! { term! { (client, 1)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((client, 1)/MessageFlight)
+                } }),
             },
             // ChangeCipherSpec + Finished → Client12
             Step {
                 agent: client,
-                action: Action::Input(input_action! { term! { (server12, 1)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((server12, 1)/MessageFlight)
+                } }),
             },
         ],
         ..Default::default()
@@ -151,12 +183,16 @@ fn seed_error_12_13(client12: AgentName, server13: AgentName) -> Trace<TLSProtoc
             // ClientHello → server13
             Step {
                 agent: server13,
-                action: Action::Input(input_action! { term! { (client12, 0)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((client12, 0)/MessageFlight)
+                } }),
             },
             // ServerHello + Certificate + ServerKeyExchange + ServerHelloDone → Client12
             Step {
                 agent: client12,
-                action: Action::Input(input_action! { term! { (server13, 0)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((server13, 0)/MessageFlight)
+                } }),
             },
         ],
         ..Default::default()
@@ -176,22 +212,30 @@ fn seed_error_13_12(client13: AgentName, server12: AgentName) -> Trace<TLSProtoc
             // ClientHello → server13
             Step {
                 agent: server12,
-                action: Action::Input(input_action! { term! { (client13, 0)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((client13, 0)/MessageFlight)
+                } }),
             },
             // ServerHello + Certificate + ServerKeyExchange + ServerHelloDone → Client12
             Step {
                 agent: client13,
-                action: Action::Input(input_action! { term! { (server12, 0)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((server12, 0)/MessageFlight)
+                } }),
             },
             // ClientKeyExchange + ChangeCipherSpec + Finished → Server
             Step {
                 agent: server12,
-                action: Action::Input(input_action! { term! { (client13, 1)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((client13, 1)/MessageFlight)
+                } }),
             },
             // ChangeCipherSpec + Finished → Client12
             Step {
                 agent: client13,
-                action: Action::Input(input_action! { term! { (server12, 1)/MessageFlight } }),
+                action: Action::Input(input_action! { term! {
+                    K((server12, 1)/MessageFlight)
+                } }),
             },
         ],
         ..Default::default()
@@ -201,53 +245,83 @@ fn seed_error_13_12(client13: AgentName, server12: AgentName) -> Trace<TLSProtoc
 fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
     // -- TLS 1.2 terms
     let client_hello12 = term! {
-          fn_client_hello(
-            fn_protocol_version12,
-            fn_new_random,
-            fn_new_session_id,
-            (fn_cipher_suites_make(
-                (fn_append_cipher_suite(
-                  (fn_new_cipher_suites()),
-                  // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-                  fn_cipher_suite12
-            )))),
-            fn_compressions,
-            (fn_client_extensions_make(
-            (fn_client_extensions_append(
-                (fn_client_extensions_append(
-                    (fn_client_extensions_append(
-                        (fn_client_extensions_append(
-                            (fn_client_extensions_append(
-                                (fn_client_extensions_append(
-                                    fn_client_extensions_new,
-                                    (fn_support_group_extension_make(
-                                        (fn_support_group_extension_append(
-                                            fn_support_group_extension_new,
-                                            fn_named_group_secp384r1
-                                        ))
-                                    ))
-                                )),
-                                (fn_signature_algorithm_extension(
-                                    (fn_supported_signature_schemes_extension_append(
-                                        (fn_supported_signature_schemes_extension_append(
-                                            fn_supported_signature_schemes_extension_new,
-                                            fn_sig_scheme_rsa_pkcs1_sha256
-                                        )),
-                                        fn_sig_scheme_rsa_pss_sha256
-                                    ))
+        fn_message(
+            fn_protocolversion_tlsv1_2,
+            fn_messagepayload_handshake(
+                fn_handshakemessagepayload(
+                    fn_handshaketype_clienthello,
+                    fn_handshakepayload_clienthello(
+                        fn_clienthellopayload(
+                            fn_protocolversion_tlsv1_2,
+                            fn_random,
+                            fn_sessionid,
+                            (fn_ciphersuites(
+                                (fn_list_ciphersuite_append(
+                                    (fn_list_ciphersuite_empty()),
+                                    // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                                    fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
                                 ))
                             )),
-                            fn_ec_point_formats_extension
-                        )),
-                        fn_signed_certificate_timestamp_extension
-                    )),
-                     // Enable Renegotiation
-                    (fn_renegotiation_info_extension((fn_payload_u8(fn_empty_bytes_vec))))
-                )),
-                // Add signature cert extension
-                fn_signature_algorithm_cert_extension
-            ))
-        )))
+                            fn_compressions(
+                                fn_list_compression_append(
+                                    fn_list_compression_empty,
+                                    fn_compression_null
+                                )
+                            ),
+                            (fn_clientextensions(
+                                (fn_list_clientextension_append(
+                                    (fn_list_clientextension_append(
+                                        (fn_list_clientextension_append(
+                                            (fn_list_clientextension_append(
+                                                (fn_list_clientextension_append(
+                                                    (fn_list_clientextension_append(
+                                                        fn_list_clientextension_empty,
+                                                        (fn_clientextension_namedgroups(
+                                                            fn_namedgroups(
+                                                                (fn_list_namedgroup_append(
+                                                                    fn_list_namedgroup_empty,
+                                                                    fn_namedgroup_secp384r1
+                                                                ))
+                                                            )
+                                                        ))
+                                                    )),
+                                                    (fn_clientextension_signaturealgorithms(
+                                                        fn_supportedsignatureschemes(
+                                                            (fn_list_signaturescheme_append(
+                                                                (fn_list_signaturescheme_append(
+                                                                    fn_list_signaturescheme_empty,
+                                                                    fn_signaturescheme_rsa_pkcs1_sha256
+                                                                )),
+                                                                fn_signaturescheme_rsa_pss_sha256
+                                                            ))
+                                                        )
+                                                    ))
+                                                )),
+                                                fn_clientextension_ecpointformats(
+                                                    fn_ecpointformatlist(
+                                                        fn_list_ecpointformat_append(
+                                                            fn_list_ecpointformat_empty,
+                                                            fn_ecpointformat_uncompressed
+                                                        )
+                                                    )
+                                                )
+                                            )),
+                                            fn_clientextension_signedcertificatetimestamprequest
+                                        )),
+                                        // Enable Renegotiation
+                                        (fn_clientextension_renegotiationinfo(
+                                            (fn_payloadu8(fn_empty_bytes_vec))
+                                        ))
+                                    )),
+                                    // Add signature cert extension
+                                    fn_signature_algorithm_cert_extension
+                                ))
+                            ))
+                        )
+                    )
+                )
+            )
+        )
     };
 
     let server_hello_transcript12 = term! {
@@ -256,117 +330,166 @@ fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
                 fn_new_transcript12,
                 (@client_hello12) // ClientHello
             )),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
     let certificate_transcript12 = term! {
         fn_append_transcript(
             (@server_hello_transcript12),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
         )
     };
 
     let server_key_exchange_transcript12 = term! {
-      fn_append_transcript(
+        fn_append_transcript(
             (@certificate_transcript12),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
         )
     };
 
     let server_hello_done_transcript12 = term! {
-      fn_append_transcript(
+        fn_append_transcript(
             (@server_key_exchange_transcript12),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
         )
     };
 
     let client_key_exchange12 = term! {
-        fn_client_key_exchange(
-            (fn_encode_ec_pubkey12(
-                (fn_payload_u8((fn_new_pubkey12(fn_named_group_secp384r1))))
-            ))
+        fn_message(
+            fn_protocolversion_tlsv1_2,
+            fn_messagepayload_handshake(
+                fn_handshakemessagepayload(
+                    fn_handshaketype_clientkeyexchange,
+                    fn_handshakepayload_clientkeyexchange(
+                        fn_payload(
+                            (fn_encode_ec_pubkey12(
+                                (fn_payloadu8((fn_new_pubkey12(fn_namedgroup_secp384r1))))
+                            ))
+                        )
+                    )
+                )
+            )
         )
     };
 
     let client_key_exchange_transcript12 = term! {
-      fn_append_transcript(
-            (@server_hello_done_transcript12),
-            (@client_key_exchange12)
-        )
+        fn_append_transcript((@server_hello_done_transcript12), (@client_key_exchange12))
     };
 
     let client_verify_data12 = term! {
         fn_client_sign_transcript(
-            ((server, 0)),
+            K((server, 0)),
             (fn_decode_server_ecdh_pubkey(
-                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript12),
-            fn_named_group_secp384r1,
-            fn_new_random,
-            fn_cipher_suite12
+            fn_namedgroup_secp384r1,
+            fn_random,
+            fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
         )
     };
 
     // --- TLS 1.3 terms
     let client_hello13 = term! {
-          fn_client_hello(
-            fn_protocol_version12,
-            fn_new_random,
-            fn_new_session_id,
-            (fn_cipher_suites_make(
-                 (fn_append_cipher_suite(
-                  (fn_new_cipher_suites()),
-                   fn_cipher_suite13_aes_128_gcm_sha256
-            )))),
-            fn_compressions,
-            (fn_client_extensions_make(
-                (fn_client_extensions_append(
-                (fn_client_extensions_append(
-                    (fn_client_extensions_append(
-                        (fn_client_extensions_append(
-                            fn_client_extensions_new,
-                            (fn_support_group_extension_make(
-                                (fn_support_group_extension_append(
-                                    fn_support_group_extension_new,
-                                    fn_named_group_secp384r1
+        fn_message(
+            fn_protocolversion_tlsv1_2,
+            fn_messagepayload_handshake(
+                fn_handshakemessagepayload(
+                    fn_handshaketype_clienthello,
+                    fn_handshakepayload_clienthello(
+                        fn_clienthellopayload(
+                            fn_protocolversion_tlsv1_2,
+                            fn_random,
+                            fn_sessionid,
+                            (fn_ciphersuites(
+                                (fn_list_ciphersuite_append(
+                                    (fn_list_ciphersuite_empty()),
+                                    fn_ciphersuite_tls13_aes_128_gcm_sha256
+                                ))
+                            )),
+                            fn_compressions(
+                                fn_list_compression_append(
+                                    fn_list_compression_empty,
+                                    fn_compression_null
+                                )
+                            ),
+                            (fn_clientextensions(
+                                (fn_list_clientextension_append(
+                                    (fn_list_clientextension_append(
+                                        (fn_list_clientextension_append(
+                                            (fn_list_clientextension_append(
+                                                fn_list_clientextension_empty,
+                                                (fn_clientextension_namedgroups(
+                                                    fn_namedgroups(
+                                                        (fn_list_namedgroup_append(
+                                                            fn_list_namedgroup_empty,
+                                                            fn_namedgroup_secp384r1
+                                                        ))
+                                                    )
+                                                ))
+                                            )),
+                                            (fn_clientextension_signaturealgorithms(
+                                                fn_supportedsignatureschemes(
+                                                    (fn_list_signaturescheme_append(
+                                                        (fn_list_signaturescheme_append(
+                                                            fn_list_signaturescheme_empty,
+                                                            fn_signaturescheme_rsa_pkcs1_sha256
+                                                        )),
+                                                        fn_signaturescheme_rsa_pss_sha256
+                                                    ))
+                                                )
+                                            ))
+                                        )),
+                                        (fn_clientextension_keyshare(
+                                            fn_keyshareentries(
+                                                (fn_list_keyshareentry_append(
+                                                    fn_list_keyshareentry_empty,
+                                                    (fn_key_share_deterministic(
+                                                        fn_namedgroup_secp384r1
+                                                    ))
+                                                ))
+                                            )
+                                        ))
+                                    )),
+                                    fn_clientextension_supportedversions(
+                                        fn_protocolversions(
+                                            fn_list_protocolversion_append(
+                                                fn_list_protocolversion_empty,
+                                                fn_protocolversion_tlsv1_3
+                                            )
+                                        )
+                                    )
                                 ))
                             ))
-                        )),
-                        (fn_signature_algorithm_extension(
-                            (fn_supported_signature_schemes_extension_append(
-                                (fn_supported_signature_schemes_extension_append(
-                                    fn_supported_signature_schemes_extension_new,
-                                    fn_sig_scheme_rsa_pkcs1_sha256
-                                )),
-                                fn_sig_scheme_rsa_pss_sha256
-                            ))
-                        ))
-                    )),
-                    (fn_key_share_extension_make(
-                        (fn_key_share_extension_append(
-                            fn_key_share_extension_new,
-                            (fn_key_share_deterministic(fn_named_group_secp384r1))
-                        ))
-                    ))
-                )),
-                fn_supported_versions13_extension
-            ))
-        )))
+                        )
+                    )
+                )
+            )
+        )
     };
 
     let client_finished13 = term! {
-        fn_finished(
-            (fn_verify_data(
-                (fn_server_finished_transcript(((server, 1)))),
-                (fn_server_hello_transcript(((server, 1)))),
-                (fn_get_server_key_share(((server, 1)))),
-                fn_no_psk,
-                fn_named_group_secp384r1,
-                fn_new_random,
-                fn_cipher_suite13_aes_128_gcm_sha256
-            ))
+        fn_message(
+            fn_protocolversion_tlsv1_2,
+            fn_messagepayload_handshake(
+                fn_handshakemessagepayload(
+                    fn_handshaketype_finished,
+                    fn_handshakepayload_finished(
+                        fn_payload(
+                            (fn_verify_data(
+                                (fn_server_finished_transcript(C((server, 1)))),
+                                (fn_server_hello_transcript(C((server, 1)))),
+                                (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
+                                fn_no_psk,
+                                fn_namedgroup_secp384r1,
+                                fn_random,
+                                fn_ciphersuite_tls13_aes_128_gcm_sha256
+                            ))
+                        )
+                    )
+                )
+            )
         )
     };
 
@@ -386,26 +509,41 @@ fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
             },
             Step {
                 agent: server,
-                action: Action::Input(input_action! { term! { fn_change_cipher_spec }
+                action: Action::Input(input_action! { term! {
+                    fn_message(
+                        fn_protocolversion_tlsv1_2,
+                        fn_messagepayload_changecipherspec(fn_changecipherspecpayload)
+                    )
+                }
                 }),
             },
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                        fn_encrypt12(
-                            (fn_finished((@client_verify_data12))),
-                            ((server, 0)),
-                            (fn_decode_server_ecdh_pubkey(
-                                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
-                            )),
-                            fn_named_group_secp384r1,
-                            fn_true,
-                            fn_seq_0,
-                            fn_new_random,
-                            fn_cipher_suite12
-                        )
-                    }
-                }),
+                    fn_encrypt12(
+                        (fn_message(
+                            fn_protocolversion_tlsv1_2,
+                            fn_messagepayload_handshake(
+                                fn_handshakemessagepayload(
+                                    fn_handshaketype_finished,
+                                    fn_handshakepayload_finished(
+                                        fn_payload((@client_verify_data12))
+                                    )
+                                )
+                            )
+                        )),
+                        K((server, 0)),
+                        (fn_decode_server_ecdh_pubkey(
+                            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                        )),
+                        fn_namedgroup_secp384r1,
+                        fn_true,
+                        fn_seq_0,
+                        fn_random,
+                        fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
+                    )
+                }
+                                }),
             },
             OutputAction::new_step(server),
         ],
@@ -419,25 +557,26 @@ fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                        @client_hello13
-                    }
+                    @client_hello13
+                }
                 }),
             },
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                        fn_encrypt_handshake(
-                            (@client_finished13),
-                            (fn_server_hello_transcript(((server, 1)))),
-                            (fn_get_server_key_share(((server, 1)))),
-                            fn_no_psk,
-                            fn_named_group_secp384r1,
-                            fn_true,
-                            fn_seq_0,  // sequence 0
-                            fn_new_random,
-                            fn_cipher_suite13_aes_128_gcm_sha256
-                        )
-                    }
+                    fn_encrypt_handshake(
+                        (@client_finished13),
+                        (fn_server_hello_transcript(C((server, 1)))),
+                        (fn_psk(D(K((server, 0) / KeyShareEntry), Vec<u8>))),
+                        fn_no_psk,
+                        fn_namedgroup_secp384r1,
+                        fn_true,
+                        fn_seq_0,
+                        // sequence 0
+                        fn_random,
+                        fn_ciphersuite_tls13_aes_128_gcm_sha256
+                    )
+                }
                 }),
             },
             OutputAction::new_step(server),
@@ -449,53 +588,83 @@ fn seed_successful_12_then_13(server: AgentName) -> Trace<TLSProtocolTypes> {
 fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
     // -- TLS 1.2 terms
     let client_hello12 = term! {
-          fn_client_hello(
-            fn_protocol_version12,
-            fn_new_random,
-            fn_new_session_id,
-            (fn_cipher_suites_make(
-                (fn_append_cipher_suite(
-                  (fn_new_cipher_suites()),
-                  // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
-                  fn_cipher_suite12
-            )))),
-            fn_compressions,
-            (fn_client_extensions_make(
-            (fn_client_extensions_append(
-                (fn_client_extensions_append(
-                    (fn_client_extensions_append(
-                        (fn_client_extensions_append(
-                            (fn_client_extensions_append(
-                                (fn_client_extensions_append(
-                                    fn_client_extensions_new,
-                                    (fn_support_group_extension_make(
-                                        (fn_support_group_extension_append(
-                                            fn_support_group_extension_new,
-                                            fn_named_group_secp384r1
-                                        ))
-                                    ))
-                                )),
-                                (fn_signature_algorithm_extension(
-                                    (fn_supported_signature_schemes_extension_append(
-                                        (fn_supported_signature_schemes_extension_append(
-                                            fn_supported_signature_schemes_extension_new,
-                                            fn_sig_scheme_rsa_pkcs1_sha256
-                                        )),
-                                        fn_sig_scheme_rsa_pss_sha256
-                                    ))
+        fn_message(
+            fn_protocolversion_tlsv1_2,
+            fn_messagepayload_handshake(
+                fn_handshakemessagepayload(
+                    fn_handshaketype_clienthello,
+                    fn_handshakepayload_clienthello(
+                        fn_clienthellopayload(
+                            fn_protocolversion_tlsv1_2,
+                            fn_random,
+                            fn_sessionid,
+                            (fn_ciphersuites(
+                                (fn_list_ciphersuite_append(
+                                    (fn_list_ciphersuite_empty()),
+                                    // force TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+                                    fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
                                 ))
                             )),
-                            fn_ec_point_formats_extension
-                        )),
-                        fn_signed_certificate_timestamp_extension
-                    )),
-                     // Enable Renegotiation
-                    (fn_renegotiation_info_extension((fn_payload_u8(fn_empty_bytes_vec))))
-                )),
-                // Add signature cert extension
-                fn_signature_algorithm_cert_extension
-            ))
-        )))
+                            fn_compressions(
+                                fn_list_compression_append(
+                                    fn_list_compression_empty,
+                                    fn_compression_null
+                                )
+                            ),
+                            (fn_clientextensions(
+                                (fn_list_clientextension_append(
+                                    (fn_list_clientextension_append(
+                                        (fn_list_clientextension_append(
+                                            (fn_list_clientextension_append(
+                                                (fn_list_clientextension_append(
+                                                    (fn_list_clientextension_append(
+                                                        fn_list_clientextension_empty,
+                                                        (fn_clientextension_namedgroups(
+                                                            fn_namedgroups(
+                                                                (fn_list_namedgroup_append(
+                                                                    fn_list_namedgroup_empty,
+                                                                    fn_namedgroup_secp384r1
+                                                                ))
+                                                            )
+                                                        ))
+                                                    )),
+                                                    (fn_clientextension_signaturealgorithms(
+                                                        fn_supportedsignatureschemes(
+                                                            (fn_list_signaturescheme_append(
+                                                                (fn_list_signaturescheme_append(
+                                                                    fn_list_signaturescheme_empty,
+                                                                    fn_signaturescheme_rsa_pkcs1_sha256
+                                                                )),
+                                                                fn_signaturescheme_rsa_pss_sha256
+                                                            ))
+                                                        )
+                                                    ))
+                                                )),
+                                                fn_clientextension_ecpointformats(
+                                                    fn_ecpointformatlist(
+                                                        fn_list_ecpointformat_append(
+                                                            fn_list_ecpointformat_empty,
+                                                            fn_ecpointformat_uncompressed
+                                                        )
+                                                    )
+                                                )
+                                            )),
+                                            fn_clientextension_signedcertificatetimestamprequest
+                                        )),
+                                        // Enable Renegotiation
+                                        (fn_clientextension_renegotiationinfo(
+                                            (fn_payloadu8(fn_empty_bytes_vec))
+                                        ))
+                                    )),
+                                    // Add signature cert extension
+                                    fn_signature_algorithm_cert_extension
+                                ))
+                            ))
+                        )
+                    )
+                )
+            )
+        )
     };
 
     let server_hello_transcript12 = term! {
@@ -504,56 +673,63 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
                 fn_new_transcript12,
                 (@client_hello12) // ClientHello
             )),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
     let certificate_transcript12 = term! {
         fn_append_transcript(
             (@server_hello_transcript12),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
         )
     };
 
     let server_key_exchange_transcript12 = term! {
-      fn_append_transcript(
+        fn_append_transcript(
             (@certificate_transcript12),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
         )
     };
 
     let server_hello_done_transcript12 = term! {
-      fn_append_transcript(
+        fn_append_transcript(
             (@server_key_exchange_transcript12),
-            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
+            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
         )
     };
 
     let client_key_exchange12 = term! {
-        fn_client_key_exchange(
-            (fn_encode_ec_pubkey12(
-                (fn_payload_u8((fn_new_pubkey12(fn_named_group_secp384r1))))
-            ))
+        fn_message(
+            fn_protocolversion_tlsv1_2,
+            fn_messagepayload_handshake(
+                fn_handshakemessagepayload(
+                    fn_handshaketype_clientkeyexchange,
+                    fn_handshakepayload_clientkeyexchange(
+                        fn_payload(
+                            (fn_encode_ec_pubkey12(
+                                (fn_payloadu8((fn_new_pubkey12(fn_namedgroup_secp384r1))))
+                            ))
+                        )
+                    )
+                )
+            )
         )
     };
 
     let client_key_exchange_transcript12 = term! {
-      fn_append_transcript(
-            (@server_hello_done_transcript12),
-            (@client_key_exchange12)
-        )
+        fn_append_transcript((@server_hello_done_transcript12), (@client_key_exchange12))
     };
 
     let client_verify_data12 = term! {
         fn_client_sign_transcript(
-            ((server, 0)),
+            K((server, 0)),
             (fn_decode_server_ecdh_pubkey(
-                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript12),
-            fn_named_group_secp384r1,
-            fn_new_random,
-            fn_cipher_suite12
+            fn_namedgroup_secp384r1,
+            fn_random,
+            fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
         )
     };
 
@@ -564,48 +740,45 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
                 fn_new_transcript12,
                 (@client_hello12) // ClientHello
             )),
-            ((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
+            K((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]) // plaintext ServerHello
         )
     };
 
     let certificate_transcript12_2 = term! {
         fn_append_transcript(
             (@server_hello_transcript12_2),
-            ((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
+            K((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::Certificate)))]) // Certificate
         )
     };
 
     let server_key_exchange_transcript12_2 = term! {
         fn_append_transcript(
             (@certificate_transcript12_2),
-            ((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
+            K((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]) // ServerKeyExchange
         )
     };
 
     let server_hello_done_transcript12_2 = term! {
         fn_append_transcript(
             (@server_key_exchange_transcript12_2),
-            ((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
+            K((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHelloDone)))]) // ServerHelloDone
         )
     };
 
     let client_key_exchange_transcript12_2 = term! {
-        fn_append_transcript(
-            (@server_hello_done_transcript12_2),
-            (@client_key_exchange12)
-        )
+        fn_append_transcript((@server_hello_done_transcript12_2), (@client_key_exchange12))
     };
 
     let client_verify_data12_2 = term! {
         fn_client_sign_transcript(
-            ((server, 1)),
+            K((server, 1)),
             (fn_decode_server_ecdh_pubkey(
-                ((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                K((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript12_2),
-            fn_named_group_secp384r1,
-            fn_new_random,
-            fn_cipher_suite12
+            fn_namedgroup_secp384r1,
+            fn_random,
+            fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
         )
     };
 
@@ -625,26 +798,41 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
             },
             Step {
                 agent: server,
-                action: Action::Input(input_action! { term! { fn_change_cipher_spec }
+                action: Action::Input(input_action! { term! {
+                    fn_message(
+                        fn_protocolversion_tlsv1_2,
+                        fn_messagepayload_changecipherspec(fn_changecipherspecpayload)
+                    )
+                }
                 }),
             },
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                        fn_encrypt12(
-                            (fn_finished((@client_verify_data12))),
-                            ((server, 0)),
-                            (fn_decode_server_ecdh_pubkey(
-                                ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
-                            )),
-                            fn_named_group_secp384r1,
-                            fn_true,
-                            fn_seq_0,
-                            fn_new_random,
-                            fn_cipher_suite12
-                        )
-                    }
-                }),
+                    fn_encrypt12(
+                        (fn_message(
+                            fn_protocolversion_tlsv1_2,
+                            fn_messagepayload_handshake(
+                                fn_handshakemessagepayload(
+                                    fn_handshaketype_finished,
+                                    fn_handshakepayload_finished(
+                                        fn_payload((@client_verify_data12))
+                                    )
+                                )
+                            )
+                        )),
+                        K((server, 0)),
+                        (fn_decode_server_ecdh_pubkey(
+                            K((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                        )),
+                        fn_namedgroup_secp384r1,
+                        fn_true,
+                        fn_seq_0,
+                        fn_random,
+                        fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
+                    )
+                }
+                                }),
             },
             OutputAction::new_step(server),
         ],
@@ -658,8 +846,8 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                        @client_hello12
-                    }
+                    @client_hello12
+                }
                 }),
             },
             Step {
@@ -669,26 +857,41 @@ fn seed_successful_12_then_12(server: AgentName) -> Trace<TLSProtocolTypes> {
             },
             Step {
                 agent: server,
-                action: Action::Input(input_action! { term! { fn_change_cipher_spec }
+                action: Action::Input(input_action! { term! {
+                    fn_message(
+                        fn_protocolversion_tlsv1_2,
+                        fn_messagepayload_changecipherspec(fn_changecipherspecpayload)
+                    )
+                }
                 }),
             },
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
-                        fn_encrypt12(
-                            (fn_finished((@client_verify_data12_2))),
-                            ((server, 1)),
-                            (fn_decode_server_ecdh_pubkey(
-                                ((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
-                            )),
-                            fn_named_group_secp384r1,
-                            fn_true,
-                            fn_seq_0,
-                            fn_new_random,
-                            fn_cipher_suite12
-                        )
-                    }
-                }),
+                    fn_encrypt12(
+                        (fn_message(
+                            fn_protocolversion_tlsv1_2,
+                            fn_messagepayload_handshake(
+                                fn_handshakemessagepayload(
+                                    fn_handshaketype_finished,
+                                    fn_handshakepayload_finished(
+                                        fn_payload((@client_verify_data12_2))
+                                    )
+                                )
+                            )
+                        )),
+                        K((server, 1)),
+                        (fn_decode_server_ecdh_pubkey(
+                            K((server, 1)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
+                        )),
+                        fn_namedgroup_secp384r1,
+                        fn_true,
+                        fn_seq_0,
+                        fn_random,
+                        fn_ciphersuite_tls_ecdhe_rsa_with_aes_128_gcm_sha256
+                    )
+                }
+                                }),
             },
             OutputAction::new_step(server),
         ],

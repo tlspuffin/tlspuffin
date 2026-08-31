@@ -1,15 +1,19 @@
+use std::any::TypeId;
 use std::fmt::Display;
 
 use libafl::inputs::{BytesInput, HasMutatorBytes};
 use serde::{Deserialize, Serialize};
 
 use crate::algebra::dynamic_function::TypeShape;
-use crate::algebra::{ConcreteMessage, DYTerm, Term, TermType};
+use crate::algebra::{remove_prefix, ConcreteMessage, DYTerm, Matcher, Term, TermType};
 use crate::error::Error;
 use crate::error::Error::TermBug;
+use crate::fuzzer::stats_stage::{
+    DECONSTRUCTOR_EVAL, DECONSTRUCTOR_EVAL_FAIL, VARIABLE_EVAL, VARIABLE_EVAL_FAIL,
+};
 use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
-use crate::trace::{Source, TraceContext};
+use crate::trace::{Knowledge, Source, TraceContext};
 
 /// Constants governing heuristic for finding payloads in term evaluations
 const THRESHOLD_SIZE: usize = 3; // minimum size of a payload to be directly searched in root_eval
@@ -403,21 +407,32 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 }
             }
         } else {
-            // right_sibling could not be found --> warning
-            #[cfg(any(debug_assertions, feature = "debug"))]
-            {
-                let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
-                return if parent_is_get {
-                    // This case is to be expected: we are looking for a child encoding that might
-                    // just not been present in the encoding because the
-                    // function symbol is a `get` symbol. No relevant payload
-                    // replacement is possible --> We returns a simple error in that
-                    // case.
-                    Err(Error::Term(format!("{ft}")))
-                } else {
-                    Err(Error::TermBug(format!("{ft}")))
-                };
-            }
+            // The right siblings' encodings do not appear as one contiguous run in the parent, so
+            // this heuristic cannot say which of `all_matches` is the child.
+            //
+            // This is a limitation of the search, not a malformed term, so it is a recoverable
+            // `Error::Term` for every parent -- not just `get` symbols. The concatenation above
+            // assumes a parent encodes exactly its children back to back, and a parent is free to
+            // emit bytes of its own in between. `OpaqueMessage` does, writing a `u16` payload
+            // length between `version` and `payload`:
+            //
+            //     typ.encode()                       -> 20
+            //     version.encode()                   -> fe ff
+            //     (payload.0.len() as u16).encode()  -> 01 9c   <-- owned by no child
+            //     payload.encode()                   -> 30 82 01 98 ..
+            //
+            // so looking for `fe ff ++ 30 82 ..` contiguously never matches. Raising `TermBug`
+            // here made that a panic, which took down every `term_zoo` payload test that happened
+            // to build such a term -- and since the trigger is a *subterm*, it reached any symbol
+            // able to contain an `OpaqueMessage`, not merely the ones constructing it.
+            //
+            // Note this branch used to be compiled out unless `debug_assertions` (or the `debug`
+            // feature) was on, so release builds fell through and returned a *wrong* `start_pos`
+            // instead of failing -- silently writing payloads at the wrong offset. It now reports
+            // the failure in every profile; the caller's business is to skip that payload.
+            let ft = format!("[[find_unique_match_rec] [S2:2] [not-sib] Could not find right siblings encoding in eval_parent: {eval_parent:?} for path {path_to_search:?}. eval_right_siblings: {eval_right_siblings:?}");
+            log::debug!("{ft}");
+            return Err(Error::Term(ft));
         }
     }
 
@@ -641,20 +656,34 @@ impl<PT: ProtocolTypes> Term<PT> {
 
         match &self.term {
             DYTerm::Variable(variable) => {
-                let d = ctx
-                    .find_variable(variable.typ.clone(), &variable.query)
-                    .map(|data| data.boxed())
-                    .or_else(|| {
-                        if let Some(Source::Agent(agent_name)) = &variable.query.source {
-                            ctx.find_claim(*agent_name, variable.typ.clone())
-                        } else {
-                            // Claims doesn't have precomputations as source
-                            None
-                        }
-                    })
+                VARIABLE_EVAL.increment();
+                let d = if variable.query.is_claim {
+                    if let Some(Source::Agent(agent_name)) = &variable.query.source {
+                        ctx.find_claim(*agent_name, variable.typ.clone())
+                    } else {
+                        None
+                    }
                     .ok_or_else(|| {
-                        Error::Term(format!("--> Unable to find variable {variable}!"))
-                    })?;
+                        VARIABLE_EVAL_FAIL.increment();
+                        Error::Term(format!("--> Unable to find claim {variable}!"))
+                    })?
+                } else {
+                    ctx.find_variable(variable.typ.clone(), &variable.query)
+                        .map(|data| data.boxed())
+                        .or_else(|| {
+                            if let Some(Source::Agent(agent_name)) = &variable.query.source {
+                                ctx.find_claim(*agent_name, variable.typ.clone())
+                            } else {
+                                // Claims doesn't have precomputations as source
+                                None
+                            }
+                        })
+                        .ok_or_else(|| {
+                            VARIABLE_EVAL_FAIL.increment();
+                            Error::Term(format!("--> Unable to find variable {variable}!"))
+                        })?
+                };
+
                 if with_payloads {
                     // TODO: we might want to relax this a bit and only do this for nodes that are
                     // in the paths towards a payload or a right sibling of such a node. Not sure
@@ -794,6 +823,114 @@ impl<PT: ProtocolTypes> Term<PT> {
                 }
 
                 Ok((result, all_payloads))
+            }
+            DYTerm::Deconstructor(target_type, inner, query) => {
+                // Count every deconstructor evaluation; the matching `DECONSTRUCTOR_EVAL_FAIL`
+                // below is incremented only on the deconstructor's own failure mode (no matching
+                // sub-value), so `fail / eval` is the symbol's extraction-failure rate.
+                DECONSTRUCTOR_EVAL.increment();
+                log::trace!(
+                    "[eval_until_opaque] [Deconstructor]: from path={:?} with query {}",
+                    eval_tree.path,
+                    query
+                );
+                // A `Deconstructor` is the symmetric operation of a constructor `Application`: it
+                // first builds a concretized term by evaluating its inner (source) term, then uses
+                // `query` to extract, out of the knowledge reachable from that concretized term, a
+                // sub-value whose type matches `target_type` (the deconstructor's result type).
+                let target_type_id: TypeId = target_type.clone().into();
+                let local_source = Source::Label(None);
+
+                // A deconstructor is opaque w.r.t. its source, so a payload-bearing source is
+                // treated as an opaque symbol's argument is above: evaluated down to bytes so the
+                // payloads apply, then read back. Symbolic evaluation would silently discard them.
+                let source: Box<dyn EvaluatedTerm<PT>> = if with_payloads
+                    && inner.has_payload_to_replace()
+                {
+                    let inner_type = inner.get_type_shape();
+                    // Not `evaluate`: it defers to `ctx.config_trace.with_bit_level`, which can be
+                    // false even here. `_wrap` keeps the error counters consistent.
+                    let bytes = inner.evaluate_config_wrap(ctx, true)?.0; // payloads consumed here
+                    let read = PB::try_read_bytes(&bytes, inner_type.clone().into()).map_err(|e| {
+                        DECONSTRUCTOR_EVAL_FAIL.increment();
+                        Error::Term(format!(
+                            "--> [Deconstructor] Unable to read back the mutated source of type {inner_type}: {e}"
+                        ))
+                    })?;
+                    // As in the opaque-argument path: if read and encode disagree, the value we
+                    // extract from is not the one on the wire.
+                    if read.get_encoding()[..] != bytes[..] {
+                        DECONSTRUCTOR_EVAL_FAIL.increment();
+                        return Err(Error::Term(format!(
+                            "--> [Deconstructor] Failed consistency check for read.encode of the source of type {inner_type}:\n\
+                            - evaluated  : {bytes:?}\n\
+                            - read.encode: {:?}",
+                            read.get_encoding(),
+                        )));
+                    }
+                    read
+                } else {
+                    let mut inner_eval_tree = EvalTree::with_path(vec![]);
+                    inner
+                        .eval_until_opaque(
+                            &mut inner_eval_tree,
+                            ctx,
+                            false,
+                            false,
+                            &inner.get_type_shape(),
+                        )?
+                        .0
+                };
+
+                // Gather all the knowledge reachable from the concretized term.
+                let mut knowledges: Vec<Knowledge<PT>> = vec![];
+                source.extract_knowledge(&mut knowledges, None, &local_source)?;
+
+                // Keep only the knowledge of the target type whose matcher matches the query, and
+                // pick the `query.counter`-th most specific one (same selection strategy as
+                // `TraceContext::find_variable`).
+                let mut possibilities: Vec<&Knowledge<PT>> = knowledges
+                    .iter()
+                    .filter(|knowledge| {
+                        knowledge.data.type_id() == target_type_id
+                            && knowledge.matcher.matches(&query.matcher)
+                    })
+                    .collect();
+                possibilities.sort_by_key(|knowledge| knowledge.specificity());
+
+                let result = possibilities
+                    .get(query.counter as usize)
+                    .map(|knowledge| knowledge.data.boxed())
+                    .ok_or_else(|| {
+                        DECONSTRUCTOR_EVAL_FAIL.increment();
+                        Error::Term(format!(
+                            "--> [Deconstructor] Unable to find a value of type {} matching query {} in the concretized term:\n{}",
+                            remove_prefix(target_type.name),
+                            query,
+                            self
+                        ))
+                    })?;
+
+                if with_payloads {
+                    let eval = PB::any_get_encoding(result.as_ref());
+                    eval_tree.encode = Some(eval);
+
+                    // As for a variable: the node's own payload has to be handed up. The fast path
+                    // at the top only catches it when the source holds no variable. The source's
+                    // own payloads were consumed above, so they are not propagated.
+                    if let Some(payloads) = &self.payloads {
+                        return Ok((
+                            result,
+                            vec![PayloadContext {
+                                of_term: self,
+                                payloads,
+                                path: eval_tree.path.clone(),
+                            }],
+                        ));
+                    }
+                }
+
+                Ok((result, vec![]))
             }
         }
     }

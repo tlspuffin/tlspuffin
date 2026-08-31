@@ -128,6 +128,14 @@ impl<PT: ProtocolTypes> Term<PT> {
                     format!("f_{}", func.resistant_id)
                 }
             }
+            DYTerm::Deconstructor(typ, inner, query) => {
+                let mut h = std::collections::hash_map::DefaultHasher::new();
+                let inner_id = inner.unique_id(tree_mode, cluster_id);
+                std::hash::Hash::hash(&inner_id, &mut h);
+                std::hash::Hash::hash(typ, &mut h);
+                std::hash::Hash::hash(query, &mut h);
+                format!("d_{:x}", std::hash::Hasher::finish(&h))
+            }
         }
     }
 
@@ -164,6 +172,35 @@ impl<PT: ProtocolTypes> Term<PT> {
                     Self::node_attributes(variable, color, shape),
                     FONT
                 ));
+            }
+            DYTerm::Deconstructor(typ, inner, query) => {
+                let color = if term.is_symbolic() {
+                    COLOR
+                } else {
+                    COLOR_PAYLOAD
+                };
+                let shape = if term.is_symbolic() {
+                    SHAPE
+                } else {
+                    SHAPE_PAYLOAD
+                };
+                statements.push(format!(
+                    "{} {} [fontname=\"{}\"];",
+                    term.unique_id(tree_mode, cluster_id),
+                    Self::node_attributes(
+                        format!("deconstruct[{}]//{}", query, remove_prefix(typ.name)),
+                        color,
+                        shape,
+                    ),
+                    FONT
+                ));
+
+                statements.push(format!(
+                    "{} -> {};",
+                    term.unique_id(tree_mode, cluster_id),
+                    inner.unique_id(tree_mode, cluster_id)
+                ));
+                Self::collect_statements(inner, tree_mode, cluster_id, statements);
             }
             DYTerm::Application(func, subterms) => {
                 let color = if term.is_symbolic() {

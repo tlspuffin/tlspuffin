@@ -81,6 +81,12 @@ jobs:
         uses: ./.github/actions/setup
       - name: unit test `puffin`
         run: just test puffin x86_64-unknown-linux-gnu "" ""
+      - name: unit test `extractable-macro`
+        run: just test extractable-macro x86_64-unknown-linux-gnu "" ""
+      - name: unit test `constructor-macro`
+        run: just test constructor-macro x86_64-unknown-linux-gnu "" ""
+      - name: unit test `signature-macro`
+        run: just test signature-macro x86_64-unknown-linux-gnu "" ""
       - name: unit test `security-claims`
         run: just test security-claims x86_64-unknown-linux-gnu "" ""
       - name: unit test `tlspuffin`

@@ -22,14 +22,63 @@
 //! use tlspuffin::protocol::TLSVersion::*;
 //! use tlspuffin::protocol::{TLSDescriptorConfig, TLSProtocolTypes};
 //! use tlspuffin::query::TlsQueryMatcher;
-//! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use tlspuffin::tls::rustls::msgs::enums::{
-//!     CipherSuite, Compression, HandshakeType, ProtocolVersion,
+//!     fn_handshaketype_clienthello, CipherSuite, Compression, HandshakeType, ProtocolVersion,
 //! };
-//! use tlspuffin::tls::rustls::msgs::handshake::{ClientExtension, Random, SessionID};
+//! use tlspuffin::tls::rustls::msgs::handshake::{
+//!     fn_clienthellopayload, fn_handshakemessagepayload, fn_handshakepayload_clienthello,
+//!     CipherSuites, ClientExtension, ClientExtensions, Compressions, Random, SessionID,
+//! };
+//! use tlspuffin::tls::rustls::msgs::message::{fn_message, fn_messagepayload_handshake};
 //!
 //! let client: AgentName = AgentName::first();
 //! let server: AgentName = client.next();
+//!
+//! // A variable reading one field out of the client's ClientHello.
+//! fn var<T: 'static>(client: AgentName) -> Term<TLSProtocolTypes> {
+//!     Term::from(DYTerm::Variable(Signature::new_var_with_type::<T, _>(
+//!         Some(Source::Agent(client)),
+//!         Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
+//!         0,
+//!         false, // search the knowledge, not the claims
+//!     )))
+//! }
+//!
+//! // A message is built from the constructors generated for the rustls types: the payload is
+//! // wrapped into a handshake message, which is wrapped into a record. The `term!` macro below
+//! // expands to exactly this shape.
+//! let client_hello = Term::from(DYTerm::Application(
+//!     Signature::new_function(&fn_message),
+//!     vec![
+//!         var::<ProtocolVersion>(client),
+//!         Term::from(DYTerm::Application(
+//!             Signature::new_function(&fn_messagepayload_handshake),
+//!             vec![Term::from(DYTerm::Application(
+//!                 Signature::new_function(&fn_handshakemessagepayload),
+//!                 vec![
+//!                     Term::from(DYTerm::Application(
+//!                         Signature::new_function(&fn_handshaketype_clienthello),
+//!                         vec![],
+//!                     )),
+//!                     Term::from(DYTerm::Application(
+//!                         Signature::new_function(&fn_handshakepayload_clienthello),
+//!                         vec![Term::from(DYTerm::Application(
+//!                             Signature::new_function(&fn_clienthellopayload),
+//!                             vec![
+//!                                 var::<ProtocolVersion>(client),
+//!                                 var::<Random>(client),
+//!                                 var::<SessionID>(client),
+//!                                 var::<CipherSuites>(client),
+//!                                 var::<Compressions>(client),
+//!                                 var::<ClientExtensions>(client),
+//!                             ],
+//!                         ))],
+//!                     )),
+//!                 ],
+//!             ))],
+//!         )),
+//!     ],
+//! ));
 //!
 //! let trace = Trace::<TLSProtocolTypes> {
 //!     prior_traces: vec![],
@@ -42,62 +91,7 @@
 //!         // Client: Hello Client -> Server
 //!         Step {
 //!             agent: server,
-//!             action: Action::Input(input_action! {
-//!                 (Term::from(DYTerm::Application(
-//!                     Signature::new_function(&fn_client_hello),
-//!                     vec![
-//!                         Term::from(DYTerm::Variable(Signature::new_var_with_type::<
-//!                             ProtocolVersion,
-//!                             _,
-//!                         >(
-//!                             Some(Source::Agent(client)),
-//!                             Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
-//!                             0,
-//!                         ))),
-//!                         Term::from(DYTerm::Variable(
-//!                             Signature::new_var_with_type::<Random, _>(
-//!                                 Some(Source::Agent(client)),
-//!                                 Some(TlsQueryMatcher::Handshake(Some(
-//!                                     HandshakeType::ClientHello,
-//!                                 ))),
-//!                                 0,
-//!                             ),
-//!                         )),
-//!                         Term::from(DYTerm::Variable(Signature::new_var_with_type::<
-//!                             SessionID,
-//!                             _,
-//!                         >(
-//!                             Some(Source::Agent(client)),
-//!                             Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
-//!                             0,
-//!                         ))),
-//!                         Term::from(DYTerm::Variable(Signature::new_var_with_type::<
-//!                             Vec<CipherSuite>,
-//!                             _,
-//!                         >(
-//!                             Some(Source::Agent(client)),
-//!                             Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
-//!                             0,
-//!                         ))),
-//!                         Term::from(DYTerm::Variable(Signature::new_var_with_type::<
-//!                             Vec<Compression>,
-//!                             _,
-//!                         >(
-//!                             Some(Source::Agent(client)),
-//!                             Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
-//!                             0,
-//!                         ))),
-//!                         Term::from(DYTerm::Variable(Signature::new_var_with_type::<
-//!                             Vec<ClientExtension>,
-//!                             _,
-//!                         >(
-//!                             Some(Source::Agent(client)),
-//!                             Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello))),
-//!                             0,
-//!                         ))),
-//!                     ],
-//!                 )))
-//!             }),
+//!             action: Action::Input(input_action! { client_hello }),
 //!         },
 //!         // further steps here
 //!     ],
@@ -113,21 +107,30 @@
 //! use puffin::trace::Source;
 //! use tlspuffin::protocol::TLSProtocolTypes;
 //! use tlspuffin::query::TlsQueryMatcher;
-//! use tlspuffin::tls::fn_impl::fn_client_hello;
 //! use tlspuffin::tls::rustls::msgs::enums::{
-//!     CipherSuite, Compression, HandshakeType, ProtocolVersion,
+//!     fn_handshaketype_clienthello, CipherSuite, Compression, HandshakeType, ProtocolVersion,
 //! };
-//! use tlspuffin::tls::rustls::msgs::handshake::{ClientExtension, Random, SessionID};
+//! use tlspuffin::tls::rustls::msgs::handshake::{
+//!     fn_clienthellopayload, fn_handshakemessagepayload, fn_handshakepayload_clienthello,
+//!     CipherSuites, ClientExtensions, Compressions, Random, SessionID,
+//! };
+//! use tlspuffin::tls::rustls::msgs::message::{fn_message, fn_messagepayload_handshake};
 //!
 //! let client = AgentName::first();
 //! let term: Term<TLSProtocolTypes> = term! {
-//!     fn_client_hello(
-//!         ((client, 0)/ProtocolVersion),
-//!         ((client, 0)/Random),
-//!         ((client, 0)/SessionID),
-//!         ((client, 0)/Vec<CipherSuite>),
-//!         ((client, 0)/Vec<Compression>),
-//!         ((client, 0)/Vec<ClientExtension>)
+//!     fn_message(
+//!         K((client, 0)/ProtocolVersion),
+//!         fn_messagepayload_handshake(fn_handshakemessagepayload(
+//!             fn_handshaketype_clienthello,
+//!             fn_handshakepayload_clienthello(fn_clienthellopayload(
+//!                 K((client, 0)/ProtocolVersion),
+//!                 K((client, 0)/Random),
+//!                 K((client, 0)/SessionID),
+//!                 K((client, 0)/CipherSuites),
+//!                 K((client, 0)/Compressions),
+//!                 K((client, 0)/ClientExtensions)
+//!             ))
+//!         ))
 //!     )
 //! };
 //! ```

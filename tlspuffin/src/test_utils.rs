@@ -4,7 +4,7 @@ use std::time::Duration;
 
 use itertools::Itertools;
 use puffin::agent::AgentName;
-use puffin::algebra::dynamic_function::DescribableFunction;
+use puffin::algebra::dynamic_function::{DescribableFunction, TypeShape};
 use puffin::algebra::signature::FunctionDefinition;
 use puffin::algebra::{DYTerm, Term, TermType};
 use puffin::error::Error;
@@ -29,9 +29,14 @@ use crate::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put_registry::tls_registry;
 use crate::tls::fn_impl::{
     fn_certificate_transcript, fn_client_finished_transcript, fn_decrypt12, fn_decrypt_application,
-    fn_decrypt_multiple_handshake_messages, fn_derive_psk, fn_server_finished_transcript,
-    fn_server_hello_transcript,
+    fn_decrypt_multiple_handshake_messages, fn_derive_psk, fn_encrypt_application,
+    fn_server_finished_transcript, fn_server_hello_transcript,
 };
+use crate::tls::rustls::msgs::base::fn_list_payloadu8_append;
+use crate::tls::rustls::msgs::handshake::{
+    fn_ocspcertificatestatusrequest, fn_serverhellopayload, HandshakePayload,
+};
+use crate::tls::rustls::msgs::message::MessagePayload;
 use crate::tls::seeds::seed_successful;
 use crate::tls::TLS_SIGNATURE;
 
@@ -325,6 +330,54 @@ pub fn ignore_eval() -> HashSet<String> {
     ignore_gen
 }
 
+/// Functions whose term cannot survive an encode / read / re-encode round trip, for
+/// `test_term_read_encode`.
+///
+/// These are not failures to evaluate — the terms evaluate fine — but symbols whose *type* has no
+/// self-delimiting encoding, so reading the value back from its own bytes is impossible by
+/// construction:
+///
+/// * everything returning [`HandshakePayload`]: its `Codec::read` is a stub returning `None`,
+///   because the type tag and 3-byte length that say which variant follows live in the parent
+///   `HandshakeMessagePayload`;
+/// * everything returning [`MessagePayload`]: same shape one level up — the variant is selected by
+///   the `ContentType` of the record, so `MessagePayload::read` takes it as a parameter and there
+///   is no `Codec` impl to round-trip against;
+/// * [`ServerHelloPayload`]: `encode` writes `legacy_version` and `random`, but `read` deliberately
+///   does not consume them ("minus version and random, which have already been read") — the parent
+///   reads those two fields to detect a HelloRetryRequest before dispatching;
+/// * [`OCSPCertificateStatusRequest`]: `encode` writes a leading `CertificateStatusType::OCSP` tag
+///   that `read` does not consume, for the same reason — the parent has already read it.
+///
+/// The first two are derived from the signature by return type rather than listed by name, so a
+/// variant added to either enum is covered automatically instead of silently failing the test.
+pub fn ignore_read_encode() -> HashSet<String> {
+    let mut ignored = ignore_eval();
+
+    let not_self_delimiting = [
+        TypeShape::<TLSProtocolTypes>::of::<HandshakePayload>(),
+        TypeShape::<TLSProtocolTypes>::of::<MessagePayload>(),
+    ];
+    ignored.extend(
+        TLS_SIGNATURE
+            .functions
+            .iter()
+            .filter(|(shape, _)| not_self_delimiting.contains(&shape.return_type))
+            .map(|(shape, _)| shape.name.to_string()),
+    );
+
+    ignored.extend(
+        [
+            fn_serverhellopayload.name(),
+            fn_ocspcertificatestatusrequest.name(),
+        ]
+        .iter()
+        .map(|fn_name| fn_name.to_string()),
+    );
+
+    ignored
+}
+
 /// Functions that are flagged to fail to be adversarially generated and evaluated according to the
 /// signature attribute [no_gen]
 pub fn ignore_eval_attribute() -> HashSet<String> {
@@ -338,13 +391,12 @@ pub fn ignore_eval_attribute() -> HashSet<String> {
 
 /// Functions that are known to fail to be adversarially generated, MakeMessage, evaluated
 pub fn ignore_add_payload() -> HashSet<String> {
-    let mut ignore_eval = ignore_eval();
-    let ignore_pay: HashSet<String> = vec![]
-        .iter()
-        .map(|fn_name: &&str| fn_name.to_string())
-        .collect::<HashSet<String>>();
-    ignore_eval.extend(ignore_pay);
-    ignore_eval
+    // Nothing extra: `fn_opaquemessage` / `fn_opaquemessageflight` used to be listed here to dodge
+    // the panic `find_unique_match_rec` raised when it could not locate a payload window inside a
+    // parent whose encoding interleaves bytes of its own. That is a recoverable error now, so the
+    // entries went stale -- and a stale entry is itself a failure, since `zoo_test` rejects a
+    // symbol that is ignored yet succeeds.
+    ignore_eval()
 }
 
 /// Functions that are known to fail to be adversarially generated, MakeMessage, mutated, evaluated
@@ -361,11 +413,27 @@ pub fn ignore_add_payload_mutate() -> HashSet<String> {
 }
 
 /// Functions that are unstables, we might be able to generate them but not easily
+///
+/// `fn_list_payloadu8_append` is unstable for the encode / read / re-encode round trip rather than
+/// for generation: `PayloadU8::encode` writes its length as `self.0.len() as u8`, which wraps above
+/// 255 bytes and leaves an encoding that no longer describes the data. Of the 25 `Vec<u8>` symbols
+/// the zoo draws from only `fn_empty_bytes_vec` is reliably short — the certificates, keys,
+/// signatures and transcripts are all far longer — so whether a generated `Vec<PayloadU8>` survives
+/// the round trip depends on the draw. It belongs here rather than in an ignore list because it
+/// does succeed for some seeds, and an ignored symbol that succeeds fails these tests just as
+/// loudly as a missing one.
 pub fn unstable_functions() -> HashSet<String> {
-    vec![fn_derive_psk.name()]
-        .iter()
-        .map(|fn_name: &&str| fn_name.to_string())
-        .collect::<HashSet<String>>()
+    vec![
+        fn_derive_psk.name(),
+        fn_list_payloadu8_append.name(),
+        // Whether a payload can be placed in an `[opaque]` encryption symbol depends on *where*
+        // `add_payloads_randomly` happens to put it: the children's encodings do not appear in the
+        // ciphertext, so only some placements are locatable.
+        fn_encrypt_application.name(),
+    ]
+    .iter()
+    .map(|fn_name: &&str| fn_name.to_string())
+    .collect::<HashSet<String>>()
 }
 
 /// Parametric test for testing operations on terms (closure `test_map`, e.g., evaluation) through
@@ -394,6 +462,13 @@ where
     let spawner = Spawner::new(tls_registry.clone());
     let ctx = TraceContext::new(spawner);
 
+    // `test_map` draws from its own RNG, so that whatever it consumes cannot shift the stream
+    // `generate_many` draws from. Sharing one RNG makes the generated zoo depend on the closure's
+    // internals: a change to the sub-term sampling it uses (`reservoir_sample`, say) then silently
+    // regenerates the whole zoo, and coverage assertions over rare symbols flip on seeds unrelated
+    // to the change.
+    let mut test_map_rand = RomuDuoJrRand::with_seed(rand.next());
+
     let all_functions_shape = TLS_SIGNATURE.functions.to_owned();
     let number_functions = all_functions_shape.len();
     let mut number_terms = 0;
@@ -420,6 +495,7 @@ where
                     &TLS_SIGNATURE,
                     &mut rand,
                     bucket_size_step,
+                    TermConstraints::default().zoo_max_depth,
                     Some(&f),
                     filter_executable,
                     filter_no_gen,
@@ -435,7 +511,7 @@ where
                 number_terms += terms_f.len();
 
                 for term in terms_f.iter() {
-                    match test_map(term, &ctx, &mut rand) {
+                    match test_map(term, &ctx, &mut test_map_rand) {
                         Ok(_) => {
                             successful_functions.push(term.name().to_string());
                             number_success += 1;
@@ -566,6 +642,13 @@ pub fn test_pay<PT: ProtocolTypes>(term: &Term<PT>) {
                     } else {
                         rec_inside(ti, already_found, whole_term)
                     }
+                }
+            }
+            DYTerm::Deconstructor(_, inner, _) => {
+                if already_found && !inner.is_symbolic() {
+                    panic!("Eheh, found one! Sub: {inner},\n whole_term: {whole_term}")
+                } else {
+                    rec_inside(inner, already_found, whole_term)
                 }
             }
         }

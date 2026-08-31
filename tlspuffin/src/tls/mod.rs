@@ -5,10 +5,9 @@
 //! the fuzzing.
 
 use fn_impl::*;
-use puffin::algebra::dynamic_function::FunctionAttributes;
 use puffin::algebra::error::FnError;
-use puffin::define_signature;
 use puffin::error::Error;
+use puffin::{declare_signature, define_readable_types, define_signature};
 
 use crate::protocol::TLSProtocolTypes;
 
@@ -62,8 +61,51 @@ macro_rules! nyi_fn {
     ($(#[$attr:meta])*) => {};
 }
 
+declare_signature!(TLS_SIGNATURE<TLSProtocolTypes>);
+
+// `TLS_SIGNATURE` also carries the types a bitstring can be read back into, see
+// `TLSProtocolBehavior::try_read_bytes`. Every type deriving `Constructor` registers itself, so
+// what is left to register by hand is what the derive does not reach: the types below and the
+// handful defined outside the term algebra (transcripts, `HandshakeHash`), each registered with
+// `define_readable_types!` in the module defining it.
+//
+// A type is only readable if `encode` then `read` round-trips on its own; those that need context
+// the bitstring does not carry (`MessagePayload`, `HandshakePayload`) or that drop fields on
+// `read` (`ServerHelloPayload`) opt out with `#[constructor_no_try_read]`.
+//
+// The uni-test `term_zoo::test_term_read_encode` checks that this is exhaustive for the TLS
+// signature at least.
+define_readable_types!(
+    TLS_SIGNATURE,
+    TLSProtocolTypes;
+    u64,
+    u32,
+    u16,
+    u8,
+    bool,
+    Vec<u8>,
+    Option<Vec<u8>>,
+    Vec<Vec<u8>>,
+);
+
 define_signature!(
-    TLS_SIGNATURE<TLSProtocolTypes>,
+    TLS_SIGNATURE,
+    TLSProtocolTypes;
+    // The constructors that a `#[derive(Constructor)]` on the corresponding rustls message type
+    // now generates have been removed from `fn_impl` entirely, along with the `fn_get_*` / `fn_find_*`
+    // accessors that deconstructor terms replace. What stays hand-written and registered here is
+    // what the derive cannot produce:
+    //  - value corpora: a constant whose type takes data the term algebra cannot produce
+    //    (`fn_random`, `fn_sessionid`, the certificates and keys, ...), a specific
+    //    interesting value (`fn_invalid_signature_algorithm`), or a curated list
+    //    (`fn_signature_algorithm_cert_extension`);
+    //  - constructors whose type has a non-compositional encoding, i.e. a field that does not
+    //    appear in the parent encoding as its own encoding: `fn_hello_retry_request`,
+    //    `fn_certificate_request13`;
+    //  - constructors whose type only has a dummy codec, so a term of that type has no
+    //    meaningful encoding: `fn_unknown_*_extension`, `fn_session_ticket_*_extension`;
+    //  - everything that computes rather than constructs (transcripts, key shares, signatures,
+    //    en/decryption).
     // constants
     fn_true
     fn_false
@@ -88,164 +130,42 @@ define_signature!(
     fn_empty_bytes_vec
     fn_large_bytes_vec [no_bit] // exclude MakeMessage and thus bit-level mutations
     // messages
-    fn_alert_close_notify
-    fn_application_data
-    fn_certificate
-    fn_certificate13
-    fn_certificate_request
     fn_certificate_request13
-    fn_certificate_status
-    fn_certificate_verify
-    fn_change_cipher_spec
-    fn_client_hello
-    fn_client_key_exchange
-    fn_empty_handshake_message
-    fn_encrypted_extensions // Just a wrapper, not encrypting per se
-    fn_finished
-    fn_heartbeat
-    // fn_heartbeat_fake_length // Now subsumed by bit-level mutations
-    fn_hello_request
     fn_hello_retry_request [get] // because some compressions get lost
     fn_hello_retry_request_random
-    fn_key_update
-    fn_key_update_not_requested
-    fn_message_hash
-    fn_new_session_ticket
-    fn_new_session_ticket13
-    fn_server_hello
-    fn_server_hello_done
-    fn_server_key_exchange
     // extensions
-    fn_client_extensions_new [list]
-    fn_client_extensions_append [list]
-    fn_client_extensions_make
-    fn_server_extensions_new [list]
-    fn_server_extensions_make
-    fn_server_extensions_append [list]
-    fn_hello_retry_extensions_make
-    fn_hello_retry_extensions_new [list]
-    fn_hello_retry_extensions_append [list]
-    fn_cert_req_extensions_new [list]
-    fn_cert_req_extensions_append [list]
-    fn_cert_extensions_make
-    fn_cert_extensions_new [list]
-    fn_cert_extensions_append [list]
-    fn_new_session_ticket_extensions_new
-    fn_new_session_ticket_extensions_append
-    fn_server_name_extension
-    fn_server_name_server_extension
-    fn_status_request_extension
-    fn_status_request_server_extension
-    fn_status_request_certificate_extension
-    fn_ec_point_formats_extension
-    fn_ec_point_formats_server_extension
-    fn_supported_signature_schemes_extension_new
-    fn_supported_signature_schemes_extension_append [list]
-    fn_sig_scheme_rsa_pkcs1_sha256
-    fn_sig_scheme_rsa_pss_sha256
-    fn_signature_algorithm_extension
-    fn_signature_algorithm_cert_req_extension
     fn_empty_vec_of_vec
     fn_append_vec [list]
-    fn_al_protocol_negotiation
-    fn_al_protocol_server_negotiation
-    fn_signed_certificate_timestamp_extension
-    fn_signed_certificate_timestamp_server_extension
-    fn_signed_certificate_timestamp_certificate_extension
-    fn_extended_master_secret_extension
-    fn_extended_master_secret_server_extension
     fn_session_ticket_request_extension
     fn_session_ticket_offer_extension
-    fn_session_ticket_server_extension
-    fn_new_preshared_key_identity
-    fn_empty_preshared_keys_identity_vec
-    fn_append_preshared_keys_identity [list]
     fn_preshared_keys_extension_empty_binder [opaque]
-    fn_preshared_keys_server_extension
-    fn_early_data_extension
-    fn_early_data_new_session_ticket_extension
-    fn_early_data_server_extension
-    fn_supported_versions12_extension
-    fn_supported_versions13_extension
-    fn_supported_versions_both_extension
-    fn_supported_versions12_hello_retry_extension
-    fn_supported_versions13_hello_retry_extension
-    fn_supported_versions12_server_extension
-    fn_supported_versions13_server_extension
-    fn_cookie_extension
-    fn_cookie_hello_retry_extension
-    fn_psk_exchange_mode_dhe_ke_extension
-    fn_psk_exchange_mode_ke_extension
     fn_certificate_authorities_extension
     fn_signature_algorithm_cert_extension
     fn_key_share_deterministic
-    fn_key_share_extension_make
-    fn_key_share_extension_new [list]
-    fn_key_share_extension_append [list]
-    fn_key_share_extension
-    fn_key_share_server_extension
-    fn_key_share_hello_retry_extension
-    fn_transport_parameters_extension
-    fn_transport_parameters_server_extension
-    fn_renegotiation_info_extension
-    fn_renegotiation_info_server_extension
-    fn_transport_parameters_draft_extension
-    fn_transport_parameters_draft_server_extension
     fn_unknown_client_extension
     fn_unknown_server_extension
     fn_unknown_hello_retry_extension
     fn_unknown_cert_request_extension
-    fn_new_session_ticket_extensions [list]
     fn_unknown_new_session_ticket_extension
     fn_unknown_certificate_extension
     // fields
-    fn_protocol_version13
-    fn_protocol_version12
-    fn_new_session_id
     fn_empty_session_id
-    fn_new_random
-    // TODO: once fn_compression_append is added, we should then also add fn_compression_make
-    fn_compressions
-    fn_compression
     fn_no_key_share
-    fn_get_server_key_share [get]
     fn_get_client_key_share [get]
-    fn_get_any_client_curve [get]
     fn_verify_data [opaque]
     fn_verify_data_server [opaque]
     fn_client_sign_transcript [opaque]
     fn_server_sign_transcript [opaque]
-    fn_cipher_suites_make
-    fn_new_cipher_suites
-    fn_append_cipher_suite [list]
-    fn_cipher_suite12
-    fn_cipher_suite13_aes_128_gcm_sha256
-    fn_cipher_suite13_aes_256_gcm_sha384
-    fn_cipher_suite13_aes_128_ccm_sha256
-    fn_weak_export_cipher_suite
-    fn_excluded_cipher_suite
-    fn_secure_rsa_cipher_suite12
-    fn_support_group_extension_new [list]
-    fn_support_group_extension_make
-    fn_support_group_extension_append [list]
+    // The cipher suites are the `#[constructor_no_skip]` variants of `CipherSuite` itself, see
+    // `msgs::enums`.
     // utils
-    fn_new_flight
-    fn_append_flight [list]
-    fn_new_opaque_flight [list]
-    fn_coalesced_flight
-    fn_append_opaque_flight [list]
+    fn_coalesced_flight [opaque]
     fn_new_transcript
     fn_new_hrr_transcript [opaque]
     fn_append_transcript [opaque] // this one is opaque and not list since it returns the hash of all elements added to the list so far
     fn_decrypt_handshake_flight [opaque]
     fn_decrypt_multiple_handshake_messages [opaque] [no_gen]
     fn_decrypt_application_flight [opaque]
-    fn_find_server_certificate [get]
-    fn_find_server_certificate_request [get]
-    fn_find_server_ticket [get]
-    fn_find_server_certificate_verify [get]
-    fn_find_encrypted_extensions [get]
-    fn_find_server_finished [get]
     fn_no_psk
     fn_psk
     fn_decrypt_application [opaque] [no_gen]
@@ -255,9 +175,6 @@ define_signature!(
     fn_derive_psk [opaque]
     fn_derive_binder [opaque]
     fn_fill_binder [opaque]
-    fn_get_ticket [get]
-    fn_get_ticket_age_add [get]
-    fn_get_ticket_nonce [get]
     fn_new_transcript12
     fn_decode_server_ecdh_pubkey [opaque]
     fn_decode_client_ecdh_pubkey [opaque]
@@ -267,22 +184,8 @@ define_signature!(
     fn_encrypt12 [opaque]
     fn_decrypt12 [no_gen]
     fn_new_certificate
-    fn_new_certificates [list]
-    fn_append_certificate [list]
-    fn_named_group_secp256r1
-    fn_named_group_secp384r1
-    fn_named_group_x25519
     fn_u64_to_u32 [get]
     fn_u32_to_u16 [get]
-    fn_payload_u8
-    fn_payload_u16
-    fn_payload_u24
-    fn_make_payload_u16_vec_u16
-    fn_empty_payload_u16_vec
-    fn_append_payload_u16_vec [list]
-    fn_make_payload_u8_vec_u16
-    fn_empty_payload_u8_vec
-    fn_append_payload_u8_vec [list]
     // transcript functions
     fn_server_hello_transcript [opaque] [no_gen]
     fn_client_finished_transcript [opaque] [no_gen]
@@ -296,22 +199,11 @@ define_signature!(
     fn_eve_cert
     fn_random_ec_cert
     fn_random_ec_key
-    fn_certificate_from_vec_u8
-    fn_certificate_entry_extensions
-    fn_empty_certificate_chain
-    fn_new_certificate_entries
-    fn_append_certificate_entries [list]
-    fn_certificate_entries_make
-    fn_chain_append_certificate_entry [list]
-    fn_get_context [get]
     fn_eve_pkcs1_signature
     fn_rsa_sign_client [opaque]
     fn_rsa_sign_server [opaque]
     fn_ecdsa_sign_client [opaque] [no_det] // fn_ecdsa_sign_client has built-in randomness
     // TODO: replace this with explicit term
     fn_ecdsa_sign_server [opaque]
-    fn_rsa_pss_signature_algorithm
-    fn_rsa_pkcs1_signature_algorithm
     fn_invalid_signature_algorithm
-    fn_ecdsa_signature_algorithm
 );

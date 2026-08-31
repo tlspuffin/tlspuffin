@@ -550,6 +550,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "constructor-macro"
+version = "0.0.1"
+dependencies = [
+ "comparable",
+ "linkme",
+ "log",
+ "proc-macro2",
+ "puffin",
+ "quote",
+ "serde",
+ "syn 2.0.114",
+]
+
+[[package]]
 name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -942,6 +956,7 @@ name = "extractable-macro"
 version = "0.0.1"
 dependencies = [
  "comparable",
+ "linkme",
  "log",
  "proc-macro2",
  "puffin",
@@ -1509,6 +1524,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "linkme"
+version = "0.3.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3045e122bd98aef8ec3ad58ce84f0791f64e70163d1a02710af4aa11a4d54cc5"
+dependencies = [
+ "linkme-impl",
+]
+
+[[package]]
+name = "linkme-impl"
+version = "0.3.37"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77060ebe535362c3da75682cd17b0431017b6e7c5661e714fc69a7ad017d1301"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.2",
+]
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1963,6 +1998,7 @@ dependencies = [
  "libafl_bolts",
  "libafl_targets",
  "libc",
+ "linkme",
  "log",
  "log4rs",
  "nix 0.29.0",
@@ -2468,6 +2504,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "signature-macro"
+version = "0.0.1"
+dependencies = [
+ "comparable",
+ "constructor-macro",
+ "extractable-macro",
+ "linkme",
+ "log",
+ "proc-macro2",
+ "puffin",
+ "quote",
+ "serde",
+ "syn 2.0.114",
+]
+
+[[package]]
 name = "simd-adler32"
 version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2511,6 +2563,7 @@ dependencies = [
  "extractable-macro",
  "foreign-types 0.5.0",
  "libssh-sys",
+ "linkme",
  "log",
  "puffin",
  "puffin-build",
@@ -2574,6 +2627,17 @@ name = "syn"
 version = "2.0.114"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d4d107df263a3013ef9b1879b0df87d706ff80f65a86ea879bd9c31f9b307c2a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
+]
+
+[[package]]
+name = "syn"
+version = "3.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a207d6d6a2b7fc470b80443726053f18a2481b7e1eee970597051596567987a3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -2682,6 +2746,7 @@ dependencies = [
  "boringssl-sys",
  "cc",
  "comparable",
+ "constructor-macro",
  "criterion",
  "env_logger 0.10.2",
  "extractable-macro",
@@ -2690,6 +2755,7 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "libc",
+ "linkme",
  "log",
  "once_cell",
  "openssl",

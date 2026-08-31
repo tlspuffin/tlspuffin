@@ -3,9 +3,9 @@
 
 use puffin::algebra::error::FnError;
 use puffin::codec::{Codec, Reader};
-use puffin::protocol::{OpaqueProtocolMessageFlight, ProtocolMessageFlight};
+use puffin::protocol::ProtocolMessageFlight;
 
-use crate::protocol::{MessageFlight, OpaqueMessageFlight};
+use crate::protocol::MessageFlight;
 use crate::tls::key_exchange::{tls12_key_exchange, tls12_new_secrets};
 use crate::tls::key_schedule::*;
 use crate::tls::rustls::conn::Side;
@@ -14,8 +14,8 @@ use crate::tls::rustls::key::Certificate;
 use crate::tls::rustls::msgs::base::{Payload, PayloadU8};
 use crate::tls::rustls::msgs::enums::{CipherSuite, HandshakeType, NamedGroup, SignatureScheme};
 use crate::tls::rustls::msgs::handshake::{
-    CertificateEntries, CertificateEntry, ClientECDHParams, DigitallySignedStruct,
-    ECDHEServerKeyExchange, HandshakeMessagePayload, HandshakePayload, Random, ServerECDHParams,
+    ClientECDHParams, DigitallySignedStruct, ECDHEServerKeyExchange, HandshakeMessagePayload,
+    HandshakePayload, Random, ServerECDHParams,
 };
 use crate::tls::rustls::msgs::message::{Message, MessagePayload, OpaqueMessage, PlainMessage};
 use crate::tls::rustls::suites::SupportedCipherSuite;
@@ -84,29 +84,6 @@ pub fn fn_coalesced_flight(flight: &MessageFlight) -> Result<OpaqueMessage, FnEr
         typ,
         payload,
     })
-}
-
-pub fn fn_new_flight() -> Result<MessageFlight, FnError> {
-    Ok(MessageFlight::new())
-}
-
-pub fn fn_append_flight(flight: &MessageFlight, msg: &Message) -> Result<MessageFlight, FnError> {
-    let mut new_flight = flight.clone();
-    new_flight.messages.push(msg.clone());
-    Ok(new_flight)
-}
-
-pub fn fn_new_opaque_flight() -> Result<OpaqueMessageFlight, FnError> {
-    Ok(OpaqueMessageFlight::new())
-}
-
-pub fn fn_append_opaque_flight(
-    flight: &OpaqueMessageFlight,
-    msg: &OpaqueMessage,
-) -> Result<OpaqueMessageFlight, FnError> {
-    let mut new_flight = flight.clone();
-    new_flight.messages.push(msg.clone());
-    Ok(new_flight)
 }
 
 pub fn suite_as_supported_suite(suite: &CipherSuite) -> Result<SupportedCipherSuite, FnError> {
@@ -244,7 +221,11 @@ pub fn fn_decrypt_multiple_handshake_messages(
             PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
             *sequence,
         )
-        .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
+        .map_err(|_err| {
+            FnError::Crypto(
+                "Failed to decrypt it fn_decrypt_multiple_handshake_messages".to_string(),
+            )
+        })?;
 
     let payloads =
         MessagePayload::multiple_new(message.typ, message.version, message.payload).unwrap();
@@ -290,7 +271,12 @@ pub fn fn_decrypt_multiple_handshake_messages_with_secret(
             PlainMessage::from(application_data.clone()).into_unencrypted_opaque(),
             *sequence,
         )
-        .map_err(|_err| FnError::Crypto("Failed to decrypt it fn_decrypt_handshake".to_string()))?;
+        .map_err(|_err| {
+            FnError::Crypto(
+                "Failed to decrypt it fn_decrypt_multiple_handshake_messages_with_secret"
+                    .to_string(),
+            )
+        })?;
 
     let payloads =
         MessagePayload::multiple_new(message.typ, message.version, message.payload).unwrap();
@@ -304,72 +290,6 @@ pub fn fn_decrypt_multiple_handshake_messages_with_secret(
         .collect();
 
     Ok(messages)
-}
-
-pub fn fn_find_server_certificate(flight: &MessageFlight) -> Result<Message, FnError> {
-    for msg in &flight.messages {
-        if let MessagePayload::Handshake(x) = &msg.payload {
-            if x.typ == HandshakeType::Certificate {
-                return Ok(msg.clone());
-            }
-        }
-    }
-    Err(FnError::Malformed("no server certificate".to_owned()))
-}
-
-pub fn fn_find_server_ticket(flight: &MessageFlight) -> Result<Message, FnError> {
-    for msg in &flight.messages {
-        if let MessagePayload::Handshake(x) = &msg.payload {
-            if x.typ == HandshakeType::NewSessionTicket {
-                return Ok(msg.clone());
-            }
-        }
-    }
-    Err(FnError::Malformed("no server tickets".to_owned()))
-}
-
-pub fn fn_find_server_certificate_request(flight: &MessageFlight) -> Result<Message, FnError> {
-    for msg in &flight.messages {
-        if let MessagePayload::Handshake(x) = &msg.payload {
-            if x.typ == HandshakeType::CertificateRequest {
-                return Ok(msg.clone());
-            }
-        }
-    }
-    Err(FnError::Malformed("no server tickets".to_owned()))
-}
-
-pub fn fn_find_encrypted_extensions(flight: &MessageFlight) -> Result<Message, FnError> {
-    for msg in &flight.messages {
-        if let MessagePayload::Handshake(x) = &msg.payload {
-            if x.typ == HandshakeType::EncryptedExtensions {
-                return Ok(msg.clone());
-            }
-        }
-    }
-    Err(FnError::Malformed("no encrypted extensions".to_owned()))
-}
-
-pub fn fn_find_server_certificate_verify(flight: &MessageFlight) -> Result<Message, FnError> {
-    for msg in &flight.messages {
-        if let MessagePayload::Handshake(x) = &msg.payload {
-            if x.typ == HandshakeType::CertificateVerify {
-                return Ok(msg.clone());
-            }
-        }
-    }
-    Err(FnError::Malformed("no certificate verify".to_owned()))
-}
-
-pub fn fn_find_server_finished(flight: &MessageFlight) -> Result<Message, FnError> {
-    for msg in &flight.messages {
-        if let MessagePayload::Handshake(x) = &msg.payload {
-            if x.typ == HandshakeType::Finished {
-                return Ok(msg.clone());
-            }
-        }
-    }
-    Err(FnError::Malformed("no finished".to_owned()))
 }
 
 pub fn fn_no_psk() -> Result<Option<Vec<u8>>, FnError> {
@@ -681,19 +601,6 @@ pub fn fn_get_ticket_age_add(new_ticket: &Message) -> Result<u64, FnError> {
     .ok_or_else(|| FnError::Malformed("Could not find ticket in message".to_owned()))
 }
 
-pub fn fn_get_ticket_nonce(new_ticket: &Message) -> Result<Vec<u8>, FnError> {
-    match new_ticket.payload.clone() {
-        MessagePayload::Handshake(payload) => match payload.payload {
-            HandshakePayload::NewSessionTicketTLS13(payload) => Some(payload.nonce.0),
-            _ => None,
-        },
-        _ => None,
-    }
-    .ok_or_else(|| {
-        FnError::Malformed("[fn_get_ticket_nonce] Could not find ticket in message".to_owned())
-    })
-}
-
 // ----
 // seed_client_attacker12()
 // ----
@@ -849,52 +756,6 @@ pub fn fn_new_certificate() -> Result<Certificate, FnError> {
     Ok(Certificate(der_cert.map_err(|_err| {
         FnError::Codec("Failed to load DER certificate".to_string())
     })?))
-}
-
-pub fn fn_new_certificates() -> Result<Vec<Certificate>, FnError> {
-    Ok(vec![])
-}
-
-pub fn fn_append_certificate(
-    certs: &Vec<Certificate>,
-    cert: &Certificate,
-) -> Result<Vec<Certificate>, FnError> {
-    let mut new_certs = certs.clone();
-    new_certs.push(cert.clone());
-
-    Ok(new_certs)
-}
-
-pub fn fn_new_certificate_entries() -> Result<Vec<CertificateEntry>, FnError> {
-    Ok(vec![])
-}
-
-pub fn fn_certificate_entries_make(
-    entries: &Vec<CertificateEntry>,
-) -> Result<CertificateEntries, FnError> {
-    Ok(CertificateEntries(entries.clone()))
-}
-
-pub fn fn_append_certificate_entries(
-    certs: &Vec<CertificateEntry>,
-    cert_entry: &CertificateEntry,
-) -> Result<Vec<CertificateEntry>, FnError> {
-    let mut new_certs = certs.clone();
-    new_certs.push(cert_entry.clone());
-
-    Ok(new_certs)
-}
-
-pub fn fn_named_group_secp256r1() -> Result<NamedGroup, FnError> {
-    Ok(NamedGroup::secp256r1)
-}
-
-pub fn fn_named_group_secp384r1() -> Result<NamedGroup, FnError> {
-    Ok(NamedGroup::secp384r1)
-}
-
-pub fn fn_named_group_x25519() -> Result<NamedGroup, FnError> {
-    Ok(NamedGroup::X25519)
 }
 
 pub fn fn_u64_to_u32(input: &u64) -> Result<u32, FnError> {

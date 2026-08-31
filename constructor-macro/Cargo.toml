@@ -1,10 +1,10 @@
 [package]
-name = "extractable-macro"
+name = "constructor-macro"
 version = "0.0.1"
 authors = ["Tom Gouville"]
 edition = "2021"
 include = ["src/*.rs"]
-description = "This crate provide the Extractable derive macro, that implements the Extractable trait for structs, enum and unions"
+description = "This crate provide the Constructor derive macro, that generates constructor function symbols for structs, enum and unions and adds them to the signature"
 
 [lib]
 proc-macro = true
@@ -14,11 +14,10 @@ path = "src/lib.rs"
 quote = { workspace = true }
 syn = { workspace = true, features = ["full"] }
 proc-macro2 = { workspace = true }
-comparable = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
 puffin = { path = "../puffin" }
-# required in scope by the code that `declare_signature!`/`define_signature!` expand to
-linkme = { workspace = true }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
+comparable = { workspace = true, features = ["derive"] }
+linkme = { workspace = true }
