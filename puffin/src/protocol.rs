@@ -258,38 +258,6 @@ pub trait ProtocolTypes:
     /// differential fuzzer
     /// Return `true` to keep the difference
     fn differential_fuzzing_filter_diff(diff: &TraceDifference) -> bool;
-
-    /// Coarse key used to ALIGN knowledge/decrypted messages before comparison,
-    /// so like-with-like are compared regardless of packet position. Two
-    /// independent implementations legitimately packetize/pipeline their replies
-    /// differently, so a raw positional comparison compares unrelated messages
-    /// and reports spurious content differences. Bucketing both stores by this
-    /// key and comparing within a bucket fixes that.
-    ///
-    /// Default: the Rust type name (positional-equivalent for single-type
-    /// stores). Protocols whose messages are a tagged union should override this
-    /// to return a per-variant key (e.g. `"SshMessage::ServiceAccept"`), so a
-    /// genuine content difference between two same-kind messages still surfaces,
-    /// while a message present on only ONE side is reported as a presence
-    /// difference (fail-closed: a missing security message is NOT silently
-    /// dropped) rather than mis-compared against an unrelated message.
-    fn differential_fuzzing_alignment_key(data: &dyn EvaluatedTerm<Self>) -> String {
-        data.type_name().to_string()
-    }
-
-    /// Whether to ALWAYS compute the knowledge/decryption comparison, even when
-    /// the two PUTs already disagree on execution status. Default `false`: a
-    /// status disagreement short-circuits the comparison (the stores are usually
-    /// incomparable when one PUT stopped early, and it avoids the work).
-    ///
-    /// A protocol that filters objectives down to decryption differences (so a
-    /// status difference must NOT hide/skip a decryption difference, and status
-    /// diffs must themselves pass through `differential_fuzzing_filter_diff` to be
-    /// dropped) overrides this to `true`. `filter_diff` is then applied to every
-    /// difference — status, security-claim, and knowledge alike.
-    fn differential_fuzzing_always_compare_knowledge() -> bool {
-        false
-    }
 }
 
 /// Defines the protocol which is being tested.

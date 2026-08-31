@@ -13,6 +13,7 @@ use puffin::algebra::dynamic_function::FunctionAttributes;
 pub mod deframe;
 pub mod message;
 pub(crate) mod seeds;
+pub mod transcript;
 #[path = "."]
 pub mod fn_impl {
     pub mod fn_constants;
@@ -189,6 +190,10 @@ define_signature!(
     fn_encrypt_packet_aesgcm
     fn_decrypt_packet_aesgcm
     fn_decrypt_flight_aesgcm
+    // Single comparison recipe of the AES-GCM decryption differential: folds a
+    // server flight into one key-aligned `AlignedTranscript` (see
+    // ssh/transcript.rs). `no_gen`: a comparison recipe, not for term generation.
+    fn_fold_s2c_transcript [no_gen]
     fn_concat_raw_flights
     fn_derive_ctr_key_c2s
     fn_derive_ctr_key_s2c

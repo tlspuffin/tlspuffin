@@ -283,26 +283,18 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             _ => vec![],
         });
 
-        // Normally a status/security-claim disagreement short-circuits the
-        // knowledge/decryption comparison (the stores are usually incomparable
-        // once a PUT stopped early). A protocol that filters objectives down to
-        // decryption differences opts out of the short-circuit so a status
-        // difference neither hides nor skips a decryption difference.
-        let always_compare = <<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::differential_fuzzing_always_compare_knowledge();
-        if diff.is_empty() || always_compare {
+        // If we have status diff or security violation we return the diffs without checking for
+        // others diffs
+        if diff.is_empty() {
             // Compare the trace context
             diff.extend(first_ctx.compare(&second_ctx, &trace.as_ref().descriptors));
-        }
 
-        // Apply the protocol filter to EVERY difference (status, security-claim,
-        // knowledge). Status/security-claim diffs previously bypassed this; the
-        // default filter keeps them (`_ => true`), so behaviour is unchanged for
-        // protocols that do not override the filter, while a decryption-only
-        // filter can now drop them.
-        diff = diff
+            // Apply filter to remove false positives
+            diff = diff
             .into_iter()
             .filter(<<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::differential_fuzzing_filter_diff)
             .collect();
+        }
 
         if !diff.is_empty() {
             return Err(Error::Difference {

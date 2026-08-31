@@ -7,6 +7,29 @@ macro_rules! term {
     // Handshake with QueryMatcher
     // `>$req_type:expr` must be the last part of the arm, even if it is not used.
     //
+    //
+    // "Concatenate-all" query: `(agent, *) / Type` resolves to the concatenation
+    // of ALL of `agent`'s knowledges of `Type` (in insertion order), not a single
+    // indexed one. See `Query::concatenate_all`. These arms MUST precede the
+    // `$counter:expr` arms (a bare `*` is not an expression, so it would not match
+    // them, but keeping them first is clearer).
+    //
+    (($agent:expr, *) / $typ:ty $(>$req_type:expr)?) => {{
+        use $crate::algebra::dynamic_function::TypeShape;
+        use $crate::algebra::Term;
+
+        // ignore $req_type as we are overriding it with $type
+        Term::from(term!(($agent, *) > TypeShape::of::<$typ>()))
+    }};
+    (($agent:expr, *) $(>$req_type:expr)?) => {{
+        use $crate::algebra::signature::Signature;
+        use $crate::algebra::{DYTerm, Term};
+        use $crate::trace::Source;
+
+        let var = Signature::new_var_all($($req_type)?, Some(Source::Agent($agent)), None);
+        Term::from(DYTerm::Variable(var))
+    }};
+
     ((!$precomp:literal, $counter:expr) / $typ:ty $(>$req_type:expr)?) => {{
         use $crate::algebra::dynamic_function::TypeShape;
 
