@@ -5,6 +5,7 @@ use puffin::execution::{run_in_subprocess, TraceRunner};
 use puffin::fuzzer::bit_mutations::{ByteFlipMutatorDY, ByteInterestingMutatorDY, MakeMessage};
 use puffin::fuzzer::mutations::{
     MutationConfig, RemoveAndLiftMutator, RepeatMutator, ReplaceMatchMutator, ReplaceReuseMutator,
+    ScopeWeights,
 };
 use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::{Corpus, Testcase};
@@ -538,7 +539,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
 
     // Check if we have a client hello in last encrypted one
     let constraints = TermConstraints::default();
-    let mut mutator = ReplaceReuseMutator::new(constraints, true, true);
+    let mut mutator = ReplaceReuseMutator::new(constraints, true, true, ScopeWeights::default());
 
     for _i in 0..loop_tries {
         attempts += 1;
@@ -575,7 +576,8 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
     attempts = 0;
 
     // Test if we can replace the sequence number
-    let mut mutator = ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE, true);
+    let mut mutator =
+        ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE, true, ScopeWeights::default());
 
     for _i in 0..loop_tries {
         attempts += 1;
@@ -664,7 +666,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
 
     // Sucessfully renegotiate
 
-    let mut mutator = ReplaceReuseMutator::new(constraints, true, true);
+    let mut mutator = ReplaceReuseMutator::new(constraints, true, true, ScopeWeights::default());
 
     for _i in 0..loop_tries {
         attempts += 1;

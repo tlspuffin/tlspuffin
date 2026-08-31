@@ -6,7 +6,7 @@ use puffin::algebra::error::FnError;
 use puffin::algebra::{Term, TermType};
 use puffin::error::Error;
 use puffin::execution::{Runner, TraceRunner};
-use puffin::fuzzer::mutations::ReplaceReuseMutator;
+use puffin::fuzzer::mutations::{ReplaceReuseMutator, ScopeWeights};
 use puffin::fuzzer::term_zoo::TermZoo;
 use puffin::fuzzer::utils::TermConstraints;
 use puffin::libafl::corpus::InMemoryCorpus;
@@ -77,6 +77,7 @@ fn benchmark_mutations(c: &mut Criterion) {
             },
             true,
             true,
+            ScopeWeights::default(),
         );
         let mut trace = seed_client_attacker12.build_trace();
 
