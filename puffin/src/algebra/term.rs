@@ -40,7 +40,7 @@ pub enum DYTerm<PT: ProtocolTypes> {
 
 impl<PT: ProtocolTypes> fmt::Display for DYTerm<PT> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", display_term_at_depth(self, 0, false))
+        write!(f, "{}", display_term_at_depth(self, 0, false, false))
     }
 }
 
@@ -60,23 +60,18 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     /// Evaluate terms into `ConcreteMessage` and `EvaluatedTerm` (considering Payloads or not
     /// depending on `with_payloads`) With `with_payloads, the returned `EvaluatedTerm` is
     /// without payload replacements; use the `ConcreteMessage` instead.
-    fn evaluate_config<PB: ProtocolBehavior>(
+    fn evaluate_config<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>;
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>;
 
     /// Wrap `evaluate_config` with error stats and logging handling
-    fn evaluate_config_wrap<PB: ProtocolBehavior>(
+    fn evaluate_config_wrap<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>,
-    {
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error> {
         ALL_TERM_EVAL.increment();
         match self.evaluate_config(context, with_payloads) {
             Ok(cm) => {
@@ -116,6 +111,11 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
                             &e
                         );
                         EVAL_ERR_TERMBUG.increment();
+                        #[cfg(any(debug_assertions, feature = "debug"))]
+                        {
+                            // we panic in debug or test mode
+                            panic!("[evaluate_config_wrap] Panic! {}", e);
+                        }
                     }
                     _ => {
                         panic!("[evaluate] downcast error failed! {e:?}");
@@ -127,13 +127,10 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
     }
 
     /// Evaluate terms into `ConcreteMessage` (considering Payloads)
-    fn evaluate<PB: ProtocolBehavior>(
+    fn evaluate<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         ctx: &TraceContext<PB>,
-    ) -> Result<ConcreteMessage, Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>,
-    {
+    ) -> Result<ConcreteMessage, Error> {
         Ok(self
             .evaluate_config_wrap(ctx, ctx.config_trace.with_bit_level)?
             .0)
@@ -141,25 +138,19 @@ pub trait TermType<PT: ProtocolTypes>: fmt::Display + fmt::Debug + Clone {
 
     /// Evaluate terms into `ConcreteMessage` considering all sub-terms as symbolic (even those with
     /// Payloads)
-    fn evaluate_symbolic<PB: ProtocolBehavior>(
+    fn evaluate_symbolic<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         ctx: &TraceContext<PB>,
-    ) -> Result<ConcreteMessage, Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>,
-    {
+    ) -> Result<ConcreteMessage, Error> {
         Ok(self.evaluate_config_wrap(ctx, false)?.0)
     }
 
     /// Evaluate terms into `EvaluatedTerm`  considering all sub-terms as symbolic (even those with
     /// Payloads)
-    fn evaluate_dy<PB: ProtocolBehavior>(
+    fn evaluate_dy<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         ctx: &TraceContext<PB>,
-    ) -> Result<Box<dyn EvaluatedTerm<PT>>, Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>,
-    {
+    ) -> Result<Box<dyn EvaluatedTerm<PT>>, Error> {
         Ok(self.evaluate_config_wrap(ctx, false)?.1)
     }
 }
@@ -288,12 +279,33 @@ impl<PT: ProtocolTypes> Term<PT> {
         }
     }
 
-    /// When the term has a variable as sub-term (excluding strict0-sub-terms of readable)
+    /// When the term starts with a `no_det` function symbol.
+    pub fn is_no_det(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(fd, _) => fd.no_det(),
+        }
+    }
+
+    /// When the term has a variable as sub-term (excluding strict-sub-terms of readable)
     pub fn has_variable(&self) -> bool {
         match &self.term {
             DYTerm::Variable(_) => true,
             DYTerm::Application(_, args) => {
                 !self.is_readable() && args.iter().any(|arg| arg.has_variable())
+            }
+        }
+    }
+
+    /// When the term has a non-det sub-term (excluding strict-sub-terms of readable)
+    pub fn has_no_det(&self) -> bool {
+        match &self.term {
+            DYTerm::Variable(_) => false,
+            DYTerm::Application(_, args) => {
+                if self.is_no_det() {
+                    return true;
+                }
+                !self.is_readable() && args.iter().any(|arg| arg.has_no_det())
             }
         }
     }
@@ -336,7 +348,7 @@ impl<PT: ProtocolTypes> Term<PT> {
             Payloads {
                 payload_0: payload_0.into(),
                 payload: payload_new.into(),
-                metadata: with_metadata.unwrap_or_else(|| PayloadMetadata::default()),
+                metadata: with_metadata.unwrap_or_else(PayloadMetadata::default),
             }
         });
         self.erase_payloads_subterms(false);
@@ -352,9 +364,23 @@ impl<PT: ProtocolTypes> Term<PT> {
     where
         PB: ProtocolBehavior<ProtocolTypes = PT>,
     {
-        let eval = self.evaluate_symbolic(ctx)?;
-        self.add_payload(eval);
+        log::debug!("make_payload: about to symbolic evaluate to get eval_0...");
+        let eval_0 = self.evaluate_symbolic(ctx)?; // we compute the original encoding, without payloads!
+        self.add_payload(eval_0);
         Ok(())
+    }
+
+    /// Add a payload at the root position, erase payloads in strict sub-terms and make the payload
+    /// readable.
+    pub fn add_payload_readable(&mut self, payload: ConcreteMessage) {
+        self.add_payload_with_new(
+            payload.clone(),
+            payload,
+            Some(PayloadMetadata {
+                readable: true,
+                ..PayloadMetadata::default()
+            }),
+        );
     }
 
     /// Return all payloads contains in a term, even under opaque terms.
@@ -390,14 +416,14 @@ impl<PT: ProtocolTypes> Term<PT> {
         acc
     }
 
-    /// Return all payloads contained in a term, except those under opaque terms.
+    /// Return all payloads contained in a term, except those under opaque or readable terms.
     /// The deeper the first in the returned vector.
     pub fn payloads_to_replace(&self) -> Vec<&Payloads> {
         pub fn rec<'a, PT: ProtocolTypes>(term: &'a Term<PT>, acc: &mut Vec<&'a Payloads>) {
             match &term.term {
                 DYTerm::Variable(_) => {}
                 DYTerm::Application(_, args) => {
-                    if !term.is_opaque() {
+                    if !term.is_opaque() && !term.is_readable() {
                         for t in args {
                             rec(t, acc);
                         }
@@ -413,13 +439,13 @@ impl<PT: ProtocolTypes> Term<PT> {
         acc
     }
 
-    /// Return whether there is at least one payload, except those under opaque terms.
+    /// Return whether there is at least one payload, except those under opaque or readable terms.
     pub fn has_payload_to_replace(&self) -> bool {
         has_payload_to_replace_rec(self, true)
     }
 
-    /// Return whether there is at least one payload, except those under opaque terms and at the
-    /// root..
+    /// Return whether there is at least one payload, except those under opaque terms or readable
+    /// and at the root.
     pub fn has_payload_to_replace_wo_root(&self) -> bool {
         has_payload_to_replace_rec(self, false)
     }
@@ -432,7 +458,7 @@ pub fn has_payload_to_replace_rec<PT: ProtocolTypes>(term: &Term<PT>, include_ro
     match &term.term {
         DYTerm::Variable(_) => {}
         DYTerm::Application(_, args) => {
-            if !term.is_opaque() {
+            if !term.is_opaque() && !term.is_readable() {
                 for t in args {
                     if has_payload_to_replace_rec(t, true) {
                         return true;
@@ -468,23 +494,38 @@ fn display_term_at_depth<PT: ProtocolTypes>(
     term: &DYTerm<PT>,
     depth: usize,
     is_bitstring: bool,
+    is_readable: bool,
 ) -> String {
     let tabs = "\t".repeat(depth);
+    let is_bitstring = if is_bitstring {
+        if is_readable {
+            "BS-READ//"
+        } else {
+            "BS//"
+        }
+    } else {
+        ""
+    };
     match term {
         DYTerm::Variable(ref v) => {
-            let is_bitstring = if is_bitstring { "BS//" } else { "" };
             format!("{tabs}{is_bitstring}{v}")
         }
         DYTerm::Application(ref func, ref args) => {
             let op_str = remove_prefix(func.name());
             let return_type = remove_prefix(func.shape().return_type.name);
-            let is_bitstring = if is_bitstring { "BS//" } else { "" };
             if args.is_empty() {
                 format!("{tabs}{is_bitstring}{op_str} -> {return_type}")
             } else {
                 let args_str = args
                     .iter()
-                    .map(|arg| display_term_at_depth(&arg.term, depth + 1, !arg.is_symbolic()))
+                    .map(|arg| {
+                        display_term_at_depth(
+                            &arg.term,
+                            depth + 1,
+                            !arg.is_symbolic(),
+                            arg.is_readable(),
+                        )
+                    })
                     .join(",\n");
                 format!("{tabs}{is_bitstring}{op_str}(\n{args_str}\n{tabs}) -> {return_type}")
             }
@@ -493,11 +534,13 @@ fn display_term_at_depth<PT: ProtocolTypes>(
 }
 
 fn append_eval<'a, PT: ProtocolTypes>(term_eval: &'a Term<PT>, v: &mut Vec<&'a Term<PT>>) {
-    match term_eval.term {
-        DYTerm::Variable(_) => {}
-        DYTerm::Application(_, ref subterms) => {
-            for subterm in subterms {
-                append_eval(subterm, v);
+    if term_eval.is_symbolic() {
+        match term_eval.term {
+            DYTerm::Variable(_) => {}
+            DYTerm::Application(_, ref subterms) => {
+                for subterm in subterms {
+                    append_eval(subterm, v);
+                }
             }
         }
     }
@@ -507,14 +550,11 @@ fn append_eval<'a, PT: ProtocolTypes>(term_eval: &'a Term<PT>, v: &mut Vec<&'a T
 
 impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
     /// Evaluate terms into bitstrings and `EvaluatedTerm` (considering Payloads)
-    fn evaluate_config<PB: ProtocolBehavior>(
+    fn evaluate_config<PB: ProtocolBehavior<ProtocolTypes = PT>>(
         &self,
         context: &TraceContext<PB>,
         with_payloads: bool,
-    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error>
-    where
-        PB: ProtocolBehavior<ProtocolTypes = PT>,
-    {
+    ) -> Result<(ConcreteMessage, Box<dyn EvaluatedTerm<PT>>), Error> {
         log::trace!("[evaluate_config] About to evaluate term (with_payloads: {with_payloads}):\n{}\n===================================================================", &self);
         let mut eval_tree = EvalTree::empty();
         let (m, all_payloads) = self.eval_until_opaque(
@@ -613,7 +653,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
     }
 
     fn display_at_depth(&self, depth: usize) -> String {
-        display_term_at_depth(&self.term, depth, !self.is_symbolic())
+        display_term_at_depth(&self.term, depth, !self.is_symbolic(), self.is_readable())
     }
 
     fn is_symbolic(&self) -> bool {
@@ -640,7 +680,7 @@ impl<PT: ProtocolTypes> TermType<PT> for Term<PT> {
                 if args.len() <= nb {
                     return Err(Error::TermBug(format!(
                         "--> [get] Should never happen! self.args.len() <= nb. Term: {self}\n, path: {path:?}"
-                    )));
+                    )))
                 }
                 args[nb].get(path)
             }

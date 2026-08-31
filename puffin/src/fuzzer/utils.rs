@@ -6,26 +6,31 @@ use crate::trace::{Action, Step, Trace};
 
 #[derive(Copy, Clone, Debug)]
 pub struct TermConstraints {
+    // For selecting (sub)terms for mutation candidates, for example
     pub min_term_size: usize,
     pub max_term_size: usize,
+    // For continuing exploring (sub)terms, if larger: we don't even bother traversing the term
+    pub max_term_size_explore: usize,
     pub must_be_symbolic: bool,
-    // when true: only look for terms with no payload in sub-terms
+    /// when true: only look for terms with no payload in sub-terms
     pub no_payload_in_subterm: bool,
     // when true: only look for terms with at least one payload in sub-terms
     pub must_payload_in_subterm: bool,
-    // when true: we do not choose terms that have a list symbol and whose parent also has a list
-    // symbol those terms are thus "inside a list", like t in fn_append(t,t3) for t =
-    // fn(append(t1,t2)
+    /// when true: we do not choose terms that have a list symbol and whose parent also has a list
+    /// symbol those terms are thus "inside a list", like t in fn_append(t,t3) for t =
+    /// fn(append(t1,t2)
     pub not_inside_list: bool,
-    // choose term giving higher probability to deeper term
+    /// choose term giving higher probability to deeper term
     pub weighted_depth: bool,
-    // only select root terms
+    /// only select root terms
     pub must_be_root: bool,
-    // when true: only look for readable terms
+    /// when true: only look for readable terms
     pub not_readable: bool,
-    // Number of terms to generate for each type
+    /// Forbids sub-terms with no det function symbols
+    pub must_be_det: bool,
+    /// Number of terms to generate for each type
     pub zoo_gen_how_many: usize,
-    // Max number of paylaods per term (limiting further MakeMessage)
+    /// Max number of paylaods per term (limiting further MakeMessage)
     pub threshold_max_payloads_per_term: usize,
 }
 
@@ -34,8 +39,10 @@ impl Default for TermConstraints {
     fn default() -> Self {
         Self {
             min_term_size: 0,
-            max_term_size: 300, /* was 9000 but we were rewriting this to 300 anyway when
-                                 * instantiating the fuzzer */
+            max_term_size: 300, // we do not select larger terms for mutations
+            /* was 9000 but we were rewriting this to 300 anyway when
+             * instantiating the fuzzer */
+            max_term_size_explore: 1000, // we don't even bother exploring terms that are too large
             must_be_symbolic: false,
             no_payload_in_subterm: false,
             must_payload_in_subterm: false,
@@ -43,11 +50,77 @@ impl Default for TermConstraints {
             weighted_depth: false,
             must_be_root: false,
             not_readable: false,
+            must_be_det: false,
             zoo_gen_how_many: 10, /* Over-approximates 1/10 of the threshold obtained from
                                    * `test_term_payloads_eval`, making sure we successfully
                                    * generate, MakeMessage,
                                    * and evaluate after 10 expansions of TermZoo. Was 1 initially */
             threshold_max_payloads_per_term: 10,
+        }
+    }
+}
+
+impl TermConstraints {
+    /// Returns whether a term is not extremely large (in which case we don't even bother exploring
+    /// it)
+    pub fn satisfy_size_max_constraints<PT: ProtocolTypes>(&self, term: &Term<PT>) -> bool {
+        term.size() < self.max_term_size_explore
+    }
+
+    /// Returns whether a term satisfies all the constraint predicates.
+    pub fn satisfy_constraints<PT: ProtocolTypes>(&self, term: &Term<PT>) -> bool {
+        let size = term.size();
+        // Use inclusive bounds (min <= size <= max)
+        if size < self.min_term_size || size > self.max_term_size {
+            return false;
+        }
+
+        if self.must_be_symbolic && !term.is_symbolic() {
+            return false;
+        }
+        if self.no_payload_in_subterm {
+            // filter-out terms with payload in strict sub-term
+            if term.is_symbolic() && term.has_payload_to_replace() {
+                return false;
+            }
+            if !term.is_symbolic() && term.has_payload_to_replace_wo_root() {
+                return false;
+            }
+        }
+        if self.not_inside_list && term.is_list() {
+            return false;
+        }
+        if self.not_readable && term.is_readable() {
+            return false;
+        }
+        if self.must_be_det && term.has_no_det() {
+            return false;
+        }
+        true
+    }
+
+    /// Returns whether we should recurse into the sub-terms of a given term.
+    pub fn should_recurse<PT: ProtocolTypes>(&self, term: &Term<PT>) -> bool {
+        // Only recurse into symbolic terms, and not when we only want root terms
+        !self.must_be_root && term.is_symbolic()
+    }
+
+    /// Return TermConstraints with minimal/no constraint
+    pub fn no_constraint() -> Self {
+        Self {
+            min_term_size: 0,
+            max_term_size: usize::MAX,
+            max_term_size_explore: usize::MAX,
+            must_be_symbolic: false,
+            no_payload_in_subterm: false,
+            must_payload_in_subterm: false,
+            not_inside_list: false,
+            weighted_depth: false,
+            must_be_root: false,
+            not_readable: false,
+            must_be_det: false,
+            zoo_gen_how_many: usize::MAX,
+            threshold_max_payloads_per_term: usize::MAX,
         }
     }
 }
@@ -70,7 +143,7 @@ impl<T, R: Rand> Choosable<T, R> for Vec<T> {
         if length == 0 {
             None
         } else {
-            let index = rand.below(length as u64) as usize;
+            let index = rand.below_or_zero(length);
             filtered.into_iter().nth(index)
         }
     }
@@ -81,7 +154,7 @@ impl<T, R: Rand> Choosable<T, R> for Vec<T> {
         if length == 0 {
             None
         } else {
-            let index = rand.below(length as u64) as usize;
+            let index = rand.below_or_zero(length);
             self.get(index)
         }
     }
@@ -100,7 +173,7 @@ where
         None
     } else {
         // pick a random, valid index
-        let index = rand.below(length as u64) as usize;
+        let index = rand.below_or_zero(length);
 
         // return the item chosen
         iter.nth(index)
@@ -112,7 +185,7 @@ pub type TermPath = Vec<usize>;
 pub type TracePath = (StepIndex, TermPath);
 
 /// <https://en.wikipedia.org/wiki/Reservoir_sampling#Simple_algorithm>
-fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+pub fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
     trace: &'a Trace<PT>,
     filter: P,
     constraints: &TermConstraints,
@@ -126,42 +199,30 @@ fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + C
             Action::Input(input) => {
                 let term = &input.recipe;
 
-                let size = term.size();
-                if size <= constraints.min_term_size || size >= constraints.max_term_size {
-                    continue;
+                if !constraints.satisfy_size_max_constraints(term) {
+                    log::warn!(
+                        "[reservoir_sample] Skipping term because it is too large: {}",
+                        term.size()
+                    );
+                    continue; // the term is too large, we don't even bother
                 }
 
                 let mut stack: Vec<(&Term<PT>, TracePath)> = vec![(term, (step_index, Vec::new()))];
 
                 while let Some((term, path)) = stack.pop() {
-                    // push next terms onto stack
-
-                    if term.is_symbolic() && !constraints.must_be_root {
-                        // if not, we reached a leaf (real leaf or a term with payloads)
-                        match &term.term {
-                            DYTerm::Variable(_) => {
-                                // reached leaf
-                            }
-                            DYTerm::Application(_, subterms) => {
-                                // inner node, recursively continue
-                                for (path_index, subterm) in subterms.iter().enumerate() {
-                                    let mut new_path = path.clone();
-                                    new_path.1.push(path_index); // invert because of .iter().rev()
-                                    stack.push((subterm, new_path));
-                                }
+                    // Recurse into sub-terms if allowed
+                    if constraints.should_recurse(term) {
+                        if let DYTerm::Application(_, subterms) = &term.term {
+                            for (path_index, subterm) in subterms.iter().enumerate() {
+                                let mut new_path = path.clone();
+                                new_path.1.push(path_index);
+                                stack.push((subterm, new_path));
                             }
                         }
                     }
 
-                    // sample
-                    if filter(term)
-                        && (!constraints.must_be_symbolic || term.is_symbolic())
-                        && (!constraints.no_payload_in_subterm // TODO: currently not used!
-                        || (term.is_symbolic() && !term.has_payload_to_replace())
-                        || (!term.is_symbolic() && !term.has_payload_to_replace_wo_root()))
-                        && (!constraints.not_inside_list || !term.is_list())
-                        && (!constraints.not_readable || !term.is_readable())
-                    {
+                    // Check constraints and user filter
+                    if constraints.satisfy_constraints(term) && filter(term) {
                         visited += 1;
 
                         // consider in sampling
@@ -240,7 +301,7 @@ pub fn find_term_mut<'a, PT: ProtocolTypes>(
     if let Some(step) = step {
         match &mut step.action {
             Action::Input(input) => {
-                find_term_by_term_path_mut(&mut input.recipe, &mut term_path.clone())
+                find_term_by_term_path_mut(&mut input.recipe, &term_path.clone())
             }
             Action::Output(_) => None,
         }
@@ -259,7 +320,7 @@ pub fn find_term<'a, PT: ProtocolTypes>(
     let step: Option<&Step<PT>> = trace.steps.get(*step_index);
     if let Some(step) = step {
         match &step.action {
-            Action::Input(input) => find_term_by_term_path(&input.recipe, &mut term_path.clone()),
+            Action::Input(input) => find_term_by_term_path(&input.recipe, &term_path.clone()),
             Action::Output(_) => None,
         }
     } else {
@@ -347,6 +408,66 @@ pub fn choose_term_path_filtered<R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) ->
     reservoir_sample(trace, filter, constraints, rand).map(|ret| ret.1)
 }
 
+/// Finds all sub-terms in a given term that satisfy a filtering condition and term constraints.
+pub fn find_all_sub_term_filtered<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+    term: &Term<PT>,
+    filter: P,
+    constraints: &TermConstraints,
+) -> Vec<TermPath> {
+    if !constraints.satisfy_size_max_constraints(term) {
+        log::warn!(
+            "[find_all_sub_term_filtered] Skipping term because it is too large: {}",
+            term.size()
+        );
+        return Vec::new(); // the term is too large, we don't even bother exploring it
+    }
+
+    let mut result = Vec::new();
+    let mut stack: Vec<(&Term<PT>, TermPath)> = vec![(term, Vec::new())];
+
+    while let Some((current, path)) = stack.pop() {
+        // Recurse into sub-terms if allowed
+        if constraints.should_recurse(current) {
+            if let DYTerm::Application(_, subterms) = &current.term {
+                for (i, subterm) in subterms.iter().enumerate() {
+                    let mut new_path = path.clone();
+                    new_path.push(i);
+                    stack.push((subterm, new_path));
+                }
+            }
+        }
+
+        if constraints.satisfy_constraints(current) && filter(current) {
+            result.push(path);
+        }
+    }
+
+    result
+}
+
+/// Finds all trace paths in a trace that satisfy a given filter predicate and term constraints.
+pub fn find_all_term_filtered<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+    trace: &Trace<PT>,
+    filter: P,
+    constraints: &TermConstraints,
+) -> Vec<TracePath> {
+    trace
+        .steps
+        .iter()
+        .enumerate()
+        .flat_map(|(step_index, step)| match &step.action {
+            Action::Input(input) => {
+                let term = &input.recipe;
+                find_all_sub_term_filtered(term, filter, constraints)
+                    .into_iter()
+                    .map(move |term_path| (step_index, term_path))
+                    .collect::<Vec<_>>()
+            }
+            Action::Output(_) => vec![],
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::{HashMap, HashSet};
@@ -426,7 +547,6 @@ mod tests {
         println!("{:?}", stats);*/
 
         assert!(std_dev < 30.0);
-        assert_eq!(term_size, stats.len());
         assert_eq!(term_size, stats.len());
     }
 }

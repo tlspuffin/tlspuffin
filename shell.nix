@@ -41,6 +41,17 @@ pkgs.llvmPackages_14.stdenv.mkDerivation {
   
   shellHook = ''
     export LIBCLANG_PATH="${pkgs.llvmPackages_14.libclang.lib}/lib";
-    export LIBAFL_EDGES_MAP_SIZE=262144 # 2^18
+    if [[ "$(uname)" == "Darwin" ]]; then
+      export LIBAFL_EDGES_MAP_SIZE=1048576 # 2^20, ASAN-instrumented libs need more edges on macOS
+
+        # OpenSSL paths for bindgen and linker
+        export BINDGEN_EXTRA_CLANG_ARGS="-I${pkgs.openssl.dev}/include"
+        export RUSTFLAGS="$RUSTFLAGS -L ${pkgs.openssl.out}/lib"
+
+        # Ensure bindgen uses nix's clang, not Homebrew's LLVM
+        export CLANG_PATH="${pkgs.llvmPackages_14.clang}/bin/clang"
+    else
+      export LIBAFL_EDGES_MAP_SIZE=262144 # 2^18
+    fi
   '';
 }

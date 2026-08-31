@@ -613,7 +613,9 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
               (fn_server_extensions_append(
                   (fn_server_extensions_append(
                       fn_server_extensions_new,
-                      (fn_key_share_deterministic_server_extension((@curve)))
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
                   )),
                   fn_supported_versions13_server_extension
             ))))
@@ -791,6 +793,167 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<TLSProtocolTypes> {
     }
 }
 
+pub fn seed_server_attacker_full_coalesced(client: AgentName) -> Trace<TLSProtocolTypes> {
+    let curve = term! {
+        fn_get_any_client_curve(
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))])
+        )
+    };
+
+    let server_hello = term! {
+          fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite13_aes_128_gcm_sha256,
+            fn_compression,
+            (fn_server_extensions_make(
+              (fn_server_extensions_append(
+                  (fn_server_extensions_append(
+                      fn_server_extensions_new,
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
+                  )),
+                  fn_supported_versions13_server_extension
+            ))))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript,
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+            )),
+            (@server_hello) // plaintext ServerHello
+        )
+    };
+
+    let encrypted_extensions = term! {
+        fn_encrypted_extensions(
+            fn_server_extensions_new
+        )
+    };
+
+    let certificate = term! {
+        fn_certificate13(
+            (fn_payload_u8((fn_empty_bytes_vec))),
+            (fn_certificate_entries_make(
+                (fn_chain_append_certificate_entry(
+                  fn_empty_certificate_chain,
+                  (fn_certificate_entry_extensions(
+                    fn_alice_cert,
+                    (fn_cert_extensions_make(
+                        fn_cert_extensions_new
+                    ))
+            ))))
+            ))
+        )
+    };
+
+    let encrypted_extensions_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@encrypted_extensions) // plaintext EncryptedExtensions
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@encrypted_extensions_transcript),
+            (@certificate) // plaintext Certificate
+        )
+    };
+
+    let certificate_verify = term! {
+        fn_certificate_verify(
+            fn_rsa_pss_signature_algorithm,
+            (fn_payload_u16(
+                (fn_rsa_sign_server(
+                    (@certificate_transcript),
+                    fn_alice_key,
+                    fn_rsa_pss_signature_algorithm
+                ))
+            ))
+        )
+    };
+
+    let certificate_verify_transcript = term! {
+        fn_append_transcript(
+            (@certificate_transcript),
+            (@certificate_verify) // plaintext CertificateVerify
+        )
+    };
+
+    let server_finished = term! {
+        fn_finished(
+            (fn_verify_data_server(
+                (@certificate_verify_transcript),
+                //(fn_server_finished_transcript(((client, 0)))),
+                (@server_hello_transcript),
+                (fn_get_client_key_share(((client, 0)), (@curve))),
+                (@curve),
+                fn_no_psk,
+                fn_new_random,
+                fn_cipher_suite13_aes_128_gcm_sha256
+            ))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            client,
+            TLSDescriptorConfig {
+                tls_version: TLSVersion::V1_3,
+                typ: AgentType::Client,
+                ..TLSDescriptorConfig::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(client),
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! { @server_hello }
+                }),
+            },
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                    fn_encrypt_handshake_opaque(
+                        (fn_coalesced_flight(
+                            (fn_append_flight(
+                                (fn_append_flight(
+                                    (fn_append_flight(
+                                        (fn_append_flight(
+                                            fn_new_flight,
+                                            (@encrypted_extensions)
+                                        )),
+                                        (@certificate)
+                                    )),
+                                    (@certificate_verify)
+                                )),
+                                (@server_finished)
+                            )))
+                        ),
+                        (@server_hello_transcript),
+                        (fn_get_client_key_share(((client, 0)), (@curve))),
+                        fn_no_psk,
+                        (@curve),
+                        fn_false,
+                        fn_seq_0,  // sequence 0
+                        fn_new_random,
+                        fn_cipher_suite13_aes_128_gcm_sha256
+                    )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
 /// This seed sends a HelloRetryRequest message asking the TLS client to use P384 curves as keyshare
 /// and compute a correct transcript for the whole handshake
 /// The differences with seed_server_attacker_full are the addition of a round trip (server sends
@@ -834,7 +997,9 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
               (fn_server_extensions_append(
                   (fn_server_extensions_append(
                       fn_server_extensions_new,
-                      (fn_key_share_deterministic_server_extension((@curve)))
+                      (fn_key_share_server_extension(
+                          (fn_key_share_deterministic((@curve)))
+                      ))
                   )),
                   fn_supported_versions13_server_extension
             ))))
@@ -1016,6 +1181,7 @@ pub fn seed_server_attacker_with_hello_retry_request(client: AgentName) -> Trace
                 }),
             },
         ],
+        ..Default::default()
     }
 }
 
@@ -1045,9 +1211,22 @@ pub fn seed_client_attacker_auth(server: AgentName) -> Trace<TLSProtocolTypes> {
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -1204,6 +1383,7 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
             )))),
             fn_compressions,
             (fn_client_extensions_make(
+            (fn_client_extensions_append(
                 (fn_client_extensions_append(
                 (fn_client_extensions_append(
                     (fn_client_extensions_append(
@@ -1216,11 +1396,26 @@ pub fn seed_client_attacker(server: AgentName) -> Trace<TLSProtocolTypes> {
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
+                )),
+                fn_psk_exchange_mode_dhe_ke_extension
             ))
         )))
     };
@@ -1307,7 +1502,15 @@ pub fn _seed_client_attacker12(
                                         ))
                                     ))
                                 )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
                             )),
                             fn_ec_point_formats_extension
                         )),
@@ -1369,9 +1572,9 @@ pub fn _seed_client_attacker12(
     };
 
     let client_verify_data = term! {
-        fn_sign_transcript(
+        fn_client_sign_transcript(
             ((server, 0)),
-            (fn_decode_ecdh_pubkey(
+            (fn_decode_server_ecdh_pubkey(
                 ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
             )),
             (@client_key_exchange_transcript),
@@ -1406,7 +1609,7 @@ pub fn _seed_client_attacker12(
                         fn_encrypt12(
                             (fn_finished((@client_verify_data))),
                             ((server, 0)),
-                            (fn_decode_ecdh_pubkey(
+                            (fn_decode_server_ecdh_pubkey(
                                 ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                             )),
                             fn_named_group_secp384r1,
@@ -1423,6 +1626,183 @@ pub fn _seed_client_attacker12(
     };
 
     (trace, client_verify_data)
+}
+
+pub fn seed_server_attacker12(client: AgentName) -> Trace<TLSProtocolTypes> {
+    _seed_server_attacker12(client).0
+}
+pub fn _seed_server_attacker12(
+    client: AgentName,
+) -> (Trace<TLSProtocolTypes>, Term<TLSProtocolTypes>) {
+    let server_hello = term! {
+          fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            fn_cipher_suite12,
+            fn_compression,
+            (fn_server_extensions_make(
+                (fn_server_extensions_append(
+                    fn_server_extensions_new,
+                    (fn_renegotiation_info_server_extension((fn_payload_u8(fn_empty_bytes_vec))))
+            ))))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript12,
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+            )),
+            (@server_hello) // plaintext ServerHello
+        )
+    };
+
+    let server_certificate = term! {
+        fn_certificate(
+            (fn_append_certificate(
+                fn_new_certificates,
+                (fn_certificate_from_vec_u8(fn_alice_cert))
+            ))
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@server_certificate)
+        )
+    };
+
+    let server_key_exchange = term! {
+        fn_server_key_exchange(
+            (fn_sign_rsa_ecdhe_server_key_exchange12(
+                fn_named_group_secp384r1,
+                ((client, 0)),
+                fn_new_random,
+                fn_alice_key
+            ))
+        )
+    };
+
+    let server_key_exchange_transcript = term! {
+      fn_append_transcript(
+            (@certificate_transcript),
+            (@server_key_exchange)
+        )
+    };
+
+    let server_hello_done_transcript = term! {
+      fn_append_transcript(
+            (@server_key_exchange_transcript),
+            (fn_server_hello_done)
+        )
+    };
+
+    let client_key_exchange_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_done_transcript),
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))])
+        )
+    };
+
+    let client_ecdh_pubkey = term! {
+        fn_decode_client_ecdh_pubkey(
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>) // ClientECDHParams
+        )
+    };
+
+    let client_finished_transcript = term! {
+        fn_append_transcript(
+            (@client_key_exchange_transcript),
+            (fn_decrypt12( // Decrypt client finished
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(None))]), //EncryptedHandshake
+                fn_new_random,
+                (@client_ecdh_pubkey),
+                fn_named_group_secp384r1,
+                fn_false,
+                fn_seq_0,
+                ((client, 0)),
+                fn_cipher_suite12
+            ))
+        )
+    };
+
+    let server_verify_data = term! {
+        fn_server_sign_transcript(
+            fn_new_random,
+            (@client_ecdh_pubkey),
+            (@client_finished_transcript),
+            fn_named_group_secp384r1,
+            ((client, 0)),
+            fn_cipher_suite12
+        )
+    };
+
+    let trace = Trace {
+        prior_traces: vec![],
+        descriptors: vec![TLSDescriptorConfig::new_client(client, TLSVersion::Both)],
+        steps: vec![
+            // Client Hello, Client -> Server
+            OutputAction::new_step(client),
+            // Server Hello, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hello
+                }),
+            },
+            // Server Certificate, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_certificate
+                }),
+            },
+            // Server Key Exchange, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_key_exchange
+                }),
+            },
+            // Server Hello Done, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! { fn_server_hello_done }
+                }),
+            },
+            // Output messages from Client:
+            // Client Key Exchange, Client -> Server
+            // Client Change Cipher Spec, Client -> Server
+            // Client Finished, Client -> Server
+
+            // Server Change Cipher Spec, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! { fn_change_cipher_spec }
+                }),
+            },
+            // Server Finished, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt12(
+                            (fn_finished((@server_verify_data))),
+                            fn_new_random,
+                            (@client_ecdh_pubkey),
+                            fn_named_group_secp384r1,
+                            fn_false,
+                            fn_seq_0,
+                            ((client, 0)),
+                            fn_cipher_suite12
+                        )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    };
+
+    (trace, server_verify_data)
 }
 
 // TODO: `"Unable to find variable (Some(Agent(AgentName(0))), 1)[None]/MessageFlight!"` error with
@@ -1476,11 +1856,24 @@ pub fn seed_session_resumption_dhe(
                                         ))
                                     ))
                                 )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
-                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                     )),
                     fn_psk_exchange_mode_dhe_ke_extension
                 )),
@@ -1620,11 +2013,24 @@ pub fn seed_session_resumption_ke(
                                         ))
                                     ))
                                 )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
-                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                        (fn_key_share_extension_make(
+                            (fn_key_share_extension_append(
+                                fn_key_share_extension_new,
+                                (fn_key_share_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
                     )),
                     fn_psk_exchange_mode_ke_extension
                 )),
@@ -1739,6 +2145,7 @@ pub fn _seed_client_attacker_full(
             (fn_client_extensions_make(
                 (fn_client_extensions_append(
                 (fn_client_extensions_append(
+                (fn_client_extensions_append(
                     (fn_client_extensions_append(
                         (fn_client_extensions_append(
                             fn_client_extensions_new,
@@ -1749,11 +2156,26 @@ pub fn _seed_client_attacker_full(
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
+                )),
+                fn_psk_exchange_mode_dhe_ke_extension
             ))
         )))
     };
@@ -1943,9 +2365,22 @@ pub fn _seed_client_attacker_full_precomputation(
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))))
@@ -2152,11 +2587,24 @@ pub fn seed_session_resumption_dhe_full(
                                         ))
                                     ))
                                 )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
-                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                        (fn_key_share_extension_make(
+                            (fn_key_share_extension_append(
+                                fn_key_share_extension_new,
+                                (fn_key_share_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
                     )),
                     fn_psk_exchange_mode_dhe_ke_extension
                 )),
@@ -2304,6 +2752,21 @@ pub fn seed_session_resumption_dhe_full(
     }
 }
 
+fn decrypt_handshake_from_claims() -> Term<TLSProtocolTypes> {
+    let server = AgentName::first();
+    term! {
+            fn_decrypt_handshake_flight(
+                ((server, 0)/MessageFlight),
+                (fn_server_hello_transcript(((server,0)))),
+                (fn_get_server_key_share(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerHello)))]))),
+                fn_no_psk,
+                fn_named_group_secp384r1,
+                fn_true,
+                fn_seq_0  // sequence 0
+            )
+    }
+}
+
 macro_rules! corpus {
     () => {
         vec![]
@@ -2332,7 +2795,7 @@ pub fn create_corpus(
         // Full Handshakes
         seed_successful: put.supports("tls13"),
         seed_successful_with_ccs: put.supports("tls13"),
-        seed_successful_with_tickets: put.supports("tls13"),
+        seed_successful_with_tickets: put.supports("tls13") && put.supports("tls13_session_resumption"),
         seed_successful12: put.supports("tls12") && !put.supports("tls12_session_resumption"),
         seed_successful12_with_tickets: put.supports("tls12") && put.supports("tls12_session_resumption"),
         // Client Attackers
@@ -2342,16 +2805,22 @@ pub fn create_corpus(
         seed_client_attacker12: put.supports("tls12"),
         // Session resumption
         seed_session_resumption_dhe: put.supports("tls13") && put.supports("tls13_session_resumption"),
-        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption"),
+        seed_session_resumption_ke: put.supports("tls13") && put.supports("tls13_session_resumption") && put.supports("psk_ke_support"),
         // Server Attackers
         seed_server_attacker_full: put.supports("tls13"),
+        seed_server_attacker_full_coalesced: put.supports("tls13"),
         seed_server_attacker_with_hello_retry_request : put.supports("tls13"),
+        seed_server_attacker12: put.supports("tls12"),
     )
 }
 
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
+    use puffin::fuzzer::utils::TermConstraints;
+    use puffin::protocol::ProtocolTypes;
+    use puffin::put::{PutDescriptor, PutOptions};
+    use puffin::trace::Query;
 
     use super::*;
     #[allow(unused_imports)]
@@ -2387,7 +2856,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, client_authentication_transcript_extraction, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, client_authentication_transcript_extraction))]
     fn test_seed_client_attacker_auth(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_client_attacker_auth.build_trace();
@@ -2418,7 +2887,17 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls12))]
+    fn test_seed_server_attacker12(put: &str) {
+        let runner = default_runner_for(put);
+        let trace = seed_server_attacker12.build_trace();
+
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+
+        assert!(ctx.agents_successful());
+    }
+
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_server_attacker_full(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker_full.build_trace();
@@ -2428,7 +2907,53 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
+    // TODO: find a better solution to filter out Wolfssl430 (too old) and wolfssl540-sdos2
+    // (incompatible patch applied) than using client_authentication_transcript_extraction and
+    // not(disable_postauth) in the next 3 tests
+    // Exclude wolfssl430 (too old, no client_authentication_transcript_extraction) and
+    // wolfssl540-sdos2 (incompatible patch, has disable_postauth) from differential decryption
+    // tests.
+    #[apply(test_puts, filter = all(tls13, transcript_extraction, client_authentication_transcript_extraction, not(boringssl), not(disable_postauth)))]
+    fn test_seeds_differential_decryption(put: &str) {
+        let traces = vec![
+            seed_client_attacker.build_trace(),
+            seed_client_attacker_full.build_trace(),
+            seed_server_attacker_full.build_trace(),
+            seed_successful.build_trace(),
+        ];
+
+        for trace in traces {
+            let runner = default_runner_for(put);
+            let descriptors = trace.descriptors.clone();
+            let ctx = runner.execute(trace, &mut 0).unwrap();
+
+            let terms = <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_terms_to_eval(
+                &descriptors,
+            );
+            assert!(
+                !terms.is_empty(),
+                "no differential terms produced for {put}"
+            );
+
+            let any_ok = terms.iter().any(|t| t.evaluate_dy(&ctx).is_ok());
+            assert!(
+                any_ok,
+                "no post-computation decryption term evaluated successfully for {put}"
+            );
+        }
+    }
+
     #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    fn test_seed_server_attacker_full_coalesced(put: &str) {
+        let runner = default_runner_for(put);
+        let trace = seed_server_attacker_full_coalesced.build_trace();
+
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+
+        assert!(ctx.agents_successful());
+    }
+
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_server_attacker_with_hello_retry_request(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_server_attacker_with_hello_retry_request.build_trace();
@@ -2438,7 +2963,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth), not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth)))]
     fn test_seed_session_resumption_dhe(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_dhe.build_trace();
@@ -2448,7 +2973,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth), not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth)))]
     fn test_seed_session_resumption_dhe_full(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_dhe_full.build_trace();
@@ -2458,7 +2983,8 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(disable_postauth), not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, psk_ke_support, not(disable_postauth))
+    )]
     fn test_seed_session_resumption_ke(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_session_resumption_ke.build_trace();
@@ -2468,7 +2994,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_successful(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_successful.build_trace();
@@ -2478,7 +3004,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_successful_client_auth(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_successful_client_auth.build_trace();
@@ -2502,7 +3028,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls13, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13))]
     fn test_seed_successful_with_ccs(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_successful_with_ccs.build_trace();
@@ -2514,7 +3040,7 @@ pub mod tests {
 
     // require version which supports TLS 1.3 and session resumption (else no tickets are sent)
     // LibreSSL does not yet support PSK
-    #[apply(test_puts, filter = all(tls13, tls13_session_resumption, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls13, tls13_session_resumption))]
     fn test_seed_successful_with_tickets(put: &str) {
         let runner = default_runner_for(put);
         let trace = seed_successful_with_tickets.build_trace();
@@ -2524,7 +3050,7 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
-    #[apply(test_puts, filter = all(tls12, not(boringssl)))]
+    #[apply(test_puts, filter = all(tls12))]
     fn test_seed_successful12(put: &str) {
         let runner = default_runner_for(put);
 
@@ -2539,6 +3065,94 @@ pub mod tests {
         assert!(ctx.agents_successful());
     }
 
+    /// Verify that cipher and sigalgs configuration actually takes effect.
+    /// This catches silent failures like BoringSSL ignoring unrecognised IANA cipher names.
+    /// For openssl we only test version 3.4.0 as it is the only one that has the right claims added
+    /// in our openssl github fork. Wolfssl430 does not have a C harness
+    #[cfg(not(feature = "wolfssl430"))]
+    #[apply(test_puts, filter = all(tls13, any(not(openssl), openssl340), not(libressl))
+    )]
+    fn test_cipher_config_takes_effect(put: &str) {
+        use crate::claims::Finished;
+
+        let client = AgentName::first();
+        let server = client.next();
+        let mut trace = seed_successful(client, server);
+        trace =
+            <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(trace);
+
+        let runner = default_runner_for(put);
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+        assert!(ctx.agents_successful());
+
+        // The uniformised TLS 1.3 config allows: AES-256-GCM, AES-128-GCM, CHACHA20
+        let allowed_ciphers: &[u16] = &[0x1301, 0x1302, 0x1303];
+
+        let claim = ctx
+            .find_claim(server, TypeShape::of::<Finished>())
+            .expect(&format!("no Finished claim for server agent in {put}"));
+        let finished = claim.as_ref().as_any().downcast_ref::<Finished>().unwrap();
+        assert!(
+            allowed_ciphers.contains(&finished.chosen_cipher),
+            "{put}: server chosen_cipher 0x{:04x} not in configured set {allowed_ciphers:?}",
+            finished.chosen_cipher,
+        );
+
+        // Verify sigalgs config took effect: the negotiated signature algorithm must be
+        // one of the configured RSA-PSS or RSA schemes.
+        // RSA-PSS+SHA256=0x0804, RSA-PSS+SHA384=0x0805, RSA-PSS+SHA512=0x0806,
+        // RSA+SHA256=0x0401, RSA+SHA384=0x0501, RSA+SHA512=0x0601
+        let allowed_sigalgs: &[i32] = &[0x0804, 0x0805, 0x0806, 0x0401, 0x0501, 0x0601];
+        assert!(
+            finished.signature_algorithm != 0,
+            "{put}: server signature_algorithm not reported (== 0)",
+        );
+        assert!(
+            allowed_sigalgs.contains(&finished.signature_algorithm),
+            "{put}: server signature_algorithm 0x{:04x} not in configured set {allowed_sigalgs:?}",
+            finished.signature_algorithm,
+        );
+    }
+
+    /// Verify that TLS 1.2 cipher configuration takes effect.
+    /// Uses the same seed selection logic as test_seed_successful12.
+    /// Checks that the negotiated cipher is an ECDHE cipher as configured.
+    /// OpenSSL101f and OpenSSL102u are not instrumented for claims.
+    #[cfg(all(not(feature = "openssl101f"), not(feature = "openssl102u")))]
+    #[apply(test_puts, filter = all(tls12, not(libressl)))]
+    fn test_cipher_config_tls12_takes_effect(put: &str) {
+        use crate::claims::Finished;
+
+        let trace = if supports!(put, "tls12_session_resumption") {
+            seed_successful12_with_tickets.build_trace()
+        } else {
+            seed_successful12.build_trace()
+        };
+        let server = AgentName::first().next();
+
+        let runner = default_runner_for(put);
+        let ctx = runner.execute(trace, &mut 0).unwrap();
+        assert!(ctx.agents_successful());
+
+        let claim = ctx
+            .find_claim(server, TypeShape::of::<Finished>())
+            .expect(&format!("no Finished claim for server agent in {put}"));
+        let finished = claim.as_ref().as_any().downcast_ref::<Finished>().unwrap();
+        // The chosen cipher must be non-zero (i.e., actually reported)
+        assert!(
+            finished.chosen_cipher != 0,
+            "{put}: server Finished claim has chosen_cipher == 0 (cipher config not reported)",
+        );
+        // The chosen cipher must be an ECDHE cipher (0xC0xx range) since the seed uses
+        // ServerKeyExchange which only applies to ephemeral key exchange
+        assert!(
+            (finished.chosen_cipher >> 8) == 0xC0,
+            "{put}: server chosen_cipher 0x{:04x} is not an ECDHE cipher — \
+             cipher config may not have taken effect",
+            finished.chosen_cipher,
+        );
+    }
+
     #[test_log::test]
     fn test_corpus_file_sizes() {
         use puffin::trace::Action;
@@ -2551,10 +3165,10 @@ pub mod tests {
                 match &step.action {
                     Action::Input(input) => {
                         // should be below a certain threshold, else we should increase
-                        // max_term_size in fuzzer setup
+                        // max_term_size_explore in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
-                            terms < 300,
+                            terms < TermConstraints::default().max_term_size_explore,
                             "{} has step with too large term size {}!",
                             name,
                             terms
@@ -2588,6 +3202,7 @@ pub mod tests {
             seed_session_resumption_dhe.build_named_trace(),
             seed_session_resumption_ke.build_named_trace(),
             seed_client_attacker_full.build_named_trace(),
+            seed_server_attacker12.build_named_trace(),
             // _full can be large: seed_session_resumption_dhe_full.build_named_trace(),
         ] {
             for step in &trace.steps {
@@ -2597,7 +3212,7 @@ pub mod tests {
                         // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
-                            terms < 300,
+                            terms < TermConstraints::default().max_term_size_explore,
                             "{} has step with too large term size {}!",
                             name,
                             terms
@@ -2649,6 +3264,12 @@ pub mod tests {
         #[test_log::test]
         fn test_serialisation_seed_client_attacker12_json() {
             let trace = seed_client_attacker12.build_trace();
+            test_json_serialization(trace);
+        }
+
+        #[test_log::test]
+        fn test_serialisation_seed_server_attacker12_json() {
+            let trace = seed_server_attacker12.build_trace();
             test_json_serialization(trace);
         }
 
@@ -2913,5 +3534,155 @@ pub mod tests {
             let opaque_message = OpaqueMessage::read(&mut Reader::init(out.as_slice())).unwrap();
             create_message(opaque_message);
         }
+    }
+
+    /// Check if Messages sent at a failing step are captured
+    #[cfg(not(feature = "wolfssl430"))]
+    #[apply(test_puts, filter = all(tls13))]
+    fn test_trigger_alert(put: &str) {
+        // sending an incorrect message
+        let trace = Trace {
+            prior_traces: vec![],
+            descriptors: vec![AgentDescriptor::from_config(
+                AgentName::first(),
+                TLSDescriptorConfig {
+                    tls_version: TLSVersion::V1_3,
+                    typ: AgentType::Server,
+                    ..TLSDescriptorConfig::default()
+                },
+            )],
+            steps: vec![Step {
+                agent: AgentName::first(),
+                action: Action::Input(input_action! { term! {
+                    // Broken ClientHello
+                    fn_client_hello(
+                        fn_protocol_version12,
+                        fn_new_random,
+                        fn_new_session_id,
+                        (fn_cipher_suites_make(
+                              fn_new_cipher_suites
+                        )),
+                        fn_compressions,
+                        (fn_client_extensions_make(
+                            fn_client_extensions_new
+                        ))
+                    )
+                    }
+                }),
+            }],
+            ..Default::default()
+        };
+
+        let mut ctx = puffin::trace::TraceContext::new(
+            puffin::trace::Spawner::new(tls_registry()).with_mapping(&[(
+                AgentName::first(),
+                PutDescriptor::new(put, PutOptions::empty()),
+            )]),
+        );
+        let _ = trace.execute(&mut ctx, &mut 0, true);
+
+        // Try to find an alert message in the knowledges
+        let alert = ctx.find_variable(
+            TypeShape::of::<Message>(),
+            &Query {
+                source: None,
+                matcher: Some(TlsQueryMatcher::Alert),
+                counter: 0,
+            },
+        );
+
+        assert!(alert.is_some());
+    }
+
+    /// Helper: run all differential seeds between two PUTs and assert no differences.
+    #[allow(dead_code)]
+    fn assert_no_differential_differences(first_put: &str, second_put: &str) {
+        use puffin::execution::{DifferentialRunner, TraceRunner};
+        use puffin::protocol::ProtocolTypes;
+        use puffin::trace::Spawner;
+
+        use crate::protocol::TLSProtocolTypes;
+
+        let registry = crate::put_registry::tls_registry();
+        let first_factory = registry
+            .find_by_id(first_put)
+            .expect("first differential PUT must exist in the TLS registry");
+        let second_factory = registry
+            .find_by_id(second_put)
+            .expect("second differential PUT must exist in the TLS registry");
+
+        let second_seed_names: std::collections::HashSet<_> = super::create_corpus(second_factory)
+            .into_iter()
+            .map(|(_, name)| name)
+            .collect();
+        let corpus: Vec<_> = super::create_corpus(first_factory)
+            .into_iter()
+            .filter(|(_, name)| second_seed_names.contains(name))
+            .collect();
+
+        for (trace, name) in corpus {
+            let trace =
+                <TLSProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
+                    trace,
+                );
+            // Map ALL agents in the trace (including prior traces) to the specified PUT.
+            // Without this, agents in prior traces silently fall back to the default PUT,
+            // producing mixed-PUT executions that hide real differences.
+            let first_mappings: Vec<_> = trace
+                .all_descriptors()
+                .iter()
+                .map(|d| {
+                    (
+                        d.name,
+                        PutDescriptor::new(first_put, registry.default_put_options().clone()),
+                    )
+                })
+                .collect();
+            let second_mappings: Vec<_> = trace
+                .all_descriptors()
+                .iter()
+                .map(|d| {
+                    (
+                        d.name,
+                        PutDescriptor::new(second_put, registry.default_put_options().clone()),
+                    )
+                })
+                .collect();
+
+            let runner = DifferentialRunner::new(
+                registry.clone(),
+                Spawner::new(registry.clone()).with_mapping(&first_mappings),
+                Spawner::new(registry.clone()).with_mapping(&second_mappings),
+            );
+
+            let result = runner.execute(trace, &mut 0);
+            assert!(
+                result.is_ok(),
+                "Differential test failed between {} and {}: seed '{}': {:?}",
+                first_put,
+                second_put,
+                name,
+                result.err()
+            );
+        }
+    }
+
+    #[apply(test_differential_puts, first = "openssl340", second = "wolfssl580")]
+    fn test_differential_openssl340_vs_wolfssl580() {
+        assert_no_differential_differences("openssl340", "wolfssl580");
+    }
+
+    #[apply(test_differential_puts, first = "openssl340", second = "libressl421")]
+    fn test_differential_openssl340_vs_libressl421() {
+        assert_no_differential_differences("openssl340", "libressl421");
+    }
+
+    #[apply(
+        test_differential_puts,
+        first = "openssl340",
+        second = "boringssl20260508"
+    )]
+    fn test_differential_openssl340_vs_boringssl20260508() {
+        assert_no_differential_differences("openssl340", "boringssl20260508");
     }
 }

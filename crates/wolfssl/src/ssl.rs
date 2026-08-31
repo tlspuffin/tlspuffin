@@ -56,12 +56,20 @@ impl SslMethod {
         unsafe { SslMethod(wolf::wolfTLSv1_2_client_method()) }
     }
 
+    pub fn tls_client_ssl3_tls13() -> SslMethod {
+        unsafe { SslMethod(wolf::wolfSSLv23_client_method()) }
+    }
+
     pub fn tls_server_13() -> SslMethod {
         unsafe { SslMethod(wolf::wolfTLSv1_3_server_method()) }
     }
 
     pub fn tls_server_12() -> SslMethod {
         unsafe { SslMethod(wolf::wolfTLSv1_2_server_method()) }
+    }
+
+    pub fn tls_server_ssl3_tls13() -> SslMethod {
+        unsafe { SslMethod(wolf::wolfSSLv23_server_method()) }
     }
 
     pub unsafe fn from_ptr(ptr: *mut wolf::WOLFSSL_METHOD) -> SslMethod {
@@ -135,6 +143,19 @@ impl SslContextRef {
         }
     }
 
+    /// Sets the list of signature algorithms (e.g. "RSA-PSS+SHA256:RSA-PSS+SHA384")
+    #[cfg(not(feature = "wolfssl430"))]
+    pub fn set_sigalgs_list(&mut self, sigalgs_list: &str) -> Result<(), ErrorStack> {
+        let sa = CString::new(sigalgs_list).unwrap();
+        unsafe {
+            cvt(wolf::wolfSSL_CTX_set1_sigalgs_list(
+                self.as_ptr(),
+                sa.as_ptr() as *const i8,
+            ))
+            .map(|_| ())
+        }
+    }
+
     /// Sets the list of groups
     #[cfg(feature = "wolfssl430")]
     pub fn set_groups(&mut self, _group_list: &str) -> Result<(), ErrorStack> {
@@ -164,7 +185,7 @@ impl SslContextRef {
         unsafe {
             cvt(wolf::wolfSSL_CTX_load_verify_buffer(
                 self.as_ptr(),
-                cert.as_ptr() as *const u8,
+                cert.as_ptr(),
                 cert.len() as i64,
                 wolf::WOLFSSL_FILETYPE_PEM,
             ))
@@ -212,13 +233,13 @@ impl SslContextRef {
         }
     }
 
-    pub fn get_user_data<T: 'static>(&self) -> Option<Ref<T>> {
+    pub fn get_user_data<T: 'static>(&self) -> Option<Ref<'_, T>> {
         let registry: &ExtraUserDataRegistry =
             self.ex_data(0).expect("unable to find user data registry");
         registry.get::<T>()
     }
 
-    pub fn get_user_data_mut<T: 'static>(&self) -> Option<RefMut<T>> {
+    pub fn get_user_data_mut<T: 'static>(&self) -> Option<RefMut<'_, T>> {
         let registry: &ExtraUserDataRegistry =
             self.ex_data(0).expect("unable to find user data registry");
         registry.get_mut()
@@ -294,7 +315,7 @@ impl SslContextRef {
         unsafe {
             cvt(wolf::wolfSSL_CTX_use_PrivateKey_buffer(
                 self.as_ptr(),
-                key.as_ptr() as *const u8,
+                key.as_ptr(),
                 key.len() as i64,
                 wolf::WOLFSSL_FILETYPE_PEM,
             ))
@@ -360,7 +381,7 @@ impl Ssl {
 
 impl SslRef {
     fn read(&mut self, buf: &mut [u8]) -> c_int {
-        let len = cmp::min(c_int::max_value() as usize, buf.len()) as c_int;
+        let len = cmp::min(c_int::MAX as usize, buf.len()) as c_int;
         unsafe { wolf::wolfSSL_read(self.as_ptr(), buf.as_ptr() as *mut _, len) }
     }
 
@@ -410,13 +431,13 @@ impl SslRef {
         registry.set::<T>(value)
     }
 
-    pub fn get_user_data<T: 'static>(&self) -> Option<Ref<T>> {
+    pub fn get_user_data<T: 'static>(&self) -> Option<Ref<'_, T>> {
         let registry: &ExtraUserDataRegistry =
             self.ex_data(0).expect("unable to find user data registry");
         registry.get::<T>()
     }
 
-    pub fn get_user_data_mut<T: 'static>(&self) -> Option<RefMut<T>> {
+    pub fn get_user_data_mut<T: 'static>(&self) -> Option<RefMut<'_, T>> {
         let registry: &ExtraUserDataRegistry =
             self.ex_data(0).expect("unable to find user data registry");
         registry.get_mut::<T>()
@@ -458,6 +479,22 @@ impl SslRef {
     /// Get the current cipher suite used by wolfssl
     pub fn current_cipher(&self) -> i32 {
         unsafe { wolf::wolfSSL_get_current_cipher_suite(self.as_ptr()) }
+    }
+
+    /// Get the version selected after the handshake
+    pub fn chosen_version(&self) -> Option<TLSVersion> {
+        let version = unsafe {
+            let ptr = wolf::wolfSSL_get_version(self.as_ptr());
+            if ptr.is_null() {
+                return None;
+            }
+            CStr::from_ptr(ptr)
+        };
+        match version.to_bytes() {
+            b"TLSv1.2" => Some(TLSVersion::V1_2),
+            b"TLSv1.3" => Some(TLSVersion::V1_3),
+            _ => None,
+        }
     }
 
     /// Get the current client random

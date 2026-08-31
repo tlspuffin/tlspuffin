@@ -3,12 +3,21 @@ extern crate bindgen;
 use std::env;
 use std::path::PathBuf;
 
-use bindgen::callbacks::ParseCallbacks;
+use bindgen::callbacks::{DeriveInfo, ParseCallbacks, TypeKind};
 
 #[derive(Debug)]
 struct MyParseCallbacks;
 
-impl ParseCallbacks for MyParseCallbacks {}
+impl ParseCallbacks for MyParseCallbacks {
+    fn add_derives(&self, info: &DeriveInfo<'_>) -> Vec<String> {
+        let mut derives = vec![];
+
+        if let TypeKind::Enum = info.kind {
+            derives.push("comparable::Comparable".into());
+        }
+        derives
+    }
+}
 
 fn main() {
     println!("cargo:rerun-if-changed=claim-interface.h");
@@ -22,8 +31,8 @@ fn main() {
         .derive_default(true)
         .impl_debug(true)
         .parse_callbacks(Box::new(MyParseCallbacks {}))
-        .impl_partialeq(true)
-        .derive_partialeq(true)
+        .impl_partialeq(false)
+        .derive_partialeq(false)
         .generate()
         .expect("Unable to generate bindings");
 

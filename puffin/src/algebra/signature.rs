@@ -39,7 +39,7 @@ impl<PT: ProtocolTypes> Signature<PT> {
         let attrs_by_name: HashMap<&'static str, FunctionAttributes> = definitions
             .clone()
             .iter()
-            .map(|((shape, _dynamic_fn), attrs)| (shape.name, attrs.clone()))
+            .map(|((shape, _dynamic_fn), attrs)| (shape.name, *attrs))
             .collect();
         let functions_by_name: HashMap<&'static str, FunctionDefinition<PT>> = definitions
             .clone()
@@ -80,10 +80,9 @@ impl<PT: ProtocolTypes> Signature<PT> {
     }
 
     /// Create a new [`Function`] distinct from all existing [`Function`]s.
-    pub fn new_function<F: 'static, Types>(f: &'static F) -> Function<PT>
-    where
-        F: DescribableFunction<PT, Types>,
-    {
+    pub fn new_function<F: 'static + DescribableFunction<PT, Types>, Types>(
+        f: &'static F,
+    ) -> Function<PT> {
         let (shape, dynamic_fn) = make_dynamic(f);
 
         Function::new(shape, dynamic_fn.clone())
@@ -156,6 +155,7 @@ macro_rules! define_signature {
                                     "get" => attrs.is_get = true,
                                     "no_gen" => attrs.no_gen = true,
                                     "no_bit" => attrs.no_bit = true,
+                                    "no_det" => attrs.no_det = true,
                                     _ => {},
                                 }
                             )*

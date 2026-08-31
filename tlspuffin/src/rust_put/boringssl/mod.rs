@@ -3,7 +3,10 @@ use std::io::ErrorKind;
 
 use boring::error::ErrorStack;
 use boring::ex_data::Index;
-use boring::ssl::{Ssl, SslContext, SslMethod, SslOptions, SslRef, SslStream, SslVerifyMode};
+use boring::ssl::{
+    Ssl, SslContext, SslMethod, SslOptions, SslRef, SslStream, SslVerifyMode,
+    SslVersion as BoringTLSVersion,
+};
 use boring::x509::store::X509StoreBuilder;
 use boring::x509::X509;
 use boringssl_sys::ssl_st;
@@ -12,11 +15,12 @@ use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::error::Error;
 use puffin::put::Put;
 use puffin::stream::{MemoryStream, Stream};
+use smallvec::SmallVec;
 use util::{set_max_protocol_version, static_rsa_cert};
 
 use crate::claims::{
-    ClaimData, ClaimDataTranscript, TlsClaim, TranscriptCertificate, TranscriptClientFinished,
-    TranscriptServerFinished, TranscriptServerHello,
+    ClaimData, ClaimDataMessage, ClaimDataTranscript, Finished, TlsClaim, TranscriptCertificate,
+    TranscriptClientFinished, TranscriptServerFinished, TranscriptServerHello,
 };
 use crate::protocol::{
     AgentType, OpaqueMessageFlight, TLSDescriptorConfig, TLSProtocolBehavior, TLSVersion,
@@ -30,6 +34,7 @@ mod util;
 use std::ops::Deref;
 
 use puffin::algebra::ConcreteMessage;
+use security_claims::ClaimTLSVersion;
 use transcript::extract_current_transcript;
 
 pub struct RustPut {
@@ -48,10 +53,16 @@ impl Stream<TLSProtocolBehavior> for RustPut {
         <MemoryStream as Stream<TLSProtocolBehavior>>::add_to_inbound(self.stream.get_mut(), result)
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<OpaqueMessageFlight>, Error> {
+    fn take_message_from_outbound(
+        &mut self,
+        output_flight: &mut Option<OpaqueMessageFlight>,
+    ) -> Result<(), Error> {
         let memory_stream = self.stream.get_mut();
 
-        <MemoryStream as Stream<TLSProtocolBehavior>>::take_message_from_outbound(memory_stream)
+        <MemoryStream as Stream<TLSProtocolBehavior>>::take_message_from_outbound(
+            memory_stream,
+            output_flight,
+        )
     }
 }
 
@@ -153,10 +164,14 @@ impl RustPut {
 
         match descriptor.protocol_config.tls_version {
             TLSVersion::V1_3 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
+                ctx_builder.set_cipher_list(&descriptor.protocol_config.get_cipher_string_13())?;
+            }
+            TLSVersion::Both => {
+                ctx_builder
+                    .set_cipher_list(&descriptor.protocol_config.get_cipher_string_both())?;
             }
             TLSVersion::V1_2 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?;
+                ctx_builder.set_cipher_list(&descriptor.protocol_config.get_cipher_string_12())?;
             }
         }
 
@@ -175,11 +190,11 @@ impl RustPut {
         set_max_protocol_version(&mut ctx_builder, descriptor.protocol_config.tls_version)?;
 
         match descriptor.protocol_config.tls_version {
-            TLSVersion::V1_3 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls13)?;
+            TLSVersion::V1_3 | TLSVersion::Both => {
+                ctx_builder.set_cipher_list(&descriptor.protocol_config.get_cipher_string_13())?;
             }
             TLSVersion::V1_2 => {
-                ctx_builder.set_cipher_list(&descriptor.protocol_config.cipher_string_tls12)?;
+                ctx_builder.set_cipher_list(&descriptor.protocol_config.get_cipher_string_12())?;
             }
         }
 
@@ -247,8 +262,9 @@ impl RustPut {
     fn create_msg_callback(config: &TlsPutConfig) -> impl Fn(&mut SslRef, i32) {
         let agent_name = config.descriptor.name;
         let origin = config.descriptor.protocol_config.typ;
-        let protocol_version = config.descriptor.protocol_config.tls_version;
+        let config_version = config.descriptor.protocol_config.tls_version;
         let claims = config.claims.clone();
+        let authenticate_peer = config.authenticate_peer;
 
         move |ssl: &mut SslRef, info_type: i32| {
             log::trace!(
@@ -282,6 +298,12 @@ impl RustPut {
                             TranscriptCertificate(t),
                         )))
                     }),
+                ("TLS 1.3 server read_client_finished", 22) => {
+                    Some(Self::get_finished_claim(ssl, false, authenticate_peer))
+                }
+                ("TLS 1.3 client complete_second_flight", 22) => {
+                    Some(Self::get_finished_claim(ssl, true, authenticate_peer))
+                }
                 _ => None,
             };
 
@@ -289,12 +311,54 @@ impl RustPut {
                 claims.deref_borrow_mut().claim_sized(TlsClaim {
                     agent_name,
                     origin,
-                    protocol_version,
+                    config_version,
                     data,
                     step: None,
                 });
             }
         }
+    }
+
+    fn get_finished_claim(ssl: &mut SslRef, outbound: bool, authenticate_peer: bool) -> ClaimData {
+        let mut client_random = vec![0u8; 32];
+        let mut server_random = vec![0u8; 32];
+        ssl.client_random(client_random.as_mut_slice());
+        ssl.server_random(server_random.as_mut_slice());
+
+        let cipher = ssl.current_cipher().unwrap();
+        let cipher_id = cipher.cipher_id();
+
+        let session = ssl.session().unwrap();
+
+        let session_id: SmallVec<[u8; 32]> = session.id().into();
+
+        let mut master_secret = vec![0u8; 32];
+        session.master_key(master_secret.as_mut_slice());
+
+        let peer_certificate = ssl
+            .peer_certificate()
+            .map_or(vec![], |x| x.to_der().unwrap());
+
+        ClaimData::Message(ClaimDataMessage::Finished(Finished {
+            outbound,
+            client_random: client_random.into(),
+            server_random: server_random.into(),
+            session_id,
+            authenticate_peer,
+            peer_certificate: peer_certificate.into(),
+            master_secret: master_secret.into(),
+            tls_version: match ssl.version2() {
+                Some(BoringTLSVersion::TLS1_2) => ClaimTLSVersion::CLAIM_TLS_VERSION_V1_2,
+                Some(BoringTLSVersion::TLS1_3) => ClaimTLSVersion::CLAIM_TLS_VERSION_V1_3,
+                _ => ClaimTLSVersion::CLAIM_TLS_VERSION_UNDEFINED,
+            },
+            chosen_cipher: cipher_id as u16,
+            available_ciphers: Default::default(), // TODO
+            signature_algorithm: 0,                // TODO
+            peer_signature_algorithm: 0,           // TODO
+            early_secret: Default::default(),      // TODO
+            handshake_secret: Default::default(),  // TODO
+        }))
     }
 }
 

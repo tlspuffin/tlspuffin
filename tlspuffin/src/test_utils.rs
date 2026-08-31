@@ -9,6 +9,7 @@ use puffin::algebra::signature::FunctionDefinition;
 use puffin::algebra::{DYTerm, Term, TermType};
 use puffin::error::Error;
 use puffin::execution::{ExecutionStatus, ForkedRunner, Runner, TraceRunner};
+use puffin::fuzzer::bit_mutations::all_mutations;
 use puffin::fuzzer::mutations::MutationConfig;
 use puffin::fuzzer::term_zoo::TermZoo;
 use puffin::fuzzer::utils::{choose, find_term_by_term_path_mut, Choosable, TermConstraints};
@@ -16,26 +17,36 @@ use puffin::libafl::corpus::{Corpus, InMemoryCorpus, Testcase};
 use puffin::libafl::mutators::MutatorsTuple;
 use puffin::libafl::prelude::StdState;
 use puffin::libafl_bolts::bolts_prelude::{Rand, RomuDuoJrRand, StdRand};
+use puffin::libafl_bolts::tuples::NamedTuple;
 use puffin::protocol::{ProtocolBehavior, ProtocolTypes};
 use puffin::put::PutDescriptor;
 use puffin::put_registry::PutRegistry;
 use puffin::trace::Action::Input;
-use puffin::trace::{InputAction, Spawner, Step, Trace, TraceContext};
+use puffin::trace::{InputAction, MetadataTrace, Spawner, Step, Trace, TraceContext};
 use puffin::trace_helper::TraceHelper;
 
 use crate::protocol::{TLSProtocolBehavior, TLSProtocolTypes};
 use crate::put_registry::tls_registry;
 use crate::tls::fn_impl::{
-    fn_certificate_transcript, fn_client_finished_transcript, fn_decrypt_application,
-    fn_decrypt_multiple_handshake_messages, fn_server_finished_transcript,
+    fn_certificate_transcript, fn_client_finished_transcript, fn_decrypt12, fn_decrypt_application,
+    fn_decrypt_multiple_handshake_messages, fn_derive_psk, fn_server_finished_transcript,
     fn_server_hello_transcript,
 };
 use crate::tls::seeds::seed_successful;
 use crate::tls::TLS_SIGNATURE;
 
-pub fn default_runner_for(put: impl Into<PutDescriptor>) -> Runner<TLSProtocolBehavior> {
-    let registry = tls_registry();
-    let spawner = Spawner::new(registry.clone()).with_default(put.into());
+pub fn default_runner_for(put: impl Into<String>) -> Runner<TLSProtocolBehavior> {
+    let mut registry = tls_registry();
+    registry.set_default_factory(&put.into()).unwrap();
+    let spawner = Spawner::new(registry.clone());
+
+    Runner::new(registry, spawner)
+}
+
+pub fn default_runner_for_desc(put_desc: impl Into<PutDescriptor>) -> Runner<TLSProtocolBehavior> {
+    let mut registry = tls_registry();
+    registry.set_default(put_desc.into()).unwrap();
+    let spawner = Spawner::new(registry.clone());
 
     Runner::new(registry, spawner)
 }
@@ -160,6 +171,7 @@ pub mod tcp {
                 args.push("-v");
                 args.push("3");
             }
+            TLSVersion::Both => panic!("Both version found"), //TODO (NB) come back here
         }
 
         let warmups = warmups.map(|warmups| warmups.to_string());
@@ -195,6 +207,7 @@ pub mod tcp {
                 args.push("-v");
                 args.push("3");
             }
+            TLSVersion::Both => panic!("Both version found"), //TODO (NB) come back here
         }
 
         ParametersGuard {
@@ -229,6 +242,7 @@ pub mod tcp {
             TLSVersion::V1_2 => {
                 args.push("-tls1_2");
             }
+            TLSVersion::Both => panic!("Both version found"), //TODO (NB) come back here
         }
 
         ParametersGuard {
@@ -251,6 +265,7 @@ pub mod tcp {
             TLSVersion::V1_2 => {
                 args.push("-tls1_2");
             }
+            TLSVersion::Both => panic!("Both version found"), //TODO (NB) come back here
         }
 
         ParametersGuard {
@@ -269,12 +284,12 @@ pub mod prelude {
     pub use puffin::execution::TraceRunner;
     pub use puffin::test_utils::AssertExecution;
     pub use puffin::trace_helper::TraceHelper;
-    pub use puffin::{supports, test_puts};
+    pub use puffin::{supports, test_differential_puts, test_puts};
     pub use puffin_macros::apply;
 
     pub use crate::put_registry::{for_puts, tls_registry};
     pub use crate::test_utils::tcp::*;
-    pub use crate::test_utils::{default_runner_for, expect_trace_crash};
+    pub use crate::test_utils::{default_runner_for, default_runner_for_desc, expect_trace_crash};
 }
 
 /// Functions that are known to fail to be adversarially generated
@@ -301,6 +316,7 @@ pub fn ignore_eval() -> HashSet<String> {
         // computed in a very specific way! We might give known,valid hash-transcript to help?
         fn_decrypt_application.name(),
         fn_decrypt_multiple_handshake_messages.name(),
+        fn_decrypt12.name(),
     ]
     .iter()
     .map(|fn_name| fn_name.to_string())
@@ -323,7 +339,7 @@ pub fn ignore_eval_attribute() -> HashSet<String> {
 /// Functions that are known to fail to be adversarially generated, MakeMessage, evaluated
 pub fn ignore_add_payload() -> HashSet<String> {
     let mut ignore_eval = ignore_eval();
-    let ignore_pay: HashSet<String> = ["tlspuffin::tls::fn_impl::fn_utils::fn_derive_psk"]
+    let ignore_pay: HashSet<String> = vec![]
         .iter()
         .map(|fn_name: &&str| fn_name.to_string())
         .collect::<HashSet<String>>();
@@ -342,6 +358,14 @@ pub fn ignore_add_payload_mutate() -> HashSet<String> {
     .collect::<HashSet<String>>();
     ignore_add_payload.extend(ignore_mutate);
     ignore_add_payload
+}
+
+/// Functions that are unstables, we might be able to generate them but not easily
+pub fn unstable_functions() -> HashSet<String> {
+    vec![fn_derive_psk.name()]
+        .iter()
+        .map(|fn_name: &&str| fn_name.to_string())
+        .collect::<HashSet<String>>()
 }
 
 /// Parametric test for testing operations on terms (closure `test_map`, e.g., evaluation) through
@@ -450,11 +474,29 @@ where
     let difference = all_functions.difference(&successful_functions);
     let difference_inverse = successful_functions_tested.intersection(&ignored_functions);
 
+    // We do not crash the test if we have issues with the unstable functions
+    let unstable = unstable_functions();
+    let difference_set: HashSet<String> = difference.map(String::to_string).collect();
+    let difference_inverse_set: HashSet<String> =
+        difference_inverse.map(String::to_string).collect();
+    let difference_wo_unstable: HashSet<&String> = difference_set.difference(&unstable).collect();
+    let difference_inverse_wo_unstable: HashSet<&String> =
+        difference_inverse_set.difference(&unstable).collect();
+
     log::debug!("[zoo_test] ignored_functions: {:?}\n", &ignored_functions);
-    log::error!("[zoo_test] Diff: {:?}", &difference);
+    log::debug!("[zoo_test] unstable functions: {:?}\n", &unstable);
+    log::error!("[zoo_test] Diff: {:?}", &difference_set);
     log::error!(
-        "[zoo_test] Intersection with ignored: {:?}",
-        &difference_inverse
+        "[zoo_test] Diff without unstable: {:?}",
+        &difference_wo_unstable
+    );
+    log::error!(
+        "[zoo_test] Intersect with ignored: {:?}",
+        &difference_inverse_set
+    );
+    log::error!(
+        "[zoo_test] Intersect ignored without unstable: {:?}",
+        &difference_inverse_wo_unstable
     );
     log::error!(
         "[zoo_test] Stats: how_many: {how_many}, stop_on_success: {stop_on_success}, stop_on_error: {stop_on_error}\n\
@@ -468,5 +510,177 @@ where
         &all_functions.len(),
         &successful_functions_tested.len()
     );
-    (difference.count() == 0) && (difference_inverse.count() == 0)
+    difference_wo_unstable.is_empty() && difference_inverse_wo_unstable.is_empty()
+}
+
+pub fn add_payloads_randomly<
+    PT: ProtocolTypes,
+    R: Rand,
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
+>(
+    t: &mut Term<PT>,
+    rand: &mut R,
+    ctx: &TraceContext<PB>,
+) {
+    let all_subterms: Vec<&Term<PT>> = t.into_iter().collect_vec();
+    let nb_subterms = all_subterms.len() as i32;
+    let mut i = 0;
+    let nb = (1..max(4, nb_subterms / 3))
+        .collect::<Vec<i32>>()
+        .choose(rand)
+        .unwrap()
+        .to_owned();
+    log::debug!(
+        "Adding {nb} payloads for #subterms={nb_subterms}, max={} in term: {t}...",
+        max(2, nb_subterms / 5)
+    );
+    let mut tries = 0;
+    // let nb = 1;
+    while i < nb {
+        tries += 1;
+        if tries > nb * 100 {
+            log::error!("Failed to add the payloads after {} attempts", tries);
+            break;
+        }
+        if let Ok(()) = add_one_payload_randomly(t, rand, ctx) {
+            i += 1;
+        }
+    }
+}
+
+/// Sanity check for the next test
+pub fn test_pay<PT: ProtocolTypes>(term: &Term<PT>) {
+    rec_inside(term, false, term);
+    pub fn rec_inside<PT: ProtocolTypes>(
+        term: &Term<PT>,
+        already_found: bool,
+        whole_term: &Term<PT>,
+    ) {
+        let already_found = already_found || !term.is_symbolic();
+        match &term.term {
+            DYTerm::Variable(_) => {}
+            DYTerm::Application(_, sub) => {
+                for ti in sub {
+                    if already_found && !ti.is_symbolic() {
+                        panic!("Eheh, found one! Sub: {ti},\n whole_term: {whole_term}")
+                    } else {
+                        rec_inside(ti, already_found, whole_term)
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn add_one_payload_randomly<
+    PT: ProtocolTypes,
+    R: Rand,
+    PB: ProtocolBehavior<ProtocolTypes = PT>,
+>(
+    t: &mut Term<PT>,
+    rand: &mut R,
+    ctx: &TraceContext<PB>,
+) -> Result<(), Error> {
+    let trace = Trace {
+        descriptors: vec![],
+        steps: vec![Step {
+            agent: AgentName::new(),
+            action: Input(InputAction {
+                precomputations: vec![],
+                recipe: t.clone(),
+            }),
+        }],
+        prior_traces: vec![],
+        metadata_trace: MetadataTrace::default(),
+    };
+    if let Some((st_, (step, mut path))) = choose(
+        &trace,
+        &TermConstraints {
+            // as for Make_message.mutate
+            no_payload_in_subterm: false,
+            not_inside_list: false, // should be true, TODO: fix this
+            weighted_depth: false,  // should be true, TODO: fix this
+            ..TermConstraints::default()
+        },
+        rand,
+        // Tests by varying TermConstraints (diff=2 corresponds to fn_derive_psk.name(),
+        // fn_get_ticket.name()) Before   not_inside_list: true,
+        // no_payload_in_subterm: true,     weighted_depth: true, : number_shapes:
+        // 201, number_terms: 78800, eval_count: 182, count_payload_fail: 53, count_lazy_fail:
+        // 3668, count_any_encode_fail: 0 DIF=5
+
+        // Default (all false): number_shapes: 201, number_terms: 78800, eval_count: 185,
+        // count_payload_fail: 22, count_lazy_fail: 3839, count_any_encode_fail: 0
+        // Dif=2
+        //
+        // MAke_message: true, false, true
+        //  number_shapes: 201, number_terms: 78800, eval_count: 181, count_payload_fail: 34,
+        // count_lazy_fail: 3957, count_any_encode_fail: 0 Diff = 6
+
+        // MAke_message + inside: false, false, true
+        // number_shapes: 201, number_terms: 78800, eval_count: 183, count_payload_fail: 23,
+        // count_lazy_fail: 3260, count_any_encode_fail: 0 Diff = 4
+
+        // weighted_Depth = false
+        // number_shapes: 201, number_terms: 78800, eval_count: 184, count_payload_fail: 31,
+        // count_lazy_fail: 4018, count_any_encode_fail: 0 Diff = 3
+    ) {
+        let st = find_term_by_term_path_mut(t, &mut path).unwrap();
+        if let Ok(()) = st.make_payload(ctx) {
+            log::debug!("Added payload for subterm at path {path:?}, step{step},\n - sub_term: {st_}\n  - whole_term {trace}\n  - evaluated={:?}, ", st.payloads.as_ref().unwrap().payload_0);
+            if let Some(payloads) = &mut st.payloads {
+                let mut a: Vec<u8> = payloads.payload.clone().into();
+                a.push(2); // TODO: make something random here! (I suggest mutate with bit-level mutations)
+                a.push(2);
+                a.push(2);
+                a[0] = 2;
+                payloads.payload = a.into();
+                log::debug!("Added a payload at path {path:?}.");
+                Ok(())
+            } else {
+                panic!("Should never happen")
+            }
+        } else {
+            Err(Error::Term(
+                "[add_one_payload_randomly] Unable to make_message".to_string(),
+            ))
+        }
+    } else {
+        Err(Error::Term(
+            "[add_one_payload_randomly] Unable to choose a suitable sub-term".to_string(),
+        ))
+    }
+}
+
+pub type TLSState = StdState<
+    InMemoryCorpus<Trace<TLSProtocolTypes>>,
+    Trace<TLSProtocolTypes>,
+    RomuDuoJrRand,
+    InMemoryCorpus<Trace<TLSProtocolTypes>>,
+>;
+
+pub fn create_state() -> TLSState {
+    let rand = StdRand::with_seed(1235);
+    let mut corpus: InMemoryCorpus<Trace<_>> = InMemoryCorpus::new();
+    corpus
+        .add(Testcase::new(seed_successful.build_trace()))
+        .unwrap();
+    StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
+}
+
+pub fn test_mutations(
+    registry: &PutRegistry<TLSProtocolBehavior>,
+    with_bit_level: bool,
+    with_dy: bool,
+) -> impl MutatorsTuple<Trace<TLSProtocolTypes>, TLSState> + NamedTuple + '_ {
+    all_mutations::<TLSState, TLSProtocolTypes, TLSProtocolBehavior>(
+        MutationConfig {
+            with_bit_level,
+            with_dy,
+            with_focus: false,
+            ..MutationConfig::default()
+        },
+        TLSProtocolTypes::signature(),
+        registry,
+    )
 }

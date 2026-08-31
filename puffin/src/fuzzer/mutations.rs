@@ -1,9 +1,12 @@
+use std::borrow::Cow;
+
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
 use super::utils::{
     choose, choose_iter, choose_term, choose_term_filtered_mut, choose_term_mut,
-    choose_term_path_filtered, find_term_mut, Choosable, TermConstraints,
+    choose_term_path_filtered, find_all_term_filtered, find_term_mut, reservoir_sample, Choosable,
+    TermConstraints,
 };
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::Signature;
@@ -24,7 +27,7 @@ pub struct MutationConfig {
     pub term_constraints: TermConstraints,
     pub with_bit_level: bool,
     pub with_dy: bool,
-    // Focus on one payload at a time for a whole StdMutationalStage
+    /// Focus on one payload at a time for a whole StdMutationalStage
     pub with_focus: bool,
 }
 
@@ -36,31 +39,32 @@ impl Default for MutationConfig {
             max_trace_length: 15,
             min_trace_length: 2,
             term_constraints: TermConstraints::default(),
-            with_bit_level: true,
+            with_bit_level: false,
             with_dy: true,
-            with_focus: false,
+            with_focus: true,
         }
     }
 }
 
+impl MutationConfig {
+    pub fn default_with_bit() -> Self {
+        MutationConfig {
+            with_bit_level: true,
+            with_focus: false,
+            ..Self::default()
+        }
+    }
+}
 pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
 // DY mutations
-      RepeatMutator<S>,
-      SkipMutator<S>,
-      ReplaceReuseMutator<S>,
-      ReplaceMatchMutator<S, PT>,
-      RemoveAndLiftMutator<S>,
+    RepeatMutator<S>,
+    SkipMutator<S>,
+    ReplaceReuseMutator<S>,
+    ReplaceMatchMutator<S, PT>,
+    RemoveAndLiftMutator<S>,
     GenerateMutator<'harness, S, PB>,
     SwapMutator<S>,
 );
-
-pub(crate) fn remove_prefix_and_type(str: &str) -> &str {
-    str.splitn(2, '<').collect::<Vec<&str>>()[0]
-        .split(':')
-        .collect::<Vec<&str>>()
-        .last()
-        .unwrap()
-}
 
 #[must_use]
 pub fn dy_mutations<'harness, S, PT: ProtocolTypes, PB>(
@@ -69,7 +73,7 @@ pub fn dy_mutations<'harness, S, PT: ProtocolTypes, PB>(
     put_registry: &'harness PutRegistry<PB>,
 ) -> DyMutations<'harness, PT, PB, S>
 where
-    S: HasCorpus + HasMetadata + HasMaxSize + HasRand,
+    S: HasCorpus<Trace<PT>> + HasMetadata + HasMaxSize + HasRand,
     PB: ProtocolBehavior<ProtocolTypes = PT>,
 {
     let MutationConfig {
@@ -131,12 +135,7 @@ impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for SwapMutator<S>
 where
     S: HasRand,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
@@ -147,7 +146,6 @@ where
             if let Some(trace_path_b) = choose_term_path_filtered(
                 trace,
                 |term: &Term<PT>| term.get_type_shape() == term_a.get_type_shape(),
-                // TODO-bitlevel: maybe also check that both terms are .is_symbolic()
                 &self.constraints,
                 rand,
             ) {
@@ -170,13 +168,17 @@ where
         log::debug!("       Skipped {}", self.name());
         Ok(MutationResult::Skipped)
     }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
 }
 impl<S> Named for SwapMutator<S>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("SwapMutator")
     }
 }
 
@@ -210,30 +212,27 @@ impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for RemoveAndLiftMutator<S>
 where
     S: HasRand,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        let filter = |term: &Term<PT>| match &term.term {
-            DYTerm::Variable(_) => false,
-            DYTerm::Application(_, subterms) =>
-            // TODO-bitlevel: maybe add: term.is_symbolic() &&
-            {
-                subterms
-                    .find_subterm(|subterm| match &subterm.term {
-                        DYTerm::Variable(_) => false,
-                        DYTerm::Application(_, grand_subterms) => {
-                            grand_subterms.find_subterm_same_shape(subterm).is_some()
-                        }
-                    })
-                    .is_some()
+        let filter = |term: &Term<PT>| {
+            term.is_symbolic() && // exclude terms with payloads since we aim to modify its internal structure
+            match &term.term {
+                DYTerm::Variable(_) => false,
+                DYTerm::Application(_, subterms) =>
+                    {
+                        subterms
+                            .find_subterm(|subterm| match &subterm.term {
+                                DYTerm::Variable(_) => false,
+                                DYTerm::Application(_, grand_subterms) => {
+                                    grand_subterms.find_subterm_same_shape(subterm).is_some()
+                                }
+                            })
+                            .is_some()
+                    }
             }
         };
         if let Some(to_mutate) = choose_term_filtered_mut(trace, filter, &self.constraints, rand) {
@@ -268,14 +267,18 @@ where
             Ok(MutationResult::Skipped)
         }
     }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 impl<S> Named for RemoveAndLiftMutator<S>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("RemoveAndLiftMutator")
     }
 }
 
@@ -305,7 +308,10 @@ where
         with_dy: bool,
     ) -> Self {
         Self {
-            constraints,
+            constraints: TermConstraints {
+                must_be_symbolic: true, // forbid replacing function symbols in terms with payloads
+                ..constraints
+            },
             signature,
             phantom_s: std::marker::PhantomData,
             with_dy,
@@ -317,12 +323,7 @@ impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for ReplaceMatchMutator<S, PT>
 where
     S: HasRand,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
@@ -331,7 +332,6 @@ where
         if let Some(to_mutate) = choose_term_mut(trace, &self.constraints, rand) {
             log::debug!("[Mutation] ReplaceMatchMutator on term\n{}", to_mutate);
             match &mut to_mutate.term {
-                // TODO-bitlevel: maybe also SKIP if not(to_mutate.is_symbolic())
                 DYTerm::Variable(variable) => {
                     if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
                         |(shape, _)| variable.typ == shape.return_type && shape.is_constant(),
@@ -369,14 +369,18 @@ where
             Ok(MutationResult::Skipped)
         }
     }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 impl<S, PT: ProtocolTypes> Named for ReplaceMatchMutator<S, PT>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("ReplaceMatchMutator")
     }
 }
 
@@ -412,17 +416,17 @@ impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for ReplaceReuseMutator<S>
 where
     S: HasRand,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
+        let (trace_nb_payloads, nb_terms) = if self.with_bit {
+            (trace.all_payloads().len(), trace.steps.len())
+        } else {
+            (0, 0)
+        };
         if let Some(replacement) = choose_term(trace, &self.constraints, rand).cloned() {
             if let Some(to_replace) = choose_term_filtered_mut(
                 trace,
@@ -430,6 +434,17 @@ where
                 &self.constraints,
                 rand,
             ) {
+                if self.with_bit {
+                    let nb_payloads = trace_nb_payloads + replacement.all_payloads().len()
+                        - to_replace.all_payloads().len();
+                    let no_more_new_payloads = nb_payloads / std::cmp::max(1, nb_terms)
+                        > self.constraints.threshold_max_payloads_per_term;
+                    if no_more_new_payloads {
+                        log::debug!("[ReplaceReuseMutator] Skipped as the chosen replacement would yield too many payloads.");
+                        log::debug!("       Skipped {}", self.name());
+                        return Ok(MutationResult::Skipped);
+                    }
+                }
                 log::debug!(
                     "[Mutation] Mutate ReplaceReuseMutator on terms\n {} and\n{}",
                     to_replace,
@@ -442,14 +457,18 @@ where
         log::debug!("       Skipped {}", self.name());
         Ok(MutationResult::Skipped)
     }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 impl<S> Named for ReplaceReuseMutator<S>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("ReplaceReuseMutator")
     }
 }
 
@@ -480,12 +499,7 @@ impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for SkipMutator<S>
 where
     S: HasRand,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
@@ -500,18 +514,22 @@ where
             log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
-        let remove_index = state.rand_mut().between(0, (length - 1) as u64) as usize;
+        let remove_index = state.rand_mut().between(0, length - 1);
         log::debug!("[Mutation] Mutate SkipMutator on step {remove_index}");
         steps.remove(remove_index);
         Ok(MutationResult::Mutated)
+    }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
     }
 }
 impl<S> Named for SkipMutator<S>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("SkipMutator")
     }
 }
 
@@ -542,12 +560,7 @@ impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for RepeatMutator<S>
 where
     S: HasRand,
 {
-    fn mutate(
-        &mut self,
-        state: &mut S,
-        trace: &mut Trace<PT>,
-        _stage_idx: i32,
-    ) -> Result<MutationResult, Error> {
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
@@ -562,19 +575,25 @@ where
             log::debug!("       Skipped {}", self.name());
             return Ok(MutationResult::Skipped);
         }
-        let insert_index = state.rand_mut().between(0, length as u64) as usize;
-        let step = state.rand_mut().choose(steps).clone();
+        let insert_index = state.rand_mut().between(0, length);
+        let Some(step) = state.rand_mut().choose(steps) else {
+            return Ok(MutationResult::Skipped);
+        };
         log::debug!("[Mutation] Mutate RepeatMutator on step {insert_index}");
-        trace.steps.insert(insert_index, step);
+        trace.steps.insert(insert_index, step.clone());
         Ok(MutationResult::Mutated)
+    }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
     }
 }
 impl<S> Named for RepeatMutator<S>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("RepeatMutator")
     }
 }
 
@@ -627,52 +646,112 @@ where
         &mut self,
         state: &mut S,
         trace: &mut Trace<PB::ProtocolTypes>,
-        _stage_idx: i32,
     ) -> Result<MutationResult, Error> {
         log::debug!("[DY] Start mutate with {}", self.name());
         if !self.with_dy {
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        if let Some(to_mutate) = choose_term_mut(trace, &self.constraints, rand) {
-            log::debug!("[Mutation] Mutate GenerateMutator on term\n{}", to_mutate);
-            self.mutation_counter += 1;
-            let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
-                log::debug!("[Mutation] Mutate GenerateMutator: refresh zoo");
-                let spawner = Spawner::new(self.put_registry.clone());
-                let ctx = TraceContext::new(spawner); // zoo generate symbolic terms
-                self.zoo.insert(TermZoo::generate(
-                    &ctx,
-                    self.signature,
-                    rand,
-                    self.constraints.zoo_gen_how_many,
-                ))
-            } else {
-                self.zoo.get_or_insert_with(|| {
+        let (to_mutate_path, to_mutate, new_term) = {
+            if let Some((to_mutate, to_mutate_path)) =
+                reservoir_sample(trace, |_| true, &self.constraints, rand)
+            {
+                log::debug!("[Mutation] Mutate GenerateMutator on term\n{}", to_mutate);
+                self.mutation_counter += 1;
+                let zoo = if self.mutation_counter % self.refresh_zoo_after == 0 {
+                    log::debug!("[Mutation] Mutate GenerateMutator: refresh zoo");
                     let spawner = Spawner::new(self.put_registry.clone());
                     let ctx = TraceContext::new(spawner); // zoo generate symbolic terms
-                    TermZoo::generate(
+                    self.zoo.insert(TermZoo::generate(
                         &ctx,
                         self.signature,
                         rand,
                         self.constraints.zoo_gen_how_many,
-                    )
-                })
-            };
-            if let Some(term) = zoo.choose_filtered(
-                |term| to_mutate.get_type_shape() == term.get_type_shape(),
-                rand,
+                    ))
+                } else {
+                    self.zoo.get_or_insert_with(|| {
+                        let spawner = Spawner::new(self.put_registry.clone());
+                        let ctx = TraceContext::new(spawner); // zoo generate symbolic terms
+                        TermZoo::generate(
+                            &ctx,
+                            self.signature,
+                            rand,
+                            self.constraints.zoo_gen_how_many,
+                        )
+                    })
+                };
+                if let Some(new_term) = zoo.choose_filtered(
+                    |term| {
+                        // We seek for a different term with a matching type
+                        to_mutate.get_type_shape() == term.get_type_shape() && *to_mutate != **term
+                    },
+                    rand,
+                ) {
+                    log::debug!(
+                        "Found to_mutate and new_term: {}\n ----------------\n{}",
+                        to_mutate,
+                        new_term
+                    );
+                    (to_mutate_path, to_mutate, new_term)
+                } else {
+                    return Ok(MutationResult::Skipped);
+                }
+            } else {
+                return Ok(MutationResult::Skipped);
+            }
+        };
+
+        // Apply mutation globally with probability 1/2
+        if rand.between(0, 1) == 0 {
+            // Apply globally
+            let mut mutated = false;
+            for trace_path in find_all_term_filtered(
+                trace,
+                |term: &Term<PB::ProtocolTypes>| {
+                    *term.get_type_shape() == *to_mutate.get_type_shape() // supposed to speed up comparison
+                        && *term == *to_mutate
+                },
+                // We seek for all matches, independently of the term constraints, except for the
+                // max_term_size_explore constraint for efficiency reasons
+                &TermConstraints {
+                    max_term_size_explore: TermConstraints::default().max_term_size_explore,
+                    ..TermConstraints::no_constraint()
+                },
             ) {
-                to_mutate.mutate(term.clone());
+                if let Some(term_mut) = find_term_mut(trace, &trace_path) {
+                    log::debug!(
+                        "[GenerateMutator] [Global] we found a match and do the replacement: {:?}",
+                        trace_path
+                    );
+                    term_mut.mutate(new_term.clone());
+                    mutated = true;
+                } else {
+                    log::debug!("[GenerateMutator::mutate] Could not find term to mutate");
+                }
+            }
+            if mutated {
                 Ok(MutationResult::Mutated)
             } else {
-                log::debug!("       Skipped {}", self.name());
                 Ok(MutationResult::Skipped)
             }
         } else {
-            log::debug!("       Skipped {}", self.name());
-            Ok(MutationResult::Skipped)
+            // Apply locally, only once
+            if let Some(term_mut) = find_term_mut(trace, &to_mutate_path) {
+                log::debug!(
+                    "[GenerateMutator] [Local] replacement at: {:?}",
+                    to_mutate_path
+                );
+                term_mut.mutate(new_term.clone());
+                Ok(MutationResult::Mutated)
+            } else {
+                log::debug!("[GenerateMutator::mutate] Could not find term to mutate");
+                Ok(MutationResult::Skipped)
+            }
         }
+    }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
     }
 }
 
@@ -680,8 +759,8 @@ impl<'a, S, PB: ProtocolBehavior> Named for GenerateMutator<'a, S, PB>
 where
     S: HasRand,
 {
-    fn name(&self) -> &str {
-        remove_prefix_and_type(std::any::type_name::<Self>())
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("GenerateMutator")
     }
 }
 
@@ -703,7 +782,7 @@ mod tests {
     use crate::trace::{Action, Step};
 
     fn create_state(
-    ) -> StdState<TestTrace, InMemoryCorpus<TestTrace>, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
+    ) -> StdState<InMemoryCorpus<TestTrace>, TestTrace, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
     {
         let rand = StdRand::with_seed(1235);
         let corpus: InMemoryCorpus<TestTrace> = InMemoryCorpus::new();
@@ -728,7 +807,7 @@ mod tests {
 
         loop {
             let mut trace = setup_simple_trace();
-            mutator.mutate(&mut state, &mut trace, 0).unwrap();
+            mutator.mutate(&mut state, &mut trace).unwrap();
 
             let length = trace.steps.len();
             if let Some(last) = trace.steps.get(length - 1) {
@@ -752,7 +831,7 @@ mod tests {
 
         loop {
             let mut trace = setup_simple_trace();
-            mutator.mutate(&mut state, &mut trace, 0).unwrap();
+            mutator.mutate(&mut state, &mut trace).unwrap();
 
             if let Some(last) = trace.steps.iter().last() {
                 match &last.action {
@@ -787,7 +866,7 @@ mod tests {
         loop {
             let mut trace = setup_simple_trace();
             let before_mutation = sum_extension_appends(&trace);
-            let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
+            let result = mutator.mutate(&mut state, &mut trace).unwrap();
 
             if result == MutationResult::Mutated {
                 let after_mutation = sum_extension_appends(&trace);
@@ -815,7 +894,7 @@ mod tests {
 
         loop {
             let mut trace = setup_simple_trace();
-            let result = mutator.mutate(&mut state, &mut trace, 0).unwrap();
+            let result = mutator.mutate(&mut state, &mut trace).unwrap();
 
             if result == MutationResult::Mutated {
                 let client_hellos = count_client_hello(&trace);
@@ -837,7 +916,7 @@ mod tests {
         loop {
             let mut trace = setup_simple_trace();
             let before_len = trace.steps.len();
-            mutator.mutate(&mut state, &mut trace, 0).unwrap();
+            mutator.mutate(&mut state, &mut trace).unwrap();
 
             if before_len - 1 == trace.steps.len() {
                 break;
@@ -852,7 +931,7 @@ mod tests {
 
         loop {
             let mut trace = setup_simple_trace();
-            mutator.mutate(&mut state, &mut trace, 0).unwrap();
+            mutator.mutate(&mut state, &mut trace).unwrap();
 
             let is_first_not_ch = if let Some(first) = trace.steps.first() {
                 match &first.action {

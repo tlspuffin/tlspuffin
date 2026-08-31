@@ -96,6 +96,7 @@ pub mod test_signature {
     use std::fmt;
     use std::io::Read;
 
+    use comparable::Comparable;
     use puffin_build::puffin;
     use serde::{Deserialize, Serialize};
 
@@ -119,31 +120,31 @@ pub mod test_signature {
         dummy_extract_knowledge_codec, term,
     };
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct HmacKey;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct HandshakeMessage;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct Encrypted;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct ProtocolVersion;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct Random;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct ClientExtension;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct ClientExtensions;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct Group;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct SessionID;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct CipherSuites;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct CipherSuite;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct Compression;
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct Compressions;
 
     dummy_extract_knowledge_codec!(TestProtocolTypes, HmacKey);
@@ -377,7 +378,7 @@ pub mod test_signature {
     pub type TestTrace = Trace<TestProtocolTypes>;
     pub type TestTerm = Term<TestProtocolTypes>;
 
-    #[derive(Clone)]
+    #[derive(Clone, Comparable, PartialEq)]
     pub struct TestClaim;
 
     dummy_extract_knowledge_codec!(TestProtocolTypes, TestClaim);
@@ -410,6 +411,7 @@ pub mod test_signature {
         }
     }
 
+    #[derive(Comparable)]
     pub struct TestOpaqueMessage;
 
     impl Clone for TestOpaqueMessage {
@@ -442,6 +444,7 @@ pub mod test_signature {
 
     dummy_extract_knowledge!(TestProtocolTypes, TestOpaqueMessage);
 
+    #[derive(Comparable)]
     pub struct TestMessage;
 
     impl Clone for TestMessage {
@@ -491,7 +494,7 @@ pub mod test_signature {
         }
     }
 
-    #[derive(Debug, Clone)]
+    #[derive(Debug, Clone, Comparable)]
     pub struct TestMessageFlight;
 
     impl
@@ -531,7 +534,7 @@ pub mod test_signature {
         }
     }
 
-    #[derive(Debug, Clone, Default)]
+    #[derive(Debug, Clone, Default, Comparable)]
     pub struct TestOpaqueMessageFlight;
 
     impl OpaqueProtocolMessageFlight<TestProtocolTypes, TestOpaqueMessage> for TestOpaqueMessageFlight {
@@ -572,7 +575,7 @@ pub mod test_signature {
         }
     }
 
-    #[derive(Clone, Debug, Hash, Serialize, Deserialize)]
+    #[derive(Clone, PartialEq, Eq, Debug, Hash, Serialize, Deserialize)]
     pub struct TestProtocolTypes;
 
     impl ProtocolTypes for TestProtocolTypes {
@@ -581,6 +584,28 @@ pub mod test_signature {
 
         fn signature() -> &'static Signature<Self> {
             &TEST_SIGNATURE
+        }
+
+        fn differential_fuzzing_whitelist() -> Option<Vec<TypeId>> {
+            None
+        }
+
+        fn differential_fuzzing_terms_to_eval(
+            _agents: &Vec<AgentDescriptor<Self::PUTConfig>>,
+        ) -> Vec<crate::algebra::Term<Self>> {
+            vec![]
+        }
+
+        fn differential_fuzzing_claims_blacklist() -> Option<Vec<TypeId>> {
+            None
+        }
+
+        fn differential_fuzzing_uniformise_put_config(trace: Trace<Self>) -> Trace<Self> {
+            trace
+        }
+
+        fn differential_fuzzing_filter_diff(_diff: &crate::differential::TraceDifference) -> bool {
+            true
         }
     }
 
@@ -665,6 +690,7 @@ mod tests {
     use crate::algebra::signature::Signature;
     use crate::algebra::term::TermType;
     use crate::algebra::{AnyMatcher, DYTerm, Term};
+    use crate::put::{PutDescriptor, PutOptions};
     use crate::put_registry::{Factory, PutRegistry};
     use crate::term;
     use crate::trace::{Source, Spawner, TraceContext};
@@ -746,8 +772,10 @@ mod tests {
             Box::new(TestFactory)
         }
 
-        let registry =
-            PutRegistry::<TestProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
+        let registry = PutRegistry::<TestProtocolBehavior>::new(
+            [("teststub", dummy_factory())],
+            PutDescriptor::new("teststub", PutOptions::empty()),
+        );
 
         let spawner = Spawner::new(registry);
         let mut context = TraceContext::new(spawner);

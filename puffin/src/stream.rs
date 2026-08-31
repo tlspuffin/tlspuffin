@@ -33,7 +33,8 @@ pub trait Stream<PB: ProtocolBehavior> {
     /// Takes a single TLS message from the outbound channel
     fn take_message_from_outbound(
         &mut self,
-    ) -> Result<Option<PB::OpaqueProtocolMessageFlight>, Error>;
+        output_flight: &mut Option<PB::OpaqueProtocolMessageFlight>,
+    ) -> Result<(), Error>;
 }
 
 /// Describes in- or outbound channels of an [`crate::agent::Agent`].
@@ -75,13 +76,14 @@ impl<PB: ProtocolBehavior> Stream<PB> for MemoryStream {
 
     fn take_message_from_outbound(
         &mut self,
-    ) -> Result<Option<PB::OpaqueProtocolMessageFlight>, Error> {
-        let flight =
+        output_flight: &mut Option<PB::OpaqueProtocolMessageFlight>,
+    ) -> Result<(), Error> {
+        *output_flight =
             PB::OpaqueProtocolMessageFlight::read_bytes(self.outbound.get_ref().as_slice());
         self.outbound.set_position(0);
         self.outbound.get_mut().clear();
 
-        Ok(flight)
+        Ok(())
     }
 }
 

@@ -12,6 +12,13 @@ pub enum TlsQueryMatcher {
     Handshake(Option<HandshakeType>),
     ApplicationData,
     Heartbeat,
+    /// Match a `MessageFlight` starting with a ClientHello message
+    ClientHelloFlight,
+    /// Match a `MessageFlight` starting with a ServerHello message
+    ServerHelloFlight,
+    /// Match a `MessageFlight` starting with ApplicationData
+    EncryptedFlight,
+    OtherFlight,
 }
 
 impl Matcher for TlsQueryMatcher {
@@ -27,6 +34,14 @@ impl Matcher for TlsQueryMatcher {
             TlsQueryMatcher::Alert => matches!(self, TlsQueryMatcher::Alert),
             TlsQueryMatcher::Heartbeat => matches!(self, TlsQueryMatcher::Heartbeat),
             TlsQueryMatcher::ApplicationData => matches!(self, TlsQueryMatcher::ApplicationData),
+            TlsQueryMatcher::ClientHelloFlight => {
+                matches!(self, TlsQueryMatcher::ClientHelloFlight)
+            }
+            TlsQueryMatcher::ServerHelloFlight => {
+                matches!(self, TlsQueryMatcher::ServerHelloFlight)
+            }
+            TlsQueryMatcher::EncryptedFlight => matches!(self, TlsQueryMatcher::EncryptedFlight),
+            TlsQueryMatcher::OtherFlight => matches!(self, TlsQueryMatcher::OtherFlight),
         }
     }
 

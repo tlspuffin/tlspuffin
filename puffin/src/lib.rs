@@ -5,6 +5,7 @@ pub mod algebra;
 pub mod claims;
 pub mod cli;
 pub mod codec;
+pub mod differential;
 pub mod error;
 pub mod execution;
 pub mod experiment;
