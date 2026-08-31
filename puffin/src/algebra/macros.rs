@@ -73,8 +73,7 @@ macro_rules! term {
 
     //
     // Function Applications
-    //
-    ($func:ident ($($args:tt),*) $(>$req_type:expr)?) => {{
+    ($func:ident ( $( $arg:tt $( ( $($inner:tt)* ) )? ),* ) $(>$req_type:expr)?) => {{
         use $crate::algebra::signature::Signature;
         use $crate::algebra::{DYTerm,Term};
 
@@ -88,7 +87,7 @@ macro_rules! term {
             #[allow(unused)]
             if let Some(argument) = func.shape().argument_types.get(i) {
                 i += 1;
-                Term::from($crate::term_arg!($args > argument.clone()))
+                Term::from($crate::term_arg!($arg $( ( $($inner)* ) )? > argument.clone()))
             } else {
                 panic!("too many arguments specified for function {}", func)
             }
@@ -119,14 +118,20 @@ macro_rules! term {
 
 #[macro_export]
 macro_rules! term_arg {
-    // Somehow the following rules is very important
+    // Parenthesized nested term (unwrap the parentheses and re-parse the content).
+    // e.g. `(fn_f())`. This path is kept for backward compatibility when double parenthesis were mandatory
     ( ( $($e:tt)* ) $(>$req_type:expr)?) => {{
         use $crate::algebra::{DYTerm,Term};
 
         Term::from(term!($($e)* $(>$req_type)?))
     }};
-    // not sure why I should need this
-    // ( ( $e:tt ) ) => (ast!($e));
+    // Nested application without wrapping parentheses: `fn_f(...)`.
+    ( $f:ident ( $($inner:tt)* ) $(>$req_type:expr)?) => {{
+        use $crate::algebra::{DYTerm,Term};
+
+        Term::from(term!($f ( $($inner)* ) $(>$req_type)?))
+    }};
+    // Any single token tree (constant, variable, ...).
     ($e:tt $(>$req_type:expr)?) => {{
         Term::from(term!($e $(>$req_type)?))
     }};

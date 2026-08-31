@@ -10,6 +10,7 @@ members = [
     "puffin-build",
     "puffin-macros",
     "extractable-macro",
+    "constructor-macro"
 ]
 
 exclude = [
@@ -77,6 +78,7 @@ syn = "2.0.66"
 quote = "1.0.36"
 proc-macro2 = "1.0.79"
 trybuild = "< 1.0.91"
+linkme = "0.3.35"
 
 # They changed the Comparable crate from 0.5.5 to 0.5.6 where arrays are no longer supported for now
 # 0.5.6 breaks tlspuffin/src/claims.rs::TlsTranscript array attribute
