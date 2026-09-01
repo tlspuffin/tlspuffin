@@ -351,7 +351,6 @@ where
         let mut fuzzer: StdFuzzer<CS, F, _, _, OF> =
             StdFuzzer::new(self.scheduler.unwrap(), feedback, objective);
 
-<<<<<<< HEAD
         let mut executor: ConcreteExecutor<
             'harness,
             EM,
@@ -370,20 +369,6 @@ where
             &mut self.event_manager,
             Duration::new(5, 0),
         )?;
-=======
-        let mut executor: ConcreteExecutor<'harness, H, OT, _> = TimeoutExecutor::new(
-            InProcessExecutor::new(
-                self.harness_fn,
-                // hint: edges_observer is expensive to serialize (only noticeable if we add all
-                // inputs to the corpus)
-                self.observers.unwrap(),
-                &mut fuzzer,
-                &mut state,
-                &mut self.event_manager,
-            )?,
-            Duration::new(50, 0),
-        );
->>>>>>> 284ac184a ([DEBUG] LibAFL timeout set to 50s to avoid Tiemout in fuzz run.)
 
         // In case the corpus is empty (on first run), reset
         if state.corpus().is_empty() {

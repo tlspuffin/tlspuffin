@@ -401,11 +401,12 @@ where
             log::info!("Execution without payload evaluations...");
         }
 
-        let trace = match Trace::<PB::ProtocolTypes>::from_file(input) {
-            Ok(t) => t,
-            Err(e) => {
-                log::error!("Invalid trace file {} (at {}:{}): {}", input, file!(), line!(), e);
-                return ExitCode::FAILURE }
+        let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input) {
+            t
+        } else {
+            log::error!("Invalid trace file {}", input);
+
+            return ExitCode::FAILURE;
         };
 
         log::info!("Agents: {:?}", &trace.descriptors);
@@ -764,12 +765,11 @@ fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(
     input: P,
     config_trace: ConfigTrace,
 ) {
-    let trace = match Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
-        Ok(t) => t,
-        Err(e) => {
-            log::error!("Invalid trace file {} (at {}:{}): {}", input.as_ref().display(), file!(), line!(), e);
-            return
-        }
+    let trace = if let Ok(t) = Trace::<PB::ProtocolTypes>::from_file(input.as_ref()) {
+        t
+    } else {
+        log::error!("Invalid trace file {}", input.as_ref().display());
+        return;
     };
 
     log::debug!("Agents: {:?}", &trace.descriptors);
