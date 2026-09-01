@@ -28,6 +28,20 @@
 #include "server_key.h"
 #include <puffin/ssh_authorized_creds.h>
 
+/*
+ * Claim instrumentation (HAS_CLAIMS). Set iff the vendored wolfSSH carries the
+ * PUFFIN session-id patch (puffin-build/vendors/wolfssh/instrument_claims.cmake).
+ * The accessor exposes the SSH session id (exchange hash H) from the internal
+ * WOLFSSH struct — not in any public wolfSSH header — so the decryption recipe
+ * can derive the server-to-client keys. Declared weak so a plain (non-patched)
+ * wolfSSH still links; then the call resolves to NULL and session_id stays
+ * empty. Pure observation; never affects the protocol path.
+ */
+#ifdef HAS_CLAIMS
+extern int puffin_wolfssh_get_session_id(WOLFSSH *ssh, const unsigned char **out,
+                                         unsigned int *len) __attribute__((weak));
+#endif /* HAS_CLAIMS */
+
 /* ── Internal state ──────────────────────────────────────────────────────── */
 
 typedef enum
@@ -76,6 +90,7 @@ static RESULT
 wolfssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 static void wolfssh_rng_reseed(const uint8_t *buffer, size_t length);
 static void wolfssh_seed_rewind(void);
+static void emit_handshake_claim(AGENT agent);
 
 /* ── auth callback: enforce the shared authorization boundary ─────────────── */
 
@@ -128,6 +143,14 @@ static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
         snprintf(agent->auth_method, sizeof(agent->auth_method), "publickey");
         memcpy(agent->auth_key_fp, fp, sizeof(fp));
         agent->auth_key_fp_len = 32;
+        /* Emit the completion claim HERE, at auth success — not at
+           wolfSSH_accept()==WS_SUCCESS, which for a server only fires after a
+           channel is opened. The differential corpus is auth-complete (no channel
+           step), so accept() never returns WS_SUCCESS on it and the claim would
+           never fire; libssh's harness emits at auth completion, so this keeps the
+           two symmetric. The session id (H) is set at KEX (before auth), so it is
+           already available for the decryption recipe. Idempotent (claim_emitted). */
+        emit_handshake_claim(agent);
         return WOLFSSH_USERAUTH_SUCCESS;
     }
     else if (authType == WOLFSSH_USERAUTH_PASSWORD)
@@ -138,6 +161,7 @@ static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
 
         snprintf(agent->auth_method, sizeof(agent->auth_method), "password");
         agent->auth_key_fp_len = 0;
+        emit_handshake_claim(agent); /* see publickey branch: emit at auth success */
         return WOLFSSH_USERAUTH_SUCCESS;
     }
 
@@ -259,6 +283,11 @@ static AGENT wolfssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
         wolfSSH_CTX_SetAlgoListMac(ctx, descriptor->macs);
     if (descriptor->hostkey_algos)
         wolfSSH_CTX_SetAlgoListKey(ctx, descriptor->hostkey_algos);
+    /* server-sig-algs advertised in EXT_INFO (RFC 8308). wolfSSH stores the
+       pointer without copying, so the string must outlive the ctx — the Rust
+       side keeps it alive for the agent lifetime (see CAgent `_algos`). */
+    if (descriptor->server_sig_algs)
+        wolfSSH_CTX_SetAlgoListKeyAccepted(ctx, descriptor->server_sig_algs);
 
     if (is_server)
     {
@@ -379,6 +408,21 @@ static void emit_handshake_claim(AGENT agent)
         memcpy(claim.auth_key_fp, agent->auth_key_fp, agent->auth_key_fp_len);
         claim.auth_key_fp_len = agent->auth_key_fp_len;
     }
+#ifdef HAS_CLAIMS
+    /* KEX-transcript binding: the SSH session id (exchange hash H). */
+    if (puffin_wolfssh_get_session_id != NULL)
+    {
+        const unsigned char *sid = NULL;
+        unsigned int sid_len = 0;
+        if (puffin_wolfssh_get_session_id(agent->ssh, &sid, &sid_len) == 0 && sid != NULL)
+        {
+            if (sid_len > sizeof(claim.session_id))
+                sid_len = sizeof(claim.session_id);
+            memcpy(claim.session_id, sid, sid_len);
+            claim.session_id_len = (uint8_t)sid_len;
+        }
+    }
+#endif /* HAS_CLAIMS */
     claim.phase = 3; /* PHASE_DONE: this is the completed-handshake claim */
 
     agent->claimer->notify(agent->claimer->context, &claim);

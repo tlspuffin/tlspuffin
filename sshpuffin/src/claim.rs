@@ -21,12 +21,15 @@ use crate::protocol::SshProtocolTypes;
 /// identity/impersonation divergences (one stack believes it authenticated user A,
 /// the other user B, from the same input) that the transcript comparison cannot.
 ///
-/// Only the auth-belief fields are carried (and hence compared). The richer claim
-/// the C harness also builds — `session_id` (the exchange hash, which differs by
-/// construction between two stacks with independent ephemeral keys), packet
-/// counts, and channel digests — is deliberately NOT decoded here: it would
-/// manufacture benign claim differences. Those come back later as the
-/// matching-conversation / Terrapin substrate, with the appropriate ignores.
+/// The auth-belief fields are the ones *compared* across PUTs. `session_id` (the
+/// first-KEX exchange hash H) is also carried, but is `#[comparable_ignore]`: it
+/// differs by construction between two stacks with independent ephemeral keys, so
+/// comparing it would manufacture benign differences. It is decoded solely so the
+/// s2c decryption recipe can source each PUT's own H — via
+/// [`crate::ssh::fn_crypto::fn_claim_exchange_hash`] — instead of reconstructing
+/// it from a hard-coded (and mutation-stale) client KEXINIT. The C harness also
+/// builds channel digests / packet counts; those stay undecoded (matching-
+/// conversation / Terrapin substrate, a separate concern).
 #[derive(Debug, Clone, Comparable, PartialEq, Default)]
 pub struct SshClaimInner {
     /// Method the server believes succeeded: "publickey" / "password" / "".
@@ -35,6 +38,10 @@ pub struct SshClaimInner {
     pub auth_user: String,
     /// SHA-256 fingerprint of the authenticated public key (empty for password/none).
     pub auth_key_fp: Vec<u8>,
+    /// First-KEX exchange hash H (== SSH session id, RFC 4253 §7.2). Decryption
+    /// material only — NOT compared (differs per-stack by construction).
+    #[comparable_ignore]
+    pub session_id: Vec<u8>,
 }
 dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 
@@ -65,7 +72,10 @@ impl Claim for SshClaim {
     }
 
     fn id(&self) -> TypeShape<SshProtocolTypes> {
-        TypeShape::of::<SshClaimInner>()
+        // Must match the concrete type `inner()` yields (a `Box<SshClaimInner>`,
+        // the registered EvaluatedTerm type) so a decryption-recipe Variable typed
+        // `Box<SshClaimInner>` resolves via `find_claim` (which matches on `id()`).
+        TypeShape::of::<Box<SshClaimInner>>()
     }
 
     fn inner(&self) -> Box<dyn EvaluatedTerm<SshProtocolTypes>> {

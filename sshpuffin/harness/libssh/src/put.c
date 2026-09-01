@@ -314,6 +314,13 @@ static AGENT libssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
             ssh_bind_options_set(bind,
                                  SSH_BIND_OPTIONS_HOSTKEY_ALGORITHMS,
                                  descriptor->hostkey_algos);
+        /* server-sig-algs advertised in EXT_INFO (RFC 8308): libssh builds it from
+           the accepted publickey types, defaulting to its FULL supported set. Pin
+           it so it matches wolfSSH's advertisement (see the descriptor field). */
+        if (descriptor->server_sig_algs)
+            ssh_bind_options_set(bind,
+                                 SSH_BIND_OPTIONS_PUBKEY_ACCEPTED_KEY_TYPES,
+                                 descriptor->server_sig_algs);
 #endif
 
         /* Import the embedded RSA host key */
@@ -859,7 +866,7 @@ static bool libssh_is_successful(AGENT agent)
     return agent->state == PUT_STATE_DONE;
 }
 
-/* ── register_claimer (no-op for now) ────────────────────────────────────── */
+/* ── register_claimer ────────────────────────────────────────────────────── */
 
 static void libssh_register_claimer(AGENT agent, const CLAIMER_CB *claimer)
 {
