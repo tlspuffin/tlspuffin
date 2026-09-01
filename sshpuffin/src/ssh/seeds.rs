@@ -2172,6 +2172,26 @@ pub fn create_corpus(
             seed_client_attacker_ext_info(server),
             "seed_client_attacker_ext_info",
         ),
+        // Credential-confusion REJECTION seeds (impersonation: A-name-with-key-B;
+        // and unauthorized key C). PROMOTED: 0-diff cross-vendor. Both stacks
+        // correctly reject the same (user, key) pairing, and — now that the
+        // post-KEX claim exposes the session id (H) even when auth is rejected —
+        // both decode the encrypted SERVICE_ACCEPT + USERAUTH_FAILURE, which the
+        // key-aligned transcript compares position-independently. (The earlier
+        // "flush-timing wall, single-PUT only" note is stale: the wall was a
+        // positional-alignment artifact the AlignedTranscript removes, and the
+        // no-decryption-on-failed-auth gap is closed by the post-KEX claim.)
+        // The DY mutator explores the credential space from here: a mutation that
+        // makes one stack ACCEPT a pairing the other rejects surfaces as an
+        // accept/reject (UserAuthSuccess vs Failure) divergence.
+        (
+            seed_client_attacker_impersonate_a_with_b(server),
+            "seed_client_attacker_impersonate_a_with_b",
+        ),
+        (
+            seed_client_attacker_unauthorized_key_c(server),
+            "seed_client_attacker_unauthorized_key_c",
+        ),
         // Two real PUTs relayed by the attacker — the substrate the live
         // matching-conversation oracle needs. Mutations that desync the relayed
         // transcript (Terrapin-style) are flagged as a security objective.
@@ -2201,19 +2221,10 @@ pub fn create_corpus(
                 seed_client_attacker_channel_data(server),
                 "seed_client_attacker_channel_data",
             ),
-            // Credential-confusion REJECTION seeds (impersonation A-name-with-key-B,
-            // and unauthorized key C). Both stacks correctly reject; single-PUT
-            // only because they flush USERAUTH_FAILURE at different s2c positions
-            // (flush-timing wall). The authorized-B baseline is promoted to the
-            // differential corpus above (seed_client_attacker_pubkey_b).
-            (
-                seed_client_attacker_impersonate_a_with_b(server),
-                "seed_client_attacker_impersonate_a_with_b",
-            ),
-            (
-                seed_client_attacker_unauthorized_key_c(server),
-                "seed_client_attacker_unauthorized_key_c",
-            ),
+            // (The credential-confusion REJECTION seeds impersonate_a_with_b /
+            // unauthorized_key_c were PROMOTED to the differential corpus above,
+            // now that the post-KEX claim lets their encrypted USERAUTH_FAILURE
+            // decode on both stacks. They are no longer registered here.)
             // Peer-initiated-rekey conformance probe: inject a valid KEXINIT after
             // NewKeys, then non-KEX traffic. Single-PUT (drives each stack's rekey
             // state machine); the confirmed-correct behaviour was validated with a

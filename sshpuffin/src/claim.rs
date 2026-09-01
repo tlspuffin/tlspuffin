@@ -49,6 +49,13 @@ dummy_extract_knowledge_codec!(SshProtocolTypes, Box<SshClaimInner>);
 pub struct SshClaim {
     agent_name: AgentName,
     inner: Box<SshClaimInner>,
+    /// Trace step at which the claim was emitted (set by the framework). NOT
+    /// compared across PUTs: it is harness/library drain-timing metadata (the two
+    /// stacks reach a given claim point at different trace steps — e.g. the
+    /// post-KEX claim lands at step 5 on one and 6 on the other), which is benign
+    /// and would otherwise manufacture a spurious per-claim difference. Only the
+    /// per-agent auth belief in `inner` is the security-relevant comparison.
+    #[comparable_ignore]
     step: Option<StepNumber>,
 }
 

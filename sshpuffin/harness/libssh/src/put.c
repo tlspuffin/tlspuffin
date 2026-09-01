@@ -657,6 +657,26 @@ static void emit_phase_claim(AGENT agent)
         claim.rx_count = puffin_ssh_get_rx_count(agent->session);
     if (puffin_ssh_get_tx_count != NULL)
         claim.tx_count = puffin_ssh_get_tx_count(agent->session);
+    /* KEX-transcript binding: the SSH session id (exchange hash H). It becomes
+       available once KEX completes (i.e. by the phase-2/AUTH claim), so carrying
+       it here makes H available to the s2c decryption recipe even on runs that
+       reach auth but never SUCCEED — the completion claim (emit_handshake_claim)
+       fires only on success, so without this a rejected/aborted-auth trace would
+       have no claim and its encrypted layer could not be decoded. Phase-1/KEX
+       fires before KEX finishes, so its session_id is empty and the Rust side
+       (which keeps only claims carrying a session id) drops it. */
+    {
+        const unsigned char *sid = NULL;
+        size_t sid_len = 0;
+        if (puffin_ssh_get_session_id != NULL &&
+            puffin_ssh_get_session_id(agent->session, &sid, &sid_len) == 0 && sid != NULL)
+        {
+            if (sid_len > sizeof(claim.session_id))
+                sid_len = sizeof(claim.session_id);
+            memcpy(claim.session_id, sid, sid_len);
+            claim.session_id_len = (uint8_t)sid_len;
+        }
+    }
     claim.phase = (uint8_t)phase;
 
     agent->claimer->notify(agent->claimer->context, &claim);

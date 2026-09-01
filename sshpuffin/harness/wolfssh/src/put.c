@@ -66,7 +66,8 @@ struct AGENT_TYPE
     char state_desc[256];
 
     const CLAIMER_CB *claimer; /* registered claim callback, or NULL */
-    bool claim_emitted;        /* guard so the handshake claim fires once */
+    bool claim_emitted;        /* guard so the completion claim fires once */
+    bool kex_claim_emitted;    /* guard so the post-KEX (session-id) claim fires once */
 
     /* Authentication belief recorded by the userauth callback (server side). */
     char auth_method[SSH_CLAIM_STR_LEN];
@@ -91,6 +92,7 @@ wolfssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *re
 static void wolfssh_rng_reseed(const uint8_t *buffer, size_t length);
 static void wolfssh_seed_rewind(void);
 static void emit_handshake_claim(AGENT agent);
+static void emit_kex_claim(AGENT agent);
 
 /* ── auth callback: enforce the shared authorization boundary ─────────────── */
 
@@ -123,6 +125,11 @@ static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
        the key must be authorized FOR THIS USER. */
     if (authData == NULL)
         return WOLFSSH_USERAUTH_FAILURE;
+
+    /* KEX is complete by the time userauth runs, so the session id is available:
+       emit the post-KEX (session-id-only, empty auth) claim now, before the
+       accept/reject decision, so s2c decryption has H even if auth is rejected. */
+    emit_kex_claim(agent);
 
     char user[SSH_CLAIM_STR_LEN];
     snprintf(user, sizeof(user), "%.*s", (int)authData->usernameSz,
@@ -427,6 +434,44 @@ static void emit_handshake_claim(AGENT agent)
 
     agent->claimer->notify(agent->claimer->context, &claim);
     agent->claim_emitted = true;
+}
+
+/*
+ * Emit a post-KEX claim carrying ONLY the session id (exchange hash H), with an
+ * empty auth belief, at phase 2 (AUTH). Fires once, as soon as the userauth
+ * callback is first entered — i.e. KEX has completed and ssh->sessionId is set,
+ * but the auth outcome is not yet decided. This makes H available to the s2c
+ * decryption recipe for EVERY trace that completes KEX, including ones whose auth
+ * is rejected or aborted (for which the completion claim never fires). It mirrors
+ * the libssh phase-2/AUTH claim, so the two PUTs emit a symmetric claim sequence:
+ * [post-KEX(empty auth)] on failure, [post-KEX(empty auth), completion(auth)] on
+ * success. No-op without a registered claimer or session-id instrumentation.
+ */
+static void emit_kex_claim(AGENT agent)
+{
+    if (agent->claimer == NULL || agent->kex_claim_emitted)
+        return;
+#ifdef HAS_CLAIMS
+    if (puffin_wolfssh_get_session_id != NULL)
+    {
+        const unsigned char *sid = NULL;
+        unsigned int sid_len = 0;
+        if (puffin_wolfssh_get_session_id(agent->ssh, &sid, &sid_len) == 0 && sid != NULL)
+        {
+            Claim claim;
+            memset(&claim, 0, sizeof(claim));
+            if (sid_len > sizeof(claim.session_id))
+                sid_len = sizeof(claim.session_id);
+            memcpy(claim.session_id, sid, sid_len);
+            claim.session_id_len = (uint8_t)sid_len;
+            claim.phase = 2; /* PHASE_AUTH: KEX done, auth outcome not yet known */
+            agent->claimer->notify(agent->claimer->context, &claim);
+            agent->kex_claim_emitted = true;
+        }
+    }
+#else
+    (void)agent;
+#endif /* HAS_CLAIMS */
 }
 
 static RESULT wolfssh_progress(AGENT agent)

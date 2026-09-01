@@ -56,14 +56,19 @@ extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
     }
     let ctx = unsafe { &*(context as *const ClaimerContext) };
     let c = unsafe { &*claim };
-    // Only the COMPLETION claim (phase 3 == PHASE_DONE) is decoded. The libssh
-    // harness also emits intermediate phase claims (phase 1/2, KEX/AUTH) for the
-    // claim-coverage feedback; those are Layer-C machinery, carry no final
-    // auth-belief or session id, and — being harness-asymmetric (wolfSSH emits
-    // none) — would otherwise pollute the differential claim comparison. Keeping
-    // only phase 3 makes both PUTs contribute exactly one comparable claim, and it
-    // is the claim that carries the final session id (H) the decryption recipe needs.
-    if c.phase != 3 {
+    // Keep only claims that CARRY A SESSION ID (H). Both harnesses emit two such
+    // claims symmetrically: a post-KEX claim (phase 2, session id set, empty auth
+    // belief — fires as soon as KEX completes, so H is available even for traces
+    // whose auth is later rejected/aborted) and, on auth success, the completion
+    // claim (phase 3, session id + auth belief). Claims WITHOUT a session id are
+    // dropped: libssh's phase-1/KEX coverage claim (emitted before KEX finishes,
+    // so its session id is empty) — which wolfSSH does not emit — would otherwise
+    // desync the two PUTs' claim sequences. The result is a symmetric sequence
+    // ([post-KEX] on failure, [post-KEX, completion] on success) that the
+    // differential compares position-wise, and `find_claim` always resolves to a
+    // session-id-bearing claim for the decryption recipe. session_id itself is
+    // #[comparable_ignore] (differs per stack), so only the auth belief is compared.
+    if c.session_id_len == 0 {
         return;
     }
     let fp_len = (c.auth_key_fp_len as usize).min(c.auth_key_fp.len());
