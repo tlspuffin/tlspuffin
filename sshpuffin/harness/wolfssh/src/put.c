@@ -75,6 +75,7 @@ wolfssh_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, size_t *wr
 static RESULT
 wolfssh_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, size_t *readbytes);
 static void wolfssh_rng_reseed(const uint8_t *buffer, size_t length);
+static void wolfssh_seed_rewind(void);
 
 /* ── auth callback: enforce the shared authorization boundary ─────────────── */
 
@@ -215,6 +216,10 @@ static RESULT error_result(const char *r)
 
 static AGENT wolfssh_create(const SSH_AGENT_DESCRIPTOR *descriptor)
 {
+    // Start this agent's deterministic RNG stream from position 0 (see
+    // wolfssh_seed_rewind): makes both PUTs in a differential run identical.
+    wolfssh_seed_rewind();
+
     int sv[2];
     if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) < 0)
     {
@@ -593,5 +598,19 @@ static void wolfssh_rng_reseed(const uint8_t *buffer, size_t length)
     g_seed_len = (length < sizeof(g_seed_base)) ? length : sizeof(g_seed_base);
     if (g_seed_len > 0)
         memcpy(g_seed_base, buffer, g_seed_len);
+    g_seed_pos = 0;
+}
+
+/* Rewind the deterministic seed stream to position 0 WITHOUT changing the seed
+ * base. Called at the start of every agent create so that each PUT execution
+ * begins from the same RNG position. This matters for the DIFFERENTIAL: puffin
+ * reseeds all factories ONCE before running both PUTs (execution.rs), so without
+ * this rewind the first PUT advances g_seed_pos and the SECOND PUT starts from a
+ * different position — giving the two wolfSSH runs different ephemeral randomness,
+ * different packet padding, and hence order-dependent output (e.g. whether a
+ * CHANNEL_OPEN_CONFIRMATION lands in a given drain). Rewinding makes wolfSSH-vs-
+ * wolfSSH deterministic, a precondition for comparing wolfSSH against libssh. */
+static void wolfssh_seed_rewind(void)
+{
     g_seed_pos = 0;
 }
