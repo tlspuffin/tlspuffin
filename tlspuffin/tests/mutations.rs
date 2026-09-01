@@ -498,7 +498,7 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
     let mut success = false;
 
     // Check if we can append another encrypted message
-    let mut mutator = RepeatMutator::new(15, true);
+    let mut mutator = RepeatMutator::new(15, usize::MAX, true);
 
     fn check_is_encrypt12(step: &Step<TLSProtocolTypes>) -> bool {
         if let Action::Input(input) = &step.action {

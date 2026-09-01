@@ -149,18 +149,84 @@ pub fn apply_scoped_mutation<PT: ProtocolTypes, R: Rand>(
     representative: &Term<PT>,
     new_term: &Term<PT>,
     weights: ScopeWeights,
+    constraints: &TermConstraints,
     rand: &mut R,
 ) -> MutationResult {
     let targets = scoped_targets(trace, to_mutate_path, representative, weights, rand);
-    apply_to_targets(trace, &targets, new_term)
+    apply_to_targets(
+        trace,
+        &targets,
+        new_term,
+        representative.size(),
+        constraints,
+    )
 }
 
-/// Replace the term at each of `targets` by `new_term`, see [`scoped_targets`].
+/// Returns `true` iff replacing a term of size `representative_size` by one of size `new_size` at
+/// every path in `targets` keeps the trace within `constraints.max_result_trace_size` (whole
+/// trace) and `constraints.max_result_term_size` (each single step recipe).
+///
+/// Efficiency (why we don't recompute every step's size):
+/// - a mutation that does not grow the trace (`new_size <= representative_size`) can never exceed a
+///   cap, so we accept in O(1) without touching any size;
+/// - otherwise we only look at the **affected steps** (those containing a target) — never all steps
+///   — recomputing each such step's recipe size once, and derive the new whole-trace size as
+///   `old_trace_size + n_targets * delta`. `old_trace_size` is read from the (already bounded, `<=
+///   max_result_trace_size`) trace, so it is cheap.
+fn replacement_within_caps<PT: ProtocolTypes>(
+    trace: &Trace<PT>,
+    targets: &[TracePath],
+    representative_size: usize,
+    new_size: usize,
+    constraints: &TermConstraints,
+) -> bool {
+    if new_size <= representative_size {
+        return true; // shrink or size-neutral: cannot exceed any cap
+    }
+    let delta = new_size - representative_size;
+
+    // Per-affected-step check: count targets per step, only recompute those steps' sizes.
+    let mut per_step: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
+    for (step_index, _) in targets {
+        *per_step.entry(*step_index).or_insert(0) += 1;
+    }
+    for (step_index, count) in &per_step {
+        let cur = match trace.steps.get(*step_index).map(|s| &s.action) {
+            Some(Action::Input(input)) => input.recipe.size(),
+            _ => 0,
+        };
+        if cur + count * delta > constraints.max_result_term_size {
+            return false;
+        }
+    }
+
+    // Whole-trace check: old size + total growth. No per-step scan of the *unaffected* steps.
+    let new_trace_size = trace.size() + targets.len() * delta;
+    new_trace_size <= constraints.max_result_trace_size
+}
+
+/// Replace the term at each of `targets` by `new_term`, enforcing the result-size caps
+/// (`constraints.max_result_{term,trace}_size`). If applying to all targets would exceed a cap,
+/// the mutation is rejected wholesale (returns [`MutationResult::Skipped`]) so the "replace all
+/// equal occurrences" atomicity is preserved. See [`replacement_within_caps`].
 pub fn apply_to_targets<PT: ProtocolTypes>(
     trace: &mut Trace<PT>,
     targets: &[TracePath],
     new_term: &Term<PT>,
+    representative_size: usize,
+    constraints: &TermConstraints,
 ) -> MutationResult {
+    if !replacement_within_caps(
+        trace,
+        targets,
+        representative_size,
+        new_term.size(),
+        constraints,
+    ) {
+        log::debug!("[Mutation] rejected: would exceed result-size caps");
+        return MutationResult::Skipped;
+    }
+
     let mut mutated = false;
     for target in targets {
         if let Some(term_mut) = find_term_mut(trace, target) {
@@ -176,11 +242,14 @@ pub fn apply_to_targets<PT: ProtocolTypes>(
     }
 }
 
-/// Draw a [`MutationScope`] and return the occurrences to replace, see [`apply_scoped_mutation`].
+/// Draw a [`MutationScope`] and return *all* the occurrences to replace, see
+/// [`apply_scoped_mutation`]. The search is unbounded (finds every structurally-equal occurrence);
+/// runaway is prevented at *application* time by the result-size caps in [`apply_to_targets`], not
+/// by cutting the search short.
 ///
-/// This is exposed separately from [`apply_to_targets`] so that a caller can inspect *how many*
-/// occurrences would be replaced before committing to the mutation: [`ReplaceReuseMutator`] needs
-/// it to bound the number of payloads it introduces.
+/// Exposed separately from [`apply_to_targets`] so a caller can inspect *how many* occurrences
+/// would be replaced before committing: [`ReplaceReuseMutator`] needs it to bound the payloads it
+/// adds.
 pub fn scoped_targets<PT: ProtocolTypes, R: Rand>(
     trace: &Trace<PT>,
     to_mutate_path: &TracePath,
@@ -194,7 +263,8 @@ pub fn scoped_targets<PT: ProtocolTypes, R: Rand>(
         representative,
         weights,
         rand,
-        // no cutoff: we want *all* the occurrences, see the note above
+        // Unbounded search: the result-size caps (applied in `apply_to_targets`) are the guard
+        // now.
         usize::MAX,
     )
 }
@@ -289,7 +359,11 @@ where
     } = mutation_config;
 
     tuple_list!(
-        RepeatMutator::new(max_trace_length, with_dy),
+        RepeatMutator::new(
+            max_trace_length,
+            term_constraints.max_result_trace_size,
+            with_dy
+        ),
         SkipMutator::new(min_trace_length, with_dy),
         ReplaceReuseMutator::new(term_constraints, with_dy, with_bit_level, scope_weights),
         ReplaceMatchMutator::new(term_constraints, signature, with_dy, scope_weights),
@@ -601,6 +675,7 @@ where
             &to_mutate,
             &new_term,
             self.scope_weights,
+            &self.constraints,
             rand,
         ))
     }
@@ -706,7 +781,13 @@ where
                     to_replace,
                     replacement
                 );
-                return Ok(apply_to_targets(trace, &targets, &replacement));
+                return Ok(apply_to_targets(
+                    trace,
+                    &targets,
+                    &replacement,
+                    to_replace.size(),
+                    &self.constraints,
+                ));
             }
         }
         log::debug!("       Skipped {}", self.name());
@@ -794,6 +875,9 @@ where
     S: HasRand,
 {
     max_trace_length: usize,
+    /// Result-size cap: a duplication that would push the whole trace over this node count is
+    /// rejected (see `TermConstraints::max_result_trace_size`).
+    max_trace_size: usize,
     phantom_s: std::marker::PhantomData<S>,
     with_dy: bool,
 }
@@ -803,9 +887,10 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub const fn new(max_trace_length: usize, with_dy: bool) -> Self {
+    pub const fn new(max_trace_length: usize, max_trace_size: usize, with_dy: bool) -> Self {
         Self {
             max_trace_length,
+            max_trace_size,
             phantom_s: std::marker::PhantomData,
             with_dy,
         }
@@ -834,8 +919,21 @@ where
         let Some(step) = state.rand_mut().choose(steps) else {
             return Ok(MutationResult::Skipped);
         };
+        // Result-size cap: reject a duplication that would push the whole trace over the limit.
+        let added = match &step.action {
+            Action::Input(input) => input.recipe.size(),
+            Action::Output(_) => 1,
+        };
+        if trace.size() + added > self.max_trace_size {
+            log::debug!(
+                "       Skipped {} (would exceed max_result_trace_size)",
+                self.name()
+            );
+            return Ok(MutationResult::Skipped);
+        }
+        let step = step.clone();
         log::debug!("[Mutation] Mutate RepeatMutator on step {insert_index}");
-        trace.steps.insert(insert_index, step.clone());
+        trace.steps.insert(insert_index, step);
         Ok(MutationResult::Mutated)
     }
 
@@ -969,6 +1067,7 @@ where
             &to_mutate,
             &new_term,
             self.scope_weights,
+            &self.constraints,
             rand,
         ))
     }
@@ -1018,7 +1117,7 @@ mod tests {
     fn test_repeat_mutator() {
         let mut state = create_state();
 
-        let mut mutator = RepeatMutator::new(15, true);
+        let mut mutator = RepeatMutator::new(15, usize::MAX, true);
 
         fn check_is_encrypt12(step: &Step<TestProtocolTypes>) -> bool {
             if let Action::Input(input) = &step.action {
@@ -1124,7 +1223,13 @@ mod tests {
             let mut trace = build_trace();
             let targets = scoped_targets(&trace, &chosen_path, &duplicated, weights, &mut rand);
             assert_eq!(
-                apply_to_targets(&mut trace, &targets, &replacement),
+                apply_to_targets(
+                    &mut trace,
+                    &targets,
+                    &replacement,
+                    duplicated.size(),
+                    &TermConstraints::no_constraint(),
+                ),
                 MutationResult::Mutated,
                 "{label}: should have mutated"
             );
@@ -1187,7 +1292,13 @@ mod tests {
                     &mut rand,
                     max_term_size_explore,
                 );
-                let result = apply_to_targets(&mut trace, &targets, &replacement);
+                let result = apply_to_targets(
+                    &mut trace,
+                    &targets,
+                    &replacement,
+                    chosen.size(),
+                    &TermConstraints::no_constraint(),
+                );
 
                 assert_eq!(
                     result,
