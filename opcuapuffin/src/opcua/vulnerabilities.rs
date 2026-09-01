@@ -16,9 +16,6 @@ use puffin::agent::AgentName;
 use puffin::{input_action, term};
 use puffin::trace::{Action, InputAction, Step, Trace};
 
-use crate::protocol::OpcuaProtocolBehavior;
-
-
 pub fn seed_bug_dead_session (
     server: AgentName,
 ) -> Trace<OpcuaProtocolTypes> {
@@ -555,7 +552,7 @@ pub fn seed_bad_switch (
             )),
             (fn_user_cert(
               ((server, 0)[Some(OpcuaQueryMatcher::PolicyIdCertificate)]/UAString), // PolicyId!
-              fn_alice_cert
+              fn_mallory_cert
             )),
             (fn_sign(
                 (fn_signature_data(
@@ -1032,7 +1029,7 @@ pub mod tests {
     use puffin::algebra::DYTerm;
     use puffin::algebra::dynamic_function::DescribableFunction;
     use puffin::algebra::TermType;
-    use puffin::execution::{Runner, run_in_subprocess};
+    use puffin::execution::{run_in_subprocess};
     use puffin::fuzzer::mutations::ReplaceMatchMutator;
     use puffin::fuzzer::utils::TermConstraints;
     use puffin::libafl::corpus::InMemoryCorpus;
@@ -1040,8 +1037,6 @@ pub mod tests {
     use puffin::libafl::state::StdState;
     use puffin::libafl_bolts::rands::{RomuDuoJrRand, StdRand};
     use puffin::test_utils::AssertExecution;
-    use puffin::trace::Spawner;
-    use crate::put_registry::opcua_registry;
 
     #[allow(unused_imports)]
     use super::*;
@@ -1057,7 +1052,7 @@ pub mod tests {
     }
 
     #[test]
-    fn test_mutate_seed_bug_dead_session() {
+    fn test_mutant_seed_bug_dead_session() {
 
         let mut state = create_state();
 
@@ -1065,9 +1060,7 @@ pub mod tests {
             move || {
                 for _i in 0..5 {
                     let mut attempts = 0;
-    
                     let mut trace = seed_bug_dead_session(AgentName::first());
-       
                     let constraints = TermConstraints::default();
        
                     // Test if we can replace the sequence number
@@ -1076,17 +1069,17 @@ pub mod tests {
     
                     loop {
                         attempts += 1;
-                        let mut mutate = trace.clone();
-                        mutator.mutate(&mut state, &mut mutate, 0).unwrap();
+                        let mut mutant = trace.clone();
+                        mutator.mutate(&mut state, &mut mutant, 0).unwrap();
     
-                        if let Some(last) = mutate.steps.iter().last() {
+                        if let Some(last) = mutant.steps.iter().last() {
                             match &last.action {
                                 Action::Input(input) => match &input.recipe.term {
                                     DYTerm::Variable(_) => {}
                                     DYTerm::Application(_, subterms) => {
                                         if let Some(last_subterm) = subterms.iter().last() {
                                             if last_subterm.name() == fn_seq_2.name() {
-                                                trace = mutate;
+                                                trace = mutant;
                                                 break;
                                             }
                                         }

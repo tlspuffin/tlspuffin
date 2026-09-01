@@ -9,8 +9,8 @@ patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Instrumentation-to-debug.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-Certificate-Thumbprint.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-certificate.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-policy.patch)
-#patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-switch.patch)
-patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-dead-session.patch)
+patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-switch.patch)
+#patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-dead-session.patch)
 
 cmake_builder(
   TARGETS
@@ -22,10 +22,10 @@ cmake_builder(
     -DUA_BUILD_EXAMPLES=OFF
     -DUA_ENABLE_DA=OFF
     -DUA_ENABLE_DISCOVERY=ON
+    -DUA_ENABLE_ENCRYPTION=OPENSSL
     -DUA_ENABLE_PUBSUB=OFF
     -DUA_ENABLE_PUBSUB_INFORMATIONMODEL=OFF
     -DUA_ENABLE_SUBSCRIPTIONS_EVENTS=OFF
-    -DUA_ENABLE_ENCRYPTION=OPENSSL
     -DUA_MULTITHREADING=0
     -DUA_NAMESPACE_ZERO=MINIMAL
     -DUA_ENABLE_DEBUG_SANITIZER=$<IF:$<BOOL:${asan}>,ON,OFF>

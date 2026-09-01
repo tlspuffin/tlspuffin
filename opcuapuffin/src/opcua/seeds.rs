@@ -28,8 +28,8 @@ pub fn create_corpus(
         // (seed_d_client_simple_request(AgentName::first()), "seed_d_client_simple_request"),
         // (seed_e_client_reopen_reactivate(AgentName::first()), "seed_e_client_reopen_reactivate"),
         // (seed_f_client_switch_secure_channels(AgentName::first()), "seed_f_client_switch_secure_channels"),
-        (crate::opcua::vulnerabilities::seed_bug_dead_session(AgentName::first()), "seed_bug_dead_session"),
-        // (seed_bad_switch(AgentName::first()), "seed_bad_switch"),
+        // (crate::opcua::vulnerabilities::seed_bug_dead_session(AgentName::first()), "seed_bug_dead_session"),
+        (crate::opcua::vulnerabilities::seed_bad_switch(AgentName::first()), "seed_bad_switch"),
     ]
 }
 
@@ -2067,7 +2067,7 @@ pub fn seed_f_client_switch_secure_channels (
                                         fn_basic256sha256,
                                         (fn_header(fn_close, // needs channel id:
                                             ((server, 2)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (@close_request_2)
+                                        (fn_service_size((@close_request_2)))
                                     )),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
