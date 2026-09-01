@@ -22,15 +22,41 @@ impl Codec for OnWireData {
     }
 }
 
-#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
-#[extractable(SshProtocolTypes)]
+#[derive(Clone, Debug, Comparable, PartialEq)]
 pub enum RawSshMessage {
-    #[extractable_no_recursion]
     Banner(String),
-    #[extractable_no_recursion]
     Packet(BinaryPacket),
-    #[extractable_no_recursion]
     OnWire(OnWireData),
+}
+
+// Manual `Extractable` (instead of the derive) so each raw message is tagged with
+// a `SshQueryMatcher` describing its identity — the banner, a cleartext packet's
+// SSH message number, or an opaque encrypted chunk. This lets seeds/recipes select
+// a handshake message by what it IS (e.g. NEWKEYS) rather than by a fragile
+// positional counter. No recursion into the inner payload (mirrors the former
+// `#[extractable_no_recursion]`).
+impl Extractable<SshProtocolTypes> for RawSshMessage {
+    fn extract_knowledge<'a>(
+        &'a self,
+        knowledges: &mut Vec<Knowledge<'a, SshProtocolTypes>>,
+        _matcher: Option<crate::query::SshQueryMatcher>,
+        source: &'a Source,
+    ) -> Result<(), Error> {
+        use crate::query::SshQueryMatcher;
+        let matcher = match self {
+            RawSshMessage::Banner(_) => SshQueryMatcher::Banner,
+            RawSshMessage::Packet(bp) => {
+                SshQueryMatcher::MsgType(bp.payload().first().copied().unwrap_or(0))
+            }
+            RawSshMessage::OnWire(_) => SshQueryMatcher::OnWire,
+        };
+        knowledges.push(Knowledge {
+            source,
+            matcher: Some(matcher),
+            data: self,
+        });
+        Ok(())
+    }
 }
 
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
