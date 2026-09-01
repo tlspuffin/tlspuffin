@@ -51,6 +51,15 @@ impl Claim for OpcuaClaim {
 
 dummy_extract_knowledge_codec!(OpcuaProtocolTypes, OpcuaClaim);
 
+// The DDYF Claim bounds in the puffin base require `Comparable` + `PartialEq`. OPC UA does not do
+// differential claim comparison; use non-recursing dummy impls (see `opcua::dummy_comparable!`).
+opcua::dummy_comparable!(OpcuaClaim, OpcuaClaimInner);
+impl PartialEq for OpcuaClaim {
+    fn eq(&self, _other: &Self) -> bool {
+        false
+    }
+}
+
 // impl Extractable<OpcuaProtocolTypes> for OpcuaClaim {
 //     fn extract_knowledge(
 //         &self,

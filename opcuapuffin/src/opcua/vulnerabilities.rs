@@ -101,6 +101,7 @@ pub fn seed_bug_dead_session (
     };
     Trace {
         prior_traces: vec![],
+        metadata_trace: Default::default(),
         descriptors: vec![
             ApplicationConfig::new_server(server)
         ],
@@ -580,6 +581,7 @@ pub fn seed_bad_switch (
 
     Trace {
         prior_traces: vec![],
+        metadata_trace: Default::default(),
         descriptors: vec![
             ApplicationConfig::new_server(server)
         ],
@@ -1030,7 +1032,7 @@ pub mod tests {
     use puffin::algebra::dynamic_function::DescribableFunction;
     use puffin::algebra::TermType;
     use puffin::execution::{run_in_subprocess};
-    use puffin::fuzzer::mutations::ReplaceMatchMutator;
+    use puffin::fuzzer::mutations::{ReplaceMatchMutator, ScopeWeights};
     use puffin::fuzzer::utils::TermConstraints;
     use puffin::libafl::corpus::InMemoryCorpus;
     use puffin::libafl::mutators::Mutator;
@@ -1044,7 +1046,7 @@ pub mod tests {
     pub type TestTrace = Trace<OpcuaProtocolTypes>;
 
     fn create_state(
-    ) -> StdState<TestTrace, InMemoryCorpus<TestTrace>, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
+    ) -> StdState<InMemoryCorpus<TestTrace>, TestTrace, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
     {
         let rand = StdRand::with_seed(1235);
         let corpus: InMemoryCorpus<TestTrace> = InMemoryCorpus::new();
@@ -1065,12 +1067,14 @@ pub mod tests {
        
                     // Test if we can replace the sequence number
     
-                    let mut mutator = ReplaceMatchMutator::new(constraints, &OPCUA_SIGNATURE, true);
+                    // (0,0,1): individual-occurrence replacement (pre-scoped-mutation semantics)
+                    let mut mutator =
+                        ReplaceMatchMutator::new(constraints, &OPCUA_SIGNATURE, true, ScopeWeights::new(0, 0, 1));
     
                     loop {
                         attempts += 1;
                         let mut mutant = trace.clone();
-                        mutator.mutate(&mut state, &mut mutant, 0).unwrap();
+                        mutator.mutate(&mut state, &mut mutant).unwrap();
     
                         if let Some(last) = mutant.steps.iter().last() {
                             match &last.action {

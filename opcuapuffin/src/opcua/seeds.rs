@@ -38,6 +38,7 @@ pub fn seed_a_hello_bob (
 ) -> Trace<OpcuaProtocolTypes> {
     Trace {
         prior_traces: vec![],
+        metadata_trace: Default::default(),
         descriptors: vec![
             ApplicationConfig::new_server(server)
         ],
@@ -82,6 +83,7 @@ pub fn seed_ap_client_open_unsecure_channel (
     };
     Trace {
         prior_traces: vec![],
+        metadata_trace: Default::default(),
         descriptors: vec![
             ApplicationConfig::new_server(server)
         ],
@@ -189,6 +191,7 @@ pub fn seed_b_client_open_secure_channel (
 
     Trace {
         prior_traces: vec![],
+        metadata_trace: Default::default(),
         descriptors: vec![
             ApplicationConfig::new_server(server)
         ],
@@ -350,6 +353,7 @@ pub fn seed_c_server_open_unsecure_channel (
 
     Trace {
         prior_traces: vec![],
+        metadata_trace: Default::default(),
         descriptors: vec![
             ApplicationConfig::new_client(client)
         ],
@@ -593,6 +597,7 @@ pub fn seed_d_client_simple_request (
     };
     Trace {
         prior_traces: vec![],
+        metadata_trace: Default::default(),
         descriptors: vec![
             ApplicationConfig::new_server(server)
         ],
@@ -1070,6 +1075,7 @@ pub fn seed_e_client_reopen_reactivate (
     };
     Trace {
         prior_traces: vec![],
+        metadata_trace: Default::default(),
         descriptors: vec![
             ApplicationConfig::new_server(server)
         ],
@@ -1654,6 +1660,7 @@ pub fn seed_f_client_switch_secure_channels (
 
     Trace {
         prior_traces: vec![],
+        metadata_trace: Default::default(),
         descriptors: vec![
             ApplicationConfig::new_server(server)
         ],

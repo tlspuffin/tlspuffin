@@ -280,8 +280,6 @@ sancov = [
     "boringssl-sys?/sancov",
 ]
 
-# Force to check for new vendors before building
-watch-vendor = ["puffin-build/watch-vendor"]
 # Debug mode and panic when internal errors occur, instead of logging and skipping
 debug = ["puffin/debug"]
 # Enables ASAN

@@ -57,7 +57,10 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
         }
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
+    fn take_message_from_outbound(
+        &mut self,
+        output_flight: &mut Option<MessageFlight>,
+    ) -> Result<(), Error> {
         if let Some(c_take_outbound) = self.c_agent_interface.take_outbound {
             let mut buffer: Vec<u8> = vec![0; MAX_WIRE_SIZE];
             unsafe {
@@ -72,12 +75,14 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                     let mut rd = Reader::init(&buffer[0..read]);
                     let flight = MessageFlight::read(&mut rd);
                     if flight.is_some() {
-                        Ok(flight)
+                        *output_flight = flight;
+                        Ok(())
                     } else {
                         Err(Error::SecurityClaim("Invalid UA TCP message!"))
                     }
                 } else {
-                    Ok(None)
+                    *output_flight = None;
+                    Ok(())
                 }}
         } else {
             Err(Error::Put("Open62541 PUT: take_outbound unavailable!".to_string()))

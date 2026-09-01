@@ -28,6 +28,7 @@ introspection = ["puffin/introspection"]
 
 [dependencies]
 base64 = "0.21"
+comparable = "=0.5.5"
 bitflags = "2.4"
 byteorder = "1.4"
 chrono = { version = "0.4.38", features = ["serde"] }

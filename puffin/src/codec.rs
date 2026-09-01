@@ -1,3 +1,4 @@
+use std::io;
 use std::fmt::Debug;
 
 use crate::error::Error;
@@ -60,6 +61,18 @@ impl<'a> Reader<'a> {
 
     pub fn sub(&mut self, len: usize) -> Option<Reader<'_>> {
         self.take(len).map(Reader::init)
+    }
+}
+
+impl<'a> io::Read for Reader<'a> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        let mut len = 0;
+        while len < buf.len() && len < self.buf.len() - self.offs {
+            buf[len] = self.buf[self.offs + len];
+            len += 1;
+        }
+        self.offs += len;
+        Ok(len)
     }
 }
 
@@ -428,5 +441,26 @@ pub fn compare_encoding<X: Codec, Y: Codec>(x: &X, y: &Y) -> std::cmp::Ordering 
         std::cmp::Ordering::Greater
     } else {
         std::cmp::Ordering::Equal
+    }
+}
+
+pub fn put_f64(v: f64, bytes: &mut [u8]) {
+    let bytes: &mut [u8; 8] = (&mut bytes[..8]).try_into().unwrap();
+    *bytes = f64::to_be_bytes(v);
+}
+
+#[must_use]
+pub fn decode_f64(bytes: &[u8]) -> Option<f64> {
+    Some(f64::from_be_bytes(bytes.try_into().ok()?))
+}
+
+impl Codec for f64 {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        let mut b64 = [0u8; 8];
+        put_f64(*self, &mut b64);
+        bytes.extend_from_slice(&b64);
+    }
+    fn read(r: &mut Reader) -> Option<Self> {
+        r.take(8).and_then(decode_f64)
     }
 }

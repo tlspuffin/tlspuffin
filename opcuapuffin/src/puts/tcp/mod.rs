@@ -70,7 +70,10 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
 
     }
 
-    fn take_message_from_outbound(&mut self) -> Result<Option<MessageFlight>, Error> {
+    fn take_message_from_outbound(
+        &mut self,
+        output_flight: &mut Option<MessageFlight>,
+    ) -> Result<(), Error> {
         let mut result = MessageFlight::new();
         for (id, fuzz_stream) in self.fuzz_streams.iter_mut() {
             let mut buf = vec![0; MAX_WIRE_SIZE];
@@ -83,7 +86,8 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                 }
             }
         }
-        Ok(Some(result))
+        *output_flight = Some(result);
+        Ok(())
     }
 }
 

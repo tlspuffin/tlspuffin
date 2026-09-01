@@ -38,7 +38,6 @@ declare -a CAPABILITIES=(
     $<$<BOOL:@transcript_extraction@>:transcript_extraction>
     $<$<BOOL:@client_authentication_transcript_extraction@>:client_authentication_transcript_extraction>
     $<$<BOOL:@disable_postauth@>:disable_postauth>
-    $<$<BOOL:@psk_ke_support@>:psk_ke_support>
 )
 
 declare -a INSTRUMENTATION=(

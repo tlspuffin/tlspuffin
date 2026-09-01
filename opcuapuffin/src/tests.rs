@@ -21,7 +21,7 @@ use puffin::claims::GlobalClaimList;
 use puffin::codec::CodecP;
 use puffin::error::Error;
 use puffin::protocol::ProtocolBehavior;
-use puffin::put::{Put, PutOptions};
+use puffin::put::{Put, PutDescriptor, PutOptions};
 use puffin::put_registry::{Factory, PutRegistry};
 use puffin::term;
 use puffin::trace::{Spawner, TraceContext};
@@ -145,7 +145,10 @@ pub fn test_hello() {
     };
 
     let registry =
-       PutRegistry::<OpcuaProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
+       PutRegistry::<OpcuaProtocolBehavior>::new(
+           [("teststub", dummy_factory())],
+           PutDescriptor::new("teststub", PutOptions::empty()),
+       );
     let spawner = Spawner::new(registry);
     let context = TraceContext::new(spawner);
 
@@ -172,7 +175,10 @@ pub fn test_hello() {
 pub fn test_sign() {
 
     let registry =
-        PutRegistry::<OpcuaProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
+        PutRegistry::<OpcuaProtocolBehavior>::new(
+           [("teststub", dummy_factory())],
+           PutDescriptor::new("teststub", PutOptions::empty()),
+       );
     let spawner = Spawner::new(registry);
     let context = TraceContext::new(spawner);
 
@@ -195,7 +201,10 @@ pub fn test_sign() {
 pub fn test_encrypt() {
 
     let registry =
-        PutRegistry::<OpcuaProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
+        PutRegistry::<OpcuaProtocolBehavior>::new(
+           [("teststub", dummy_factory())],
+           PutDescriptor::new("teststub", PutOptions::empty()),
+       );
     let spawner = Spawner::new(registry);
     let context = TraceContext::new(spawner);
 
@@ -237,7 +246,10 @@ pub fn test_encrypt() {
 pub fn test_mac() {
 
     let registry =
-        PutRegistry::<OpcuaProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
+        PutRegistry::<OpcuaProtocolBehavior>::new(
+           [("teststub", dummy_factory())],
+           PutDescriptor::new("teststub", PutOptions::empty()),
+       );
     let spawner = Spawner::new(registry);
     let context = TraceContext::new(spawner);
 
@@ -263,7 +275,10 @@ pub fn test_mac() {
 pub fn test_open() {
 
     let registry =
-        PutRegistry::<OpcuaProtocolBehavior>::new([("teststub", dummy_factory())], "teststub");
+        PutRegistry::<OpcuaProtocolBehavior>::new(
+           [("teststub", dummy_factory())],
+           PutDescriptor::new("teststub", PutOptions::empty()),
+       );
     let spawner = Spawner::new(registry);
     let context = TraceContext::new(spawner);
 
