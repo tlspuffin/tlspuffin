@@ -7,18 +7,13 @@ use opcua::puffin::messages::EncryptedBody;
 use opcua::puffin::query::OpcuaQueryMatcher;
 use opcua::puffin::signature::fn_client_hello;
 use opcua::puffin::signature::fn_impl::*;
-
 use opcua::puffin::types::{ApplicationConfig, OpcuaProtocolTypes};
-
 use opcua::types::{ByteString, NodeId, UAString};
-
 use puffin::agent::AgentName;
-use puffin::{input_action, term};
 use puffin::trace::{Action, InputAction, Step, Trace};
+use puffin::{input_action, term};
 
-pub fn seed_bug_dead_session (
-    server: AgentName,
-) -> Trace<OpcuaProtocolTypes> {
+pub fn seed_bug_dead_session(server: AgentName) -> Trace<OpcuaProtocolTypes> {
     let open_request = term! {
         fn_service(
             (fn_sequence_header(fn_seq_0, fn_seq_0)),
@@ -102,9 +97,7 @@ pub fn seed_bug_dead_session (
     Trace {
         prior_traces: vec![],
         metadata_trace: Default::default(),
-        descriptors: vec![
-            ApplicationConfig::new_server(server)
-        ],
+        descriptors: vec![ApplicationConfig::new_server(server)],
         steps: vec![
             Step {
                 agent: server,
@@ -430,14 +423,11 @@ pub fn seed_bug_dead_session (
                     }
                 }),
             },
-        ]
+        ],
     }
 }
 
-
-pub fn seed_bad_switch (
-    server: AgentName,
-) -> Trace<OpcuaProtocolTypes> {
+pub fn seed_bad_switch(server: AgentName) -> Trace<OpcuaProtocolTypes> {
     let open_request_1 = term! {
         fn_service(
             (fn_sequence_header(fn_seq_0, fn_seq_0)),
@@ -582,9 +572,7 @@ pub fn seed_bad_switch (
     Trace {
         prior_traces: vec![],
         metadata_trace: Default::default(),
-        descriptors: vec![
-            ApplicationConfig::new_server(server)
-        ],
+        descriptors: vec![ApplicationConfig::new_server(server)],
         steps: vec![
             /* Open secure channel #1 */
             Step {
@@ -1019,19 +1007,17 @@ pub fn seed_bad_switch (
                     }
                 }),
             },
-        ]
+        ],
     }
 }
-
 
 #[cfg(test)]
 pub mod tests {
 
     use opcua::puffin::signature::OPCUA_SIGNATURE;
-    use puffin::algebra::DYTerm;
     use puffin::algebra::dynamic_function::DescribableFunction;
-    use puffin::algebra::TermType;
-    use puffin::execution::{run_in_subprocess};
+    use puffin::algebra::{DYTerm, TermType};
+    use puffin::execution::run_in_subprocess;
     use puffin::fuzzer::mutations::{ReplaceMatchMutator, ScopeWeights};
     use puffin::fuzzer::utils::TermConstraints;
     use puffin::libafl::corpus::InMemoryCorpus;
@@ -1055,7 +1041,6 @@ pub mod tests {
 
     #[test]
     fn test_mutant_seed_bug_dead_session() {
-
         let mut state = create_state();
 
         run_in_subprocess(
@@ -1064,18 +1049,23 @@ pub mod tests {
                     let mut attempts = 0;
                     let mut trace = seed_bug_dead_session(AgentName::first());
                     let constraints = TermConstraints::default();
-       
+
                     // Test if we can replace the sequence number
-    
+
                     // (0,0,1): individual-occurrence replacement (pre-scoped-mutation semantics)
-                    let mut mutator =
-                        ReplaceMatchMutator::new(constraints, &OPCUA_SIGNATURE, true, ScopeWeights::new(0, 0, 1));
-    
+                    let mut mutator = ReplaceMatchMutator::new(
+                        constraints,
+                        &OPCUA_SIGNATURE,
+                        true,
+                        false, // with_bit: this repro drives DY mutations only
+                        ScopeWeights::new(0, 0, 1),
+                    );
+
                     loop {
                         attempts += 1;
                         let mut mutant = trace.clone();
                         mutator.mutate(&mut state, &mut mutant).unwrap();
-    
+
                         if let Some(last) = mutant.steps.iter().last() {
                             match &last.action {
                                 Action::Input(input) => match &input.recipe.term {
@@ -1093,13 +1083,11 @@ pub mod tests {
                             }
                         }
                     }
-                    println!("attempts: {}", attempts);  
-                   
+                    println!("attempts: {}", attempts);
                 }
             },
             std::time::Duration::from_secs(60),
         )
         .expect_crash();
     }
-
 }

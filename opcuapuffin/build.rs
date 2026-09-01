@@ -9,10 +9,9 @@ use puffin_build::library::Library;
 use puffin_build::{harness, vendor_dir};
 
 fn main() {
-
     /* binding for include/puffin/opcua.h */
 
-    let out_dir =  PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR is required!"));
+    let out_dir = PathBuf::from(env::var("OUT_DIR").expect("OUT_DIR is required!"));
     let bindings_path = out_dir.join("bindings.rs");
 
     bindgen::Builder::default()
@@ -43,7 +42,6 @@ fn main() {
         bindings_path.to_string_lossy()
     );
 
-
     /* build bundle by filtering the libraries found in vendor/ */
 
     let out_dir = Path::new(&std::env::var("OUT_DIR").unwrap()).join("harness_bundle");
@@ -54,18 +52,20 @@ fn main() {
         .collect();
     let bundle = harness::bundle(puts).build(out_dir);
     bundle.print_cargo_metadata();
-
 }
 
 fn compile_opcua_harness(library: &Library) -> Option<Put> {
-    let has_gcov = library.metadata().instrumentation.iter().any(|i| i == "gcov");
+    let has_gcov = library
+        .metadata()
+        .instrumentation
+        .iter()
+        .any(|i| i == "gcov");
     if cfg!(feature = "gcov") != has_gcov {
         return None;
     }
 
-    let out_dir = 
-        Path::new(&std::env::var("OUT_DIR").unwrap())
-        .join(format!("harness_{}", library.id()));
-    Harness::harness_for("opcua", library.clone(), harness::Kind::C).
-        map(|harness| harness.wrap(out_dir).unwrap())
+    let out_dir =
+        Path::new(&std::env::var("OUT_DIR").unwrap()).join(format!("harness_{}", library.id()));
+    Harness::harness_for("opcua", library.clone(), harness::Kind::C)
+        .map(|harness| harness.wrap(out_dir).unwrap())
 }

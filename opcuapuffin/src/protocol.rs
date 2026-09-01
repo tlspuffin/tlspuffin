@@ -2,19 +2,17 @@
 
 use core::any::TypeId;
 
+// opcua-mapper:
+use opcua::puffin::messages::{Message, MessageFlight};
+use opcua::puffin::types::OpcuaProtocolTypes;
 use puffin::error::Error;
 use puffin::protocol::{EvaluatedTerm, ProtocolBehavior};
 use puffin::put::PutDescriptor;
 use puffin::trace::Trace;
 
-// opcua-mapper:
-use opcua::puffin::messages::{Message, MessageFlight};
-use opcua::puffin::types::OpcuaProtocolTypes;
-
 use crate::claims::OpcuaClaim;
 use crate::opcua::violations::OpcuaSecurityViolationPolicy;
 use crate::put_registry::opcua_registry;
-
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct OpcuaProtocolBehavior;

@@ -5,15 +5,13 @@
 
 use opcua::puffin::messages::EncryptedBody;
 use opcua::puffin::query::OpcuaQueryMatcher;
-use opcua::puffin::signature::{fn_acknowledge, fn_client_hello, fn_server_hello};
 use opcua::puffin::signature::fn_impl::*;
-
+use opcua::puffin::signature::{fn_acknowledge, fn_client_hello, fn_server_hello};
 use opcua::puffin::types::{ApplicationConfig, OpcuaProtocolTypes};
-
 use opcua::types::{ByteString, NodeId, UAString};
 use puffin::agent::AgentName;
-use puffin::{input_action, term};
 use puffin::trace::{Action, InputAction, Step, Trace};
+use puffin::{input_action, term};
 
 use crate::protocol::OpcuaProtocolBehavior;
 
@@ -22,46 +20,46 @@ pub fn create_corpus(
 ) -> Vec<(Trace<OpcuaProtocolTypes>, &'static str)> {
     vec![
         // (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
-        // (seed_ap_client_open_unsecure_channel(AgentName::first()), "seed_ap_client_open_unsecure_channel"),
-        // (seed_b_client_open_secure_channel(AgentName::first()), "seed_b_client_open_secure_channel"),
-        // (seed_c_server_open_unsecure_channel(AgentName::first()), "seed_c_server_open_unsecure_channel"),
+        // (seed_ap_client_open_unsecure_channel(AgentName::first()),
+        // "seed_ap_client_open_unsecure_channel"),
+        // (seed_b_client_open_secure_channel(AgentName::first()),
+        // "seed_b_client_open_secure_channel"),
+        // (seed_c_server_open_unsecure_channel(AgentName::first()),
+        // "seed_c_server_open_unsecure_channel"),
         // (seed_d_client_simple_request(AgentName::first()), "seed_d_client_simple_request"),
-        // (seed_e_client_reopen_reactivate(AgentName::first()), "seed_e_client_reopen_reactivate"),
-        // (seed_f_client_switch_secure_channels(AgentName::first()), "seed_f_client_switch_secure_channels"),
-        // (crate::opcua::vulnerabilities::seed_bug_dead_session(AgentName::first()), "seed_bug_dead_session"),
-        (crate::opcua::vulnerabilities::seed_bad_switch(AgentName::first()), "seed_bad_switch"),
+        // (seed_e_client_reopen_reactivate(AgentName::first()),
+        // "seed_e_client_reopen_reactivate"),
+        // (seed_f_client_switch_secure_channels(AgentName::first()),
+        // "seed_f_client_switch_secure_channels"),
+        // (crate::opcua::vulnerabilities::seed_bug_dead_session(AgentName::first()),
+        // "seed_bug_dead_session"),
+        (
+            crate::opcua::vulnerabilities::seed_bad_switch(AgentName::first()),
+            "seed_bad_switch",
+        ),
     ]
 }
 
-pub fn seed_a_hello_bob (
-    server: AgentName,
-) -> Trace<OpcuaProtocolTypes> {
+pub fn seed_a_hello_bob(server: AgentName) -> Trace<OpcuaProtocolTypes> {
     Trace {
         prior_traces: vec![],
         metadata_trace: Default::default(),
-        descriptors: vec![
-            ApplicationConfig::new_server(server)
-        ],
-        steps: vec![
-            Step {
-                agent: server,
-                action: Action::Input(input_action! { term! {
-                    fn_client_hello (
-                        fn_tcp_1,
-                        fn_bob_endpoint,
-                        fn_default_size,
-                        fn_default_size
-                    )}
-                }),
-            },
-        ]
+        descriptors: vec![ApplicationConfig::new_server(server)],
+        steps: vec![Step {
+            agent: server,
+            action: Action::Input(input_action! { term! {
+                fn_client_hello (
+                    fn_tcp_1,
+                    fn_bob_endpoint,
+                    fn_default_size,
+                    fn_default_size
+                )}
+            }),
+        }],
     }
 }
 
-
-pub fn seed_ap_client_open_unsecure_channel (
-    server: AgentName,
-) -> Trace<OpcuaProtocolTypes> {
+pub fn seed_ap_client_open_unsecure_channel(server: AgentName) -> Trace<OpcuaProtocolTypes> {
     let open_request = term! {
         fn_service(
             (fn_sequence_header(fn_seq_0, fn_seq_0)),
@@ -84,9 +82,7 @@ pub fn seed_ap_client_open_unsecure_channel (
     Trace {
         prior_traces: vec![],
         metadata_trace: Default::default(),
-        descriptors: vec![
-            ApplicationConfig::new_server(server)
-        ],
+        descriptors: vec![ApplicationConfig::new_server(server)],
         steps: vec![
             Step {
                 agent: server,
@@ -161,14 +157,11 @@ pub fn seed_ap_client_open_unsecure_channel (
                     }
                 }),
             },
-        ]
+        ],
     }
 }
 
-
-pub fn seed_b_client_open_secure_channel (
-    server: AgentName,
-) -> Trace<OpcuaProtocolTypes> {
+pub fn seed_b_client_open_secure_channel(server: AgentName) -> Trace<OpcuaProtocolTypes> {
     let open_request = term! {
         fn_service(
             (fn_sequence_header(fn_seq_0, fn_seq_0)),
@@ -192,9 +185,7 @@ pub fn seed_b_client_open_secure_channel (
     Trace {
         prior_traces: vec![],
         metadata_trace: Default::default(),
-        descriptors: vec![
-            ApplicationConfig::new_server(server)
-        ],
+        descriptors: vec![ApplicationConfig::new_server(server)],
         steps: vec![
             Step {
                 agent: server,
@@ -255,7 +246,6 @@ pub fn seed_b_client_open_secure_channel (
                     }
                 }),
             },
-
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
@@ -320,15 +310,11 @@ pub fn seed_b_client_open_secure_channel (
                     }
                 }),
             },
-
-        ]
+        ],
     }
 }
 
-
-pub fn seed_c_server_open_unsecure_channel (
-    client: AgentName,
-) -> Trace<OpcuaProtocolTypes> {
+pub fn seed_c_server_open_unsecure_channel(client: AgentName) -> Trace<OpcuaProtocolTypes> {
     let open_response = term! {
         fn_service(
             (fn_sequence_header(fn_seq_0, fn_seq_0)), // needs request id! (2)
@@ -354,9 +340,7 @@ pub fn seed_c_server_open_unsecure_channel (
     Trace {
         prior_traces: vec![],
         metadata_trace: Default::default(),
-        descriptors: vec![
-            ApplicationConfig::new_client(client)
-        ],
+        descriptors: vec![ApplicationConfig::new_client(client)],
         steps: vec![
             Step {
                 agent: client,
@@ -450,14 +434,11 @@ pub fn seed_c_server_open_unsecure_channel (
                     )
                 }}),
             },
-        ]
+        ],
     }
 }
 
-
-pub fn seed_d_client_simple_request (
-    server: AgentName,
-) -> Trace<OpcuaProtocolTypes> {
+pub fn seed_d_client_simple_request(server: AgentName) -> Trace<OpcuaProtocolTypes> {
     let open_request = term! {
         fn_service(
             (fn_sequence_header(fn_seq_0, fn_seq_0)),
@@ -598,9 +579,7 @@ pub fn seed_d_client_simple_request (
     Trace {
         prior_traces: vec![],
         metadata_trace: Default::default(),
-        descriptors: vec![
-            ApplicationConfig::new_server(server)
-        ],
+        descriptors: vec![ApplicationConfig::new_server(server)],
         steps: vec![
             Step {
                 agent: server,
@@ -661,7 +640,6 @@ pub fn seed_d_client_simple_request (
                     }
                 }),
             },
-
             Step {
                 agent: server,
                 action: Action::Input(input_action! { term! {
@@ -927,14 +905,11 @@ pub fn seed_d_client_simple_request (
                     }
                 }),
             },
-        ]
+        ],
     }
 }
 
-
-pub fn seed_e_client_reopen_reactivate (
-    server: AgentName,
-) -> Trace<OpcuaProtocolTypes> {
+pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocolTypes> {
     let open_request = term! {
         fn_service(
             (fn_sequence_header(fn_seq_0, fn_seq_0)),
@@ -1076,9 +1051,7 @@ pub fn seed_e_client_reopen_reactivate (
     Trace {
         prior_traces: vec![],
         metadata_trace: Default::default(),
-        descriptors: vec![
-            ApplicationConfig::new_server(server)
-        ],
+        descriptors: vec![ApplicationConfig::new_server(server)],
         steps: vec![
             Step {
                 agent: server,
@@ -1509,14 +1482,11 @@ pub fn seed_e_client_reopen_reactivate (
                     }
                 }),
             },
-        ]
+        ],
     }
 }
 
-
-pub fn seed_f_client_switch_secure_channels (
-    server: AgentName,
-) -> Trace<OpcuaProtocolTypes> {
+pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaProtocolTypes> {
     let open_request_1 = term! {
         fn_service(
             (fn_sequence_header(fn_seq_0, fn_seq_0)),
@@ -1661,9 +1631,7 @@ pub fn seed_f_client_switch_secure_channels (
     Trace {
         prior_traces: vec![],
         metadata_trace: Default::default(),
-        descriptors: vec![
-            ApplicationConfig::new_server(server)
-        ],
+        descriptors: vec![ApplicationConfig::new_server(server)],
         steps: vec![
             /* Open secure channel #1 */
             Step {
@@ -2098,12 +2066,9 @@ pub fn seed_f_client_switch_secure_channels (
                     }
                 }),
             },
-        ]
+        ],
     }
 }
-
-
-
 
 #[cfg(test)]
 pub mod tests {
@@ -2115,7 +2080,8 @@ pub mod tests {
 
     fn test_postcard_serialization(trace: Trace<OpcuaProtocolTypes>) {
         let serialized1 = trace.serialize_postcard().unwrap();
-        let deserialized_trace = Trace::<OpcuaProtocolTypes>::deserialize_postcard(&serialized1.as_ref()).unwrap();
+        let deserialized_trace =
+            Trace::<OpcuaProtocolTypes>::deserialize_postcard(&serialized1.as_ref()).unwrap();
         let serialized2 = deserialized_trace.serialize_postcard().unwrap();
         assert_eq!(serialized1, serialized2);
     }

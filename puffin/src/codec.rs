@@ -1,5 +1,5 @@
-use std::io;
 use std::fmt::Debug;
+use std::io;
 
 use crate::error::Error;
 
@@ -460,6 +460,7 @@ impl Codec for f64 {
         put_f64(*self, &mut b64);
         bytes.extend_from_slice(&b64);
     }
+
     fn read(r: &mut Reader) -> Option<Self> {
         r.take(8).and_then(decode_f64)
     }

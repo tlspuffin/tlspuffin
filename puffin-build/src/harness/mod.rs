@@ -93,9 +93,9 @@ impl Harness {
                     .cfg_args
                     .push(format!("-DHARNESS={}", self.path.display()));
 
-                cmake_conf.cfg_args.push(format!(
-                    "-DPROTOCOL={}",self.protocol
-                ));
+                cmake_conf
+                    .cfg_args
+                    .push(format!("-DPROTOCOL={}", self.protocol));
 
                 cmake_conf.cfg_args.push(format!(
                     "-DINCLUDE_DIRS={}",

@@ -7,6 +7,8 @@ use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::Duration;
 
+use opcua::puffin::messages::{MessageFlight, MAX_WIRE_SIZE};
+use opcua::puffin::types::{AgentType, ApplicationConfig};
 use puffin::agent::{AgentDescriptor, AgentName};
 use puffin::algebra::ConcreteMessage;
 use puffin::claims::GlobalClaimList;
@@ -16,9 +18,6 @@ use puffin::protocol::OpaqueProtocolMessageFlight;
 use puffin::put::{Put, PutOptions};
 use puffin::put_registry::{Factory, TCP_PUT};
 use puffin::stream::Stream;
-
-use opcua::puffin::messages::{MAX_WIRE_SIZE, MessageFlight};
-use opcua::puffin::types::{AgentType, ApplicationConfig};
 
 use crate::claims::OpcuaClaim;
 use crate::protocol::OpcuaProtocolBehavior;
@@ -34,7 +33,6 @@ impl Agent {}
 
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
-
         let id = message[0];
         let maybe_stream = match self.fuzz_streams.get_mut(&id) {
             Some(fs) => Some(fs),
@@ -50,24 +48,31 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
             }
         };
         if let Some(fuzz_stream) = maybe_stream {
-
             // Try to send the message.
-            fuzz_stream.write_all(&message[1..])
-                    .map_err(|e| log::warn!("TCP {}\t| Error while trying to send bytes: {}!", id, e)).ok();
+            fuzz_stream
+                .write_all(&message[1..])
+                .map_err(|e| log::warn!("TCP {}\t| Error while trying to send bytes: {}!", id, e))
+                .ok();
 
             // UA TCP closes the connection if a CLO message is sent
             const CLOSE_SECURE_CHANNEL_MESSAGE: &'static [u8; 3] = b"CLO";
             if &message[1..4] == CLOSE_SECURE_CHANNEL_MESSAGE {
-                log::warn!("TCP {}\t| Close connection, {} bytes", id, message.len()-1);
+                log::warn!(
+                    "TCP {}\t| Close connection, {} bytes",
+                    id,
+                    message.len() - 1
+                );
                 let _ = fuzz_stream.shutdown(Shutdown::Both);
             } else {
-                log::warn!("TCP {id}\t| Add message, {} bytes", message.len()-1);
-                fuzz_stream.flush().map_err(|e| log::warn!("Error while trying to flush the TCP stream: {}!", e)).ok();
+                log::warn!("TCP {id}\t| Add message, {} bytes", message.len() - 1);
+                fuzz_stream
+                    .flush()
+                    .map_err(|e| log::warn!("Error while trying to flush the TCP stream: {}!", e))
+                    .ok();
             }
         } else {
             log::error!("TCP {id}\t| Failed to connect to localhost:{}", self.port);
         };
-
     }
 
     fn take_message_from_outbound(
@@ -77,12 +82,12 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
         let mut result = MessageFlight::new();
         for (id, fuzz_stream) in self.fuzz_streams.iter_mut() {
             let mut buf = vec![0; MAX_WIRE_SIZE];
-            buf[0]= *id;
+            buf[0] = *id;
             if let Ok(size) = fuzz_stream.read(&mut buf[1..]) {
-                if let Some(flight) = MessageFlight::read_bytes(&buf[0..size+1]) {
+                if let Some(flight) = MessageFlight::read_bytes(&buf[0..size + 1]) {
                     result.merge(flight)
                 } else {
-                    return Err(Error::SecurityClaim("Invalid UA TCP message!"))
+                    return Err(Error::SecurityClaim("Invalid UA TCP message!"));
                 }
             }
         }
@@ -119,7 +124,7 @@ impl Put<OpcuaProtocolBehavior> for Agent {
     fn shutdown(&mut self) -> String {
         for fuzz_stream in self.fuzz_streams.values() {
             let _ = fuzz_stream.shutdown(Shutdown::Both);
-        };
+        }
         "TCP\t| All streams shut down!".to_string()
     }
 }
@@ -134,18 +139,16 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
         _claims: &GlobalClaimList<OpcuaClaim>,
         options: &PutOptions,
     ) -> Result<Box<dyn Put<OpcuaProtocolBehavior>>, Error> {
-
         let host = Ipv4Addr::LOCALHOST;
-        let port =
-            if let Some(port_arg) = options.get_option("port") {
-                u16::from_str_radix(port_arg, 10).expect("Invalid port number")
-            } else {
-                /* Only for --put tcp */
-                match application.protocol_config.kind {
-                    AgentType::Server => 4840,
-                    AgentType::Client => 4841,
-                }
-            };
+        let port = if let Some(port_arg) = options.get_option("port") {
+            u16::from_str_radix(port_arg, 10).expect("Invalid port number")
+        } else {
+            /* Only for --put tcp */
+            match application.protocol_config.kind {
+                AgentType::Server => 4840,
+                AgentType::Client => 4841,
+            }
+        };
 
         // 1. Start the OPC UA Server:
         let process = if options.get_option("prog").is_some() {
@@ -153,10 +156,8 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
             let args = options.get_option("args").unwrap_or("");
             let cwd = options.get_option("cwd");
             match application.protocol_config.kind {
-                AgentType::Client => {
-                    Some(OpcuaProcess::new(prog, args, cwd)) },
-                AgentType::Server => {
-                    Some(OpcuaProcess::new(prog, args, cwd)) },
+                AgentType::Client => Some(OpcuaProcess::new(prog, args, cwd)),
+                AgentType::Server => Some(OpcuaProcess::new(prog, args, cwd)),
             }
         } else {
             if options.get_option("port").is_some() {
@@ -187,19 +188,25 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
         // 2. Connect to the TCP server listening on localhost:port
         match application.protocol_config.kind {
             AgentType::Server | AgentType::Client => {
-                let fuzz_stream = TcpStream::connect((host, port))
-                    .map_err(|e| {
-                        log::warn!("TCP\t| Failed to connect to server at {}:{}: {}", host, port, e);
-                        Error::IO(e.to_string())
-                    })?;
+                let fuzz_stream = TcpStream::connect((host, port)).map_err(|e| {
+                    log::warn!(
+                        "TCP\t| Failed to connect to server at {}:{}: {}",
+                        host,
+                        port,
+                        e
+                    );
+                    Error::IO(e.to_string())
+                })?;
                 log::warn!("TCP 1\t| Connected to server at {}:{}", host, port);
 
-                fuzz_stream.set_read_timeout(Some(Duration::from_millis(1000)))
-                    .map_err(|e| { Error::IO(e.to_string()) })?;
-                fuzz_stream.set_nodelay(true)
-                    .map_err(|e| { Error::IO(e.to_string()) })?;
+                fuzz_stream
+                    .set_read_timeout(Some(Duration::from_millis(1000)))
+                    .map_err(|e| Error::IO(e.to_string()))?;
+                fuzz_stream
+                    .set_nodelay(true)
+                    .map_err(|e| Error::IO(e.to_string()))?;
 
-                Ok(Box::new(Agent{
+                Ok(Box::new(Agent {
                     application: application.clone(),
                     port,
                     fuzz_streams: HashMap::from([(1, fuzz_stream)]),
@@ -209,17 +216,19 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
         }
     }
 
-    fn name(&self) -> String {String::from(TCP_PUT)}
-
-    fn versions(&self) -> Vec<(String, String)>{
-        vec![
-            ("harness".to_string(), "1.1".to_string()),
-        ]
+    fn name(&self) -> String {
+        String::from(TCP_PUT)
     }
 
-    fn supports(&self, _capability: &str) -> bool {false}
+    fn versions(&self) -> Vec<(String, String)> {
+        vec![("harness".to_string(), "1.1".to_string())]
+    }
 
-    fn clone_factory(&self) -> Box<dyn Factory<OpcuaProtocolBehavior>>{
+    fn supports(&self, _capability: &str) -> bool {
+        false
+    }
+
+    fn clone_factory(&self) -> Box<dyn Factory<OpcuaProtocolBehavior>> {
         Box::new(self.clone())
     }
 }

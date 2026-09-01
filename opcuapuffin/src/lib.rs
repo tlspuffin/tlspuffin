@@ -8,8 +8,8 @@
 pub mod claims;
 pub mod opcua;
 pub mod protocol;
-mod puts;
 pub mod put_registry;
+mod puts;
 
 //#[cfg(feature = "test-utils")]
 #[cfg(test)]

@@ -3,8 +3,7 @@
 /// /!\ not implemented yet /!\
 use std::fmt::Debug;
 
-use opcua::puffin::types::{OpcuaProtocolTypes};
-
+use opcua::puffin::types::OpcuaProtocolTypes;
 use puffin::agent::AgentName;
 use puffin::algebra::dynamic_function::TypeShape;
 use puffin::claims::Claim;
@@ -22,7 +21,7 @@ dummy_extract_knowledge_codec!(OpcuaProtocolTypes, Box<OpcuaClaimInner>);
 pub struct OpcuaClaim {
     agent_name: AgentName,
     inner: Box<OpcuaClaimInner>,
-    step: Option<StepNumber>
+    step: Option<StepNumber>,
 }
 
 impl Claim for OpcuaClaim {

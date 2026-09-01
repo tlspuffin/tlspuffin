@@ -6,25 +6,25 @@
 include!(env!("RUST_BINDINGS_FILE"));
 
 use std::ptr::null;
+
 use opcua::puffin::static_certs;
 use opcua::puffin::types::OpcuaVersion;
 
 pub fn version_of(version: OpcuaVersion) -> OPCUA_VERSION {
     match version {
         OpcuaVersion::V1_4 => OPCUA_VERSION::V1_4,
-        OpcuaVersion::V1_5 => OPCUA_VERSION::V1_5
+        OpcuaVersion::V1_5 => OPCUA_VERSION::V1_5,
     }
 }
 
-
 // Certificates:
 macro_rules! pem {
-    ($pemder: ident) => {
+    ($pemder:ident) => {
         pub const $pemder: PEM = PEM {
             length: static_certs::$pemder.0.len(),
             bytes: static_certs::$pemder.0.as_ptr(),
         };
-    }
+    };
 }
 
 pem!(ALICE_CERTIFICATE);
