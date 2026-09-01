@@ -21,6 +21,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - id: configure-checks
         name: Configure Validation
         run: |
@@ -77,6 +79,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: setup
         uses: ./.github/actions/setup
       - name: unit test `puffin`
@@ -97,6 +101,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: setup
         uses: ./.github/actions/setup
       - name: build OpenSSL dependency
@@ -123,6 +129,8 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: setup
         uses: ./.github/actions/setup
       - name: build `sshpuffin`
