@@ -23,10 +23,11 @@ use crate::ssh::deframe::SshMessageDeframer;
 
 // ── Claim FFI bridge ──────────────────────────────────────────────────────
 //
-// The C harness exposes a claim callback, but this build does not use claims
-// (the security oracle is a no-op). The notify trampoline pushes an empty
-// `SshClaimInner` so the FFI contract is satisfied without decoding any claim
-// data. Real claim decoding lives in the claims/oracle change set.
+// The C harness (both libssh and wolfSSH, symmetrically) builds a completion
+// claim carrying the server's entity-authentication belief. The notify
+// trampoline decodes the auth-belief fields into `SshClaimInner` so the two
+// PUTs' claims can be compared (see the SshClaimInner docs). The rest of the C
+// claim (session id, counts, digests) is intentionally not decoded yet.
 
 /// Opaque data handed back to us on every `notify`/`destroy` call.
 struct ClaimerContext {
@@ -36,16 +37,30 @@ struct ClaimerContext {
     is_server: bool,
 }
 
-/// `notify` trampoline: invoked by the C harness at a claim point. This build
-/// records an empty claim (claims are unused by the current oracle).
-extern "C" fn ssh_claim_notify(context: *mut c_void, _claim: *mut Claim) {
-    if context.is_null() {
+/// Read a NUL-terminated C `char` buffer into an owned `String` (lossy on
+/// non-UTF-8, which auth user/method names never are).
+fn c_str_field_to_string(buf: &[c_char]) -> String {
+    let bytes: Vec<u8> = buf.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
+    String::from_utf8_lossy(&bytes).into_owned()
+}
+
+/// `notify` trampoline: invoked by the C harness at a claim point. Decodes the
+/// auth-belief fields of the C `Claim` into a comparable `SshClaimInner`.
+extern "C" fn ssh_claim_notify(context: *mut c_void, claim: *mut Claim) {
+    if context.is_null() || claim.is_null() {
         return;
     }
     let ctx = unsafe { &*(context as *const ClaimerContext) };
+    let c = unsafe { &*claim };
+    let fp_len = (c.auth_key_fp_len as usize).min(c.auth_key_fp.len());
+    let inner = SshClaimInner {
+        auth_method: c_str_field_to_string(&c.auth_method),
+        auth_user: c_str_field_to_string(&c.auth_user),
+        auth_key_fp: c.auth_key_fp[..fp_len].to_vec(),
+    };
     ctx.claims
         .deref_borrow_mut()
-        .claim_sized(SshClaim::new(ctx.agent_name, SshClaimInner));
+        .claim_sized(SshClaim::new(ctx.agent_name, inner));
 }
 
 /// `destroy` trampoline: reclaims the boxed `ClaimerContext`.
@@ -207,11 +222,20 @@ impl CAgent {
             return Err(Error::Put("C SSH agent creation failed".to_owned()));
         }
 
-        // No claim callback is registered in this build: the security oracle is
-        // a no-op and claims are unused. Leaving the harness claimer unset keeps
-        // the C harness from emitting claims, so the cross-vendor differential
-        // compares only execution status and knowledge (no spurious claim diffs
-        // from harness-specific claim emission).
+        // Claims are STAGED but not ACTIVATED. The notify trampoline
+        // (`ssh_claim_notify`) already decodes the auth-belief into a comparable
+        // `SshClaimInner`, but no claimer is registered here, so the C harness
+        // emits nothing (it early-returns on the NULL claimer) and the differential
+        // compares only status + the decrypted transcript. Fully turning claims on
+        // additionally needs (1) the vendors built with the "claimer" instrumentation
+        // so the harness is compiled with -DHAS_CLAIMS, and (2) this registration —
+        // deferred as its own change (see SshClaimInner docs).
+        //
+        // Interim detection gap while claims are off: an *identity-attribution*
+        // divergence (both stacks emit USERAUTH_SUCCESS but believe they
+        // authenticated DIFFERENT users/keys) is not caught — USERAUTH_SUCCESS is
+        // identity-less on the wire, so only a claim can see it. The
+        // security-critical accept/reject divergence IS caught, by the transcript.
         let _ = claims;
 
         Ok(Self {
