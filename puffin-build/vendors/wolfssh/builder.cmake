@@ -32,6 +32,13 @@ if(sancov)
   set(WS_CFLAGS "${WS_CFLAGS} -fsanitize-coverage=trace-pc-guard")
 endif()
 
+# Expose the session id (exchange hash H of the first KEX, RFC 4253 §7.2) to the
+# claim layer so the decryption recipe can source H from the PUT instead of
+# reconstructing it from a (mutation-stale) hard-coded client KEXINIT. Mirrors
+# the libssh instrument. Pure observation; no behaviour change. src/ssh.c
+# already includes <wolfssh/internal.h>, so the WOLFSSH struct is in scope.
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/src/ssh.c -P "${CMAKE_CURRENT_LIST_DIR}/instrument_claims.cmake")
+
 set(WOLFSSL_PREFIX "${CMAKE_BINARY_DIR}/wolfssl_install")
 
 # ── step 1: build wolfSSL (--enable-ssh) before configuring wolfSSH ──────────
