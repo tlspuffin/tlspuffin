@@ -237,6 +237,55 @@ impl Codec for SshBytes {
     }
 }
 
+// ── Type-directed crypto atoms ───────────────────────────────────────────────
+//
+// The KEX quantities used to all be plain `SshBytes`, so the term algebra could
+// not tell a shared secret from an exchange hash from a session id — the DY
+// mutator could substitute any byte blob into any of them, and, more importantly,
+// could NOT express the interesting attack: reusing a value of a SPECIFIC
+// cryptographic role across sessions/rekeys (the Terrapin / session-id-confusion
+// class). Giving each role its own type makes substitution type-directed:
+//
+//   * `SharedSecret`  — the ECDH shared secret K.
+//   * `ExchangeHash`  — the per-KEX exchange hash H (changes on every rekey).
+//   * `SessionId`     — the session identifier: the FIRST exchange hash, pinned
+//     for the whole connection (RFC 4253 §7.2). Byte-equal to H on the first KEX
+//     but semantically distinct — the distinction is the whole point: after a
+//     rekey, `fn_session_id_from_hash` lets the fuzzer try the NEW H in the
+//     session-id slot as a single well-typed mutation.
+//
+// Each is a transparent u32-length-prefixed byte blob (identical wire form to
+// SshBytes), so wrapping/unwrapping does not change any derived bytes.
+macro_rules! declare_crypto_atom (
+    ($name:ident) => {
+        #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+        #[extractable(SshProtocolTypes)]
+        pub struct $name(#[extractable_no_recursion] pub Vec<u8>);
+
+        impl $name {
+            pub fn new(data: impl Into<Vec<u8>>) -> Self {
+                Self(data.into())
+            }
+        }
+
+        impl Codec for $name {
+            fn encode(&self, bytes: &mut Vec<u8>) {
+                (self.0.len() as u32).encode(bytes);
+                bytes.extend_from_slice(&self.0);
+            }
+
+            fn read(reader: &mut Reader) -> Option<Self> {
+                let length = u32::read(reader)?;
+                Some($name(Vec::from(reader.take(length as usize)?)))
+            }
+        }
+    }
+);
+
+declare_crypto_atom!(SharedSecret);
+declare_crypto_atom!(ExchangeHash);
+declare_crypto_atom!(SessionId);
+
 // Keep helpers for the raw-tail fields (method_data, request_data, channel_data)
 // that are NOT length-prefixed.
 fn encode_ssh_bytes(bytes_value: &[u8], bytes: &mut Vec<u8>) {

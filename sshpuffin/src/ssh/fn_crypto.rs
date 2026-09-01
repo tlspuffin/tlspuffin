@@ -14,8 +14,8 @@ use x25519_dalek::{PublicKey, StaticSecret};
 
 use crate::protocol::{RawSshMessageFlight, SshMessageFlight};
 use crate::ssh::message::{
-    KexEcdhReplyMessage, OnWireData, RawSshMessage, SshBytes, SshMessage, SshPublicKey,
-    SshSignature,
+    ExchangeHash, KexEcdhReplyMessage, OnWireData, RawSshMessage, SessionId, SharedSecret, SshBytes,
+    SshMessage, SshPublicKey, SshSignature,
 };
 use crate::ssh::transcript::AlignedTranscript;
 
@@ -51,7 +51,7 @@ pub fn fn_client_ecdh_pubkey() -> Result<SshBytes, FnError> {
 pub fn fn_ecdh_shared_secret(
     priv_key: &SshBytes,
     peer_pub: &SshBytes,
-) -> Result<SshBytes, FnError> {
+) -> Result<SharedSecret, FnError> {
     if priv_key.0.len() != 32 {
         return Err(FnError::Malformed("private key must be 32 bytes".into()));
     }
@@ -69,7 +69,7 @@ pub fn fn_ecdh_shared_secret(
     let pk = PublicKey::from(pub_bytes);
 
     let shared = sk.diffie_hellman(&pk);
-    Ok(SshBytes::new(shared.as_bytes().to_vec()))
+    Ok(SharedSecret::new(shared.as_bytes().to_vec()))
 }
 
 // ── Message extraction helpers ────────────────────────────────────────────────
@@ -210,8 +210,8 @@ pub fn fn_kex_exchange_hash(
     k_s: &SshBytes, // raw outer SSH-string bytes (includes 4-byte length prefix)
     q_c: &SshBytes,
     q_s: &SshBytes,
-    shared_secret: &SshBytes,
-) -> Result<SshBytes, FnError> {
+    shared_secret: &SharedSecret,
+) -> Result<ExchangeHash, FnError> {
     let mut buf = Vec::new();
 
     push_ssh_string(&mut buf, &v_c.0); // V_C
@@ -224,20 +224,36 @@ pub fn fn_kex_exchange_hash(
     buf.extend_from_slice(&to_mpint(&shared_secret.0)); // K
 
     let hash = Sha256::digest(&buf);
-    Ok(SshBytes::new(hash.to_vec()))
+    Ok(ExchangeHash::new(hash.to_vec()))
+}
+
+/// Derive the SESSION ID from an exchange hash.
+///
+/// On the first key exchange the session id equals the exchange hash H (RFC 4253
+/// §7.2), so this is a byte-for-byte copy. But the two are semantically distinct
+/// and this conversion is EXPLICIT so the DY fuzzer can express the confusion: the
+/// session id MUST stay the first H for the whole connection, whereas H changes on
+/// every rekey. Feeding the NEW (rekey) `ExchangeHash` here yields a wrong-but-
+/// well-typed `SessionId` — the session-id-confusion / Terrapin-shaped mutation,
+/// now reachable in a single typed step.
+pub fn fn_session_id_from_hash(h: &ExchangeHash) -> Result<SessionId, FnError> {
+    Ok(SessionId::new(h.0.clone()))
 }
 
 // ── Key derivation (RFC 4253 §7) ─────────────────────────────────────────────
 
-fn derive_key(shared: &SshBytes, h: &SshBytes, sid: &SshBytes, id: u8, needed: usize) -> SshBytes {
-    let k_mpint = to_mpint(&shared.0);
+// Takes raw byte slices (not the role newtypes) so every caller — AES-GCM, CTR,
+// MAC, ChaCha — passes its own `.0` and the derived bytes are identical to before
+// the type-directed refactor.
+fn derive_key(shared: &[u8], h: &[u8], sid: &[u8], id: u8, needed: usize) -> SshBytes {
+    let k_mpint = to_mpint(shared);
 
     // K1 = SHA-256(K || H || id || session_id)
     let k1: Vec<u8> = Sha256::new()
         .chain_update(&k_mpint)
-        .chain_update(&h.0)
+        .chain_update(h)
         .chain_update([id])
-        .chain_update(&sid.0)
+        .chain_update(sid)
         .finalize()
         .to_vec();
 
@@ -249,7 +265,7 @@ fn derive_key(shared: &SshBytes, h: &SshBytes, sid: &SshBytes, id: u8, needed: u
     while out.len() < needed {
         let kn: Vec<u8> = Sha256::new()
             .chain_update(&k_mpint)
-            .chain_update(&h.0)
+            .chain_update(h)
             .chain_update(&out)
             .finalize()
             .to_vec();
@@ -261,20 +277,20 @@ fn derive_key(shared: &SshBytes, h: &SshBytes, sid: &SshBytes, id: u8, needed: u
 
 /// Client-to-server encryption key (id = `'C'`), 64 bytes for ChaCha20-Poly1305.
 pub fn fn_derive_enc_key_c2s(
-    shared: &SshBytes,
-    h: &SshBytes,
-    sid: &SshBytes,
+    shared: &SharedSecret,
+    h: &ExchangeHash,
+    sid: &SessionId,
 ) -> Result<SshBytes, FnError> {
-    Ok(derive_key(shared, h, sid, b'C', 64))
+    Ok(derive_key(&shared.0, &h.0, &sid.0, b'C', 64))
 }
 
 /// Server-to-client encryption key (id = `'D'`), 64 bytes for ChaCha20-Poly1305.
 pub fn fn_derive_enc_key_s2c(
-    shared: &SshBytes,
-    h: &SshBytes,
-    sid: &SshBytes,
+    shared: &SharedSecret,
+    h: &ExchangeHash,
+    sid: &SessionId,
 ) -> Result<SshBytes, FnError> {
-    Ok(derive_key(shared, h, sid, b'D', 64))
+    Ok(derive_key(&shared.0, &h.0, &sid.0, b'D', 64))
 }
 
 // ── AES-256-GCM key/IV derivation (RFC 5647) ─────────────────────────────────
@@ -285,27 +301,27 @@ pub fn fn_derive_enc_key_s2c(
 
 /// Client-to-server AES-256-GCM key (id `'C'`, 32 bytes).
 pub fn fn_derive_aes_key_c2s(
-    s: &SshBytes,
-    h: &SshBytes,
-    sid: &SshBytes,
+    s: &SharedSecret,
+    h: &ExchangeHash,
+    sid: &SessionId,
 ) -> Result<SshBytes, FnError> {
-    Ok(derive_key(s, h, sid, b'C', 32))
+    Ok(derive_key(&s.0, &h.0, &sid.0, b'C', 32))
 }
 /// Server-to-client AES-256-GCM key (id `'D'`, 32 bytes).
 pub fn fn_derive_aes_key_s2c(
-    s: &SshBytes,
-    h: &SshBytes,
-    sid: &SshBytes,
+    s: &SharedSecret,
+    h: &ExchangeHash,
+    sid: &SessionId,
 ) -> Result<SshBytes, FnError> {
-    Ok(derive_key(s, h, sid, b'D', 32))
+    Ok(derive_key(&s.0, &h.0, &sid.0, b'D', 32))
 }
 /// Client-to-server initial IV (id `'A'`, 12 bytes).
-pub fn fn_derive_iv_c2s(s: &SshBytes, h: &SshBytes, sid: &SshBytes) -> Result<SshBytes, FnError> {
-    Ok(derive_key(s, h, sid, b'A', 12))
+pub fn fn_derive_iv_c2s(s: &SharedSecret, h: &ExchangeHash, sid: &SessionId) -> Result<SshBytes, FnError> {
+    Ok(derive_key(&s.0, &h.0, &sid.0, b'A', 12))
 }
 /// Server-to-client initial IV (id `'B'`, 12 bytes).
-pub fn fn_derive_iv_s2c(s: &SshBytes, h: &SshBytes, sid: &SshBytes) -> Result<SshBytes, FnError> {
-    Ok(derive_key(s, h, sid, b'B', 12))
+pub fn fn_derive_iv_s2c(s: &SharedSecret, h: &ExchangeHash, sid: &SessionId) -> Result<SshBytes, FnError> {
+    Ok(derive_key(&s.0, &h.0, &sid.0, b'B', 12))
 }
 
 // ── AES-256-GCM packet encryption (aes256-gcm@openssh.com, RFC 5647) ──────────
@@ -646,51 +662,51 @@ type HmacSha256 = Hmac<Sha256>;
 
 /// Client-to-server AES-CTR encryption key (id `'C'`, 32 bytes).
 pub fn fn_derive_ctr_key_c2s(
-    s: &SshBytes,
-    h: &SshBytes,
-    sid: &SshBytes,
+    s: &SharedSecret,
+    h: &ExchangeHash,
+    sid: &SessionId,
 ) -> Result<SshBytes, FnError> {
-    Ok(derive_key(s, h, sid, b'C', 32))
+    Ok(derive_key(&s.0, &h.0, &sid.0, b'C', 32))
 }
 /// Server-to-client AES-CTR encryption key (id `'D'`, 32 bytes).
 pub fn fn_derive_ctr_key_s2c(
-    s: &SshBytes,
-    h: &SshBytes,
-    sid: &SshBytes,
+    s: &SharedSecret,
+    h: &ExchangeHash,
+    sid: &SessionId,
 ) -> Result<SshBytes, FnError> {
-    Ok(derive_key(s, h, sid, b'D', 32))
+    Ok(derive_key(&s.0, &h.0, &sid.0, b'D', 32))
 }
 /// Client-to-server AES-CTR initial counter / IV (id `'A'`, 16 bytes).
 pub fn fn_derive_ctr_iv_c2s(
-    s: &SshBytes,
-    h: &SshBytes,
-    sid: &SshBytes,
+    s: &SharedSecret,
+    h: &ExchangeHash,
+    sid: &SessionId,
 ) -> Result<SshBytes, FnError> {
-    Ok(derive_key(s, h, sid, b'A', 16))
+    Ok(derive_key(&s.0, &h.0, &sid.0, b'A', 16))
 }
 /// Server-to-client AES-CTR initial counter / IV (id `'B'`, 16 bytes).
 pub fn fn_derive_ctr_iv_s2c(
-    s: &SshBytes,
-    h: &SshBytes,
-    sid: &SshBytes,
+    s: &SharedSecret,
+    h: &ExchangeHash,
+    sid: &SessionId,
 ) -> Result<SshBytes, FnError> {
-    Ok(derive_key(s, h, sid, b'B', 16))
+    Ok(derive_key(&s.0, &h.0, &sid.0, b'B', 16))
 }
 /// Client-to-server HMAC integrity key (id `'E'`, 32 bytes for hmac-sha2-256).
 pub fn fn_derive_mac_key_c2s(
-    s: &SshBytes,
-    h: &SshBytes,
-    sid: &SshBytes,
+    s: &SharedSecret,
+    h: &ExchangeHash,
+    sid: &SessionId,
 ) -> Result<SshBytes, FnError> {
-    Ok(derive_key(s, h, sid, b'E', 32))
+    Ok(derive_key(&s.0, &h.0, &sid.0, b'E', 32))
 }
 /// Server-to-client HMAC integrity key (id `'F'`, 32 bytes for hmac-sha2-256).
 pub fn fn_derive_mac_key_s2c(
-    s: &SshBytes,
-    h: &SshBytes,
-    sid: &SshBytes,
+    s: &SharedSecret,
+    h: &ExchangeHash,
+    sid: &SessionId,
 ) -> Result<SshBytes, FnError> {
-    Ok(derive_key(s, h, sid, b'F', 32))
+    Ok(derive_key(&s.0, &h.0, &sid.0, b'F', 32))
 }
 
 /// Encrypt one SSH message as an aes256-ctr + hmac-sha2-256 binary packet.
@@ -1152,7 +1168,7 @@ pub fn fn_server_rsa_pubkey_bytes() -> Result<SshBytes, FnError> {
 
 /// Sign the exchange hash with the embedded server RSA private key using rsa-sha2-256.
 /// Returns the raw PKCS#1v1.5 signature bytes (without algorithm wrapper).
-pub fn fn_sign_exchange_hash(h: &SshBytes) -> Result<SshBytes, FnError> {
+pub fn fn_sign_exchange_hash(h: &ExchangeHash) -> Result<SshBytes, FnError> {
     use rsa::pkcs1v15::SigningKey;
     use rsa::signature::{SignatureEncoding, Signer};
     use rsa::{BigUint, RsaPrivateKey};
@@ -1209,7 +1225,7 @@ fn pubkey_blob_of(key: &ssh_key::PrivateKey) -> Result<SshBytes, FnError> {
 ///   boolean TRUE, string "rsa-sha2-256", string public-key blob.
 fn sign_userauth_with(
     key: &ssh_key::PrivateKey,
-    session_id: &SshBytes,
+    session_id: &SessionId,
     user: &SshBytes,
     service: &SshBytes,
     pubkey_blob: &SshBytes,
@@ -1268,7 +1284,7 @@ pub fn fn_client_c_pubkey_blob() -> Result<SshBytes, FnError> {
 
 /// Sign a publickey USERAUTH_REQUEST with client identity key A.
 pub fn fn_sign_userauth(
-    session_id: &SshBytes,
+    session_id: &SessionId,
     user: &SshBytes,
     service: &SshBytes,
     pubkey_blob: &SshBytes,
@@ -1278,7 +1294,7 @@ pub fn fn_sign_userauth(
 
 /// Sign a publickey USERAUTH_REQUEST with client identity key B.
 pub fn fn_sign_userauth_b(
-    session_id: &SshBytes,
+    session_id: &SessionId,
     user: &SshBytes,
     service: &SshBytes,
     pubkey_blob: &SshBytes,
@@ -1294,7 +1310,7 @@ pub fn fn_sign_userauth_b(
 
 /// Sign a publickey USERAUTH_REQUEST with client identity key C.
 pub fn fn_sign_userauth_c(
-    session_id: &SshBytes,
+    session_id: &SessionId,
     user: &SshBytes,
     service: &SshBytes,
     pubkey_blob: &SshBytes,
@@ -1332,12 +1348,42 @@ mod tests {
         assert_ne!(b.0, c.0, "B and C must differ");
 
         // Each identity signs the RFC 4252 §7 blob with its own key without error.
-        let sid = SshBytes::new(vec![7u8; 32]);
+        let sid = SessionId::new(vec![7u8; 32]);
         let user = SshBytes::new(b"user".to_vec());
         let svc = SshBytes::new(b"ssh-connection".to_vec());
         assert!(fn_sign_userauth(&sid, &user, &svc, &a).is_ok());
         assert!(fn_sign_userauth_b(&sid, &user, &svc, &b).is_ok());
         assert!(fn_sign_userauth_c(&sid, &user, &svc, &c).is_ok());
+    }
+
+    /// Byte-identity guard for the type-directed crypto refactor: wrapping the KEX
+    /// quantities in role newtypes (SharedSecret / ExchangeHash / SessionId) must
+    /// NOT change any derived byte — otherwise the handshake would break. The typed
+    /// derivation must equal the raw `derive_key` over the same bytes, and
+    /// `fn_session_id_from_hash` must be a byte-copy of the (first) exchange hash.
+    #[test]
+    fn crypto_newtypes_preserve_derived_bytes() {
+        let shared_raw = vec![0x11u8; 32];
+        let h_raw = vec![0x22u8; 32];
+        let shared = SharedSecret::new(shared_raw.clone());
+        let h = ExchangeHash::new(h_raw.clone());
+
+        let sid = fn_session_id_from_hash(&h).unwrap();
+        assert_eq!(sid.0, h_raw, "session id must be a byte-copy of the first H");
+
+        // Typed key/IV derivation == raw derive_key over the identical bytes.
+        let key = fn_derive_aes_key_s2c(&shared, &h, &sid).unwrap();
+        assert_eq!(
+            key.0,
+            derive_key(&shared_raw, &h_raw, &h_raw, b'D', 32).0,
+            "typed AES-GCM key derivation changed the derived bytes"
+        );
+        let iv = fn_derive_iv_s2c(&shared, &h, &sid).unwrap();
+        assert_eq!(
+            iv.0,
+            derive_key(&shared_raw, &h_raw, &h_raw, b'B', 12).0,
+            "typed AES-GCM IV derivation changed the derived bytes"
+        );
     }
 
     #[test]

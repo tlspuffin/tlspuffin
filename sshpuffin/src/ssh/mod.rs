@@ -179,6 +179,9 @@ define_signature!(
     fn_server_hostkey
     fn_server_hostkey_raw
     fn_kex_exchange_hash
+    // Explicit ExchangeHash -> SessionId conversion; makes session-id-vs-exchange-hash
+    // confusion (rekey / Terrapin) a first-class, well-typed DY mutation.
+    fn_session_id_from_hash
     fn_derive_enc_key_c2s
     fn_derive_enc_key_s2c
     fn_encrypt_packet

@@ -74,7 +74,7 @@ pub fn seed_client_attacker_full(server: AgentName) -> Trace<SshProtocolTypes> {
     };
 
     let enc_key = term! {
-        fn_derive_enc_key_c2s((@shared), (@exch_hash), (@exch_hash))
+        fn_derive_enc_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash))))
     };
 
     // Sequence numbers: banner is NOT a binary packet.
@@ -193,7 +193,7 @@ pub fn seed_client_attacker_pubkey(server: AgentName) -> Trace<SshProtocolTypes>
             (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
         )
     };
-    let enc_key = term! { fn_derive_enc_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let enc_key = term! { fn_derive_enc_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
         fn_encrypt_packet((fn_service_request((fn_ssh_userauth))), (@enc_key), (fn_u32_3))
@@ -202,7 +202,7 @@ pub fn seed_client_attacker_pubkey(server: AgentName) -> Trace<SshProtocolTypes>
     // Publickey auth: sign the §7 blob (over the session id = exchange hash) with
     // key A, then carry A's blob + the signature in the request.
     let sig = term! {
-        fn_sign_userauth((@exch_hash), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+        fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
     };
     let auth_req = term! {
         fn_encrypt_packet(
@@ -270,8 +270,8 @@ pub fn seed_client_attacker_full_aesgcm(server: AgentName) -> Trace<SshProtocolT
         )
     };
     // c2s AES-256-GCM key + IV.
-    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     // AES-GCM invocation counter = per-direction packet index since NewKeys (0,1,2,3).
     let svc_req = term! {
@@ -351,8 +351,8 @@ pub fn seed_client_attacker_kexinit_injection(server: AgentName) -> Trace<SshPro
             (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
         )
     };
-    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     // Injected valid rekey KEXINIT (encrypted, counter 0).
     let inject_kexinit = term! {
@@ -450,8 +450,8 @@ pub fn seed_client_attacker_full_kexinit_synth(server: AgentName) -> Trace<SshPr
             (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
         )
     };
-    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
         fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
@@ -541,9 +541,9 @@ pub fn seed_client_attacker_full_ctr(server: AgentName) -> Trace<SshProtocolType
         )
     };
     // aes256-ctr enc key ('C'), 16-byte CTR IV ('A'), hmac-sha2-256 key ('E').
-    let enc_key = term! { fn_derive_ctr_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let iv = term! { fn_derive_ctr_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let mac_key = term! { fn_derive_mac_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let enc_key = term! { fn_derive_ctr_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_ctr_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let mac_key = term! { fn_derive_mac_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     // AES-CTR keeps a continuous 128-bit counter across packets, so each packet's
     // block_offset is the cumulative number of 16-byte blocks already sent on this
@@ -628,7 +628,7 @@ pub fn seed_client_attacker_auth_bypass(server: AgentName) -> Trace<SshProtocolT
             (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
         )
     };
-    let enc_key = term! { fn_derive_enc_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let enc_key = term! { fn_derive_enc_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     // The bypass: inject USERAUTH_SUCCESS (seqno 3), then a channel open (4).
     let bypass = term! {
@@ -691,14 +691,14 @@ pub fn seed_client_attacker_pubkey_aesgcm(server: AgentName) -> Trace<SshProtoco
             (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
         )
     };
-    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
         fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
     };
     let sig = term! {
-        fn_sign_userauth((@exch_hash), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+        fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
     };
     let auth_req = term! {
         fn_encrypt_packet_aesgcm(
@@ -777,15 +777,15 @@ pub fn seed_client_attacker_pubkey_b(server: AgentName) -> Trace<SshProtocolType
             (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
         )
     };
-    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
         fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
     };
     // B signs over (session id, "userb", service, key-B blob) with B's key.
     let sig = term! {
-        fn_sign_userauth_b((@exch_hash), (fn_username_b), (fn_ssh_connection), (fn_client_b_pubkey_blob))
+        fn_sign_userauth_b((fn_session_id_from_hash((@exch_hash))), (fn_username_b), (fn_ssh_connection), (fn_client_b_pubkey_blob))
     };
     let auth_req = term! {
         fn_encrypt_packet_aesgcm(
@@ -861,8 +861,8 @@ pub fn seed_client_attacker_impersonate_a_with_b(server: AgentName) -> Trace<Ssh
             (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
         )
     };
-    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
         fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
@@ -870,7 +870,7 @@ pub fn seed_client_attacker_impersonate_a_with_b(server: AgentName) -> Trace<Ssh
     // Valid signature by key B, but over a request whose username is "user" (A's
     // name). Signature verifies; the (user "user", key B) pairing is unauthorized.
     let sig = term! {
-        fn_sign_userauth_b((@exch_hash), (fn_username), (fn_ssh_connection), (fn_client_b_pubkey_blob))
+        fn_sign_userauth_b((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_b_pubkey_blob))
     };
     let auth_req = term! {
         fn_encrypt_packet_aesgcm(
@@ -943,14 +943,14 @@ pub fn seed_client_attacker_unauthorized_key_c(server: AgentName) -> Trace<SshPr
             (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
         )
     };
-    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
         fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
     };
     let sig = term! {
-        fn_sign_userauth_c((@exch_hash), (fn_username_c), (fn_ssh_connection), (fn_client_c_pubkey_blob))
+        fn_sign_userauth_c((fn_session_id_from_hash((@exch_hash))), (fn_username_c), (fn_ssh_connection), (fn_client_c_pubkey_blob))
     };
     let auth_req = term! {
         fn_encrypt_packet_aesgcm(
@@ -1020,14 +1020,14 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
             (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
         )
     };
-    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_req = term! {
         fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
     };
     let sig = term! {
-        fn_sign_userauth((@exch_hash), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+        fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
     };
     let auth_req = term! {
         fn_encrypt_packet_aesgcm(
@@ -1130,8 +1130,8 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
             (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
         )
     };
-    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     // libssh's packet filter only permits a rekey KEXINIT once the connection is
     // established, so authenticate first (publickey, key A; counters 0,1).
@@ -1139,7 +1139,7 @@ pub fn seed_client_attacker_rekey(server: AgentName) -> Trace<SshProtocolTypes> 
         fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
     };
     let sig = term! {
-        fn_sign_userauth((@exch_hash), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+        fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
     };
     let auth_req = term! {
         fn_encrypt_packet_aesgcm(
@@ -1252,8 +1252,8 @@ pub fn seed_client_attacker_ext_info(server: AgentName) -> Trace<SshProtocolType
             (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
         )
     };
-    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (@exch_hash)) };
-    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (@exch_hash)) };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     // First post-NewKeys packet: EXT_INFO (RFC 8308 §2.4), counter 0.
     let ext_info = term! {
@@ -1265,7 +1265,7 @@ pub fn seed_client_attacker_ext_info(server: AgentName) -> Trace<SshProtocolType
         fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_1))
     };
     let sig = term! {
-        fn_sign_userauth((@exch_hash), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+        fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
     };
     let auth_req = term! {
         fn_encrypt_packet_aesgcm(
@@ -1358,7 +1358,7 @@ pub fn seed_server_attacker_full(client: AgentName) -> Trace<SshProtocolTypes> {
     let sig = term! { fn_sign_exchange_hash((@exch_hash)) };
 
     let enc_key_s2c = term! {
-        fn_derive_enc_key_s2c((@shared), (@exch_hash), (@exch_hash))
+        fn_derive_enc_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash))))
     };
 
     // Sequence numbers for the server attacker:
@@ -1440,8 +1440,8 @@ pub fn seed_server_attacker_full_aesgcm(client: AgentName) -> Trace<SshProtocolT
     };
     let sig = term! { fn_sign_exchange_hash((@exch_hash)) };
     // s2c AES-256-GCM key + IV (direction the server encrypts towards the client).
-    let key = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@exch_hash)) };
-    let iv = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@exch_hash)) };
+    let key = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     let svc_accept = term! {
         fn_encrypt_packet_aesgcm((fn_service_accept((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
@@ -1536,7 +1536,7 @@ pub fn server_decryption_recipes(server: AgentName) -> Vec<Term<SshProtocolTypes
             (@shared)
         )
     };
-    let key = term! { fn_derive_enc_key_s2c((@shared), (@exch_hash), (@exch_hash)) };
+    let key = term! { fn_derive_enc_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     // Decrypt each of the first three encrypted server outputs at both the
     // strict (0,1,2) and non-strict (3,4,5) s2c sequence numbers. The wrong
@@ -1978,8 +1978,8 @@ pub fn server_decryption_recipes_aesgcm(server: AgentName) -> Vec<Term<SshProtoc
             (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
         )
     };
-    let key = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (@exch_hash)) };
-    let iv = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (@exch_hash)) };
+    let key = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
 
     // The server's post-NewKeys s2c AES-GCM counter is CONTINUOUS across the whole
     // stream, so the full transcript is only recoverable by concatenating ALL of
