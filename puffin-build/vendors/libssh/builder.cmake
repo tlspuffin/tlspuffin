@@ -1,5 +1,10 @@
 use_languages(C)
 
+# Expose the session id (exchange hash H) and a per-direction secure-channel
+# message-type digest to the claim layer, for the matching-conversation oracle
+# (KEX-transcript + channel-data agreement). Pure observation; no behaviour
+# change. Anchors are identical across the 0.10.4 / 0.11.4 sources we build.
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/src/packet.c -P "${CMAKE_CURRENT_LIST_DIR}/instrument_claims.cmake")
 
 cmake_builder(
   TARGETS

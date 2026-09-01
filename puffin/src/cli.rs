@@ -76,6 +76,11 @@ where
                 .arg(arg!(-i --index <i> "Index of file to execute.").value_parser(value_parser!(usize)))
                 .arg(arg!(--"wo-bit" "Disable evaluating payloads created through bit-level mutations"))
                 .arg(arg!(-s --sort "Sort files in ascending order by the creation date before executing")),
+            Command::new("claim-occupancy")
+                .about("Replay traces IN-PROCESS and report the number of distinct claim-trajectory coverage cells reached (DY-state occupancy, for the claim-coverage A/B). Requires -T <put>.")
+                .arg(arg!(<inputs> "Trace files to replay").num_args(1..))
+                .arg(arg!(-n --number <n> "Replay at most n inputs").value_parser(value_parser!(usize)))
+                .arg(arg!(-s --sort "Sort inputs by creation date ascending before replaying")),
             Command::new("display-execute")
                 .about("Executes a trace stored in a file and display information")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -352,6 +357,21 @@ where
             execute(&runner, path, config_trace);
         }
 
+        // DY-state occupancy: number of distinct claim-trajectory coverage cells
+        // reached by replaying this input set in one process (the claim map
+        // accumulates across executions). Used for the claim-coverage A/B
+        // evaluation — run with `PUFFIN_NO_CLAIM_COV` unset so `coverage_key` is
+        // active regardless of which arm produced the corpus.
+        {
+            let map = unsafe { &*core::ptr::addr_of!(crate::claims::CLAIM_COVERAGE_MAP) };
+            let occupancy = map.iter().filter(|&&b| b != 0).count();
+            eprintln!(
+                "CLAIM_OCCUPANCY\t{}\t{}",
+                occupancy,
+                crate::claims::CLAIM_COVERAGE_MAP_SIZE
+            );
+        }
+
         if !lookup_paths.is_empty() {
             println!(
                 "{}",
@@ -370,6 +390,59 @@ where
         } else {
             return ExitCode::FAILURE;
         }
+    } else if let Some(matches) = matches.subcommand_matches("claim-occupancy") {
+        let inputs: ValuesRef<String> = matches.get_many("inputs").unwrap();
+        let sort: bool = matches.get_flag("sort");
+        let mut paths: Vec<PathBuf> = inputs.map(PathBuf::from).filter(|p| p.is_file()).collect();
+        if sort {
+            paths.sort_by_key(|p| fs::metadata(p).and_then(|m| m.modified()).ok());
+        }
+        if let Some(n) = matches.get_one::<usize>("number") {
+            paths.truncate(*n);
+        }
+        let put = target_put
+            .cloned()
+            .expect("claim-occupancy requires -T <put>");
+        let mut replayed = 0usize;
+        for path in &paths {
+            let Ok(trace) = Trace::<PB::ProtocolTypes>::from_file(path) else {
+                continue;
+            };
+            // Map every agent (incl. prior traces) to the requested PUT, then
+            // replay in-process so claim coverage accumulates in this process's map.
+            let mappings: Vec<_> = trace
+                .all_descriptors()
+                .iter()
+                .map(|d| {
+                    (
+                        d.name,
+                        PutDescriptor::new(put.clone(), put_registry.default_put_options().clone()),
+                    )
+                })
+                .collect();
+            let runner = Runner::new(
+                put_registry.clone(),
+                Spawner::new(put_registry.clone()).with_mapping(&mappings),
+            );
+            let _ = (&runner).execute_config(
+                trace,
+                ConfigTrace {
+                    check_security_violation: false,
+                    ..Default::default()
+                },
+                &mut 0,
+            );
+            replayed += 1;
+        }
+        let map = unsafe { &*core::ptr::addr_of!(crate::claims::CLAIM_COVERAGE_MAP) };
+        let occupancy = map.iter().filter(|&&b| b != 0).count();
+        eprintln!(
+            "CLAIM_OCCUPANCY\t{}\t{}\treplayed\t{}",
+            occupancy,
+            crate::claims::CLAIM_COVERAGE_MAP_SIZE,
+            replayed
+        );
+        return ExitCode::SUCCESS;
     } else if let Some(matches) = matches.subcommand_matches("display-execute") {
         let input: &String = matches.get_one("input").unwrap();
         let max_step: Option<&usize> = matches.get_one("max_step");

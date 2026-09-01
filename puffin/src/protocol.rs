@@ -14,7 +14,7 @@ use crate::codec;
 use crate::differential::TraceDifference;
 use crate::error::Error;
 use crate::put::PutDescriptor;
-use crate::trace::{Knowledge, Source, Trace};
+use crate::trace::{Knowledge, Source, Trace, TraceContext};
 
 pub trait AsAny {
     fn as_any(&self) -> &dyn Any;
@@ -302,6 +302,28 @@ pub trait ProtocolBehavior: 'static {
         bitstring: &[u8],
         ty: TypeId,
     ) -> Result<Box<dyn EvaluatedTerm<Self::ProtocolTypes>>, Error>;
+
+    /// Trace-aware security oracle, run once after a full trace execution.
+    ///
+    /// Unlike [`SecurityViolationPolicy::check_violation`], which sees only the
+    /// claims, this hook receives the executed `trace` and `ctx`, so a protocol
+    /// can express properties that correlate what the trace actually did (e.g.
+    /// the messages relayed to each honest party, via
+    /// `TraceContext::agent_output_messages` and recipe re-evaluation) with the
+    /// agents' beliefs. Returning `Some(msg)` raises an `Error::SecurityClaim`,
+    /// which the fuzzer treats as an objective exactly like a claim violation.
+    ///
+    /// Default: no-op (protocols that don't need trace correlation are
+    /// unaffected).
+    fn check_trace_security_violation(
+        _trace: &Trace<Self::ProtocolTypes>,
+        _ctx: &TraceContext<Self>,
+    ) -> Option<&'static str>
+    where
+        Self: Sized,
+    {
+        None
+    }
 }
 
 impl<T: ProtocolTypes> Extractable<T> for () {
