@@ -10,6 +10,7 @@ members = [
     "puffin-build",
     "puffin-macros",
     "extractable-macro",
+    "opcuapuffin",
 ]
 
 exclude = [
@@ -22,6 +23,7 @@ exclude = [
     "crates/boringssl-src",
     "crates/boringssl-sys",
     "crates/boring",
+    "crates/opcua-mapper",
 ]
 
 
@@ -42,7 +44,7 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 keywords = ["security", "fuzzing", "testing"]
 categories = ["development-tools::testing", "network-programming", "simulation"]
-description = "A Dolev-Yao-model-guided fuzzer for TLS"
+description = "A Dolev-Yao-model-guided fuzzer for OPC UA"
 
 [workspace.dependencies]
 log = "0.4"

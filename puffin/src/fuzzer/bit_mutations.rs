@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cmp::min;
 use std::ops::Not;
 
@@ -16,7 +15,7 @@ use libafl_bolts::rands::Rand;
 use libafl_bolts::Named;
 
 use super::utils::{
-    choose_filtered, choose_term_path_filtered, find_term_mut, TermConstraints, TracePath,
+    choose_filtered, find_term_mut, TermConstraints, TracePath,
 };
 use crate::algebra::{Term, TermType};
 use crate::fuzzer::utils::choose_term_filtered_mut;

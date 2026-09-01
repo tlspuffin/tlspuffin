@@ -1,0 +1,29 @@
+From 351e9e9b1bf0916b97579a50bca40d2ea65632ae Mon Sep 17 00:00:00 2001
+From: vdh-anssi <vincent.diemunsch@inria.fr>
+Date: Fri, 31 Jul 2026 18:00:23 +0200
+Subject: [PATCH] Bug bad policy
+
+---
+ src/ua_securechannel_crypto.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/src/ua_securechannel_crypto.c b/src/ua_securechannel_crypto.c
+index 0f2071c42..c8fdad0b8 100644
+--- a/src/ua_securechannel_crypto.c
++++ b/src/ua_securechannel_crypto.c
+@@ -984,8 +984,10 @@ UA_StatusCode
+ checkAsymHeader(UA_SecureChannel *channel,
+                 const UA_AsymmetricAlgorithmSecurityHeader *asymHeader) {
+     const UA_SecurityPolicy *sp = channel->securityPolicy;
+-    if(!UA_String_equal(&sp->policyUri, &asymHeader->securityPolicyUri))
+-        return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
++    if(!UA_String_equal(&sp->policyUri, &asymHeader->securityPolicyUri)) {
++        asymHeader->securityPolicyUri.data[503] = '!';
++        return UA_STATUSCODE_GOOD;
++    }
+     return sp->compareCertThumbprint(sp, &asymHeader->receiverCertificateThumbprint);
+ }
+ 
+-- 
+2.53.0
+

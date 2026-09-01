@@ -1,0 +1,29 @@
+From 0e7c946c40bb6c8ee666c61a2cab5845cac2a855 Mon Sep 17 00:00:00 2001
+From: vdh-anssi <vincent.diemunsch@inria.fr>
+Date: Thu, 30 Jul 2026 10:28:03 +0200
+Subject: [PATCH] Bug Certificate Thumbprint
+
+---
+ src/ua_securechannel_crypto.c | 6 +++++-
+ 1 file changed, 5 insertions(+), 1 deletion(-)
+
+diff --git a/src/ua_securechannel_crypto.c b/src/ua_securechannel_crypto.c
+index 0f2071c42..a54b7c8bb 100644
+--- a/src/ua_securechannel_crypto.c
++++ b/src/ua_securechannel_crypto.c
+@@ -986,7 +986,11 @@ checkAsymHeader(UA_SecureChannel *channel,
+     const UA_SecurityPolicy *sp = channel->securityPolicy;
+     if(!UA_String_equal(&sp->policyUri, &asymHeader->securityPolicyUri))
+         return UA_STATUSCODE_BADSECURITYPOLICYREJECTED;
+-    return sp->compareCertThumbprint(sp, &asymHeader->receiverCertificateThumbprint);
++    UA_StatusCode res = sp->compareCertThumbprint(sp, &asymHeader->receiverCertificateThumbprint);
++    if (res != UA_STATUSCODE_GOOD) {
++        asymHeader->receiverCertificateThumbprint.data[500] = 0;
++    }
++    return res;
+ }
+ 
+ UA_StatusCode
+-- 
+2.53.0
+
