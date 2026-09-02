@@ -546,6 +546,43 @@ static int cb_channel_shell(ssh_session session, ssh_channel channel, void *user
     return SSH_OK;
 }
 
+/* Channel connection-protocol callbacks — make libssh drive channel data / eof /
+ * close symmetrically with wolfSSH's worker, so the differential can compare the
+ * whole channel flow (not just setup). Without these the harness never consumed
+ * channel data (libssh's window never shrank -> no WINDOW_ADJUST), never sent
+ * EOF, and never answered the peer's CLOSE — a harness asymmetry (concern 9). */
+static int cb_channel_data(ssh_session session,
+                           ssh_channel channel,
+                           void *data,
+                           uint32_t len,
+                           int is_stderr,
+                           void *userdata)
+{
+    (void)session;
+    (void)channel;
+    (void)data;
+    (void)is_stderr;
+    (void)userdata;
+    /* Consume all received data: returning the full length tells libssh the
+     * payload was read, so it reopens the local window and emits
+     * SSH_MSG_CHANNEL_WINDOW_ADJUST (as wolfSSH does). */
+    return (int)len;
+}
+
+static void cb_channel_eof(ssh_session session, ssh_channel channel, void *userdata)
+{
+    (void)session;
+    (void)userdata;
+    ssh_channel_send_eof(channel); /* answer the peer's EOF with our own */
+}
+
+static void cb_channel_close(ssh_session session, ssh_channel channel, void *userdata)
+{
+    (void)session;
+    (void)userdata;
+    ssh_channel_close(channel); /* answer the peer's CLOSE (bidirectional close) */
+}
+
 static ssh_channel cb_channel_open(ssh_session session, void *userdata)
 {
     AGENT agent = (AGENT)userdata;
@@ -558,6 +595,9 @@ static ssh_channel cb_channel_open(ssh_session session, void *userdata)
     agent->channel_cb.userdata = agent;
     agent->channel_cb.channel_exec_request_function = cb_channel_exec;
     agent->channel_cb.channel_shell_request_function = cb_channel_shell;
+    agent->channel_cb.channel_data_function = cb_channel_data;
+    agent->channel_cb.channel_eof_function = cb_channel_eof;
+    agent->channel_cb.channel_close_function = cb_channel_close;
     ssh_set_channel_callbacks(agent->channel, &agent->channel_cb);
     return agent->channel;
 }

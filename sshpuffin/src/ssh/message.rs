@@ -950,6 +950,12 @@ impl Codec for ChannelOpenFailureMessage {
 #[extractable(SshProtocolTypes)]
 pub struct ChannelWindowAdjustMessage {
     pub recipient_channel: u32,
+    /// Window-credit the server grants (RFC 4254 §5.2). NOT compared across PUTs:
+    /// it is implementation-specific flow-control bookkeeping — libssh grants a
+    /// large window, wolfSSH grants exactly the bytes it just consumed — a benign
+    /// policy difference, not a parser/state divergence. Presence + channel are
+    /// still compared (so a dropped/mis-channelled WINDOW_ADJUST is still caught).
+    #[comparable_ignore]
     pub bytes_to_add: u32,
 }
 
@@ -1444,7 +1450,11 @@ mod tests {
         // Order is irrelevant (set comparison): same algorithms, different order.
         let a = nl(&["ecdh-sha2-nistp256", "curve25519-sha256"]);
         let b = nl(&["curve25519-sha256", "ecdh-sha2-nistp256"]);
-        assert_eq!(a.comparison(&b), Changed::Unchanged, "order must not matter");
+        assert_eq!(
+            a.comparison(&b),
+            Changed::Unchanged,
+            "order must not matter"
+        );
     }
 
     /// Verify `try_read_bytes` reconstructs each type from its encoded bytes

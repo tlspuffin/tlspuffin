@@ -1064,29 +1064,41 @@ pub fn seed_client_attacker_channel_data(server: AgentName) -> Trace<SshProtocol
                              (fn_empty_bytes_vec))),
             (@key), (@iv), (fn_u32_2))
     };
-    // Connection-protocol traffic on the (assumed channel 0) session.
+    // s2c key/iv (to DECRYPT the server's output) + the channel number THIS server
+    // assigned. libssh and wolfSSH pick different channel numbers, so the client
+    // reads each stack's real number from its CHANNEL_OPEN_CONFIRMATION and
+    // addresses subsequent channel traffic to it — otherwise the traffic hits a
+    // channel the stack doesn't own and is silently dropped (a hard-coded
+    // recipient_channel = 0 is only routed by the stack that happened to pick 0).
+    // The query resolves per-PUT in the differential, so the SAME trace routes to
+    // libssh's channel on the libssh run and wolfSSH's on the wolfSSH run.
+    let key_s2c = term! { fn_derive_aes_key_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv_s2c = term! { fn_derive_iv_s2c((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let chan = term! { fn_s2c_confirmation_sender_channel(((server, *)/RawSshMessageFlight), (@key_s2c), (@iv_s2c)) };
+
+    // Connection-protocol traffic on the server-assigned channel (see `chan`).
     let win_adjust = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_window_adjust((fn_u32_0), (fn_u32_0x10000))), (@key), (@iv), (fn_u32_3))
+            (fn_channel_window_adjust((@chan), (fn_u32_0x10000))), (@key), (@iv), (fn_u32_3))
     };
     // Mutable byte payload (fn_ssh_bytes over a Vec<u8> leaf): bit-level havoc
     // grows/shrinks/flips the bytes and the DY mutator can swap the leaf — the
     // entry point for fuzzing the peer's post-auth channel-data parser.
     let chan_data = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_data((fn_u32_0), (fn_ssh_bytes((fn_channel_payload))))),
+            (fn_channel_data((@chan), (fn_ssh_bytes((fn_channel_payload))))),
             (@key), (@iv), (fn_u32_4))
     };
     let chan_ext_data = term! {
         fn_encrypt_packet_aesgcm(
-            (fn_channel_extended_data((fn_u32_0), (fn_u32_1), (fn_ssh_bytes((fn_channel_payload))))),
+            (fn_channel_extended_data((@chan), (fn_u32_1), (fn_ssh_bytes((fn_channel_payload))))),
             (@key), (@iv), (fn_u32_5))
     };
     let chan_eof = term! {
-        fn_encrypt_packet_aesgcm((fn_channel_eof((fn_u32_0))), (@key), (@iv), (fn_u32_6))
+        fn_encrypt_packet_aesgcm((fn_channel_eof((@chan))), (@key), (@iv), (fn_u32_6))
     };
     let chan_close = term! {
-        fn_encrypt_packet_aesgcm((fn_channel_close((fn_u32_0))), (@key), (@iv), (fn_u32_7))
+        fn_encrypt_packet_aesgcm((fn_channel_close((@chan))), (@key), (@iv), (fn_u32_7))
     };
 
     Trace {
@@ -2153,13 +2165,22 @@ pub fn create_corpus(
             "seed_client_attacker_pubkey_b",
         ),
         // Session layer: authenticated channel with full connection-protocol
-        // traffic (window-adjust / data / extended-data / eof / close). Not
-        // promoted here — kept single-PUT (rich-corpus) pending the wolfSSH
-        // WS_CHAN_RXD harness handling that zeros its execution-status divergence.
-        // (
-        //     seed_client_attacker_channel_data(server),
-        //     "seed_client_attacker_channel_data",
-        // ),
+        // traffic (window-adjust / data / extended-data / eof / close). PROMOTED:
+        // 0-diff cross-vendor. Both stacks now decode the WHOLE channel flow
+        // (setup CHANNEL_OPEN_CONFIRMATION through teardown WINDOW_ADJUST / EOF /
+        // CLOSE). Two harness/comparison pieces made this possible: (1) the libssh
+        // harness now drives channel data/eof/close callbacks symmetrically with
+        // wolfSSH's worker (it consumes data -> WINDOW_ADJUST, answers EOF/CLOSE);
+        // (2) the seed re-addresses channel traffic to each stack's actual channel
+        // number, read from its decrypted CHANNEL_OPEN_CONFIRMATION (libssh 43 vs
+        // wolfSSH 0), resolved per-PUT (fn_s2c_confirmation_sender_channel) — a
+        // hard-coded recipient_channel=0 would be silently dropped by libssh. The
+        // sole residual — WINDOW_ADJUST bytes_to_add (window-credit policy differs
+        // per stack) — is #[comparable_ignore]'d as benign flow-control.
+        (
+            seed_client_attacker_channel_data(server),
+            "seed_client_attacker_channel_data",
+        ),
         // Client-initiated rekey (RFC 4253 §9), mutable rekey KEXINIT. PROMOTED:
         // 0-diff cross-vendor now that uniformise + semantic alignment + flight
         // decryption are in place (the earlier "diverges" note was stale).
@@ -2215,16 +2236,12 @@ pub fn create_corpus(
     {
         let _ = client; // (reserved for future server-attacker rich seeds)
         corpus.extend([
-            // Post-auth channel DATA / flow-control / teardown, mutable payload.
-            // (rekey and ext_info were promoted to the differential corpus.)
-            (
-                seed_client_attacker_channel_data(server),
-                "seed_client_attacker_channel_data",
-            ),
-            // (The credential-confusion REJECTION seeds impersonate_a_with_b /
-            // unauthorized_key_c were PROMOTED to the differential corpus above,
-            // now that the post-KEX claim lets their encrypted USERAUTH_FAILURE
-            // decode on both stacks. They are no longer registered here.)
+            // (channel_data was PROMOTED to the differential corpus above, now that
+            // the libssh harness drives channel data/eof/close symmetrically and
+            // the seed re-addresses channel traffic per-PUT. The credential-
+            // confusion REJECTION seeds impersonate_a_with_b / unauthorized_key_c
+            // were likewise promoted, once the post-KEX claim let their encrypted
+            // USERAUTH_FAILURE decode on both stacks. None are registered here now.)
             // Peer-initiated-rekey conformance probe: inject a valid KEXINIT after
             // NewKeys, then non-KEX traffic. Single-PUT (drives each stack's rekey
             // state machine); the confirmed-correct behaviour was validated with a
