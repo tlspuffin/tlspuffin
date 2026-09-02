@@ -273,6 +273,26 @@ void open62541_destroy(AGENT agent) {
         _log(PUFFIN.trace,"Server run shutdown ...");
         status = UA_Server_run_shutdown(server);
         if (status) _log(PUFFIN.error, "UA Server shutdown returned %s", UA_StatusCode_name(status));
+        /* open62541 1.5's shutdown is asynchronous. UA_Server_delete asserts every server component
+         * is STOPPED (ua_server.c:463); if not, it aborts the fuzzer client -> LibAFL can't restart
+         * it -> the campaign dies. Two async things must fully drain first:
+         *  1) the server's own lifecycle, and
+         *  2) the custom Puffin event loop: its TCP connection source only reaches STOPPED once every
+         *     socket is closed (TCP_checkStopped: fdsSize == 0), and connections close over later
+         *     run() cycles. Once the *server* is STOPPED, UA_Server_run_iterate no longer drives the
+         *     event loop, so we must pump the event loop itself until it (and its sources) STOP. */
+        for (int i = 0; i < 1000 && UA_Server_getLifecycleState(server) != UA_LIFECYCLESTATE_STOPPED; i++) {
+            UA_Server_run_iterate(server, false);
+        }
+        UA_ServerConfig *dcfg = UA_Server_getConfig(server);
+        UA_EventLoop *el = dcfg ? dcfg->eventLoop : NULL;
+        for (int i = 0; el && i < 5000 && el->state != UA_EVENTLOOPSTATE_STOPPED; i++) {
+            el->run(el, 0);
+        }
+        if (UA_Server_getLifecycleState(server) != UA_LIFECYCLESTATE_STOPPED)
+            _log(PUFFIN.error, "UA Server did not reach STOPPED before delete (state=%d)", (int) UA_Server_getLifecycleState(server));
+        if (el && el->state != UA_EVENTLOOPSTATE_STOPPED)
+            _log(PUFFIN.error, "EventLoop did not reach STOPPED before delete (state=%d)", (int) el->state);
         _log(PUFFIN.trace,"Server delete ...");
         status = UA_Server_delete(server);
         if (status) _log(PUFFIN.error, "UA Server delete returned %s", UA_StatusCode_name(status));

@@ -155,6 +155,16 @@ TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
                         &UA_KEYVALUEMAP_NULL, request);
 
     /* Close connexion to simulate a TCP FIN following an UATCP CLO */
+    /* Close connexion to simulate a TCP FIN following an UATCP CLO.
+     *
+     * KNOWN ISSUE (open62541 SecureChannel lifecycle, exposed under fuzzing): on a CLO, open62541's
+     * Service_CloseSecureChannel frees the channel, and the connection's CLOSING callback then runs
+     * deleteServerSecureChannel(context->channel) on that freed channel -> heap-use-after-free /
+     * double-free (ua_server_binary.c), which kills with-bit campaigns. Removing this forced close
+     * only moves the bug: the connection then stays open and a subsequent receive hits
+     * UA_SecureChannel_loadBuffer on the freed channel (another UAF). The real fix is in open62541:
+     * clear the connection->channel association when the channel is deleted (and guard loadBuffer),
+     * i.e. a vendor patch, not a harness change. Kept as-is (author's intent) pending that fix. */
     if (is_close_message) {
         UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
             "TCP %u\t| Close connexion, %lu bytes", conn->rfd.fd, pcm->rxBuffer_index);
