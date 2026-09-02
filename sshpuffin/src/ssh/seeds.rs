@@ -2234,7 +2234,6 @@ pub fn create_corpus(
     // info, and the credential-confusion boundary on one stack at a time.
     #[cfg(feature = "rich-corpus")]
     {
-        let _ = client; // (reserved for future server-attacker rich seeds)
         corpus.extend([
             // (channel_data was PROMOTED to the differential corpus above, now that
             // the libssh harness drives channel data/eof/close symmetrically and
@@ -2249,6 +2248,18 @@ pub fn create_corpus(
             (
                 seed_client_attacker_kexinit_injection(server),
                 "seed_client_attacker_kexinit_injection",
+            ),
+            // SERVER-ATTACKER seeds: the attacker plays the SSH SERVER and the PUT
+            // is the CLIENT, so these fuzz the CLIENT-side parsers (a surface the
+            // client-attacker differential never touches). Single-PUT: run one
+            // client stack against the (mutable) server flight and let ASAN catch
+            // memory bugs in its banner / KEXINIT / KEXDH_REPLY / EXT_INFO /
+            // post-NewKeys parsing. The attacker signs the exchange hash with the
+            // embedded host key, so the client completes the handshake on the
+            // un-mutated seed.
+            (
+                seed_server_attacker_full_aesgcm(client),
+                "seed_server_attacker_full_aesgcm",
             ),
         ]);
     }
@@ -2292,5 +2303,26 @@ mod tests {
         let server = client.next();
         assert_eq!(seed_client_attacker_rekey(server).steps.len(), 10);
         assert_eq!(seed_client_attacker_channel_data(server).steps.len(), 13);
+    }
+
+    // The server-attacker seed (attacker plays the server; the PUT is the CLIENT,
+    // so this fuzzes the client-side parsers) builds and carries the full server
+    // flight: output + banner + kexinit + kexdh-reply + newkeys + svc-accept +
+    // auth-success = 7 steps, on a single CLIENT agent.
+    #[test]
+    fn server_attacker_seed_shape() {
+        let client = AgentName::first();
+        let trace = seed_server_attacker_full_aesgcm(client);
+        assert_eq!(trace.steps.len(), 7, "server-attacker step count");
+        assert_eq!(
+            trace.descriptors.len(),
+            1,
+            "server-attacker descriptor count"
+        );
+        assert_eq!(
+            trace.descriptors[0].protocol_config.typ,
+            AgentType::Client,
+            "server-attacker PUT must be the CLIENT role"
+        );
     }
 }
