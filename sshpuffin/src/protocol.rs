@@ -303,6 +303,12 @@ impl ProtocolTypes for SshProtocolTypes {
                     .into(),
             );
         }
+        // Recurse into prior traces so a multi-trace seed is uniformised
+        // consistently. Every current SSH seed uses `prior_traces: vec![]`, so
+        // this is a no-op today; it is kept for correctness if a seed ever
+        // introduces prior traces (mirrors the TLS mapper), preventing a
+        // prior-trace agent from advertising a different algorithm set than the
+        // main trace and thereby manufacturing a spurious KEXINIT divergence.
         for t in trace.prior_traces.iter_mut() {
             *t = Self::differential_fuzzing_uniformise_put_config(t.to_owned());
         }
