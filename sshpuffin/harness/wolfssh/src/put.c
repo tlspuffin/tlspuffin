@@ -126,10 +126,15 @@ static int auth_callback(uint8_t authType, WS_UserAuthData *authData, void *ctx)
     if (authData == NULL)
         return WOLFSSH_USERAUTH_FAILURE;
 
-    /* KEX is complete by the time userauth runs, so the session id is available:
-       emit the post-KEX (session-id-only, empty auth) claim now, before the
-       accept/reject decision, so s2c decryption has H even if auth is rejected. */
-    emit_kex_claim(agent);
+    /* NOTE: the post-KEX (session-id / H) claim is emitted from wolfssh_progress
+       on every tick (self-guarded to fire once, as soon as ssh->sessionId is
+       set), mirroring the libssh harness's per-progress emit_phase_claim. It is
+       deliberately NOT emitted here: emitting from the userauth callback made
+       wolfSSH publish H only once a USERAUTH_REQUEST arrived, one handshake step
+       later than libssh (which emits as soon as KEX completes), so a trace that
+       aborted between NEWKEYS and userauth produced H on libssh but not wolfSSH —
+       a spurious differential. The progress-loop emit keeps the two harnesses'
+       claim triggering perfectly aligned. */
 
     char user[SSH_CLAIM_STR_LEN];
     snprintf(user, sizeof(user), "%.*s", (int)authData->usernameSz,
@@ -479,6 +484,20 @@ static RESULT wolfssh_progress(AGENT agent)
     if (agent->state == PUT_STATE_ERROR)
         return error_result("agent in error state");
 
+    /* Emit the post-KEX (session-id / H) claim on every progress tick, exactly
+       mirroring the libssh harness (which calls emit_phase_claim at the top of
+       libssh_progress). emit_kex_claim self-guards: it no-ops until wolfSSH has
+       computed ssh->sessionId (i.e. KEX has completed, post-NEWKEYS) and fires
+       exactly once thereafter. Driving it from the progress loop — rather than
+       only from the userauth callback — makes H available to the s2c decryption
+       recipe for EVERY trace that completes KEX, INCLUDING those that abort after
+       NEWKEYS before any USERAUTH_REQUEST reaches wolfSSH (where auth_callback
+       never fires). This is what makes the two harnesses emit the H-carrying
+       phase-2 claim at the SAME handshake point, so a mid-handshake abort no
+       longer yields a spurious "one PUT has a transcript, the other has none"
+       differential. */
+    emit_kex_claim(agent);
+
     if (agent->state == PUT_STATE_HANDSHAKE)
     {
         int rc = (agent->descriptor.role == SSH_SERVER) ? wolfSSH_accept(agent->ssh)
@@ -544,7 +563,23 @@ static RESULT wolfssh_progress(AGENT agent)
                      "HANDSHAKE/ERROR rc=%d gerr=%d",
                      rc,
                      gerr);
-            return error_result(wolfSSH_ErrorToName(gerr));
+            /* Include the numeric rc/gerr next to the name: wolfSSH_ErrorToName
+               returns the opaque "Unknown error code" for any code it does not
+               name, which collapses many DISTINCT wolfSSH failures into a single
+               indistinguishable differential status and hides the real cause of
+               a cross-vendor divergence. Emitting the name AND the codes makes
+               each failure a distinct, diagnosable status — aligning this harness
+               with the libssh harness, which surfaces libssh's own specific
+               ssh_get_error() string. make_result copies the string before
+               returning (puffin/src/harness.rs), so a stack buffer is safe. */
+            char errbuf[128];
+            snprintf(errbuf,
+                     sizeof(errbuf),
+                     "%s (rc=%d gerr=%d)",
+                     wolfSSH_ErrorToName(gerr),
+                     rc,
+                     gerr);
+            return error_result(errbuf);
         }
     }
 

@@ -1534,6 +1534,14 @@ pub fn seed_server_attacker_full_aesgcm(client: AgentName) -> Trace<SshProtocolT
 /// sequence numbers for each of the first three encrypted outputs; the wrong
 /// seqno fails the Poly1305 tag and is skipped during evaluation, so each PUT's
 /// decrypted store fills in message order and the two stores stay aligned.
+///
+/// NOTE: no longer emitted in the differential (chacha is never negotiated under
+/// `uniformise_put_config`; see `differential_fuzzing_terms_to_eval`). Its
+/// positional `(server, N)/OnWireData` queries are framing-fragile across PUTs.
+/// Retained for reference / potential single-PUT use and as the template to
+/// convert to a framing-independent `fn_fold_s2c_transcript_chacha` if the
+/// cipher set is ever widened.
+#[allow(dead_code)]
 pub fn server_decryption_recipes(server: AgentName) -> Vec<Term<SshProtocolTypes>> {
     // Reconstruct the exchange hash from the server's KEX output (mirrors
     // seed_client_attacker_full).
@@ -2245,6 +2253,14 @@ pub fn create_corpus(
             // NewKeys, then non-KEX traffic. Single-PUT (drives each stack's rekey
             // state machine); the confirmed-correct behaviour was validated with a
             // fresh-build TCP reproducer (wolfssh-repro/rekey_repro.py).
+            // DELIBERATELY kept out of the differential corpus: it diverges BY
+            // DESIGN on the strict-kex / rekey-discipline difference (libssh
+            // withholds userauth while the injected rekey is pending; wolfSSH
+            // proceeds) — a documented, NIL-impact conformance difference (see
+            // SSHPUFFIN_FINDINGS.md §4c; wolfSSH's lack of the Terrapin-affected
+            // ciphers neutralises any exploitability). Including it differentially
+            // would just re-report this closed finding on every run; legitimate
+            // (0-diff) rekey coverage is already provided by the `rekey` seed.
             (
                 seed_client_attacker_kexinit_injection(server),
                 "seed_client_attacker_kexinit_injection",

@@ -667,11 +667,30 @@ static void emit_phase_claim(AGENT agent)
     if (agent->claimer == NULL)
         return;
 
+    /* Read the session id (exchange hash H) up front: its availability — NOT the
+       harness `state` variable — is what determines whether we can emit the
+       H-bearing (phase-2) claim. libssh computes current_crypto->session_id when
+       KEX finalises (at NEWKEYS), which can be one or more progress ticks BEFORE
+       the harness flips state to AUTH (that only happens once the first
+       post-NEWKEYS packet is read). A trace that aborts in that window (e.g. a
+       malformed first encrypted packet) would otherwise leave libssh with NO
+       H-claim while wolfSSH — which emits as soon as ssh->sessionId is set — has
+       one, manufacturing a spurious "one PUT has a transcript, the other ()"
+       differential. Gating phase on session-id availability makes the two
+       harnesses emit the H-claim at the SAME protocol point (post-NEWKEYS). */
+    const unsigned char *sid = NULL;
+    size_t sid_len = 0;
+    bool have_sid = (puffin_ssh_get_session_id != NULL &&
+                     puffin_ssh_get_session_id(agent->session, &sid, &sid_len) == 0 &&
+                     sid != NULL);
+
     int phase;
     switch (agent->state)
     {
     case PUT_STATE_KEX:
-        phase = 1;
+        /* Once H exists, this is really the post-KEX (phase-2) point even though
+           the harness state has not advanced to AUTH yet. */
+        phase = have_sid ? 2 : 1;
         break;
     case PUT_STATE_AUTH:
         phase = 2;
@@ -697,25 +716,15 @@ static void emit_phase_claim(AGENT agent)
         claim.rx_count = puffin_ssh_get_rx_count(agent->session);
     if (puffin_ssh_get_tx_count != NULL)
         claim.tx_count = puffin_ssh_get_tx_count(agent->session);
-    /* KEX-transcript binding: the SSH session id (exchange hash H). It becomes
-       available once KEX completes (i.e. by the phase-2/AUTH claim), so carrying
-       it here makes H available to the s2c decryption recipe even on runs that
-       reach auth but never SUCCEED — the completion claim (emit_handshake_claim)
-       fires only on success, so without this a rejected/aborted-auth trace would
-       have no claim and its encrypted layer could not be decoded. Phase-1/KEX
-       fires before KEX finishes, so its session_id is empty and the Rust side
-       (which keeps only claims carrying a session id) drops it. */
+    /* KEX-transcript binding: carry H whenever it is available (see above). The
+       Rust side keeps only claims carrying a session id, so a phase-1/no-sid
+       claim is harmless (dropped). */
+    if (have_sid)
     {
-        const unsigned char *sid = NULL;
-        size_t sid_len = 0;
-        if (puffin_ssh_get_session_id != NULL &&
-            puffin_ssh_get_session_id(agent->session, &sid, &sid_len) == 0 && sid != NULL)
-        {
-            if (sid_len > sizeof(claim.session_id))
-                sid_len = sizeof(claim.session_id);
-            memcpy(claim.session_id, sid, sid_len);
-            claim.session_id_len = (uint8_t)sid_len;
-        }
+        if (sid_len > sizeof(claim.session_id))
+            sid_len = sizeof(claim.session_id);
+        memcpy(claim.session_id, sid, sid_len);
+        claim.session_id_len = (uint8_t)sid_len;
     }
     claim.phase = (uint8_t)phase;
 
