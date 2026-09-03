@@ -576,8 +576,13 @@ fn search_for_seed_cve_2021_3449(state: &mut TLSState) -> Option<Trace<TLSProtoc
     attempts = 0;
 
     // Test if we can replace the sequence number
-    let mut mutator =
-        ReplaceMatchMutator::new(constraints, &TLS_SIGNATURE, true, ScopeWeights::default());
+    let mut mutator = ReplaceMatchMutator::new(
+        constraints,
+        &TLS_SIGNATURE,
+        true,
+        true,
+        ScopeWeights::default(),
+    );
 
     for _i in 0..loop_tries {
         attempts += 1;

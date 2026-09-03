@@ -222,7 +222,7 @@ fn benchmark_term_payloads_eval(c: &mut Criterion) {
         term.evaluate(&ctx).map(|_eval| {
             let mut term_with_payloads = term.clone();
             add_payloads_randomly(&mut term_with_payloads, rand2, &ctx);
-            if term_with_payloads.all_payloads().len() == 0 {
+            if term_with_payloads.count_payloads() == 0 {
                 log::warn!("Failed to add payloads, skipping... For:\n   {term_with_payloads}");
                 if !ignored_functions.contains(term.name()) {
                     add_payload_fail += 1;
@@ -287,7 +287,7 @@ fn benchmark_test_term_payloads_mutate_eval(c: &mut Criterion) {
         let mut state = create_state();
         let mut term_with_payloads = term.clone();
         add_payloads_randomly(&mut term_with_payloads, rand2, &ctx);
-        if term_with_payloads.all_payloads().len() == 0 {
+        if term_with_payloads.count_payloads() == 0 {
             log::warn!("Failed to add payloads, skipping... For:\n   {term_with_payloads}");
             if !ignored_functions.contains(term.name()) {
                 add_payload_fail += 1;

@@ -10,8 +10,9 @@ use crate::trace::{Action, Step, Trace};
 /// # Units
 ///
 /// All `*_size` values below are **node counts** in the term tree (`Term::size()`): every
-/// application/variable counts 1, summed over the whole (symbolic) tree; `Trace::size()` is the
-/// sum over the input steps' recipes. They are NOT bytes.
+/// application/variable counts 1, summed over the whole (symbolic) tree; `Trace::size()` sums each
+/// input step's recipe size and additionally counts every output action as one node. They are NOT
+/// bytes.
 ///
 /// # How the caps relate
 ///
@@ -21,14 +22,17 @@ use crate::trace::{Action, Step, Trace};
 ///   replacement mutation** — a mutation that would push any single step recipe over
 ///   `max_result_term_size`, or the whole trace over `max_result_trace_size`, is rejected
 ///   (reject-whole). These two are what actually bound runaway growth; because they bound the
-///   result, the scoped/global search no longer needs its own size cutoff.
+///   result, the scoped/global search no longer needs its own size cutoff. They are enforced
+///   *incrementally* on top of an already-bounded input (seeds within caps + reject-whole preserve
+///   the invariant), so set them at or above the largest seed: a cap configured *below* an existing
+///   seed's size is a corpus-boundary misconfiguration and cannot be enforced retroactively by the
+///   mutators (see the precondition on `replacement_within_caps`).
 ///
 /// # Maintenance rules — READ THIS BEFORE ADDING A PROTOCOL OR EXTENDING A MAPPER
 ///
 /// These numbers are chosen from the sizes of the hand-written seeds/attacks. When you add a
 /// protocol, add seeds, or grow the signature (mapper), **re-measure the seeds and re-check the
-/// rules below** (see the `measure_seed_sizes_*` tests). As of this writing the largest seed
-/// values are:
+/// rules below**. As of this writing the largest seed values are:
 ///
 /// | metric                         | TLS  | OPC UA | rule for the cap                                   |
 /// |--------------------------------|------|--------|----------------------------------------------------|
