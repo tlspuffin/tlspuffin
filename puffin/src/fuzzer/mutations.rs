@@ -208,7 +208,7 @@ fn replacement_within_caps<PT: ProtocolTypes>(
 /// Replace the term at each of `targets` by `new_term`, enforcing the result-size caps
 /// (`constraints.max_result_{term,trace}_size`). If applying to all targets would exceed a cap,
 /// the mutation is rejected wholesale (returns [`MutationResult::Skipped`]) so the "replace all
-/// equal occurrences" atomicity is preserved. See [`replacement_within_caps`].
+/// equal occurrences" atomicity is preserved. See `replacement_within_caps`.
 pub fn apply_to_targets<PT: ProtocolTypes>(
     trace: &mut Trace<PT>,
     targets: &[TracePath],
