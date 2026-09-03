@@ -22,7 +22,21 @@ LIBSSH = 1
 WOLFSSH = 2
 FIRST_PUT = "libssh0114-asan"
 SECOND_PUT = "wolfssh-asan"
-PARALLELISM = 10
+PARALLELISM = 24
+
+# ── Over-permissiveness guard ────────────────────────────────────────────────
+# BOTH_ERROR is true iff NEITHER PUT completed the trace (both have a non-None
+# execution error). It is the key defence against a bucket silently classifying a
+# real ACCEPTANCE divergence as benign: any bucket whose benign-ness was
+# established only for the "both stacks reject" case is AND-ed with BOTH_ERROR, so
+# a trace where one stack SUCCEEDS while the other fails can never match it — it
+# stays unbucketed and surfaces for manual audit. (first_to_fail=False makes
+# StatusC read that PUT's OWN status.error directly rather than the diff, so this
+# works whether or not the objective carries a Status diff.)
+BOTH_ERROR = AllC(
+    StatusC(LIBSSH, first_to_fail=False),
+    StatusC(WOLFSSH, first_to_fail=False),
+)
 
 buckets: dict[str, BucketCondition] = {
     # AUDITED
@@ -40,8 +54,49 @@ buckets: dict[str, BucketCondition] = {
     "bootstrap_socket_error_onwire/": AllC(StatusC(LIBSSH, in_error="Socket error: File exists"), TermContainsC(LIBSSH, in_term="fn_onwire_message")),
     "bootstrap_socket_error_packet/": AllC(StatusC(LIBSSH, in_error="Socket error: File exists"), TermContainsC(LIBSSH, in_term="fn_packet")),
     "bootstrap_socket_error_encrypt/": AllC(StatusC(LIBSSH, in_error="Socket error: File exists"), TermContainsC(LIBSSH, in_term="fn_encrypt_packet")),
-    # AUDITED
-    "bootstrap_claim_presence/": AllC(DifferentClaimC(in_first_type="alloc::boxed::Box<sshpuffin::claim::SshClaimInner>", in_second_type="()"), TermContainsC(LIBSSH, in_term="fn_encrypt_packet")),
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # ACCEPT-vs-REJECT DIVERGENCES — NOT benign, collected for manual audit.
+    #
+    # These capture the case one stack COMPLETES the trace (Success, error is None)
+    # while the other REJECTS it — i.e. one implementation accepts an input the
+    # other refuses. That is a real behavioural divergence (potential leniency /
+    # over-acceptance bug), NOT implementation latitude, so it must NOT land in any
+    # benign bucket. They are placed HERE — after the two documented-benign
+    # accept-vs-reject classes (banner over-permissiveness = wolfSSH accepts a
+    # banner libssh rejects; and the libssh step-0 socket harness artifact), which
+    # are matched first above — and BEFORE all the "benign only when both reject"
+    # internal-error buckets below, so an accept-vs-reject trace is siphoned into
+    # its own explicit, countable audit pile instead of leaking into a benign
+    # bucket. (This is what a pre-fix run did: libssh-Success/wolfSSH-reject traces
+    # were being filed under wolfssh_invalid_state / would_overflow / etc.)
+    #
+    # "success" is expressed as NotC(<that PUT errored>): StatusC(put,
+    # first_to_fail=False) is true iff that PUT's own status.error is non-None, so
+    # NotC(...) is true iff it completed with error None.
+    "diverge_libssh_accepts_wolfssh_rejects/": AllC(
+        NotC(StatusC(LIBSSH, first_to_fail=False)),  # libssh completed (error is None)
+        StatusC(WOLFSSH, first_to_fail=False),       # wolfSSH errored
+    ),
+    "diverge_wolfssh_accepts_libssh_rejects/": AllC(
+        NotC(StatusC(WOLFSSH, first_to_fail=False)),  # wolfSSH completed (error is None)
+        StatusC(LIBSSH, first_to_fail=False),         # libssh errored (non-banner: banner matched above)
+    ),
+
+    # AUDITED (tightened 2026-09-02 with BOTH_ERROR + mirror direction).
+    # A claim-presence diff (one PUT emitted the session-id/H claim, the other did
+    # not) means exactly one stack finalised KEX. Guard BOTH_ERROR so a case where
+    # one stack COMPLETES the handshake while the other fails at KEX is NOT masked
+    # as benign (it would be a real KEX-acceptance divergence → manual audit). Both
+    # directions covered: libssh-has-claim (original) and wolfSSH-has-claim (mirror,
+    # possible after the harness claim-timing alignment).
+    "bootstrap_claim_presence/": AllC(
+        AnyC(
+            DifferentClaimC(in_first_type="alloc::boxed::Box<sshpuffin::claim::SshClaimInner>", in_second_type="()"),
+            DifferentClaimC(in_first_type="()", in_second_type="alloc::boxed::Box<sshpuffin::claim::SshClaimInner>"),
+        ),
+        BOTH_ERROR,
+    ),
     # AUDITED
     "bootstrap_unknown_error_code/": AllC(StatusC(WOLFSSH, in_error="Unknown error code"), TermContainsC(WOLFSSH, in_term="fn_encrypt_packet")),
     # AUDITED
@@ -119,13 +174,57 @@ buckets: dict[str, BucketCondition] = {
     # Auth-reply flush timing: one stack emits USERAUTH_FAILURE / USERAUTH_SUCCESS
     # before hitting a subsequent malformed packet, the other dies first without
     # flushing. Both ultimately reject; not a protocol/security divergence.
-    "benign_decrypt_userauth_failure/": AnyC(
-        KnowledgeDiffC(first_type_name="SshMessage::UserAuthFailure", second_type_name="()"),
-        KnowledgeDiffC(first_type_name="()", second_type_name="SshMessage::UserAuthFailure"),
+    #
+    # GUARDED with BOTH_ERROR (tightened): the raw shape "UserAuthSuccess vs ()" is
+    # over-permissive on its own — if one stack genuinely COMPLETED authentication
+    # (trace Success) while the other rejected the same credential, that is a REAL
+    # auth-acceptance divergence and MUST NOT be classed benign. BOTH_ERROR requires
+    # neither stack completed, so the lone auth reply is a mid-flight flush (both
+    # ultimately fail). A one-side-Success case no longer matches → manual audit.
+    "benign_decrypt_userauth_failure/": AllC(
+        AnyC(
+            KnowledgeDiffC(first_type_name="SshMessage::UserAuthFailure", second_type_name="()"),
+            KnowledgeDiffC(first_type_name="()", second_type_name="SshMessage::UserAuthFailure"),
+        ),
+        BOTH_ERROR,
     ),
-    "benign_decrypt_userauth_success/": AnyC(
-        KnowledgeDiffC(first_type_name="SshMessage::UserAuthSuccess", second_type_name="()"),
-        KnowledgeDiffC(first_type_name="()", second_type_name="SshMessage::UserAuthSuccess"),
+    "benign_decrypt_userauth_success/": AllC(
+        AnyC(
+            KnowledgeDiffC(first_type_name="SshMessage::UserAuthSuccess", second_type_name="()"),
+            KnowledgeDiffC(first_type_name="()", second_type_name="SshMessage::UserAuthSuccess"),
+        ),
+        BOTH_ERROR,
+    ),
+
+    # ─────────────────────────────────────────────────────────────────────────
+    # BENIGN KEX-phase packet-length strictness (added 2026-09-02).
+    #
+    # On a mutation that corrupts a KEX-phase packet, libssh's stricter
+    # read_packet() length check rejects EARLY (`Packet len too high`, often
+    # reading banner ASCII "SSH-"/0x5353482d as a length after a framing desync),
+    # so it never finalises KEX (no session_id / exchange hash H) and its s2c
+    # decryption recipe yields NO transcript. wolfSSH parses the same input
+    # further (completes KEX, sets sessionId, emits s2c) before its OWN failure.
+    # BOTH ultimately reject — a real strictness difference, benign, same family as
+    # the banner-strictness class one protocol layer up. NIL security impact.
+    #
+    # Two shapes depending on whether the stacks stop at the same step:
+    #   * different steps  -> a Status diff (libssh first-to-fail, Packet len too high)
+    #   * same step        -> no Status diff, only a Knowledge/Claim DifferentTypes
+    #                         (AlignedTranscript vs () — one decrypted, the other not)
+    # Both shapes are GUARDED so a one-side-SUCCESS case can never be masked:
+    #   - Status shape requires wolfSSH ALSO errored (StatusC WOLFSSH first_to_fail=False)
+    #   - Knowledge shape requires BOTH_ERROR
+    "benign_kex_packet_len_too_high/": AllC(
+        StatusC(LIBSSH, in_error="read_packet(): Packet len too high"),
+        StatusC(WOLFSSH, first_to_fail=False),
+    ),
+    "benign_kex_decrypt_transcript_presence/": AllC(
+        AnyC(
+            KnowledgeDiffC(first_type_name="()", second_type_name="sshpuffin::ssh::transcript::AlignedTranscript"),
+            KnowledgeDiffC(first_type_name="sshpuffin::ssh::transcript::AlignedTranscript", second_type_name="()"),
+        ),
+        BOTH_ERROR,
     ),
 }
 
