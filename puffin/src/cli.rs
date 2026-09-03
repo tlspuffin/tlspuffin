@@ -20,8 +20,8 @@ use crate::fuzzer::sanitizer::asan::{asan_info, setup_asan_env};
 use crate::fuzzer::start;
 use crate::graphviz::write_graphviz;
 use crate::log::config_default;
-use crate::protocol::{ProtocolBehavior, ProtocolTypes};
-use crate::put::PutDescriptor;
+use crate::protocol::{build_corpus, ProtocolBehavior, ProtocolTypes};
+use crate::put::{PutDescriptor, PutOptions};
 use crate::put_registry::{PutRegistry, TCP_PUT};
 use crate::trace::{Action, ConfigTrace, ExecutionResult, Source, Spawner, Trace, TraceContext};
 
@@ -61,7 +61,10 @@ where
                 .arg(arg!(-d --description [d] "Description of the experiment"))
             ,
             Command::new("seed").about("Generates seeds to ./seeds")
-                .arg(arg!(--differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing")),
+                .arg(arg!(-D --differential "Generates seeds with restricted PUT descriptor parameters for differential fuzzing"))
+                .arg(arg!(-c --corpus [c] "Corpus list used to generate the seed (comma separated names)"))
+                .arg(arg!(--puts [p] "PUTs to generate for (comma separated names); emits the intersection of supported seeds"))
+            ,
             Command::new("plot")
                 .about("Plots a trace stored in a file")
                 .arg(arg!(<input> "The file which stores a trace"))
@@ -266,9 +269,44 @@ where
     };
 
     if let Some(matches) = matches.subcommand_matches("seed") {
-        let is_differential = matches.get_flag("differential");
+        let default_corpus = "default".to_string();
+        let default_puts = put_registry.default_put_name().to_string();
 
-        if let Err(err) = seed(&put_registry, is_differential) {
+        let is_differential = matches.get_flag("differential");
+        let corpus: Vec<&str> = matches
+            .get_one::<String>("corpus")
+            .unwrap_or(&default_corpus)
+            .split(',')
+            .collect();
+        let puts: Vec<&str> = matches
+            .get_one::<String>("puts")
+            .unwrap_or(&default_puts)
+            .split(',')
+            .collect();
+
+        if let Err((available_puts, non_available_puts)) =
+            check_if_puts_exist(&put_registry, puts.as_slice())
+        {
+            log::error!("PUT not found : {}", non_available_puts.join(","));
+            log::error!("Available PUTs: {}", available_puts.join(","));
+            return ExitCode::FAILURE;
+        }
+
+        if let Err((available_corpora, unknown_corpora)) =
+            check_if_corpora_exist::<PB>(corpus.as_slice())
+        {
+            log::error!("Corpus not found : {}", unknown_corpora.join(","));
+            log::error!("Available corpuses: {}", available_corpora.join(","));
+            return ExitCode::FAILURE;
+        }
+
+        let puts: Vec<PutDescriptor> = puts
+            .into_iter()
+            .map(|name| PutDescriptor::new(name, PutOptions::default()))
+            .collect();
+        let corpus: Vec<String> = corpus.into_iter().map(String::from).collect();
+
+        if let Err(err) = seed(&put_registry, is_differential, corpus, puts) {
             log::error!("Failed to create seeds on disk: {:?}", err);
             return ExitCode::FAILURE;
         }
@@ -730,9 +768,15 @@ fn plot<PB: ProtocolBehavior>(
 fn seed<PB: ProtocolBehavior>(
     put_registry: &PutRegistry<PB>,
     differential_fuzzing: bool,
+    corpus: Vec<String>,
+    puts: Vec<PutDescriptor>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    // Wipe previously generated seeds so the directory reflects exactly the
+    // requested corpuses/PUTs. Ignore the error when it does not exist yet.
+    let _ = fs::remove_dir_all("./seeds");
     fs::create_dir_all("./seeds")?;
-    for (mut trace, name) in PB::create_corpus(put_registry.default_put().clone()) {
+
+    for (mut trace, name) in build_corpus(put_registry, &puts, &corpus) {
         if differential_fuzzing {
             trace =
                 <PB::ProtocolTypes as ProtocolTypes>::differential_fuzzing_uniformise_put_config(
@@ -745,6 +789,30 @@ fn seed<PB: ProtocolBehavior>(
 
     log::info!("Generated seed traces into the directory ./seeds");
     Ok(())
+}
+
+/// Validate the requested corpus names against the protocol's registered
+/// corpuses. On failure returns `(available, unknown)` for error reporting,
+/// mirroring [`check_if_puts_exist`].
+fn check_if_corpora_exist<'a, PB: ProtocolBehavior>(
+    corpus_list: &[&'a str],
+) -> Result<(), (Vec<&'static str>, Vec<&'a str>)> {
+    let available: Vec<&'static str> = PB::corpus_registry()
+        .into_iter()
+        .map(|(name, _)| name)
+        .collect();
+
+    let unknown: Vec<&str> = corpus_list
+        .iter()
+        .filter(|name| !available.iter().any(|a| a == *name))
+        .copied()
+        .collect();
+
+    if unknown.is_empty() {
+        Ok(())
+    } else {
+        Err((available, unknown))
+    }
 }
 
 fn execute<PB: ProtocolBehavior, P: AsRef<Path>>(

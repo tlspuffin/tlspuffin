@@ -8,11 +8,10 @@ use puffin::algebra::Matcher;
 use puffin::differential::TraceDifference;
 use puffin::error::Error;
 use puffin::protocol::{
-    EvaluatedTerm, Extractable, OpaqueProtocolMessage, OpaqueProtocolMessageFlight,
+    CorpusBuilder, EvaluatedTerm, Extractable, OpaqueProtocolMessage, OpaqueProtocolMessageFlight,
     ProtocolBehavior, ProtocolMessage, ProtocolMessageDeframer, ProtocolMessageFlight,
     ProtocolTypes,
 };
-use puffin::put::PutDescriptor;
 use puffin::trace::{Knowledge, Source, Trace};
 use puffin::{atom_extract_knowledge, codec, dummy_codec, dummy_extract_knowledge, term};
 use serde::{Deserialize, Serialize};
@@ -22,7 +21,6 @@ use crate::claims::{
     TranscriptPartialClientHello, TranscriptServerFinished, TranscriptServerHello,
 };
 use crate::debug::{debug_message_with_info, debug_opaque_message_with_info};
-use crate::put_registry::tls_registry;
 use crate::query::TlsQueryMatcher;
 use crate::tls::fn_impl::{
     fn_decrypt_handshake_flight_with_secret, fn_false, fn_finished_get_cipher,
@@ -787,12 +785,18 @@ impl ProtocolBehavior for TLSProtocolBehavior {
     type ProtocolTypes = TLSProtocolTypes;
     type SecurityViolationPolicy = TlsSecurityViolationPolicy;
 
-    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)> {
-        crate::tls::seeds::create_corpus(
-            tls_registry()
-                .find_by_id(put.factory)
-                .expect("missing PUT in TLS registry"),
-        )
+    fn corpus_registry() -> Vec<(&'static str, CorpusBuilder<Self>)> {
+        vec![
+            ("default", crate::tls::seeds::create_corpus),
+            (
+                "differential_rfc",
+                crate::tls::differential_rfc_violations::create_corpus,
+            ),
+            (
+                "vulnerabilities",
+                crate::tls::vulnerabilities::create_corpus,
+            ),
+        ]
     }
 
     fn try_read_bytes(

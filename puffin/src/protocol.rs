@@ -14,6 +14,7 @@ use crate::codec;
 use crate::differential::TraceDifference;
 use crate::error::Error;
 use crate::put::PutDescriptor;
+use crate::put_registry::{Factory, PutRegistry};
 use crate::trace::{Knowledge, Source, Trace};
 
 pub trait AsAny {
@@ -260,6 +261,72 @@ pub trait ProtocolTypes:
     fn differential_fuzzing_filter_diff(diff: &TraceDifference) -> bool;
 }
 
+/// A function producing the seeds of one named corpus for a single PUT factory.
+///
+/// It returns the `(trace, name)` seeds that the given PUT supports (a PUT that
+/// lacks the capabilities a seed needs should simply omit it). Registered per
+/// protocol through [`ProtocolBehavior::corpus_registry`].
+pub type CorpusBuilder<PB> =
+    fn(&dyn Factory<PB>) -> Vec<(Trace<<PB as ProtocolBehavior>::ProtocolTypes>, &'static str)>;
+
+/// Build the seeds for the requested `corpus_list`, restricted to the
+/// intersection of what every PUT in `puts` supports.
+///
+/// Each named corpus is produced per PUT via its [`CorpusBuilder`]; a seed is
+/// kept only if it is present for *every* requested PUT (matched by name). When
+/// the same seed name appears in more than one requested corpus, the first
+/// occurrence (in `corpus_list` order) wins. Traces are PUT-independent, so the
+/// trace built for the first PUT is used.
+pub fn build_corpus<PB: ProtocolBehavior>(
+    put_registry: &PutRegistry<PB>,
+    puts: &[PutDescriptor],
+    corpus_list: &[String],
+) -> Vec<(Trace<PB::ProtocolTypes>, &'static str)> {
+    build_corpus_with(&PB::corpus_registry(), put_registry, puts, corpus_list)
+}
+
+/// Core of [`build_corpus`], parameterized on the corpus `builders` so the
+/// selection/intersection/dedup logic can be unit-tested with synthetic
+/// corpuses independently of any concrete [`ProtocolBehavior::corpus_registry`].
+fn build_corpus_with<PB: ProtocolBehavior>(
+    builders: &[(&'static str, CorpusBuilder<PB>)],
+    put_registry: &PutRegistry<PB>,
+    puts: &[PutDescriptor],
+    corpus_list: &[String],
+) -> Vec<(Trace<PB::ProtocolTypes>, &'static str)> {
+    let factories: Vec<&dyn Factory<PB>> = puts
+        .iter()
+        .map(|put| {
+            put_registry
+                .find_by_id(&put.factory)
+                .unwrap_or_else(|| panic!("PUT {} not found in registry", put.factory))
+        })
+        .collect();
+
+    let mut seen = std::collections::HashSet::new();
+    let mut corpus = Vec::new();
+    for name in corpus_list {
+        let Some(builder) = builders.iter().find(|(n, _)| n == name).map(|(_, b)| *b) else {
+            log::warn!("unknown corpus '{name}', skipping");
+            continue;
+        };
+
+        let per_put: Vec<_> = factories.iter().map(|factory| builder(*factory)).collect();
+        let Some((first, rest)) = per_put.split_first() else {
+            continue; // no PUTs selected
+        };
+        for (trace, seed_name) in first {
+            let supported_by_all = rest
+                .iter()
+                .all(|seeds| seeds.iter().any(|(_, n)| n == seed_name));
+            if supported_by_all && seen.insert(*seed_name) {
+                corpus.push((trace.clone(), *seed_name));
+            }
+        }
+    }
+    corpus
+}
+
 /// Defines the protocol which is being tested.
 ///
 /// The fuzzer is generally abstract over the used protocol. We assume that protocols have
@@ -286,8 +353,15 @@ pub trait ProtocolBehavior: 'static {
     type OpaqueProtocolMessageFlight: OpaqueProtocolMessageFlight<Self::ProtocolTypes, Self::OpaqueProtocolMessage>
         + From<Self::ProtocolMessageFlight>;
 
-    /// Creates a sane initial seed corpus.
-    fn create_corpus(put: PutDescriptor) -> Vec<(Trace<Self::ProtocolTypes>, &'static str)>;
+    /// Named corpus builders offered by this protocol.
+    ///
+    /// Each entry maps a corpus name (as accepted by the `seed --corpus` CLI
+    /// flag) to a [`CorpusBuilder`] producing that corpus' seeds for a single
+    /// PUT. Registering a new corpus is a matter of adding one line here. The
+    /// list is ordered; the default is no corpus at all.
+    fn corpus_registry() -> Vec<(&'static str, CorpusBuilder<Self>)> {
+        vec![]
+    }
 
     /// Downcast from `Box<dyn Any>` and encode as bitstring any message as per the PB's internal
     /// structure
@@ -391,4 +465,154 @@ macro_rules! atom_extract_knowledge {
             }
         }
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::agent::AgentDescriptor;
+    use crate::algebra::test_signature::{TestProtocolBehavior, TestProtocolTypes};
+    use crate::claims::GlobalClaimList;
+    use crate::error::Error;
+    use crate::put::{Put, PutOptions};
+    use crate::put_registry::Factory;
+
+    /// A minimal factory whose `supports()` answers come from a fixed capability
+    /// list, so tests can vary which seeds each PUT supports.
+    struct CapFactory {
+        name: String,
+        caps: Vec<&'static str>,
+    }
+
+    impl Factory<TestProtocolBehavior> for CapFactory {
+        fn create(
+            &self,
+            _agent_descriptor: &AgentDescriptor<<TestProtocolTypes as ProtocolTypes>::PUTConfig>,
+            _claims: &GlobalClaimList<<TestProtocolBehavior as ProtocolBehavior>::Claim>,
+            _options: &PutOptions,
+        ) -> Result<Box<dyn Put<TestProtocolBehavior>>, Error> {
+            panic!("CapFactory cannot create a PUT")
+        }
+
+        fn name(&self) -> String {
+            self.name.clone()
+        }
+
+        fn versions(&self) -> Vec<(String, String)> {
+            vec![]
+        }
+
+        fn supports(&self, capability: &str) -> bool {
+            self.caps.iter().any(|c| *c == capability)
+        }
+
+        fn clone_factory(&self) -> Box<dyn Factory<TestProtocolBehavior>> {
+            Box::new(CapFactory {
+                name: self.name.clone(),
+                caps: self.caps.clone(),
+            })
+        }
+    }
+
+    /// Corpus "alpha": always yields `common`, plus `t_alpha` when the PUT
+    /// supports the `cap_alpha` capability.
+    fn corpus_alpha(
+        put: &dyn Factory<TestProtocolBehavior>,
+    ) -> Vec<(Trace<TestProtocolTypes>, &'static str)> {
+        let mut seeds = vec![(Trace::default(), "common")];
+        if put.supports("cap_alpha") {
+            seeds.push((Trace::default(), "t_alpha"));
+        }
+        seeds
+    }
+
+    /// Corpus "beta": yields `common` (same name as alpha) and `t_beta`.
+    fn corpus_beta(
+        _put: &dyn Factory<TestProtocolBehavior>,
+    ) -> Vec<(Trace<TestProtocolTypes>, &'static str)> {
+        vec![(Trace::default(), "common"), (Trace::default(), "t_beta")]
+    }
+
+    const BUILDERS: &[(&str, CorpusBuilder<TestProtocolBehavior>)] = &[
+        ("alpha", corpus_alpha as CorpusBuilder<TestProtocolBehavior>),
+        ("beta", corpus_beta as CorpusBuilder<TestProtocolBehavior>),
+    ];
+
+    fn registry(factories: Vec<CapFactory>) -> PutRegistry<TestProtocolBehavior> {
+        let default = factories[0].name.clone();
+        let puts: Vec<(String, Box<dyn Factory<TestProtocolBehavior>>)> = factories
+            .into_iter()
+            .map(|f| {
+                (
+                    f.name.clone(),
+                    Box::new(f) as Box<dyn Factory<TestProtocolBehavior>>,
+                )
+            })
+            .collect();
+        PutRegistry::new(puts, PutDescriptor::new(default, PutOptions::default()))
+    }
+
+    fn descriptors(names: &[&str]) -> Vec<PutDescriptor> {
+        names
+            .iter()
+            .map(|n| PutDescriptor::new(*n, PutOptions::default()))
+            .collect()
+    }
+
+    fn seed_names(corpus: &[(Trace<TestProtocolTypes>, &'static str)]) -> Vec<&'static str> {
+        corpus.iter().map(|(_, name)| *name).collect()
+    }
+
+    #[test]
+    fn build_corpus_unions_and_dedups_first_wins() {
+        let reg = registry(vec![CapFactory {
+            name: "p".into(),
+            caps: vec!["cap_alpha"],
+        }]);
+        let corpus = build_corpus_with(
+            BUILDERS,
+            &reg,
+            &descriptors(&["p"]),
+            &["alpha".to_string(), "beta".to_string()],
+        );
+        // `common` comes from alpha (listed first) and is not duplicated by beta.
+        assert_eq!(seed_names(&corpus), vec!["common", "t_alpha", "t_beta"]);
+    }
+
+    #[test]
+    fn build_corpus_intersects_across_puts() {
+        let reg = registry(vec![
+            CapFactory {
+                name: "with_alpha".into(),
+                caps: vec!["cap_alpha"],
+            },
+            CapFactory {
+                name: "no_alpha".into(),
+                caps: vec![],
+            },
+        ]);
+        let corpus = build_corpus_with(
+            BUILDERS,
+            &reg,
+            &descriptors(&["with_alpha", "no_alpha"]),
+            &["alpha".to_string()],
+        );
+        // `t_alpha` is only supported by `with_alpha`, so the intersection drops it.
+        assert_eq!(seed_names(&corpus), vec!["common"]);
+    }
+
+    #[test]
+    fn build_corpus_skips_unknown_corpus() {
+        let reg = registry(vec![CapFactory {
+            name: "p".into(),
+            caps: vec![],
+        }]);
+        let corpus = build_corpus_with(
+            BUILDERS,
+            &reg,
+            &descriptors(&["p"]),
+            &["does_not_exist".to_string()],
+        );
+        assert!(corpus.is_empty());
+    }
 }
