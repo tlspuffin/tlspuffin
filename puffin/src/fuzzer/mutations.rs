@@ -4,9 +4,9 @@ use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
 use super::utils::{
-    choose, choose_iter, choose_term, choose_term_filtered_mut, choose_term_mut,
-    choose_term_path_filtered, find_all_term_filtered, find_term_mut, reservoir_sample, Choosable,
-    TermConstraints,
+    choose, choose_iter, choose_term, choose_term_filtered_mut, choose_term_path_filtered,
+    find_all_sub_term_filtered, find_all_term_filtered, find_term, find_term_mut, reservoir_sample,
+    Choosable, TermConstraints, TracePath,
 };
 use crate::algebra::atoms::Function;
 use crate::algebra::signature::Signature;
@@ -14,7 +14,7 @@ use crate::algebra::{DYTerm, Subterms, Term, TermType};
 use crate::fuzzer::term_zoo::TermZoo;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put_registry::PutRegistry;
-use crate::trace::{Spawner, Trace, TraceContext};
+use crate::trace::{Action, Spawner, Trace, TraceContext};
 
 #[derive(Clone, Copy, Debug)]
 pub struct MutationConfig {
@@ -29,6 +29,9 @@ pub struct MutationConfig {
     pub with_dy: bool,
     /// Focus on one payload at a time for a whole StdMutationalStage
     pub with_focus: bool,
+    /// Relative weights for the scope at which a *replacement* mutation is applied, see
+    /// [`ScopeWeights`] and [`MutationScope`].
+    pub scope_weights: ScopeWeights,
 }
 
 impl Default for MutationConfig {
@@ -42,8 +45,358 @@ impl Default for MutationConfig {
             with_bit_level: false,
             with_dy: true,
             with_focus: true,
+            scope_weights: ScopeWeights::default(),
         }
     }
+}
+
+/// Relative weights for picking a [`MutationScope`] when applying a replacement mutation.
+///
+/// Setting them allows ablation studies and reproducing historical behaviours:
+/// - `(1, 1, 1)` (default): uniform global / step / individual,
+/// - `(1, 0, 1)`: the previous behaviour (global with probability 1/2, else individual),
+/// - `(0, 0, 1)`: purely individual replacements (behaviour before global mutations existed).
+#[derive(Clone, Copy, Debug)]
+pub struct ScopeWeights {
+    pub global: usize,
+    pub step: usize,
+    pub individual: usize,
+}
+
+impl Default for ScopeWeights {
+    fn default() -> Self {
+        Self {
+            global: 1,
+            step: 1,
+            individual: 1,
+        }
+    }
+}
+
+impl ScopeWeights {
+    #[must_use]
+    pub const fn new(global: usize, step: usize, individual: usize) -> Self {
+        Self {
+            global,
+            step,
+            individual,
+        }
+    }
+
+    /// Saturating, so that absurdly large weights keep a meaningful (if degenerate) distribution
+    /// instead of overflowing: the dominant weight simply wins.
+    const fn total(self) -> usize {
+        self.global
+            .saturating_add(self.step)
+            .saturating_add(self.individual)
+    }
+}
+
+/// Scope over which a chosen replacement is applied, see [`apply_scoped_mutation`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum MutationScope {
+    /// Replace *every* occurrence structurally equal to the chosen term, in the whole trace.
+    Global,
+    /// Replace every such occurrence, but only within the step of the chosen term.
+    Step,
+    /// Replace only the single chosen occurrence.
+    Individual,
+}
+
+impl MutationScope {
+    /// Draw a scope at random according to `weights`. Falls back to [`Self::Individual`] when all
+    /// weights are zero.
+    fn choose<R: Rand>(weights: ScopeWeights, rand: &mut R) -> Self {
+        let total = weights.total();
+        if total == 0 {
+            return Self::Individual;
+        }
+        let draw = rand.between(0, total - 1);
+        if draw < weights.global {
+            Self::Global
+        } else if draw < weights.global.saturating_add(weights.step) {
+            Self::Step
+        } else {
+            Self::Individual
+        }
+    }
+}
+
+/// Apply `new_term` in place of the term at `to_mutate_path`, generalising the replacement to
+/// structurally equal terms according to a randomly drawn [`MutationScope`].
+///
+/// This is the shared engine behind the *replacement* DY mutators (generate / replace-match /
+/// replace-reuse): they all have the shape "pick a sub-term, compute a replacement for it, write it
+/// back", so broadcasting that replacement to the other occurrences of the *same* term is
+/// well-defined. Doing so collapses the cost of goals that require the same edit in several places
+/// (e.g. turning every `fn_seq_2` of one action into `fn_seq_5`) from one lucky draw *per
+/// occurrence* down to one lucky draw *per distinct sub-term*.
+///
+/// The generalisation is deliberately performed without any term constraint, including the
+/// `max_term_size_explore` cutoff that bounds the *selection* of a term to mutate. Skipping a large
+/// recipe here would silently turn "replace all occurrences" into a partial replacement, which is
+/// precisely what a broader scope is meant to avoid; and the cost stays linear in the size of the
+/// trace, i.e. the same order as the selection pass that already ran.
+///
+/// The chosen occurrence is always part of the targets, so that a broader scope is a strict
+/// superset of [`MutationScope::Individual`] whatever the search returns.
+// TODO: middle-ground scope: instead of the whole trace or the whole step, pick a position between
+// the chosen term and the root of the recipe and replace all occurrences of the chosen term in that
+// sub-term only.
+#[allow(clippy::too_many_arguments)]
+pub fn apply_scoped_mutation<PT: ProtocolTypes, R: Rand>(
+    trace: &mut Trace<PT>,
+    to_mutate_path: &TracePath,
+    representative: &Term<PT>,
+    new_term: &Term<PT>,
+    weights: ScopeWeights,
+    with_bit: bool,
+    constraints: &TermConstraints,
+    rand: &mut R,
+) -> MutationResult {
+    let targets = scoped_targets(trace, to_mutate_path, representative, weights, rand);
+    apply_to_targets(
+        trace,
+        &targets,
+        new_term,
+        representative,
+        with_bit,
+        constraints,
+    )
+}
+
+/// Returns `true` iff replacing a term of size `representative_size` by one of size `new_size` at
+/// every path in `targets` keeps the trace within `constraints.max_result_trace_size` (whole
+/// trace) and `constraints.max_result_term_size` (each single step recipe).
+///
+/// **Precondition: the input `trace` is already within the caps.** This is a loop invariant, not
+/// something re-checked here: hand-written seeds are authored within the caps, and every
+/// replacement mutation is reject-whole, so a trace that reached the corpus is always `<=
+/// max_result_{term,trace}_size`. The size-neutral fast path below relies on it — a shrinking or
+/// size-neutral replacement is accepted in O(1) precisely because it cannot push an *already
+/// bounded* trace over a cap. The one way to break the invariant is to configure a result cap
+/// *below* the size of an already-imported seed: such a seed is out of bounds before any mutation,
+/// and a neutral replacement will (correctly, per this contract) keep it that way. Enforcing caps
+/// against oversized inputs is a corpus-boundary concern, out of scope for the mutator.
+///
+/// Efficiency (why we don't recompute every step's size):
+/// - a mutation that does not grow the trace (`new_size <= representative_size`) can never exceed a
+///   cap, so we accept in O(1) without touching any size;
+/// - otherwise we only look at the **affected steps** (those containing a target) — never all steps
+///   — recomputing each such step's recipe size once, and derive the new whole-trace size as
+///   `old_trace_size + n_targets * delta`. `old_trace_size` is read from the (already bounded, `<=
+///   max_result_trace_size`) trace, so it is cheap.
+fn replacement_within_caps<PT: ProtocolTypes>(
+    trace: &Trace<PT>,
+    targets: &[TracePath],
+    representative_size: usize,
+    new_size: usize,
+    constraints: &TermConstraints,
+) -> bool {
+    if new_size <= representative_size {
+        return true; // shrink or size-neutral: cannot exceed any cap
+    }
+    let delta = new_size - representative_size;
+
+    // Per-affected-step check: count targets per step, only recompute those steps' sizes.
+    let mut per_step: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
+    for (step_index, _) in targets {
+        *per_step.entry(*step_index).or_insert(0) += 1;
+    }
+    for (step_index, count) in &per_step {
+        let cur = match trace.steps.get(*step_index).map(|s| &s.action) {
+            Some(Action::Input(input)) => input.recipe.size(),
+            _ => 0,
+        };
+        if cur + count * delta > constraints.max_result_term_size {
+            return false;
+        }
+    }
+
+    // Whole-trace check: old size + total growth. No per-step scan of the *unaffected* steps.
+    let new_trace_size = trace.size() + targets.len() * delta;
+    new_trace_size <= constraints.max_result_trace_size
+}
+
+/// Returns `true` iff replacing a term carrying `representative_payloads` payloads by one carrying
+/// `new_payloads`, at every path in `targets`, keeps each *affected* step recipe within
+/// `constraints.threshold_max_payloads_per_term`.
+///
+/// The budget is enforced **per term** (per step recipe), not as an average over the whole trace:
+/// a broad scope that rewrites several occurrences within a single recipe is charged the full
+/// growth for that recipe, so one dense recipe cannot hide behind many payload-free ones. Mirrors
+/// [`replacement_within_caps`]: only a growing replacement (`new_payloads >
+/// representative_payloads`) can exceed the budget, so a payload-neutral or shrinking replacement
+/// is accepted in O(1) without inspecting any recipe. Enforced uniformly for every replacement
+/// mutator via [`apply_to_targets`] (previously only [`ReplaceReuseMutator`] checked it, and only
+/// against a trace-wide average).
+fn payloads_within_caps<PT: ProtocolTypes>(
+    trace: &Trace<PT>,
+    targets: &[TracePath],
+    representative_payloads: usize,
+    new_payloads: usize,
+    constraints: &TermConstraints,
+) -> bool {
+    if new_payloads <= representative_payloads {
+        return true; // no payload growth: cannot exceed the budget
+    }
+    let delta = new_payloads - representative_payloads;
+
+    // Per-affected-step check: count targets per step, only inspect those steps' recipes. `cur`
+    // already includes the payloads of the occurrences about to be replaced, so the projected
+    // recipe payload count is `cur + count * delta`.
+    let mut per_step: std::collections::HashMap<usize, usize> = std::collections::HashMap::new();
+    for (step_index, _) in targets {
+        *per_step.entry(*step_index).or_insert(0) += 1;
+    }
+    for (step_index, count) in &per_step {
+        let cur = match trace.steps.get(*step_index).map(|s| &s.action) {
+            Some(Action::Input(input)) => input.recipe.count_payloads(),
+            _ => 0,
+        };
+        if cur + count * delta > constraints.threshold_max_payloads_per_term {
+            return false;
+        }
+    }
+    true
+}
+
+/// Replace the term at each of `targets` (each currently structurally equal to `representative`) by
+/// `new_term`, enforcing the result-size caps (`constraints.max_result_{term,trace}_size`) and,
+/// when `with_bit` is set, the per-term payload budget
+/// (`constraints.threshold_max_payloads_per_term`). If applying to all targets would exceed a cap,
+/// the mutation is rejected wholesale (returns [`MutationResult::Skipped`]) so the "replace all
+/// equal occurrences" atomicity is preserved. See `replacement_within_caps` and
+/// `payloads_within_caps`.
+///
+/// `with_bit` mirrors whether bit-level mutations are enabled: when they are not, no term carries a
+/// payload, so the whole payload accounting is skipped without even walking `new_term`.
+pub fn apply_to_targets<PT: ProtocolTypes>(
+    trace: &mut Trace<PT>,
+    targets: &[TracePath],
+    new_term: &Term<PT>,
+    representative: &Term<PT>,
+    with_bit: bool,
+    constraints: &TermConstraints,
+) -> MutationResult {
+    if !replacement_within_caps(
+        trace,
+        targets,
+        representative.size(),
+        new_term.size(),
+        constraints,
+    ) {
+        log::debug!("[Mutation] rejected: would exceed result-size caps");
+        return MutationResult::Skipped;
+    }
+    // Payloads only exist under bit-level mutations; when those are off, skip the accounting
+    // entirely (no `new_term` walk). Even under bit-level, only a replacement that *adds* payloads
+    // can exceed the budget, so a payload-free `new_term` short-circuits before the per-recipe
+    // walks.
+    if with_bit {
+        let new_payloads = new_term.count_payloads();
+        if new_payloads > 0
+            && !payloads_within_caps(
+                trace,
+                targets,
+                representative.count_payloads(),
+                new_payloads,
+                constraints,
+            )
+        {
+            log::debug!("[Mutation] rejected: would exceed per-term payload budget");
+            return MutationResult::Skipped;
+        }
+    }
+
+    let mut mutated = false;
+    for target in targets {
+        if let Some(term_mut) = find_term_mut(trace, target) {
+            term_mut.mutate(new_term.clone());
+            mutated = true;
+        }
+    }
+
+    if mutated {
+        MutationResult::Mutated
+    } else {
+        MutationResult::Skipped
+    }
+}
+
+/// Draw a [`MutationScope`] and return *all* the occurrences to replace, see
+/// [`apply_scoped_mutation`]. The search is unbounded (finds every structurally-equal occurrence);
+/// runaway is prevented at *application* time by the result-size caps in [`apply_to_targets`], not
+/// by cutting the search short.
+///
+/// Exposed separately from [`apply_to_targets`] so a caller can inspect *how many* occurrences
+/// would be replaced before committing: [`ReplaceReuseMutator`] needs it to bound the payloads it
+/// adds.
+pub fn scoped_targets<PT: ProtocolTypes, R: Rand>(
+    trace: &Trace<PT>,
+    to_mutate_path: &TracePath,
+    representative: &Term<PT>,
+    weights: ScopeWeights,
+    rand: &mut R,
+) -> Vec<TracePath> {
+    scoped_targets_with_cutoff(
+        trace,
+        to_mutate_path,
+        representative,
+        weights,
+        rand,
+        // Unbounded search: the result-size caps (applied in `apply_to_targets`) are the guard
+        // now.
+        usize::MAX,
+    )
+}
+
+/// [`scoped_targets`] with an explicit `max_term_size_explore` cutoff, so that tests can exercise
+/// the case where the search for the other occurrences gives up.
+fn scoped_targets_with_cutoff<PT: ProtocolTypes, R: Rand>(
+    trace: &Trace<PT>,
+    to_mutate_path: &TracePath,
+    representative: &Term<PT>,
+    weights: ScopeWeights,
+    rand: &mut R,
+    max_term_size_explore: usize,
+) -> Vec<TracePath> {
+    let scope = MutationScope::choose(weights, rand);
+    let (chosen_step, _) = to_mutate_path;
+
+    // the type shape is only compared first to speed up the comparison
+    let filter = |term: &Term<PT>| {
+        term.get_type_shape() == representative.get_type_shape() && term == representative
+    };
+    let constraints = TermConstraints {
+        max_term_size_explore,
+        ..TermConstraints::no_constraint()
+    };
+
+    let mut targets: Vec<TracePath> = match scope {
+        // no search needed, the chosen occurrence is added below
+        MutationScope::Individual => vec![],
+        // only the recipe of the chosen step is explored, rather than filtering the whole trace
+        MutationScope::Step => match trace.steps.get(*chosen_step).map(|step| &step.action) {
+            Some(Action::Input(input)) => {
+                find_all_sub_term_filtered(&input.recipe, filter, &constraints)
+                    .into_iter()
+                    .map(|term_path| (*chosen_step, term_path))
+                    .collect()
+            }
+            _ => vec![],
+        },
+        MutationScope::Global => find_all_term_filtered(trace, filter, &constraints),
+    };
+    // the chosen occurrence is added last, make sure it is not replaced twice
+    targets.retain(|path| path != to_mutate_path);
+    targets.push(to_mutate_path.clone());
+
+    log::debug!(
+        "[Mutation] scope {scope:?} selected {} occurrence(s)",
+        targets.len()
+    );
+    targets
 }
 
 impl MutationConfig {
@@ -83,14 +436,25 @@ where
         term_constraints,
         with_dy,
         with_bit_level,
+        scope_weights,
         ..
     } = mutation_config;
 
     tuple_list!(
-        RepeatMutator::new(max_trace_length, with_dy),
+        RepeatMutator::new(
+            max_trace_length,
+            term_constraints.max_result_trace_size,
+            with_dy
+        ),
         SkipMutator::new(min_trace_length, with_dy),
-        ReplaceReuseMutator::new(term_constraints, with_dy, with_bit_level),
-        ReplaceMatchMutator::new(term_constraints, signature, with_dy),
+        ReplaceReuseMutator::new(term_constraints, with_dy, with_bit_level, scope_weights),
+        ReplaceMatchMutator::new(
+            term_constraints,
+            signature,
+            with_dy,
+            with_bit_level,
+            scope_weights
+        ),
         RemoveAndLiftMutator::new(term_constraints, with_dy),
         GenerateMutator::new(
             0,
@@ -99,7 +463,9 @@ where
             None,
             signature,
             put_registry,
-            with_dy
+            with_dy,
+            with_bit_level,
+            scope_weights
         ), /* Refresh zoo after 100000M mutations */
         SwapMutator::new(term_constraints, with_dy),
     )
@@ -108,6 +474,11 @@ where
 /// SWAP: Swaps a sub-term with a different sub-term which is part of the trace
 
 /// (such that types match).
+///
+/// Note: this mutation is deliberately *not* scoped (see [`MutationScope`]): it exchanges two
+/// sub-terms, so "replace all equal occurrences" has no single well-defined replacement.
+// TODO: we might later give it its own scoped variant: swap *all* occurrences of A with *all*
+// occurrences of B (with probability 1/3), or only within the current step (with probability 1/3).
 pub struct SwapMutator<S>
 where
     S: HasRand,
@@ -185,6 +556,13 @@ where
 /// REMOVE AND LIFT: Removes a sub-term from a term and attaches orphaned children to the parent
 
 /// (such that types match). This only works if there is only a single child.
+///
+/// Note: this mutation is deliberately *not* scoped (see [`MutationScope`]): the replacement is a
+/// grand-sub-term of the mutated term, i.e. position-dependent, so there is no single replacement
+/// to broadcast.
+// TODO: a scoped variant would instead apply the *same transformation* to all terms (which are
+// `make_list` terms) that are equal to the impacted term *before* the RemoveAndLift.
+// Note: this mutation will eventually be removed in favour of more scoped list-only mutations.
 pub struct RemoveAndLiftMutator<S>
 where
     S: HasRand,
@@ -295,6 +673,8 @@ where
     signature: &'static Signature<PT>,
     phantom_s: std::marker::PhantomData<S>,
     with_dy: bool,
+    with_bit: bool,
+    scope_weights: ScopeWeights,
 }
 
 impl<S, PT: ProtocolTypes> ReplaceMatchMutator<S, PT>
@@ -306,6 +686,8 @@ where
         constraints: TermConstraints,
         signature: &'static Signature<PT>,
         with_dy: bool,
+        with_bit: bool,
+        scope_weights: ScopeWeights,
     ) -> Self {
         Self {
             constraints: TermConstraints {
@@ -315,6 +697,8 @@ where
             signature,
             phantom_s: std::marker::PhantomData,
             with_dy,
+            with_bit,
+            scope_weights,
         }
     }
 }
@@ -329,45 +713,64 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        if let Some(to_mutate) = choose_term_mut(trace, &self.constraints, rand) {
-            log::debug!("[Mutation] ReplaceMatchMutator on term\n{}", to_mutate);
-            match &mut to_mutate.term {
-                DYTerm::Variable(variable) => {
-                    if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
-                        |(shape, _)| variable.typ == shape.return_type && shape.is_constant(),
-                        rand,
-                    ) {
-                        to_mutate.mutate(Term::from(DYTerm::Application(
-                            Function::new(shape.clone(), dynamic_fn.clone()),
-                            Vec::new(),
-                        )));
-                        Ok(MutationResult::Mutated)
-                    } else {
-                        log::debug!("       Skipped {}", self.name());
-                        Ok(MutationResult::Skipped)
-                    }
-                }
-                DYTerm::Application(func_mut, _) => {
-                    if let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
-                        |(shape, _)| {
-                            func_mut.shape() != shape
-                                && func_mut.shape().return_type == shape.return_type
-                                && func_mut.shape().argument_types == shape.argument_types
-                        },
-                        rand,
-                    ) {
-                        func_mut.change_function(shape.clone(), dynamic_fn.clone());
-                        Ok(MutationResult::Mutated)
-                    } else {
-                        log::debug!("       Skipped {}", self.name());
-                        Ok(MutationResult::Skipped)
-                    }
-                }
-            }
-        } else {
+        let Some(to_mutate_path) =
+            choose_term_path_filtered(trace, |_| true, &self.constraints, rand)
+        else {
             log::debug!("       Skipped {}", self.name());
-            Ok(MutationResult::Skipped)
-        }
+            return Ok(MutationResult::Skipped);
+        };
+        let Some(to_mutate) = find_term(trace, &to_mutate_path).cloned() else {
+            log::debug!("       Skipped {}", self.name());
+            return Ok(MutationResult::Skipped);
+        };
+        log::debug!("[Mutation] ReplaceMatchMutator on term\n{}", to_mutate);
+
+        // Build the fully-formed replacement, of the same type as the chosen term.
+        let new_term = match &to_mutate.term {
+            DYTerm::Variable(variable) => {
+                let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
+                    |(shape, _)| variable.typ == shape.return_type && shape.is_constant(),
+                    rand,
+                ) else {
+                    log::debug!("       Skipped {}", self.name());
+                    return Ok(MutationResult::Skipped);
+                };
+                Term::from(DYTerm::Application(
+                    Function::new(shape.clone(), dynamic_fn.clone()),
+                    Vec::new(),
+                ))
+            }
+            DYTerm::Application(func, _) => {
+                let Some((shape, dynamic_fn)) = self.signature.functions.choose_filtered(
+                    |(shape, _)| {
+                        func.shape() != shape
+                            && func.shape().return_type == shape.return_type
+                            && func.shape().argument_types == shape.argument_types
+                    },
+                    rand,
+                ) else {
+                    log::debug!("       Skipped {}", self.name());
+                    return Ok(MutationResult::Skipped);
+                };
+                // Only the function symbol changes, the sub-terms are kept.
+                let mut new_term = to_mutate.clone();
+                if let DYTerm::Application(new_func, _) = &mut new_term.term {
+                    new_func.change_function(shape.clone(), dynamic_fn.clone());
+                }
+                new_term
+            }
+        };
+
+        Ok(apply_scoped_mutation(
+            trace,
+            &to_mutate_path,
+            &to_mutate,
+            &new_term,
+            self.scope_weights,
+            self.with_bit,
+            &self.constraints,
+            rand,
+        ))
     }
 
     fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
@@ -395,6 +798,7 @@ where
     phantom_s: std::marker::PhantomData<S>,
     with_dy: bool,
     with_bit: bool,
+    scope_weights: ScopeWeights,
 }
 
 impl<S> ReplaceReuseMutator<S>
@@ -402,12 +806,18 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub const fn new(constraints: TermConstraints, with_dy: bool, with_bit: bool) -> Self {
+    pub const fn new(
+        constraints: TermConstraints,
+        with_dy: bool,
+        with_bit: bool,
+        scope_weights: ScopeWeights,
+    ) -> Self {
         Self {
             constraints,
             phantom_s: std::marker::PhantomData,
             with_dy,
             with_bit,
+            scope_weights,
         }
     }
 }
@@ -422,36 +832,42 @@ where
             return Ok(MutationResult::Skipped);
         }
         let rand = state.rand_mut();
-        let (trace_nb_payloads, nb_terms) = if self.with_bit {
-            (trace.all_payloads().len(), trace.steps.len())
-        } else {
-            (0, 0)
-        };
         if let Some(replacement) = choose_term(trace, &self.constraints, rand).cloned() {
-            if let Some(to_replace) = choose_term_filtered_mut(
+            if let Some(to_replace_path) = choose_term_path_filtered(
                 trace,
                 |term: &Term<PT>| term.get_type_shape() == replacement.get_type_shape(),
                 &self.constraints,
                 rand,
             ) {
-                if self.with_bit {
-                    let nb_payloads = trace_nb_payloads + replacement.all_payloads().len()
-                        - to_replace.all_payloads().len();
-                    let no_more_new_payloads = nb_payloads / std::cmp::max(1, nb_terms)
-                        > self.constraints.threshold_max_payloads_per_term;
-                    if no_more_new_payloads {
-                        log::debug!("[ReplaceReuseMutator] Skipped as the chosen replacement would yield too many payloads.");
-                        log::debug!("       Skipped {}", self.name());
-                        return Ok(MutationResult::Skipped);
-                    }
-                }
+                let Some(to_replace) = find_term(trace, &to_replace_path).cloned() else {
+                    log::debug!("       Skipped {}", self.name());
+                    return Ok(MutationResult::Skipped);
+                };
+                // the scope is drawn first: a broader scope replaces several occurrences, and each
+                // of them contributes to the payload budget checked below
+                let targets = scoped_targets(
+                    trace,
+                    &to_replace_path,
+                    &to_replace,
+                    self.scope_weights,
+                    rand,
+                );
+                // The per-term payload budget (threshold_max_payloads_per_term) is enforced
+                // wholesale in `apply_to_targets`, uniformly across all replacement mutators, and
+                // skipped entirely when bit-level mutations are off (`self.with_bit`).
                 log::debug!(
                     "[Mutation] Mutate ReplaceReuseMutator on terms\n {} and\n{}",
                     to_replace,
                     replacement
                 );
-                to_replace.mutate(replacement);
-                return Ok(MutationResult::Mutated);
+                return Ok(apply_to_targets(
+                    trace,
+                    &targets,
+                    &replacement,
+                    &to_replace,
+                    self.with_bit,
+                    &self.constraints,
+                ));
             }
         }
         log::debug!("       Skipped {}", self.name());
@@ -539,6 +955,9 @@ where
     S: HasRand,
 {
     max_trace_length: usize,
+    /// Result-size cap: a duplication that would push the whole trace over this node count is
+    /// rejected (see `TermConstraints::max_result_trace_size`).
+    max_trace_size: usize,
     phantom_s: std::marker::PhantomData<S>,
     with_dy: bool,
 }
@@ -548,9 +967,10 @@ where
     S: HasRand,
 {
     #[must_use]
-    pub const fn new(max_trace_length: usize, with_dy: bool) -> Self {
+    pub const fn new(max_trace_length: usize, max_trace_size: usize, with_dy: bool) -> Self {
         Self {
             max_trace_length,
+            max_trace_size,
             phantom_s: std::marker::PhantomData,
             with_dy,
         }
@@ -579,8 +999,21 @@ where
         let Some(step) = state.rand_mut().choose(steps) else {
             return Ok(MutationResult::Skipped);
         };
+        // Result-size cap: reject a duplication that would push the whole trace over the limit.
+        let added = match &step.action {
+            Action::Input(input) => input.recipe.size(),
+            Action::Output(_) => 1,
+        };
+        if trace.size() + added > self.max_trace_size {
+            log::debug!(
+                "       Skipped {} (would exceed max_result_trace_size)",
+                self.name()
+            );
+            return Ok(MutationResult::Skipped);
+        }
+        let step = step.clone();
         log::debug!("[Mutation] Mutate RepeatMutator on step {insert_index}");
-        trace.steps.insert(insert_index, step.clone());
+        trace.steps.insert(insert_index, step);
         Ok(MutationResult::Mutated)
     }
 
@@ -610,12 +1043,15 @@ where
     put_registry: &'a PutRegistry<PB>,
     phantom_s: std::marker::PhantomData<S>,
     with_dy: bool,
+    with_bit: bool,
+    scope_weights: ScopeWeights,
 }
 impl<'a, S, PB: ProtocolBehavior> GenerateMutator<'a, S, PB>
 where
     S: HasRand,
 {
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub const fn new(
         mutation_counter: u64,
         refresh_zoo_after: u64,
@@ -624,6 +1060,8 @@ where
         signature: &'static Signature<PB::ProtocolTypes>,
         put_registry: &'a PutRegistry<PB>,
         with_dy: bool,
+        with_bit: bool,
+        scope_weights: ScopeWeights,
     ) -> Self {
         Self {
             mutation_counter,
@@ -634,6 +1072,8 @@ where
             put_registry,
             phantom_s: std::marker::PhantomData,
             with_dy,
+            with_bit,
+            scope_weights,
         }
     }
 }
@@ -694,7 +1134,8 @@ where
                         to_mutate,
                         new_term
                     );
-                    (to_mutate_path, to_mutate, new_term)
+                    // clone so that the immutable borrow of `trace` ends here
+                    (to_mutate_path, to_mutate.clone(), new_term.clone())
                 } else {
                     return Ok(MutationResult::Skipped);
                 }
@@ -703,53 +1144,17 @@ where
             }
         };
 
-        // Apply mutation globally with probability 1/2
-        if rand.between(0, 1) == 0 {
-            // Apply globally
-            let mut mutated = false;
-            for trace_path in find_all_term_filtered(
-                trace,
-                |term: &Term<PB::ProtocolTypes>| {
-                    *term.get_type_shape() == *to_mutate.get_type_shape() // supposed to speed up comparison
-                        && *term == *to_mutate
-                },
-                // We seek for all matches, independently of the term constraints, except for the
-                // max_term_size_explore constraint for efficiency reasons
-                &TermConstraints {
-                    max_term_size_explore: TermConstraints::default().max_term_size_explore,
-                    ..TermConstraints::no_constraint()
-                },
-            ) {
-                if let Some(term_mut) = find_term_mut(trace, &trace_path) {
-                    log::debug!(
-                        "[GenerateMutator] [Global] we found a match and do the replacement: {:?}",
-                        trace_path
-                    );
-                    term_mut.mutate(new_term.clone());
-                    mutated = true;
-                } else {
-                    log::debug!("[GenerateMutator::mutate] Could not find term to mutate");
-                }
-            }
-            if mutated {
-                Ok(MutationResult::Mutated)
-            } else {
-                Ok(MutationResult::Skipped)
-            }
-        } else {
-            // Apply locally, only once
-            if let Some(term_mut) = find_term_mut(trace, &to_mutate_path) {
-                log::debug!(
-                    "[GenerateMutator] [Local] replacement at: {:?}",
-                    to_mutate_path
-                );
-                term_mut.mutate(new_term.clone());
-                Ok(MutationResult::Mutated)
-            } else {
-                log::debug!("[GenerateMutator::mutate] Could not find term to mutate");
-                Ok(MutationResult::Skipped)
-            }
-        }
+        // Apply the replacement at a randomly drawn scope (global / step / individual)
+        Ok(apply_scoped_mutation(
+            trace,
+            &to_mutate_path,
+            &to_mutate,
+            &new_term,
+            self.scope_weights,
+            self.with_bit,
+            &self.constraints,
+            rand,
+        ))
     }
 
     fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
@@ -781,7 +1186,8 @@ mod tests {
     use crate::algebra::test_signature::{TestTrace, *};
     use crate::algebra::DYTerm;
     use crate::fuzzer::utils::{choose_term_path, TracePath};
-    use crate::trace::{Action, Step};
+    use crate::term;
+    use crate::trace::{Action, InputAction, Step};
 
     fn create_state(
     ) -> StdState<InMemoryCorpus<TestTrace>, TestTrace, RomuDuoJrRand, InMemoryCorpus<TestTrace>>
@@ -796,7 +1202,7 @@ mod tests {
     fn test_repeat_mutator() {
         let mut state = create_state();
 
-        let mut mutator = RepeatMutator::new(15, true);
+        let mut mutator = RepeatMutator::new(15, usize::MAX, true);
 
         fn check_is_encrypt12(step: &Step<TestProtocolTypes>) -> bool {
             if let Action::Input(input) = &step.action {
@@ -824,12 +1230,379 @@ mod tests {
         }
     }
 
+    /// The defining behaviour of each scope, on a trace that contains the *same* sub-term several
+    /// times inside one step and also in another step:
+    /// - `Individual` replaces exactly the chosen occurrence,
+    /// - `Step` replaces every occurrence of the chosen step, and only those,
+    /// - `Global` replaces every occurrence of the whole trace.
+    #[test_log::test]
+    fn test_scope_extent() {
+        let mut rand = StdRand::with_seed(11);
+
+        // a term that appears 3 times in step 0 and 2 times in step 1
+        let duplicated: Term<TestProtocolTypes> = term! { fn_signature_algorithm_extension };
+        let recipe_a: Term<TestProtocolTypes> = term! {
+            fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    (fn_client_extensions_append(
+                        fn_client_extensions_new,
+                        fn_signature_algorithm_extension
+                    )),
+                    fn_signature_algorithm_extension
+                )),
+                fn_signature_algorithm_extension
+            )
+        };
+        let recipe_b: Term<TestProtocolTypes> = term! {
+            fn_client_extensions_append(
+                (fn_client_extensions_append(
+                    fn_client_extensions_new,
+                    fn_signature_algorithm_extension
+                )),
+                fn_signature_algorithm_extension
+            )
+        };
+        let build_trace = || Trace {
+            steps: vec![
+                Step {
+                    agent: AgentName::first(),
+                    action: Action::Input(InputAction {
+                        recipe: recipe_a.clone(),
+                        precomputations: vec![],
+                    }),
+                },
+                Step {
+                    agent: AgentName::first(),
+                    action: Action::Input(InputAction {
+                        recipe: recipe_b.clone(),
+                        precomputations: vec![],
+                    }),
+                },
+            ],
+            ..setup_simple_trace()
+        };
+        let replacement: Term<TestProtocolTypes> = term! { fn_ec_point_formats_extension };
+
+        // count the occurrences of `duplicated` left in each step
+        let remaining = |trace: &Trace<TestProtocolTypes>| {
+            (0..2)
+                .map(|step| match &trace.steps[step].action {
+                    Action::Input(input) => (&input.recipe)
+                        .into_iter()
+                        .filter(|t| **t == duplicated)
+                        .count(),
+                    Action::Output(_) => 0,
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let chosen_path: TracePath = (0, vec![1]); // outermost duplicated term of step 0
+        let sanity = build_trace();
+        assert_eq!(remaining(&sanity), vec![3, 2], "test fixture");
+
+        for (weights, expected, label) in [
+            (ScopeWeights::new(0, 0, 1), vec![2, 2], "individual"),
+            (ScopeWeights::new(0, 1, 0), vec![0, 2], "step"),
+            (ScopeWeights::new(1, 0, 0), vec![0, 0], "global"),
+        ] {
+            let mut trace = build_trace();
+            let targets = scoped_targets(&trace, &chosen_path, &duplicated, weights, &mut rand);
+            assert_eq!(
+                apply_to_targets(
+                    &mut trace,
+                    &targets,
+                    &replacement,
+                    &duplicated,
+                    true,
+                    &TermConstraints::no_constraint(),
+                ),
+                MutationResult::Mutated,
+                "{label}: should have mutated"
+            );
+            assert_eq!(
+                remaining(&trace),
+                expected,
+                "{label}: unexpected extent of the replacement (per-step occurrences left)"
+            );
+        }
+    }
+
+    /// The payload budget (`threshold_max_payloads_per_term`) is enforced **per term** (per step
+    /// recipe), not as a trace-wide average: concentrating the payload growth of a broad scope in a
+    /// single recipe is rejected wholesale, even when the same growth spread over the whole trace
+    /// would stay under budget on average. Payload-neutral or shrinking replacements are always
+    /// accepted. Exercises [`payloads_within_caps`] directly (the guard folded into
+    /// [`apply_to_targets`]).
+    #[test_log::test]
+    fn test_payload_budget_is_per_term_not_average() {
+        let trace = setup_simple_trace();
+        let step = trace
+            .steps
+            .iter()
+            .position(|s| matches!(s.action, Action::Input(_)))
+            .expect("the fixture has at least one input step");
+        // baseline payloads already in that recipe (0 for a symbolic seed, but read it to stay
+        // robust if the fixture changes)
+        let base = match &trace.steps[step].action {
+            Action::Input(input) => input.recipe.count_payloads(),
+            Action::Output(_) => unreachable!(),
+        };
+
+        // one growing replacement (+1 payload) for each of four occurrences, all in ONE recipe
+        let concentrated: Vec<TracePath> = (0..4).map(|i| (step, vec![i])).collect();
+        let single: Vec<TracePath> = vec![(step, vec![0])];
+        // budget leaves room for +3 payloads in a single recipe
+        let constraints = TermConstraints {
+            threshold_max_payloads_per_term: base + 3,
+            ..TermConstraints::no_constraint()
+        };
+
+        // per-term: this recipe would reach base + 4 > base + 3 -> reject the whole mutation. A
+        // trace-wide average (4 payloads over several steps) would have stayed under budget; that
+        // dilution is exactly what this check no longer allows.
+        assert!(
+            !payloads_within_caps(&trace, &concentrated, base, base + 1, &constraints),
+            "four +1-payload replacements in one recipe must exceed the per-term budget"
+        );
+        // a single occurrence only reaches base + 1 <= base + 3 -> accepted
+        assert!(
+            payloads_within_caps(&trace, &single, base, base + 1, &constraints),
+            "a single growing replacement stays within the per-term budget"
+        );
+        // payload-neutral and shrinking replacements are accepted regardless of scope width
+        assert!(payloads_within_caps(
+            &trace,
+            &concentrated,
+            7,
+            7,
+            &constraints
+        ));
+        assert!(payloads_within_caps(
+            &trace,
+            &concentrated,
+            9,
+            2,
+            &constraints
+        ));
+    }
+
+    /// `Term::count_payloads` is the alloc-free equivalent of `all_payloads().len()`: it must agree
+    /// with it node-for-node, both in the all-symbolic case (0) and once a payload is attached.
+    #[test_log::test]
+    fn test_count_payloads_matches_all_payloads_len() {
+        let trace = setup_simple_trace();
+        for step in &trace.steps {
+            let Action::Input(input) = &step.action else {
+                continue;
+            };
+            // every sub-term of the recipe: the two traversals must return the same count
+            for sub in &input.recipe {
+                assert_eq!(sub.count_payloads(), sub.all_payloads().len());
+            }
+            // and once a payload is attached at the root, both see exactly one
+            let mut with_payload = input.recipe.clone();
+            with_payload.add_payload(vec![0u8; 4]);
+            assert_eq!(
+                with_payload.count_payloads(),
+                with_payload.all_payloads().len()
+            );
+            assert_eq!(with_payload.count_payloads(), 1);
+        }
+    }
+
+    /// The result-size caps are reject-whole: a *growing* replacement that would push either the
+    /// affected step recipe over `max_result_term_size` or the whole trace over
+    /// `max_result_trace_size` is refused. The size-neutral / shrinking fast path is accepted in
+    /// O(1) even when the input already exceeds the caps — that is the documented bounded-input
+    /// precondition of [`replacement_within_caps`] (a cap set below an imported seed is a
+    /// corpus-boundary misconfiguration, not the mutator's job to repair).
+    #[test_log::test]
+    fn test_replacement_within_caps_rejects_growth() {
+        let trace = setup_simple_trace();
+        let step = trace
+            .steps
+            .iter()
+            .position(|s| matches!(s.action, Action::Input(_)))
+            .expect("the fixture has at least one input step");
+        let cur = match &trace.steps[step].action {
+            Action::Input(input) => input.recipe.size(),
+            Action::Output(_) => unreachable!(),
+        };
+        let trace_size = trace.size();
+        let targets: Vec<TracePath> = vec![(step, vec![0])]; // one target in this step
+
+        // representative_size/new_size only fix the delta (+5 here); `cur` is read from the recipe.
+        let (repr, new) = (1, 6);
+
+        // generous caps: +5 fits in both -> accepted
+        let generous = TermConstraints {
+            max_result_term_size: cur + 100,
+            max_result_trace_size: trace_size + 100,
+            ..TermConstraints::no_constraint()
+        };
+        assert!(replacement_within_caps(
+            &trace, &targets, repr, new, &generous
+        ));
+
+        // per-step cap allows only +2 in this recipe -> +5 rejected
+        let tight_step = TermConstraints {
+            max_result_term_size: cur + 2,
+            max_result_trace_size: usize::MAX,
+            ..TermConstraints::no_constraint()
+        };
+        assert!(!replacement_within_caps(
+            &trace,
+            &targets,
+            repr,
+            new,
+            &tight_step
+        ));
+
+        // whole-trace cap allows only +2 overall -> +5 rejected
+        let tight_trace = TermConstraints {
+            max_result_term_size: usize::MAX,
+            max_result_trace_size: trace_size + 2,
+            ..TermConstraints::no_constraint()
+        };
+        assert!(!replacement_within_caps(
+            &trace,
+            &targets,
+            repr,
+            new,
+            &tight_trace
+        ));
+
+        // documented precondition: with the caps set *below* the already-imported seed, a
+        // size-neutral or shrinking replacement is still accepted (the input is out of bounds
+        // before any mutation; the mutator does not retroactively enforce the cap).
+        let below_seed = TermConstraints {
+            max_result_term_size: 0,
+            max_result_trace_size: 0,
+            ..TermConstraints::no_constraint()
+        };
+        assert!(replacement_within_caps(&trace, &targets, 4, 4, &below_seed)); // neutral
+        assert!(replacement_within_caps(&trace, &targets, 9, 2, &below_seed)); // shrink
+    }
+
+    /// Whatever the scope, the *chosen* occurrence is always replaced. In particular a broader
+    /// scope must not silently skip the mutation when the search for the other occurrences finds
+    /// nothing, which happens for recipes above `max_term_size_explore`.
+    #[test_log::test]
+    fn test_scoped_mutation_always_mutates_chosen_occurrence() {
+        let mut rand = StdRand::with_seed(7);
+
+        for weights in [
+            ScopeWeights::new(1, 0, 0), // global only
+            ScopeWeights::new(0, 1, 0), // step only
+            ScopeWeights::new(0, 0, 1), // individual only
+            ScopeWeights::default(),
+        ] {
+            for max_term_size_explore in [usize::MAX, 0] {
+                // `0` makes the search for the other occurrences give up immediately, emulating a
+                // recipe that is too large to explore
+                let mut trace = setup_simple_trace();
+                let path = choose_term_path_filtered(
+                    &trace,
+                    |_| true,
+                    &TermConstraints::default(),
+                    &mut rand,
+                )
+                .unwrap();
+                let chosen = find_term(&trace, &path).unwrap().clone();
+
+                // any different term of the same type is a valid replacement here
+                let Some(replacement) = trace
+                    .steps
+                    .iter()
+                    .filter_map(|step| match &step.action {
+                        Action::Input(input) => Some(&input.recipe),
+                        Action::Output(_) => None,
+                    })
+                    .flat_map(|recipe| recipe.into_iter())
+                    .find(|term| {
+                        term.get_type_shape() == chosen.get_type_shape() && **term != chosen
+                    })
+                    .cloned()
+                else {
+                    continue; // no valid replacement in this trace, nothing to assert
+                };
+
+                let targets = scoped_targets_with_cutoff(
+                    &trace,
+                    &path,
+                    &chosen,
+                    weights,
+                    &mut rand,
+                    max_term_size_explore,
+                );
+                let result = apply_to_targets(
+                    &mut trace,
+                    &targets,
+                    &replacement,
+                    &chosen,
+                    true,
+                    &TermConstraints::no_constraint(),
+                );
+
+                assert_eq!(
+                    result,
+                    MutationResult::Mutated,
+                    "weights {weights:?} with cutoff {max_term_size_explore} should have mutated"
+                );
+                assert_eq!(
+                    find_term(&trace, &path).unwrap(),
+                    &replacement,
+                    "weights {weights:?} with cutoff {max_term_size_explore}: the chosen \
+                     occurrence must carry the replacement"
+                );
+            }
+        }
+    }
+
+    /// The scope drawn by [`MutationScope::choose`] must follow the configured weights: a zeroed
+    /// weight is never drawn, and `(0, 0, 0)` degrades gracefully to `Individual`.
+    #[test_log::test]
+    fn test_scope_weights() {
+        let mut rand = StdRand::with_seed(42);
+
+        let draw = |w: ScopeWeights, rand: &mut _| {
+            let mut seen = std::collections::HashSet::new();
+            for _ in 0..200 {
+                seen.insert(MutationScope::choose(w, rand));
+            }
+            seen
+        };
+
+        // uniform: all three scopes must show up
+        let all = draw(ScopeWeights::default(), &mut rand);
+        assert_eq!(all.len(), 3, "uniform weights should draw all three scopes");
+
+        // (1, 0, 1): the historical behaviour, never per-step
+        let no_step = draw(ScopeWeights::new(1, 0, 1), &mut rand);
+        assert!(!no_step.contains(&MutationScope::Step));
+        assert!(no_step.contains(&MutationScope::Global));
+        assert!(no_step.contains(&MutationScope::Individual));
+
+        // (0, 0, 1): purely individual replacements
+        let only_individual = draw(ScopeWeights::new(0, 0, 1), &mut rand);
+        assert_eq!(only_individual, HashSet::from([MutationScope::Individual]));
+
+        // degenerate weights fall back to Individual instead of panicking
+        let zeroed = draw(ScopeWeights::new(0, 0, 0), &mut rand);
+        assert_eq!(zeroed, HashSet::from([MutationScope::Individual]));
+    }
+
     #[test_log::test]
     fn test_replace_match_mutator() {
         let _server = AgentName::first();
         let mut state = create_state();
-        let mut mutator =
-            ReplaceMatchMutator::new(TermConstraints::default(), &TEST_SIGNATURE, true);
+        let mut mutator = ReplaceMatchMutator::new(
+            TermConstraints::default(),
+            &TEST_SIGNATURE,
+            true,
+            true,
+            ScopeWeights::default(),
+        );
 
         loop {
             let mut trace = setup_simple_trace();
@@ -884,7 +1657,12 @@ mod tests {
     fn test_replace_reuse_mutator() {
         let mut state = create_state();
         let _server = AgentName::first();
-        let mut mutator = ReplaceReuseMutator::new(TermConstraints::default(), true, true);
+        let mut mutator = ReplaceReuseMutator::new(
+            TermConstraints::default(),
+            true,
+            true,
+            ScopeWeights::default(),
+        );
 
         fn count_client_hello(trace: &TestTrace) -> usize {
             trace.count_functions_by_name(fn_client_hello.name())

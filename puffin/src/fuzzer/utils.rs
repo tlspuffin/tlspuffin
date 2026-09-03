@@ -5,13 +5,63 @@ use crate::fuzzer::term_zoo::DEFAULT_MAX_DEPTH;
 use crate::protocol::ProtocolTypes;
 use crate::trace::{Action, Step, Trace};
 
+/// Size budget for terms and traces during mutation.
+///
+/// # Units
+///
+/// All `*_size` values below are **node counts** in the term tree (`Term::size()`): every
+/// application/variable counts 1, summed over the whole (symbolic) tree; `Trace::size()` sums each
+/// input step's recipe size and additionally counts every output action as one node. They are NOT
+/// bytes.
+///
+/// # How the caps relate
+///
+/// - `min_term_size` / `max_term_size`: bounds on a *sub-term selected* as a mutation candidate.
+/// - `max_term_size_explore`: bound on how large a term we bother *traversing* while sampling.
+/// - `max_result_term_size` / `max_result_trace_size`: **hard post-conditions on the *result* of a
+///   replacement mutation** — a mutation that would push any single step recipe over
+///   `max_result_term_size`, or the whole trace over `max_result_trace_size`, is rejected
+///   (reject-whole). These two are what actually bound runaway growth; because they bound the
+///   result, the scoped/global search no longer needs its own size cutoff. They are enforced
+///   *incrementally* on top of an already-bounded input (seeds within caps + reject-whole preserve
+///   the invariant), so set them at or above the largest seed: a cap configured *below* an existing
+///   seed's size is a corpus-boundary misconfiguration and cannot be enforced retroactively by the
+///   mutators (see the precondition on `replacement_within_caps`).
+///
+/// # Maintenance rules — READ THIS BEFORE ADDING A PROTOCOL OR EXTENDING A MAPPER
+///
+/// These numbers are chosen from the sizes of the hand-written seeds/attacks. When you add a
+/// protocol, add seeds, or grow the signature (mapper), **re-measure the seeds and re-check the
+/// rules below**. As of this writing the largest seed values are:
+///
+/// | metric                         | TLS  | OPC UA | rule for the cap                                   |
+/// |--------------------------------|------|--------|----------------------------------------------------|
+/// | max single-step recipe (nodes) | 324  | 137    | `max_term_size >= 2 * max_seed_term`               |
+/// | max total trace (nodes)        | 427  | 712    | `max_result_trace_size >= ~7 * max_seed_trace`     |
+/// | max #steps                     | 13   | 10     | `max_trace_length >= max_seed_steps + 2`           |
+///
+/// - `max_term_size` MUST be at least `2 * (largest single-term size across all seeds)` so seeds
+///   (and moderately grown variants) stay selectable. Largest today = 324 (TLS) ⇒ rule wants ≥648;
+///   the current value is 650, satisfying the 2× rule. Re-check when seeds/signatures change.
+/// - `max_result_trace_size` MUST comfortably exceed the largest seed trace and a full
+///   `max_trace_length`-step attack; keep it well below where per-execution cost hurts.
+/// - `max_result_term_size` should exceed the largest seed step (324) with headroom; 1000 ≈ 3×.
 #[derive(Copy, Clone, Debug)]
 pub struct TermConstraints {
-    // For selecting (sub)terms for mutation candidates, for example
+    /// Minimum size of a sub-term selected as a mutation candidate.
     pub min_term_size: usize,
+    /// Maximum size of a sub-term selected as a mutation candidate. Rule: `>= 2 * max_seed_term`
+    /// (largest single-term size across all seeds). Measured max seed term = 324 (TLS).
     pub max_term_size: usize,
-    // For continuing exploring (sub)terms, if larger: we don't even bother traversing the term
+    /// While sampling, we do not bother traversing a term larger than this.
     pub max_term_size_explore: usize,
+    /// Hard post-condition: reject a replacement whose *result* makes any single step recipe
+    /// exceed this many nodes. Rule: `> max_seed_term` with headroom (measured max = 324).
+    pub max_result_term_size: usize,
+    /// Hard post-condition: reject a replacement whose *result* makes the whole trace exceed this
+    /// many nodes (all steps included). Rule: `>> max_seed_trace` and a full-length attack
+    /// (measured max seed trace = 712). This is the primary runaway guard.
+    pub max_result_trace_size: usize,
     pub must_be_symbolic: bool,
     /// when true: only look for terms with no payload in sub-terms
     pub no_payload_in_subterm: bool,
@@ -42,10 +92,13 @@ impl Default for TermConstraints {
     fn default() -> Self {
         Self {
             min_term_size: 0,
-            max_term_size: 300, // we do not select larger terms for mutations
-            /* was 9000 but we were rewriting this to 300 anyway when
-             * instantiating the fuzzer */
+            // Selection cap. Rule: >= 2 * max_seed_term (measured max seed term = 324, TLS).
+            // 650 gives the full 2x headroom over the largest seed term (2 * 324 = 648).
+            max_term_size: 650,
             max_term_size_explore: 1000, // we don't even bother exploring terms that are too large
+            // Post-condition caps (reject-whole). See the type doc for the maintenance rules.
+            max_result_term_size: 1000, //  per single step recipe of the resulting trace
+            max_result_trace_size: 10_000, // whole resulting trace, all steps included
             must_be_symbolic: false,
             no_payload_in_subterm: false,
             must_payload_in_subterm: false,
@@ -127,6 +180,8 @@ impl TermConstraints {
             min_term_size: 0,
             max_term_size: usize::MAX,
             max_term_size_explore: usize::MAX,
+            max_result_term_size: usize::MAX,
+            max_result_trace_size: usize::MAX,
             must_be_symbolic: false,
             no_payload_in_subterm: false,
             must_payload_in_subterm: false,
