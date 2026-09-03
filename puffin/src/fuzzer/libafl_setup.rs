@@ -198,14 +198,22 @@ where
             <PT>::signature(),
             put_registry,
         ));
-        // Always run DY mutations (if enabled)
-        let cb_dy = |_: &mut _, _: &mut _, _: &mut _, _: &mut _| -> Result<bool, Error> {
-            if mutation_config.with_dy {
-                log::debug!("[*] DY StdMutationalStage");
-                Ok(true)
-            } else {
-                Ok(false)
+        // Run DY mutations (if enabled), optionally delayed until `dy_after_execs` (bit-first).
+        let cb_dy = |_: &mut _,
+                     _: &mut _,
+                     state: &mut ConcreteState<C, R, SC, Trace<PT>>,
+                     _: &mut _|
+         -> Result<bool, Error> {
+            if !mutation_config.with_dy {
+                return Ok(false);
             }
+            if mutation_config.dy_after_execs > 0
+                && *state.executions() <= mutation_config.dy_after_execs
+            {
+                return Ok(false); // bit-first: let bit-level explore before enabling DY
+            }
+            log::debug!("[*] DY StdMutationalStage");
+            Ok(true)
         };
         let stage_dy = IfStage::new(
             cb_dy,
@@ -238,7 +246,9 @@ where
             // Return false if the campaign is not advanced enough (per client/core), except if no
             // DY
             if !mutation_config.with_dy
-                || (*state.executions() > MIN_BIT_EXECS && state.corpus().count() > MIN_BIT_CORPUS)
+                || mutation_config.bit_from_start
+                || (*state.executions() > mutation_config.bit_after_execs
+                    && state.corpus().count() > MIN_BIT_CORPUS)
             {
                 log::debug!("[*] BIT StdMutationalStage");
                 Ok(true)
@@ -251,6 +261,7 @@ where
             tuple_list!(MakeMessage::new(mutation_config_focus, put_registry)),
             havoc_mutations_dy::<StdState<C, Trace<PT>, R, SC>, PT>(mutation_config_focus),
             tuple_list!(ReadMessage::new(mutation_config_focus, put_registry)),
+            self.config.mutation_stage_config.max_mutations_pow_per_iteration as usize,
         );
         let cb_focus_bit_level = |_: &mut _,
                                   _: &mut _,
@@ -263,13 +274,26 @@ where
             log::debug!("[*] BIT FocusScheduledMutator");
             Ok(true)
         };
+        let cb_unfocused_bit = |_: &mut _,
+                                _: &mut _,
+                                _: &mut ConcreteState<C, R, SC, Trace<PT>>,
+                                _: &mut _|
+         -> Result<bool, Error> {
+            // [#1a] The unfocused bit stage (random-payload HAVOC) is NOT redundant with the focus
+            // stage — the A/B showed it contributes ~4% coverage. So it runs by DEFAULT; only drop
+            // it (focus-only, faster but lower coverage) when explicitly requested.
+            Ok(!(mutation_config.with_focus && mutation_config.drop_unfocused_bit))
+        };
         let stage_bit = IfStage::new(
             cb_bit_level,
             tuple_list!(
-                StdMutationalStage::with_max_iterations(
-                    mutator_bit,
-                    self.config.mutation_stage_config.max_iterations_per_stage
-                ), // Old-style HAVOC stage
+                IfStage::new(
+                    cb_unfocused_bit,
+                    tuple_list!(StdMutationalStage::with_max_iterations(
+                        mutator_bit,
+                        self.config.mutation_stage_config.max_iterations_per_stage
+                    ),)
+                ), // unfocused HAVOC stage (only when !with_focus)
                 IfStage::new(
                     cb_focus_bit_level,
                     tuple_list!(StdMutationalStage::with_max_iterations(

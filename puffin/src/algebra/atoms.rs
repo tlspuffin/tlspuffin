@@ -115,6 +115,10 @@ impl<PT: ProtocolTypes> Function<PT> {
         self.fn_container.attrs.is_opaque
     }
 
+    pub fn is_reframing(&self) -> bool {
+        self.fn_container.attrs.is_reframing
+    }
+
     pub fn is_list(&self) -> bool {
         self.fn_container.attrs.is_list
     }
@@ -129,10 +133,6 @@ impl<PT: ProtocolTypes> Function<PT> {
 
     pub fn no_bit(&self) -> bool {
         self.fn_container.attrs.no_bit
-    }
-
-    pub fn no_det(&self) -> bool {
-        self.fn_container.attrs.no_det
     }
 
     #[must_use]

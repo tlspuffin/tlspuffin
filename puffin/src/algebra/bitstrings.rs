@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use libafl::inputs::{BytesInput, HasMutatorBytes};
 use serde::{Deserialize, Serialize};
@@ -10,6 +11,45 @@ use crate::error::Error::TermBug;
 use crate::fuzzer::utils::TermPath;
 use crate::protocol::{EvaluatedTerm, ProtocolBehavior, ProtocolTypes};
 use crate::trace::{Source, TraceContext};
+
+/// [R3 / Ch4 A/B] When true (default), a `[reframing]` arg that fails the read∘encode round-trip is
+/// kept best-effort instead of dropped. Toggle off via `--no-r3-relax` to measure R3's coverage
+/// value (set once at startup; process-global like the stats counters).
+pub static R3_RELAX_REFRAMING: AtomicBool = AtomicBool::new(true);
+
+// [#4] round-trip drop counters (boundary consume path in eval_until_opaque).
+pub static RT_RELAX: AtomicUsize = AtomicUsize::new(0); // reframing arg kept best-effort (R3)
+pub static RT_DROP: AtomicUsize = AtomicUsize::new(0); // arg dropped by strict read∘encode check
+// [#3] locator path histogram (per descend-iteration outcome in find_unique_match_rec).
+pub static LOC_S1_UNIQUE: AtomicUsize = AtomicUsize::new(0); // fast direct-unique match (happy path)
+pub static LOC_S2_EMPTY: AtomicUsize = AtomicUsize::new(0); // empty child -> sibling positioning
+pub static LOC_S2_LIST: AtomicUsize = AtomicUsize::new(0); // special-list heuristic
+pub static LOC_S2_UNIQUE: AtomicUsize = AtomicUsize::new(0); // non-empty child, single match
+pub static LOC_S2_MULTI: AtomicUsize = AtomicUsize::new(0); // multi-match sibling-disambig FALLBACK (the fragile complexity)
+
+/// Increment a counter; periodically dump the #3 locator histogram + #4 drop counts to the log so
+/// we can answer "is the heuristic complexity warranted?" without permanent stats-serialization
+/// churn (kept lightweight, like the R3 log line). Dump every 200k locator decisions.
+pub fn loc_bump(c: &AtomicUsize) {
+    c.fetch_add(1, Ordering::Relaxed);
+    let total = LOC_S1_UNIQUE.load(Ordering::Relaxed)
+        + LOC_S2_EMPTY.load(Ordering::Relaxed)
+        + LOC_S2_LIST.load(Ordering::Relaxed)
+        + LOC_S2_UNIQUE.load(Ordering::Relaxed)
+        + LOC_S2_MULTI.load(Ordering::Relaxed);
+    if total % 2_000 == 0 && total > 0 {
+        log::info!(
+            "[#3 locator-histogram] total={total} S1_unique={} S2_empty={} S2_list={} S2_unique={} S2_MULTI_fallback={} | [#4] rt_relax={} rt_drop={}",
+            LOC_S1_UNIQUE.load(Ordering::Relaxed),
+            LOC_S2_EMPTY.load(Ordering::Relaxed),
+            LOC_S2_LIST.load(Ordering::Relaxed),
+            LOC_S2_UNIQUE.load(Ordering::Relaxed),
+            LOC_S2_MULTI.load(Ordering::Relaxed),
+            RT_RELAX.load(Ordering::Relaxed),
+            RT_DROP.load(Ordering::Relaxed),
+        );
+    }
+}
 
 /// Constants governing heuristic for finding payloads in term evaluations
 const THRESHOLD_SIZE: usize = 3; // minimum size of a payload to be directly searched in root_eval
@@ -135,6 +175,29 @@ pub fn is_get_in_path<PT: ProtocolTypes>(term: &Term<PT>, path_to_search: &[usiz
     false
 }
 
+/// Checks if an opaque or re-framing boundary symbol is STRICTLY between the root and
+/// `path_to_search` (i.e. on a proper-prefix node, root included, target excluded).
+///
+/// CORE INVARIANT: such a symbol must NEVER appear strictly above a payload that reaches
+/// `find_unique_match_rec`/`replace_payloads`. `eval_until_opaque` consumes any payload strictly
+/// beneath an opaque/re-framing symbol within the child encoding space (it never propagates those
+/// payload contexts to the root-level locator). If this returns `true` for a payload being
+/// replaced, it means a transform/re-framing symbol is MISSING its `[opaque]`/`[reframing]`
+/// attribute -- the exact bug class behind the 821 `find_unique_match_rec` "child encoding not
+/// found" TermBugs. Used as a debug-mode sanity check in `replace_payloads`.
+pub fn is_opaque_boundary_in_path<PT: ProtocolTypes>(
+    term: &Term<PT>,
+    path_to_search: &[usize],
+) -> bool {
+    for i in 0..path_to_search.len() {
+        // excluding the target itself (a payload may legitimately sit ON an opaque/reframing node)
+        if term.get(&path_to_search[..i]).unwrap().is_opaque_boundary() {
+            return true;
+        }
+    }
+    false
+}
+
 /// Search and locate `to_search := eval_tree[path_to_search].encode` in
 /// `root_eval:=eval_tree`[vec![]].encode (=`whole_term.encode(ctx)`) such that the match
 /// corresponds to `path_to_search` (when `to_search` occurs multiple times). Also returns
@@ -231,6 +294,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 log::debug!(
                     "[find_unique_match_rec] [S1] Directly found unique match in root: {unique_pos}"
                 );
+                loc_bump(&LOC_S1_UNIQUE); // [#3]
                 start_pos += unique_pos;
                 break;
             } else {
@@ -254,6 +318,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
             let pos_child = eval_parent.len() - eval_right_siblings.len();
             log::debug!("[S2:1] eval_child has an empty encoding, we use right siblings to position the child: pos = {pos_child}");
 
+            loc_bump(&LOC_S2_EMPTY); // [#3]
             start_pos += pos_child;
             continue;
         }
@@ -267,6 +332,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
             // do not proceed with the heuristics if there is a get symbol above the target
             if child_arg_number == 0 && path_to_search.iter().all(|x| *x == 0) {
                 log::debug!("[find_unique_match_rec] [S2:special-list] [Nil*] Child is the NIL starting the list, pos is 0!");
+                loc_bump(&LOC_S2_LIST); // [#3]
                 break;
             }
             log::debug!("[S2:special-list] Child is a list, we use a special heuristic to find the position of the target in the parent");
@@ -281,6 +347,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 log::debug!(
                     "[find_unique_match_rec] [S2:special-list] [pos=1] Found position: {pos}"
                 );
+                loc_bump(&LOC_S2_LIST); // [#3]
                 start_pos += pos;
                 break;
             }
@@ -316,6 +383,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 log::debug!(
                     "[find_unique_match_rec] [S2:special-list] [skip] Found position: {pos}"
                 );
+                loc_bump(&LOC_S2_LIST); // [#3]
                 start_pos += pos;
                 break;
             }
@@ -332,6 +400,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
                 "[S2:2] Found position is unique: {}. Continue...",
                 all_matches[0]
             );
+            loc_bump(&LOC_S2_UNIQUE); // [#3]
             start_pos += all_matches[0];
             continue;
         }
@@ -360,6 +429,7 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
         // [STEP 2:2: POSITION CHILD RELATIVELY TO SIBLINGS] If no unique match, we must find which
         // matching position of child relatively to the position of the evaluation of all
         // right siblings.
+        loc_bump(&LOC_S2_MULTI); // [#3] the multi-match sibling-disambiguation fallback (fragile complexity)
         if parent_is_get {
             // do not proceed with the heuristics if parent is a get symbol
             let ft = format!("[[find_unique_match_rec] [S2:2] Skips last resorting heuristics since the parant is a get symbol. Failed to find the target.");
@@ -439,6 +509,42 @@ pub fn find_unique_match_rec<PT: ProtocolTypes>(
     Ok((start_pos, encountered_get_symbol))
 }
 
+/// [R2 PROTOTYPE — offset memoization, debug cross-check only]
+/// Compute the byte offset of the node at `path` within the root encoding using ONLY node lengths
+/// (no byte-search). Assumes each concatenative parent encodes as `header · child0 · child1 · …
+/// · childN` with NO trailer and NO inter-child bytes (the same invariant `find_unique_match_rec`'s
+/// STEP2 relies on): `offset(child_i) = (parent_len − Σ children_len) + Σ left_siblings_len`.
+/// Returns `None` if any node on the path lacks a computed encoding/args (e.g. below an opaque
+/// boundary), so the caller skips the cross-check there. This is a candidate to REPLACE the
+/// heuristic locator for the concatenative case; for now we only compare it against the locator in
+/// debug to validate the approach (AGREE/DISAGREE logged, never fatal — list/header-variant cases
+/// are expected to surface here and tell us what a real replacement must handle).
+#[cfg(any(debug_assertions, feature = "debug"))]
+pub fn memoized_offset(root: &EvalTree, path: &[usize]) -> Option<usize> {
+    let len_of = |c: &EvalTree| c.encode.as_ref().map(Vec::len);
+    let mut offset = 0usize;
+    let mut node = root;
+    for &idx in path {
+        let parent_len = len_of(node)?;
+        let children = &node.args;
+        if children.len() <= idx {
+            return None; // args not populated (e.g. node below an opaque/reframing boundary)
+        }
+        let mut sum_all = 0usize;
+        for c in children {
+            sum_all += len_of(c)?;
+        }
+        let header_len = parent_len.checked_sub(sum_all)?; // assumes no trailer / no inter-child bytes
+        let mut sum_left = 0usize;
+        for c in &children[..idx] {
+            sum_left += len_of(c)?;
+        }
+        offset += header_len + sum_left;
+        node = &children[idx];
+    }
+    Some(offset)
+}
+
 /// Operate the payloads replacements in `eval_tree.encode`[vec![]] and returns the modified
 /// bitstring by "splicing". `@payloads` follows this order: deeper terms first, left-to-right,
 /// assuming no overlap (no two terms one being a sub-term of the other).
@@ -457,6 +563,23 @@ pub fn replace_payloads<PT: ProtocolTypes>(
     for payload_context in &payloads {
         let path_payload = &payload_context.path;
         log::trace!("[replace_payload] --------> treating {} at path {:?} on message of length = {}. Shift = {shift}", payload_context.payloads, payload_context.path, to_modify.len());
+
+        // [SANITY CHECK / CORE INVARIANT] A payload reaching the locator must NOT have an
+        // opaque/re-framing boundary strictly above it (those payloads are consumed in the child
+        // encoding space by `eval_until_opaque`). A violation means a transform/re-framing symbol
+        // is missing its `[opaque]`/`[reframing]` attribute -> would otherwise surface as a cryptic
+        // "child encoding not found" deep in `find_unique_match_rec`. We pinpoint it here instead.
+        #[cfg(any(debug_assertions, feature = "debug"))]
+        if is_opaque_boundary_in_path(term, path_payload) {
+            let ft = format!(
+                "[replace_payloads] INVARIANT VIOLATION: payload at path {path_payload:?} has an \
+                 opaque/re-framing boundary strictly above it. It should have been consumed by \
+                 eval_until_opaque and never reach the locator. Most likely a transform/re-framing \
+                 function symbol is MISSING its [opaque]/[reframing] attribute.\n - term: {term}"
+            );
+            log::error!("{ft}");
+            return Err(Error::TermBug(ft));
+        }
         let old_bitstring = if term.has_variable() {
             // We prefer looking for the payload in the term evaluation in case it has changed since
             // MakeMessage because of variables (that might contain different values now)
@@ -467,7 +590,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
 
         // Consistency checks in debug mode, except when failures are to be expected
         #[cfg(any(debug_assertions, feature = "debug"))]
-        if !term.has_variable() && !term.has_no_det() {
+        if !term.has_variable() {
             assert_eq!(
                 eval_tree.get(path_payload)?.encode.as_ref().unwrap(),
                 payload_context.payloads.payload_0.mutator_bytes()
@@ -485,6 +608,26 @@ pub fn replace_payloads<PT: ProtocolTypes>(
         };
         let (pos_start, encountered_get_symbol) =
             find_unique_match(path_payload, eval_tree, term, is_to_search_in_list)?;
+
+        // [R2 PROTOTYPE] Debug-only cross-check: does length-based offset memoization agree with the
+        // heuristic byte-search locator on the clean concatenative case (no get symbol, no opaque/
+        // reframing boundary above)? Logged (AGREE/DISAGREE), never fatal -> measures whether
+        // memoization could RETIRE find_unique_match_rec. Grep `[R2 memo-locator]`.
+        #[cfg(any(debug_assertions, feature = "debug"))]
+        if !encountered_get_symbol && !is_opaque_boundary_in_path(term, path_payload) {
+            match memoized_offset(eval_tree, path_payload) {
+                Some(memo) if memo == pos_start => {
+                    log::debug!("[R2 memo-locator] AGREE pos={pos_start} path={path_payload:?}")
+                }
+                Some(memo) => log::warn!(
+                    "[R2 memo-locator] DISAGREE memo={memo} vs locator={pos_start} path={path_payload:?} (likely list/header-variant -> a real replacement must handle this)"
+                ),
+                None => {
+                    log::trace!("[R2 memo-locator] N/A (args not populated) path={path_payload:?}")
+                }
+            }
+        }
+
         let old_bitstring_len = old_bitstring.len();
         let new_bitstring = payload_context.payloads.payload.mutator_bytes();
 
@@ -498,7 +641,7 @@ pub fn replace_payloads<PT: ProtocolTypes>(
                  - end = start + old_bitstring_len > to_modify.len(): {end} = ({pos_start} + {shift} + {old_bitstring_len}) as usize > {}\n\
                  - payload_context: {payload_context}",
                 to_modify.len());
-            if !encountered_get_symbol && !term.has_no_det() {
+            if !encountered_get_symbol {
                 log::error!("{ft}");
                 return Err(Error::TermBug(ft));
             } else {
@@ -509,7 +652,12 @@ pub fn replace_payloads<PT: ProtocolTypes>(
 
         log::trace!("[replace_payload] About to splice for indices to_replace.len={}, range={start}..{end} (shift={shift})\n  - to_modify[start..end]={:?}\n  - old_bitstring={old_bitstring:?}\n  - to_modify={to_modify:?}",
                 to_modify.len(), &to_modify[start..end]);
-        #[cfg(any(debug_assertions, feature = "debug"))]
+        // [locator self-certification] Verify the located bytes are EXACTLY the expected payload-0
+        // bytes before splicing. Was debug-gated, so RELEASE campaigns never verified that the
+        // (heuristic, ~11% multi-match) locator picked the right offset -- a wrong-but-in-bounds
+        // location would silently splice at the wrong place with no error. The check is a cheap
+        // memcmp of bytes we are about to overwrite; promote it to always-on so every splice
+        // self-certifies and "0 errors" genuinely means "0 mislocations".
         if to_modify[start..end] != *old_bitstring {
             let ft = format!(
                 "--> [replace_payloads] Payloads returned by eval_until_opaque were inconsistent!\n\
@@ -693,7 +841,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                         "  + Treating argument # {i} from path {:?}...",
                         eval_tree.path
                     );
-                    if with_payloads && self.is_opaque() && ti.has_payload_to_replace() {
+                    if with_payloads && self.is_opaque_boundary() && ti.has_payload_to_replace() {
                         // Fully evaluate this sub-term and consume the payloads
                         log::trace!("    * [eval_until_opaque] Opaque and has payloads: Inner call of eval on term: {}\n with #{} payloads", ti, ti.payloads_to_replace().len());
                         let typei = ti.get_type_shape();
@@ -711,18 +859,34 @@ impl<PT: ProtocolTypes> Term<PT> {
                                  // encode are not inverse of each other.
                                  // Otherwise, later payload replacements will fail.
                         if &di.get_encoding()[..] != &bi[..] {
-                            return Err(Error::Term(format!(
-                                "--> [eval_until_opaque] [argument is symbolic: {}] [1] Failed consistency check for read.encode a type {}:\n\
-                                - bi (first eval)  : {bi:?}\n\
-                                - read.encode:     : {:?}",
-                                ti.is_symbolic(),
-                                typei,
-                                di.get_encoding(),
-                            )));
+                            // [R3] For STRUCTURAL re-framing ([reframing], e.g. fn_coalesced_flight)
+                            // -- as opposed to CRYPTOGRAPHIC [opaque] -- do NOT drop the mutation
+                            // when the consumed arg fails to round-trip. The function needs a typed
+                            // arg, so we proceed best-effort with `di`, letting more
+                            // under-coalescing bit-mutations survive ("better evaluation"). Crypto
+                            // [opaque] keeps the strict check (it must transform the EXACT mutated
+                            // bytes). Frequency is greppable via the [R3 reframing-relax] log line.
+                            if self.is_reframing() && R3_RELAX_REFRAMING.load(Ordering::Relaxed) {
+                                RT_RELAX.fetch_add(1, Ordering::Relaxed); // [#4]
+                                log::info!(
+                                    "[eval_until_opaque] [R3 reframing-relax] arg did not round-trip under {}; proceeding best-effort with di (encoding len {} vs bi {})",
+                                    self, di.get_encoding().len(), bi.len()
+                                );
+                            } else {
+                                RT_DROP.fetch_add(1, Ordering::Relaxed); // [#4] dropped by strict read∘encode check
+                                return Err(Error::Term(format!(
+                                    "--> [eval_until_opaque] [argument is symbolic: {}] [1] Failed consistency check for read.encode a type {}:\n\
+                                    - bi (first eval)  : {bi:?}\n\
+                                    - read.encode:     : {:?}",
+                                    ti.is_symbolic(),
+                                    typei,
+                                    di.get_encoding(),
+                                )));
+                            }
                         }
 
                         dynamic_args.push(di); // no need to add payloads to all_p as they were
-                                               // consumed (opaque function symbol)
+                                               // consumed (opaque/reframing function symbol)
                     } else {
                         let mut path_i = eval_tree.path.clone();
                         path_i.push(i); // adding `i` for i-th argument
@@ -774,7 +938,7 @@ impl<PT: ProtocolTypes> Term<PT> {
                                     - new_eval:     {new_payload_0:?}\n\
                                     - result: {result:?}",
                                          self.has_variable(), self, &payload.payload_0.mutator_bytes(), &payload.payload.mutator_bytes());
-                        if self.has_variable() || self.has_no_det() {
+                        if self.has_variable() {
                             // Some mismatches are to be expected when there are variables or no
                             // deterministic function symbols
                             log::trace!("[term has variables or no det function symbols --> only a log::trace] {}", ft);

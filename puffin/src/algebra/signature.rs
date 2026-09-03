@@ -151,11 +151,11 @@ macro_rules! define_signature {
                                 let flag = stringify!($flags);
                                 match flag {
                                     "opaque" => attrs.is_opaque = true,
+                                    "reframing" => attrs.is_reframing = true,
                                     "list" => attrs.is_list = true,
                                     "get" => attrs.is_get = true,
                                     "no_gen" => attrs.no_gen = true,
                                     "no_bit" => attrs.no_bit = true,
-                                    "no_det" => attrs.no_det = true,
                                     _ => {},
                                 }
                             )*

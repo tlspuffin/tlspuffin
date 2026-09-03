@@ -29,6 +29,34 @@ pub struct MutationConfig {
     pub with_dy: bool,
     /// Focus on one payload at a time for a whole StdMutationalStage
     pub with_focus: bool,
+    /// Bias MakeMessage away from steps beyond the trace's executability frontier (soft pre-check),
+    /// to avoid the dominant fail_reach waste (INV-A). Toggle off via `--wo-frontier` for A/B.
+    pub frontier_bias: bool,
+    /// Frontier-bias MODE: when false (default) the bias is FIXED (proceed ~1/8 beyond the frontier
+    /// regardless of distance). When true (`--frontier-decay`) the proceed-probability DECAYS with
+    /// distance past the frontier (~1/2^distance): near-frontier steps get many chances (gentler,
+    /// to keep pushing the frontier outward) while far/unreachable steps are skipped aggressively.
+    pub frontier_decay: bool,
+    /// [#1a] In focus mode the unfocused bit stage runs by DEFAULT: the A/B showed it is NOT
+    /// redundant (random-payload HAVOC adds ~4% coverage the focus stage misses). Set
+    /// `--drop-unfocused-bit` to drop it for ~+21% exec/s at ~-4% coverage (speed-over-coverage).
+    pub drop_unfocused_bit: bool,
+    /// [#7] Probability that ReadMessage actually re-interprets the focused payload in focus mode
+    /// (the rest of the time the raw bit-mutations are kept, e.g. a "lying" length prefix). Was a
+    /// hardcoded 1/4; tunable via `--read-message-prob` for an evidence-based sweep. Default 0.25.
+    pub read_message_prob: f64,
+    /// [scheduling A/B] Run bit-level from the start, skipping the DY warmup gate
+    /// (MIN_BIT_EXECS/MIN_BIT_CORPUS). Tests whether delaying bit until DY warms up wastes early time.
+    pub bit_from_start: bool,
+    /// [structure A/B] Under --wo-dy, still allow MakeMessage on sub-terms (keep term-level
+    /// structure) instead of forcing root-only. Root-only (default under --wo-dy) mimics flat HAVOC.
+    pub bit_allow_subterm_no_dy: bool,
+    /// [scheduling A/B] Delay DY mutations until this many execs have run (0 = DY from the start).
+    /// With --bit-from-start this gives "bit-first, then DY": bit explores first, DY recombines later.
+    pub dy_after_execs: u64,
+    /// [scheduling A/B] Bit-level warmup: bit starts after this many execs (per core) when DY is on.
+    /// Was the const MIN_BIT_EXECS (5000); tunable to test a later kick-in. Default 5000.
+    pub bit_after_execs: u64,
 }
 
 impl Default for MutationConfig {
@@ -42,6 +70,14 @@ impl Default for MutationConfig {
             with_bit_level: false,
             with_dy: true,
             with_focus: true,
+            frontier_bias: true,
+            frontier_decay: false,
+            drop_unfocused_bit: false,
+            read_message_prob: 0.25,
+            bit_from_start: false,
+            bit_allow_subterm_no_dy: false,
+            dy_after_execs: 0,
+            bit_after_execs: 5000, // = MIN_BIT_EXECS (current default)
         }
     }
 }
@@ -517,6 +553,9 @@ where
         let remove_index = state.rand_mut().between(0, length - 1);
         log::debug!("[Mutation] Mutate SkipMutator on step {remove_index}");
         steps.remove(remove_index);
+        // [executability frontier] keep the per-trace frontier valid after removing a step
+        // (optimistic: only clamp to the new length, never decrease for the removal itself).
+        trace.frontier_on_step_removed(remove_index);
         Ok(MutationResult::Mutated)
     }
 
@@ -581,6 +620,9 @@ where
         };
         log::debug!("[Mutation] Mutate RepeatMutator on step {insert_index}");
         trace.steps.insert(insert_index, step.clone());
+        // [executability frontier] keep the per-trace frontier valid after inserting a step
+        // (optimistic: assume the inserted, cloned step is also reachable when within the prefix).
+        trace.frontier_on_step_inserted(insert_index);
         Ok(MutationResult::Mutated)
     }
 

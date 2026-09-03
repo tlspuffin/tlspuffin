@@ -49,6 +49,22 @@ where
         .arg(arg!(--"with-trunc" "Enables failed trace steps truncation"))
         .arg(arg!(--"wo-dy" "Disable DY mutations"))
         .arg(arg!(--"wo-focus" "Disables focus bit-level mutational stage"))
+        .arg(arg!(--"wo-frontier" "Disables the executability-frontier bias for MakeMessage (A/B)"))
+        .arg(arg!(--"frontier-decay" "Frontier bias proceeds with prob ~1/2^distance past the frontier (vs fixed ~1/8)"))
+        .arg(arg!(--"drop-unfocused-bit" "In focus mode, drop the unfocused bit stage (focus-only): ~+21% exec/s, ~-4% coverage"))
+        .arg(arg!(--"bit-from-start" "Run bit-level from the start (skip the DY warmup gate)"))
+        .arg(arg!(--"bit-subterm" "Under --wo-dy, keep sub-term MakeMessage (term structure) instead of forcing root/flat-HAVOC"))
+        .arg(arg!(--"dy-after-execs" [n] "Delay DY mutations until N execs (with --bit-from-start = bit-first then DY); default 0")
+            .value_parser(value_parser!(u64)))
+        .arg(arg!(--"bit-after-execs" [n] "Bit-level warmup threshold (execs/core) before bit kicks in; default 5000")
+            .value_parser(value_parser!(u64)))
+        .arg(arg!(--"no-r3-relax" "Disable R3 reframing round-trip relaxation (strict drop, for Ch4 A/B)"))
+        .arg(arg!(--"max-payloads-per-term" [n] "Cap on simultaneous payloads per term (Ch5 A/B); default 10")
+            .value_parser(value_parser!(usize)))
+        .arg(arg!(--"max-stack-pow" [n] "Max HAVOC stack power in the focus stage (core stack size = 2..2^(n+1)); default 7")
+            .value_parser(value_parser!(u64)))
+        .arg(arg!(--"read-message-prob" [p] "Probability ReadMessage re-interprets the focused payload (focus mode); default 0.25")
+            .value_parser(value_parser!(f64)))
         .arg(arg!(-v --verbosity [l] "Verbosity level for (quick) experiments")
             .value_parser(value_parser!(LevelFilter)))
         .arg(arg!(--"stats-interval" [n] "Minimum milliseconds between writes per client (core) for stats.json and broker logs [default: 250]")
@@ -141,6 +157,9 @@ where
     let without_dy_mutations = matches.get_flag("wo-dy");
     let with_truncation = matches.get_flag("with-trunc");
     let without_focus = matches.get_flag("wo-focus");
+    let without_frontier = matches.get_flag("wo-frontier");
+    let frontier_decay = matches.get_flag("frontier-decay");
+    let drop_unfocused_bit = matches.get_flag("drop-unfocused-bit");
     let target_put: Option<&String> = matches.get_one("put");
     let verbosity: LevelFilter = *matches
         .get_one::<LevelFilter>("verbosity")
@@ -208,6 +227,41 @@ where
     }
     if without_focus {
         config.mutation_config.with_focus = false;
+    }
+    if without_frontier {
+        config.mutation_config.frontier_bias = false;
+    }
+    if frontier_decay {
+        config.mutation_config.frontier_decay = true;
+    }
+    if drop_unfocused_bit {
+        config.mutation_config.drop_unfocused_bit = true;
+    }
+    if matches.get_flag("bit-from-start") {
+        config.mutation_config.bit_from_start = true;
+    }
+    if matches.get_flag("bit-subterm") {
+        config.mutation_config.bit_allow_subterm_no_dy = true;
+        config.mutation_config.term_constraints.must_be_root = false; // override --wo-dy's root-forcing
+    }
+    if let Some(n) = matches.get_one::<u64>("dy-after-execs") {
+        config.mutation_config.dy_after_execs = *n;
+    }
+    if let Some(n) = matches.get_one::<u64>("bit-after-execs") {
+        config.mutation_config.bit_after_execs = *n;
+    }
+    if matches.get_flag("no-r3-relax") {
+        crate::algebra::bitstrings::R3_RELAX_REFRAMING
+            .store(false, std::sync::atomic::Ordering::Relaxed);
+    }
+    if let Some(n) = matches.get_one::<usize>("max-payloads-per-term") {
+        config.mutation_config.term_constraints.threshold_max_payloads_per_term = *n;
+    }
+    if let Some(n) = matches.get_one::<u64>("max-stack-pow") {
+        config.mutation_stage_config.max_mutations_pow_per_iteration = *n;
+    }
+    if let Some(p) = matches.get_one::<f64>("read-message-prob") {
+        config.mutation_config.read_message_prob = *p;
     }
     if with_truncation {
         config.mutation_stage_config.with_truncation = true;

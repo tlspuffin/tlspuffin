@@ -20,7 +20,8 @@ use super::utils::{
     choose_filtered, choose_term_path_filtered, find_term, find_term_mut, TermConstraints,
     TracePath,
 };
-use crate::algebra::{Term, TermType};
+use crate::algebra::bitstrings::is_opaque_boundary_in_path;
+use crate::algebra::{DYTerm, Term, TermType};
 use crate::fuzzer::utils::choose_term_filtered_mut;
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
@@ -247,28 +248,73 @@ impl<'a, PB> MakeMessage<'a, PB> {
     }
 }
 
+/// [INV-B] Classify a MakeMessage target for per-case success measurement:
+/// (sub-term depth, whether under an opaque/reframing boundary, head message-symbol at the step).
+fn mm_case<PT: ProtocolTypes>(tr: &Trace<PT>, path: &TracePath) -> (usize, bool, &'static str) {
+    let depth = path.1.len();
+    let root = find_term(tr, &(path.0, vec![]));
+    let under = root.map_or(false, |r| is_opaque_boundary_in_path(r, &path.1));
+    let head = root.map_or("?", |r| match &r.term {
+        DYTerm::Application(fd, _) => fd.name(),
+        DYTerm::Variable(_) => "var",
+    });
+    (depth, under, head)
+}
+
 /// `MakeMessage` on the term at path `path` in `tr`.
 fn make_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>>(
     tr: &mut Trace<PT>,
     path: &TracePath,
     ctx: &mut TraceContext<PB>,
 ) -> Result<(), crate::error::Error> {
-    log::debug!("make_message_term: executing until path.0: {}", path.0);
+    let target_step = path.0;
+    // [INV-B] per-case classification (computed before the &mut execution borrow)
+    let (mm_depth, mm_under, mm_head) = mm_case(tr, path);
+    let mm_tag = format!("depth={mm_depth} under_boundary={mm_under} head={mm_head}");
+    log::debug!("make_message_term: executing until path.0: {}", target_step);
     // Only execute shorter trace: trace[0..step_index])
     // execute the PUT on the first step_index steps and store the resulting trace context
-    tr.execute_until_step(ctx, path.0, &mut 0, true).map_err(|e| {
+    let res = tr.execute_until_step(ctx, target_step, &mut 0, true);
+    // [MM-measure] Disentangles WHY a MakeMessage at `target_step` is (not) applied:
+    //   - `reached` = how far THIS trace actually executed (ctx.executed_until, <= target_step);
+    //   - outcome=fail_reach => the trace could NOT be executed up to the payload's step (it died
+    //     earlier, possibly still past step 1) -> we never even attempt the bit mutation there;
+    //   - outcome=fail_make  => reached the step but payload computation (term eval) failed there;
+    //   - outcome=ok         => payload created at `target_step`.
+    // Aggregating (target_step, reached, outcome) answers: do we fail bit-mutations at step>1
+    // because traces die early, or because eval breaks at the step? (grep `[MM-measure]`)
+    let reached = ctx.executed_until;
+    if let Err(e) = res {
+        MM_FAIL_REACH.increment();
+        if mm_under {
+            MM_FAILREACH_OPAQUE.increment(); // [INV-B] fail_reach under opaque/reframing boundary
+        }
+        log::debug!("[MM-measure] target_step={target_step} reached={reached} outcome=fail_reach {mm_tag}");
         // 20% to 50% MakeMessage mutations fail, so this is a bit costly :(
         // TODO: we could memoize the term evaluation in a Option<ConcreteMessage> and use that here
-        log::debug!("mutation::MakeMessage trace is not executable until step {},\
+        log::debug!("mutation::MakeMessage trace is not executable until step {target_step},\
             could only happen if this mutation is scheduled with other mutations that create a non-executable trace.\
-            Error: {e}. Skipped MakeMessage...", path.0);
+            Error: {e}. Skipped MakeMessage...");
         log::trace!("{}", &tr);
-        e
-    })?;
+        return Err(e);
+    }
 
     let t = find_term_mut(tr, path).expect("make_message_term - Should never happen.");
-    t.make_payload(ctx)?;
-    Ok(())
+    match t.make_payload(ctx) {
+        Ok(()) => {
+            MM_TERM_OK.increment();
+            if mm_under {
+                MM_OK_OPAQUE.increment(); // [INV-B] success under opaque/reframing boundary
+            }
+            log::debug!("[MM-measure] target_step={target_step} reached={reached} outcome=ok {mm_tag}");
+            Ok(())
+        }
+        Err(e) => {
+            MM_FAIL_MAKE.increment();
+            log::debug!("[MM-measure] target_step={target_step} reached={reached} outcome=fail_make {mm_tag}");
+            Err(e)
+        }
+    }
 }
 
 impl<'a, S, PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>> Mutator<Trace<PT>, S>
@@ -324,7 +370,7 @@ where
             not_readable: true,
             ..self.config.term_constraints
         };
-        if !self.config.with_dy {
+        if !self.config.with_dy && !self.config.bit_allow_subterm_no_dy {
             constraints_make_message.must_be_root = true;
         }
 
@@ -373,6 +419,38 @@ where
             choose_filtered(trace, &constraints_make_message, |t| !t.is_no_bit(), rand)
                 .map(|(_, p)| p)
         } {
+            // [executability frontier — soft bias] Most deep-step MakeMessage failures are
+            // reachability failures, not eval failures (INV-A): the (already-mutated) trace can't be
+            // executed up to the chosen step. If the chosen step is beyond where this trace last
+            // executed, skip with high probability BEFORE the expensive execute_until_step — saving
+            // the wasted execution. SOFT (keep ~1/PROCEED_DENOM exploration) so that a structurally
+            // repaired trace can still push the frontier outward. Frontier travels with the trace
+            // metadata and is kept current by Repeat/Skip mutators.
+            if self.config.frontier_bias {
+                if let Some(frontier) = trace.executable_frontier() {
+                    if trace_path.0 > frontier {
+                        // proceed-probability beyond the frontier:
+                        //  - FIXED (default): ~1/8 regardless of distance;
+                        //  - DECAY (--frontier-decay): ~1/2^distance (capped) -> near-frontier steps
+                        //    proceed often (1/2, 1/4, ...) to keep pushing the frontier outward,
+                        //    far/unreachable steps are skipped aggressively.
+                        let proceed_denom: usize = if self.config.frontier_decay {
+                            let dist = (trace_path.0 - frontier).min(7) as u32;
+                            1usize << dist
+                        } else {
+                            8
+                        };
+                        if state.rand_mut().below_or_zero(proceed_denom) != 0 {
+                            FRONTIER_SKIP.increment();
+                            log::debug!(
+                                "[MakeMessage] frontier-skip: step {} > frontier {frontier} (proceed_denom={proceed_denom})",
+                                trace_path.0
+                            );
+                            return Ok(MutationResult::Skipped);
+                        }
+                    }
+                }
+            }
             log::debug!(
                 "[Mutation-bit] Mutate MakeMessage on term\n{}",
                 find_term(trace, &trace_path).expect("make_message_term - Should never happen.")
@@ -495,11 +573,11 @@ fn read_message_term<PT: ProtocolTypes, PB: ProtocolBehavior<ProtocolTypes = PT>
     // strict-subterm instead to avoid this.
     let eval_read = read_term.get_encoding();
 
-    #[cfg(any(debug_assertions, feature = "debug"))]
-    if PB::try_read_bytes(&eval_read, t.get_type_shape().clone().into()).is_err() {
-        log::error!("[mutation::ReadMessage] [read_message_term] Failed to read eval_read\n - t: {t}\n - eval: {eval:?}\n - read_term: {read_term:?}\n - eval_read: {eval_read:?}\n - type shape: {:?} and type id : {:?}",
-            t.get_type_shape(), t.term.type_id());
-    }
+    // [AUDIT A3] Only store a readable payload that itself round-trips. Otherwise the readable
+    // branch of `eval_until_opaque` would later fail to read it back and raise a TermBug. If
+    // `eval_read` is not re-readable, this `?` propagates an error that the caller
+    // (`ReadMessage::mutate`) turns into `MutationResult::Skipped` -- no poison payload is stored.
+    let _ = PB::try_read_bytes(&eval_read, t.get_type_shape().clone().into())?;
 
     t.add_payload_readable(eval_read);
     Ok(())
@@ -531,18 +609,22 @@ where
             weighted_depth: false, /* true means we select a sub-term by giving higher-priority
                                     * to deeper sub-terms */
             not_readable: true,
-            must_be_det: true, // do not make read on a non det term !
             ..self.config.term_constraints
         };
-        if !self.config.with_dy {
+        if !self.config.with_dy && !self.config.bit_allow_subterm_no_dy {
             constraints_read_message.must_be_root = true;
         }
         let chosen_path = if self.config.with_focus {
             if let Some(trace_path) = focus {
-                // We skip ReadMessage with proba 1/4 in focus mode!
-                let proba = 1.0 / 4.0;
-                let max_range = (1_000_000_000.0 * proba) as usize;
-                if !rand.between(0, 1_000_000_000 - 1) < max_range {
+                // We run ReadMessage with proba 1/4 in focus mode (i.e. SKIP it 3/4 of the time),
+                // so that most focused HAVOC rounds keep their raw bit-mutations (e.g. "lying" about
+                // length prefixes) instead of having them re-normalized by a re-interpretation.
+                // NOTE (audit A1): the `!` previously bound to `rand.between(..)` (bitwise NOT of a
+                // ~1e9 usize), making the comparison always false -> this throttle was DEAD and
+                // ReadMessage always ran in focus mode. Parenthesized to negate the comparison.
+                let proba_run = self.config.read_message_prob; // [#7] tunable (was hardcoded 1/4)
+                let max_range = (1_000_000_000.0 * proba_run) as usize;
+                if !(rand.between(0, 1_000_000_000 - 1) < max_range) {
                     log::debug!("read_message_term: skipping as we do in 3/4 of times");
                     return Ok(MutationResult::Skipped);
                 }
@@ -595,6 +677,7 @@ where
                     "[mutation::ReadMessage] Failed to choose term with payload in trace:\n {}",
                     &trace
                 );
+                RM_SKIP_NOTERM.increment(); // [INV-C] ReadMessage couldn't find a payload-bearing term
                 log::warn!(
                     "       Skipped {} as we failed to choose a term with payload in the trace.",
                     self.name()
@@ -604,7 +687,7 @@ where
         };
         let term =
             find_term_mut(trace, &chosen_path).expect("read_message_term - Should never happen.");
-        if term.is_list() || term.is_readable() || term.has_no_det() {
+        if term.is_list() || term.is_readable() {
             log::debug!(
                 "[ReadMessage] Skipping ReadMessage on term\n{term:?}, because it is a list or already readable or has no det"
             );
@@ -627,6 +710,7 @@ where
         BIT_EXEC.increment();
         match read_message_term(trace, &chosen_path, &mut ctx) {
             Ok(_) => {
+                RM_OK.increment(); // [INV-C] ReadMessage applied (re-interpreted a payload)
                 if self.config.with_focus {
                     MM_EXEC_SUCCESS.increment();
                 }
@@ -669,7 +753,10 @@ use crate::fuzzer::mutations::{
     dy_mutations, GenerateMutator, MutationConfig, RemoveAndLiftMutator, RepeatMutator,
     ReplaceMatchMutator, ReplaceReuseMutator, SkipMutator, SwapMutator,
 };
-use crate::fuzzer::stats_stage::{BIT_EXEC, BIT_EXEC_SUCCESS, MM_EXEC, MM_EXEC_SUCCESS};
+use crate::fuzzer::stats_stage::{
+    BIT_EXEC, BIT_EXEC_SUCCESS, FRONTIER_SKIP, MM_EXEC, MM_EXEC_SUCCESS, MM_FAILREACH_OPAQUE,
+    MM_FAIL_MAKE, MM_FAIL_REACH, MM_OK_OPAQUE, MM_TERM_OK, RM_OK, RM_SKIP_NOTERM,
+};
 use crate::put_registry::PutRegistry;
 
 macro_rules! expand_mutation {
@@ -1017,33 +1104,6 @@ where
     }
 }
 
-/* When !with_focus, possibly randomly choose a payload among the all_payloads vec instead. The distribution won't be the same. Investigate what's best.
-
-/// Randomly choose a payload and its index (nth) in a trace (mutable reference), if there is any
-/// and if it has at least 2 bytes. Also returns a mutable ref to the payload metadata.
-pub fn choose_payload_mut<'a, PT, S>(
-    trace: &'a mut Trace<PT>,
-    state: &mut S,
-) -> Option<(&'a mut Vec<u8>, usize, &'a mut PayloadMetadata)>
-where
-    S: HasCorpus + HasRand + HasMaxSize,
-    PT: ProtocolTypes,
-{
-    let mut all_payloads: Vec<&'a mut Payloads> = trace.all_payloads_mut();
-    if all_payloads.is_empty() {
-        return None;
-    }
-    let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
-    let input = all_payloads.remove(idx);
-    let metada = &mut input.metadata;
-    let input = input.payload.bytes_mut();
-    if input.len() < 2 {
-        return None;
-    }
-    Some((input, idx, metada))
-}
-*/
-
 pub fn choose_payload_mut<'a, PT, S>(
     trace: &'a mut Trace<PT>,
     state: &mut S,
@@ -1073,81 +1133,6 @@ where
         None => None,
     }
 }
-
-// /// Returns the focused payload or randomly choose over a vector of all payloads a payload in a
-// /// trace (mutable reference), if there is any and if it has at least 2 bytes. Also returns a
-// /// mutable ref to the payload metadata.
-// pub fn choose_payload_mut_<'a, PT, S>(
-//     trace: &'a mut Trace<PT>,
-//     state: &mut S,
-//     config: &MutationConfig,
-// ) -> Option<(&'a mut Vec<u8>, &'a mut PayloadMetadata)>
-// where
-//     S: HasRand + HasMaxSize,
-//     PT: ProtocolTypes,
-// {
-//     if let (true, Some(path_trace)) = (config.with_focus, trace.get_focus()) {
-//         let term = find_term_mut(trace, &path_trace.clone())
-//             .expect("[choose_payload_mut] should never happen");
-//         let payloads = term
-//             .payloads
-//             .as_mut()
-//             .expect("[choose_payload_mut] should never happen");
-//         let input = payloads.payload.bytes_mut();
-//         if input.len() < 2 {
-//             return None;
-//         }
-//         Some((input, &mut payloads.metadata))
-//     } else {
-//         let mut all_payloads: Vec<&'a mut Payloads> = trace.all_payloads_mut();
-//         if all_payloads.is_empty() {
-//             return None;
-//         }
-//         let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
-//         let input = all_payloads.remove(idx);
-//         let metada = &mut input.metadata;
-//         let input = input.payload.bytes_mut();
-//         if input.len() < 2 {
-//             return None;
-//         }
-//         Some((input, metada))
-//     }
-// }
-
-// Randomly choose a payload and its index (n-th) in a trace, if there is any and if it has at
-// least 2 bytes
-// fn choose_payload<'a, PT, S>(trace: &'a Trace<PT>, state: &mut S) -> Option<(&'a [u8], usize)>
-// where
-//     S: HasCorpus + HasRand + HasMaxSize,
-//     PT: ProtocolTypes,
-// {
-//     let all_payloads = trace.all_payloads();
-//     if all_payloads.is_empty() {
-//         return None;
-//     }
-//     let idx = state.rand_mut().between(0, (all_payloads.len() - 1) as u64) as usize;
-//     let input = all_payloads[idx].payload.bytes();
-//     if input.len() < 2 {
-//         return None;
-//     }
-//     Some((input, idx))
-// }
-
-// Access the n-th payload of a trace, if it exists
-// fn get_payload<PT>(trace: &Trace<PT>, idx: usize) -> Option<&[u8]>
-// where
-//     PT: ProtocolTypes,
-// {
-//     let all_payloads = trace.all_payloads();
-//     if all_payloads.len() <= idx {
-//         return None;
-//     }
-//     let input = all_payloads[idx].payload.bytes();
-//     if input.len() < 2 {
-//         return None;
-//     }
-//     Some(input)
-// }
 
 /// Copied from `libafl::mutators::mutations`
 /// Returns the first and last diff position between the given vectors, stopping at the min len
@@ -1582,19 +1567,14 @@ where
                 .payload
                 .mutator_bytes();
 
-            let mut counter: u32 = 0;
-            loop {
-                let (f, l) = locate_diffs(input, other_input);
-
-                if f != l && f >= 0 && l >= 2 {
-                    break (f as usize, l as usize);
-                }
-                if counter == 3 {
-                    log::trace!("counter is 3");
-                    log::debug!("       Skipped {}", self.name());
-                    return Ok(MutationResult::Skipped);
-                }
-                counter += 1;
+            // [AUDIT B2] locate_diffs is deterministic in (input, other_input); the previous loop
+            // re-called it up to 4x with identical args. Call once; skip if no usable diff range.
+            let (f, l) = locate_diffs(input, other_input);
+            if f != l && f >= 0 && l >= 2 {
+                (f as usize, l as usize)
+            } else {
+                log::debug!("       Skipped {} (no usable diff range)", self.name());
+                return Ok(MutationResult::Skipped);
             }
         };
 

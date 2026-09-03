@@ -232,7 +232,7 @@ define_signature!(
     fn_new_flight
     fn_append_flight [list]
     fn_new_opaque_flight [list]
-    fn_coalesced_flight
+    fn_coalesced_flight [reframing] // structural re-framing: strips per-message record headers + recomputes one outer length, so children are NOT substrings of its output -> transform boundary for find_unique_match_rec (distinct from crypto [opaque] for evaluation purposes)
     fn_append_opaque_flight [list]
     fn_new_transcript
     fn_new_hrr_transcript [opaque]
@@ -265,7 +265,7 @@ define_signature!(
     fn_encode_ec_pubkey12
     fn_new_pubkey12 [opaque]
     fn_encrypt12 [opaque]
-    fn_decrypt12 [no_gen]
+    fn_decrypt12 [opaque] [no_gen] // crypto transform: plaintext output does not contain ciphertext args as substrings -> transform boundary for find_unique_match_rec
     fn_new_certificate
     fn_new_certificates [list]
     fn_append_certificate [list]
@@ -307,9 +307,9 @@ define_signature!(
     fn_eve_pkcs1_signature
     fn_rsa_sign_client [opaque]
     fn_rsa_sign_server [opaque]
-    fn_ecdsa_sign_client [opaque] [no_det] // fn_ecdsa_sign_client has built-in randomness
+    fn_ecdsa_sign_client [opaque] // deterministic now (ecdsa_sign uses RFC 6979 / p256)
     // TODO: replace this with explicit term
-    fn_ecdsa_sign_server [opaque]
+    fn_ecdsa_sign_server [opaque] // deterministic now (ecdsa_sign uses RFC 6979 / p256)
     fn_rsa_pss_signature_algorithm
     fn_rsa_pkcs1_signature_algorithm
     fn_invalid_signature_algorithm

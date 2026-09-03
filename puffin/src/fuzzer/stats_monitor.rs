@@ -422,6 +422,14 @@ struct ErrorStatistics {
     bit_exec_success: u64,
     mm_exec: u64,
     mm_exec_success: u64,
+    mm_fail_reach: u64,
+    mm_fail_make: u64,
+    frontier_skip: u64,
+    mm_term_ok: u64,
+    mm_ok_opaque: u64,
+    mm_failreach_opaque: u64,
+    rm_ok: u64,
+    rm_skip_noterm: u64,
 
     corpus_exec: u64,
     corpus_exec_minimal: u64,
@@ -444,6 +452,11 @@ struct TraceStatistics {
     min_term_size: Option<u64>,
     max_term_size: Option<u64>,
     mean_term_size: Option<u64>,
+
+    // [R1 #1] deepest trace step reached during execution
+    min_reached_step: Option<u64>,
+    max_reached_step: Option<u64>,
+    mean_reached_step: Option<u64>,
 }
 
 #[cfg(feature = "introspection")]
@@ -534,6 +547,14 @@ impl ErrorStatistics {
             bit_exec_success: 0,
             mm_exec: 0,
             mm_exec_success: 0,
+            mm_fail_reach: 0,
+            mm_fail_make: 0,
+            frontier_skip: 0,
+            mm_term_ok: 0,
+            mm_ok_opaque: 0,
+            mm_failreach_opaque: 0,
+            rm_ok: 0,
+            rm_skip_noterm: 0,
             codec_error: 0,
             put_error: 0,
             io_error: 0,
@@ -622,6 +643,26 @@ impl ErrorStatistics {
                 RuntimeStats::MMNExecSuccess(c) => {
                     self.mm_exec_success += get_number(client_stats, c.name)
                 }
+                RuntimeStats::MMFailReach(c) => {
+                    self.mm_fail_reach += get_number(client_stats, c.name)
+                }
+                RuntimeStats::MMFailMake(c) => {
+                    self.mm_fail_make += get_number(client_stats, c.name)
+                }
+                RuntimeStats::FrontierSkip(c) => {
+                    self.frontier_skip += get_number(client_stats, c.name)
+                }
+                RuntimeStats::MmTermOk(c) => self.mm_term_ok += get_number(client_stats, c.name),
+                RuntimeStats::MmOkOpaque(c) => {
+                    self.mm_ok_opaque += get_number(client_stats, c.name)
+                }
+                RuntimeStats::MmFailreachOpaque(c) => {
+                    self.mm_failreach_opaque += get_number(client_stats, c.name)
+                }
+                RuntimeStats::RmOk(c) => self.rm_ok += get_number(client_stats, c.name),
+                RuntimeStats::RmSkipNoterm(c) => {
+                    self.rm_skip_noterm += get_number(client_stats, c.name)
+                }
                 RuntimeStats::CorpusExec(c) => self.corpus_exec += get_number(client_stats, c.name),
                 RuntimeStats::CorpusExecMinimal(c) => {
                     self.corpus_exec_minimal += get_number(client_stats, c.name)
@@ -632,6 +673,7 @@ impl ErrorStatistics {
                 RuntimeStats::NbPayload(_) => {}
                 RuntimeStats::PayloadLength(_) => {}
                 RuntimeStats::TermSize(_) => {}
+                RuntimeStats::ReachedStep(_) => {}
             }
         }
     }
@@ -662,6 +704,9 @@ impl TraceStatistics {
             min_term_size: None,
             max_term_size: None,
             mean_term_size: None,
+            min_reached_step: None,
+            max_reached_step: None,
+            mean_reached_step: None,
         };
 
         // Sum for all TraceLength and TermSize
@@ -695,6 +740,14 @@ impl TraceStatistics {
                     trace_stats.max_payload_size =
                         Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
                     trace_stats.mean_payload_size =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
+                }
+                RuntimeStats::ReachedStep(mmm) => {
+                    trace_stats.min_reached_step =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-min")));
+                    trace_stats.max_reached_step =
+                        Some(get_number(user_stats, &(mmm.name.to_owned() + "-max")));
+                    trace_stats.mean_reached_step =
                         Some(get_number(user_stats, &(mmm.name.to_owned() + "-mean")));
                 }
                 _ => {}

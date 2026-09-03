@@ -3,9 +3,8 @@ use std::sync::Arc;
 use puffin::algebra::error::FnError;
 use ring::signature::RsaKeyPair;
 
-use crate::tls::rustls::key::PrivateKey;
 use crate::tls::rustls::msgs::enums::SignatureScheme;
-use crate::tls::rustls::sign::{EcdsaSigningKey, RsaSigner, SigningKey};
+use crate::tls::rustls::sign::RsaSigner;
 
 pub fn rsa_sign(
     message: &[u8],
@@ -40,21 +39,37 @@ pub fn rsa_sign(
 }
 
 pub fn ecdsa_sign(message: &[u8], private_key: &[u8]) -> Result<Vec<u8>, FnError> {
-    let key = EcdsaSigningKey::new(
-        &PrivateKey(private_key.to_vec()),
-        SignatureScheme::ECDSA_NISTP256_SHA256,
-        &ring::signature::ECDSA_P256_SHA256_ASN1_SIGNING,
-    )
-    .map_err(|_| FnError::Crypto("Failed to parse ecdsa key.".to_string()))?;
+    use p256::ecdsa::signature::Signer;
+    use p256::ecdsa::{Signature, SigningKey};
+    use p256::pkcs8::DecodePrivateKey;
 
-    let signer = key
-        .choose_scheme(
-            &[SignatureScheme::ECDSA_NISTP256_SHA256],
-            Box::new(ring::test::rand::FixedByteRandom { byte: 43 }),
-        )
-        .ok_or_else(|| FnError::Crypto("Failed to find signature scheme.".to_string()))?;
+    // Deterministic ECDSA (RFC 6979): nonce k = HMAC(key, msg), so identical (message, key) always
+    // yields the identical signature -> term evaluation is reproducible and locate-and-splice is
+    // stable. (ring's ECDSA is randomized; the previous FixedByteRandom nonce hack did NOT make it
+    // deterministic, which caused the variable-length DER "incompatible indices" splice TermBugs.)
+    let key = SigningKey::from_pkcs8_der(private_key)
+        .map_err(|_| FnError::Crypto("Failed to parse ecdsa key.".to_string()))?;
+    // Signs SHA-256(message), as ECDSA_NISTP256_SHA256; outputs ASN.1 DER (same format as before).
+    let sig: Signature = key
+        .try_sign(message)
+        .map_err(|_| FnError::Crypto("Failed to sign using ECDSA key".to_string()))?;
+    Ok(sig.to_der().as_bytes().to_vec())
+}
 
-    signer
-        .sign(message)
-        .map_err(|_err| FnError::Crypto("Failed to sign using ECDHE key".to_string()))
+#[cfg(test)]
+mod determinism_probe {
+    use super::ecdsa_sign;
+    use crate::static_certs::RANDOM_EC_PRIVATE_KEY_PKCS8;
+
+    /// Regression: ecdsa_sign must be byte-stable for identical (message, key) (RFC 6979), and sign
+    /// arbitrary data. This guards the determinism that locate-and-splice relies on.
+    #[test]
+    fn ecdsa_sign_is_deterministic_over_arbitrary_data() {
+        let key: Vec<u8> = RANDOM_EC_PRIVATE_KEY_PKCS8.1.into();
+        for msg in [b"abc".as_slice(), b"a much longer arbitrary message ...", &[0u8; 200]] {
+            let s1 = ecdsa_sign(msg, &key).expect("sign1");
+            let s2 = ecdsa_sign(msg, &key).expect("sign2");
+            assert_eq!(s1, s2, "ecdsa_sign non-deterministic (len {} vs {})", s1.len(), s2.len());
+        }
+    }
 }

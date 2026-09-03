@@ -26,8 +26,6 @@ pub struct TermConstraints {
     pub must_be_root: bool,
     /// when true: only look for readable terms
     pub not_readable: bool,
-    /// Forbids sub-terms with no det function symbols
-    pub must_be_det: bool,
     /// Number of terms to generate for each type
     pub zoo_gen_how_many: usize,
     /// Max number of paylaods per term (limiting further MakeMessage)
@@ -50,7 +48,6 @@ impl Default for TermConstraints {
             weighted_depth: false,
             must_be_root: false,
             not_readable: false,
-            must_be_det: false,
             zoo_gen_how_many: 10, /* Over-approximates 1/10 of the threshold obtained from
                                    * `test_term_payloads_eval`, making sure we successfully
                                    * generate, MakeMessage,
@@ -93,9 +90,6 @@ impl TermConstraints {
         if self.not_readable && term.is_readable() {
             return false;
         }
-        if self.must_be_det && term.has_no_det() {
-            return false;
-        }
         true
     }
 
@@ -118,7 +112,6 @@ impl TermConstraints {
             weighted_depth: false,
             must_be_root: false,
             not_readable: false,
-            must_be_det: false,
             zoo_gen_how_many: usize::MAX,
             threshold_max_payloads_per_term: usize::MAX,
         }

@@ -42,6 +42,14 @@ pub enum RuntimeStats {
     // Trace execs by MakeMessage and ReadMessage counters
     MMExec(&'static Counter),
     MMNExecSuccess(&'static Counter),
+    MMFailReach(&'static Counter),
+    MMFailMake(&'static Counter),
+    FrontierSkip(&'static Counter),
+    MmTermOk(&'static Counter),
+    MmOkOpaque(&'static Counter),
+    MmFailreachOpaque(&'static Counter),
+    RmOk(&'static Counter),
+    RmSkipNoterm(&'static Counter),
     // Full execs of corpus trace scheduled counter
     CorpusExec(&'static Counter),
     CorpusExecMinimal(&'static Counter),
@@ -50,6 +58,9 @@ pub enum RuntimeStats {
     TermSize(&'static MinMaxMean),
     NbPayload(&'static MinMaxMean),
     PayloadLength(&'static MinMaxMean),
+    /// [R1 datapoint #1] Deepest trace step reached during execution (ctx.executed_until), recorded
+    /// for every execution (success or early failure). mean << trace length => traces die early.
+    ReachedStep(&'static MinMaxMean),
     Duplicates(&'static Counter),
 }
 
@@ -81,6 +92,14 @@ impl RuntimeStats {
             Self::BitExecSuccess(inner) => inner.fire(consume),
             Self::MMExec(inner) => inner.fire(consume),
             Self::MMNExecSuccess(inner) => inner.fire(consume),
+            Self::MMFailReach(inner) => inner.fire(consume),
+            Self::MMFailMake(inner) => inner.fire(consume),
+            Self::FrontierSkip(inner) => inner.fire(consume),
+            Self::MmTermOk(inner) => inner.fire(consume),
+            Self::MmOkOpaque(inner) => inner.fire(consume),
+            Self::MmFailreachOpaque(inner) => inner.fire(consume),
+            Self::RmOk(inner) => inner.fire(consume),
+            Self::RmSkipNoterm(inner) => inner.fire(consume),
             Self::CorpusExec(inner) => inner.fire(consume),
             Self::CorpusExecMinimal(inner) => inner.fire(consume),
             Self::AllCodecError(inner) => inner.fire(consume),
@@ -93,6 +112,7 @@ impl RuntimeStats {
             Self::TermSize(inner) => inner.fire(consume),
             Self::NbPayload(inner) => inner.fire(consume),
             Self::PayloadLength(inner) => inner.fire(consume),
+            Self::ReachedStep(inner) => inner.fire(consume),
             Self::Duplicates(inner) => inner.fire(consume),
         }
     }
@@ -131,6 +151,8 @@ pub static TRACE_LENGTH: MinMaxMean = MinMaxMean::new("trace-length");
 pub static TERM_SIZE: MinMaxMean = MinMaxMean::new("term-size");
 pub static NB_PAYLOAD: MinMaxMean = MinMaxMean::new("nb-payload");
 pub static PAYLOAD_LENGTH: MinMaxMean = MinMaxMean::new("payload-length");
+/// [R1 #1] Deepest step index reached per execution.
+pub static REACHED_STEP: MinMaxMean = MinMaxMean::new("reached-step");
 
 /// Metrics for evaluations and executions
 pub static ALL_EXEC: Counter = Counter::new("all-exec");
@@ -145,11 +167,24 @@ pub static BIT_EXEC: Counter = Counter::new("bit-exec");
 pub static BIT_EXEC_SUCCESS: Counter = Counter::new("bit-exec-success");
 pub static MM_EXEC: Counter = Counter::new("mm-exec");
 pub static MM_EXEC_SUCCESS: Counter = Counter::new("mmn-exec-success");
+/// [INV-A counters] MakeMessage failures split: reachability (trace can't execute to the step) vs
+/// eval (payload computation failed at the step). And how often the frontier pre-check skips.
+pub static MM_FAIL_REACH: Counter = Counter::new("mm-fail-reach");
+pub static MM_FAIL_MAKE: Counter = Counter::new("mm-fail-make");
+pub static FRONTIER_SKIP: Counter = Counter::new("frontier-skip");
+/// [INV-B per-case] MakeMessage outcomes split by whether the target is strictly under an
+/// opaque/reframing boundary. "plain" is derived = total (mm_term_ok / mm_fail_reach) minus *_opaque.
+pub static MM_TERM_OK: Counter = Counter::new("mm-term-ok");
+pub static MM_OK_OPAQUE: Counter = Counter::new("mm-ok-opaque");
+pub static MM_FAILREACH_OPAQUE: Counter = Counter::new("mm-failreach-opaque");
+/// [INV-C] ReadMessage outcomes: applied (read_message_term ok) vs skipped (no payload term found).
+pub static RM_OK: Counter = Counter::new("rm-ok");
+pub static RM_SKIP_NOTERM: Counter = Counter::new("rm-skip-noterm");
 pub static CORPUS_EXEC: Counter = Counter::new("corpus-exec");
 pub static CORPUS_EXEC_MINIMAL: Counter = Counter::new("corpus-exec-success");
 pub static DUPLICATES: Counter = Counter::new("duplicates");
 
-pub static STATS: [RuntimeStats; 35] = [
+pub static STATS: [RuntimeStats; 44] = [
     RuntimeStats::EvalFnCryptoError(&EVAL_ERR_FN_CRYPTO),
     RuntimeStats::EvalFnMalformedError(&EVAL_ERR_FN_MALFORMED),
     RuntimeStats::EvalFnUnknownError(&EVAL_ERR_FN_UNKNOWN),
@@ -170,6 +205,7 @@ pub static STATS: [RuntimeStats; 35] = [
     RuntimeStats::TermSize(&TERM_SIZE),
     RuntimeStats::NbPayload(&NB_PAYLOAD),
     RuntimeStats::PayloadLength(&PAYLOAD_LENGTH),
+    RuntimeStats::ReachedStep(&REACHED_STEP),
     RuntimeStats::AllTermEval(&ALL_TERM_EVAL),
     RuntimeStats::AllTermEvalSuccess(&ALL_TERM_EVAL_SUCCESS),
     RuntimeStats::AllExec(&ALL_EXEC),
@@ -182,6 +218,14 @@ pub static STATS: [RuntimeStats; 35] = [
     RuntimeStats::BitExecSuccess(&BIT_EXEC_SUCCESS),
     RuntimeStats::MMExec(&MM_EXEC),
     RuntimeStats::MMNExecSuccess(&MM_EXEC_SUCCESS),
+    RuntimeStats::MMFailReach(&MM_FAIL_REACH),
+    RuntimeStats::MMFailMake(&MM_FAIL_MAKE),
+    RuntimeStats::FrontierSkip(&FRONTIER_SKIP),
+    RuntimeStats::MmTermOk(&MM_TERM_OK),
+    RuntimeStats::MmOkOpaque(&MM_OK_OPAQUE),
+    RuntimeStats::MmFailreachOpaque(&MM_FAILREACH_OPAQUE),
+    RuntimeStats::RmOk(&RM_OK),
+    RuntimeStats::RmSkipNoterm(&RM_SKIP_NOTERM),
     RuntimeStats::CorpusExec(&CORPUS_EXEC),
     RuntimeStats::CorpusExecMinimal(&CORPUS_EXEC_MINIMAL),
     RuntimeStats::Duplicates(&DUPLICATES),
@@ -233,8 +277,9 @@ pub struct MinMaxMean {
     min: AtomicUsize,
     max_set: AtomicBool,
     max: AtomicUsize,
-    mean_set: AtomicBool,
-    mean: AtomicUsize,
+    // [#6] true running mean: sum + count (replaces the old recency-biased EMA `mean`)
+    sum: AtomicUsize,
+    count: AtomicUsize,
 }
 
 impl MinMaxMean {
@@ -245,27 +290,18 @@ impl MinMaxMean {
             min: AtomicUsize::new(usize::MAX),
             max_set: AtomicBool::new(false),
             max: AtomicUsize::new(0),
-            mean_set: AtomicBool::new(false),
-            mean: AtomicUsize::new(0),
+            sum: AtomicUsize::new(0),
+            count: AtomicUsize::new(0),
         }
     }
 
     pub fn update(&self, value: usize) {
-        self.mean(value);
+        // [#6] true running mean: accumulate sum + count (was an EMA `(mean+value)/2`, which is
+        // recency-biased + integer-truncated). sum stays well within usize on 64-bit.
+        self.sum.fetch_add(value, Ordering::SeqCst);
+        self.count.fetch_add(1, Ordering::SeqCst);
         self.max(value);
         self.min(value);
-    }
-
-    fn mean(&self, value: usize) {
-        self.mean
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |mean| {
-                if !self.mean_set.fetch_or(true, Ordering::SeqCst) {
-                    Some(value)
-                } else {
-                    Some((mean + value) / 2)
-                }
-            })
-            .unwrap();
     }
 
     fn max(&self, value: usize) {
@@ -302,11 +338,12 @@ impl Fire for MinMaxMean {
                 ),
             )?;
         }
-        if self.mean_set.load(Ordering::SeqCst) {
+        let count = self.count.load(Ordering::SeqCst);
+        if count > 0 {
             consume(
                 self.name.to_string() + "-mean",
                 UserStats::new(
-                    UserStatsValue::Number(self.mean.load(Ordering::SeqCst) as u64),
+                    UserStatsValue::Number(self.sum.load(Ordering::SeqCst) as u64 / count as u64),
                     AggregatorOps::Avg,
                 ),
             )?;

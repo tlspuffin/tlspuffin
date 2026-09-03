@@ -9,7 +9,7 @@ use crate::execution::{DifferentialRunner, Runner, TraceRunner};
 use crate::fuzzer::feedback::{FAIL_AT_STEP, OBJECTIVE_HASH, OBJECTIVE_TRIGGERED};
 use crate::fuzzer::stats_stage::{
     HARNESS_EXEC, HARNESS_EXEC_AGENT_SUCCESS, HARNESS_EXEC_SUCCESS, NB_PAYLOAD, PAYLOAD_LENGTH,
-    TERM_SIZE, TRACE_LENGTH,
+    REACHED_STEP, TERM_SIZE, TRACE_LENGTH,
 };
 use crate::protocol::{ProtocolBehavior, ProtocolTypes};
 use crate::put::PutDescriptor;
@@ -67,6 +67,11 @@ pub fn harness<PB: ProtocolBehavior + 'static>(
         }
         Err(_) => {}
     }
+
+    // [R1 #1] Deepest trace step reached this execution (harness path only -> no mutation-time
+    // confound). fail_at_step == ctx.executed_until (set on both success and failure). Comparing
+    // mean_reached_step with mean_trace_length shows how early traces die.
+    REACHED_STEP.update(fail_at_step);
 
     // Update FAIL_AT_STEP
     log::trace!(

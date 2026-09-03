@@ -660,6 +660,14 @@ pub struct MetadataTrace {
     /// The path focus of the trace, which is used to focus on a specific part of the trace for
     /// HAVOC mutations during a FocusScheduledMutator
     path_focus: Option<TracePath>,
+    /// [executability frontier] The last step index up to which this trace was previously
+    /// executable (= `ctx.executed_until` of its last execution). Used to bias MakeMessage toward
+    /// reachable steps, since most deep-step MakeMessage failures are reachability failures, not
+    /// eval failures (see INV-A). Kept current across step-shifting structural mutations
+    /// (RepeatMutator/SkipMutator) OPTIMISTICALLY: when unsure, we keep the frontier high so we do
+    /// not over-restrict exploration.
+    #[serde(default)]
+    last_executable_step: Option<usize>,
 }
 
 #[derive(Clone, Deserialize, Serialize, Hash)]
@@ -1231,6 +1239,39 @@ impl<PT: ProtocolTypes> Trace<PT> {
     pub fn get_focus(&self) -> Option<&TracePath> {
         log::debug!("[get_focus] get_focus {:?}", self.metadata_trace.path_focus);
         self.metadata_trace.path_focus.as_ref()
+    }
+
+    // ---- executability frontier (see MetadataTrace.last_executable_step) ----
+
+    /// Record the last step index up to which this trace executed (refresh post-execution).
+    pub fn set_executable_frontier(&mut self, last_executable_step: usize) {
+        self.metadata_trace.last_executable_step = Some(last_executable_step);
+    }
+
+    /// The current executability frontier, if known.
+    pub fn executable_frontier(&self) -> Option<usize> {
+        self.metadata_trace.last_executable_step
+    }
+
+    /// [staleness, OPTIMISTIC] Update the frontier after a step was INSERTED at `insert_index`
+    /// (call AFTER `steps.insert`). If the insertion lands within/at the reachable prefix, assume
+    /// the inserted (cloned) step is also reachable and extend the frontier by one (clamped to the
+    /// new length). Otherwise leave it unchanged.
+    pub fn frontier_on_step_inserted(&mut self, insert_index: usize) {
+        if let Some(f) = self.metadata_trace.last_executable_step {
+            if insert_index <= f {
+                self.metadata_trace.last_executable_step = Some((f + 1).min(self.steps.len()));
+            }
+        }
+    }
+
+    /// [staleness, OPTIMISTIC] Update the frontier after a step was REMOVED (call AFTER
+    /// `steps.remove`). We do NOT decrease the frontier for the removal (removing a step may even
+    /// unblock later steps); we only clamp it to the new trace length. Optimistic by design.
+    pub fn frontier_on_step_removed(&mut self, _remove_index: usize) {
+        if let Some(f) = self.metadata_trace.last_executable_step {
+            self.metadata_trace.last_executable_step = Some(f.min(self.steps.len()));
+        }
     }
 }
 impl<PT: ProtocolTypes> Default for Trace<PT> {
