@@ -151,8 +151,9 @@ impl GitArchive {
 
         // Offline cache reuse: a git.<head>.tar.gz is content-addressed by the commit. If one is
         // already at the destination, reuse it. Also honor a persistent cache dir via
-        // MK_VENDOR_SRC_CACHE (the vendor out-dir is wiped before each build, so a same-dir copy does
-        // not survive) -- if it holds a matching archive, copy it in and skip the network clone.
+        // MK_VENDOR_SRC_CACHE (the vendor out-dir is wiped before each build, so a same-dir copy
+        // does not survive) -- if it holds a matching archive, copy it in and skip the
+        // network clone.
         if archive_file.is_file() {
             return Ok(archive_file);
         }

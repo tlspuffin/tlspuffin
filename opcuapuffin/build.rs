@@ -10,8 +10,9 @@ use puffin_build::{harness, vendor_dir};
 
 fn main() {
     /* Recompile when the C harness sources change. Without this, editing the harness .c/.h files
-     * does NOT trigger a rebuild (cargo only tracks build.rs itself and Rust sources), so a changed
-     * harness would be silently linked from the stale cmake output. Watch the whole harness tree. */
+     * does NOT trigger a rebuild (cargo only tracks build.rs itself and Rust sources), so a
+     * changed harness would be silently linked from the stale cmake output. Watch the whole
+     * harness tree. */
     println!("cargo:rerun-if-changed=harness");
 
     /* binding for include/puffin/opcua.h */
