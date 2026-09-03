@@ -64,6 +64,7 @@ pub type DyMutations<'harness, PT, PB, S> = tuple_list_type!(
     RemoveAndLiftMutator<S>,
     GenerateMutator<'harness, S, PB>,
     SwapMutator<S>,
+    MoveStepMutator<S>,
 );
 
 #[must_use]
@@ -102,6 +103,7 @@ where
             with_dy
         ), /* Refresh zoo after 100000M mutations */
         SwapMutator::new(term_constraints, with_dy),
+        MoveStepMutator::new(with_dy),
     )
 }
 
@@ -530,6 +532,70 @@ where
 {
     fn name(&self) -> &Cow<'static, str> {
         &Cow::Borrowed("SkipMutator")
+    }
+}
+
+/// MOVE: relocate an existing step to a different position, reordering the
+/// message sequence without adding or removing messages.
+///
+/// Generic and protocol-agnostic, but the motivating case is transcript-
+/// integrity exploration: moving a packet across a state boundary (e.g. across
+/// NEWKEYS / a rekey) is the manipulation a prefix-truncation attack like
+/// Terrapin relies on, and which add/skip/repeat alone cannot reach in one step.
+pub struct MoveStepMutator<S>
+where
+    S: HasRand,
+{
+    phantom_s: std::marker::PhantomData<S>,
+    with_dy: bool,
+}
+
+impl<S> MoveStepMutator<S>
+where
+    S: HasRand,
+{
+    #[must_use]
+    pub const fn new(with_dy: bool) -> Self {
+        Self {
+            phantom_s: std::marker::PhantomData,
+            with_dy,
+        }
+    }
+}
+
+impl<S, PT: ProtocolTypes> Mutator<Trace<PT>, S> for MoveStepMutator<S>
+where
+    S: HasRand,
+{
+    fn mutate(&mut self, state: &mut S, trace: &mut Trace<PT>) -> Result<MutationResult, Error> {
+        log::debug!("[DY] Start mutate with {}", self.name());
+        if !self.with_dy {
+            return Ok(MutationResult::Skipped);
+        }
+        let length = trace.steps.len();
+        if length < 2 {
+            return Ok(MutationResult::Skipped);
+        }
+        let from = state.rand_mut().between(0, length - 1);
+        let step = trace.steps.remove(from);
+        // After removal the vector has `length - 1` elements; a valid insert
+        // index is 0..=length-1 (the last value appends).
+        let to = state.rand_mut().between(0, trace.steps.len());
+        log::debug!("[Mutation] Mutate MoveStepMutator step {from} -> {to}");
+        trace.steps.insert(to, step);
+        Ok(MutationResult::Mutated)
+    }
+
+    fn post_exec(&mut self, _state: &mut S, _new_corpus_id: Option<CorpusId>) -> Result<(), Error> {
+        Ok(())
+    }
+}
+impl<S> Named for MoveStepMutator<S>
+where
+    S: HasRand,
+{
+    fn name(&self) -> &Cow<'static, str> {
+        &Cow::Borrowed("MoveStepMutator")
     }
 }
 
