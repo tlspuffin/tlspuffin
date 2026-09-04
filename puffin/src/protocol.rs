@@ -258,6 +258,23 @@ pub trait ProtocolTypes:
     /// differential fuzzer
     /// Return `true` to keep the difference
     fn differential_fuzzing_filter_diff(diff: &TraceDifference) -> bool;
+
+    /// Filter a whole trace's difference set with full context — all status,
+    /// security-claim and knowledge differences together — returning the ones to
+    /// keep. Unlike the per-difference [`Self::differential_fuzzing_filter_diff`],
+    /// this sees the diffs as a SET, so a protocol can shadow a documented-benign
+    /// CLASS context-awarely: e.g. drop a banner-strictness *status* diff together
+    /// with the transcript-presence *knowledge* diff it induces, without a blanket
+    /// (and unsafe) knowledge whitelist.
+    ///
+    /// Default: apply the per-difference filter, so a protocol that does not
+    /// override this is unchanged.
+    fn differential_fuzzing_filter_diffs(diffs: Vec<TraceDifference>) -> Vec<TraceDifference> {
+        diffs
+            .into_iter()
+            .filter(Self::differential_fuzzing_filter_diff)
+            .collect()
+    }
 }
 
 /// Defines the protocol which is being tested.

@@ -13,25 +13,54 @@ keywords.workspace = true
 categories.workspace = true
 
 [features]
+default = ["sancov"]
 # Current put supports claims
 claims = []
 
+# Add the richer, cross-vendor-DIVERGING seeds to the corpus (post-auth channel
+# DATA, client-initiated rekey, RFC 8308 ext-info, and the credential-confusion
+# seeds using identities B/C). These deliberately do NOT complete identically on
+# libssh and wolfSSH, so they would flood a differential campaign with benign
+# objectives — hence they are gated off by default and intended for single-PUT
+# parser/crash campaigns (`-T <put> experiment`). The differential corpus stays
+# the 3 clean seeds. Promote individual seeds to the differential set once their
+# benign divergence class is bucketed.
+rich-corpus = []
+
+# Sanitizer / instrumentation flags forwarded to the C harness build
+asan    = ["puffin/asan"]
+sancov  = ["puffin/sancov"]
+gcov    = []
+llvm_cov = []
+
 [dependencies]
-libssh-sys = { path = "../crates/libssh-sys", features = ["libssh0104"] }
-puffin = { path = "../puffin" }
+puffin       = { path = "../puffin" }
 puffin-build = { path = "../puffin-build" }
 extractable-macro = { path = "../extractable-macro" }
-log = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-comparable = { workspace = true, features = ["derive"] }
+log          = { workspace = true }
+serde        = { workspace = true, features = ["derive"] }
+comparable   = { workspace = true, features = ["derive"] }
+libc         = { workspace = true }
+once_cell    = { workspace = true }
 
-# libssh
-foreign-types = { workspace = true }
+# Crypto primitives for SSH key exchange, derivation, and packet encryption
+x25519-dalek  = { version = "2", features = ["static_secrets"] }
+sha2          = "0.10"
+chacha20      = "0.9"
+poly1305      = "0.8"
+aes-gcm       = "0.10"
+aes           = "0.8"
+ctr           = "0.9"
+hmac          = "0.12"
+signature     = "2"
+rsa           = { version = "0.9", features = ["sha2"] }
+ssh-key       = { version = "0.6", features = ["rsa", "std"] }
 
 [dev-dependencies]
 env_logger = { workspace = true }
-test-log = { workspace = true }
+test-log   = { workspace = true }
 
 [build-dependencies]
-cmake = { workspace = true }
-bindgen = { workspace = true }
+puffin-build = { path = "../puffin-build" }
+bindgen      = { workspace = true }
+

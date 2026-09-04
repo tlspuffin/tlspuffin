@@ -2,33 +2,454 @@
 
 use puffin::algebra::error::FnError;
 
+use crate::protocol::RawSshMessageFlight;
 use crate::ssh::message::{
-    CompressionAlgorithms, EncryptionAlgorithms, KexAlgorithms, KexEcdhReplyMessage,
-    KexInitMessage, MacAlgorithms, NameList, OnWireData, RawSshMessage, SignatureSchemes,
-    SshMessage,
+    ChannelCloseMessage, ChannelDataMessage, ChannelEofMessage, ChannelExtendedDataMessage,
+    ChannelFailureMessage, ChannelOpenConfirmationMessage, ChannelOpenFailureMessage,
+    ChannelOpenMessage, ChannelRequestMessage, ChannelSuccessMessage, ChannelWindowAdjustMessage,
+    CompressionAlgorithms, DebugMessage, DisconnectMessage, EncryptionAlgorithms, ExtInfoExtension,
+    ExtInfoMessage, GlobalRequestMessage, IgnoreMessage, KexAlgorithms, KexEcdhInitMessage,
+    KexEcdhReplyMessage, KexInitMessage, MacAlgorithms, NameList, OnWireData, RawSshMessage,
+    RequestSuccessMessage, ServiceAcceptMessage, ServiceRequestMessage, SignatureSchemes, SshBytes,
+    SshMessage, SshPublicKey, SshSignature, UnimplementedMessage, UserAuthBannerMessage,
+    UserAuthFailureMessage, UserAuthRequestMessage,
 };
 
 pub fn fn_raw_message(message: &RawSshMessage) -> Result<RawSshMessage, FnError> {
     Ok(message.clone())
 }
 
+/// Wraps an SshMessage into a properly framed RawSshMessage::Packet.
+/// Use this when sending structured messages in InputActions, since InputAction
+/// serializes via Codec::encode() which for SshMessage omits the binary packet framing.
+pub fn fn_packet(msg: &SshMessage) -> Result<RawSshMessage, FnError> {
+    use puffin::protocol::ProtocolMessage;
+    Ok(msg.create_opaque())
+}
+
 pub fn fn_onwire_message(data: &OnWireData) -> Result<RawSshMessage, FnError> {
     Ok(RawSshMessage::OnWire(data.clone()))
+}
+
+/// Wraps a single raw SSH message into a one-message flight.
+///
+/// Primarily present so that `RawSshMessageFlight` — the whole-flight
+/// agent-output knowledge type queried by the two-party relay seeds
+/// (`(agent, n)/RawSshMessageFlight`) — is registered in the signature's type
+/// table (`types_by_name`, which is derived solely from function arg/return
+/// types). Without it, those query terms execute fine but cannot be
+/// *deserialized*: `TypeShape`'s deserializer resolves a type by name against
+/// that table and fails, so e.g. `seed_handshake_two_party` round-trips on
+/// write but is skipped on load. Registered `[no_gen]` in the signature so it
+/// does not enlarge the generation search space.
+pub fn fn_raw_message_flight(message: &RawSshMessage) -> Result<RawSshMessageFlight, FnError> {
+    Ok(RawSshMessageFlight::from(message.clone()))
+}
+
+/// Wrap arbitrary bytes as raw on-wire data. Revives `OnWireData` as a producible
+/// term type so the fuzzer can inject unframed byte sequences into the stream.
+pub fn fn_onwire_data(data: &Vec<u8>) -> Result<OnWireData, FnError> {
+    Ok(OnWireData(data.clone()))
+}
+
+// ── Algorithm-negotiation builders ───────────────────────────────────────────
+//
+// These unfreeze KEXINIT negotiation for the DY mutator. Previously the only
+// usable KEXINITs were the two fixed `fn_*_kexinit_aesgcm` (algorithm lists baked
+// in), and `fn_kex_init` was dead because its list-typed arguments
+// (KexAlgorithms / EncryptionAlgorithms / ...) had no producers. Now an algorithm
+// list is built bottom-up from algorithm-name `SshBytes` atoms (fn_algo_*) into a
+// `NameList`, then wrapped into the per-field list type. Because `NameList` is the
+// shared intermediate, a mutation can splice a single algorithm name, swap a
+// whole list across fields (algorithm confusion), reorder/duplicate entries, or
+// drop to empty — exercising downgrade and negotiation-handling paths in the PUT.
+
+fn name_of(b: &SshBytes) -> String {
+    String::from_utf8_lossy(&b.0).into_owned()
+}
+
+pub fn fn_namelist_empty() -> Result<NameList, FnError> {
+    Ok(NameList::empty())
+}
+pub fn fn_namelist_1(a: &SshBytes) -> Result<NameList, FnError> {
+    Ok(NameList::from_strs(&[&name_of(a)]))
+}
+pub fn fn_namelist_2(a: &SshBytes, b: &SshBytes) -> Result<NameList, FnError> {
+    Ok(NameList::from_strs(&[&name_of(a), &name_of(b)]))
+}
+pub fn fn_namelist_3(a: &SshBytes, b: &SshBytes, c: &SshBytes) -> Result<NameList, FnError> {
+    Ok(NameList::from_strs(&[
+        &name_of(a),
+        &name_of(b),
+        &name_of(c),
+    ]))
+}
+/// Coerce a single raw byte blob into a NameList by splitting on commas — lets a
+/// bit-mutated / observed SshBytes become a (possibly malformed) algorithm list.
+pub fn fn_namelist_from_bytes(raw: &SshBytes) -> Result<NameList, FnError> {
+    let joined = name_of(raw);
+    let parts: Vec<&str> = joined.split(',').collect();
+    Ok(NameList::from_strs(&parts))
+}
+
+pub fn fn_kex_algos(list: &NameList) -> Result<KexAlgorithms, FnError> {
+    Ok(KexAlgorithms(list.clone()))
+}
+pub fn fn_enc_algos(list: &NameList) -> Result<EncryptionAlgorithms, FnError> {
+    Ok(EncryptionAlgorithms(list.clone()))
+}
+pub fn fn_mac_algos(list: &NameList) -> Result<MacAlgorithms, FnError> {
+    Ok(MacAlgorithms(list.clone()))
+}
+pub fn fn_sig_schemes(list: &NameList) -> Result<SignatureSchemes, FnError> {
+    Ok(SignatureSchemes(list.clone()))
+}
+pub fn fn_comp_algos(list: &NameList) -> Result<CompressionAlgorithms, FnError> {
+    Ok(CompressionAlgorithms(list.clone()))
 }
 
 pub fn fn_banner(banner: &String) -> Result<RawSshMessage, FnError> {
     Ok(RawSshMessage::Banner(banner.clone()))
 }
 
+// ── Constructor: SshBytes ────────────────────────────────────────────────────
+
+pub fn fn_ssh_bytes(data: &Vec<u8>) -> Result<SshBytes, FnError> {
+    Ok(SshBytes::new(data.clone()))
+}
+
+pub fn fn_ssh_bytes_empty() -> Result<SshBytes, FnError> {
+    Ok(SshBytes::empty())
+}
+
+// ── Constructor: SshPublicKey / SshSignature ─────────────────────────────────
+
+pub fn fn_ssh_public_key(
+    algorithm: &SshBytes,
+    key_data: &SshBytes,
+) -> Result<SshPublicKey, FnError> {
+    Ok(SshPublicKey {
+        algorithm: algorithm.clone(),
+        key_data: key_data.clone(),
+    })
+}
+
+pub fn fn_ssh_signature(
+    algorithm: &SshBytes,
+    signature_data: &SshBytes,
+) -> Result<SshSignature, FnError> {
+    Ok(SshSignature {
+        algorithm: algorithm.clone(),
+        signature_data: signature_data.clone(),
+    })
+}
+
+// ── Message constructors ─────────────────────────────────────────────────────
+
+pub fn fn_disconnect(
+    reason_code: &u32,
+    description: &SshBytes,
+    language_tag: &SshBytes,
+) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::Disconnect(DisconnectMessage {
+        reason_code: *reason_code,
+        description: description.clone(),
+        language_tag: language_tag.clone(),
+    }))
+}
+
+pub fn fn_ignore(data: &SshBytes) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::Ignore(IgnoreMessage { data: data.clone() }))
+}
+
+/// SSH_MSG_EXT_INFO (RFC 8308) carrying a single extension (name, value), e.g.
+/// "server-sig-algs". Lets the fuzzer exercise the peer's EXT_INFO parser.
+pub fn fn_ext_info(name: &SshBytes, value: &SshBytes) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ExtInfo(ExtInfoMessage {
+        extensions: vec![ExtInfoExtension {
+            name: name.clone(),
+            value: value.clone(),
+        }],
+    }))
+}
+
+pub fn fn_unimplemented(packet_sequence_number: &u32) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::Unimplemented(UnimplementedMessage {
+        packet_sequence_number: *packet_sequence_number,
+    }))
+}
+
+pub fn fn_debug(
+    always_display: &bool,
+    message: &SshBytes,
+    language_tag: &SshBytes,
+) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::Debug(DebugMessage {
+        always_display: *always_display,
+        message: message.clone(),
+        language_tag: language_tag.clone(),
+    }))
+}
+
+pub fn fn_service_request(service_name: &SshBytes) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ServiceRequest(ServiceRequestMessage {
+        service_name: service_name.clone(),
+    }))
+}
+
+pub fn fn_service_accept(service_name: &SshBytes) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ServiceAccept(ServiceAcceptMessage {
+        service_name: service_name.clone(),
+    }))
+}
+
+pub fn fn_kex_ecdh_init(ephemeral_public_key: &SshBytes) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::KexEcdhInit(KexEcdhInitMessage {
+        ephemeral_public_key: ephemeral_public_key.clone(),
+    }))
+}
+
 pub fn fn_kex_ecdh_reply(
-    public_host_key: &Vec<u8>,
-    ephemeral_public_key: &Vec<u8>,
-    signature: &Vec<u8>,
+    public_host_key: &SshPublicKey,
+    ephemeral_public_key: &SshBytes,
+    signature: &SshSignature,
 ) -> Result<SshMessage, FnError> {
     Ok(SshMessage::KexEcdhReply(KexEcdhReplyMessage {
         public_host_key: public_host_key.clone(),
         ephemeral_public_key: ephemeral_public_key.clone(),
         signature: signature.clone(),
+    }))
+}
+
+pub fn fn_new_keys() -> Result<SshMessage, FnError> {
+    Ok(SshMessage::NewKeys)
+}
+
+// Shared builder for a fixed aes256-gcm KexInit. `host_key_algos` lets the
+// caller restrict the offered host-key algorithms (the server-attacker seed
+// offers only rsa-sha2-256 so the negotiated algorithm matches its signature).
+fn kexinit_aesgcm(cookie: &[u8; 16], host_key_algos: &[&str]) -> SshMessage {
+    use crate::ssh::message::{
+        CompressionAlgorithms, EncryptionAlgorithms, KexAlgorithms, MacAlgorithms, NameList,
+        SignatureSchemes,
+    };
+    SshMessage::KexInit(KexInitMessage {
+        cookie: *cookie,
+        kex_algorithms: KexAlgorithms(NameList::from_strs(&["curve25519-sha256"])),
+        server_host_key_algorithms: SignatureSchemes(NameList::from_strs(host_key_algos)),
+        encryption_algorithms_client_to_server: EncryptionAlgorithms(NameList::from_strs(&[
+            "aes256-gcm@openssh.com",
+        ])),
+        encryption_algorithms_server_to_client: EncryptionAlgorithms(NameList::from_strs(&[
+            "aes256-gcm@openssh.com",
+        ])),
+        mac_algorithms_client_to_server: MacAlgorithms(NameList::from_strs(&["hmac-sha2-256"])),
+        mac_algorithms_server_to_client: MacAlgorithms(NameList::from_strs(&["hmac-sha2-256"])),
+        compression_algorithms_client_to_server: CompressionAlgorithms(NameList::from_strs(&[
+            "none",
+        ])),
+        compression_algorithms_server_to_client: CompressionAlgorithms(NameList::from_strs(&[
+            "none",
+        ])),
+        languages_client_to_server: NameList::empty(),
+        languages_server_to_client: NameList::empty(),
+        first_kex_packet_follows: false,
+    })
+}
+
+/// A fixed client KexInit that offers ONLY aes256-gcm@openssh.com (plus
+/// curve25519-sha256 / rsa-sha2 / none), so that both libssh and wolfSSH
+/// negotiate AES-256-GCM. This makes a single seed valid against both
+/// implementations (unlike the algorithm-mirroring seeds, which let each PUT
+/// pick its own top cipher — chacha20 for libssh, aes-gcm for wolfSSH).
+pub fn fn_client_kexinit_aesgcm(cookie: &[u8; 16]) -> Result<SshMessage, FnError> {
+    Ok(kexinit_aesgcm(cookie, &["rsa-sha2-512", "rsa-sha2-256"]))
+}
+
+/// A fixed SERVER KexInit offering aes256-gcm and ONLY rsa-sha2-256 as the
+/// host-key algorithm, so the client negotiates rsa-sha2-256 — matching the
+/// rsa-sha2-256 signature the server-attacker seed produces. Used by the
+/// fuzzer when it plays the server against a libssh/wolfSSH client.
+pub fn fn_server_kexinit_aesgcm(cookie: &[u8; 16]) -> Result<SshMessage, FnError> {
+    Ok(kexinit_aesgcm(cookie, &["rsa-sha2-256"]))
+}
+
+pub fn fn_user_auth_request(
+    user_name: &SshBytes,
+    service_name: &SshBytes,
+    method_name: &SshBytes,
+    method_data: &Vec<u8>,
+) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::UserAuthRequest(UserAuthRequestMessage {
+        user_name: user_name.clone(),
+        service_name: service_name.clone(),
+        method_name: method_name.clone(),
+        method_data: method_data.clone(),
+    }))
+}
+
+pub fn fn_user_auth_failure(
+    authentications_that_can_continue: &NameList,
+    partial_success: &bool,
+) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::UserAuthFailure(UserAuthFailureMessage {
+        authentications_that_can_continue: authentications_that_can_continue.clone(),
+        partial_success: *partial_success,
+    }))
+}
+
+pub fn fn_user_auth_success() -> Result<SshMessage, FnError> {
+    Ok(SshMessage::UserAuthSuccess)
+}
+
+pub fn fn_user_auth_banner(
+    message: &SshBytes,
+    language_tag: &SshBytes,
+) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::UserAuthBanner(UserAuthBannerMessage {
+        message: message.clone(),
+        language_tag: language_tag.clone(),
+    }))
+}
+
+pub fn fn_global_request(
+    request_name: &SshBytes,
+    want_reply: &bool,
+    request_data: &Vec<u8>,
+) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::GlobalRequest(GlobalRequestMessage {
+        request_name: request_name.clone(),
+        want_reply: *want_reply,
+        request_data: request_data.clone(),
+    }))
+}
+
+pub fn fn_request_success(response_data: &Vec<u8>) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::RequestSuccess(RequestSuccessMessage {
+        response_data: response_data.clone(),
+    }))
+}
+
+pub fn fn_request_failure() -> Result<SshMessage, FnError> {
+    Ok(SshMessage::RequestFailure)
+}
+
+pub fn fn_channel_open(
+    channel_type: &SshBytes,
+    sender_channel: &u32,
+    initial_window_size: &u32,
+    maximum_packet_size: &u32,
+    channel_data: &Vec<u8>,
+) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ChannelOpen(ChannelOpenMessage {
+        channel_type: channel_type.clone(),
+        sender_channel: *sender_channel,
+        initial_window_size: *initial_window_size,
+        maximum_packet_size: *maximum_packet_size,
+        channel_data: channel_data.clone(),
+    }))
+}
+
+pub fn fn_channel_open_confirmation(
+    recipient_channel: &u32,
+    sender_channel: &u32,
+    initial_window_size: &u32,
+    maximum_packet_size: &u32,
+    channel_data: &Vec<u8>,
+) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ChannelOpenConfirmation(
+        ChannelOpenConfirmationMessage {
+            recipient_channel: *recipient_channel,
+            sender_channel: *sender_channel,
+            initial_window_size: *initial_window_size,
+            maximum_packet_size: *maximum_packet_size,
+            channel_data: channel_data.clone(),
+        },
+    ))
+}
+
+pub fn fn_channel_open_failure(
+    recipient_channel: &u32,
+    reason_code: &u32,
+    description: &SshBytes,
+    language_tag: &SshBytes,
+) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ChannelOpenFailure(ChannelOpenFailureMessage {
+        recipient_channel: *recipient_channel,
+        reason_code: *reason_code,
+        description: description.clone(),
+        language_tag: language_tag.clone(),
+    }))
+}
+
+pub fn fn_channel_window_adjust(
+    recipient_channel: &u32,
+    bytes_to_add: &u32,
+) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ChannelWindowAdjust(
+        ChannelWindowAdjustMessage {
+            recipient_channel: *recipient_channel,
+            bytes_to_add: *bytes_to_add,
+        },
+    ))
+}
+
+pub fn fn_channel_data(recipient_channel: &u32, data: &SshBytes) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ChannelData(ChannelDataMessage {
+        recipient_channel: *recipient_channel,
+        data: data.clone(),
+    }))
+}
+
+pub fn fn_channel_extended_data(
+    recipient_channel: &u32,
+    data_type_code: &u32,
+    data: &SshBytes,
+) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ChannelExtendedData(
+        ChannelExtendedDataMessage {
+            recipient_channel: *recipient_channel,
+            data_type_code: *data_type_code,
+            data: data.clone(),
+        },
+    ))
+}
+
+pub fn fn_channel_eof(recipient_channel: &u32) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ChannelEof(ChannelEofMessage {
+        recipient_channel: *recipient_channel,
+    }))
+}
+
+pub fn fn_channel_close(recipient_channel: &u32) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ChannelClose(ChannelCloseMessage {
+        recipient_channel: *recipient_channel,
+    }))
+}
+
+pub fn fn_channel_request(
+    recipient_channel: &u32,
+    request_type: &SshBytes,
+    want_reply: &bool,
+    request_data: &Vec<u8>,
+) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ChannelRequest(ChannelRequestMessage {
+        recipient_channel: *recipient_channel,
+        request_type: request_type.clone(),
+        want_reply: *want_reply,
+        request_data: request_data.clone(),
+    }))
+}
+
+pub fn fn_channel_success(recipient_channel: &u32) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ChannelSuccess(ChannelSuccessMessage {
+        recipient_channel: *recipient_channel,
+    }))
+}
+
+pub fn fn_channel_failure(recipient_channel: &u32) -> Result<SshMessage, FnError> {
+    Ok(SshMessage::ChannelFailure(ChannelFailureMessage {
+        recipient_channel: *recipient_channel,
     }))
 }
 

@@ -1,0 +1,20 @@
+# wolfSSH is pinned to the v1.5.0-stable RELEASE TAG (not `branch = master`).
+# Rationale: master is a moving target — a rebuild fetched a newer master
+# (1.5.0-dev) that fails the handshake early with WS_BUFFER_E. The last known-good
+# build ran a master snapshot (version.h "1.4.20", i.e. master between the
+# v1.4.20-stable release and the 1.5.0 bump). That snapshot's KEX host-key-algo
+# handling was master-only: BOTH v1.4.20-stable and v1.4.22-stable reject our
+# offer with WS_MATCH_KEY_ALGO_E, so the fix never shipped in a 1.4.x release —
+# it only landed in the 1.5.0 line. v1.5.0-stable is the release of that line:
+# it carries the working snapshot's fixes yet predates the later-master
+# WS_BUFFER_E regression. Reproducible and functionally closest to known-good.
+[wolfssh-asan]
+sources = { repo = "https://github.com/wolfSSL/wolfssh.git", branch = "v1.5.0-stable", version = "1.5.0" }
+builder = { type = "builtin", name = "wolfssh" }
+asan = true
+sancov = true
+
+[wolfssh]
+sources = { repo = "https://github.com/wolfSSL/wolfssh.git", branch = "v1.5.0-stable", version = "1.5.0" }
+builder = { type = "builtin", name = "wolfssh" }
+sancov = true

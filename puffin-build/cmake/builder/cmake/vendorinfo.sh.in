@@ -48,7 +48,12 @@ declare -a INSTRUMENTATION=(
     $<$<BOOL:@llvm_cov@>:llvm_cov>
 )
 
-if "${NM}" "${INSTALL_DIR}"/lib/*.a 2>/dev/null | grep "register_claimer" >/dev/null; then
+# A vendored library counts as "claimer"-instrumented when its archive exports a
+# claim marker symbol. TLS libraries export `register_claimer` (tlspuffin-claims);
+# SSH libraries have no such library-level symbol — the claimer lives in the
+# harness — so their marker is the session-id accessor injected by the SSH
+# instrument patch (puffin-build/vendors/{libssh,wolfssh}/instrument_claims.cmake).
+if "${NM}" "${INSTALL_DIR}"/lib/*.a 2>/dev/null | grep -E "register_claimer|puffin_ssh_get_session_id|puffin_wolfssh_get_session_id" >/dev/null; then
     INSTRUMENTATION+=("claimer")
 fi
 
