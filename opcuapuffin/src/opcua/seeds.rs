@@ -15,28 +15,61 @@ use puffin::{input_action, term};
 
 use crate::protocol::OpcuaProtocolBehavior;
 
+/// Initial fuzzing corpus.
+///
+/// The corpus is intentionally made of **legitimate** OPC UA traces only — a spread of valid
+/// handshake / session / channel exchanges. The fuzzer is meant to *discover* vulnerabilities by
+/// mutating these benign starting points; seeding it with a trace that already triggers a known
+/// bug would defeat that purpose (it would "find" the planted bug trivially and skew time-to-find
+/// measurements).
+///
+/// The bug-targeting seeds below are therefore **commented out on purpose**. They reproduce
+/// deliberately *planted* defects and only crash when the open62541 vendor is built with the
+/// matching patch (see `puffin-build/vendors/open62541/builder.cmake`, where those patches are
+/// disabled by default). Uncomment one only for a targeted reproduction against a vendor built
+/// with its patch — never for a normal fuzzing campaign:
+///   - `seed_bad_switch`        → `Bug-bad-switch.patch`   (OOB write in `Service_ActivateSession`)
+///   - `seed_bug_dead_session`  → `Bug-dead-session.patch` (activation of a dead session)
 pub fn create_corpus(
     _put: &dyn puffin::put_registry::Factory<OpcuaProtocolBehavior>,
 ) -> Vec<(Trace<OpcuaProtocolTypes>, &'static str)> {
     vec![
-        // (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
-        // (seed_ap_client_open_unsecure_channel(AgentName::first()),
-        // "seed_ap_client_open_unsecure_channel"),
-        // (seed_b_client_open_secure_channel(AgentName::first()),
-        // "seed_b_client_open_secure_channel"),
-        // (seed_c_server_open_unsecure_channel(AgentName::first()),
-        // "seed_c_server_open_unsecure_channel"),
-        // (seed_d_client_simple_request(AgentName::first()), "seed_d_client_simple_request"),
-        // (seed_e_client_reopen_reactivate(AgentName::first()),
-        // "seed_e_client_reopen_reactivate"),
-        // (seed_f_client_switch_secure_channels(AgentName::first()),
-        // "seed_f_client_switch_secure_channels"),
-        // (crate::opcua::vulnerabilities::seed_bug_dead_session(AgentName::first()),
-        // "seed_bug_dead_session"),
+        // --- Legitimate seeds (the actual fuzzing corpus) ---
+        (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
         (
-            crate::opcua::vulnerabilities::seed_bad_switch(AgentName::first()),
-            "seed_bad_switch",
+            seed_ap_client_open_unsecure_channel(AgentName::first()),
+            "seed_ap_client_open_unsecure_channel",
         ),
+        (
+            seed_b_client_open_secure_channel(AgentName::first()),
+            "seed_b_client_open_secure_channel",
+        ),
+        (
+            seed_c_server_open_unsecure_channel(AgentName::first()),
+            "seed_c_server_open_unsecure_channel",
+        ),
+        (
+            seed_d_client_simple_request(AgentName::first()),
+            "seed_d_client_simple_request",
+        ),
+        (
+            seed_e_client_reopen_reactivate(AgentName::first()),
+            "seed_e_client_reopen_reactivate",
+        ),
+        (
+            seed_f_client_switch_secure_channels(AgentName::first()),
+            "seed_f_client_switch_secure_channels",
+        ),
+        // --- Bug-targeting seeds: DISABLED by default (see the doc comment above). ---
+        // Enable only for a targeted reproduction against a vendor built with the matching patch.
+        // (
+        //     crate::opcua::vulnerabilities::seed_bad_switch(AgentName::first()),
+        //     "seed_bad_switch",
+        // ),
+        // (
+        //     crate::opcua::vulnerabilities::seed_bug_dead_session(AgentName::first()),
+        //     "seed_bug_dead_session",
+        // ),
     ]
 }
 
