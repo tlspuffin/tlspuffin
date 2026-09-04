@@ -400,7 +400,17 @@ RESULT open62541_add_inbound(AGENT agent, const uint8_t *bytes, size_t length, s
     if (!pcm)
         return PUFFIN.make_result(RESULT_ERROR_OTHER, "Connection Manager unavailable.");
 
-    /* get connection number */
+    /* Reject an empty payload before touching `bytes`: bit-level mutation can trim a message down
+     * to 0 bytes, in which case `bytes` is a dangling (non-dereferenceable) pointer and `length -
+     * 1` would underflow to SIZE_MAX. Dereferencing / memcpy'ing then segfaults -> a false crash.
+     */
+    if (length == 0)
+    {
+        *written = 0;
+        return PUFFIN.make_result(RESULT_ERROR_OTHER, "Empty inbound payload.");
+    }
+
+    /* get connection number (first byte is the connexion id) */
     pcm->connectionId = *bytes;
 
     /* Fills the rxBuffer */

@@ -201,7 +201,9 @@ impl Factory<OpcuaProtocolBehavior> for OpcTcpFactory {
     ) -> Result<Box<dyn Put<OpcuaProtocolBehavior>>, Error> {
         let host = Ipv4Addr::LOCALHOST;
         let port = if let Some(port_arg) = options.get_option("port") {
-            u16::from_str_radix(port_arg, 10).expect("Invalid port number")
+            port_arg
+                .parse::<u16>()
+                .map_err(|e| Error::Put(format!("Invalid port number {port_arg:?}: {e}")))?
         } else {
             /* Only for --put tcp */
             match application.protocol_config.kind {
@@ -317,9 +319,14 @@ impl OpcuaProcess {
 
     pub fn shutdown(&mut self) -> Option<String> {
         self.output = if let Some(mut child) = self.child.take() {
-            child.kill().expect("failed to stop process");
-
-            Some(collect_output(child))
+            // Do NOT panic here: shutdown() runs from Drop, so a panic while the thread is already
+            // unwinding from another error would be a double-panic and abort the whole fuzzer. The
+            // child may already have exited (e.g. it crashed natively), which makes kill() fail --
+            // that is expected during teardown, so just log it.
+            if let Err(e) = child.kill() {
+                log::debug!("OPC UA process already stopped (kill failed: {e})");
+            }
+            collect_output(child)
         } else {
             None
         };
@@ -339,17 +346,24 @@ impl Drop for OpcuaProcess {
     }
 }
 
-pub fn collect_output(child: Child) -> String {
-    let output = child.wait_with_output().expect("failed to wait on child");
+pub fn collect_output(child: Child) -> Option<String> {
+    // Called from the teardown path (via Drop): never panic. Return None if the child output
+    // cannot be collected, and lossily decode bytes rather than unwrap()-ing on non-UTF-8.
+    let output = match child.wait_with_output() {
+        Ok(o) => o,
+        Err(e) => {
+            log::debug!("could not wait on OPC UA child: {e}");
+            return None;
+        }
+    };
     let mut complete = "--- start stderr\n".to_string();
-
-    complete.push_str(std::str::from_utf8(&output.stderr).unwrap());
+    complete.push_str(&String::from_utf8_lossy(&output.stderr));
     complete.push_str("\n--- end stderr\n");
     complete.push_str("--- start stdout\n");
-    complete.push_str(std::str::from_utf8(&output.stdout).unwrap());
+    complete.push_str(&String::from_utf8_lossy(&output.stdout));
     complete.push_str("\n--- end stdout\n");
 
-    complete
+    Some(complete)
 }
 
 pub fn execute_command<I, S, P: AsRef<Path>>(prog: &str, args: I, cwd: Option<P>) -> Child

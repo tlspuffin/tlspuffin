@@ -152,15 +152,20 @@ static void TCP_connectionSocketCallback(UA_ConnectionManager *cm, TCP_FD *conn,
     UA_ByteString request = pcm->rxBuffer;
     request.length = pcm->rxBuffer_index;
 
-    /* Detect an UA TCP CLO message */
-    bool is_close_message = true;
-    const char CLO[3] = "CLO";
-    for (int i = 0; i < 3; i++)
+    /* Detect an UA TCP CLO message. Guard the 3-byte compare with the actual buffer length:
+     * a mutated inbound of 0/1/2 bytes would otherwise read past request.data (an OOB read /
+     * false crash). A message shorter than the 3-byte type tag can never be "CLO". */
+    bool is_close_message = (request.length >= 3);
+    if (is_close_message)
     {
-        if ((char)request.data[i] != CLO[i])
+        const char CLO[3] = "CLO";
+        for (int i = 0; i < 3; i++)
         {
-            is_close_message = false;
-            break;
+            if ((char)request.data[i] != CLO[i])
+            {
+                is_close_message = false;
+                break;
+            }
         }
     }
 
