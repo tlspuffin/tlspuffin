@@ -170,6 +170,17 @@ fn ensure_wolfssh_vendors() -> Vec<library::Library> {
         lib.metadata().vendor == "wolfssh"
             && lib.path().join("include/wolfssh/ssh.h").exists()
             && !lib.link_libraries().is_empty()
+            // Require the session-id claim instrumentation: the cross-vendor s2c
+            // decryption recipe sources the exchange hash H from a claim
+            // (fn_claim_exchange_hash), so a wolfSSH vendor WITHOUT the `claimer`
+            // marker (e.g. one staged by the raw build_wolfssh_vendor.sh, which
+            // omits the instrumentation) would silently make transcript
+            // evaluation disappear. Reject such a vendor here so build.rs falls
+            // through to the preset builder (which injects the accessor) instead.
+            && lib
+                .metadata()
+                .instrumentation
+                .contains(&String::from("claimer"))
     };
 
     let existing: Vec<library::Library> =

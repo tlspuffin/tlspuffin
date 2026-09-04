@@ -135,9 +135,51 @@ impl SshMessageDeframer {
                 self.buf_consume(used);
                 BufferContents::Valid
             }
-            // Unparseable before NewKeys: treat as an (unexpected) encrypted /
-            // opaque frame via the same length-prefix framing.
-            None => self.deframe_encrypted(),
+            // Unparseable before NewKeys. A `None` here means the plaintext
+            // frame is either INCOMPLETE (ordinary socket fragmentation: the
+            // buffer persists across OutputActions) or genuinely malformed — it
+            // does NOT mean the bytes are encrypted, because there is no
+            // legitimate encrypted data before NEWKEYS. Mis-routing an incomplete
+            // plaintext packet/banner through `deframe_encrypted` would invent a
+            // 16-byte GCM tag on a cleartext length (or swallow a partial banner
+            // as opaque data) and corrupt the stream. So wait for more bytes
+            // (`Partial`) while the frame is plausibly still arriving, with a hard
+            // cap so a truly malformed prefix can never stall or buffer
+            // unboundedly (falls through to the bounded opaque framing).
+            None => self.deframe_incomplete_or_opaque(),
+        }
+    }
+
+    /// Pre-NewKeys `None`-handling: decide between "incomplete, keep buffering"
+    /// (`Partial`) and "malformed/over-long, emit opaque and move on".
+    fn deframe_incomplete_or_opaque(&mut self) -> BufferContents {
+        let b = &self.buf[..self.used];
+        // Banner in progress: "SSH-" prefix but no terminating '\n' yet. Wait for
+        // the newline, bounded by the RFC 4253 §4.2 identification-string cap
+        // (255 + CR LF); an over-long "banner" is malformed -> opaque.
+        const MAX_BANNER_WIRE: usize = 257;
+        if b.len() >= 4 && &b[..4] == b"SSH-" {
+            if b.iter().any(|&c| c == b'\n') || b.len() >= MAX_BANNER_WIRE {
+                return self.deframe_encrypted();
+            }
+            return BufferContents::Partial;
+        }
+        // Otherwise a cleartext BinaryPacket: its first 4 bytes are the
+        // packet_length (RFC 4253 §6, sent in the clear pre-NEWKEYS). Wait until
+        // the whole packet (4 + packet_length) is buffered; treat an implausible
+        // length as malformed -> opaque (bounded).
+        if b.len() < 4 {
+            return BufferContents::Partial;
+        }
+        let plen = u32::from_be_bytes(b[0..4].try_into().unwrap()) as usize;
+        let total = 4usize.saturating_add(plen);
+        if plen == 0 || total > MAX_WIRE_SIZE {
+            self.deframe_encrypted()
+        } else if b.len() < total {
+            BufferContents::Partial // incomplete plaintext packet: wait for the rest
+        } else {
+            // Full packet present but still unparseable => genuinely malformed.
+            self.deframe_encrypted()
         }
     }
 
