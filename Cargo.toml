@@ -44,7 +44,7 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 keywords = ["security", "fuzzing", "testing"]
 categories = ["development-tools::testing", "network-programming", "simulation"]
-description = "A Dolev-Yao-model-guided fuzzer for OPC UA"
+description = "A Dolev-Yao-model-guided fuzzer for security protocols (TLS, SSH, OPC UA)"
 
 [workspace.dependencies]
 log = "0.4"

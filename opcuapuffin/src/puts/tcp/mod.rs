@@ -47,6 +47,7 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                 }
             }
         };
+        let mut closed = false;
         if let Some(fuzz_stream) = maybe_stream {
             // Try to send the message.
             fuzz_stream
@@ -63,6 +64,7 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                     message.len() - 1
                 );
                 let _ = fuzz_stream.shutdown(Shutdown::Both);
+                closed = true;
             } else {
                 log::warn!("TCP {id}\t| Add message, {} bytes", message.len() - 1);
                 fuzz_stream
@@ -73,6 +75,11 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
         } else {
             log::error!("TCP {id}\t| Failed to connect to localhost:{}", self.port);
         };
+        // Drop a shut-down stream so a later message with the same connection id opens a fresh
+        // connection instead of reusing the closed socket (writes to which would be silently lost).
+        if closed {
+            self.fuzz_streams.remove(&id);
+        }
     }
 
     fn take_message_from_outbound(
@@ -81,14 +88,42 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
     ) -> Result<(), Error> {
         let mut result = MessageFlight::new();
         for (id, fuzz_stream) in self.fuzz_streams.iter_mut() {
-            let mut buf = vec![0; MAX_WIRE_SIZE];
-            buf[0] = *id;
-            if let Ok(size) = fuzz_stream.read(&mut buf[1..]) {
-                if let Some(flight) = MessageFlight::read_bytes(&buf[0..size + 1]) {
-                    result.merge(flight)
-                } else {
-                    return Err(Error::SecurityClaim("Invalid UA TCP message!"));
+            // A single read() is not guaranteed to return exactly one UA-TCP frame: TCP may split
+            // one frame across reads or coalesce several. Accumulate bytes until the socket blocks
+            // (read timeout) or reaches EOF, then hand the whole buffer to the framer at once so
+            // partial/coalesced frames are deframed correctly (the framer prepends the conn id).
+            let mut acc: Vec<u8> = Vec::new();
+            let mut chunk = vec![0u8; MAX_WIRE_SIZE];
+            loop {
+                match fuzz_stream.read(&mut chunk) {
+                    Ok(0) => break, // EOF
+                    Ok(n) => {
+                        acc.extend_from_slice(&chunk[..n]);
+                        // Bound the accumulation to one wire buffer to avoid unbounded growth.
+                        if acc.len() >= MAX_WIRE_SIZE {
+                            break;
+                        }
+                    }
+                    // read timeout / no more data ready => the flight is complete
+                    Err(ref e)
+                        if e.kind() == std::io::ErrorKind::WouldBlock
+                            || e.kind() == std::io::ErrorKind::TimedOut =>
+                    {
+                        break
+                    }
+                    Err(_) => break,
                 }
+            }
+            if acc.is_empty() {
+                continue;
+            }
+            let mut framed = Vec::with_capacity(acc.len() + 1);
+            framed.push(*id);
+            framed.extend_from_slice(&acc);
+            if let Some(flight) = MessageFlight::read_bytes(&framed) {
+                result.merge(flight)
+            } else {
+                return Err(Error::SecurityClaim("Invalid UA TCP message!"));
             }
         }
         *output_flight = Some(result);

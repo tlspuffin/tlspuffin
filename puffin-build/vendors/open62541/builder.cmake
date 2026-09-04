@@ -9,7 +9,7 @@ patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Instrumentation-to-debug.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-Certificate-Thumbprint.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-certificate.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-policy.patch)
-patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-switch.patch)
+#patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-bad-switch.patch)
 #patch(FILE ${CMAKE_CURRENT_LIST_DIR}/patches/Bug-dead-session.patch)
 
 cmake_builder(

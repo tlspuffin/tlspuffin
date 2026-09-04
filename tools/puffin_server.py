@@ -40,10 +40,16 @@ Always run from the project root (same directory as puffin_report.py).
 import http.server
 import socketserver
 import json
+import shlex
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+# Protocols/modes the server is allowed to act on. Anything else is rejected before
+# it reaches a filesystem path or a spawned command.
+ALLOWED_PROTOCOLS = {"tls", "opcua"}
+ALLOWED_MODES = {"run", "diff"}
 
 # Add the tools/ directory to sys.path so we can import puffin_report
 sys.path.append(str(Path(__file__).parent))
@@ -65,7 +71,9 @@ class PuffinHandler(http.server.SimpleHTTPRequestHandler):
         elif self.path == '/api/compute':
             self._handle_compute()
         else:
-            super().do_POST()
+            # SimpleHTTPRequestHandler has no do_POST; respond explicitly instead of
+            # raising AttributeError (which would just drop the connection).
+            self._send_json(404, {'success': False, 'error': 'Unknown endpoint'})
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -103,15 +111,17 @@ class PuffinHandler(http.server.SimpleHTTPRequestHandler):
                 self._send_json(400, {'success': False, 'error': 'Missing target or protocol'})
                 return
 
+            if protocol not in ALLOWED_PROTOCOLS:
+                self._send_json(400, {'success': False, 'error': 'Invalid protocol'})
+                return
+
             target_path = Path(target).resolve()
-            cwd = Path.cwd().resolve()
 
-            # Security check: target must be inside a coverage-hub-* directory
-            # that lives under the current working directory.
-            in_cwd      = cwd in target_path.parents
-            in_hub_dir  = "coverage-hub-" in str(target_path)
-
-            if not (in_cwd and in_hub_dir):
+            # Security check: the target must lie strictly *inside* this protocol's own hub root
+            # (resolved), not merely contain the substring "coverage-hub-" anywhere in its path.
+            # A substring check would allow deleting e.g. /repo/unrelated-coverage-hub-data.
+            hub_root = (Path.cwd() / f"coverage-hub-{protocol}").resolve()
+            if hub_root not in target_path.parents:
                 self._send_json(400, {
                     'success': False,
                     'error': 'Invalid request or path not allowed'
@@ -171,6 +181,18 @@ class PuffinHandler(http.server.SimpleHTTPRequestHandler):
             if not protocol or not mode or not path_a:
                 raise ValueError("Missing required fields: protocol, mode, path_a")
 
+            # Validate the enumerated fields before they reach a spawned command.
+            if protocol not in ALLOWED_PROTOCOLS:
+                raise ValueError(f"Invalid protocol: {protocol!r}")
+            if mode not in ALLOWED_MODES:
+                raise ValueError(f"Invalid mode: {mode!r}")
+
+            # `name` is later placed under the report root by puffin_report.py, so it must be a
+            # single safe path component (no separators, no '..', no absolute path).
+            if name is not None:
+                if name in ("", ".", "..") or "/" in name or "\\" in name or Path(name).is_absolute():
+                    raise ValueError(f"Invalid name (must be a single path component): {name!r}")
+
             # Determine the PUT name: caller override > protocol default
             default_put = "openssl340-gcov" if protocol == "tls" else "open62541"
             put = put_override or default_put
@@ -187,9 +209,11 @@ class PuffinHandler(http.server.SimpleHTTPRequestHandler):
             if force:
                 cmd.append("--force")
 
-            # nix-shell provides the correct toolchain (gcovr, llvm-cov, etc.)
-            # The entire command is passed as a single quoted string to --run.
-            nix_cmd = ["nix-shell", "--run", " ".join(cmd)]
+            # nix-shell provides the correct toolchain (gcovr, llvm-cov, etc.). The command is
+            # passed as a single string to --run, which a shell interprets -- so shell-escape every
+            # argument (shlex.join) to prevent injection via caller-controlled fields such as
+            # path_a / path_b / put_override.
+            nix_cmd = ["nix-shell", "--run", shlex.join(cmd)]
 
             print(f"\n[SERVER] Starting async compute job:\n  {' '.join(nix_cmd)}\n")
 
@@ -220,7 +244,9 @@ if __name__ == "__main__":
     # Allow port reuse so the server can be restarted quickly
     socketserver.TCPServer.allow_reuse_address = True
 
-    with socketserver.TCPServer(("", args.port), PuffinHandler) as httpd:
+    # Bind to loopback only: these endpoints can delete files and launch processes without
+    # authentication, so they must not be reachable from other hosts.
+    with socketserver.TCPServer(("127.0.0.1", args.port), PuffinHandler) as httpd:
         print(f"Puffin Interactive Server running on http://localhost:{args.port}")
         print("  GET  /*              → serves static files (coverage reports)")
         print("  POST /api/delete     → remove a report folder and refresh hub")

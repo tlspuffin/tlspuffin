@@ -59,8 +59,8 @@ index ff5e7aa0a..662704933 100644
      cm->eventSource.state = UA_EVENTSOURCESTATE_STARTED;
  
 +    UA_LOG_DEBUG(el->eventLoop.logger, UA_LOGCATEGORY_NETWORK,
-+        "TCP\t| EventSource is started and rxBuffer allocated (at: %p, of size: %u).",
-+        (void*) pcm, (void*) pcm->rxBuffer.data, pcm->rxBuffer.length);
++        "TCP\t| EventSource is started and rxBuffer allocated (at: %p, of size: %zu).",
++        (void*) pcm->rxBuffer.data, pcm->rxBuffer.length);
 +
   finish:
      UA_UNLOCK(&el->elMutex);

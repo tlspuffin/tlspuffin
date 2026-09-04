@@ -73,6 +73,10 @@ struct AGENT_TYPE
 /* convert to open62541 UA_LogLevel */
 UA_LogLevel open62541_log_level(RustLogFilter level)
 {
+    if (level == RUST_LOG_OFF)
+        /* "off" in Rust must map to the least verbose open62541 level, not fall through to
+         * TRACE (the noisiest), which would flood the log and distort fuzzing throughput. */
+        return UA_LOGLEVEL_FATAL;
     if (level == RUST_LOG_ERROR)
         return UA_LOGLEVEL_ERROR;
     if (level == RUST_LOG_WARN)
@@ -422,7 +426,18 @@ RESULT open62541_take_outbound(AGENT agent, uint8_t *bytes, size_t max_length, s
     /* read the TxBuffer from the PuffinConnexionManager associated to the agent */
     UA_PuffinConnectionManager *pcm = agent->connexion_manager;
 
-    if (pcm->txBuffer_index > max_length)
+    /* connexion_manager may be null when the custom connection manager was unavailable at agent
+     * creation; guard it so collecting output does not crash the harness (a crash here would be
+     * misclassified as a PUT finding). */
+    if (pcm == NULL)
+    {
+        return PUFFIN.make_result(RESULT_ERROR_OTHER,
+                                  "No connexion manager associated to the agent.");
+    };
+
+    /* One extra byte is prepended for the connexion id, so the copy writes txBuffer_index + 1
+     * bytes; reject when that would exceed max_length (>= not > avoids a one-byte overflow). */
+    if (pcm->txBuffer_index >= max_length)
     {
         return PUFFIN.make_result(RESULT_ERROR_OTHER, "Too many bytes to take from the outbound.");
     };

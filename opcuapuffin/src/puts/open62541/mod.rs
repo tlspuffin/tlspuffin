@@ -82,6 +82,13 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                         "Open62541: error while trying to take bytes: {}",
                         cerror.reason
                     );
+                    // Propagate instead of swallowing: an error here (e.g. an oversized outbound
+                    // message) must not be reported to the trace executor as a successful
+                    // no-output.
+                    return Err(Error::Put(format!(
+                        "Open62541 take_outbound failed: {}",
+                        cerror.reason
+                    )));
                 }
                 if read > 0 {
                     let mut rd = Reader::init(&buffer[0..read]);
@@ -113,6 +120,12 @@ impl Put<OpcuaProtocolBehavior> for Agent {
                 let result = Box::from_raw(res as *mut Result<String, CError>);
                 if let Err(cerror) = *result {
                     log::error!("Open62541 Agent: progress failed: {}", cerror.reason);
+                    // Propagate: continuing after a failed PUT transition (e.g. WOULD_BLOCK /
+                    // ERROR_OTHER) would hide the failure from the trace executor.
+                    return Err(Error::Put(format!(
+                        "Open62541 progress failed: {}",
+                        cerror.reason
+                    )));
                 }
             };
             Ok(())
