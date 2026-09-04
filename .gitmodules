@@ -1,0 +1,4 @@
+[submodule "crates/opcua-mapper"]
+	path = crates/opcua-mapper
+	url = https://github.com/tlspuffin/opcua.git
+	branch = pr/opcua/opcua-rebase

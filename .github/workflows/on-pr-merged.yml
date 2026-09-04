@@ -46,6 +46,8 @@ jobs:
       RUSTDOCFLAGS: -Dwarnings
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: setup
         uses: ./.github/actions/setup
 

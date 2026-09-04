@@ -88,14 +88,16 @@ Some features:
 
 ## Team
 
-- [Tom Gouville](https://github.com/aeyno) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Lucca Hirschi](https://members.loria.fr/LHirschi/) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Steve Kremer](https://members.loria.fr/SKremer/) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Michael Mera](https://github.com/michaelmera) - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
-- [Max Ammann](https://github.com/maxammann)
+Active members:
+- [Tom Gouville](https://github.com/aeyno) - PhD student - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+- [Lucca Hirschi](https://members.loria.fr/LHirschi/) - researcher - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+- [Steve Kremer](https://members.loria.fr/SKremer/) - senior researcher - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+- [Olivier Demengeon](https://sed-nge.inria.fr/team/olivierd/index.html) - research engineer - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
+- [Nataël Baffou](https://github.com/nataelbaffou) - research engineer - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr)
 
-This project is partially funded by the [ANR JCJC project ProtoFuzz](https://project.inria.fr/protofuzz/).
-We are still looking to hire motivated students/postdocs/engineers in Nancy, France as part of this project.
+Contributed in the past:
+- [Max Ammann](https://github.com/maxammann) - master's student then security engineer - [Trails of Bits](https://www.trailofbits.com/)
+- [Michael Mera](https://github.com/michaelmera) - research engineer - [Loria](https://www.loria.fr), [Inria](https://www.inria.fr) at the time
 
 ## References
 

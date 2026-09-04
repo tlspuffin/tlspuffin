@@ -10,6 +10,7 @@ members = [
     "puffin-build",
     "puffin-macros",
     "extractable-macro",
+    "opcuapuffin",
 ]
 
 exclude = [
@@ -22,6 +23,7 @@ exclude = [
     "crates/boringssl-src",
     "crates/boringssl-sys",
     "crates/boring",
+    "crates/opcua-mapper",
 ]
 
 
@@ -34,6 +36,7 @@ authors = [
     "Lucca Hirschi <lucca.hirschi@inria.fr>",
     "Michael Mera <dev@michaelmera.com>",
     "Tom Gouville <tom@tomgouville.fr>",
+    "Nataël Baffou <natael.baffou@inria.fr>"
 ]
 repository = "https://github.com/tlspuffin/tlspuffin"
 homepage = "https://github.com/tlspuffin/tlspuffin"
@@ -41,7 +44,7 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 keywords = ["security", "fuzzing", "testing"]
 categories = ["development-tools::testing", "network-programming", "simulation"]
-description = "A Dolev-Yao-model-guided fuzzer for TLS"
+description = "A Dolev-Yao-model-guided fuzzer for security protocols (TLS, SSH, OPC UA)"
 
 [workspace.dependencies]
 log = "0.4"
