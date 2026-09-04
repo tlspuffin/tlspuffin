@@ -248,11 +248,10 @@ impl Codec for SshBytes {
 //
 //   * `SharedSecret`  — the ECDH shared secret K.
 //   * `ExchangeHash`  — the per-KEX exchange hash H (changes on every rekey).
-//   * `SessionId`     — the session identifier: the FIRST exchange hash, pinned
-//     for the whole connection (RFC 4253 §7.2). Byte-equal to H on the first KEX
-//     but semantically distinct — the distinction is the whole point: after a
-//     rekey, `fn_session_id_from_hash` lets the fuzzer try the NEW H in the
-//     session-id slot as a single well-typed mutation.
+//   * `SessionId`     — the session identifier: the FIRST exchange hash, pinned for the whole
+//     connection (RFC 4253 §7.2). Byte-equal to H on the first KEX but semantically distinct — the
+//     distinction is the whole point: after a rekey, `fn_session_id_from_hash` lets the fuzzer try
+//     the NEW H in the session-id slot as a single well-typed mutation.
 //
 // Each is a transparent u32-length-prefixed byte blob (identical wire form to
 // SshBytes), so wrapping/unwrapping does not change any derived bytes.

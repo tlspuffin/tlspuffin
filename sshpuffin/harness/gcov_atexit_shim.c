@@ -11,6 +11,7 @@
 extern int __cxa_atexit(void (*func)(void *), void *arg, void *dso_handle);
 extern void *__dso_handle;
 
-int atexit(void (*func)(void)) {
+int atexit(void (*func)(void))
+{
     return __cxa_atexit((void (*)(void *))func, (void *)0, __dso_handle);
 }

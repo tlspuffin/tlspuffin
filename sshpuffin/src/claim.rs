@@ -26,7 +26,7 @@ use crate::protocol::SshProtocolTypes;
 /// differs by construction between two stacks with independent ephemeral keys, so
 /// comparing it would manufacture benign differences. It is decoded solely so the
 /// s2c decryption recipe can source each PUT's own H — via
-/// [`crate::ssh::fn_crypto::fn_claim_exchange_hash`] — instead of reconstructing
+/// `fn_claim_exchange_hash` — instead of reconstructing
 /// it from a hard-coded (and mutation-stale) client KEXINIT. The C harness also
 /// builds channel digests / packet counts; those stay undecoded (matching-
 /// conversation / Terrapin substrate, a separate concern).

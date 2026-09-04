@@ -49,6 +49,7 @@ fn test_attacker_full_det_recreate_no_tickets(put: &str) {
                 source: None,
                 matcher: None,
                 counter: 0,
+                concatenate_all: false,
             },
         ) {
             knowledge.as_any().downcast_ref::<T>().unwrap()

@@ -591,13 +591,12 @@ pub fn fn_decrypt_flight_aesgcm(
 /// bucketing hook). It recovers the server's *whole* transcript, plaintext and
 /// encrypted alike, in emission order:
 ///
-///   * `RawSshMessage::Packet` — the pre-NewKeys plaintext packets (KEXINIT,
-///     KEX_ECDH_REPLY, NEWKEYS). Parsed directly; carries the negotiation /
-///     downgrade signal.
-///   * `RawSshMessage::OnWire` — the post-NewKeys AES-256-GCM ciphertext. Every
-///     opaque chunk in the flight is concatenated and peeled packet-by-packet
-///     from GCM counter 0 (which is where the s2c sequence resets at NewKeys), so
-///     capture is independent of how the peer batched its socket writes.
+///   * `RawSshMessage::Packet` — the pre-NewKeys plaintext packets (KEXINIT, KEX_ECDH_REPLY,
+///     NEWKEYS). Parsed directly; carries the negotiation / downgrade signal.
+///   * `RawSshMessage::OnWire` — the post-NewKeys AES-256-GCM ciphertext. Every opaque chunk in the
+///     flight is concatenated and peeled packet-by-packet from GCM counter 0 (which is where the
+///     s2c sequence resets at NewKeys), so capture is independent of how the peer batched its
+///     socket writes.
 ///
 /// The recovered in-order message list is then folded into the key-aligned map
 /// (see [`AlignedTranscript::from_messages`]). Decryption is BEST-EFFORT: the

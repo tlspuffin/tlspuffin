@@ -15,12 +15,10 @@
 //! whitelisted knowledge per side) hands the real work to the `comparable`
 //! crate's **key-based** `BTreeMap` diff:
 //!
-//!   * a key present on both sides -> its two messages are compared for CONTENT
-//!     (a genuine byte divergence in a decrypted message surfaces here — the
-//!     strongest bug signal), and
-//!   * a key present on ONE side only -> a presence difference (fail-closed: a
-//!     security message one stack emits and the other does not is an objective,
-//!     never silently dropped).
+//!   * a key present on both sides -> its two messages are compared for CONTENT (a genuine byte
+//!     divergence in a decrypted message surfaces here — the strongest bug signal), and
+//!   * a key present on ONE side only -> a presence difference (fail-closed: a security message one
+//!     stack emits and the other does not is an objective, never silently dropped).
 //!
 //! Because alignment is by key and not by position, a benign framing difference
 //! (one stack pipelines SERVICE_ACCEPT into the next packet, or picks a different
@@ -31,30 +29,28 @@
 //! ## What the key encodes (and why)
 //!
 //! [`AlignmentKey`] = `(channel, msg_number, ordinal)`:
-//!   * `msg_number` — the SSH message number (RFC 4250 §4.1.2). It is intrinsic
-//!     to the message *kind*, so like-with-like are compared regardless of where
-//!     each stack placed the packet. The RFC number ranges also implicitly encode
-//!     the protocol phase (1–19 transport, 20–49 kex, 50–79 userauth,
-//!     80–127 connection), so a message can only ever align against the same kind.
-//!   * `channel` — a CANONICAL channel id (order of first appearance), so the
-//!     server's arbitrary channel-number choice (libssh picks 43, wolfSSH picks 0)
-//!     does not misalign the per-channel replies. Non-channel messages use 0.
-//!   * `ordinal` — occurrence index among messages sharing `(channel,msg_number)`,
-//!     so repeated same-kind messages (e.g. two CHANNEL_DATA, or the second
-//!     KEXINIT of a rekey) stay distinct and align pairwise in emission order.
+//!   * `msg_number` — the SSH message number (RFC 4250 §4.1.2). It is intrinsic to the message
+//!     *kind*, so like-with-like are compared regardless of where each stack placed the packet. The
+//!     RFC number ranges also implicitly encode the protocol phase (1–19 transport, 20–49 kex,
+//!     50–79 userauth, 80–127 connection), so a message can only ever align against the same kind.
+//!   * `channel` — a CANONICAL channel id (order of first appearance), so the server's arbitrary
+//!     channel-number choice (libssh picks 43, wolfSSH picks 0) does not misalign the per-channel
+//!     replies. Non-channel messages use 0.
+//!   * `ordinal` — occurrence index among messages sharing `(channel,msg_number)`, so repeated
+//!     same-kind messages (e.g. two CHANNEL_DATA, or the second KEXINIT of a rekey) stay distinct
+//!     and align pairwise in emission order.
 //!
 //! ## What this deliberately does NOT do
 //!
-//! * It does not PROJECT the messages onto a hand-written "security summary": the
-//!   full decoded `SshMessage` is kept as the map value, so every field of every
-//!   message stays under comparison (no unmodeled byte is silently dropped). The
-//!   only benign noise removed is (a) the channel-number choice, handled in the
-//!   key above, and (b) within-message implementation latitude, handled where it
-//!   already was — `#[comparable_ignore]` / `#[comparable_synthetic]` on the
-//!   message fields.
-//! * It does not canonicalize *emission order* across kinds. Insert/delete-shaped
-//!   divergences (the Terrapin family) surface as presence differences and are
-//!   caught; pure same-set transposition is a documented follow-up refinement.
+//! * It does not PROJECT the messages onto a hand-written "security summary": the full decoded
+//!   `SshMessage` is kept as the map value, so every field of every message stays under comparison
+//!   (no unmodeled byte is silently dropped). The only benign noise removed is (a) the
+//!   channel-number choice, handled in the key above, and (b) within-message implementation
+//!   latitude, handled where it already was — `#[comparable_ignore]` / `#[comparable_synthetic]` on
+//!   the message fields.
+//! * It does not canonicalize *emission order* across kinds. Insert/delete-shaped divergences (the
+//!   Terrapin family) surface as presence differences and are caught; pure same-set transposition
+//!   is a documented follow-up refinement.
 
 use std::collections::BTreeMap;
 
@@ -166,9 +162,7 @@ mod tests {
     use comparable::{Changed, Comparable};
 
     use super::*;
-    use crate::ssh::message::{
-        ChannelOpenConfirmationMessage, ServiceAcceptMessage, SshBytes,
-    };
+    use crate::ssh::message::{ChannelOpenConfirmationMessage, ServiceAcceptMessage, SshBytes};
 
     fn changed(a: &AlignedTranscript, b: &AlignedTranscript) -> bool {
         // Use the Comparable view (respects #[comparable_ignore]), NOT PartialEq
@@ -234,8 +228,14 @@ mod tests {
     /// they were folded.
     #[test]
     fn same_message_set_is_equal() {
-        let a = AlignedTranscript::from_messages(vec![svc(b"ssh-userauth"), SshMessage::UserAuthSuccess]);
-        let b = AlignedTranscript::from_messages(vec![svc(b"ssh-userauth"), SshMessage::UserAuthSuccess]);
+        let a = AlignedTranscript::from_messages(vec![
+            svc(b"ssh-userauth"),
+            SshMessage::UserAuthSuccess,
+        ]);
+        let b = AlignedTranscript::from_messages(vec![
+            svc(b"ssh-userauth"),
+            SshMessage::UserAuthSuccess,
+        ]);
         assert!(!changed(&a, &b));
     }
 

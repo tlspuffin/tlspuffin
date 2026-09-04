@@ -325,15 +325,15 @@ impl ProtocolTypes for SshProtocolTypes {
         // concern that motivated this rework).
         //
         // Denoising instead lives where it is PROVABLY safe:
-        //   * structural, in the data model — the AlignedTranscript's key-based
-        //     alignment (ssh/transcript.rs), #[comparable_ignore] /
-        //     #[comparable_synthetic] on message fields, and uniformise_put_config;
-        //   * seed-level — the differential-corpus seeds are constructed to be
-        //     genuinely 0-diff (e.g. a channel request the two stacks answer
-        //     identically), rather than diffing-then-whitelisting;
-        //   * downstream — benign CLASSES (strict-kex/ext-info marker asymmetry,
-        //     reply pipelining) are labelled as explicit, precise triage buckets
-        //     that a human reviews, never dropped before they become objectives.
+        //   * structural, in the data model — the AlignedTranscript's key-based alignment
+        //     (ssh/transcript.rs), #[comparable_ignore] / #[comparable_synthetic] on message
+        //     fields, and uniformise_put_config;
+        //   * seed-level — the differential-corpus seeds are constructed to be genuinely 0-diff
+        //     (e.g. a channel request the two stacks answer identically), rather than
+        //     diffing-then-whitelisting;
+        //   * downstream — benign CLASSES (strict-kex/ext-info marker asymmetry, reply pipelining)
+        //     are labelled as explicit, precise triage buckets that a human reviews, never dropped
+        //     before they become objectives.
         //
         // The ONE exception to fail-closed: a divergence CLASS that has been
         // investigated to a documented benign conclusion is "shadowed" (dropped
@@ -411,9 +411,17 @@ fn is_banner_strictness_diff(diff: &puffin::differential::TraceDifference) -> bo
         other == "Success" || other_steps > rejecter_steps
     };
     (is_banner_reject(&s.first_status)
-        && progressed(&s.second_status, s.second_executed_steps, s.first_executed_steps))
+        && progressed(
+            &s.second_status,
+            s.second_executed_steps,
+            s.first_executed_steps,
+        ))
         || (is_banner_reject(&s.second_status)
-            && progressed(&s.first_status, s.first_executed_steps, s.second_executed_steps))
+            && progressed(
+                &s.first_status,
+                s.first_executed_steps,
+                s.second_executed_steps,
+            ))
 }
 
 /// Finding 3 — one stack's decrypted transcript carries a USERAUTH_FAILURE
