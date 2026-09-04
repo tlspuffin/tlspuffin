@@ -97,7 +97,10 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                         *output_flight = flight;
                         Ok(())
                     } else {
-                        Err(Error::SecurityClaim("Invalid UA TCP message!"))
+                        // A framing/decoding failure is NOT a security violation: returning
+                        // Error::SecurityClaim would be recorded by the harness as an objective
+                        // (a false finding). Report it as a codec error instead.
+                        Err(Error::Codec("Invalid UA TCP message!".to_string()))
                     }
                 } else {
                     *output_flight = None;

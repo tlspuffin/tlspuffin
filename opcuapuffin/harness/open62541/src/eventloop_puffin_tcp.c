@@ -518,8 +518,8 @@ TCP_openPassiveConnection(UA_PuffinConnectionManager *pcm,
         {
             if (hostStrings[i].length >= sizeof(hostname))
                 continue;
-            memcpy(hostname, hostStrings[i].data, hostStrings->length);
-            hostname[hostStrings->length] = '\0';
+            memcpy(hostname, hostStrings[i].data, hostStrings[i].length);
+            hostname[hostStrings[i].length] = '\0';
             retval = UA_STATUSCODE_GOOD;
             break;
         };

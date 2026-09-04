@@ -33,6 +33,17 @@ impl Agent {}
 
 impl Stream<OpcuaProtocolBehavior> for Agent {
     fn add_to_inbound(&mut self, message: &ConcreteMessage) {
+        // `message` is an unconstrained Vec<u8> that bit-level mutation can shrink (even to empty),
+        // so guard before indexing: we need the 1-byte connexion id plus the 3-byte UA-TCP type
+        // prefix. Indexing a shorter message would panic in the harness and be misreported as a
+        // crash finding.
+        if message.len() < 4 {
+            log::warn!(
+                "TCP\t| Dropping too-short message ({} bytes, need >= 4)",
+                message.len()
+            );
+            return;
+        }
         let id = message[0];
         let maybe_stream = match self.fuzz_streams.get_mut(&id) {
             Some(fs) => Some(fs),
@@ -88,23 +99,31 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
     ) -> Result<(), Error> {
         let mut result = MessageFlight::new();
         for (id, fuzz_stream) in self.fuzz_streams.iter_mut() {
-            // A single read() is not guaranteed to return exactly one UA-TCP frame: TCP may split
-            // one frame across reads or coalesce several. Accumulate bytes until the socket blocks
-            // (read timeout) or reaches EOF, then hand the whole buffer to the framer at once so
-            // partial/coalesced frames are deframed correctly (the framer prepends the conn id).
+            // A single read() is not guaranteed to return exactly one UA-TCP frame (TCP may split
+            // one frame across reads or coalesce several), so accumulate before framing. To avoid
+            // idling a full read-timeout per connection once a response has arrived, the first read
+            // uses the socket's configured (long) timeout to wait for the response, then subsequent
+            // reads drain any coalesced frames under a short deadline. The full buffer is then
+            // deframed at once (the framer prepends the conn id and length-frames internally).
+            const DRAIN_TIMEOUT: Duration = Duration::from_millis(20);
+            const DEFAULT_TIMEOUT: Duration = Duration::from_millis(1000);
             let mut acc: Vec<u8> = Vec::new();
             let mut chunk = vec![0u8; MAX_WIRE_SIZE];
+            let mut first = true;
             loop {
                 match fuzz_stream.read(&mut chunk) {
                     Ok(0) => break, // EOF
                     Ok(n) => {
                         acc.extend_from_slice(&chunk[..n]);
-                        // Bound the accumulation to one wire buffer to avoid unbounded growth.
                         if acc.len() >= MAX_WIRE_SIZE {
-                            break;
+                            break; // bound accumulation to one wire buffer
+                        }
+                        if first {
+                            first = false;
+                            let _ = fuzz_stream.set_read_timeout(Some(DRAIN_TIMEOUT));
                         }
                     }
-                    // read timeout / no more data ready => the flight is complete
+                    // timeout / no more data ready => the flight is complete
                     Err(ref e)
                         if e.kind() == std::io::ErrorKind::WouldBlock
                             || e.kind() == std::io::ErrorKind::TimedOut =>
@@ -113,6 +132,10 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
                     }
                     Err(_) => break,
                 }
+            }
+            // Restore the default timeout for later add/take cycles on this stream.
+            if !first {
+                let _ = fuzz_stream.set_read_timeout(Some(DEFAULT_TIMEOUT));
             }
             if acc.is_empty() {
                 continue;
@@ -123,7 +146,9 @@ impl Stream<OpcuaProtocolBehavior> for Agent {
             if let Some(flight) = MessageFlight::read_bytes(&framed) {
                 result.merge(flight)
             } else {
-                return Err(Error::SecurityClaim("Invalid UA TCP message!"));
+                // Framing/decoding failure is a codec error, not a security violation: returning
+                // SecurityClaim here would be recorded by the harness as a (false) objective.
+                return Err(Error::Codec("Invalid UA TCP message!".to_string()));
             }
         }
         *output_flight = Some(result);

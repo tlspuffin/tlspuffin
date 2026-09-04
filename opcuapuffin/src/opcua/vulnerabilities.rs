@@ -1039,7 +1039,12 @@ pub mod tests {
         StdState::new(rand, corpus, InMemoryCorpus::new(), &mut (), &mut ()).unwrap()
     }
 
+    // Requires a vendor built with the `Bug-dead-session` patch: `.expect_crash()` only holds
+    // against that planted PUT. Both planted bugs are disabled by default (see
+    // vendors/open62541/builder.cmake), so on the clean vendor this cannot crash; run it explicitly
+    // with `--ignored` after building the planted vendor.
     #[test]
+    #[ignore = "requires open62541 built with Bug-dead-session; expect_crash only holds on the planted PUT"]
     fn test_mutant_seed_bug_dead_session() {
         let mut state = create_state();
 
