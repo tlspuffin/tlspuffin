@@ -691,7 +691,7 @@ pub fn fn_s2c_confirmation_sender_channel(
 ) -> Result<u32, FnError> {
     let transcript = fn_fold_s2c_transcript(flight, key, iv)?;
     transcript
-        .0
+        .by_key
         .values()
         .find_map(|m| match m {
             SshMessage::ChannelOpenConfirmation(c) => Some(c.sender_channel),

@@ -48,9 +48,14 @@
 //!   channel-number choice, handled in the key above, and (b) within-message implementation
 //!   latitude, handled where it already was — `#[comparable_ignore]` / `#[comparable_synthetic]` on
 //!   the message fields.
-//! * It does not canonicalize *emission order* across kinds. Insert/delete-shaped divergences (the
-//!   Terrapin family) surface as presence differences and are caught; pure same-set transposition
-//!   is a documented follow-up refinement.
+//! * Insert/delete-shaped divergences (the Terrapin family) surface as presence differences via
+//!   `by_key`. Pure same-set cross-kind TRANSPOSITION (the same messages in a different order,
+//!   which produces an identical `by_key` map) is caught by the separate `order` field — the
+//!   emission order of the keys — so `[ServiceAccept, UserAuthSuccess]` and `[UserAuthSuccess,
+//!   ServiceAccept]` no longer compare equal (see `cross_kind_transposition_fires`). The `order`
+//!   field cannot manufacture a framing false positive: when the two key SETS differ that is
+//!   already a presence objective via `by_key`, so `order` only ADDS a signal on a genuine same-set
+//!   reordering.
 
 use std::collections::BTreeMap;
 
@@ -68,7 +73,7 @@ use crate::ssh::message::SshMessage;
 /// Semantic coordinate a decrypted message is aligned on. See the module docs for
 /// the rationale of each field. `Ord` (derived, field order significant) gives the
 /// deterministic `BTreeMap` iteration the `comparable` diff relies on.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Comparable)]
 pub struct AlignmentKey {
     /// Canonical channel id (order of first appearance); 0 for non-channel messages.
     pub channel: u32,
@@ -84,7 +89,22 @@ pub struct AlignmentKey {
 /// SOLE whitelisted comparison knowledge, so the two are compared 1:1 and all the
 /// alignment happens inside the `comparable` `BTreeMap` diff (see module docs).
 #[derive(Clone, Debug, PartialEq, Comparable)]
-pub struct AlignedTranscript(pub BTreeMap<AlignmentKey, SshMessage>);
+pub struct AlignedTranscript {
+    /// Content + presence comparison, keyed for framing-independent alignment:
+    /// a key on both sides compares message CONTENT; a key on one side only is a
+    /// presence difference. (This is the framing-noise-resistant part.)
+    pub by_key: BTreeMap<AlignmentKey, SshMessage>,
+    /// The keys in EMISSION order, so a pure cross-kind transposition — the same
+    /// set of messages emitted in a different order, e.g. `[ServiceAccept,
+    /// UserAuthSuccess]` vs `[UserAuthSuccess, ServiceAccept]` — surfaces as a
+    /// difference instead of comparing equal (the two produce identical `by_key`
+    /// maps). This does NOT reintroduce the framing false positives the key-based
+    /// map avoids: when the two sides' key SETS differ, that is already a
+    /// (presence) objective via `by_key`, so the order diff only adds detail; it
+    /// can newly flag ONLY a same-set reordering, which is a genuine
+    /// protocol-state divergence. See module docs §"What this deliberately does".
+    pub order: Vec<AlignmentKey>,
+}
 
 // Extract as a single atomic knowledge of its own type (do NOT recurse into the
 // inner SshMessages): the whole point is that the ONE map is what gets compared.
@@ -99,6 +119,7 @@ impl AlignedTranscript {
         let mut next_logical: u32 = 0;
         let mut occ: BTreeMap<(u32, u8), u32> = BTreeMap::new();
         let mut map: BTreeMap<AlignmentKey, SshMessage> = BTreeMap::new();
+        let mut order: Vec<AlignmentKey> = Vec::new();
 
         for m in messages {
             let msg_number = ssh_msg_number(&m);
@@ -116,17 +137,16 @@ impl AlignedTranscript {
                 *e += 1;
                 v
             };
-            map.insert(
-                AlignmentKey {
-                    channel,
-                    msg_number,
-                    ordinal,
-                },
-                m,
-            );
+            let key = AlignmentKey {
+                channel,
+                msg_number,
+                ordinal,
+            };
+            order.push(key.clone());
+            map.insert(key, m);
         }
 
-        AlignedTranscript(map)
+        AlignedTranscript { by_key: map, order }
     }
 }
 
@@ -239,6 +259,31 @@ mod tests {
         assert!(!changed(&a, &b));
     }
 
+    /// Gate A (must fire): a pure cross-kind TRANSPOSITION — the same message set
+    /// emitted in a different order. `[ServiceAccept, UserAuthSuccess]` vs
+    /// `[UserAuthSuccess, ServiceAccept]` produce identical `by_key` maps (the key
+    /// is kind-based, order-free), so before the `order` field was added they
+    /// compared equal and this protocol-state divergence was invisible. The
+    /// emission-order field makes it surface.
+    #[test]
+    fn cross_kind_transposition_fires() {
+        let a = AlignedTranscript::from_messages(vec![
+            svc(b"ssh-userauth"),
+            SshMessage::UserAuthSuccess,
+        ]);
+        let b = AlignedTranscript::from_messages(vec![
+            SshMessage::UserAuthSuccess,
+            svc(b"ssh-userauth"),
+        ]);
+        // by_key maps are identical (proves the pre-fix blind spot)…
+        assert_eq!(a.by_key, b.by_key, "kind-keyed maps are order-free");
+        // …but the transcripts must now differ on emission order.
+        assert!(
+            changed(&a, &b),
+            "a same-set cross-kind transposition must surface as a difference"
+        );
+    }
+
     /// Codec round-trips (needed for the type to serialize as a term output).
     #[test]
     fn codec_roundtrips() {
@@ -256,8 +301,8 @@ mod tests {
 
 impl Codec for AlignedTranscript {
     fn encode(&self, bytes: &mut Vec<u8>) {
-        (self.0.len() as u32).encode(bytes);
-        for (k, v) in &self.0 {
+        (self.by_key.len() as u32).encode(bytes);
+        for (k, v) in &self.by_key {
             k.channel.encode(bytes);
             k.msg_number.encode(bytes);
             k.ordinal.encode(bytes);
@@ -266,6 +311,14 @@ impl Codec for AlignedTranscript {
             v.encode(&mut mb);
             (mb.len() as u32).encode(bytes);
             bytes.extend_from_slice(&mb);
+        }
+        // Emission order of the keys (may differ from the BTreeMap's key order),
+        // so a transposition round-trips through (de)serialization.
+        (self.order.len() as u32).encode(bytes);
+        for k in &self.order {
+            k.channel.encode(bytes);
+            k.msg_number.encode(bytes);
+            k.ordinal.encode(bytes);
         }
     }
 
@@ -288,6 +341,18 @@ impl Codec for AlignedTranscript {
                 msg,
             );
         }
-        Some(AlignedTranscript(map))
+        let on = u32::read(reader)?;
+        let mut order = Vec::with_capacity(on as usize);
+        for _ in 0..on {
+            let channel = u32::read(reader)?;
+            let msg_number = u8::read(reader)?;
+            let ordinal = u32::read(reader)?;
+            order.push(AlignmentKey {
+                channel,
+                msg_number,
+                ordinal,
+            });
+        }
+        Some(AlignedTranscript { by_key: map, order })
     }
 }

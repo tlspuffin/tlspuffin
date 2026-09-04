@@ -16,6 +16,7 @@
 #include "rng.h"
 
 #include <openssl/rand.h>
+#include <string.h>
 
 #define DEFAULT_RNG_SEED 42ULL
 
@@ -76,5 +77,8 @@ void rng_reseed(const uint8_t *buffer, size_t length)
         seed = DEFAULT_RNG_SEED;
         return;
     }
-    seed = *((const uint64_t *)buffer);
+    /* memcpy rather than casting `buffer` to `uint64_t*`: the byte buffer has no
+     * alignment guarantee, so the cast-load is UB (and UBSan/strict-alignment
+     * targets can fault). */
+    memcpy(&seed, buffer, sizeof(seed));
 }

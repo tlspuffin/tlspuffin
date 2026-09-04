@@ -3,14 +3,43 @@
 # Build wolfSSL + wolfSSH from source and stage them as a sshpuffin vendor
 # (vendor/wolfssh-asan/) discoverable by build.rs.
 #
-# wolfSSH depends on wolfSSL built with --enable-ssh (sets WOLFSSL_WOLFSSH and
-# the crypto wolfSSH needs). wolfSSH itself is autotools-only (no CMake), so it
-# needs libtoolize. Both are built static with ASAN + sancov to match the other
-# sshpuffin PUTs.
+# ⚠ NOT SUITABLE FOR DIFFERENTIAL FUZZING. This standalone script builds a
+# wolfSSH PUT that is MISSING two things the puffin-build preset applies:
+#   1. CUSTOM_RAND_GENERATE_SEED (deterministic RNG) — without it the PUT is
+#      nondeterministic, so even self-vs-self differential runs diverge.
+#   2. the session-id claim instrumentation (+ the `claimer` metadata tag) —
+#      without it no exchange-hash (H) claim is emitted, so the cross-vendor
+#      s2c decryption recipe cannot source H and produces no transcript.
+# Because build.rs accepts an existing vendor/wolfssh-asan BEFORE invoking the
+# preset, dropping this script's output there yields a silently-broken PUT.
 #
-# Usage: harness/wolfssh/build_wolfssh_vendor.sh [WOLFSSL_TAG] [WOLFSSH_TAG]
+# PREFER THE PRESET BUILDER for anything that feeds the differential:
+#     just mk-vendor wolfssh wolfssh-asan      # applies RNG hook + claim instrumentation
+# (build.rs also builds it automatically from the `wolfssh` preset when no vendor
+# is present.) This script is retained ONLY as a minimal, dependency-mapping
+# reference for the raw wolfSSL/wolfSSH autotools build; it is guarded below so
+# it cannot be used unknowingly.
+#
+# Usage: SSHPUFFIN_ALLOW_RAW_WOLFSSH_BUILD=1 \
+#          harness/wolfssh/build_wolfssh_vendor.sh [WOLFSSL_TAG] [WOLFSSH_TAG]
 # Env:   CC (clang), LIBTOOL_BIN (dir containing libtoolize), VENDOR_DIR.
 set -euo pipefail
+
+if [ "${SSHPUFFIN_ALLOW_RAW_WOLFSSH_BUILD:-}" != "1" ]; then
+    cat >&2 <<'MSG'
+error: build_wolfssh_vendor.sh produces a PUT WITHOUT the deterministic-RNG hook
+       and session-id claim instrumentation, so it is unusable for differential
+       fuzzing (nondeterministic; no H claim => decryption recipe fails).
+
+       Use the preset builder instead:
+           just mk-vendor wolfssh wolfssh-asan
+
+       If you really want this raw build anyway (e.g. dependency mapping only),
+       re-run with:
+           SSHPUFFIN_ALLOW_RAW_WOLFSSH_BUILD=1 harness/wolfssh/build_wolfssh_vendor.sh ...
+MSG
+    exit 1
+fi
 
 WOLFSSL_TAG="${1:-v5.7.6-stable}"
 WOLFSSH_TAG="${2:-master}"
