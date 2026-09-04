@@ -2,7 +2,7 @@
 
 #include "eventloop_puffin.h"
 
-UA_InterruptManager *
-UA_InterruptManager_new_POSIX(const UA_String eventSourceName) {
+UA_InterruptManager *UA_InterruptManager_new_POSIX(const UA_String eventSourceName)
+{
     return NULL;
 }

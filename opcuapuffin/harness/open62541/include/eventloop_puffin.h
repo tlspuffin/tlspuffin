@@ -14,9 +14,9 @@
 #include <open62541/config.h>
 #include <open62541/plugin/eventloop.h>
 
-#include "timer.h"
 #include "eventloop_common.h"
 #include "open62541_queue.h"
+#include "timer.h"
 
 _UA_BEGIN_DECLS
 
@@ -59,7 +59,8 @@ typedef struct UA_RegisteredFD UA_RegisteredFD;
 
 typedef void (*UA_FDCallback)(UA_EventSource *es, UA_RegisteredFD *rfd, short event);
 
-struct UA_RegisteredFD {
+struct UA_RegisteredFD
+{
     UA_DelayedCallback dc; /* Used for async closing. Must be the first member
                             * because the rfd is freed by the delayed callback
                             * mechanism. */
@@ -76,7 +77,8 @@ enum ZIP_CMP cmpFD(const UA_FD *a, const UA_FD *b);
 typedef ZIP_HEAD(UA_FDTree, UA_RegisteredFD) UA_FDTree;
 ZIP_FUNCTIONS(UA_FDTree, UA_RegisteredFD, zipPointers, UA_FD, fd, cmpFD)
 
-typedef struct UA_DeregisteredListenFD {
+typedef struct UA_DeregisteredListenFD
+{
     LIST_ENTRY(UA_DeregisteredListenFD) pointers;
     UA_RegisteredFD *listenFd;
 } UA_DeregisteredListenFD;
@@ -86,7 +88,8 @@ typedef LIST_HEAD(UA_DeregisteredListenFDList, UA_DeregisteredListenFD) UA_Dereg
 /* Puffin connection manager, similar to POSIX connection manager but */
 /* the rx and tx buffers are directly used by the puffin agent */
 /* Addition are marked with PUFFIN */
-typedef struct {
+typedef struct
+{
     UA_ConnectionManager cm;
 
     /* PUFFIN IN and OUT buffers */
@@ -107,7 +110,8 @@ typedef struct {
    when a new puffin agent is created, and reading resets the variable. */
 UA_PuffinConnectionManager *take_last_puffin_connection_manager(void);
 
-typedef struct {
+typedef struct
+{
     UA_EventLoop eventLoop;
 
     /* Timer */
@@ -146,30 +150,23 @@ typedef struct {
 
 /* Helper functions across EventSources */
 
-UA_StatusCode
-UA_EventLoopPuffin_allocateStaticBuffers(UA_PuffinConnectionManager *pcm);
+UA_StatusCode UA_EventLoopPuffin_allocateStaticBuffers(UA_PuffinConnectionManager *pcm);
 
-UA_StatusCode
-UA_EventLoopPuffin_allocNetworkBuffer(UA_ConnectionManager *cm,
-                                     uintptr_t connectionId,
-                                     UA_ByteString *buf,
-                                     size_t bufSize);
+UA_StatusCode UA_EventLoopPuffin_allocNetworkBuffer(UA_ConnectionManager *cm,
+                                                    uintptr_t connectionId,
+                                                    UA_ByteString *buf,
+                                                    size_t bufSize);
 
-void
-UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
-                                    uintptr_t connectionId,
-                                    UA_ByteString *buf);
+void UA_EventLoopPuffin_freeNetworkBuffer(UA_ConnectionManager *cm,
+                                          uintptr_t connectionId,
+                                          UA_ByteString *buf);
 
-void
-UA_EventLoopPuffin_cancel(UA_EventLoopPuffin *el);
+void UA_EventLoopPuffin_cancel(UA_EventLoopPuffin *el);
 
-void
-UA_EventLoopPuffin_addDelayedCallback(UA_EventLoop *public_el,
-                                     UA_DelayedCallback *dc);
+void UA_EventLoopPuffin_addDelayedCallback(UA_EventLoop *public_el, UA_DelayedCallback *dc);
 
 _UA_END_DECLS
 
-void
-TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm);
+void TCP_PuffinConnectionCallback(UA_PuffinConnectionManager *pcm);
 
 #endif /* UA_EVENTLOOP_PUFFIN_H_ */

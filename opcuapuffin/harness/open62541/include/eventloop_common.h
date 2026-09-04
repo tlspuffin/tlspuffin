@@ -17,7 +17,8 @@
 _UA_BEGIN_DECLS
 
 /* Typing restrictions for key-value parameters */
-typedef struct {
+typedef struct
+{
     UA_QualifiedName name;
     const UA_DataType *type;
     UA_Boolean required;
@@ -25,12 +26,11 @@ typedef struct {
     UA_Boolean array;
 } UA_KeyValueRestriction;
 
-UA_StatusCode
-UA_KeyValueRestriction_validate(const UA_Logger *logger,
-                                const char *logprefix,
-                                const UA_KeyValueRestriction *restrictions,
-                                size_t restrictionsSize,
-                                const UA_KeyValueMap *map);
+UA_StatusCode UA_KeyValueRestriction_validate(const UA_Logger *logger,
+                                              const char *logprefix,
+                                              const UA_KeyValueRestriction *restrictions,
+                                              size_t restrictionsSize,
+                                              const UA_KeyValueMap *map);
 
 _UA_END_DECLS
 

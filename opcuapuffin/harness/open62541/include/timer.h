@@ -9,9 +9,9 @@
 #ifndef UA_TIMER_H_
 #define UA_TIMER_H_
 
-#include <open62541/types.h>
-#include <open62541/plugin/eventloop.h>
 #include "ziptree.h"
+#include <open62541/plugin/eventloop.h>
+#include <open62541/types.h>
 
 _UA_BEGIN_DECLS
 
@@ -23,7 +23,8 @@ _UA_BEGIN_DECLS
  * Obviously, the timer must not be deleted from within one of its
  * callbacks. */
 
-typedef struct UA_TimerEntry {
+typedef struct UA_TimerEntry
+{
     ZIP_ENTRY(UA_TimerEntry) treeEntry;
     UA_TimerPolicy timerPolicy; /* Timer policy to handle cycle misses */
     UA_DateTime nextTime;       /* The next time when the callback is to be
@@ -38,13 +39,14 @@ typedef struct UA_TimerEntry {
     void *data;
 
     ZIP_ENTRY(UA_TimerEntry) idTreeEntry;
-    UA_UInt64 id;                            /* Id of the entry */
+    UA_UInt64 id; /* Id of the entry */
 } UA_TimerEntry;
 
 typedef ZIP_HEAD(UA_TimerTree, UA_TimerEntry) UA_TimerTree;
 typedef ZIP_HEAD(UA_TimerIdTree, UA_TimerEntry) UA_TimerIdTree;
 
-typedef struct {
+typedef struct
+{
     UA_TimerTree tree;     /* The root of the time-sorted tree */
     UA_TimerIdTree idTree; /* The root of the id-sorted tree */
     UA_UInt64 idCounter;   /* Generate unique identifiers. Identifiers are
@@ -54,31 +56,32 @@ typedef struct {
 #endif
 } UA_Timer;
 
-void
-UA_Timer_init(UA_Timer *t);
+void UA_Timer_init(UA_Timer *t);
 
-UA_DateTime
-UA_Timer_next(UA_Timer *t);
+UA_DateTime UA_Timer_next(UA_Timer *t);
 
-UA_StatusCode
-UA_Timer_add(UA_Timer *t, UA_Callback callback,
-             void *application, void *data, UA_Double interval_ms,
-             UA_DateTime now, UA_DateTime *baseTime,
-             UA_TimerPolicy timerPolicy, UA_UInt64 *callbackId);
+UA_StatusCode UA_Timer_add(UA_Timer *t,
+                           UA_Callback callback,
+                           void *application,
+                           void *data,
+                           UA_Double interval_ms,
+                           UA_DateTime now,
+                           UA_DateTime *baseTime,
+                           UA_TimerPolicy timerPolicy,
+                           UA_UInt64 *callbackId);
 
-UA_StatusCode
-UA_Timer_modify(UA_Timer *t, UA_UInt64 callbackId,
-                UA_Double interval_ms, UA_DateTime now,
-                UA_DateTime *baseTime, UA_TimerPolicy timerPolicy);
+UA_StatusCode UA_Timer_modify(UA_Timer *t,
+                              UA_UInt64 callbackId,
+                              UA_Double interval_ms,
+                              UA_DateTime now,
+                              UA_DateTime *baseTime,
+                              UA_TimerPolicy timerPolicy);
 
-void
-UA_Timer_remove(UA_Timer *t, UA_UInt64 callbackId);
+void UA_Timer_remove(UA_Timer *t, UA_UInt64 callbackId);
 
-UA_DateTime
-UA_Timer_process(UA_Timer *t, UA_DateTime now);
+UA_DateTime UA_Timer_process(UA_Timer *t, UA_DateTime now);
 
-void
-UA_Timer_clear(UA_Timer *t);
+void UA_Timer_clear(UA_Timer *t);
 
 _UA_END_DECLS
 
