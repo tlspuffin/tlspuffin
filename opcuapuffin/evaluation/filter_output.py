@@ -10,7 +10,7 @@ def filter_stdout():
       try:
         # Read standard input line by line
         for line in sys.stdin:
-            if "[Stats] (GLOBAL) clients" in line:
+            if "(GLOBAL) clients" in line:
                 start = line.index("corpus:") + 7
                 stop  = line[start: -1].index(",") + start
                 size  = int(line[start:stop])
