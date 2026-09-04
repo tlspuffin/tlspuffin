@@ -365,6 +365,36 @@ impl ProtocolTypes for SshProtocolTypes {
         true
     }
 
+    /// Context-aware set filter (see the puffin-core hook). Applies the per-diff
+    /// `filter_diff` to every difference AND handles one thing a per-diff filter
+    /// structurally cannot: when a banner-strictness *status* reject is shadowed,
+    /// the rejecting side never produced a decrypted transcript, so the knowledge
+    /// layer shows a `AlignedTranscript vs ()` PRESENCE diff — the SAME banner
+    /// divergence surfacing again, not a new finding. Drop that presence diff too,
+    /// but ONLY when a banner reject co-occurs in this trace. A blanket
+    /// `AlignedTranscript vs ()` shadow would be UNSAFE: that shape is exactly how
+    /// a genuine "one stack completes, the other does not" divergence looks, so it
+    /// must survive whenever there is no banner reject to explain it.
+    fn differential_fuzzing_filter_diffs(
+        diffs: Vec<puffin::differential::TraceDifference>,
+    ) -> Vec<puffin::differential::TraceDifference> {
+        let banner_shadowed = SHADOW_KNOWN_BENIGN && diffs.iter().any(is_banner_strictness_diff);
+        diffs
+            .into_iter()
+            .filter(|d| {
+                // per-diff shadows (banner status, userauth-failure-only knowledge)
+                if !Self::differential_fuzzing_filter_diff(d) {
+                    return false;
+                }
+                // context-aware: the transcript-presence form of a shadowed banner
+                if banner_shadowed && is_banner_induced_transcript_presence(d) {
+                    return false;
+                }
+                true
+            })
+            .collect()
+    }
+
     // NOTE: alignment is NOT done via puffin's `differential_fuzzing_alignment_key`
     // hook anymore (that hook is reverted to upstream). All semantic alignment of
     // the decrypted messages lives inside sshpuffin's `AlignedTranscript`
@@ -422,6 +452,27 @@ fn is_banner_strictness_diff(diff: &puffin::differential::TraceDifference) -> bo
                 s.first_executed_steps,
                 s.second_executed_steps,
             ))
+}
+
+/// The KNOWLEDGE-layer form of a banner-strictness divergence: one side rejected
+/// the banner so it never decrypted a transcript, yielding a `AlignedTranscript`
+/// vs `()` presence difference. Matched ONLY to co-drop it alongside a shadowed
+/// banner *status* reject (see `differential_fuzzing_filter_diffs`) — never on its
+/// own, because the same shape is a genuine "one stack completes, the other does
+/// not" divergence when no banner reject explains it.
+fn is_banner_induced_transcript_presence(diff: &puffin::differential::TraceDifference) -> bool {
+    use puffin::differential::{KnowledgeDiff, TraceDifference};
+    let TraceDifference::Knowledges(KnowledgeDiff::DifferentTypes {
+        first_type,
+        second_type,
+        ..
+    }) = diff
+    else {
+        return false;
+    };
+    let is_transcript = |t: &str| t.contains("AlignedTranscript");
+    (first_type == "()" && is_transcript(second_type))
+        || (second_type == "()" && is_transcript(first_type))
 }
 
 /// Finding 3 — one stack's decrypted transcript carries a USERAUTH_FAILURE
@@ -639,6 +690,47 @@ mod filter_diff_tests {
             source: decryption(),
         });
         assert!(keep(&content));
+    }
+
+    fn transcript_presence() -> TraceDifference {
+        use puffin::differential::KnowledgeDiff;
+        use puffin::trace::Source;
+        TraceDifference::Knowledges(KnowledgeDiff::DifferentTypes {
+            index: 0,
+            first_type: "()".into(),
+            second_type: "sshpuffin::ssh::transcript::AlignedTranscript".into(),
+            first_source: Source::Label(None),
+            second_source: Source::Label(Some("Decryption".into())),
+        })
+    }
+
+    /// Context-aware co-drop: when a banner-strictness status reject is shadowed,
+    /// the `AlignedTranscript vs ()` presence diff it induces on the accepting
+    /// side is the SAME divergence and is dropped TOGETHER (not re-reported).
+    #[test]
+    fn banner_reject_co_drops_its_transcript_presence() {
+        let set = vec![
+            status("Receiving banner: too large banner", "Success"),
+            transcript_presence(),
+        ];
+        let kept = SshProtocolTypes::differential_fuzzing_filter_diffs(set);
+        assert!(
+            kept.is_empty(),
+            "a shadowed banner reject and the transcript-presence it induces must both drop, got {kept:?}"
+        );
+    }
+
+    /// SAFETY GUARD: the SAME `AlignedTranscript vs ()` presence diff, WITHOUT a
+    /// co-occurring banner reject, is a genuine "one stack completed, the other
+    /// did not" divergence and MUST survive — the co-drop is banner-gated only.
+    #[test]
+    fn transcript_presence_without_banner_is_kept() {
+        let kept = SshProtocolTypes::differential_fuzzing_filter_diffs(vec![transcript_presence()]);
+        assert_eq!(
+            kept.len(),
+            1,
+            "transcript presence must survive when no banner reject explains it"
+        );
     }
 }
 
