@@ -543,7 +543,7 @@ pub fn seed_bad_switch(server: AgentName) -> Trace<OpcuaProtocolTypes> {
             )),
             (fn_user_cert(
               ((server, 0)[Some(OpcuaQueryMatcher::PolicyIdCertificate)]/UAString), // PolicyId!
-              fn_mallory_cert
+              fn_alice_cert
             )),
             (fn_sign(
                 (fn_signature_data(
