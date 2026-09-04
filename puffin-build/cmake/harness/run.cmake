@@ -1,5 +1,8 @@
 use_languages(C CXX)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
 if(NOT HARNESS)
   message(FATAL_ERROR "Missing mandatory argument 'HARNESS'")
 endif()
@@ -24,7 +27,7 @@ endif()
 
 set(PUT "put-${PUT_ID}")
 
-file(GLOB HARNESS_SOURCES ${HARNESS}/src/*.c)
+file(GLOB HARNESS_SOURCES ${HARNESS}/src/*.c ${HARNESS}/src/*.cc)
 add_library(${PUT} STATIC ${HARNESS_SOURCES})
 
 include(CheckPIESupported)
