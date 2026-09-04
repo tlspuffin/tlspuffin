@@ -69,7 +69,19 @@ impl TermConstraints {
 
     /// Returns whether a term satisfies all the constraint predicates.
     pub fn satisfy_constraints<PT: ProtocolTypes>(&self, term: &Term<PT>) -> bool {
-        let size = term.size();
+        self.satisfy_constraints_with_size(term, term.size())
+    }
+
+    /// Same as [`Self::satisfy_constraints`], for a caller that already knows `term`'s size.
+    ///
+    /// [`TermType::size`] is recursive, so calling [`Self::satisfy_constraints`] at every node of a
+    /// term makes a traversal quadratic in the term size. Traversals that fold the sizes bottom-up
+    /// (see [`reservoir_sample`]) pass the size in instead.
+    pub fn satisfy_constraints_with_size<PT: ProtocolTypes>(
+        &self,
+        term: &Term<PT>,
+        size: usize,
+    ) -> bool {
         // Use inclusive bounds (min <= size <= max)
         if size < self.min_term_size || size > self.max_term_size {
             return false;
@@ -193,6 +205,7 @@ pub fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool
 ) -> Option<(&'a Term<PT>, TracePath)> {
     let mut reservoir: Option<(&'a Term<PT>, TracePath)> = None;
     let mut visited = 0;
+    let mut path = TermPath::new();
 
     for (step_index, step) in trace.steps.iter().enumerate() {
         match &step.action {
@@ -207,37 +220,18 @@ pub fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool
                     continue; // the term is too large, we don't even bother
                 }
 
-                let mut stack: Vec<(&Term<PT>, TracePath)> = vec![(term, (step_index, Vec::new()))];
-
-                while let Some((term, path)) = stack.pop() {
-                    // Recurse into sub-terms if allowed
-                    if constraints.should_recurse(term) {
-                        if let DYTerm::Application(_, subterms) = &term.term {
-                            for (path_index, subterm) in subterms.iter().enumerate() {
-                                let mut new_path = path.clone();
-                                new_path.1.push(path_index);
-                                stack.push((subterm, new_path));
-                            }
-                        }
-                    }
-
-                    // Check constraints and user filter
-                    if constraints.satisfy_constraints(term) && filter(term) {
-                        visited += 1;
-
-                        // consider in sampling
-                        if reservoir.is_none() {
-                            // fill initial reservoir
-                            reservoir = Some((term, path));
-                        } else {
-                            // `1/visited` chance of overwriting
-                            // replace elements with gradually decreasing probability
-                            if rand.between(1, visited) == 1 {
-                                reservoir = Some((term, path));
-                            }
-                        }
-                    }
-                }
+                path.clear();
+                sample_subterms(
+                    term,
+                    step_index,
+                    &mut path,
+                    true,
+                    filter,
+                    constraints,
+                    rand,
+                    &mut reservoir,
+                    &mut visited,
+                );
             }
             Action::Output(_) => {
                 // no term -> skip
@@ -246,6 +240,72 @@ pub fn reservoir_sample<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool
     }
 
     reservoir
+}
+
+/// Post-order half of [`reservoir_sample`]: offers every selectable sub-term of `term` to the
+/// reservoir and returns `term`'s [`TermType::size`].
+///
+/// The size is folded bottom-up so that the whole traversal stays linear in the term size:
+/// calling [`TermType::size`] at each node instead would make it quadratic.
+///
+/// `selectable` says whether this node may be picked at all. It is `false` under a node the
+/// constraints forbid recursing into ([`TermConstraints::should_recurse`]); the recursion still
+/// goes on below such a node, but only to fold its size.
+///
+/// `path` is the path of `term` inside its recipe, maintained in place: each level pushes its
+/// index before recursing and pops it after, so the whole traversal allocates a path only when the
+/// reservoir is actually updated.
+#[allow(clippy::too_many_arguments)]
+fn sample_subterms<'a, R: Rand, PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+    term: &'a Term<PT>,
+    step_index: StepIndex,
+    path: &mut TermPath,
+    selectable: bool,
+    filter: P,
+    constraints: &TermConstraints,
+    rand: &mut R,
+    reservoir: &mut Option<(&'a Term<PT>, TracePath)>,
+    visited: &mut usize,
+) -> usize {
+    let children_selectable = selectable && constraints.should_recurse(term);
+
+    // Mirrors `TermType::size`: a non-symbolic term counts as an atom, and so does a variable or a
+    // constant.
+    let mut size = 1;
+    if term.is_symbolic() {
+        match &term.term {
+            DYTerm::Variable(_) => {}
+            DYTerm::Application(_, subterms) => {
+                for (path_index, subterm) in subterms.iter().enumerate() {
+                    path.push(path_index);
+                    size += sample_subterms(
+                        subterm,
+                        step_index,
+                        path,
+                        children_selectable,
+                        filter,
+                        constraints,
+                        rand,
+                        reservoir,
+                        visited,
+                    );
+                    path.pop();
+                }
+            }
+        }
+    }
+
+    // Check constraints and user filter
+    if selectable && constraints.satisfy_constraints_with_size(term, size) && filter(term) {
+        *visited += 1;
+
+        // `1/visited` chance of overwriting: replace elements with gradually decreasing probability
+        if reservoir.is_none() || rand.between(1, *visited) == 1 {
+            *reservoir = Some((term, (step_index, path.clone())));
+        }
+    }
+
+    size
 }
 
 pub fn find_term_by_term_path_mut<'a, PT: ProtocolTypes>(
@@ -423,26 +483,49 @@ pub fn find_all_sub_term_filtered<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + 
     }
 
     let mut result = Vec::new();
-    let mut stack: Vec<(&Term<PT>, TermPath)> = vec![(term, Vec::new())];
+    let mut path = TermPath::new();
+    collect_subterms(term, &mut path, true, filter, constraints, &mut result);
+    result
+}
 
-    while let Some((current, path)) = stack.pop() {
-        // Recurse into sub-terms if allowed
-        if constraints.should_recurse(current) {
-            if let DYTerm::Application(_, subterms) = &current.term {
+/// Post-order half of [`find_all_sub_term_filtered`]: same bottom-up size fold and in-place `path`
+/// as [`sample_subterms`], collecting every matching path instead of sampling one.
+fn collect_subterms<PT: ProtocolTypes, P: Fn(&Term<PT>) -> bool + Copy>(
+    term: &Term<PT>,
+    path: &mut TermPath,
+    selectable: bool,
+    filter: P,
+    constraints: &TermConstraints,
+    result: &mut Vec<TermPath>,
+) -> usize {
+    let children_selectable = selectable && constraints.should_recurse(term);
+
+    let mut size = 1;
+    if term.is_symbolic() {
+        match &term.term {
+            DYTerm::Variable(_) => {}
+            DYTerm::Application(_, subterms) => {
                 for (i, subterm) in subterms.iter().enumerate() {
-                    let mut new_path = path.clone();
-                    new_path.push(i);
-                    stack.push((subterm, new_path));
+                    path.push(i);
+                    size += collect_subterms(
+                        subterm,
+                        path,
+                        children_selectable,
+                        filter,
+                        constraints,
+                        result,
+                    );
+                    path.pop();
                 }
             }
         }
-
-        if constraints.satisfy_constraints(current) && filter(current) {
-            result.push(path);
-        }
     }
 
-    result
+    if selectable && constraints.satisfy_constraints_with_size(term, size) && filter(term) {
+        result.push(path.clone());
+    }
+
+    size
 }
 
 /// Finds all trace paths in a trace that satisfy a given filter predicate and term constraints.
