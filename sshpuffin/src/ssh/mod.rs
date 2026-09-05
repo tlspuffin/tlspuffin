@@ -84,6 +84,18 @@ define_signature!(
     fn_password_b
     fn_password_c
     fn_u32_7
+    fn_u32_8
+    fn_u32_9
+    fn_u32_10
+    fn_u32_11
+    fn_u32_12
+    fn_u32_13
+    fn_u32_14
+    fn_u32_15
+    // Sentinel counter for AES-GCM sealing; the per-execution `preprocess_trace`
+    // pass rewrites it to the packet's true wire position. `no_gen`: it is a
+    // marker matched by symbol, never a value to synthesise during generation.
+    fn_u32_auto [no_gen]
     fn_u32_max
     fn_u32_0x10000
     fn_puffin_banner
