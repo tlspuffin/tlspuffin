@@ -969,14 +969,18 @@ pub fn seed_client_attacker_dh_bad_exponent(server: AgentName) -> Trace<SshProto
     }
 }
 
-/// Item-6 probe (issue #1047): a password-CHANGE USERAUTH_REQUEST (RFC 4252 §8:
-/// boolean TRUE + old-password + new-password) presenting the CORRECT current
-/// password. A stack that routes it to a password-change handler (or rejects it
-/// with SSH_MSG_USERAUTH_PASSWD_CHANGEREQ) behaves differently from one that
-/// treats it as an ordinary password auth and just succeeds. Uses the same
-/// aes256-gcm handshake as `seed_client_attacker_full_aesgcm`.
+/// Item-6 positive control (issue #1047): a password-CHANGE USERAUTH_REQUEST
+/// (RFC 4252 §8: boolean TRUE + old-password + new-password) presenting the
+/// CORRECT current password, over the same aes256-gcm handshake as
+/// `seed_client_attacker_full_aesgcm`. Measured 0-diff: BOTH stacks parse and
+/// accept the change-request as ordinary password auth (neither routes it to a
+/// distinct password-change handler / SSH_MSG_USERAUTH_PASSWD_CHANGEREQ path).
 ///
-/// NOT registered in any corpus (diverges by design; callable reproducer only).
+/// REGISTERED in the differential (0-diff) corpus as the LEGIT positive control
+/// for the password-change message format: it proves the constructor reaches both
+/// stacks' password handlers and gives the mutator a known-good baseline. (That
+/// both stacks are equally lax about the change semantics is a shared-conformance
+/// observation a *differential* oracle cannot flag — see RFC_CONFORMANCE_PROBES.md.)
 pub fn seed_client_attacker_passwd_change(server: AgentName) -> Trace<SshProtocolTypes> {
     let server_banner_id =
         term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
@@ -2733,6 +2737,18 @@ pub fn create_corpus(
             auth_complete(seed_client_attacker_full_aesgcm(server)),
             "seed_client_attacker_full_aesgcm",
         ),
+        // LEGIT positive control for the password-CHANGE USERAUTH_REQUEST message
+        // format (RFC 4252 §8; issue #1047 item 6). Both stacks parse and accept
+        // the change-request identically (0-diff), so this both (a) proves the
+        // `fn_password_change_auth_data` constructor reaches each stack's password
+        // handler and (b) is the 0-diff baseline the differential campaign explores
+        // FROM — a mutation that makes one stack handle the change-request
+        // differently now surfaces against a known-good control. NOT wrapped in
+        // `auth_complete` (it already ends at the auth step, no channel traffic).
+        (
+            seed_client_attacker_passwd_change(server),
+            "seed_client_attacker_passwd_change",
+        ),
         // Same handshake but with a synthesized KEXINIT whose algorithm lists are
         // mutable sub-terms — the entry point for negotiation / downgrade fuzzing.
         (
@@ -2889,34 +2905,36 @@ pub fn create_corpus(
                 seed_client_attacker_rekey_auto(server),
                 "seed_client_attacker_rekey_auto",
             ),
-            // NOTE: the RFC-conformance PROBE seeds are DELIBERATELY NOT registered
-            // here — they diverge (or are designed to diverge) BY DESIGN and are
-            // kept only as callable, documented reproducers / regression fixtures
-            // (see RFC_CONFORMANCE_PROBES.md and issue #1047):
+            // NOTE: the DIVERGING RFC-conformance PROBE seeds are DELIBERATELY NOT
+            // registered here — they diverge BY DESIGN and are kept only as
+            // callable, documented reproducers / regression fixtures (see
+            // RFC_CONFORMANCE_PROBES.md and issue #1047):
             //   * bad_service     — USERAUTH_REQUEST service != "ssh-connection" (wolfSSH accepts,
             //     libssh rejects; AUTH_DIVERGENCE_ROOTCAUSE.md).
             //   * unknown_msg      — pre-auth unknown/high-numbered message (item 7: libssh
             //     tolerates→Success, wolfSSH "message not allowed before user authentication";
             //     ITEM7_RESCAN.md).
-            //   * passwd_change    — password-CHANGE request (item 6: 0-diff, BOTH treat it as
-            //     ordinary password auth → Success).
-            //   * dh_bad_exponent  — modular-DH KEXDH_INIT with e=0 (item 1: 0-diff, BOTH reject
-            //     the out-of-range exponent).
             //   * forwarding       — tcpip-forward + direct-tcpip (items 2-4: both reject by
             //     default, differing only in the CHANNEL_OPEN_FAILURE reason code; the accept path
-            //     needs harness forwarding callbacks).
-            // Honest 0-diff corpus coverage of these paths is already provided by
-            // `seed_client_attacker_pubkey_aesgcm` / `_full_aesgcm`, from which each
-            // is a single-message mutation. Registering a divergent reproducer as a
-            // seed would only re-surface a closed, documented finding on every run.
-            // SERVER-ATTACKER seeds: the attacker plays the SSH SERVER and the PUT
-            // is the CLIENT, so these fuzz the CLIENT-side parsers (a surface the
-            // client-attacker differential never touches). Single-PUT: run one
-            // client stack against the (mutable) server flight and let ASAN catch
-            // memory bugs in its banner / KEXINIT / KEXDH_REPLY / EXT_INFO /
-            // post-NewKeys parsing. The attacker signs the exchange hash with the
-            // embedded host key, so the client completes the handshake on the
-            // un-mutated seed.
+            //     needs harness forwarding callbacks, so no legit 0-diff seed is possible yet).
+            //   * dh_bad_exponent  — modular-DH KEXDH_INIT with e=0 (item 1: 0-diff, BOTH reject
+            //     the out-of-range exponent). It is 0-diff but kept OUT of the differential corpus
+            //     because it is a REJECT-path edge case, not a legit handshake; a legit group14
+            //     positive control needs modular-DH math in the mapper (deferred).
+            // (The item-6 password-change probe was PROMOTED to the differential corpus above as a
+            // legit 0-diff positive control — it is the one new surface with honest legit
+            // coverage.) Honest 0-diff corpus coverage of the auth/handshake paths is
+            // already provided by `seed_client_attacker_pubkey_aesgcm` /
+            // `_full_aesgcm`, from which each is a single-message mutation.
+            // Registering a divergent reproducer as a seed would only re-surface a
+            // closed, documented finding on every run. SERVER-ATTACKER seeds: the
+            // attacker plays the SSH SERVER and the PUT is the CLIENT, so these fuzz
+            // the CLIENT-side parsers (a surface the client-attacker differential
+            // never touches). Single-PUT: run one client stack against the (mutable)
+            // server flight and let ASAN catch memory bugs in its banner / KEXINIT /
+            // KEXDH_REPLY / EXT_INFO / post-NewKeys parsing. The attacker signs the
+            // exchange hash with the embedded host key, so the client completes the
+            // handshake on the un-mutated seed.
             (
                 seed_server_attacker_full_aesgcm(client),
                 "seed_server_attacker_full_aesgcm",
