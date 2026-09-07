@@ -830,6 +830,274 @@ pub fn seed_client_attacker_auth_bypass(server: AgentName) -> Trace<SshProtocolT
 /// (3 fuzzer traces mutated this same field to 3 different garbage values) to a
 /// single deliberate change, as a permanent regression fixture.
 ///
+/// Items 2-4 probe (issue #1047): after auth, exercise the TCP/IP forwarding
+/// surface — send a `tcpip-forward` global request and open a `direct-tcpip`
+/// channel (RFC 4254 §7). With no forwarding callback configured, each stack
+/// takes its DEFAULT path (reject / administratively-prohibited); the differential
+/// compares those. With harness forwarding callbacks wired (see put.c), it reaches
+/// the ACCEPT path where items 2-4 (missing role guard / no match to a prior
+/// forward request) live. Publickey-A auth first so the connection is established.
+///
+/// NOT registered in any corpus (probes a divergent surface; callable reproducer).
+pub fn seed_client_attacker_forwarding(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+    };
+    let sig = term! {
+        fn_sign_userauth((fn_session_id_from_hash((@exch_hash))), (fn_username), (fn_ssh_connection), (fn_client_a_pubkey_blob))
+    };
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request(
+                (fn_username), (fn_ssh_connection), (fn_method_publickey),
+                (fn_publickey_auth_data((fn_client_a_pubkey_blob), (@sig)))
+            )),
+            (@key), (@iv), (fn_u32_1))
+    };
+    // tcpip-forward global request (counter 2).
+    let fwd_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_global_request((fn_request_tcpip_forward), (fn_true),
+                               (fn_tcpip_forward_data((fn_addr_localhost), (fn_u32_0x10000))))),
+            (@key), (@iv), (fn_u32_2))
+    };
+    // direct-tcpip channel open (counter 3).
+    let direct = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_channel_open((fn_channel_type_direct_tcpip), (fn_u32_0), (fn_u32_1), (fn_u32_2),
+                             (fn_direct_tcpip_data((fn_addr_localhost), (fn_u32_0x10000),
+                                                   (fn_addr_localhost), (fn_u32_0x10000))))),
+            (@key), (@iv), (fn_u32_3))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+            InputAction::new_step(server, term! { @fwd_req }),
+            InputAction::new_step(server, term! { @direct }),
+        ],
+        ..Default::default()
+    }
+}
+
+/// Item-1 probe (issue #1047): negotiate a classic modular-DH KEX
+/// (diffie-hellman-group14-sha256) and send `SSH_MSG_KEXDH_INIT` with an
+/// OUT-OF-RANGE exchange value `e` (here e = 0). RFC 4253 §8: `e` MUST be in
+/// [1, p-1] and an out-of-range value MUST fail the exchange. A stack that only
+/// length-checks `e` computes and returns a KEXDH_REPLY; a stack that range-checks
+/// (wolfSSL enforces [2, p-2]) fails. Short pre-KEX-completion probe — no keys are
+/// derived (the exchange is expected to fail on a compliant stack).
+///
+/// NOT registered in any corpus (diverges by design; callable reproducer only).
+pub fn seed_client_attacker_dh_bad_exponent(server: AgentName) -> Trace<SshProtocolTypes> {
+    // Client KEXINIT offering ONLY diffie-hellman-group14-sha256 so both stacks
+    // negotiate classic modular DH (both advertise it after uniformise).
+    let our_kexinit = term! {
+        fn_kex_init(
+            (fn_placeholder_16bytes),
+            (fn_kex_algos((fn_namelist_1((fn_algo_dh_group14_sha256))))),
+            (fn_sig_schemes((fn_namelist_2((fn_algo_rsa_sha2_512), (fn_algo_rsa_sha2_256))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_enc_algos((fn_namelist_1((fn_algo_aes256_gcm))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_mac_algos((fn_namelist_1((fn_algo_hmac_sha2_256))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none))))),
+            (fn_comp_algos((fn_namelist_1((fn_algo_none)))))
+        )
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            // KEXDH_INIT with e = 0 (out of range).
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_dh_init((fn_dh_exponent_zero)))) },
+            ),
+        ],
+        ..Default::default()
+    }
+}
+
+/// Item-6 probe (issue #1047): a password-CHANGE USERAUTH_REQUEST (RFC 4252 §8:
+/// boolean TRUE + old-password + new-password) presenting the CORRECT current
+/// password. A stack that routes it to a password-change handler (or rejects it
+/// with SSH_MSG_USERAUTH_PASSWD_CHANGEREQ) behaves differently from one that
+/// treats it as an ordinary password auth and just succeeds. Uses the same
+/// aes256-gcm handshake as `seed_client_attacker_full_aesgcm`.
+///
+/// NOT registered in any corpus (diverges by design; callable reproducer only).
+pub fn seed_client_attacker_passwd_change(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+
+    let svc_req = term! {
+        fn_encrypt_packet_aesgcm((fn_service_request((fn_ssh_userauth))), (@key), (@iv), (fn_u32_0))
+    };
+    // password-CHANGE: current password as "old", a new password. change=TRUE.
+    let auth_req = term! {
+        fn_encrypt_packet_aesgcm(
+            (fn_user_auth_request((fn_username), (fn_ssh_connection), (fn_method_password),
+                                  (fn_password_change_auth_data((fn_password), (fn_password_long))))),
+            (@key), (@iv), (fn_u32_1))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @svc_req }),
+            InputAction::new_step(server, term! { @auth_req }),
+        ],
+        ..Default::default()
+    }
+}
+
+/// Item-7 probe (issue #1047): after NEWKEYS, BEFORE authenticating, inject an
+/// unknown/high-numbered SSH message (type 250, "reserved for private use") via the
+/// new `fn_msg_unknown_highnumber` primitive. RFC 4253 §11.4 says the peer MUST
+/// reply SSH_MSG_UNIMPLEMENTED; a lax stack bare-closes. The differential compares
+/// the two stacks' handling of an unrecognised pre-auth message — the surface the
+/// Status-bucket re-scan (ITEM7_RESCAN.md) could only reach incidentally post-auth.
+///
+/// NOT registered in any corpus: it diverges by design (kept as a callable
+/// reproducer / regression fixture, like `seed_client_attacker_bad_service`). Run
+/// `differential-execute libssh0114-asan wolfssh-asan <trace>` to observe.
+pub fn seed_client_attacker_unknown_msg(server: AgentName) -> Trace<SshProtocolTypes> {
+    let server_banner_id =
+        term! { fn_banner_id(((server, 0)[Some(SshQueryMatcher::Banner)]/RawSshMessage)) };
+    let server_kexinit = term! { (server, 0)[None]/SshMessage };
+    let server_ecdh_reply_msg = term! { (server, 1)[None]/SshMessage };
+    let server_ecdh_reply_raw =
+        term! { (server, 0)[Some(SshQueryMatcher::MsgType(31))]/RawSshMessage };
+    let server_ecdh_pub = term! { fn_server_ecdh_pubkey((@server_ecdh_reply_msg)) };
+    let server_hostkey = term! { fn_server_hostkey_raw((@server_ecdh_reply_raw)) };
+    let shared = term! { fn_ecdh_shared_secret((fn_client_ecdh_privkey), (@server_ecdh_pub)) };
+    let our_kexinit = term! { fn_client_kexinit_aesgcm((fn_placeholder_16bytes)) };
+    let i_c = term! { fn_kexinit_payload((@our_kexinit)) };
+    let i_s = term! { fn_kexinit_payload((@server_kexinit)) };
+    let exch_hash = term! {
+        fn_kex_exchange_hash(
+            (fn_puffin_id), (@server_banner_id), (@i_c), (@i_s),
+            (@server_hostkey), (fn_client_ecdh_pubkey), (@server_ecdh_pub), (@shared)
+        )
+    };
+    let key = term! { fn_derive_aes_key_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+    let iv = term! { fn_derive_iv_c2s((@shared), (@exch_hash), (fn_session_id_from_hash((@exch_hash)))) };
+
+    // First post-NEWKEYS packet (counter 0): an unknown/high-numbered message.
+    let unknown = term! {
+        fn_encrypt_packet_aesgcm((fn_msg_unknown_highnumber), (@key), (@iv), (fn_u32_0))
+    };
+
+    Trace {
+        prior_traces: vec![],
+        descriptors: vec![AgentDescriptor::from_config(
+            server,
+            SshDescriptorConfig {
+                typ: AgentType::Server,
+                try_reuse: false,
+                ..Default::default()
+            },
+        )],
+        steps: vec![
+            OutputAction::new_step(server),
+            InputAction::new_step(server, term! { fn_banner(fn_puffin_banner) }),
+            InputAction::new_step(server, term! { fn_packet((@our_kexinit)) }),
+            InputAction::new_step(
+                server,
+                term! { fn_packet((fn_kex_ecdh_init((fn_client_ecdh_pubkey)))) },
+            ),
+            InputAction::new_step(server, term! { fn_packet((fn_new_keys)) }),
+            InputAction::new_step(server, term! { @unknown }),
+        ],
+        ..Default::default()
+    }
+}
+
 /// NOT registered in any corpus (see the NOTE in `create_corpus`): it is a
 /// NON-LEGIT trace that diverges by design, kept only as a callable reproducer for
 /// the finding. `#![allow(dead_code)]` (ssh/mod.rs) permits the unregistered
@@ -2621,17 +2889,26 @@ pub fn create_corpus(
                 seed_client_attacker_rekey_auto(server),
                 "seed_client_attacker_rekey_auto",
             ),
-            // NOTE: `seed_client_attacker_bad_service` is DELIBERATELY NOT
-            // registered here. It is a NON-LEGIT trace (a malformed
-            // USERAUTH_REQUEST with service != "ssh-connection") that diverges BY
-            // DESIGN — wolfSSH accepts, libssh rejects (see
-            // findings_phase3/AUTH_DIVERGENCE_ROOTCAUSE.md). It is kept only as a
-            // callable, documented minimal reproducer / regression fixture for that
-            // finding, not as a fuzzing seed: honest 0-diff corpus coverage of the
-            // publickey-auth path is already provided by
-            // `seed_client_attacker_pubkey_aesgcm`, from which it is a single-field
-            // mutation. Registering a divergent reproducer as a seed would only
-            // re-surface a closed, root-caused finding on every run.
+            // NOTE: the RFC-conformance PROBE seeds are DELIBERATELY NOT registered
+            // here — they diverge (or are designed to diverge) BY DESIGN and are
+            // kept only as callable, documented reproducers / regression fixtures
+            // (see RFC_CONFORMANCE_PROBES.md and issue #1047):
+            //   * bad_service     — USERAUTH_REQUEST service != "ssh-connection" (wolfSSH accepts,
+            //     libssh rejects; AUTH_DIVERGENCE_ROOTCAUSE.md).
+            //   * unknown_msg      — pre-auth unknown/high-numbered message (item 7: libssh
+            //     tolerates→Success, wolfSSH "message not allowed before user authentication";
+            //     ITEM7_RESCAN.md).
+            //   * passwd_change    — password-CHANGE request (item 6: 0-diff, BOTH treat it as
+            //     ordinary password auth → Success).
+            //   * dh_bad_exponent  — modular-DH KEXDH_INIT with e=0 (item 1: 0-diff, BOTH reject
+            //     the out-of-range exponent).
+            //   * forwarding       — tcpip-forward + direct-tcpip (items 2-4: both reject by
+            //     default, differing only in the CHANNEL_OPEN_FAILURE reason code; the accept path
+            //     needs harness forwarding callbacks).
+            // Honest 0-diff corpus coverage of these paths is already provided by
+            // `seed_client_attacker_pubkey_aesgcm` / `_full_aesgcm`, from which each
+            // is a single-message mutation. Registering a divergent reproducer as a
+            // seed would only re-surface a closed, documented finding on every run.
             // SERVER-ATTACKER seeds: the attacker plays the SSH SERVER and the PUT
             // is the CLIENT, so these fuzz the CLIENT-side parsers (a surface the
             // client-attacker differential never touches). Single-PUT: run one

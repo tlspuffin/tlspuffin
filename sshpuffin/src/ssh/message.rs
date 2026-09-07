@@ -346,6 +346,39 @@ pub enum SshMessage {
     ChannelRequest(ChannelRequestMessage),
     ChannelSuccess(ChannelSuccessMessage),
     ChannelFailure(ChannelFailureMessage),
+    /// Escape hatch for an ARBITRARY / high-numbered SSH message: encodes as its
+    /// `number` byte followed by `body` verbatim. Lets a seed inject a message with
+    /// an unrecognised type code (RFC 4253 §11.4 — the peer MUST reply
+    /// SSH_MSG_UNIMPLEMENTED), so the DY mutator can probe how each stack handles
+    /// an unknown message (issue #1047 item 7: wolfSSH bare-closes where a strict
+    /// stack replies UNIMPLEMENTED/DISCONNECT). Only ever CONSTRUCTED (client→server
+    /// injection); the server-output decode path never yields it, so it needs no
+    /// `read` arm.
+    Raw(RawMessage),
+}
+
+/// Body of [`SshMessage::Raw`]. `number` is the SSH message-type byte; `body` is
+/// the remainder written verbatim (NOT length-prefixed).
+#[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
+#[extractable(SshProtocolTypes)]
+pub struct RawMessage {
+    pub number: u8,
+    pub body: SshBytes,
+}
+
+impl Codec for RawMessage {
+    fn encode(&self, bytes: &mut Vec<u8>) {
+        self.number.encode(bytes);
+        bytes.extend_from_slice(&self.body.0);
+    }
+
+    fn read(reader: &mut Reader) -> Option<Self> {
+        let number = u8::read(reader)?;
+        Some(Self {
+            number,
+            body: SshBytes(reader.rest().to_vec()),
+        })
+    }
 }
 
 #[derive(Clone, Debug, Extractable, Comparable, PartialEq)]
@@ -1231,6 +1264,11 @@ impl Codec for SshMessage {
             }
             SshMessage::ChannelFailure(inner) => {
                 100u8.encode(bytes);
+                inner.encode(bytes);
+            }
+            // Verbatim: `number` byte then `body` (RawMessage::encode writes the
+            // type code itself, so no extra tag here).
+            SshMessage::Raw(inner) => {
                 inner.encode(bytes);
             }
         }

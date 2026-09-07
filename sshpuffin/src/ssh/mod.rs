@@ -108,7 +108,18 @@ define_signature!(
     fn_disconnect_reason_protocol_error
     fn_disconnect_reason_service_not_available
     fn_password_auth_data
+    fn_password_change_auth_data
     fn_none_auth_data
+    // TCP/IP forwarding (RFC 4254 §7; issue #1047 items 2-4): request/channel-type
+    // name atoms + type-specific payload builders.
+    fn_request_tcpip_forward
+    fn_request_cancel_tcpip_forward
+    fn_channel_type_direct_tcpip
+    fn_channel_type_forwarded_tcpip
+    fn_tcpip_forward_data
+    fn_direct_tcpip_data
+    fn_forwarded_tcpip_data
+    fn_addr_localhost
     fn_exec_payload
     fn_channel_payload
     fn_ssh_bytes
@@ -138,11 +149,23 @@ define_signature!(
     fn_ignore
     fn_ext_info
     fn_unimplemented
+    // Arbitrary / unknown-type SSH message injection (RFC 4253 §11.4 probing;
+    // issue #1047 item 7). `fn_raw_ssh_message(number, body)` is generator-usable
+    // (drives the type byte from fn_u32_* atoms); the fixed 250-type convenience is
+    // `no_gen` (a deterministic reproducer atom, not for blind generation).
+    fn_raw_ssh_message
+    fn_msg_unknown_highnumber [no_gen]
     fn_debug
     fn_service_request
     fn_service_accept
     fn_kex_init
     fn_kex_ecdh_init
+    // Classic modular-DH KEXDH_INIT (msg 30) + out-of-range exponent atoms
+    // (RFC 4253 §8 range validation; issue #1047 item 1).
+    fn_kex_dh_init
+    fn_dh_exponent_zero
+    fn_dh_exponent_one
+    fn_dh_exponent_huge
     fn_kex_ecdh_reply
     fn_new_keys
     fn_client_kexinit_aesgcm
