@@ -1,5 +1,11 @@
 use_languages(C)
 
+# Expose the session id (exchange hash H) and a per-direction secure-channel
+# message-type digest to the claim layer, for the matching-conversation oracle
+# (KEX-transcript + channel-data agreement). Pure observation; no behaviour
+# change. Anchors are identical across the 0.10.4 / 0.11.4 sources we build.
+list(APPEND PATCH_COMMANDS COMMAND ${CMAKE_COMMAND} -DFILE=<SOURCE_DIR>/src/packet.c -P "${CMAKE_CURRENT_LIST_DIR}/instrument_claims.cmake")
+
 cmake_builder(
   TARGETS
     install
@@ -10,6 +16,11 @@ cmake_builder(
     -DWITH_SFTP=OFF
     -DWITH_NACL=OFF
     -DBUILD_SHARED_LIBS=OFF
+    # libssh 0.8.x builds its main target shared unconditionally and only emits a
+    # static archive under these knobs; newer libssh (0.9+) ignores them and uses
+    # BUILD_SHARED_LIBS=OFF. Setting both keeps every version producing libssh.a.
+    -DBUILD_STATIC_LIB=ON
+    -DWITH_STATIC_LIB=ON
     -DCMAKE_POLICY_DEFAULT_CMP0148:STRING=OLD
 
   CFLAGS

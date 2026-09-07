@@ -1,0 +1,10 @@
+[wolfssh-asan]
+sources = { repo = "https://github.com/wolfSSL/wolfssh.git", branch = "master", version = "1.4.20" }
+builder = { type = "builtin", name = "wolfssh" }
+asan = true
+sancov = true
+
+[wolfssh]
+sources = { repo = "https://github.com/wolfSSL/wolfssh.git", branch = "master", version = "1.4.20" }
+builder = { type = "builtin", name = "wolfssh" }
+sancov = true

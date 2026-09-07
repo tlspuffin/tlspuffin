@@ -378,11 +378,15 @@ impl Codec for [u8; 16] {
     }
 
     fn read(r: &mut Reader) -> Option<Self> {
-        <Vec<u8> as Codec>::read(r).map(|v| {
-            let mut ret = [0u8; 16];
-            ret.copy_from_slice(&v);
-            ret
-        })
+        // Bounds-check before copying: bit-level mutation can produce a buffer
+        // whose length != 16, and an unchecked copy_from_slice would panic.
+        let v = <Vec<u8> as Codec>::read(r)?;
+        if v.len() != 16 {
+            return None;
+        }
+        let mut ret = [0u8; 16];
+        ret.copy_from_slice(&v);
+        Some(ret)
     }
 }
 

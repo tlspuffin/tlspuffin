@@ -71,13 +71,21 @@ impl<PB: ProtocolBehavior> TraceRunner for &Runner<PB> {
         }
 
         let mut ctx = TraceContext::new_config(self.spawner.clone(), config_trace);
-        trace
-            .as_ref()
-            .execute(&mut ctx, &mut 0, config_trace.check_security_violation)
-            .map_err(|e| {
-                *executed_until = ctx.executed_until;
-                e
-            })?;
+        let result =
+            trace
+                .as_ref()
+                .execute(&mut ctx, &mut 0, config_trace.check_security_violation);
+
+        // Protocol-agnostic claim-trajectory coverage: record the conversation
+        // state the agents reached this run (including partial trajectories from
+        // aborted runs — the liveness-depth signal). Inert unless the protocol's
+        // claims implement `Claim::coverage_key`.
+        crate::claims::record_claim_coverage(ctx.claims().slice());
+
+        result.map_err(|e| {
+            *executed_until = ctx.executed_until;
+            e
+        })?;
         *executed_until = ctx.executed_until;
         Ok(ctx)
     }
@@ -196,6 +204,15 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             config_trace.check_security_violation,
         );
 
+        // Reseed again before the second PUT: the first execution consumed the
+        // deterministic RNG stream, so without this the two PUTs would draw
+        // different randomness (e.g. ephemeral KEX keys), producing different
+        // ciphertext and spurious encrypted-layer differences even for identical
+        // implementations (same-vs-same false positives).
+        if config_trace.with_reseed {
+            self.registry.determinism_reseed_all_factories();
+        }
+
         log::debug!("Executing second PUT");
         let mut second_ctx = TraceContext::new(self.second_spawner.clone());
         let second_trace_status = trace.as_ref().execute(
@@ -283,8 +300,22 @@ impl<PB: ProtocolBehavior> TraceRunner for &DifferentialRunner<PB> {
             _ => vec![],
         });
 
-        // If we have status diff or security violation we return the diffs without checking for
-        // others diffs
+        // Filter the status / security-violation diffs through the protocol's
+        // false-positive filter *first*. This lets a protocol declare a class of
+        // status difference benign (e.g. cross-vendor parser/robustness divergence)
+        // and is what decides the short-circuit below. For protocols whose filter
+        // keeps status diffs this is a no-op (the diffs survive and we short-circuit
+        // exactly as before).
+        diff.retain(
+            <<PB as ProtocolBehavior>::ProtocolTypes as ProtocolTypes>::differential_fuzzing_filter_diff,
+        );
+
+        // If a (kept) status diff or security violation remains we return it without
+        // checking for other diffs. Otherwise — including when status diffs were
+        // filtered away — we still compare the trace contexts, so security-state
+        // signals such as a claim emitted by one PUT and not the other (asymmetric
+        // handshake/auth completion) are not missed just because execution status
+        // happened to differ.
         if diff.is_empty() {
             // Compare the trace context
             diff.extend(first_ctx.compare(&second_ctx, &trace.as_ref().descriptors));

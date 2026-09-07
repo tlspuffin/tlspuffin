@@ -7,6 +7,13 @@ if(NOT HARNESS)
   message(FATAL_ERROR "Missing mandatory argument 'HARNESS'")
 endif()
 
+# PROTOCOL selects the protocol-specific include directory
+# (e.g. "tls" → tlspuffin/include, "ssh" → sshpuffin/include).
+# Defaults to "tls" for backward compatibility.
+if(NOT PROTOCOL)
+  set(PROTOCOL "tls")
+endif()
+
 if(NOT INCLUDE_DIRS)
   message(FATAL_ERROR "Missing mandatory argument 'INCLUDE_DIRS'")
 endif()
@@ -41,7 +48,7 @@ target_include_directories(${PUT} PRIVATE ${INCLUDE_DIRS})
 target_link_libraries(${PUT} PRIVATE ${LINK_LIBRARIES})
 
 target_include_directories(${PUT} PRIVATE "${LIBRARY}/include")
-target_include_directories(${PUT} PRIVATE "${PUFFIN_PROJECT_PATH}/tlspuffin/include")
+target_include_directories(${PUT} PRIVATE "${PUFFIN_PROJECT_PATH}/${PROTOCOL}puffin/include")
 target_include_directories(${PUT} PRIVATE "${PUFFIN_PROJECT_PATH}/puffin/include")
 target_include_directories(${PUT} PRIVATE "${PUFFIN_PROJECT_PATH}/tlspuffin-claims")
 

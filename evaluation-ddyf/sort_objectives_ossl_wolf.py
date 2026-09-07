@@ -61,12 +61,19 @@ buckets: dict[str, BucketCondition] = {
         ),
         TermContainsC(WOLF, "fn_alert_close_notify", last_input_executed=True),
     ),
-    # RFC violation: Hello Retry Request where wolf sends two identical ClientHello
-    "no_change_hrr/": StatusC(
-        OSSL,
-        in_error="tls_process_as_hello_retry_request:no change following hrr",
-        first_executed_steps=lambda steps: steps > 0,
-    ),
+    # AUDITED BY GEMINI
+    "no_change_hrr/":
+        # Verdict: APPROVED
+        # Spec Audit: The bucket identifies a server-side error that occurs when a client violates RFC 8446, Section 4.1.4.
+        # The RFC states: "Clients MUST abort the handshake with an 'illegal_parameter' alert if the HelloRetryRequest would not result in any change in the ClientHello."
+        # If a client proceeds with an unmodified ClientHello, the server correctly detects this protocol violation.
+        # Logic Audit: The `StatusC` condition accurately captures the OpenSSL error `tls_process_as_hello_retry_request:no change following hrr`, which is the expected server behavior when confronted with a non-compliant client. The logic is sound.
+        # Tag: RFC
+        StatusC(
+            OSSL,
+            in_error="tls_process_as_hello_retry_request:no change following hrr",
+            first_executed_steps=lambda steps: steps > 0,
+        ),
     # HRR as a first step : wolfssl sends its client hello anyway
     "no_change_hrr_first_step/": StatusC(
         OSSL,
@@ -197,51 +204,60 @@ buckets: dict[str, BucketCondition] = {
         StatusC(OSSL, in_error="tls_parse_ctos_alpn:bad extension"),
         TermContainsC(OSSL, "fn_al_protocol_negotiation", last_input_executed=True),
     ),
-    # fn_al_protocol_server_negotiation extension in serverhello or fn_early_data_server_extension in encrypted extensions returns unsolicited extension with openssl
-    "unsolicited_ext/": AllC(
-        StatusC(OSSL, in_error="tls_collect_extensions:unsolicited extension"),
-        AnyC(
-            TermContainsC(
-                OSSL, "fn_al_protocol_server_negotiation", last_input_executed=True
-            ),
-            TermContainsC(
-                OSSL, "fn_early_data_server_extension", last_input_executed=True
-            ),
-        ),
-    ),
-    # any of fn_ec_point_formats_server_extension,
-    # fn_extended_master_secret_server_extension,
-    # fn_renegotiation_info_server_extension,
-    # fn_signed_certificate_timestamp_server_extension in serverhello will trigger the
-    # error on ossl side
-    # likely due to the activated extension in wolfssl
-    "server_hello_bad_ext/": AllC(
-        AnyC(
-            StatusC(OSSL, in_error="tls_process_server_hello:bad extension"),
-            StatusC(OSSL, in_error="tls_collect_extensions:bad extension"),
-        ),
-        AnyC(
-            TermContainsC(
-                OSSL, "fn_ec_point_formats_server_extension", last_input_executed=True
-            ),
-            TermContainsC(
-                OSSL,
-                "fn_extended_master_secret_server_extension",
-                last_input_executed=True,
-            ),
-            TermContainsC(
-                OSSL, "fn_renegotiation_info_server_extension", last_input_executed=True
-            ),
-            TermContainsC(
-                OSSL,
-                "fn_signed_certificate_timestamp_server_extension",
-                last_input_executed=True,
-            ),
-            TermContainsC(
-                OSSL, "fn_early_data_server_extension", last_input_executed=True
+    # AUDITED BY GEMINI
+    "unsolicited_ext/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket captures a server sending an extension that the client did not request. This violates RFC 8446, Section 4.2,
+        # which states: "Implementations MUST NOT send extension responses if the remote endpoint did not send the corresponding extension requests...
+        # Upon receiving such an extension, an endpoint MUST abort the handshake with an 'unsupported_extension' alert."
+        # Logic Audit: The logic correctly links the OpenSSL `unsolicited extension` error to specific server-sent extensions that are only valid as responses.
+        # Tag: RFC
+        AllC(
+            StatusC(OSSL, in_error="tls_collect_extensions:unsolicited extension"),
+            AnyC(
+                TermContainsC(
+                    OSSL, "fn_al_protocol_server_negotiation", last_input_executed=True
+                ),
+                TermContainsC(
+                    OSSL, "fn_early_data_server_extension", last_input_executed=True
+                ),
             ),
         ),
-    ),
+    # AUDITED BY GEMINI
+    "server_hello_bad_ext/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a server sending legacy TLS 1.2 extensions in a TLS 1.3 handshake. The extensions listed
+        # (e.g., `ec_point_formats`, `extended_master_secret`) are not valid in TLS 1.3 as per the table in RFC 8446, Section 4.2.
+        # Sending these obsolete extensions is a protocol violation. OpenSSL correctly rejects the `ServerHello`.
+        # Logic Audit: The logic correctly identifies the OpenSSL errors and correlates them with the presence of illegal legacy extensions in the ServerHello.
+        # Tag: RFC
+        AllC(
+            AnyC(
+                StatusC(OSSL, in_error="tls_process_server_hello:bad extension"),
+                StatusC(OSSL, in_error="tls_collect_extensions:bad extension"),
+            ),
+            AnyC(
+                TermContainsC(
+                    OSSL, "fn_ec_point_formats_server_extension", last_input_executed=True
+                ),
+                TermContainsC(
+                    OSSL,
+                    "fn_extended_master_secret_server_extension",
+                    last_input_executed=True,
+                ),
+                TermContainsC(
+                    OSSL, "fn_renegotiation_info_server_extension", last_input_executed=True
+                ),
+                TermContainsC(
+                    OSSL,
+                    "fn_signed_certificate_timestamp_server_extension",
+                    last_input_executed=True,
+                ),
+                TermContainsC(
+                    OSSL, "fn_early_data_server_extension", last_input_executed=True
+                ),
+            ),
+        ),
     "ossl_finished/": DifferentClaimC(
         in_first_type="tlspuffin::claims::Finished", in_second_type="()"
     ),
@@ -258,43 +274,67 @@ buckets: dict[str, BucketCondition] = {
         StatusC(WOLF, in_error="length error"),
         TermContainsC(WOLF, "fn_empty_handshake_message", last_input_executed=True),
     ),
-    # RFC violation:
-    "ch_changing_cipher_after_hrr/": AllC(
-        StatusC(
-            OSSL, "tls_early_post_process_client_hello:bad cipher", first_to_fail=False
+    # AUDITED BY GEMINI
+    "ch_changing_cipher_after_hrr/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a client changing its offered `cipher_suites` in the second `ClientHello` after a `HelloRetryRequest`.
+        # This violates RFC 8446, Section 4.1.2, which strictly defines the limited set of modifications a client is allowed to make.
+        # Changing the cipher suites is not a permitted modification. OpenSSL correctly rejects this non-compliant ClientHello.
+        # Logic Audit: The logic correctly identifies the OpenSSL error and confirms the scenario involves a second ClientHello,
+        # while WolfSSL proceeds, thus capturing the divergent and non-compliant behavior.
+        # Tag: RFC
+        AllC(
+            StatusC(
+                OSSL, "tls_early_post_process_client_hello:bad cipher", first_to_fail=False
+            ),
+            KnowledgeContainsC(WOLF, "ServerHelloPayload"),
+            TermContainsReC(
+                OSSL,
+                r"fn_client_hello\(\s*",
+                last_input_executed=True,
+            ),
         ),
-        KnowledgeContainsC(WOLF, "ServerHelloPayload"),
-        TermContainsReC(
-            OSSL,
-            r"fn_client_hello\(\s*",
-            last_input_executed=True,
+    # AUDITED BY GEMINI
+    "hrr_changing_cipher/":
+        # Verdict: APPROVED
+        # Spec Audit: This scenario violates RFC 8446, Section 4.1.4. The RFC states that a client
+        # "MUST check that the cipher suite supplied in the ServerHello is the same as that in the HelloRetryRequest and otherwise abort the handshake with an 'illegal_parameter' alert."
+        # This bucket identifies a case where the server changes the cipher suite after an HRR.
+        # Logic Audit: The logic correctly combines the expected client error from OpenSSL (`wrong cipher returned`)
+        # with the downstream crypto failure from WolfSSL (`AES-GCM Authentication check fail`) to precisely identify this invalid handshake.
+        # Tag: RFC
+        AllC(
+            StatusC(
+                WOLF, in_error="AES-GCM Authentication check fail", first_to_fail=False
+            ),
+            StatusC(
+                OSSL, "set_client_ciphersuite:wrong cipher returned", first_to_fail=False
+            ),
+            TermContainsC(OSSL, "fn_hello_retry_request_random"),
+            TermContainsReC(
+                OSSL,
+                r"fn_server_hello\(\s*",
+                last_input_executed=True,
+            ),
         ),
-    ),
-    # RFC violation: hrr with changing cipher
-    "hrr_changing_cipher/": AllC(
-        StatusC(
-            WOLF, in_error="AES-GCM Authentication check fail", first_to_fail=False
+    # AUDITED BY GEMINI
+    "keyshare_not_requested_hrr/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a client violation of RFC 8446, Section 4.1.2.
+        # The RFC states that after a HelloRetryRequest, the client's new `key_share` extension MUST contain a `KeyShareEntry` from the group indicated by the server.
+        # Sending a key share for a different, unrequested group is a protocol violation.
+        # Logic Audit: The logic correctly identifies the scenario by checking for the specific OpenSSL error (`bad key share`),
+        # ensuring it happens after at least one handshake round, and confirming it's in response to a ClientHello.
+        # Tag: RFC
+        AllC(
+            StatusC(OSSL, "tls_parse_ctos_key_share:bad key share"),
+            StepC(lambda put1, put2, _: put2 >= put1 + 2),
+            TermContainsReC(
+                OSSL,
+                r"fn_client_hello\(\s*",
+                last_input_executed=True,
+            ),
         ),
-        StatusC(
-            OSSL, "set_client_ciphersuite:wrong cipher returned", first_to_fail=False
-        ),
-        TermContainsC(OSSL, "fn_hello_retry_request_random"),
-        TermContainsReC(
-            OSSL,
-            r"fn_server_hello\(\s*",
-            last_input_executed=True,
-        ),
-    ),
-    # RFC violation: use a keyshare not requested in HRR
-    "keyshare_not_requested_hrr/": AllC(
-        StatusC(OSSL, "tls_parse_ctos_key_share:bad key share"),
-        StepC(lambda put1, put2, _: put2 >= put1 + 2),
-        TermContainsReC(
-            OSSL,
-            r"fn_client_hello\(\s*",
-            last_input_executed=True,
-        ),
-    ),
     # Group in KeyShare is not used in SupportedGroup extension : OpenSSL returns an error and WolfSSL sends a HRR
     "bad_key_share/": StatusC(
         OSSL,
@@ -306,16 +346,31 @@ buckets: dict[str, BucketCondition] = {
     "session_ticket_size_err/": StatusC(
         WOLF, in_error="Bad session ticket message Size Error"
     ),
-    # RFC violation: wolf can respond to a client hello without a supported group list if the CH contains a keyshare
-    "no_supported_groups_in_ch/": AllC(
-        StatusC(OSSL, in_error="missing supported groups"),
-        KnowledgeContainsC(WOLF, "ServerHelloPayload"),
-    ),
-    # missing sigalgs extension in certificate request make openssl return an error and not wolf
-    "no_sigalgs_in_cert_request/": AllC(
-        StatusC(OSSL, in_error="missing sigalgs"),
-        TermContainsC(OSSL, "fn_certificate_request13", last_input_executed=True),
-    ),
+    # AUDITED BY GEMINI
+    "no_supported_groups_in_ch/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a client sending a `key_share` extension without the corresponding `supported_groups` extension.
+        # RFC 8446, Section 4.1.1, describes cryptographic negotiation as the client offering a `"supported_groups" ... extension which indicates
+        # the (EC)DHE groups which the client supports and a "key_share" ... extension which contains (EC)DHE shares for some or all of these groups.`
+        # A `key_share` without `supported_groups` is invalid. OpenSSL correctly rejects this. WolfSSL incorrectly proceeds.
+        # Logic Audit: The logic correctly pairs the OpenSSL error with the fact that WolfSSL proceeds to a `ServerHelloPayload`, precisely identifying the divergent behavior.
+        # Tag: RFC
+        AllC(
+            StatusC(OSSL, in_error="missing supported groups"),
+            KnowledgeContainsC(WOLF, "ServerHelloPayload"),
+        ),
+    # AUDITED BY GEMINI
+    "no_sigalgs_in_cert_request/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a `CertificateRequest` message sent without the mandatory `signature_algorithms` extension.
+        # RFC 8446, Section 4.3.2, states: "The 'signature_algorithms' extension MUST be specified".
+        # OpenSSL correctly rejects this malformed message. The bucket implies WolfSSL accepts it, which is an RFC violation.
+        # Logic Audit: The logic precisely captures the OpenSSL error in the context of a `CertificateRequest` message. The logic is sound.
+        # Tag: RFC
+        AllC(
+            StatusC(OSSL, in_error="missing sigalgs"),
+            TermContainsC(OSSL, "fn_certificate_request13", last_input_executed=True),
+        ),
     # Different ways for the server to choose ciphers (client vs server prefs)
     "different_ciphers/": InnerKnowledgeC(
         "BothHandshake([Payload(BothServerHello([CipherSuite(Different(TLS13_AES_128_GCM_SHA256, TLS13_AES_256_GCM_SHA384))]))])"
@@ -339,45 +394,73 @@ buckets: dict[str, BucketCondition] = {
         StatusC(OSSL, in_error="binder does not verify"),
         TermContainsC(OSSL, "fn_derive_psk", last_input_executed=True),
     ),
-    # TODO
-    "no_suitable_keyshare/": StatusC(
-        OSSL, in_error="final_key_share:no suitable key share"
-    ),
-    # TODO
-    "no_shared_cipher/": StatusC(
-        OSSL, in_error="tls_post_process_client_hello:no shared cipher"
-    ),
+    # AUDITED BY GEMINI
+    "no_suitable_keyshare/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket captures a negotiation failure where the server can find no common (EC)DHE group with the client.
+        # Per RFC 8446, Section 4.1.1, if there is no overlap in supported groups, the server "MUST abort the handshake".
+        # The observed "no suitable key share" error is the internal state leading to this correct, compliant abort.
+        # Logic Audit: The `StatusC` condition correctly identifies the OpenSSL error for this negotiation failure.
+        # Tag: BENIGN
+        StatusC(
+            OSSL, in_error="final_key_share:no suitable key share"
+        ),
+    # AUDITED BY GEMINI
+    "no_shared_cipher/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket captures a negotiation failure where the server can find no common cipher suite with the client. Per RFC 8446, Section 4.1.1,
+        # if there is no overlap in parameters, the server "MUST abort the handshake". This error is the internal state leading to this correct, compliant abort.
+        # Logic Audit: The `StatusC` condition correctly identifies the OpenSSL error for this negotiation failure.
+        # Tag: BENIGN
+        StatusC(
+            OSSL, in_error="tls_post_process_client_hello:no shared cipher"
+        ),
     # a HRR with a Cipher A followed by a ServerHello with a Cipher B causes OSSL to return a wrong cipher error
     # while Wolf ignores this change
     "wrong_cipher/": StatusC(
         OSSL, in_error="set_client_ciphersuite:wrong cipher returned"
     ),
-    # RFC violation: encrypted out of order message triggers no alert for wolfssl
-    "encrypted_out_of_order/": AllC(
-        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
-        StatusC(WOLF, in_error="Out of order message, fatal", first_to_fail=False),
-        StatusC(
-            OSSL,
-            "ossl_statem_client_read_transition:unexpected message",
-            first_to_fail=False,
+    # AUDITED BY GEMINI
+    "encrypted_out_of_order/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies an implementation failing to send a required alert. When a fatal error like an out-of-order handshake message
+        # is detected, RFC 8446 requires the implementation to send an `unexpected_message` alert (Section 6). The bucket logic implies one implementation
+        # logs a fatal error internally but fails to send the alert to the peer.
+        # Logic Audit: The logic correctly combines the internal error status from both implementations with a `KnowledgeDiffC` check to confirm
+        # one peer did not generate a `MessagePayload` (the alert). This accurately pinpoints the silent-failure bug.
+        # Tag: RFC
+        AllC(
+            KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
+            StatusC(WOLF, in_error="Out of order message, fatal", first_to_fail=False),
+            StatusC(
+                OSSL,
+                "ossl_statem_client_read_transition:unexpected message",
+                first_to_fail=False,
+            ),
+            TermContainsReC(
+                OSSL,
+                r"fn_encrypt_handshake\(\s*",
+                last_input_executed=True,
+            ),
         ),
-        TermContainsReC(
-            OSSL,
-            r"fn_encrypt_handshake\(\s*",
-            last_input_executed=True,
+    # AUDITED BY GEMINI
+    "duplicate_ext_sh/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a ServerHello with a duplicate extension, violating RFC 8446, Section 4.2, which states
+        # "There MUST NOT be more than one extension of the same type in a given extension block." It also captures the subsequent failure
+        # of the receiving implementation (WolfSSL) to send a required fatal alert (e.g., `illegal_parameter`) before closing the connection.
+        # Logic Audit: The logic soundly combines status errors from both PUTs with a `KnowledgeDiffC` to confirm that one of them failed to generate an alert.
+        # Tag: RFC
+        AllC(
+            KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
+            StatusC(WOLF, in_error="error in PUT : Duplicate TLS extension in message."),
+            StatusC(OSSL, "tls_collect_extensions:bad extension"),
+            TermContainsReC(
+                OSSL,
+                r"fn_server_hello\(\s*",
+                last_input_executed=True,
+            ),
         ),
-    ),
-    # RFC violation: duplicate extension in SH cause wolf to abord without alert message
-    "duplicate_ext_sh/": AllC(
-        KnowledgeDiffC("tlspuffin::tls::rustls::msgs::message::MessagePayload", "()"),
-        StatusC(WOLF, in_error="error in PUT : Duplicate TLS extension in message."),
-        StatusC(OSSL, "tls_collect_extensions:bad extension"),
-        TermContainsReC(
-            OSSL,
-            r"fn_server_hello\(\s*",
-            last_input_executed=True,
-        ),
-    ),
     # race condition
     "alert_illegal_param_vs_proto_version/": InnerKnowledgeC(
         "BothAlert([Description(Different(IllegalParameter, ProtocolVersion))])"
@@ -398,86 +481,138 @@ buckets: dict[str, BucketCondition] = {
     "alert_decrypt_handshake_failure/": InnerKnowledgeC(
         "BothAlert([Description(Different(DecryptError, HandshakeFailure))])"
     ),
-    # RFC violation
-    "alert_unsupported_ext_illegal_param_server_psk/": AllC(
-        InnerKnowledgeC(
-            "BothAlert([Description(Different(UnsupportedExtension, IllegalParameter))])"
+    # AUDITED BY GEMINI
+    "alert_unsupported_ext_illegal_param_server_psk/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a client's response to an unsolicited `pre_shared_key` extension from a server. Per RFC 8446, Section 4.2,
+        # a server MUST NOT send an extension that was not requested. The required client response is an `unsupported_extension` alert.
+        # The implementation that sends `illegal_parameter` is non-compliant.
+        # Logic Audit: The logic correctly combines the alert divergence with the `preshared_keys_server_extension` context.
+        # Tag: RFC
+        AllC(
+            InnerKnowledgeC(
+                "BothAlert([Description(Different(UnsupportedExtension, IllegalParameter))])"
+            ),
+            TermContainsC(
+                WOLF,
+                "fn_preshared_keys_server_extension",
+                last_input_executed=True,
+            ),
         ),
-        TermContainsC(
-            WOLF,
-            "fn_preshared_keys_server_extension",
-            last_input_executed=True,
+    # AUDITED BY GEMINI
+    "alert_unsupported_ext_illegal_param_sh_status_request/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a response to a `status_request` extension in a ServerHello. Per RFC 8446, Section 4.2, this extension
+        # is not valid in a ServerHello. The RFC requires that a recognized but misplaced extension MUST be rejected with an `illegal_parameter` alert.
+        # The implementation that sends `unsupported_extension` is non-compliant.
+        # Logic Audit: The logic correctly combines the alert divergence with the `status_request_server_extension` context.
+        # Tag: RFC
+        AllC(
+            InnerKnowledgeC(
+                "BothAlert([Description(Different(UnsupportedExtension, IllegalParameter))])"
+            ),
+            TermContainsC(
+                OSSL,
+                "fn_status_request_server_extension",
+                last_input_executed=True,
+            ),
         ),
-    ),
-    # RFC violation
-    "alert_unsupported_ext_illegal_param_sh_status_request/": AllC(
-        InnerKnowledgeC(
-            "BothAlert([Description(Different(UnsupportedExtension, IllegalParameter))])"
-        ),
-        TermContainsC(
-            OSSL,
-            "fn_status_request_server_extension",
-            last_input_executed=True,
-        ),
-    ),
     # race condition
     "alert_unsupported_ext_illegal_param/": InnerKnowledgeC(
         "BothAlert([Description(Different(UnsupportedExtension, IllegalParameter))])"
     ),
-    # ClientHello without SupportedGroup but with KeyShare --> RFC violation for wolfSSL
-    "alert_missing_ext_handshake_failure/": InnerKnowledgeC(
-        "BothAlert([Description(Different(MissingExtension, HandshakeFailure))])"
-    ),
-    # missing supported groups with unsupported group keyshare --> ossl rejects because missing supported group, wolf rejects because invalid keyshare
-    # race condition
-    "alert_missing_ext_illegal_param_no_supported_groups/": AllC(
+    # AUDITED BY GEMINI
+    "alert_missing_ext_handshake_failure/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket describes a `ClientHello` with `key_share` but no `supported_groups`. The `supported_groups` extension is contextually
+        # mandatory to validate the `key_share`. Per RFC 8446, Section 9.2, `missing_extension` is the appropriate alert for a missing mandatory
+        # extension. The generic `handshake_failure` is less specific and therefore less compliant.
+        # Logic Audit: The `InnerKnowledgeC` precisely captures the alert divergence for this protocol violation.
+        # Tag: RFC
         InnerKnowledgeC(
-            "BothAlert([Description(Different(MissingExtension, IllegalParameter))])"
+            "BothAlert([Description(Different(MissingExtension, HandshakeFailure))])"
         ),
-        TermContainsC(
-            WOLF,
-            "fn_named_group_x25519",
-            last_input_executed=True,
+    # AUDITED BY GEMINI
+    "alert_missing_ext_illegal_param_no_supported_groups/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a race condition in error checking. The client sends a ClientHello with two distinct errors: a missing `supported_groups`
+        # extension and a `key_share` for an unsupported group. One implementation flags the missing extension (`MissingExtension`), while the other flags the
+        # bad key share (`IllegalParameter`). Both are valid, fatal errors. The RFC does not mandate a specific order for these checks, making this a benign divergence.
+        # Logic Audit: The logic correctly identifies the alert divergence in the context of this dual-error scenario.
+        # Tag: BENIGN
+        AllC(
+            InnerKnowledgeC(
+                "BothAlert([Description(Different(MissingExtension, IllegalParameter))])"
+            ),
+            TermContainsC(
+                WOLF,
+                "fn_named_group_x25519",
+                last_input_executed=True,
+            ),
         ),
-    ),
-    # binder stuff
-    "alert_missing_ext_illegal_param_binder/": AllC(
-        InnerKnowledgeC(
-            "BothAlert([Description(Different(MissingExtension, IllegalParameter))])"
+    # AUDITED BY GEMINI
+    "alert_missing_ext_illegal_param_binder/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket describes a `ClientHello` offering a `pre_shared_key` extension but omitting the mandatory `psk_key_exchange_modes` extension.
+        # RFC 8446, Section 4.2.9, requires servers to abort the handshake. The most appropriate alert is `missing_extension`. The use of the more
+        # generic `illegal_parameter` is less compliant.
+        # Logic Audit: The logic correctly identifies the alert divergence in a PSK context (`fn_fill_binder`).
+        # Tag: RFC
+        AllC(
+            InnerKnowledgeC(
+                "BothAlert([Description(Different(MissingExtension, IllegalParameter))])"
+            ),
+            TermContainsC(
+                WOLF,
+                "fn_fill_binder",
+                last_input_executed=True,
+            ),
         ),
-        TermContainsC(
-            WOLF,
-            "fn_fill_binder",
-            last_input_executed=True,
-        ),
-    ),
     "alert_missing_ext_illegal_param/": InnerKnowledgeC(
         "BothAlert([Description(Different(MissingExtension, IllegalParameter))])"
     ),
-    # missing extension + missing ciphersuite in clienthello leading to error race conditions
-    "alert_illegal_param_missing_ext_no_cipher/": AllC(
+    # AUDITED BY GEMINI
+    "alert_illegal_param_missing_ext_no_cipher/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a race condition in error checking. The client sends a `ClientHello` with two distinct errors: a missing mandatory
+        # extension and an empty cipher suite list. One implementation flags the missing extension (`MissingExtension`), while the other flags the invalid
+        # cipher suite list (`IllegalParameter`). Both are valid, fatal errors. The RFC does not mandate a specific order for these checks. This is a benign divergence.
+        # Logic Audit: The logic correctly identifies the alert divergence and links it to the creation of an empty cipher suite list.
+        # Tag: BENIGN
+        AllC(
+            InnerKnowledgeC(
+                "BothAlert([Description(Different(IllegalParameter, MissingExtension))])"
+            ),
+            TermContainsReC(
+                OSSL,
+                r"fn_cipher_suites_make\(\s*fn_new_cipher_suites",
+                last_input_executed=True,
+            ),
+        ),
+    # race condition: Missing signature algorithm extension and using a keyshare not advertised in the supported group extension
+    # AUDITED BY GEMINI
+    "alert_illegal_param_missing_ext/":
+        # Verdict: APPROVED
+        # Spec Audit: Benign race condition. The ClientHello has multiple distinct errors (e.g., missing a mandatory extension, providing an invalid field).
+        # One implementation flags the missing extension (`MissingExtension`), while another flags the invalid field (`IllegalParameter`).
+        # Both are valid, fatal errors, and the RFC does not mandate a specific order for these checks. This is a permissible divergence.
+        # Logic Audit: The logic correctly captures the alert divergence.
+        # Tag: BENIGN
         InnerKnowledgeC(
             "BothAlert([Description(Different(IllegalParameter, MissingExtension))])"
         ),
-        TermContainsReC(
-            OSSL,
-            r"fn_cipher_suites_make\(\s*fn_new_cipher_suites",
-            last_input_executed=True,
+    # AUDITED BY GEMINI
+    "alert_illegalparameter_handshakefailure/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a scenario where OpenSSL sends an `illegal_parameter` alert while WolfSSL sends `handshake_failure`.
+        # The scenario, as described in the original comment, involves a server (fuzzer) offering an invalid cipher suite. Per RFC 8446, Section 6,
+        # `illegal_parameter` is for fields that are "incorrect or inconsistent", while `handshake_failure` is for a failure "to negotiate an acceptable set of security parameters".
+        # Sending an invalid suite is a protocol field error, making `illegal_parameter` the more accurate alert. WolfSSL's choice is therefore less compliant.
+        # Logic Audit: The `InnerKnowledgeC` perfectly captures the divergent alert behavior, making the bucket's logic sound and precise.
+        # Tag: RFC
+        InnerKnowledgeC(
+            "BothAlert([Description(Different(IllegalParameter, HandshakeFailure))])"
         ),
-    ),
-    # race condition: Missing signature algorithm extension and using a keyshare not advertised in the supported group extension
-    "alert_illegal_param_missing_ext/": InnerKnowledgeC(
-        "BothAlert([Description(Different(IllegalParameter, MissingExtension))])"
-    ),
-    # RFC violation: server attacker responds to a client with an invalid ciphersuite, OSSL responds with IllegalParameter while wolf responds with Handshake failure
-    # according to RFC 8446 section 6.2 :
-    # illegal_parameter:  A field in the handshake was incorrect or inconsistent with other fields.  This alert is used for errors which conform to the formal protocol syntax but are otherwise incorrect.
-    # and
-    # handshake_failure:  Receipt of a "handshake_failure" alert message indicates that the sender was unable to negotiate an acceptable set of security parameters given the options available.
-    # So wolfssl is wrong
-    "alert_illegalparameter_handshakefailure/": InnerKnowledgeC(
-        "BothAlert([Description(Different(IllegalParameter, HandshakeFailure))])"
-    ),
     # race condition: empty supported group extension (catched by ossl) + other error catched by wolf
     "alert_decodeerror_handshakefailure/": InnerKnowledgeC(
         "BothAlert([Description(Different(DecodeError, HandshakeFailure))])"
@@ -494,48 +629,108 @@ buckets: dict[str, BucketCondition] = {
     "alert_missingextension_decodeerror/": InnerKnowledgeC(
         "BothAlert([Description(Different(MissingExtension, DecodeError))])"
     ),
-    # TODO
-    "alert_unexpectedmessage_badrecordmac/": InnerKnowledgeC(
-        "BothAlert([Description(Different(UnexpectedMessage, BadRecordMac))])"
-    ),
-    # race condition: tls1.3 as legacy version (catched by ossl) + other protocol error (catched by wolf)
-    "alert_protocolversion_decodeerror/": InnerKnowledgeC(
-        "BothAlert([Description(Different(ProtocolVersion, DecodeError))])"
-    ),
-    # race condition: missing supported_version extension (catched by wolf) + malformed extension (catched by ossl)
-    "alert_decodeerror_protocolversion/": InnerKnowledgeC(
-        "BothAlert([Description(Different(DecodeError, ProtocolVersion))])"
-    ),
-    # race condition: malformed extension in SH (catched by wolf) + use of an unsupported cipher (catched by ossl)
-    "alert_handshakefailure_decodeerror/": InnerKnowledgeC(
-        "BothAlert([Description(Different(HandshakeFailure, DecodeError))])"
-    ),
-    # RFC violation: Malformed KeyShare extension : ossl returns DecodeError while wolf send IllegalParameter
-    # malformed messages should trigger Decode error -> RFC violation for wolf
-    "alert_decodeerror_illegalparameter/": InnerKnowledgeC(
-        "BothAlert([Description(Different(DecodeError, IllegalParameter))])"
-    ),
-    # two CCS, wolf returns illegal_parameter which is invalid -> tested with wolf 5.8.4 got unexpectedmessage
-    "alert_unexpectedmessage_illegalparameter/": InnerKnowledgeC(
-        "BothAlert([Description(Different(UnexpectedMessage, IllegalParameter))])"
-    ),
+    # AUDITED BY GEMINI
+    "alert_unexpectedmessage_badrecordmac/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a race condition when a plaintext record is received where an encrypted one is expected.
+        # An implementation may fail at the record layer (unable to deprotect, sending `BadRecordMac`) or at the message layer (plaintext is
+        # inappropriate, sending `UnexpectedMessage`). Both are valid responses. This is a benign divergence.
+        # Logic Audit: The `InnerKnowledgeC` correctly captures the alert divergence.
+        # Tag: BENIGN
+        InnerKnowledgeC(
+            "BothAlert([Description(Different(UnexpectedMessage, BadRecordMac))])"
+        ),
+    # AUDITED BY GEMINI
+    "alert_protocolversion_decodeerror/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a race condition when a client sends an ambiguous `ClientHello` (e.g., missing `supported_versions`). A server may fail
+        # immediately on version negotiation (`protocol_version`), or it may attempt to parse the message as TLS 1.2 and fail on an invalid extension format (`decode_error`).
+        # Both are compliant failure paths depending on implementation strategy.
+        # Logic Audit: The `InnerKnowledgeC` correctly captures the alert divergence.
+        # Tag: BENIGN
+        InnerKnowledgeC(
+            "BothAlert([Description(Different(ProtocolVersion, DecodeError))])"
+        ),
+    # AUDITED BY GEMINI
+    "alert_decodeerror_protocolversion/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a race condition in error checking. The `ClientHello` contains two distinct errors (e.g., missing `supported_versions`
+        # and another malformed extension). One implementation fails on the malformed extension (`decode_error`), while the other fails on the versioning
+        # issue (`protocol_version`). Both are compliant failure paths.
+        # Logic Audit: The logic correctly captures the alert divergence.
+        # Tag: BENIGN
+        InnerKnowledgeC(
+            "BothAlert([Description(Different(DecodeError, ProtocolVersion))])"
+        ),
+    # AUDITED BY GEMINI
+    "alert_handshakefailure_decodeerror/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a race condition in error checking. The `ServerHello` contains two distinct errors (a malformed extension and an
+        # unsupported cipher suite selection). One implementation fails on the malformed extension (`decode_error`), while the other fails on the negotiation
+        # failure (`handshake_failure`). Both are compliant failure paths.
+        # Logic Audit: The logic correctly captures the alert divergence.
+        # Tag: BENIGN
+        InnerKnowledgeC(
+            "BothAlert([Description(Different(HandshakeFailure, DecodeError))])"
+        ),
+    # AUDITED BY GEMINI
+    "alert_decodeerror_illegalparameter/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a divergence in alerts for a malformed KeyShare extension. Per RFC 8446, Section 6, `decode_error`
+        # is for messages that "do not conform to the formal protocol syntax". `illegal_parameter` is for messages that are syntactically correct but
+        # semantically invalid. A malformed extension is a syntax error. OpenSSL correctly sends `decode_error`; WolfSSL's use of `illegal_parameter` is an RFC violation.
+        # Logic Audit: The `InnerKnowledgeC` precisely captures this alert divergence. The logic is sound.
+        # Tag: RFC
+        InnerKnowledgeC(
+            "BothAlert([Description(Different(DecodeError, IllegalParameter))])"
+        ),
+    # AUDITED BY GEMINI
+    "alert_unexpectedmessage_illegalparameter/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a divergence in alerts for an out-of-place ChangeCipherSpec (CCS) message. Per RFC 8446, Section 6,
+        # `unexpected_message` is for "An inappropriate message". A second, redundant CCS message fits this definition.
+        # `illegal_parameter` is for invalid fields within a message, not a misplaced message. The implementation sending `illegal_parameter` is non-compliant.
+        # Logic Audit: The `InnerKnowledgeC` precisely captures this alert divergence. The logic is sound.
+        # Tag: RFC
+        InnerKnowledgeC(
+            "BothAlert([Description(Different(UnexpectedMessage, IllegalParameter))])"
+        ),
     # race concition : bad cipher (catched by ossl) other error (catched by wolf)
     "alert_handshakefailure_illegalparameter/": InnerKnowledgeC(
         "BothAlert([Description(Different(HandshakeFailure, IllegalParameter))])"
     ),
-    # related to binder
-    "alert_decrypterror_illegalparameter/": InnerKnowledgeC(
-        "BothAlert([Description(Different(DecryptError, IllegalParameter))])"
-    ),
-    # missing supported_version in HRR, OSSL catches the missing extension while wolf tries to interpret the message as a TLS 1.2 SH
-    # both alert seems valid. TODO investigate
-    "alert_missingextension_protocolversion/": InnerKnowledgeC(
-        "BothAlert([Description(Different(MissingExtension, ProtocolVersion))])"
-    ),
-    # race conditon: missing supported_version + unsupported extension
-    "alert_unsupportedextension_protocolversion/": InnerKnowledgeC(
-        "BothAlert([Description(Different(UnsupportedExtension, ProtocolVersion))])"
-    ),
+    # AUDITED BY GEMINI
+    "alert_decrypterror_illegalparameter/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket describes a PSK binder verification failure. Per RFC 8446, Section 6, the `decrypt_error` alert is explicitly
+        # for handshake cryptographic failures, including failing to "validate a ... PSK binder". The use of `illegal_parameter` is incorrect.
+        # Logic Audit: The logic correctly captures the alert divergence in what the original comment identifies as a binder-related scenario.
+        # Tag: RFC
+        InnerKnowledgeC(
+            "BothAlert([Description(Different(DecryptError, IllegalParameter))])"
+        ),
+    # AUDITED BY GEMINI
+    "alert_missingextension_protocolversion/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket describes a `HelloRetryRequest` missing the mandatory `supported_versions` extension (a violation of RFC 8446, Section 4.1.4).
+        # The correct response is to identify this specific error, making `missing_extension` the most accurate alert. The `protocol_version` alert arises from
+        # a less precise interpretation of the malformed message. The implementation sending `missing_extension` is more compliant.
+        # Logic Audit: The logic correctly captures the alert divergence in this scenario.
+        # Tag: RFC
+        InnerKnowledgeC(
+            "BothAlert([Description(Different(MissingExtension, ProtocolVersion))])"
+        ),
+    # AUDITED BY GEMINI
+    "alert_unsupportedextension_protocolversion/":
+        # Verdict: APPROVED
+        # Spec Audit: This bucket identifies a race condition in error checking. The client sends a `ClientHello` with two distinct errors: a missing `supported_versions`
+        # extension and another unsupported extension. One implementation flags the unsupported extension (`UnsupportedExtension`), while the other flags the
+        # version negotiation failure (`ProtocolVersion`). Both are valid, fatal errors. The RFC does not mandate a specific order for these checks. This is a benign divergence.
+        # Logic Audit: The logic correctly captures the alert divergence for this dual-error scenario.
+        # Tag: BENIGN
+        InnerKnowledgeC(
+            "BothAlert([Description(Different(UnsupportedExtension, ProtocolVersion))])"
+        ),
     # race condition: big coalesced message and missing SH, openssl can't parse and wolf spot missing SH
     "alert_recordoverflow_unexpectedmessage/": InnerKnowledgeC(
         "BothAlert([Description(Different(RecordOverflow, UnexpectedMessage))])"

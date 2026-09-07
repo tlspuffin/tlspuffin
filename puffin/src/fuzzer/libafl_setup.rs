@@ -27,6 +27,9 @@ use crate::trace::{ConfigTrace, Spawner, Trace, TraceContext};
 
 pub const MAP_FEEDBACK_NAME: &str = "edges";
 const EDGES_OBSERVER_NAME: &str = "edges_observer";
+/// Protocol-agnostic claim-trajectory coverage (see `DY_CLAIM_COVERAGE_FEEDBACK.md`).
+const CLAIM_FEEDBACK_NAME: &str = "claim_coverage";
+const CLAIM_OBSERVER_NAME: &str = "claim_coverage_observer";
 
 type ConcreteExecutor<'harness, EM, H, I, OT, S, Z> =
     InProcessExecutor<'harness, EM, H, I, OT, S, Z>;
@@ -370,7 +373,9 @@ where
             Duration::new(5, 0),
         )?;
 
-        // In case the corpus is empty (on first run), reset
+        // In case the corpus is empty (on first run), (re)seed it.
+        let mut embedded_seeds = self.initial_inputs.take().unwrap_or_default();
+
         if state.corpus().is_empty() {
             if initial_corpus_dir.exists() {
                 state
@@ -387,10 +392,26 @@ where
                         )
                     });
                 log::info!("Imported {} inputs from disk.", state.corpus().count());
+
+                // If the directory exists but has no parseable entries, fall back to embedded
+                // seeds.
+                if state.corpus().is_empty() {
+                    log::warn!(
+                        "Initial corpus directory {:?} contained no usable seeds. Falling back to embedded seeds.",
+                        initial_corpus_dir
+                    );
+
+                    for (seed, name) in embedded_seeds.drain(..) {
+                        log::info!("Using embedded seed {}", name);
+                        fuzzer
+                            .add_input(&mut state, &mut executor, &mut self.event_manager, seed)
+                            .expect("Failed to add embedded input");
+                    }
+                }
             } else {
                 log::info!("Initial seed corpus not found. Using embedded seeds.");
 
-                for (seed, name) in self.initial_inputs.unwrap() {
+                for (seed, name) in embedded_seeds.drain(..) {
                     log::info!("Using seed {}", name);
                     fuzzer
                         .add_input(&mut state, &mut executor, &mut self.event_manager, seed)
@@ -422,10 +443,21 @@ where
 type EdgesObserver = HitcountsMapObserver<StdMapObserver<'static, u8, false>>;
 type EdgesTracking = ExplicitTracking<EdgesObserver, true, false>;
 
-type ConcreteObservers<'a> = (EdgesTracking, (TimeObserver, ()));
+// Claim-trajectory coverage observer: a separate map filled from the
+// per-execution claim list (protocol-agnostic). It is NOT index-tracked —
+// LibAFL allows only one index-tracking observer (the edge observer, needed by
+// the minimizer); a second would collide on `MapIndexesMetadata`. A plain
+// `HitcountsMapObserver` is `CanTrack` (INDICES=false) and `AsRef<Self>`, which
+// satisfies `MaxMapFeedback` without attaching any tracking metadata.
+type ClaimObserver = HitcountsMapObserver<StdMapObserver<'static, u8, false>>;
 
-type ConcreteFeedback<'a> =
-    CombinedFeedback<MaxMapFeedback<EdgesTracking, EdgesObserver>, TimeFeedback, LogicEagerOr>;
+type ConcreteObservers<'a> = (EdgesTracking, (ClaimObserver, (TimeObserver, ())));
+
+type ConcreteFeedback<'a> = CombinedFeedback<
+    MaxMapFeedback<EdgesTracking, EdgesObserver>,
+    CombinedFeedback<MaxMapFeedback<ClaimObserver, ClaimObserver>, TimeFeedback, LogicEagerOr>,
+    LogicEagerOr,
+>;
 
 impl<'harness, 'a, H, SC, C, R, EM, OF, CS, PT>
     RunClientBuilder<
@@ -485,6 +517,11 @@ where
             &mut EDGES_MAP[0..MAX_EDGES_FOUND]
         };
 
+        // Synthetic claim-trajectory coverage map (per-process, mirrors the edge
+        // map). Filled by the executor from each run's claim list; inert unless a
+        // protocol implements `Claim::coverage_key`.
+        let claim_map = unsafe { &mut crate::claims::CLAIM_COVERAGE_MAP[..] };
+
         {
             let time_observer = TimeObserver::new("time");
             let edges_observer =
@@ -494,16 +531,24 @@ where
 
             let map_feedback = MaxMapFeedback::with_name(MAP_FEEDBACK_NAME, &edges_observer);
 
+            let claim_observer = HitcountsMapObserver::new(unsafe {
+                StdMapObserver::new(CLAIM_OBSERVER_NAME, claim_map)
+            });
+            let claim_feedback = MaxMapFeedback::with_name(CLAIM_FEEDBACK_NAME, &claim_observer);
+
             let feedback = feedback_or!(
                 // New maximization map feedback linked to the edges observer and the feedback
                 // state `track_indexes` needed because of
                 // IndexesLenTimeMinimizerCorpusScheduler
                 map_feedback,
+                // Claim-trajectory coverage (DY conversation-state novelty),
+                // OR-combined; inert until a protocol opts in via `coverage_key`.
+                claim_feedback,
                 // Time feedback, this one does not need a feedback state
                 // needed for IndexesLenTimeMinimizerCorpusScheduler
                 TimeFeedback::new(&time_observer)
             );
-            let observers = tuple_list!(edges_observer, time_observer);
+            let observers = tuple_list!(edges_observer, claim_observer, time_observer);
             (feedback, observers)
         }
     }

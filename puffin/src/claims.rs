@@ -23,6 +23,68 @@ pub trait Claim: EvaluatedTerm<Self::PT> + Debug + Comparable + PartialEq {
     fn inner(&self) -> Box<dyn EvaluatedTerm<Self::PT>>;
     fn set_step(&mut self, step: Option<StepNumber>);
     fn get_step(&self) -> Option<StepNumber>;
+
+    /// Canonical projection of this claim for the protocol-agnostic
+    /// claim-trajectory coverage feedback (see `DY_CLAIM_COVERAGE_FEEDBACK.md`).
+    /// `Some(key)` opts this claim into coverage; `None` (default) opts out, so
+    /// the feedback is inert until a protocol implements it.
+    ///
+    /// Implementors MUST omit per-execution-random fields (nonces, ephemeral
+    /// keys, session ids, MAC tags, timestamps) and bucket unbounded counters,
+    /// so two semantically-equal conversation states collapse to one key —
+    /// otherwise every run is "novel" and the feedback degenerates to
+    /// always-true. The induced equivalence (`a ≡ b ⇔ equal keys`) is the
+    /// protocol's comparison function over claims.
+    fn coverage_key(&self) -> Option<u64> {
+        None
+    }
+}
+
+/// Size of the synthetic claim-trajectory coverage map (power of two). Indexed
+/// by hashed claim states and adjacent claim transitions.
+pub const CLAIM_COVERAGE_MAP_SIZE: usize = 1 << 16;
+
+/// Per-process claim-trajectory coverage map, mirroring the sancov edge map: an
+/// `Observer` reads it post-execution and a `MaxMapFeedback` rewards novel
+/// cells. Single fuzzing thread per process (Launcher forks), so a process-local
+/// `static mut` is sound, exactly as for `EDGES_MAP`.
+pub static mut CLAIM_COVERAGE_MAP: [u8; CLAIM_COVERAGE_MAP_SIZE] = [0; CLAIM_COVERAGE_MAP_SIZE];
+
+#[inline]
+fn claim_cov_mix(mut x: u64) -> u64 {
+    // splitmix64 finalizer — spreads small/structured keys across the map.
+    x = (x ^ (x >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    x = (x ^ (x >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    x ^ (x >> 31)
+}
+
+/// OR-write the claim-trajectory coverage of one execution into
+/// [`CLAIM_COVERAGE_MAP`]: one cell per claim *state* and one per adjacent,
+/// ordered claim *transition*. Protocol-blind — it only consumes each claim's
+/// [`Claim::coverage_key`]. The map is reset by the observer's `pre_exec`, so
+/// this only sets bits. Called from the executor on every run (incl. aborted
+/// ones, capturing partial trajectories).
+pub fn record_claim_coverage<C: Claim>(claims: &[C]) {
+    let map = unsafe { &mut *core::ptr::addr_of_mut!(CLAIM_COVERAGE_MAP) };
+    let mut prev: Option<u64> = None;
+    for c in claims {
+        let Some(k) = c.coverage_key() else {
+            continue;
+        };
+        // Presence-only (set to 1, not increment): a DY conversation state hit
+        // N times is not "more novel" than hit once. With hit-count semantics
+        // the feedback retained inputs for new hit-count *buckets* of the same
+        // state, inflating the corpus with noise (A/B finding); presence makes
+        // retention reflect genuinely new states / transitions only.
+        let s = (claim_cov_mix(k) as usize) & (CLAIM_COVERAGE_MAP_SIZE - 1);
+        map[s] = 1;
+        if let Some(p) = prev {
+            let t = (claim_cov_mix(p.rotate_left(1) ^ claim_cov_mix(k)) as usize)
+                & (CLAIM_COVERAGE_MAP_SIZE - 1);
+            map[t] = 1;
+        }
+        prev = Some(k);
+    }
 }
 
 pub trait SecurityViolationPolicy {

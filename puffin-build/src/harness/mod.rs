@@ -24,6 +24,7 @@ pub struct Harness {
     library: Library,
     kind: Kind,
     path: PathBuf,
+    protocol: String,
 }
 
 #[derive(Debug, Clone, Display)]
@@ -56,6 +57,7 @@ impl Harness {
             library,
             kind,
             path: harness_dir,
+            protocol: protocol.as_ref().to_string(),
         })
     }
 
@@ -90,6 +92,10 @@ impl Harness {
                 cmake_conf
                     .cfg_args
                     .push(format!("-DHARNESS={}", self.path.display()));
+
+                cmake_conf
+                    .cfg_args
+                    .push(format!("-DPROTOCOL={}", self.protocol));
 
                 cmake_conf.cfg_args.push(format!(
                     "-DINCLUDE_DIRS={}",
