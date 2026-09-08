@@ -6,6 +6,10 @@ use std::marker::PhantomData;
 use libafl::prelude::*;
 use libafl_bolts::prelude::*;
 
+use crate::fuzzer::utils::set_step_lock;
+use crate::protocol::ProtocolTypes;
+use crate::trace::Trace;
+
 /// A [`Mutator`] that schedules one of the embedded mutations on each call.
 pub struct FocusScheduledMutator<I, MT, MtPre, MtPost, S>
 where
@@ -493,5 +497,76 @@ where
     }
     fn schedule(&self, state: &mut S, input: &I) -> MutationId {
         self.inner.schedule(state, input)
+    }
+}
+
+/// A [`Mutator`] wrapper that, when `enabled`, confines every anchor selection of the inner
+/// (stacking) mutator to a single randomly-chosen step for the duration of one mutational stage.
+///
+/// Rationale: with heavy stacking, a stage's mutations otherwise anchor on *different* steps -- one
+/// can improve coverage at step k while another breaks executability at a later step j, yet the
+/// whole (broken-tailed) trace is still saved to the corpus because coverage improved (the
+/// "coverage hitchhiker" effect). Locking all anchors of a stage to one step makes the coverage
+/// gain and any executability break attributable to the same step.
+///
+/// The lock is applied via [`crate::fuzzer::utils::set_step_lock`], which only affects anchor
+/// selection ([`crate::fuzzer::utils::reservoir_sample`]); Global/Step *fan-out* still spreads a
+/// mutation's effect across the whole trace, so a Global mutation's effect reaches other steps --
+/// only its anchor is confined to the locked step.
+pub struct StepLockedStackMutator<PT, M> {
+    inner: M,
+    enabled: bool,
+    phantom: PhantomData<PT>,
+}
+
+impl<PT, M> StepLockedStackMutator<PT, M> {
+    pub fn new(inner: M, enabled: bool) -> Self {
+        Self {
+            inner,
+            enabled,
+            phantom: PhantomData,
+        }
+    }
+}
+
+impl<PT, M: Named> Named for StepLockedStackMutator<PT, M> {
+    fn name(&self) -> &Cow<'static, str> {
+        self.inner.name()
+    }
+}
+
+impl<PT, M: ComposedByMutations> ComposedByMutations for StepLockedStackMutator<PT, M> {
+    type Mutations = M::Mutations;
+    fn mutations(&self) -> &Self::Mutations {
+        self.inner.mutations()
+    }
+    fn mutations_mut(&mut self) -> &mut Self::Mutations {
+        self.inner.mutations_mut()
+    }
+}
+
+impl<S, PT, M> Mutator<Trace<PT>, S> for StepLockedStackMutator<PT, M>
+where
+    S: HasRand,
+    PT: ProtocolTypes,
+    M: Mutator<Trace<PT>, S>,
+{
+    #[inline]
+    fn mutate(&mut self, state: &mut S, input: &mut Trace<PT>) -> Result<MutationResult, Error> {
+        let nsteps = input.steps.len();
+        let locked = if self.enabled && nsteps > 0 {
+            Some(state.rand_mut().below_or_zero(nsteps))
+        } else {
+            None
+        };
+        // Set the lock for the whole inner stacking loop, then restore the previous value.
+        let prev = set_step_lock(locked);
+        let r = self.inner.mutate(state, input);
+        set_step_lock(prev);
+        r
+    }
+
+    fn post_exec(&mut self, state: &mut S, id: Option<CorpusId>) -> Result<(), Error> {
+        self.inner.post_exec(state, id)
     }
 }
