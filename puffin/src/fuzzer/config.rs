@@ -82,6 +82,10 @@ pub struct MutationStageConfig {
     pub max_mutations_pow_per_iteration: u64,
     // Whether to truncate the input after mutations, prior to adding it to the corpus
     pub with_truncation: bool,
+    /// When true, all mutations stacked within one mutational stage confine their anchor selection
+    /// to a single randomly-chosen step (see [`crate::fuzzer::stages::StepLockedStackMutator`]).
+    /// Enabled by default; disable with the `--no-step-lock` CLI flag.
+    pub step_locked_stacking: bool,
 }
 
 impl Default for MutationStageConfig {
@@ -91,6 +95,7 @@ impl Default for MutationStageConfig {
             max_iterations_per_stage: NonZeroUsize::new(128).unwrap(),
             max_mutations_pow_per_iteration: 7,
             with_truncation: false,
+            step_locked_stacking: true,
             // Default for StdMutationalStage and StdMutationalStage (=HavocScheduledMutator)
         }
     }
