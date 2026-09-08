@@ -33,44 +33,94 @@ use crate::protocol::OpcuaProtocolBehavior;
 pub fn create_corpus(
     _put: &dyn puffin::put_registry::Factory<OpcuaProtocolBehavior>,
 ) -> Vec<(Trace<OpcuaProtocolTypes>, &'static str)> {
-    vec![
-        // --- Legitimate seeds (the actual fuzzing corpus) ---
-        (seed_a_hello_bob(AgentName::first()), "seed_a_hello_bob"),
+    let a = AgentName::first();
+    // --- Legitimate seeds (the actual fuzzing corpus) ---
+    let mut corpus: Vec<(Trace<OpcuaProtocolTypes>, &'static str)> = vec![
+        (seed_a_hello_bob(a), "seed_a_hello_bob"),
         (
-            seed_ap_client_open_unsecure_channel(AgentName::first()),
+            seed_ap_client_open_unsecure_channel(a),
             "seed_ap_client_open_unsecure_channel",
         ),
         (
-            seed_b_client_open_secure_channel(AgentName::first()),
+            seed_b_client_open_secure_channel(a),
             "seed_b_client_open_secure_channel",
         ),
         (
-            seed_c_server_open_unsecure_channel(AgentName::first()),
+            seed_c_server_open_unsecure_channel(a),
             "seed_c_server_open_unsecure_channel",
         ),
+        (seed_d_client_simple_request(a), "seed_d_client_simple_request"),
         (
-            seed_d_client_simple_request(AgentName::first()),
-            "seed_d_client_simple_request",
-        ),
-        (
-            seed_e_client_reopen_reactivate(AgentName::first()),
+            seed_e_client_reopen_reactivate(a),
             "seed_e_client_reopen_reactivate",
         ),
         (
-            seed_f_client_switch_secure_channels(AgentName::first()),
+            seed_f_client_switch_secure_channels(a),
             "seed_f_client_switch_secure_channels",
         ),
-        // --- Bug-targeting seeds: DISABLED by default (see the doc comment above). ---
-        // Enable only for a targeted reproduction against a vendor built with the matching patch.
-        // (
-        //     crate::opcua::vulnerabilities::seed_bad_switch(AgentName::first()),
-        //     "seed_bad_switch",
-        // ),
-        // (
-        //     crate::opcua::vulnerabilities::seed_bug_dead_session(AgentName::first()),
-        //     "seed_bug_dead_session",
-        // ),
-    ]
+    ];
+
+    // Seed-distance (dichotomy) evaluation: LADDER_RUNG injects ONE pre-baked
+    // intermediate switch-seed between seed_f (legit switch, all-Mallory) and the
+    // TRIGGERING bad-switch attack. Empirically only the 3-Alice-leaf variant
+    // (user_cert=Alice AND userTokenSignature=Alice) fires the OOB in
+    // Service_ActivateSession; the Mallory-user_cert variant does NOT. So distances
+    // are counted from that 3-leaf attack:
+    //   d0  = attack        (uc=T, uts_cert=T, uts_key=T)  -> should crash at once
+    //   d1  = needs uts key (uc=T, uts_cert=T, uts_key=F)
+    //   d2  = needs uts c+k (uc=T, uts_cert=F, uts_key=F)
+    //   d3  = seed_f-equiv  (uc=F, uts_cert=F, uts_key=F)  -> needs all 3
+    //   allalice = over-replace clientSig too (uc=T, uts_cert=T, uts_key=T, csig=T)
+    use crate::opcua::vulnerabilities::{make_user_oscar, seed_bad_switch_cfg};
+
+    // DISTINCT_ALL: make EVERY legit seed use a user-token identity (Oscar) distinct from the
+    // application/channel identity (Mallory). Realistic (app cert != user identity) AND it lets a
+    // single per-step scoped mutation flip just the user token -- the shared-identity seeds cannot.
+    if std::env::var("DISTINCT_ALL").is_ok() {
+        for (t, _) in corpus.iter_mut() {
+            make_user_oscar(t);
+        }
+    }
+
+    match std::env::var("LADDER_RUNG").as_deref() {
+        Ok("d0") => corpus.push((seed_bad_switch_cfg(a, true, true, true, false), "ladder_d0_attack")),
+        Ok("d1") => corpus.push((seed_bad_switch_cfg(a, true, true, false, false), "ladder_d1")),
+        Ok("d2") => corpus.push((seed_bad_switch_cfg(a, true, false, false, false), "ladder_d2")),
+        Ok("d3") => corpus.push((seed_bad_switch_cfg(a, false, false, false, false), "ladder_d3_legitswitch")),
+        Ok("allalice") => {
+            corpus.push((seed_bad_switch_cfg(a, true, true, true, true), "ladder_allalice"))
+        }
+        // Distinct client (Oscar) vs user-token (Mallory) identity: mallory now marks ONLY the user
+        // token, so a single per-step scoped mallory->alice should reach the bug.
+        Ok("distinct_legit") => {
+            let mut t = seed_bad_switch_cfg(a, false, false, false, false); // user token Mallory -> Oscar
+            make_user_oscar(&mut t);
+            corpus.push((t, "distinct_legit"));
+        }
+        Ok("distinct_d0") => {
+            // switch user = Alice; activate#1 user Mallory -> Oscar. => stored=Oscar, switch=Alice => bug.
+            let mut t = seed_bad_switch_cfg(a, true, true, true, false);
+            make_user_oscar(&mut t);
+            corpus.push((t, "distinct_d0_attack"));
+        }
+        // Intermediate distinct-identity rungs: with distinct identity the attack = 2 safe swaps
+        // (user-token cert Oscar->Alice, user-token key Oscar->Alice). These pre-bake ONE swap so the
+        // fuzzer needs only the other (isolates single-swap findability from the 2-swap combo).
+        Ok("distinct_d1key") => {
+            // certs already Alice; key still Oscar -> fuzzer needs only oscar_sk -> alice_sk.
+            let mut t = seed_bad_switch_cfg(a, true, true, false, false);
+            make_user_oscar(&mut t); // uts_key was Mallory -> Oscar
+            corpus.push((t, "distinct_d1key"));
+        }
+        Ok("distinct_d1cert") => {
+            // key already Alice; certs still Oscar -> fuzzer needs only oscar_cert -> alice_cert.
+            let mut t = seed_bad_switch_cfg(a, false, false, true, false);
+            make_user_oscar(&mut t); // uc + uts_cert were Mallory -> Oscar
+            corpus.push((t, "distinct_d1cert"));
+        }
+        _ => {}
+    }
+    corpus
 }
 
 pub fn seed_a_hello_bob(server: AgentName) -> Trace<OpcuaProtocolTypes> {
@@ -167,9 +217,7 @@ pub fn seed_ap_client_open_unsecure_channel(server: AgentName) -> Trace<OpcuaPro
                             fn_security_policy_none,
                             (fn_header(
                                 fn_close, // needs channel id:
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (@close_request)
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -287,9 +335,7 @@ pub fn seed_b_client_open_secure_channel(server: AgentName) -> Trace<OpcuaProtoc
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_close, // needs channel id:
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (@close_request)
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -306,12 +352,11 @@ pub fn seed_b_client_open_secure_channel(server: AgentName) -> Trace<OpcuaProtoc
                             )),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_close, // needs channel id:
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (@close_request)
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -435,9 +480,7 @@ pub fn seed_c_server_open_unsecure_channel(client: AgentName) -> Trace<OpcuaProt
                         fn_tcp_1,
                         (fn_msg_header(
                             fn_security_policy_none,
-                            (fn_header(fn_final, fn_seq_1)),  // channel id 1
-                            (fn_service_size((@get_endpoints_response)))
-                        )),
+                            (fn_header(fn_final, fn_seq_1)))),
                         (fn_body(
                             (fn_channel_token(fn_seq_1)),
                             (fn_sequence_header(fn_seq_1, fn_seq_2)),
@@ -455,9 +498,7 @@ pub fn seed_c_server_open_unsecure_channel(client: AgentName) -> Trace<OpcuaProt
                         fn_tcp_1,
                         (fn_msg_header(
                             fn_security_policy_none,
-                            (fn_header(fn_final, fn_seq_1)),  // channel id 1
-                            (fn_service_size((@close_response)))
-                        )),
+                            (fn_header(fn_final, fn_seq_1)))),
                         (fn_body(
                             (fn_channel_token(fn_seq_1)),
                             (fn_sequence_header(fn_seq_1, fn_seq_3)),
@@ -574,7 +615,7 @@ pub fn seed_d_client_simple_request(server: AgentName) -> Trace<OpcuaProtocolTyp
             )),
             (fn_user_cert(
               ((server, 0)[Some(OpcuaQueryMatcher::PolicyIdCertificate)]/UAString), // PolicyId!
-              fn_mallory_cert
+              fn_oscar_cert
             )),
             (fn_sign(
                 (fn_signature_data(
@@ -582,8 +623,8 @@ pub fn seed_d_client_simple_request(server: AgentName) -> Trace<OpcuaProtocolTyp
                     ((server, 0)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/ByteString) // S_nonce!
                 )),
                 fn_basic256sha256,
-                fn_mallory_cert,
-                fn_mallory_sk
+                fn_oscar_cert,
+                fn_oscar_sk
             ))
         )
     };
@@ -681,9 +722,7 @@ pub fn seed_d_client_simple_request(server: AgentName) -> Trace<OpcuaProtocolTyp
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@create_request)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -698,12 +737,11 @@ pub fn seed_d_client_simple_request(server: AgentName) -> Trace<OpcuaProtocolTyp
                             (@create_request),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@create_request)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -734,9 +772,7 @@ pub fn seed_d_client_simple_request(server: AgentName) -> Trace<OpcuaProtocolTyp
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@activate_certificate)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -751,12 +787,11 @@ pub fn seed_d_client_simple_request(server: AgentName) -> Trace<OpcuaProtocolTyp
                             (@activate_certificate),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@activate_certificate)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -787,9 +822,7 @@ pub fn seed_d_client_simple_request(server: AgentName) -> Trace<OpcuaProtocolTyp
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@simple_request)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -804,12 +837,11 @@ pub fn seed_d_client_simple_request(server: AgentName) -> Trace<OpcuaProtocolTyp
                             (@simple_request),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@simple_request)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -840,9 +872,7 @@ pub fn seed_d_client_simple_request(server: AgentName) -> Trace<OpcuaProtocolTyp
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@close_session)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -857,12 +887,11 @@ pub fn seed_d_client_simple_request(server: AgentName) -> Trace<OpcuaProtocolTyp
                             (@close_session),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@close_session)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -893,9 +922,7 @@ pub fn seed_d_client_simple_request(server: AgentName) -> Trace<OpcuaProtocolTyp
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_close,
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@close_channel)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -910,12 +937,11 @@ pub fn seed_d_client_simple_request(server: AgentName) -> Trace<OpcuaProtocolTyp
                             (@close_channel),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_close,
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@close_channel)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -1054,7 +1080,7 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
             )),
             (fn_user_cert(
               ((server, 0)[Some(OpcuaQueryMatcher::PolicyIdCertificate)]/UAString), // PolicyId!
-              fn_mallory_cert
+              fn_oscar_cert
             )),
             (fn_sign(
                 (fn_signature_data(
@@ -1062,8 +1088,8 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
                     ((server, 0)[Some(OpcuaQueryMatcher::ActivateSessionResponse)]/ByteString) // S_nonce!
                 )),
                 fn_basic256sha256,
-                fn_mallory_cert,
-                fn_mallory_sk
+                fn_oscar_cert,
+                fn_oscar_sk
             ))
         )
     };
@@ -1153,9 +1179,7 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@create_request)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -1170,12 +1194,11 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
                             (@create_request),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@create_request)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -1206,9 +1229,7 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@activate_anonymous)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -1223,12 +1244,11 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
                             (@activate_anonymous),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@activate_anonymous)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -1259,9 +1279,7 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@simple_request)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -1276,12 +1294,11 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
                             (@simple_request),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@simple_request)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -1364,9 +1381,7 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@activate_certificate)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -1381,12 +1396,11 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
                             (@activate_certificate),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@activate_certificate)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -1417,9 +1431,7 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@close_session)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -1434,12 +1446,11 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
                             (@close_session),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@close_session)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -1470,9 +1481,7 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_close,
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@close_channel)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -1487,12 +1496,11 @@ pub fn seed_e_client_reopen_reactivate(server: AgentName) -> Trace<OpcuaProtocol
                             (@close_channel),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_close,
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@close_channel)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -1572,7 +1580,7 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
             )),
             (fn_user_cert(
               ((server, 0)[Some(OpcuaQueryMatcher::PolicyIdCertificate)]/UAString), // PolicyId!
-              fn_mallory_cert
+              fn_oscar_cert
             )),
             (fn_sign(
                 (fn_signature_data(
@@ -1580,8 +1588,8 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                     ((server, 0)[Some(OpcuaQueryMatcher::CreateSessionResponse)]/ByteString) // S_nonce!
                 )),
                 fn_basic256sha256,
-                fn_mallory_cert,
-                fn_mallory_sk
+                fn_oscar_cert,
+                fn_oscar_sk
             ))
         )
     };
@@ -1635,7 +1643,7 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
             )),
             (fn_user_cert(
               ((server, 0)[Some(OpcuaQueryMatcher::PolicyIdCertificate)]/UAString), // PolicyId!
-              fn_mallory_cert
+              fn_oscar_cert
             )),
             (fn_sign(
                 (fn_signature_data(
@@ -1643,8 +1651,8 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                     ((server, 0)[Some(OpcuaQueryMatcher::ActivateSessionResponse)]/ByteString) // S_nonce!
                 )),
                 fn_basic256sha256,
-                fn_mallory_cert,
-                fn_mallory_sk
+                fn_oscar_cert,
+                fn_oscar_sk
             ))
         )
     };
@@ -1793,9 +1801,7 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@create_request)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -1810,12 +1816,11 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                             (@create_request),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@create_request)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -1845,9 +1850,7 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@activate_certificate)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -1862,12 +1865,11 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                             (@activate_certificate),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@activate_certificate)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -1897,9 +1899,7 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_close, // needs channel id:
-                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@close_request_1)))
-                        )),
+                                ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -1914,12 +1914,11 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                             (@close_request_1),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_close, // needs channel id:
-                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@close_request_1)))
-                                    )),
+                                            ((server, 1)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -1949,9 +1948,7 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
-                                ((server, 2)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@switch_certificate)))
-                        )),
+                                ((server, 2)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -1966,12 +1963,11 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                             (@switch_certificate),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
-                                            ((server, 2)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@switch_certificate)))
-                                    )),
+                                            ((server, 2)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -2001,9 +1997,7 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_final,
-                                ((server, 2)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@close_session)))
-                        )),
+                                ((server, 2)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -2018,12 +2012,11 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                             (@close_session),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_final,
-                                            ((server, 2)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@close_session)))
-                                    )),
+                                            ((server, 2)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
@@ -2054,9 +2047,7 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                         (fn_msg_header(
                             fn_basic256sha256,
                             (fn_header(fn_close, // needs channel id:
-                                ((server, 2)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                            (fn_service_size((@close_request_2)))
-                        )),
+                                ((server, 2)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                         (fn_body(
                             (fn_get_channel_token(
                                 (fn_decrypted_body(
@@ -2071,12 +2062,11 @@ pub fn seed_f_client_switch_secure_channels(server: AgentName) -> Trace<OpcuaPro
                             (@close_request_2),
                             (fn_mac(
                                 (fn_data_to_mac(
+                            fn_basic256sha256,
                                     (fn_msg_header(
                                         fn_basic256sha256,
                                         (fn_header(fn_close, // needs channel id:
-                                            ((server, 2)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))),
-                                        (fn_service_size((@close_request_2)))
-                                    )),
+                                            ((server, 2)[Some(OpcuaQueryMatcher::OpenSecureChannelResponse)]/u32))))),
                                     (fn_get_channel_token(
                                         (fn_decrypted_body(
                                             (fn_asym_decrypt(
